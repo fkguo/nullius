@@ -2,6 +2,9 @@
 
 import './utils/stdioHygiene.js';
 
+// H-20: Load .env from CWD (override: false — environment variables take precedence).
+import 'dotenv/config';
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';

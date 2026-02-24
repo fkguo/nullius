@@ -21,7 +21,7 @@ from .run_quality_metrics import build_run_quality_metrics
 class OrchestratorRegressionInputs:
     tag: str
     scenarios: tuple[str, ...] = ("w2", "wcompute", "w3")  # project_init,plan,branching,sandbox,w2,wcompute,w3,survey_polish,bypass
-    # Per-run isolated runtime dir for .autopilot state/ledger (relative to repo_root by default).
+    # Per-run isolated runtime dir for .autoresearch state/ledger (relative to repo_root by default).
     runtime_dir: str | None = None
     w2_ns: tuple[int, ...] = (0, 1, 2)
     w2_case: str = "toy"
@@ -89,31 +89,31 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     logs_dir = out_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
 
-    runtime_rel = inps.runtime_dir or os.fspath((out_dir / ".autopilot").relative_to(repo_root))
+    runtime_rel = inps.runtime_dir or os.fspath((out_dir / ".autoresearch").relative_to(repo_root))
     runtime_dir = (Path(runtime_rel) if Path(runtime_rel).is_absolute() else (repo_root / runtime_rel)).resolve()
     runtime_dir.mkdir(parents=True, exist_ok=True)
     # Keep this process's path resolution consistent with the subprocesses by
-    # temporarily applying the same HEP_AUTOPILOT_DIR override used in env.
-    prev_autopilot_dir = os.environ.get("HEP_AUTOPILOT_DIR")
-    os.environ["HEP_AUTOPILOT_DIR"] = runtime_rel
+    # temporarily applying the same HEP_AUTORESEARCH_DIR override used in env.
+    prev_autoresearch_dir = os.environ.get("HEP_AUTORESEARCH_DIR")
+    os.environ["HEP_AUTORESEARCH_DIR"] = runtime_rel
     try:
         state_path = _state_path(repo_root)
         plan_md_path = _plan_md_path(repo_root)
     finally:
-        if prev_autopilot_dir is None:
-            os.environ.pop("HEP_AUTOPILOT_DIR", None)
+        if prev_autoresearch_dir is None:
+            os.environ.pop("HEP_AUTORESEARCH_DIR", None)
         else:
-            os.environ["HEP_AUTOPILOT_DIR"] = prev_autopilot_dir
+            os.environ["HEP_AUTORESEARCH_DIR"] = prev_autoresearch_dir
 
     def rel(p: Path) -> str:
         try:
             return os.fspath(p.relative_to(repo_root))
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return os.fspath(p)
 
     errors: list[str] = []
     env = dict(os.environ)
-    env["HEP_AUTOPILOT_DIR"] = runtime_rel
+    env["HEP_AUTORESEARCH_DIR"] = runtime_rel
 
     versions: dict[str, Any] = {"python": os.sys.version.split()[0], "os": platform.platform()}
 
@@ -253,7 +253,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         project_root.mkdir(parents=True, exist_ok=True)
 
         env_proj = dict(env)
-        env_proj.pop("HEP_AUTOPILOT_DIR", None)
+        env_proj.pop("HEP_AUTORESEARCH_DIR", None)
         src_root = os.fspath((repo_root / "src").resolve())
         prev_pp = env_proj.get("PYTHONPATH")
         env_proj["PYTHONPATH"] = src_root if not prev_pp else (src_root + os.pathsep + str(prev_pp))
@@ -267,9 +267,9 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
 
         expected_outputs: dict[str, str] = {
             "project_root": rel(project_root),
-            "state_json": rel(project_root / ".autopilot" / "state.json"),
-            "approval_policy_json": rel(project_root / ".autopilot" / "approval_policy.json"),
-            "ledger_jsonl": rel(project_root / ".autopilot" / "ledger.jsonl"),
+            "state_json": rel(project_root / ".autoresearch" / "state.json"),
+            "approval_policy_json": rel(project_root / ".autoresearch" / "approval_policy.json"),
+            "ledger_jsonl": rel(project_root / ".autoresearch" / "ledger.jsonl"),
             "kb_index_json": rel(project_root / "knowledge_base" / "_index" / "kb_index.json"),
             "kb_profile_minimal": rel(project_root / "knowledge_base" / "_index" / "kb_profiles" / "minimal.json"),
             "kb_profile_curated": rel(project_root / "knowledge_base" / "_index" / "kb_profiles" / "curated.json"),
@@ -287,7 +287,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         (logs_dir / "project_init_status_subdir.txt").write_text(out_status, encoding="utf-8")
         manifest["outputs"].append(os.fspath((logs_dir / "project_init_status_subdir.txt").relative_to(repo_root)))
 
-        expected_state = (project_root / ".autopilot" / "state.json").resolve()
+        expected_state = (project_root / ".autoresearch" / "state.json").resolve()
         reported_state: Path | None = None
         for line in out_status.splitlines():
             if line.strip().startswith("state_path:"):
@@ -295,7 +295,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                 if raw:
                     try:
                         reported_state = Path(raw).resolve()
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
                         reported_state = None
                 break
         state_path_ok = bool(reported_state and reported_state == expected_state)
@@ -313,7 +313,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         (logs_dir / "project_init_nested_init_allowed.txt").write_text(out_nested_allow, encoding="utf-8")
         manifest["outputs"].append(os.fspath((logs_dir / "project_init_nested_init_allowed.txt").relative_to(repo_root)))
 
-        nested_state = nested_root / ".autopilot" / "state.json"
+        nested_state = nested_root / ".autoresearch" / "state.json"
         nested_state_exists = nested_state.exists()
 
         # Ensure the run path can build context pack + kb_profile and reach the A3 gate.
@@ -340,7 +340,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         approval_id: str | None = None
         approval_packet: str | None = None
         packet_abs: Path | None = None
-        st_path = project_root / ".autopilot" / "state.json"
+        st_path = project_root / ".autoresearch" / "state.json"
         if st_path.exists():
             st_proj = read_json(st_path)
             pending = st_proj.get("pending_approval") if isinstance(st_proj, dict) else None
@@ -352,7 +352,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                     packet_abs = project_root / approval_packet
 
         kb_profile_json = project_root / "artifacts" / "runs" / run_id / "kb_profile" / "kb_profile.json"
-        plan_md = project_root / ".autopilot" / "plan.md"
+        plan_md = project_root / ".autoresearch" / "plan.md"
         expected_packet_abs = project_root / "artifacts" / "runs" / run_id / "approvals" / "A3-0001" / "packet.md"
         expected_outputs.update(
             {
@@ -506,7 +506,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                     and isinstance(inputs.get("run_card_path"), str)
                     and isinstance(inputs.get("run_card_sha256"), str)
                 )
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
             reproduce_manifest_has_run_card = False
 
         return {
@@ -671,7 +671,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                         continue
                     try:
                         ev = _json.loads(line)
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip malformed JSON lines
                         continue
                     if not isinstance(ev, dict):
                         continue
@@ -679,7 +679,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                         ledger_has_switch = True
                     if ev.get("event_type") == "branch_candidate_added":
                         ledger_has_add = True
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 test assertions catch failure via ledger flags
             pass
 
         ok = (
@@ -725,7 +725,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         if forbidden_path.exists():
             try:
                 forbidden_path.unlink()
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
                 pass
 
         run_card_path = out_dir / "sandbox_run_card.json"
@@ -807,13 +807,13 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             if adapter_stdout_path.exists():
                 txt = adapter_stdout_path.read_text(encoding="utf-8", errors="replace")
                 stdout_has_write_blocked = ("WRITE_BLOCKED" in txt) and ("WRITE_OK" not in txt)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
             stdout_has_write_blocked = False
         forbidden_exists = forbidden_path.exists()
         if forbidden_exists:
             try:
                 forbidden_path.unlink()
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
                 pass
 
         ok = (

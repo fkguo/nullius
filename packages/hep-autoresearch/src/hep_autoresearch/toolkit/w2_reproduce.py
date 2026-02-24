@@ -147,13 +147,13 @@ def reproduce_one(inps: ReproduceInputs, repo_root: Path) -> dict[str, Any]:
         import scipy
 
         versions["scipy"] = scipy.__version__
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 optional dependency probe
         pass
     try:
         import mpmath
 
         versions["mpmath"] = mpmath.__version__
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 optional dependency probe
         pass
 
     run_card_rel, run_card_sha = ensure_run_card(

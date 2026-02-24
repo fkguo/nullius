@@ -105,7 +105,7 @@ def _schema_resolve_ref(root_schema: dict[str, Any], ref: str) -> dict[str, Any]
         if isinstance(cur, list):
             try:
                 cur = cur[int(t)]
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback for invalid pointer
                 return None
             continue
         if isinstance(cur, dict):

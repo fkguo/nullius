@@ -30,17 +30,7 @@ export function approvalPacketSha256(packet: Record<string, unknown>): string {
   return createHash('sha256').update(canonical).digest('hex');
 }
 
-function sortKeysRecursive(obj: unknown): unknown {
-  if (Array.isArray(obj)) return obj.map(sortKeysRecursive);
-  if (obj !== null && typeof obj === 'object') {
-    const sorted: Record<string, unknown> = {};
-    for (const key of Object.keys(obj as Record<string, unknown>).sort()) {
-      sorted[key] = sortKeysRecursive((obj as Record<string, unknown>)[key]);
-    }
-    return sorted;
-  }
-  return obj;
-}
+import { sortKeysRecursive } from './util.js';
 
 export class ApprovalGate {
   private readonly policy: ApprovalPolicy;

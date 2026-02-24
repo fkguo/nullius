@@ -16,7 +16,7 @@ package-lock.json
 .stop
 
 # Orchestrator runtime state (derived)
-.autopilot/
+.autoresearch/
 
 # Autopilot runtime state (derived)
 team/autopilot_state.json

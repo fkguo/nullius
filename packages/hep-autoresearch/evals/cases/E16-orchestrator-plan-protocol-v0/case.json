@@ -17,8 +17,8 @@
       "artifacts/runs/M31-t29-r1/orchestrator_regression/manifest.json",
       "artifacts/runs/M31-t29-r1/orchestrator_regression/summary.json",
       "artifacts/runs/M31-t29-r1/orchestrator_regression/analysis.json",
-      "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
-      "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/plan.md",
+      "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
+      "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/plan.md",
       "artifacts/runs/M31-t29-r1-plan/reproduce/manifest.json"
     ],
     "reading_note_required_fields": ["Plan view:", "Plan SSOT:", "Plan step(s):", "W2.S1"],
@@ -54,42 +54,42 @@
         "equals": true
       },
       {
-        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/plan",
         "type": "object"
       },
       {
-        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/plan/schema_version",
         "type": "integer",
         "equals": 1
       },
       {
-        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/current_step/step_id",
         "type": "string",
         "equals": "W2.S1"
       },
       {
-        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/plan/current_step_id",
         "type": "string",
         "equals": "W2.S1"
       },
       {
-        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/plan/steps/0/step_id",
         "type": "string",
         "equals": "W2.S1"
       },
       {
-        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/plan/steps/0/status",
         "type": "string",
         "equals": "completed"
       },
       {
-        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/plan/steps/0/expected_approvals/0",
         "type": "string",
         "equals": "A3"

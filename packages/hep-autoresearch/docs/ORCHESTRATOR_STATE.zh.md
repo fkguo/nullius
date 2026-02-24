@@ -8,8 +8,8 @@
 
 建议在项目根目录写入：
 
-- `.autopilot/state.json`：**当前运行态**（单文件，易调试；后续可替换为 sqlite）
-- `.autopilot/ledger.jsonl`：**append-only 事件账本**（每次 gate/执行/失败都写一条）
+- `.autoresearch/state.json`：**当前运行态**（单文件，易调试；后续可替换为 sqlite）
+- `.autoresearch/ledger.jsonl`：**append-only 事件账本**（每次 gate/执行/失败都写一条）
 
 > 账本用于“可审计”，`state.json` 用于“可恢复”。二者职责不同。
 
@@ -33,7 +33,7 @@
 - `running -> needs_recovery`（watchdog 检测到 checkpoint 超时/进程崩溃后重启）
 - `needs_recovery -> running|paused|failed`（人类选择恢复/暂停/终止）
 
-## 3) `.autopilot/state.json` schema（v1）
+## 3) `.autoresearch/state.json` schema（v1）
 
 建议字段（最小可用）：
 
@@ -80,7 +80,7 @@
 约束：
 
 - `state.json` 必须做到**幂等可写**：每次写入应为完整替换（避免部分写入导致损坏）；建议写临时文件再 rename。
-- 对会修改 state/ledger 的命令，应在 `.autopilot/state.lock` 上持有 advisory lock 以避免并发写入竞争（POSIX `flock`；在缺少该机制的平台上，不支持并发写入）。
+- 对会修改 state/ledger 的命令，应在 `.autoresearch/state.lock` 上持有 advisory lock 以避免并发写入竞争（POSIX `flock`；在缺少该机制的平台上，不支持并发写入）。
 - `packet_path` 必须指向**可审阅审批包**（见 `docs/APPROVAL_GATES.md`），且审批包需要可离线审阅。
 - `artifacts.run_card` 必须指向每个 run 的 run-card（`artifacts/runs/<run_id>/run_card.json`），`run_card_sha256` 用于把审批/manifest 绑定到“将要执行的意图”（注意：这里的 sha256 是对 canonical JSON（排序 key、紧凑分隔符）计算的哈希，不是对磁盘上 pretty-printed 文件字节做 `sha256sum`）。
 

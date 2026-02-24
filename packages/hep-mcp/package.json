@@ -18,7 +18,8 @@
     "test": "vitest run",
     "test:eval": "vitest run tests/eval",
     "test:eval:update": "EVAL_UPDATE_SNAPSHOTS=1 vitest run tests/eval",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "catalog": "tsx scripts/generate_tool_catalog.ts"
   },
   "dependencies": {
     "@autoresearch/pdg-mcp": "workspace:*",
@@ -26,6 +27,7 @@
     "@autoresearch/zotero-mcp": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@napi-rs/canvas": "^0.1.80",
+    "dotenv": "^17.3.1",
     "fflate": "^0.8.2",
     "latex-utensils": "^6.2.0",
     "p-limit": "^7.2.0",

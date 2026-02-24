@@ -15,7 +15,7 @@ from ..toolkit._time import utc_now_iso
 from ..toolkit.orchestrator_state import (
     append_ledger_event,
     approval_policy_path,
-    autopilot_dir,
+    autoresearch_dir,
     default_state,
     ensure_runtime_dirs,
     ledger_path,
@@ -195,7 +195,7 @@ def status() -> dict[str, Any]:
             "repo_root": os.fspath(repo_root),
             "state_path": os.fspath(state_path(repo_root)),
             "approval_policy": os.fspath(approval_policy_path(repo_root)),
-            "runtime_dir": os.fspath(autopilot_dir(repo_root)),
+            "runtime_dir": os.fspath(autoresearch_dir(repo_root)),
         },
     }
 
@@ -308,7 +308,7 @@ def logs(run_id: Optional[str] = None, tail: int = 50) -> dict[str, Any]:
                 continue
             try:
                 event = json.loads(line)
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip malformed ledger lines
                 continue
             if target_run_id and event.get("run_id") != target_run_id:
                 continue

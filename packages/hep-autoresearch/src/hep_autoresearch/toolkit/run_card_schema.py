@@ -23,7 +23,7 @@ def _is_safe_relpath_posix(path: str) -> bool:
         return False
     try:
         pp = PurePosixPath(s)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path validation
         return False
     if pp.is_absolute():
         return False
@@ -628,13 +628,13 @@ def evaluate_acceptance_json_numeric_checks(
             try:
                 if v_f < float(mn):
                     ok = False
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                 ok = False
         if mx is not None:
             try:
                 if v_f > float(mx):
                     ok = False
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                 ok = False
         if not ok:
             errors.append(f"acceptance.json_numeric_checks[{idx}] out of range: {rel}{ptr} value={v_f}")

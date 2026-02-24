@@ -273,7 +273,7 @@ def _inspire_resolve_unique_recid(query: str) -> str | None:
 
     try:
         total_int = int(total) if total is not None else None
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback for non-numeric total
         total_int = None
 
     if total_int != 1 or not hits:
@@ -455,7 +455,7 @@ def _download_arxiv_assets(
                         tex_path.write_bytes(tex_bytes)
                     outputs["arxiv_source_dir"] = os.fspath(extract_dir.relative_to(repo_root))
                     outputs["arxiv_source_single_tex"] = os.fspath(tex_path.relative_to(repo_root))
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort gzip fallback in tar error recovery
                 pass
 
     def _try_pdf() -> None:
@@ -466,14 +466,14 @@ def _download_arxiv_assets(
     if mode in {"auto", "arxiv_source", "both"}:
         try:
             _try_source()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 auto mode falls back to PDF
             if mode in {"arxiv_source"}:
                 raise
             # auto falls back to PDF
     if mode in {"auto", "arxiv_pdf", "both"} and "arxiv_pdf" not in outputs:
         try:
             _try_pdf()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 auto mode tolerates PDF download failure
             if mode in {"arxiv_pdf"}:
                 raise
     return outputs

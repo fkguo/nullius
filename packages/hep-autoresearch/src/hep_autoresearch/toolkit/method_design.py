@@ -47,7 +47,7 @@ class MethodDesignInputs:
 def _rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.resolve().relative_to(repo_root.resolve())).replace(os.sep, "/")
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p).replace(os.sep, "/")
 
 
@@ -88,7 +88,7 @@ def _is_safe_relpath_posix(path: str) -> bool:
         return False
     try:
         pp = PurePosixPath(s)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path validation
         return False
     if pp.is_absolute():
         return False
@@ -535,7 +535,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
                     try:
                         mode = p.stat().st_mode
                         p.chmod(mode | 0o100)  # u+x
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort chmod
                         pass
                 _act("write_file", "ok", path=_rel(repo_root, p))
             except Exception as e:
@@ -587,7 +587,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
                     overwrite=False,
                 )
                 _act("write_readme", "ok", path=_rel(repo_root, readme_path))
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 non-essential scaffold README
                 pass
 
         _act("write_project", "ok", project_dir=_rel(repo_root, proj_dir), run_card=_rel(repo_root, rc_path))

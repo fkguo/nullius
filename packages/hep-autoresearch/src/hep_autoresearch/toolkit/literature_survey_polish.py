@@ -41,10 +41,8 @@ def find_research_writer_consume_script() -> Path:
 def _safe_rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
-
-
 def _run_capture(cmd: list[str], *, cwd: Path, timeout_seconds: int) -> tuple[int, str]:
     try:
         p = subprocess.run(
@@ -153,7 +151,7 @@ def literature_survey_polish_one(inps: LiteratureSurveyPolishInputs, repo_root: 
     if export_manifest_path.exists():
         try:
             export_manifest = read_json(export_manifest_path)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
             export_manifest = None
 
     compile_status = None

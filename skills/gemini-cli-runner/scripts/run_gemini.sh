@@ -20,7 +20,7 @@ Usage:
   run_gemini.sh --prompt-file PROMPT.txt --out OUT.txt
 
 Options:
-  --model MODEL           Optional (e.g. gemini-3-pro-preview). If invalid, script falls back to default model.
+  --model MODEL           Optional (e.g. gemini-3.1-pro-preview). If invalid, script falls back to default model.
   --output-format FORMAT  Default: text (choices depend on gemini CLI; typically text/json/stream-json)
   --system-prompt-file F  Optional. If set, it is prepended to stdin before the prompt file (separated by a blank line).
   --gemini-cli-home DIR   Optional. If set, run Gemini with GEMINI_CLI_HOME=DIR (isolated state dir).

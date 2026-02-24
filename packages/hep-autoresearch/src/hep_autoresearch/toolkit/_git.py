@@ -18,5 +18,5 @@ def try_get_git_metadata(repo_root: Path) -> dict | None:
             != ""
         )
         return {"commit": commit, "dirty": dirty}
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
         return None

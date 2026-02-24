@@ -34,7 +34,7 @@ def _read_first_matching_line(path: Path, prefix: str) -> str | None:
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
             if line.strip().startswith(prefix):
                 return line.strip()
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
         return None
     return None
 
@@ -43,7 +43,7 @@ def _rel_link(from_path: Path, to_path: Path) -> str:
     try:
         rel = os.path.relpath(to_path, start=from_path.parent)
         return rel.replace(os.sep, "/")
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(to_path)
 
 
@@ -108,7 +108,7 @@ def _load_kb_profile_context(repo_root: Path, *, run_id: str) -> dict[str, Any] 
     def rel(p: Path) -> str:
         try:
             return os.fspath(p.relative_to(repo_root)).replace(os.sep, "/")
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return os.fspath(p)
 
     selected: list[dict[str, Any]] = []

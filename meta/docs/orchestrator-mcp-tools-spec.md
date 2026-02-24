@@ -134,9 +134,9 @@ Agent (Claude/Gemini)
 **Threat**: `orch_run_*` and `hep_run_*` tools operate on the same `run_id` directory, potentially conflicting on file writes.
 
 **Mitigations**:
-- **Directory partitioning**: Run-infra owns `.autopilot/state.json`, `.autopilot/ledger.jsonl`. Approval packets go in `artifacts/runs/<run_id>/approvals/<approval_id>/packet.md`. Research artifacts go in `artifacts/runs/<run_id>/`.
-- **Naming convention**: Run-infra state is under `.autopilot/`. Research artifacts use prefixed names (`writing_outline_v2.json`, `latex_evidence_catalog.jsonl`).
-- **Manifest separation**: Run-infra state is in `.autopilot/state.json`. Artifact registry is in `manifest.json` (owned by `hep_run_*`).
+- **Directory partitioning**: Run-infra owns `.autoresearch/state.json`, `.autoresearch/ledger.jsonl`. Approval packets go in `artifacts/runs/<run_id>/approvals/<approval_id>/packet.md`. Research artifacts go in `artifacts/runs/<run_id>/`.
+- **Naming convention**: Run-infra state is under `.autoresearch/`. Research artifacts use prefixed names (`writing_outline_v2.json`, `latex_evidence_catalog.jsonl`).
+- **Manifest separation**: Run-infra state is in `.autoresearch/state.json`. Artifact registry is in `manifest.json` (owned by `hep_run_*`).
 
 ### 3.4 Unauthorized Destructive Operations
 

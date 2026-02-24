@@ -41,7 +41,7 @@ EXCLUDED_UNTRACKED_PREFIXES = (
     "references/",
     "paper/",
     "team/",
-    ".autopilot/",
+    ".autoresearch/",
     ".hep/",
     ".git/",
 )

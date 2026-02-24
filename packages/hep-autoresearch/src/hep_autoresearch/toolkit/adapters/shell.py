@@ -40,6 +40,123 @@ def _truncate_text(s: str, *, max_chars: int) -> str:
     return s[: max(0, max_chars - 3)].rstrip() + "..."
 
 
+# ─── C-02: Command / path validation ───
+
+# Dangerous command patterns (matched against joined argv string).
+_BLOCKED_COMMAND_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|--force\s.*?--recursive|-[a-zA-Z]*f[a-zA-Z]*r)\s+/\s*$"),
+    re.compile(r"\brm\s+-rf\s+/"),
+    re.compile(r"\bcurl\b.*\|\s*\b(sh|bash|zsh)\b"),
+    re.compile(r"\bwget\b.*\|\s*\b(sh|bash|zsh)\b"),
+    re.compile(r"\bchmod\s+777\b"),
+    re.compile(r"\bmkfs\b"),
+    re.compile(r"\bdd\s+.*of=/dev/"),
+    re.compile(r"\b:(){ :|:& };:"),  # fork bomb
+]
+
+# Sensitive paths that must never appear as write targets.
+_SENSITIVE_PATHS: tuple[str, ...] = (
+    "/etc/passwd",
+    "/etc/shadow",
+    "/etc/sudoers",
+    "/etc/ssh",
+    "/root/.ssh",
+    "/dev/sda",
+    "/dev/nvme",
+    "/boot",
+)
+
+
+class UnsafeCommandError(ValueError):
+    """Raised when a command fails safety validation."""
+
+
+def _validate_command(argv: list[str]) -> None:
+    """Reject argv lists containing known-dangerous patterns.
+
+    Raises ``UnsafeCommandError`` with code ``BLOCKED_COMMAND`` on match.
+    """
+    joined = " ".join(argv)
+    for pat in _BLOCKED_COMMAND_PATTERNS:
+        if pat.search(joined):
+            raise UnsafeCommandError(f"BLOCKED_COMMAND: command matches blocked pattern: {pat.pattern!r}")
+
+    # Check for sensitive path references in any argument.
+    for arg in argv:
+        for sp in _SENSITIVE_PATHS:
+            if sp in arg:
+                raise UnsafeCommandError(f"UNSAFE_FS: argv references sensitive path: {sp}")
+
+
+def _validate_output_paths(
+    outputs: list[str | Path],
+    *,
+    repo_root: Path,
+    data_dir: Path | None = None,
+) -> None:
+    """Ensure all output paths are within ``repo_root/`` or ``data_dir/``.
+
+    Raises ``UnsafeCommandError`` with code ``UNSAFE_FS`` on violation.
+    """
+    allowed: list[Path] = [repo_root.resolve()]
+    if data_dir is not None:
+        allowed.append(data_dir.resolve())
+    hep_data = os.environ.get("HEP_DATA_DIR")
+    if hep_data:
+        allowed.append(Path(hep_data).resolve())
+
+    for p in outputs:
+        resolved = Path(p).resolve()
+        if not any(
+            resolved == base or str(resolved).startswith(str(base) + os.sep) for base in allowed
+        ):
+            raise UnsafeCommandError(
+                f"UNSAFE_FS: output path {str(resolved)!r} is outside allowed directories"
+            )
+
+
+# ─── C-02: ResourceLimiter (best-effort ulimit wrapper) ───
+
+class ResourceLimiter:
+    """Best-effort resource limits via ``ulimit``-style preexec.
+
+    On non-Linux/macOS platforms, this is a no-op.
+    """
+
+    def __init__(
+        self,
+        *,
+        cpu_seconds: int | None = None,
+        mem_bytes: int | None = None,
+        fsize_bytes: int | None = None,
+    ) -> None:
+        self.cpu_seconds = cpu_seconds
+        self.mem_bytes = mem_bytes
+        self.fsize_bytes = fsize_bytes
+
+    def preexec_fn(self) -> None:
+        """Intended for use as ``subprocess.Popen(preexec_fn=...)``."""
+        try:
+            import resource
+
+            if self.cpu_seconds is not None:
+                resource.setrlimit(resource.RLIMIT_CPU, (self.cpu_seconds, self.cpu_seconds))
+            if self.fsize_bytes is not None:
+                resource.setrlimit(resource.RLIMIT_FSIZE, (self.fsize_bytes, self.fsize_bytes))
+            # macOS does not support RLIMIT_AS; use RLIMIT_RSS as a best-effort proxy.
+            if self.mem_bytes is not None:
+                try:
+                    resource.setrlimit(resource.RLIMIT_AS, (self.mem_bytes, self.mem_bytes))
+                except (ValueError, AttributeError):
+                    try:
+                        resource.setrlimit(resource.RLIMIT_RSS, (self.mem_bytes, self.mem_bytes))
+                    except (ValueError, AttributeError):
+                        pass
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
+            # Fail open — resource limits are best-effort hardening.
+            pass
+
+
 def _docker_daemon_available(*, timeout_seconds: float = 2.0) -> tuple[bool, str | None]:
     if shutil.which("docker") is None:
         return False, None
@@ -55,7 +172,7 @@ def _docker_daemon_available(*, timeout_seconds: float = 2.0) -> tuple[bool, str
             return False, None
         ver = (cp.stdout or "").strip() or None
         return True, ver
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
         return False, None
 
 
@@ -69,7 +186,7 @@ def _make_tree_read_only(root: Path) -> None:
             if d.is_symlink():
                 dirnames[:] = []
                 continue
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort symlink detection in tree walk
             pass
 
         # Prevent walking into symlinked dirs.
@@ -79,7 +196,7 @@ def _make_tree_read_only(root: Path) -> None:
             try:
                 if p.is_symlink():
                     continue
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort symlink detection in tree walk
                 pass
             kept.append(name)
         dirnames[:] = kept
@@ -88,12 +205,12 @@ def _make_tree_read_only(root: Path) -> None:
             try:
                 if p.is_symlink():
                     continue
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort symlink detection in tree walk
                 pass
             try:
                 st = p.stat()
                 os.chmod(p, int(st.st_mode) & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort chmod
                 # Best-effort hardening only.
                 continue
 
@@ -108,7 +225,7 @@ def _make_tree_writable(root: Path) -> None:
             if d.is_symlink():
                 dirnames[:] = []
                 continue
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort symlink detection in tree walk
             pass
 
         kept: list[str] = []
@@ -117,7 +234,7 @@ def _make_tree_writable(root: Path) -> None:
             try:
                 if p.is_symlink():
                     continue
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort symlink detection in tree walk
                 pass
             kept.append(name)
         dirnames[:] = kept
@@ -126,12 +243,12 @@ def _make_tree_writable(root: Path) -> None:
             try:
                 if p.is_symlink():
                     continue
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort symlink detection in tree walk
                 pass
             try:
                 st = p.stat()
                 os.chmod(p, int(st.st_mode) | stat.S_IWUSR)
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort chmod
                 continue
 
 
@@ -142,7 +259,7 @@ def _copy_staged_outputs(*, staged_dir: Path, dest_dir: Path) -> tuple[int, list
 
     try:
         staged_root = staged_dir.resolve()
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         staged_root = staged_dir
 
     copied: list[str] = []
@@ -153,11 +270,11 @@ def _copy_staged_outputs(*, staged_dir: Path, dest_dir: Path) -> tuple[int, list
         # but we still avoid copying arbitrary files into real artifacts.
         try:
             p.resolve().relative_to(staged_root)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unresolvable paths
             continue
         try:
             st = p.lstat()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unreadable files
             continue
         if stat.S_ISLNK(st.st_mode):
             continue
@@ -201,7 +318,7 @@ def _copy_staged_outputs(*, staged_dir: Path, dest_dir: Path) -> tuple[int, list
             try:
                 if tmp.exists():
                     tmp.unlink()
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
                 pass
             if isinstance(e, RuntimeError):
                 raise
@@ -215,7 +332,7 @@ def _rmtree_force(root: Path) -> tuple[bool, str | None]:
         try:
             os.chmod(path, stat.S_IRWXU)
             func(path)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 cleanup before re-raise
             # Re-raise to avoid silently leaving a partially-deleted sandbox tree on disk.
             exctype, value, tb = exc_info
             raise value.with_traceback(tb)
@@ -228,7 +345,7 @@ def _rmtree_force(root: Path) -> tuple[bool, str | None]:
     ok = False
     try:
         ok = not root.exists()
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
         ok = False
     return ok, err
 
@@ -311,7 +428,7 @@ class ShellAdapter(Adapter):
                     )
                 if prev_sha and prev_sha != run_card_sha:
                     raise ValueError("run-card differs from previous run in same directory; use a new --run-id or --force")
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 multi-strategy fallthrough
                 # Fall through to execute; prepare is best-effort.
                 pass
 
@@ -328,6 +445,9 @@ class ShellAdapter(Adapter):
         argv = backend.get("argv")
         if not isinstance(argv, list) or not argv or not all(isinstance(x, str) and x for x in argv):
             raise ValueError("run_card.backend.argv must be a non-empty string list")
+
+        # C-02: validate command before execution
+        _validate_command(argv)
 
         cwd = backend.get("cwd")
         cwd_path = Path(cwd) if isinstance(cwd, str) and cwd else repo_root
@@ -558,7 +678,7 @@ class ShellAdapter(Adapter):
                             ".envrc",
                             ".direnv",
                             "artifacts",
-                            ".autopilot",
+                            ".autoresearch",
                             "__pycache__",
                             ".pytest_cache",
                             ".mypy_cache",

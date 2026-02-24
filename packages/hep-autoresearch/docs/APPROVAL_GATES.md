@@ -63,7 +63,7 @@ Define this explicitly to avoid “undefined state machine” failures:
   - keep `run_status = awaiting_approval` (or `paused`) and visibly show “timed out”
   - do **not** continue execution
 - **Crash / restart**:
-  - `pending_approval` must be persisted in `.autopilot/state.json`
+  - `pending_approval` must be persisted in `.autoresearch/state.json`
   - on restart, it must remain `awaiting_approval` (must not flip to approved)
 - **Human abort**:
   - mark the run `failed` (or `aborted`) with reason and rollback pointer (when applicable)

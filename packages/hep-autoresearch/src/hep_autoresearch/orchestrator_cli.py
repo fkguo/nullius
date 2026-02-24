@@ -36,7 +36,7 @@ from .toolkit.orchestrator_state import (
     APPROVAL_CATEGORY_TO_POLICY_KEY,
     append_ledger_event,
     approval_policy_path,
-    autopilot_dir,
+    autoresearch_dir,
     check_approval_budget,
     check_approval_timeout,
     default_state,
@@ -69,7 +69,7 @@ def _die(msg: str, code: int = 2) -> int:
 
 
 def _looks_like_project_root(path: Path) -> bool:
-    ap = path / ".autopilot"
+    ap = path / ".autoresearch"
     if not ap.is_dir():
         return False
 
@@ -79,7 +79,7 @@ def _looks_like_project_root(path: Path) -> bool:
     has_ledger = (ap / "ledger.jsonl").exists()
 
     # Require a stable sentinel to avoid false positives on stale directories.
-    # - Preferred (v0+): `.autopilot/.initialized` AND at least one core state file.
+    # - Preferred (v0+): `.autoresearch/.initialized` AND at least one core state file.
     # - Legacy: `state.json` plus another core file.
     if init_marker.exists():
         if not (has_state or has_policy):
@@ -88,7 +88,7 @@ def _looks_like_project_root(path: Path) -> bool:
         if not (has_state and (has_policy or has_ledger)):
             return False
 
-    # Reduce false positives by requiring at least one project marker file/dir in addition to `.autopilot/*`.
+    # Reduce false positives by requiring at least one project marker file/dir in addition to `.autoresearch/*`.
     for marker in [
         path / "PROJECT_CHARTER.md",
         path / "AGENTS.md",
@@ -252,8 +252,8 @@ def _ensure_run_card(
 
 def cmd_init(args: argparse.Namespace) -> int:
     repo_root = _repo_root_for_init(args)
-    if repo_root.name == ".autopilot":
-        return _die("refusing init inside .autopilot/ (run init at the project root, or use --project-root)")
+    if repo_root.name == ".autoresearch":
+        return _die("refusing init inside .autoresearch/ (run init at the project root, or use --project-root)")
     parent_root = _find_nearest_project_root(repo_root.parent)
     if parent_root and parent_root.resolve() == Path.home().resolve():
         parent_root = None
@@ -286,10 +286,10 @@ def cmd_init(args: argparse.Namespace) -> int:
         else:
             print(f"[ok] approval policy present: {policy_path}")
 
-        marker = autopilot_dir(repo_root) / ".initialized"
+        marker = autoresearch_dir(repo_root) / ".initialized"
         if not marker.exists():
             marker.write_text(utc_now_iso().replace("+00:00", "Z") + "\n", encoding="utf-8")
-        print(f"[ok] runtime dir: {autopilot_dir(repo_root)}")
+        print(f"[ok] runtime dir: {autoresearch_dir(repo_root)}")
 
     created = scaffold.get("created") if isinstance(scaffold, dict) else None
     if isinstance(created, list) and created:
@@ -482,7 +482,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
         warnings.append(
             _status_warning(
                 code="w3_manifest_missing",
-                message="paper_reviser manifest missing; fallback to .autopilot/state.json",
+                message="paper_reviser manifest missing; fallback to .autoresearch/state.json",
                 path=rel_manifest,
             )
         )
@@ -494,7 +494,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
         warnings.append(
             _status_warning(
                 code="w3_manifest_corrupt",
-                message=f"failed to read/parse paper_reviser manifest ({exc}); fallback to .autopilot/state.json",
+                message=f"failed to read/parse paper_reviser manifest ({exc}); fallback to .autoresearch/state.json",
                 path=rel_manifest,
             )
         )
@@ -505,7 +505,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
         warnings.append(
             _status_warning(
                 code="w3_manifest_steps_schema_invalid",
-                message="manifest.steps is missing or not an object; fallback to .autopilot/state.json",
+                message="manifest.steps is missing or not an object; fallback to .autoresearch/state.json",
                 path=rel_manifest,
             )
         )
@@ -518,7 +518,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
             warnings.append(
                 _status_warning(
                     code="w3_manifest_steps_schema_invalid",
-                    message=f"manifest.steps.{key} missing or not an object; fallback to .autopilot/state.json",
+                    message=f"manifest.steps.{key} missing or not an object; fallback to .autoresearch/state.json",
                     path=rel_manifest,
                 )
             )
@@ -528,7 +528,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
             warnings.append(
                 _status_warning(
                     code="w3_manifest_steps_schema_invalid",
-                    message=f"manifest.steps.{key}.status missing/invalid; fallback to .autopilot/state.json",
+                    message=f"manifest.steps.{key}.status missing/invalid; fallback to .autoresearch/state.json",
                     path=rel_manifest,
                 )
             )
@@ -566,7 +566,7 @@ def _status_w3_manifest_derived_run_status(substeps: dict[str, str]) -> str:
 
 def cmd_status(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
-    # Intentionally read-only: status display must not mutate .autopilot/state.json.
+    # Intentionally read-only: status display must not mutate .autoresearch/state.json.
     # Crash-recovery transitions (maybe_mark_needs_recovery) are persisted by mutating commands
     # via _read_or_init_state().
     st = load_state(repo_root)
@@ -5560,11 +5560,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Orchestrator CLI v0.4 (run + status/pause/resume/approve).")
     parser.add_argument(
         "--project-root",
-        help="Project root directory (default: search upward for .autopilot/, else use CWD).",
+        help="Project root directory (default: search upward for .autoresearch/, else use CWD).",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_init = sub.add_parser("init", help="Initialize .autopilot/ state and approval policy.")
+    p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy.")
     p_init.add_argument("--force", action="store_true", help="Overwrite existing state.json.")
     p_init.add_argument(
         "--allow-nested",
@@ -5645,7 +5645,7 @@ def main() -> int:
     )
     p_run.add_argument(
         "--kb-profile-user-path",
-        help="If --kb-profile=user, path to a kb_profile definition JSON (default: .autopilot/kb_profile_user.json).",
+        help="If --kb-profile=user, path to a kb_profile definition JSON (default: .autoresearch/kb_profile_user.json).",
     )
     p_run.add_argument("--force", action="store_true", help="Override state mismatch / rerun completed.")
     p_run.add_argument("--gate", choices=sorted(APPROVAL_CATEGORY_TO_POLICY_KEY.keys()), help="Force a gate (A1–A5) before running.")

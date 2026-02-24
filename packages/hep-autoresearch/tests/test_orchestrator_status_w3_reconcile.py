@@ -38,7 +38,7 @@ class TestOrchestratorStatusW3Reconcile(unittest.TestCase):
                     pass
 
     def _write_state(self, repo_root: Path, *, run_id: str) -> None:
-        ap = repo_root / ".autopilot"
+        ap = repo_root / ".autoresearch"
         ap.mkdir(parents=True, exist_ok=True)
         state = {
             "schema_version": 1,
@@ -64,7 +64,7 @@ class TestOrchestratorStatusW3Reconcile(unittest.TestCase):
                     {"step_id": "W3.PAPER_REVISER.APPLY", "status": "pending", "description": "APPLY"},
                 ],
             },
-            "plan_md_path": ".autopilot/plan.md",
+            "plan_md_path": ".autoresearch/plan.md",
             "checkpoints": {"last_checkpoint_at": "2026-02-11T00:00:00Z", "checkpoint_interval_seconds": 900},
             "pending_approval": None,
             "approval_seq": {"A1": 0, "A2": 0, "A3": 0, "A4": 0, "A5": 0},
@@ -200,7 +200,7 @@ class TestOrchestratorStatusW3Reconcile(unittest.TestCase):
             run_id = "R-W3-READONLY"
             self._write_state(repo_root, run_id=run_id)
 
-            state_path = repo_root / ".autopilot" / "state.json"
+            state_path = repo_root / ".autoresearch" / "state.json"
             before = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual(before.get("run_status"), "running")
 

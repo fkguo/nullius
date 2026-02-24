@@ -31,6 +31,7 @@ class McpToolCallResult:
     is_error: bool
     raw_text: str
     json: Any | None
+    error_code: str | None = None
 
 
 class McpStdioClient:
@@ -125,12 +126,12 @@ class McpStdioClient:
                 if proc.stdin:
                     try:
                         proc.stdin.close()
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
                         pass
                 proc.terminate()
                 try:
                     proc.wait(timeout=2.0)
-                except Exception:
+                except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
                     proc.kill()
             finally:
                 # Unblock any pending requests.
@@ -140,13 +141,13 @@ class McpStdioClient:
                 for q in pending.values():
                     try:
                         q.put_nowait({"jsonrpc": "2.0", "error": {"code": -32000, "message": "connection closed"}})
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup in finally
                         pass
                 for t in (t_out, t_err):
                     if t is not None:
                         try:
                             t.join(timeout=2.0)
-                        except Exception:
+                        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup in finally
                             pass
                 self._proc = None
                 self._reader = None
@@ -175,7 +176,7 @@ class McpStdioClient:
                 continue
             try:
                 msg = json.loads(raw)
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip malformed JSON lines
                 # Ignore non-JSON noise.
                 self._dropped_stdout_lines += 1
                 continue
@@ -189,7 +190,7 @@ class McpStdioClient:
                 if q is not None:
                     try:
                         q.put_nowait(msg)
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 caller will timeout on missing response
                         pass
                 continue
             # notifications: ignored (could be logged later)
@@ -325,11 +326,27 @@ class McpStdioClient:
         if raw_text:
             try:
                 parsed = json.loads(raw_text)
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                 parsed = None
+
+        # H-14a: extract structured error_code from error responses
+        error_code: str | None = None
+        if is_error and parsed is not None and isinstance(parsed, dict):
+            error_code = parsed.get("error_code") if isinstance(parsed.get("error_code"), str) else None
+        if is_error and error_code is None and raw_text:
+            # Attempt to extract error code from structured text like "ERROR_CODE: ..."
+            for line in raw_text.splitlines():
+                stripped = line.strip()
+                if ":" in stripped and stripped.split(":")[0].replace("_", "").isalpha():
+                    candidate = stripped.split(":")[0].strip()
+                    if candidate.isupper() and "_" in candidate:
+                        error_code = candidate
+                        break
+
         return McpToolCallResult(
             ok=not is_error,
             is_error=is_error,
             raw_text=raw_text,
             json=parsed,
+            error_code=error_code,
         )

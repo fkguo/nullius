@@ -51,7 +51,7 @@ Reviewer may request escalation (structured fields only):
   - `approve`: add the requested scope-limited information (e.g. compile log appendix)
   - `reject`: require a more concise/structured packet regeneration
 
-All escalations must be appended to `.autopilot/ledger.jsonl` (see `docs/ORCHESTRATOR_STATE.md`).
+All escalations must be appended to `.autoresearch/ledger.jsonl` (see `docs/ORCHESTRATOR_STATE.md`).
 
 ## 4) Testable acceptance criteria (MVP)
 

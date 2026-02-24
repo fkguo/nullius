@@ -12,7 +12,22 @@ def _compact_text(value: Any, fallback: str) -> str:
     if not isinstance(value, str):
         return fallback
     compact = " ".join(value.split())
-    return compact if compact else fallback
+    if not compact:
+        return fallback
+    return _sanitize_for_query(compact)
+
+
+def _sanitize_for_query(text: str) -> str:
+    """H-08: Sanitize text for use in INSPIRE fulltext queries.
+
+    Escapes double quotes and strips control characters to prevent
+    query injection via user-supplied claim_text / hypothesis fields.
+    """
+    # Strip null bytes and control characters (keep normal whitespace).
+    cleaned = "".join(ch for ch in text if ch == "\n" or ch == "\t" or (ch >= " " and ch != "\x7f"))
+    # Escape double quotes to prevent breaking out of fulltext:"..." queries.
+    cleaned = cleaned.replace('"', '\\"')
+    return cleaned.strip()
 
 
 def _dedupe_uris(uris: list[str]) -> list[str]:

@@ -325,7 +325,7 @@ class TestW3PaperReviserWorkflow(unittest.TestCase):
             self.assertIsInstance(tasks_list, list)
             self.assertTrue(any(isinstance(t, dict) and t.get("task_id") == "LF-001" for t in (tasks_list or [])))
 
-            state = json.loads((repo_root / ".autopilot" / "state.json").read_text(encoding="utf-8"))
+            state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             pending = state.get("pending_approval")
             self.assertIsInstance(pending, dict)
             self.assertEqual((pending or {}).get("category"), "A1")
@@ -512,7 +512,7 @@ class TestW3PaperReviserWorkflow(unittest.TestCase):
             # First run should request A1 approval.
             rc = run_cli(base)
             self.assertEqual(rc, 3)
-            state = json.loads((repo_root / ".autopilot" / "state.json").read_text(encoding="utf-8"))
+            state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             approval_a1 = ((state.get("pending_approval") or {}).get("approval_id"))
             self.assertIsInstance(approval_a1, str)
             self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_a1)]), 0)
@@ -520,7 +520,7 @@ class TestW3PaperReviserWorkflow(unittest.TestCase):
             # Second run should request A4 approval to apply edits back to the draft.
             rc2 = run_cli(base)
             self.assertEqual(rc2, 3)
-            state2 = json.loads((repo_root / ".autopilot" / "state.json").read_text(encoding="utf-8"))
+            state2 = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             pending2 = state2.get("pending_approval") or {}
             self.assertEqual(pending2.get("category"), "A4")
             approval_a4 = pending2.get("approval_id")

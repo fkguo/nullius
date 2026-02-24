@@ -9,7 +9,7 @@ from ._json import read_json
 from ._time import utc_now_iso
 
 
-AUTOPILOT_DIRNAME = ".autopilot"
+AUTORESEARCH_DIRNAME = ".autoresearch"
 STATE_FILENAME = "state.json"
 LEDGER_FILENAME = "ledger.jsonl"
 STATE_LOCK_FILENAME = "state.lock"
@@ -25,36 +25,36 @@ APPROVAL_CATEGORY_TO_POLICY_KEY: dict[str, str] = {
     "A5": "final_conclusions",
 }
 
-def autopilot_dir(repo_root: Path) -> Path:
-    override = os.environ.get("HEP_AUTOPILOT_DIR")
+def autoresearch_dir(repo_root: Path) -> Path:
+    override = os.environ.get("HEP_AUTORESEARCH_DIR")
     if override:
         p = Path(override)
         if not p.is_absolute():
             p = repo_root / p
         return p
-    return repo_root / AUTOPILOT_DIRNAME
+    return repo_root / AUTORESEARCH_DIRNAME
 
 
 def state_path(repo_root: Path) -> Path:
-    return autopilot_dir(repo_root) / STATE_FILENAME
+    return autoresearch_dir(repo_root) / STATE_FILENAME
 
 
 def plan_md_path(repo_root: Path) -> Path:
-    return autopilot_dir(repo_root) / PLAN_MD_FILENAME
+    return autoresearch_dir(repo_root) / PLAN_MD_FILENAME
 
 
 def ledger_path(repo_root: Path) -> Path:
-    return autopilot_dir(repo_root) / LEDGER_FILENAME
+    return autoresearch_dir(repo_root) / LEDGER_FILENAME
 
 
 def state_lock_path(repo_root: Path) -> Path:
-    return autopilot_dir(repo_root) / STATE_LOCK_FILENAME
+    return autoresearch_dir(repo_root) / STATE_LOCK_FILENAME
 
 
 def state_lock(repo_root: Path, *, timeout_seconds: float = 10.0, poll_seconds: float = 0.1):
     """Return a context manager that holds an advisory exclusive lock for state/ledger mutations.
 
-    On POSIX, uses `fcntl.flock` on `.autopilot/state.lock`. On platforms without `fcntl`,
+    On POSIX, uses `fcntl.flock` on `.autoresearch/state.lock`. On platforms without `fcntl`,
     the lock is a no-op (single-process use only).
     """
     from contextlib import contextmanager
@@ -99,7 +99,7 @@ def state_lock(repo_root: Path, *, timeout_seconds: float = 10.0, poll_seconds: 
 
 
 def approval_policy_path(repo_root: Path) -> Path:
-    return autopilot_dir(repo_root) / APPROVAL_POLICY_FILENAME
+    return autoresearch_dir(repo_root) / APPROVAL_POLICY_FILENAME
 
 
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
@@ -110,7 +110,7 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
 
 
 def ensure_runtime_dirs(repo_root: Path) -> None:
-    autopilot_dir(repo_root).mkdir(parents=True, exist_ok=True)
+    autoresearch_dir(repo_root).mkdir(parents=True, exist_ok=True)
     ledger = ledger_path(repo_root)
     if not ledger.exists():
         ledger.write_text("", encoding="utf-8")
@@ -406,7 +406,7 @@ def render_plan_md(plan: dict[str, Any]) -> str:
     if updated_at:
         lines.append(f"- Updated: {updated_at}")
     lines.append("")
-    lines.append("SSOT: `.autopilot/state.json#/plan`")
+    lines.append("SSOT: `.autoresearch/state.json#/plan`")
     lines.append("")
     lines.append("## Steps")
     lines.append("")
@@ -535,9 +535,9 @@ def persist_state_with_ledger_event(
 
     Algorithm:
     1) Validate plan (incl. cross-field branching invariants).
-    2) Stage the updated state to `.autopilot/state.json.next` (atomic write).
+    2) Stage the updated state to `.autoresearch/state.json.next` (atomic write).
     3) Append the ledger event.
-    4) Atomically replace `.autopilot/state.json` with the staged file.
+    4) Atomically replace `.autoresearch/state.json` with the staged file.
     5) Derive `plan.md`.
 
     If the ledger append fails, the staged state is removed (best-effort) and state.json is unchanged.

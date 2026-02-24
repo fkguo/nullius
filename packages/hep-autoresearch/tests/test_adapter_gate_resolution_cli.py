@@ -40,7 +40,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
     def _init_and_policy(self, repo_root: Path) -> None:
         rc, out, err = self._run_cli(["hepar", "--project-root", str(repo_root), "init"])
         self.assertEqual(rc, 0, msg=out + err)
-        policy_path = repo_root / ".autopilot" / "approval_policy.json"
+        policy_path = repo_root / ".autoresearch" / "approval_policy.json"
         policy = json.loads(policy_path.read_text(encoding="utf-8"))
         policy.setdefault("require_approval_for", {})["compute_runs"] = True
         policy_path.write_text(json.dumps(policy, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -69,12 +69,12 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
         }
 
     def _pending_category(self, repo_root: Path) -> str | None:
-        state = json.loads((repo_root / ".autopilot" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
         pending = state.get("pending_approval") if isinstance(state.get("pending_approval"), dict) else None
         return str((pending or {}).get("category")) if pending else None
 
     def _packet_path(self, repo_root: Path) -> Path | None:
-        state = json.loads((repo_root / ".autopilot" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
         pending = state.get("pending_approval") if isinstance(state.get("pending_approval"), dict) else None
         packet_rel = (pending or {}).get("packet_path") if pending else None
         if not isinstance(packet_rel, str):
@@ -203,7 +203,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
                 ]
             )
             self.assertEqual(rc, 2, msg=out + err)
-            state = json.loads((repo_root / ".autopilot" / "state.json").read_text(encoding="utf-8"))
+            state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(state.get("run_status"), "failed")
             self.assertIn("run_card_only", str(state.get("notes") or ""))
 

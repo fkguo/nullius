@@ -6,29 +6,18 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { LedgerEvent } from './types.js';
 
-const AUTOPILOT_DIRNAME = '.autopilot';
+const AUTORESEARCH_DIRNAME = '.autoresearch';
 const LEDGER_FILENAME = 'ledger.jsonl';
 
 function ledgerPath(repoRoot: string): string {
-  const override = process.env['HEP_AUTOPILOT_DIR'];
+  const override = process.env['HEP_AUTORESEARCH_DIR'];
   const dir = override
     ? (path.isAbsolute(override) ? override : path.join(repoRoot, override))
-    : path.join(repoRoot, AUTOPILOT_DIRNAME);
+    : path.join(repoRoot, AUTORESEARCH_DIRNAME);
   return path.join(dir, LEDGER_FILENAME);
 }
 
-/** Recursively sort object keys to match Python json.dumps(sort_keys=True). */
-function sortKeysRecursive(obj: unknown): unknown {
-  if (Array.isArray(obj)) return obj.map(sortKeysRecursive);
-  if (obj !== null && typeof obj === 'object') {
-    const sorted: Record<string, unknown> = {};
-    for (const key of Object.keys(obj as Record<string, unknown>).sort()) {
-      sorted[key] = sortKeysRecursive((obj as Record<string, unknown>)[key]);
-    }
-    return sorted;
-  }
-  return obj;
-}
+import { sortKeysRecursive } from './util.js';
 
 export class LedgerWriter {
   private readonly filePath: string;

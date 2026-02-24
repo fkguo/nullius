@@ -43,7 +43,7 @@ def _md_escape_cell(text: str) -> str:
 def _safe_rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
 
 
@@ -117,7 +117,7 @@ def _find_literature_note_path(repo_root: Path, refkey: str) -> Path | None:
             continue
         try:
             lines = cand.read_text(encoding="utf-8", errors="replace").splitlines()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unreadable files
             continue
         rk = _extract_prefixed_value(lines, "RefKey:")
         if rk and rk.strip() == refkey:
@@ -131,7 +131,7 @@ def _resolve_inspire_citekey(repo_root: Path, recid: str) -> str | None:
         return None
     try:
         data = read_json(p)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
         return None
     ck = data.get("citekey") if isinstance(data, dict) else None
     return str(ck).strip() if isinstance(ck, str) and ck.strip() else None
@@ -143,7 +143,7 @@ def _read_inspire_bib(repo_root: Path, recid: str) -> str | None:
         return None
     try:
         return p.read_text(encoding="utf-8", errors="replace").strip() + "\n"
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
         return None
 
 
@@ -189,7 +189,7 @@ def build_literature_survey(
             continue
         try:
             lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unreadable files
             lines = []
 
         title = _extract_first_h1(lines) or refkey
@@ -390,7 +390,7 @@ def write_literature_survey(
             try:
                 rel = os.path.relpath(repo_root / kb_path, start=report_path.parent).replace(os.sep, "/")
                 title_md = f"{safe_title_cell} ([{rk}]({rel}))"
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
                 title_md = f"{safe_title_cell} ([{rk}]({kb_path}))"
         lines.append(f"| `{rk}` | {title_md} | `{ck}` |")
     lines.append("")

@@ -11,7 +11,7 @@ Chinese version (legacy / detailed notes): `docs/ORCHESTRATOR_INTERACTION.zh.md`
 ## 1) CLI commands (CLI-first)
 
 Suggested command set (names may evolve):
-- `init`: initialize the current directory as a project root (scaffold missing docs/KB/specs; create `.autopilot/` state + ledger)
+- `init`: initialize the current directory as a project root (scaffold missing docs/KB/specs; create `.autoresearch/` state + ledger)
 - `run`: start a workflow (W1/W2/W3/W4 + adapter workflows; optional `--sandbox` for high-risk shell backends)
 - `branch`: record branching decisions in the Plan SSOT (list/add/switch; safe backtracking)
 - `status`: show current run state (steps, artifacts, pending approvals, budget usage)
@@ -55,8 +55,8 @@ The Orchestrator must persist state so runs can resume after crashes/interrupts:
 - artifact pointers (manifest/summary/analysis, diffs, compile logs, etc.)
 
 Recommended storage:
-- `.autopilot/state.json` (hidden runtime state)
-- `.autopilot/ledger.jsonl` (append-only event log)
+- `.autoresearch/state.json` (hidden runtime state)
+- `.autoresearch/ledger.jsonl` (append-only event log)
 
 State contract: `docs/ORCHESTRATOR_STATE.md` (EN) / `docs/ORCHESTRATOR_STATE.zh.md` (Chinese).
 
@@ -99,5 +99,5 @@ Support “handoff without losing reproducibility”:
 ## 9) Watchdog (avoid silent long-job failures)
 
 Provide a watchdog (script/daemon/cron):
-- monitor `.autopilot/state.json` mtime
+- monitor `.autoresearch/state.json` mtime
 - if status is `running` but stale beyond timeout: alert and trigger pause (or create `.pause`)

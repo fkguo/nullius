@@ -11,10 +11,8 @@ from .kb_index import kb_index_path, write_kb_index
 def _safe_rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.relative_to(repo_root)).replace(os.sep, "/")
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
-
-
 def _write_text_if_missing(*, repo_root: Path, path: Path, text: str, created: list[str], skipped: list[str]) -> None:
     rel = _safe_rel(repo_root, path)
     if path.exists():
@@ -154,7 +152,7 @@ def ensure_project_scaffold(*, repo_root: Path) -> dict[str, Any]:
             "- Notebook: `Draft_Derivation.md`\n"
             "- KB: `knowledge_base/`\n"
             "- Artifacts: `artifacts/runs/<TAG>/`\n"
-            "- Orchestrator state: `.autopilot/`\n"
+            "- Orchestrator state: `.autoresearch/`\n"
         ),
     )
     _write_text_if_missing(

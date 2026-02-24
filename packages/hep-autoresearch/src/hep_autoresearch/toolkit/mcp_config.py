@@ -93,6 +93,10 @@ _MCP_SUBPROCESS_ENV_ALLOWLIST = frozenset(
         "TMP",
         # Shell (rarely needed, but safe)
         "SHELL",
+        # H-20: MCP server configuration keys
+        "HEP_TOOL_MODE",
+        "PDG_DB_PATH",
+        "PDG_ARTIFACT_TTL_HOURS",
     }
 )
 

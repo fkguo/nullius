@@ -229,7 +229,7 @@ def _validate_literature_fetch_task_evidence_first(
         try:
             abs_p.relative_to(run_abs)
             return True
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path containment
             return False
 
     for v in kb_vals:
@@ -362,7 +362,7 @@ def paper_reviser_one(
         inputs["run_card_path"] = _safe_rel(repo_root, run_card_path)
         try:
             inputs["run_card_sha256"] = _sha256_file(run_card_path)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 optional metadata enrichment
             pass
 
     gate_satisfied = gate_satisfied or {}
@@ -537,7 +537,7 @@ def paper_reviser_one(
                     vr_in = inputs_meta.get("verification_requests_json") if isinstance(inputs_meta, dict) else None
                     if isinstance(vr_in, dict) and str(vr_in.get("sha256") or "") == vr_sha:
                         plan_ok = True
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                 plan_ok = False
         if plan_ok:
             plan_obj = _load_verification_plan(plan_path)
@@ -824,7 +824,7 @@ def paper_reviser_one(
                                 expected_sha = str(prev.get("log_sha256") or "")
                                 if expected_sha and log_path.is_file() and _sha256_file(log_path) == expected_sha:
                                     prev_ok = True
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                         prev_ok = False
                 if prev_ok:
                     tasks_skipped += 1
@@ -893,7 +893,7 @@ def paper_reviser_one(
                     argv2: list[str] = []
                     try:
                         argv2 = _task_argv(t2)
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                         argv2 = []
                     executed_tasks.append(
                         {
@@ -1100,7 +1100,7 @@ def paper_reviser_one(
             relp = _safe_rel(repo_root, p)
             try:
                 evidence_items.append({"path": relp, "sha256": _sha256_file(p)})
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unhashable evidence files
                 continue
 
     versions: dict[str, Any] = {

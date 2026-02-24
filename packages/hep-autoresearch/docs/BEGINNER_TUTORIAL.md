@@ -49,11 +49,11 @@ Run the Orchestrator in your **research project directory** (not in the `hep-aut
 ```bash
 mkdir my-research-project
 cd my-research-project
-hep-autoresearch init   # scaffolds docs/ + knowledge_base/ + specs/ + .autopilot/
+hep-autoresearch init   # scaffolds docs/ + knowledge_base/ + specs/ + .autoresearch/
 hep-autoresearch status
 ```
 
-After initialization, you can run `hep-autoresearch ...` from any subdirectory; the CLI searches upward for `.autopilot/`.
+After initialization, you can run `hep-autoresearch ...` from any subdirectory; the CLI searches upward for `.autoresearch/`.
 
 ## 2) Preflight-only (no external LLM calls)
 

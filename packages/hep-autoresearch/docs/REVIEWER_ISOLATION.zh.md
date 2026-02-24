@@ -50,7 +50,7 @@ Reviewer 在以下情况下可以请求 escalation（写入结构化字段，不
   - `approve`：补充指定范围的信息（例如再生成一个附录包，或附上编译日志）
   - `reject`：要求重新生成更简洁/更结构化的 packet
 
-所有 escalation 必须写入 `.autopilot/ledger.jsonl`（见 [`docs/ORCHESTRATOR_STATE.md`](ORCHESTRATOR_STATE.md)）。
+所有 escalation 必须写入 `.autoresearch/ledger.jsonl`（见 [`docs/ORCHESTRATOR_STATE.md`](ORCHESTRATOR_STATE.md)）。
 
 ## 4) 可测试的验收标准（MVP）
 

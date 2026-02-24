@@ -18,7 +18,7 @@ def manifest_cwd(*, repo_root: Path, cwd: Path | None = None) -> str:
         return "<PROJECT_ROOT>"
     try:
         rel = cwd.relative_to(repo_root)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return "<PROJECT_ROOT>"
     if str(rel) in {"", "."}:
         return "<PROJECT_ROOT>"

@@ -36,10 +36,8 @@ def _truncate_text(s: str, *, max_chars: int) -> str:
 def _safe_rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
-
-
 def _list_files_rel(repo_root: Path, root: Path) -> list[str]:
     files: list[str] = []
     if not root.exists():

@@ -1,7 +1,7 @@
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
 
-.PHONY: bootstrap sync-contracts bundle-contracts validate test ci run-server
+.PHONY: bootstrap sync-contracts bundle-contracts validate test ci run-server check-drift
 
 bootstrap:
 	$(PIP) install -e .[dev]
@@ -24,3 +24,6 @@ ci: validate test
 
 run-server:
 	$(PYTHON) -m idea_core.rpc.server
+
+check-drift:
+	./scripts/check_contract_drift.sh

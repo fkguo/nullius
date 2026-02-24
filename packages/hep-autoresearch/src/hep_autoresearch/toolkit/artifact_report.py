@@ -88,7 +88,7 @@ def render_artifact_report(
 
     try:
         rel_dir = os.fspath(artifact_dir.resolve().relative_to(repo_root.resolve()))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         # Best-effort: repo_root may be a symlinked tempdir on some platforms (e.g. /var -> /private/var on macOS).
         rel_dir = os.fspath(artifact_dir)
 
@@ -105,7 +105,7 @@ def render_artifact_report(
             target = (repo_root / s).resolve()
             href = os.path.relpath(os.fspath(target), start=os.fspath(artifact_dir.resolve()))
             return href.replace(os.sep, "/")
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return s
 
     lines: list[str] = [
@@ -365,5 +365,5 @@ def write_artifact_report(
     )
     try:
         return os.fspath(report_path.resolve().relative_to(repo_root.resolve()))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(report_path)

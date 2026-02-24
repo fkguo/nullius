@@ -14,8 +14,8 @@ Beads positions itself as a **distributed, git-backed, dependency-aware graph is
 - workflow helpers like “ready work” (`bd ready`) and task compaction (“memory decay”)
 
 Our project already has a workflow-specific state model:
-- Plan SSOT: `specs/plan.schema.json` bound into `.autopilot/state.json`
-- Append-only ledger: `.autopilot/ledger.jsonl`
+- Plan SSOT: `specs/plan.schema.json` bound into `.autoresearch/state.json`
+- Append-only ledger: `.autoresearch/ledger.jsonl`
 - Evidence-first artifacts: `artifacts/runs/<tag>/...` with manifest/summary/analysis
 - Approval gates (A1–A5) and dual review convergence before commits
 

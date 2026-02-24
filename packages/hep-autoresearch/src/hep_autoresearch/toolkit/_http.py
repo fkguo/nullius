@@ -55,7 +55,7 @@ def _write_url_sidecar(url: str) -> None:
         if p.exists():
             return
         p.write_text(url.strip() + "\n", encoding="utf-8")
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
         # Best effort: sidecar is for humans, not correctness.
         return
 

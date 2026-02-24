@@ -4,6 +4,16 @@
 >
 > **适用范围**: 从 monorepo 根目录启动的所有 Claude Code 会话。
 
+## 全局约束（必读）
+
+**无向后兼容负担**：生态圈尚未正式发布，无外部用户。所有变更可直接 breaking change，**不需要**：
+- 旧 API / 工具名保留或 deprecation shim
+- 数据格式迁移脚本（直接采用新 schema，旧数据可丢弃重建）
+- 运行时版本协商或兼容性矩阵维护
+- 字段设为 optional "以兼容旧数据"——如果语义上应该 required，就直接 required
+
+来源：`meta/REDESIGN_PLAN.md` §全局约束。
+
 ## 工作区路径映射
 
 Monorepo 结构（NEW-05 完成，2026-02-24）。

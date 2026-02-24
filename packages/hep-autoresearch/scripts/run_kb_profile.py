@@ -26,7 +26,7 @@ def main() -> int:
     parser.add_argument("--kb-profile", default="curated", choices=["curated", "minimal", "user"], help="KB profile name.")
     parser.add_argument(
         "--kb-profile-user-path",
-        help="If --kb-profile=user, path to a kb_profile definition JSON (default: .autopilot/kb_profile_user.json).",
+        help="If --kb-profile=user, path to a kb_profile definition JSON (default: .autoresearch/kb_profile_user.json).",
     )
     args = parser.parse_args()
 

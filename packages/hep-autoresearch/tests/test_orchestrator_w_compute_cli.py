@@ -109,7 +109,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
             self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
 
             # Disable A3 compute approval for this integration-style test.
-            policy_path = repo_root / ".autopilot" / "approval_policy.json"
+            policy_path = repo_root / ".autoresearch" / "approval_policy.json"
             policy = json.loads(policy_path.read_text(encoding="utf-8"))
             policy.setdefault("require_approval_for", {})["compute_runs"] = False
             policy_path.write_text(json.dumps(policy, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -209,7 +209,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
             self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
 
             # Disable the *default* compute gate (A3) so we can exercise phase-level gates inside W_compute.
-            policy_path = repo_root / ".autopilot" / "approval_policy.json"
+            policy_path = repo_root / ".autoresearch" / "approval_policy.json"
             policy = json.loads(policy_path.read_text(encoding="utf-8"))
             policy.setdefault("require_approval_for", {})["compute_runs"] = False
             policy_path.write_text(json.dumps(policy, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -267,7 +267,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
             analysis = json.loads((out_dir / "analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(((analysis.get("results") or {}).get("status")), "blocked_by_gate")
 
-            state = json.loads((repo_root / ".autopilot" / "state.json").read_text(encoding="utf-8"))
+            state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             pending = state.get("pending_approval")
             self.assertIsInstance(pending, dict)
             self.assertEqual((pending or {}).get("category"), "A1")

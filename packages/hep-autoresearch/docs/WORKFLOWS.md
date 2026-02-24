@@ -41,10 +41,10 @@ Init scaffolds a starter template:
 
 - For `W3_paper_reviser`, status reads `artifacts/runs/<RUN_ID>/paper_reviser/manifest.json#steps` to show substeps:
   - `A/B/C/D/E/APPLY`
-- If manifest indicates completion but `.autopilot/state.json` is stale, status shows reconciled view:
+- If manifest indicates completion but `.autoresearch/state.json` is stale, status shows reconciled view:
   - text mode: `run_status: completed [reconciled]`
   - json mode (`hepar status --json`): includes `"reconciled": true`
-- `status` reconcile is display-layer only; it does not write back to `.autopilot/state.json`.
+- `status` reconcile is display-layer only; it does not write back to `.autoresearch/state.json`.
 - If manifest is missing/corrupt or `steps` schema is malformed, status falls back to state and emits structured warnings.
 
 ### Adapter gate resolution mode

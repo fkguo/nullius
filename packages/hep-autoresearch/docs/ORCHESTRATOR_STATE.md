@@ -9,8 +9,8 @@ Chinese version (legacy / detailed notes): `docs/ORCHESTRATOR_STATE.zh.md`.
 ## 1) Minimal persisted state (MVP)
 
 Write under project root:
-- `.autopilot/state.json`: current state (single file; debuggable; can later be replaced by sqlite)
-- `.autopilot/ledger.jsonl`: append-only event ledger (every gate/execution/failure writes an event)
+- `.autoresearch/state.json`: current state (single file; debuggable; can later be replaced by sqlite)
+- `.autoresearch/ledger.jsonl`: append-only event ledger (every gate/execution/failure writes an event)
 
 Ledger is for audit; `state.json` is for recovery.
 
@@ -32,7 +32,7 @@ Key transitions:
 - `running -> needs_recovery` (watchdog detects stale checkpoints / crash)
 - `needs_recovery -> running|paused|failed` (human chooses)
 
-## 3) `.autopilot/state.json` schema (v1)
+## 3) `.autoresearch/state.json` schema (v1)
 
 Recommended minimal fields:
 
@@ -67,7 +67,7 @@ Recommended minimal fields:
       }
     ]
   },
-  "plan_md_path": ".autopilot/plan.md",
+  "plan_md_path": ".autoresearch/plan.md",
   "checkpoints": {
     "last_checkpoint_at": "2026-02-01T00:00:00Z",
     "checkpoint_interval_seconds": 900
@@ -99,7 +99,7 @@ Recommended minimal fields:
 
 Constraints:
 - `state.json` must be written atomically (write temp file then `rename()`).
-- Mutating commands should hold an advisory lock at `.autopilot/state.lock` to avoid concurrent write races (POSIX `flock`; on platforms without it, concurrent writers are unsupported).
+- Mutating commands should hold an advisory lock at `.autoresearch/state.lock` to avoid concurrent write races (POSIX `flock`; on platforms without it, concurrent writers are unsupported).
 - `packet_path` must point to a reviewable approval packet (see `docs/APPROVAL_GATES.md`).
 - `plan` must conform to `specs/plan.schema.json` (SSOT), and `plan_md_path` is a deterministic derived view.
 - `artifacts.run_card` must point to a per-run run-card (`artifacts/runs/<run_id>/run_card.json`), and `run_card_sha256` binds approvals/manifests to the intended execution (SHA256 of canonical JSON payload, not `sha256sum` of the on-disk pretty-printed bytes).

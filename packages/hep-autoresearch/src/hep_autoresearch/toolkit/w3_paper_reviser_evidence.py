@@ -31,7 +31,7 @@ def _extract_json_object(text: str) -> dict[str, Any]:
         obj = json.loads(t)
         if isinstance(obj, dict):
             return obj
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 multi-strategy fallthrough
         pass
 
     # Try a fenced JSON code block.
@@ -43,7 +43,7 @@ def _extract_json_object(text: str) -> dict[str, Any]:
             obj3 = json.loads(m.group(1))
             if isinstance(obj3, dict):
                 return obj3
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 multi-strategy fallthrough
         pass
 
     # Fallback: naive brace span.
@@ -55,7 +55,7 @@ def _extract_json_object(text: str) -> dict[str, Any]:
             obj2 = json.loads(blob)
             if isinstance(obj2, dict):
                 return obj2
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 multi-strategy fallthrough
             pass
     raise ValueError("could not parse a JSON object from model output")
 
@@ -358,10 +358,10 @@ def run_step_d_evidence_synthesis(
         """
         try:
             txt = p.read_text(encoding="utf-8", errors="replace")
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 multi-strategy fallthrough
             try:
                 txt = p.read_bytes().decode("utf-8", errors="replace")
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort file read
                 return ""
         if len(txt) > max_chars:
             return txt[:max_chars] + "\n...(truncated)\n"
@@ -429,10 +429,10 @@ def run_step_d_evidence_synthesis(
                     try:
                         if int(p.stat().st_size) > 800_000:
                             continue
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unreadable files
                         continue
                     kb_files.append(p)
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                 kb_files = []
 
             kb_files = sorted(kb_files, key=lambda x: _safe_rel(repo_root, x).lower())

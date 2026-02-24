@@ -65,7 +65,7 @@
   - `run_status` 保持 `awaiting_approval`（或进入 `paused`），并明确提示“已超时”
   - 仍 **不得** 自动继续执行（禁止沉默即同意）
 - **Orchestrator 崩溃/重启**：
-  - `pending_approval` 必须持久化在 `.autopilot/state.json`
+  - `pending_approval` 必须持久化在 `.autoresearch/state.json`
   - 重启后必须回到 `awaiting_approval`（不得改变为 approved）
 - **人类 abort**：
   - 必须把 run 标记为 `failed`（或 `aborted`），并写入原因与回滚指针（如适用）

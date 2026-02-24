@@ -12,14 +12,12 @@ from ._time import utc_now_iso
 def _safe_rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
-
-
 def _parse_ts(ts: str) -> dt.datetime | None:
     try:
         return dt.datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
         return None
 
 
@@ -28,7 +26,7 @@ def _to_z(ts: dt.datetime) -> str:
 
 
 def read_ledger_events(ledger_path: Path) -> list[dict[str, Any]]:
-    """Read `.autopilot/ledger.jsonl` (best-effort).
+    """Read `.autoresearch/ledger.jsonl` (best-effort).
 
     Invalid JSON lines are skipped; this is for metrics/observability, not SSOT.
     """
@@ -41,7 +39,7 @@ def read_ledger_events(ledger_path: Path) -> list[dict[str, Any]]:
             continue
         try:
             obj = json.loads(ln)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip malformed JSON lines
             continue
         if isinstance(obj, dict):
             events.append(obj)

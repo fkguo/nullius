@@ -41,7 +41,7 @@ class TestMethodDesignCLI(unittest.TestCase):
             self.assertEqual(rc, 0, msg=out + err)
 
             # Disable A3 compute approval for this integration-style test.
-            policy_path = repo_root / ".autopilot" / "approval_policy.json"
+            policy_path = repo_root / ".autoresearch" / "approval_policy.json"
             policy = json.loads(policy_path.read_text(encoding="utf-8"))
             policy.setdefault("require_approval_for", {})["compute_runs"] = False
             policy_path.write_text(json.dumps(policy, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -104,7 +104,7 @@ class TestMethodDesignCLI(unittest.TestCase):
             self.assertEqual(rc, 0, msg=out + err)
 
             # Disable A3 compute approval for this integration-style test.
-            policy_path = repo_root / ".autopilot" / "approval_policy.json"
+            policy_path = repo_root / ".autoresearch" / "approval_policy.json"
             policy = json.loads(policy_path.read_text(encoding="utf-8"))
             policy.setdefault("require_approval_for", {})["compute_runs"] = False
             policy_path.write_text(json.dumps(policy, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -226,7 +226,7 @@ class TestMethodDesignCLI(unittest.TestCase):
             self.assertEqual(rc, 0, msg=out + err)
 
             # Disable A3 compute approval for this integration-style test.
-            policy_path = repo_root / ".autopilot" / "approval_policy.json"
+            policy_path = repo_root / ".autoresearch" / "approval_policy.json"
             policy = json.loads(policy_path.read_text(encoding="utf-8"))
             policy.setdefault("require_approval_for", {})["compute_runs"] = False
             policy_path.write_text(json.dumps(policy, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -298,7 +298,7 @@ class TestMethodDesignCLI(unittest.TestCase):
             self.assertEqual(rc, 0, msg=out + err)
 
             # Disable A3 compute approval for this integration-style test.
-            policy_path = repo_root / ".autopilot" / "approval_policy.json"
+            policy_path = repo_root / ".autoresearch" / "approval_policy.json"
             policy = json.loads(policy_path.read_text(encoding="utf-8"))
             policy.setdefault("require_approval_for", {})["compute_runs"] = False
             policy_path.write_text(json.dumps(policy, indent=2, sort_keys=True) + "\n", encoding="utf-8")

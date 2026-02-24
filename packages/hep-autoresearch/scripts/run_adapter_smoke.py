@@ -59,7 +59,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--runtime-dir",
-        help="Isolated runtime dir for .autopilot state/ledger (relative to repo root by default).",
+        help="Isolated runtime dir for .autoresearch state/ledger (relative to repo root by default).",
     )
     args = parser.parse_args()
 
@@ -75,13 +75,13 @@ def main() -> int:
     logs_dir = out_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
 
-    runtime_rel = args.runtime_dir or os.fspath((out_dir / ".autopilot").relative_to(REPO_ROOT))
+    runtime_rel = args.runtime_dir or os.fspath((out_dir / ".autoresearch").relative_to(REPO_ROOT))
     runtime_dir = (Path(runtime_rel) if Path(runtime_rel).is_absolute() else (REPO_ROOT / runtime_rel)).resolve()
     runtime_dir.mkdir(parents=True, exist_ok=True)
     state_path = runtime_dir / "state.json"
 
     env = dict(os.environ)
-    env["HEP_AUTOPILOT_DIR"] = runtime_rel
+    env["HEP_AUTORESEARCH_DIR"] = runtime_rel
 
     errors: list[str] = []
 

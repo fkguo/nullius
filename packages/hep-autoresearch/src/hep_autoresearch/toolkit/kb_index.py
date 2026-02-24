@@ -14,7 +14,7 @@ def kb_index_path(*, repo_root: Path) -> Path:
 def _safe_rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
 
 
@@ -120,13 +120,13 @@ def build_kb_index(*, repo_root: Path) -> dict[str, Any]:
             # Keep extraction minimal and deterministic.
             try:
                 lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unreadable files
                 lines = []
             title = _extract_title(lines)
             refkey = _extract_refkey(lines)
             try:
                 size = int(p.stat().st_size)
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
                 size = 0
             entries.append(
                 {

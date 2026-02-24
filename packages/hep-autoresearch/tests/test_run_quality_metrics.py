@@ -17,7 +17,7 @@ class TestRunQualityMetrics(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            runtime_dir = repo_root / ".autopilot"
+            runtime_dir = repo_root / ".autoresearch"
             runtime_dir.mkdir(parents=True, exist_ok=True)
             ledger_path = runtime_dir / "ledger.jsonl"
             ledger_path.write_text(

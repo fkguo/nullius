@@ -17,9 +17,9 @@
       "artifacts/runs/M44-t39-r1/orchestrator_regression/manifest.json",
       "artifacts/runs/M44-t39-r1/orchestrator_regression/summary.json",
       "artifacts/runs/M44-t39-r1/orchestrator_regression/analysis.json",
-      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autopilot/state.json",
-      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autopilot/ledger.jsonl",
-      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autopilot/plan.md"
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autoresearch/state.json",
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autoresearch/ledger.jsonl",
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autoresearch/plan.md"
     ],
     "json_value_checks": [
       {
@@ -45,7 +45,7 @@
     ],
     "text_contains_checks": [
       {
-        "path": "artifacts/runs/M44-t39-r1/orchestrator_regression/.autopilot/plan.md",
+        "path": "artifacts/runs/M44-t39-r1/orchestrator_regression/.autoresearch/plan.md",
         "contains": ["## Branching", "active_branch_id: W2.S1:b3", "cap_override: 6", "active_branch_id: b3"]
       }
     ]

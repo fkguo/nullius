@@ -28,7 +28,7 @@ def _sha256_text(text: str) -> str:
 def _safe_rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.resolve().relative_to(repo_root.resolve())).replace(os.sep, "/")
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
 
 
@@ -54,7 +54,7 @@ def _resolve_under_dir(*, repo_root: Path, base_dir: Path, path_str: str) -> Pat
         try:
             x.resolve().relative_to(base)
             return True
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path containment
             return False
 
     if p.is_absolute():
@@ -155,7 +155,7 @@ def _load_json_if_exists(path: Path) -> dict[str, Any] | None:
     try:
         obj = read_json(path)
         return obj if isinstance(obj, dict) else None
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional JSON read
         return None
 
 

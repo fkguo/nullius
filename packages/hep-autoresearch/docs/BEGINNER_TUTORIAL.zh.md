@@ -137,7 +137,7 @@ python3 scripts/run_w1_ingest.py --inspire-recid 3112995 --refkey recid-3112995-
 
 ### （可选）体验 Orchestrator CLI v0.4（run/status/pause/resume/approve/logs/export）
 
-初始化（在你的研究项目根目录运行；会写入 `.autopilot/`，并补齐 `docs/` + `knowledge_base/` + `specs/` 的最小骨架）：
+初始化（在你的研究项目根目录运行；会写入 `.autoresearch/`，并补齐 `docs/` + `knowledge_base/` + `specs/` 的最小骨架）：
 
 ```bash
 # 在你的研究项目目录执行
@@ -151,7 +151,7 @@ hep-autoresearch status
 python3 scripts/orchestrator.py init
 ```
 
-之后你可以在任意子目录运行命令；CLI 会向上寻找 `.autopilot/` 作为 project root。
+之后你可以在任意子目录运行命令；CLI 会向上寻找 `.autoresearch/` 作为 project root。
 
 启动并执行一个最小 workflow（W1 ingestion）：
 

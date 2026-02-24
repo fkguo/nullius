@@ -173,7 +173,7 @@ def skill_proposal_one(inps: SkillProposalInputs, repo_root: Path) -> dict[str, 
     for p in run_cards:
         try:
             rc = read_json(p)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unreadable files
             continue
         if not isinstance(rc, dict):
             continue

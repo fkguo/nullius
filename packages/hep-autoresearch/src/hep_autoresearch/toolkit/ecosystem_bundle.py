@@ -90,7 +90,7 @@ class EcosystemBundleInputs:
 def _rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
 
 
@@ -138,7 +138,7 @@ def _git_ls_files(repo_root: Path, pathspecs: list[str]) -> list[str] | None:
     cmd = ["git", "-C", os.fspath(repo_root), "ls-files", "--"] + [str(p) for p in pathspecs]
     try:
         out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8", "replace")
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 graceful degradation without git
         return None
     return [ln.strip() for ln in out.splitlines() if ln.strip()]
 
@@ -163,7 +163,7 @@ def _fallback_list_files(repo_root: Path, pathspecs: list[str]) -> list[str]:
         if ps_path.is_file():
             try:
                 rel = os.fspath(ps_path.relative_to(repo_root_r)).replace(os.sep, "/")
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unresolvable paths
                 continue
             found.add(rel)
             continue
@@ -179,7 +179,7 @@ def _fallback_list_files(repo_root: Path, pathspecs: list[str]) -> list[str]:
                     continue
                 try:
                     rel = os.fspath(p.relative_to(repo_root_r)).replace(os.sep, "/")
-                except Exception:
+                except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unresolvable paths
                     continue
                 found.add(rel)
 
@@ -190,10 +190,8 @@ def _is_within(child: Path, parent: Path) -> bool:
     try:
         child.resolve().relative_to(parent.resolve())
         return True
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path containment
         return False
-
-
 def _copy_tracked_files(
     *,
     repo_root: Path,
@@ -262,7 +260,7 @@ def _scan_secrets(root: Path) -> dict[str, Any]:
         scanned_files += 1
         try:
             rel = os.fspath(p.relative_to(root_r)).replace(os.sep, "/")
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             rel = os.fspath(p)
         lower = rel.lower()
         ext = Path(lower).suffix
@@ -321,7 +319,7 @@ def _resolve_default_hep_mcp_package_dir() -> Path:
 def _read_json_maybe(path: Path) -> dict[str, Any] | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
         return None
 
 
@@ -550,7 +548,7 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
                 continue
             try:
                 rel_to_repo = os.fspath(p.relative_to(hep_mcp_repo_root.resolve())).replace(os.sep, "/")
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unresolvable paths
                 continue
             dst = (hep_mcp_dst / rel_to_repo).resolve()
             if not _is_within(dst, hep_mcp_dst.resolve()):
@@ -615,7 +613,7 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
     )
     try:
         os.chmod(bundle_root / "bootstrap.sh", 0o755)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort chmod
         pass
 
     # Add minimal add-ons note.
@@ -669,7 +667,7 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
         demo_secret_scan = _scan_secrets(bundle_root)
         try:
             demo_path.unlink()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
             pass
 
     if not secret_scan.get("ok"):
@@ -706,7 +704,7 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
     # Clean up staging to keep the evidence footprint small (zip is SSOT for the bundle payload).
     try:
         shutil.rmtree(stage_root)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
         pass
 
     bundle_bytes = int(bundle_zip_path.stat().st_size) if bundle_zip_path.exists() else 0

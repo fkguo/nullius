@@ -48,7 +48,7 @@ class WComputeInputs:
 def _safe_rel(repo_root: Path, p: Path) -> str:
     try:
         return os.fspath(p.relative_to(repo_root)).replace(os.sep, "/")
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p).replace(os.sep, "/")
 
 
@@ -117,7 +117,7 @@ def validate_phase_dag(phases: list[dict[str, Any]]) -> list[str]:
 def _tty_present() -> bool:
     try:
         return bool(sys.stdin.isatty() and sys.stdout.isatty())
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 safe default for TTY detection
         return False
 
 
@@ -129,12 +129,12 @@ def _require_trust_project(*, trust_project: bool) -> dict[str, Any]:
     user = None
     try:
         user = getpass.getuser()
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
         user = None
     uid = None
     try:
         uid = os.getuid()
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
         uid = None
 
     if trust_project:
@@ -189,14 +189,14 @@ def _safe_copy_file(*, src: Path, dst: Path) -> None:
     if stat.S_ISLNK(st2.st_mode):
         try:
             tmp.unlink()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
             pass
         raise RuntimeError(f"refusing copied symlink (tmp): {tmp}")
     os.replace(tmp, dst)
     if dst.is_symlink():
         try:
             dst.unlink()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
             pass
         raise RuntimeError(f"refusing copied symlink (dst): {dst}")
 
@@ -206,14 +206,14 @@ def _cleanup_phase_workspace_outputs(*, outputs_root: Path, phase_id: str) -> bo
     phase_dir = (outputs_root / str(phase_id)).resolve()
     try:
         phase_dir.relative_to(outputs_root.resolve())
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path containment
         return False
     if not phase_dir.exists():
         return False
     try:
         shutil.rmtree(phase_dir)
         return True
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
         return False
 
 
@@ -232,7 +232,7 @@ def _hash_script_candidates(*, project_dir: Path, argv: list[str]) -> dict[str, 
         cand = (project_dir / s).resolve()
         try:
             cand.relative_to(project_dir.resolve())
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unresolvable paths
             continue
         if not cand.is_file():
             continue
@@ -242,7 +242,7 @@ def _hash_script_candidates(*, project_dir: Path, argv: list[str]) -> dict[str, 
         rel = os.fspath(cand.relative_to(project_dir)).replace(os.sep, "/")
         try:
             hashes[rel] = sha256_file(cand)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unhashable files
             continue
     return hashes
 
@@ -256,7 +256,7 @@ def _sanitize_argv_for_audit(*, argv: list[str], project_dir: Path, workspace_di
         s = str(tok)
         try:
             p = Path(s)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             out.append(s)
             continue
         if p.is_absolute():
@@ -264,13 +264,13 @@ def _sanitize_argv_for_audit(*, argv: list[str], project_dir: Path, workspace_di
                 rel = p.resolve().relative_to(ws_root)
                 out.append(f"<WORKSPACE>/{rel.as_posix()}")
                 continue
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
                 pass
             try:
                 rel = p.resolve().relative_to(proj_root)
                 out.append(f"<PROJECT_DIR>/{rel.as_posix()}")
                 continue
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
                 pass
         out.append(s)
     return out

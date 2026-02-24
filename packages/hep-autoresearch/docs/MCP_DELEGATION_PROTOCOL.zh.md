@@ -28,7 +28,7 @@
 
 为避免外层 Orchestrator 与委托的 MCP 子状态机发生并发写入，M1 建议先采用**项目内 lockfile**（不依赖 MCP）：
 
-- 路径：`.autopilot/locks/<run_id>.lock`
+- 路径：`.autoresearch/locks/<run_id>.lock`
 - 获取方式：原子创建（或文件锁）；获取失败则 `block`/提示“该 run 正在被占用”
 - 内容（建议）：`{ run_id, owner_pid, owner_host, started_at, lease_seconds }`
 - 续租：外层 Orchestrator 每个 checkpoint 续租（更新 `started_at`/写入 `last_renewed_at`）
@@ -42,7 +42,7 @@
 
 - 管理审批（A1–A5）与超时语义（禁止 auto-approve）
 - 管理 pause/resume/stop
-- 落盘 `.autopilot/state.json` 与 `.autopilot/ledger.jsonl`
+- 落盘 `.autoresearch/state.json` 与 `.autoresearch/ledger.jsonl`
 - 记录 MCP 调用（工具名、参数、返回的 artifact pointers）
 
 ### 3.2 委托时的状态切换
@@ -96,4 +96,4 @@ Meta-Orchestrator 必须为委托调用设置一个超时（可配置）：
 - DP-3（账本完整）：每次委托调用与返回都写入 ledger（含 tool_name/params 与关键返回指针）。
 
 补充（M1 建议至少做成脚本级验收）：
-- DP-1a（锁行为）：当 `.autopilot/locks/<run_id>.lock` 存在时，任何尝试对同一 `run_id` 启动新的委托/写入必须被拒绝或阻塞，并输出可操作提示（如何 pause/abort/恢复）。
+- DP-1a（锁行为）：当 `.autoresearch/locks/<run_id>.lock` 存在时，任何尝试对同一 `run_id` 启动新的委托/写入必须被拒绝或阻塞，并输出可操作提示（如何 pause/abort/恢复）。

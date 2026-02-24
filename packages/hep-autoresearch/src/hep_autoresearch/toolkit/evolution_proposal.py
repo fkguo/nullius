@@ -393,7 +393,7 @@ def evolution_proposal_one(inps: EvolutionProposalInputs, repo_root: Path) -> di
                                 "details": {"failed_cases": failed_cases[:20]},
                             }
                         )
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip unreadable eval artifacts
                 # Keep proposal generation robust: ignore unreadable eval artifacts.
                 pass
 

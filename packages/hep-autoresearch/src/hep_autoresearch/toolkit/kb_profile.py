@@ -59,7 +59,7 @@ def _resolve_profile_def_path(repo_root: Path, *, profile: str, user_profile_pat
         if user_profile_path:
             p = Path(str(user_profile_path))
             return p if p.is_absolute() else (repo_root / p)
-        return repo_root / ".autopilot" / "kb_profile_user.json"
+        return repo_root / ".autoresearch" / "kb_profile_user.json"
     raise ValueError(f"unknown kb_profile: {profile!r}")
 
 
@@ -217,7 +217,7 @@ def build_kb_profile(
             by_lang[lang] += 1
         try:
             total_bytes += int(e.get("bytes") or 0)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip malformed KB entry metadata
             pass
 
     payload: dict[str, Any] = {

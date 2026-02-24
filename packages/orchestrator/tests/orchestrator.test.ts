@@ -10,13 +10,13 @@ function makeTmpDir(): string {
 }
 
 function writeState(repoRoot: string, state: RunState): void {
-  const dir = path.join(repoRoot, '.autopilot');
+  const dir = path.join(repoRoot, '.autoresearch');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(state, null, 2));
 }
 
 function writePolicy(repoRoot: string, policy: Record<string, unknown>): void {
-  const dir = path.join(repoRoot, '.autopilot');
+  const dir = path.join(repoRoot, '.autoresearch');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'approval_policy.json'), JSON.stringify(policy));
 }
@@ -188,7 +188,7 @@ describe('LedgerWriter', () => {
     lw.log('test', { details: { z_key: 1, a_key: 2 } });
 
     // Read raw line to verify sort order
-    const dir = path.join(tmpDir, '.autopilot');
+    const dir = path.join(tmpDir, '.autoresearch');
     const raw = fs.readFileSync(path.join(dir, 'ledger.jsonl'), 'utf-8').trim();
     const parsed = JSON.parse(raw);
     const keys = Object.keys(parsed);
@@ -327,5 +327,333 @@ describe('approvalPacketSha256', () => {
     const hash1 = approvalPacketSha256({ outer: { z: 1, a: 2 } });
     const hash2 = approvalPacketSha256({ outer: { a: 2, z: 1 } });
     expect(hash1).toBe(hash2);
+  });
+});
+
+// ─── Stage 2: Write operations ───
+
+describe('StateManager write operations (Stage 2)', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('saveState writes state.json atomically with sorted keys', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'idle' });
+    sm.saveState(state);
+
+    const raw = fs.readFileSync(path.join(tmpDir, '.autoresearch', 'state.json'), 'utf-8');
+    const parsed = JSON.parse(raw);
+    expect(parsed.run_id).toBe('r1');
+    // Verify keys are sorted (Python parity: json.dumps(sort_keys=True))
+    const keys = Object.keys(parsed);
+    expect(keys).toEqual([...keys].sort());
+    // Verify trailing newline (Python parity)
+    expect(raw.endsWith('\n')).toBe(true);
+  });
+
+  it('saveState no .tmp file left after write', () => {
+    const sm = new StateManager(tmpDir);
+    sm.saveState(baseState());
+
+    const dir = path.join(tmpDir, '.autoresearch');
+    const files = fs.readdirSync(dir);
+    expect(files.filter(f => f.endsWith('.tmp'))).toHaveLength(0);
+  });
+
+  it('ensureDirs creates directory and empty ledger', () => {
+    const sm = new StateManager(tmpDir);
+    sm.ensureDirs();
+
+    const dir = path.join(tmpDir, '.autoresearch');
+    expect(fs.existsSync(dir)).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'ledger.jsonl'))).toBe(true);
+    expect(fs.readFileSync(path.join(dir, 'ledger.jsonl'), 'utf-8')).toBe('');
+  });
+
+  it('appendLedger writes sorted-key JSONL line', () => {
+    const sm = new StateManager(tmpDir);
+    sm.appendLedger('test_event', {
+      run_id: 'r1',
+      details: { z_key: 1, a_key: 2 },
+    });
+
+    const raw = fs.readFileSync(sm.ledgerPath, 'utf-8').trim();
+    const parsed = JSON.parse(raw);
+    expect(parsed.event_type).toBe('test_event');
+    expect(parsed.run_id).toBe('r1');
+    // Sorted keys
+    const keys = Object.keys(parsed);
+    expect(keys).toEqual([...keys].sort());
+  });
+
+  it('saveStateWithLedger stages .next then commits', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'running' });
+    sm.saveStateWithLedger(state, 'test_persist', {
+      details: { key: 'value' },
+    });
+
+    // State written
+    const readState = sm.readState();
+    expect(readState.run_id).toBe('r1');
+
+    // Ledger has entry
+    const raw = fs.readFileSync(sm.ledgerPath, 'utf-8').trim();
+    const event = JSON.parse(raw);
+    expect(event.event_type).toBe('test_persist');
+
+    // No staged files left
+    const files = fs.readdirSync(path.join(tmpDir, '.autoresearch'));
+    expect(files.filter(f => f.includes('.next'))).toHaveLength(0);
+  });
+
+  it('transitionStatus enforces valid transitions', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'idle' });
+
+    // idle → running: allowed
+    sm.transitionStatus(state, 'running');
+    expect(state.run_status).toBe('running');
+
+    // running → completed: allowed
+    sm.transitionStatus(state, 'completed');
+    expect(state.run_status).toBe('completed');
+
+    // completed → running: NOT allowed (terminal)
+    expect(() => sm.transitionStatus(state, 'running')).toThrow('invalid status transition');
+  });
+
+  it('transitionStatus writes state + ledger', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'idle' });
+    sm.transitionStatus(state, 'running', { notes: 'started' });
+
+    const readState = sm.readState();
+    expect(readState.run_status).toBe('running');
+    expect(readState.notes).toBe('started');
+
+    const raw = fs.readFileSync(sm.ledgerPath, 'utf-8').trim();
+    const event = JSON.parse(raw);
+    expect(event.event_type).toBe('status_running');
+    expect(event.details.from).toBe('idle');
+    expect(event.details.to).toBe('running');
+  });
+
+  it('createRun transitions idle → running with run_id', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState();
+    sm.createRun(state, 'test-run-001', 'W_compute');
+
+    expect(state.run_id).toBe('test-run-001');
+    expect(state.workflow_id).toBe('W_compute');
+    expect(state.run_status).toBe('running');
+
+    const readState = sm.readState();
+    expect(readState.run_id).toBe('test-run-001');
+  });
+
+  it('createRun rejects non-idle state', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_status: 'running' as RunState['run_status'] });
+    expect(() => sm.createRun(state, 'r1', 'w1')).toThrow("expected 'idle'");
+  });
+
+  it('approveRun clears pending and resumes', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'awaiting_approval',
+      pending_approval: {
+        approval_id: 'A1-0001',
+        category: 'A1',
+        plan_step_ids: ['s1'],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'approvals/A1-0001/packet.md',
+      },
+    });
+
+    sm.approveRun(state, 'A1-0001', 'looks good');
+
+    expect(state.run_status).toBe('running');
+    expect(state.pending_approval).toBeNull();
+    expect(state.approval_history).toHaveLength(1);
+    expect(state.approval_history[0]!.decision).toBe('approved');
+    expect(state.approval_history[0]!.note).toBe('looks good');
+    expect(state.gate_satisfied['A1']).toBe('A1-0001');
+  });
+
+  it('approveRun rejects wrong approval_id', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      run_status: 'awaiting_approval',
+      pending_approval: {
+        approval_id: 'A1-0001',
+        category: 'A1',
+        plan_step_ids: [],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'approvals/A1-0001/packet.md',
+      },
+    });
+
+    expect(() => sm.approveRun(state, 'A1-9999')).toThrow('approval_id mismatch');
+  });
+
+  it('rejectRun transitions to paused (matching Python cmd_reject)', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'awaiting_approval',
+      pending_approval: {
+        approval_id: 'A1-0001',
+        category: 'A1',
+        plan_step_ids: [],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'approvals/A1-0001/packet.md',
+      },
+    });
+
+    sm.rejectRun(state, 'A1-0001', 'not ready');
+
+    expect(state.run_status).toBe('paused');
+    expect(state.pending_approval).toBeNull();
+    expect(state.approval_history[0]!.decision).toBe('rejected');
+  });
+
+  it('pauseRun transitions running → paused', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'running' });
+    sm.pauseRun(state);
+
+    expect(state.run_status).toBe('paused');
+    const readState = sm.readState();
+    expect(readState.run_status).toBe('paused');
+  });
+
+  it('resumeRun transitions paused → running', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'paused' });
+    sm.resumeRun(state);
+
+    expect(state.run_status).toBe('running');
+  });
+
+  it('resumeRun transitions blocked → running', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'blocked' });
+    sm.resumeRun(state);
+
+    expect(state.run_status).toBe('running');
+  });
+
+  it('pauseRun rejects when awaiting_approval (B7 fix)', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      run_status: 'awaiting_approval',
+      pending_approval: {
+        approval_id: 'A1-0001',
+        category: 'A1',
+        plan_step_ids: [],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'approvals/A1-0001/packet.md',
+      },
+    });
+    expect(() => sm.pauseRun(state)).toThrow(/awaiting_approval/);
+    expect(state.run_status).toBe('awaiting_approval'); // unchanged
+  });
+
+  it('resumeRun rejects when pending_approval exists (B6 fix)', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      run_status: 'paused',
+      pending_approval: {
+        approval_id: 'A1-0001',
+        category: 'A1',
+        plan_step_ids: [],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'approvals/A1-0001/packet.md',
+      },
+    });
+    expect(() => sm.resumeRun(state)).toThrow(/pending_approval/);
+    expect(state.run_status).toBe('paused'); // unchanged
+  });
+
+  it('nextApprovalId generates sequential IDs', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState();
+    expect(sm.nextApprovalId(state, 'A1')).toBe('A1-0001');
+    expect(sm.nextApprovalId(state, 'A1')).toBe('A1-0002');
+    expect(sm.nextApprovalId(state, 'A3')).toBe('A3-0001');
+    expect(state.approval_seq['A1']).toBe(2);
+    expect(state.approval_seq['A3']).toBe(1);
+  });
+
+  it('full lifecycle: create → pause → resume → approve → complete', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState();
+
+    // Create
+    sm.createRun(state, 'lifecycle-001', 'W_ingest');
+    expect(state.run_status).toBe('running');
+
+    // Pause
+    sm.pauseRun(state);
+    expect(state.run_status).toBe('paused');
+
+    // Resume
+    sm.resumeRun(state);
+    expect(state.run_status).toBe('running');
+
+    // Await approval
+    const approvalId = sm.nextApprovalId(state, 'A1');
+    state.pending_approval = {
+      approval_id: approvalId,
+      category: 'A1',
+      plan_step_ids: ['s1'],
+      requested_at: '2026-02-24T00:00:00Z',
+      timeout_at: '2099-01-01T00:00:00Z',
+      on_timeout: 'block',
+      packet_path: `approvals/${approvalId}/packet.md`,
+    };
+    sm.transitionStatus(state, 'awaiting_approval');
+    expect(state.run_status).toBe('awaiting_approval');
+
+    // Approve
+    sm.approveRun(state, approvalId);
+    expect(state.run_status).toBe('running');
+
+    // Complete
+    sm.transitionStatus(state, 'completed');
+    expect(state.run_status).toBe('completed');
+
+    // Verify final persisted state
+    const finalState = sm.readState();
+    expect(finalState.run_status).toBe('completed');
+    expect(finalState.approval_history).toHaveLength(1);
+
+    // Verify ledger has multiple events
+    const raw = fs.readFileSync(sm.ledgerPath, 'utf-8').trim().split('\n');
+    expect(raw.length).toBeGreaterThanOrEqual(6); // create, pause, resume, await, approve, complete
   });
 });
