@@ -756,8 +756,9 @@ def _postprocess_result(
         failure_reason = f"exit_code_{result.get('exit_code', 'unknown')}"
     elif blank_output:
         failure_reason = "empty_output"
-    elif check_review_contract and contract_ok is False:
-        failure_reason = "contract_fail"
+    # NOTE: contract_fail is informational only — does NOT trigger fallback.
+    # Content matters more than format. Contract compliance is recorded in
+    # contract_ok/contract_errors for downstream consumers but never blocks.
 
     result["failure_reason"] = failure_reason
     result["success"] = failure_reason is None

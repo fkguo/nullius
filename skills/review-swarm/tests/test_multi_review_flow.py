@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -83,8 +84,15 @@ class MultiReviewFlowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.mod = _load_run_multi_task_module()
+        # Disable project config auto-discovery so tests are hermetic.
+        os.environ["REVIEW_SWARM_NO_AUTO_CONFIG"] = "1"
 
-    def test_contract_fail_without_fallback_returns_nonzero(self):
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("REVIEW_SWARM_NO_AUTO_CONFIG", None)
+
+    def test_contract_fail_is_informational_only(self):
+        """contract_fail is recorded in meta but does NOT affect exit code or success."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
             out_dir = td_path / "out"
@@ -126,11 +134,16 @@ class MultiReviewFlowTests(unittest.TestCase):
                 "--no-parallel",
             ]
             code = _run_main_with_argv(self.mod, argv)
-            self.assertEqual(code, 1)
+            # Contract failure is informational — exit code 0, all agents succeed.
+            self.assertEqual(code, 0)
             meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
-            self.assertEqual(meta["success_count"], 1)
+            self.assertEqual(meta["success_count"], 2)
+            # The gemini agent should have contract_ok=False recorded.
+            gemini_agent = [a for a in meta["agents"] if a.get("backend") == "gemini"][0]
+            self.assertFalse(gemini_agent.get("contract_ok"))
 
-    def test_auto_fallback_recovers_invalid_gemini_output(self):
+    def test_auto_fallback_not_triggered_by_contract_fail(self):
+        """contract_fail does NOT trigger fallback — both agents stay canonical."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
             out_dir = td_path / "out"
@@ -176,11 +189,13 @@ class MultiReviewFlowTests(unittest.TestCase):
             code = _run_main_with_argv(self.mod, argv)
             self.assertEqual(code, 0)
             meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
-            reviewer_b = meta.get("reviewer_b", {})
-            self.assertEqual(reviewer_b.get("variant"), "fallback")
-            self.assertEqual((reviewer_b.get("resolved") or {}).get("backend"), "claude")
+            # No fallback triggered — all agents are canonical.
+            self.assertEqual(meta["success_count"], 2)
+            for agent in meta["agents"]:
+                self.assertNotEqual(agent.get("variant"), "fallback")
 
-    def test_ask_mode_returns_needs_user_decision(self):
+    def test_ask_mode_not_triggered_by_contract_fail(self):
+        """contract_fail does NOT trigger ask mode — exit code 0."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
             out_dir = td_path / "out"
@@ -222,7 +237,8 @@ class MultiReviewFlowTests(unittest.TestCase):
                 "--no-parallel",
             ]
             code = _run_main_with_argv(self.mod, argv)
-            self.assertEqual(code, 4)
+            # Contract failure doesn't trigger ask mode — succeeds normally.
+            self.assertEqual(code, 0)
 
 
 if __name__ == "__main__":

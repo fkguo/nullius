@@ -120,17 +120,13 @@ make codegen-check    # 校验生成代码（TODO: NEW-01）
 **双模型（快速路径）** — 使用 `review-swarm` skill：
 
 ```bash
-python3 skills/review-swarm/scripts/bin/run_dual_task.py \
+python3 skills/review-swarm/scripts/bin/run_multi_task.py \
   --out-dir <output_dir> \
-  --claude-system <system_prompt.md> \
-  --claude-prompt <review_packet.md> \
-  --gemini-prompt <gemini_prompt.txt> \
-  --claude-model opus \
-  --gemini-model gemini-3.1-pro-preview \
-  --check-review-contract \
-  --fallback-mode auto \
-  --fallback-order codex,claude
+  --system <system_prompt.md> \
+  --prompt <review_packet.md>
 ```
+
+`models`、`fallback_mode` 等参数从 `meta/review-swarm.json` 自动加载。
 
 ### 收敛判定
 

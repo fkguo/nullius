@@ -22,9 +22,6 @@ Use `scripts/bin/run_multi_task.py` for all new workflows.
 Primary public skill name: `review-swarm`.
 Use `review-swarm` consistently in documentation and automation references.
 
-`run_dual_task.py` is **deprecated** and now a compatibility forwarding shim to `run_multi_task.py`.
-It is kept only for existing callers and legacy argument compatibility.
-
 ## Requirements
 
 Install runner skills for any backends you plan to use:
@@ -135,7 +132,14 @@ python3 scripts/bin/run_multi_task.py \
   --convergence-threshold 0.8
 ```
 
-## Standalone contract checker
+## Contract checking (informational)
+
+`--check-review-contract` validates output format compliance and records results in `meta.json`.
+**Contract failures are informational only** — they never trigger fallback. Content matters more than format.
+
+If you want models to output a specific format, include format instructions in your system/user prompt.
+
+Standalone checker:
 
 ```bash
 python3 scripts/bin/check_review_output_contract.py /tmp/dual_review/claude_output.md

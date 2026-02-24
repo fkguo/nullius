@@ -120,6 +120,12 @@ class MultiTaskTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.mod = _load_run_multi_task_module()
+        # Disable project config auto-discovery so tests are hermetic.
+        os.environ["REVIEW_SWARM_NO_AUTO_CONFIG"] = "1"
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("REVIEW_SWARM_NO_AUTO_CONFIG", None)
 
     def test_prompt_guard_bytes_over_limit_truncate_records_audit_fields(self):
         with tempfile.TemporaryDirectory() as td:
