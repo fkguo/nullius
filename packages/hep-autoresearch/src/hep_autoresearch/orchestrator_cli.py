@@ -37,6 +37,8 @@ from .toolkit.orchestrator_state import (
     append_ledger_event,
     approval_policy_path,
     autopilot_dir,
+    check_approval_budget,
+    check_approval_timeout,
     default_state,
     ensure_runtime_dirs,
     get_active_branch_id,
@@ -322,7 +324,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     )
     try:
         st["plan_md_path"] = os.fspath(plan_md_path(repo_root).relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         st["plan_md_path"] = os.fspath(plan_md_path(repo_root))
 
     plan = st.get("plan") if isinstance(st.get("plan"), dict) else {}
@@ -405,7 +407,7 @@ def _status_effective_run_status(st: dict) -> tuple[str | None, list[dict[str, s
         return ("running", warnings)
     try:
         interval_seconds = int(interval or 0)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
         interval_seconds = 0
     if interval_seconds <= 0:
         return ("running", warnings)
@@ -414,7 +416,7 @@ def _status_effective_run_status(st: dict) -> tuple[str | None, list[dict[str, s
 
         last_dt = dt.datetime.fromisoformat(str(last).replace("Z", "+00:00"))
         now_dt = dt.datetime.now(dt.timezone.utc)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
         return ("running", warnings)
 
     age = (now_dt - last_dt).total_seconds()
@@ -473,7 +475,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
     manifest_path = repo_root / "artifacts" / "runs" / rid / "paper_reviser" / "manifest.json"
     try:
         rel_manifest = os.fspath(manifest_path.relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         rel_manifest = os.fspath(manifest_path)
 
     if not manifest_path.exists():
@@ -784,6 +786,16 @@ def cmd_checkpoint(args: argparse.Namespace) -> int:
     if st.get("run_status") not in {"running", "paused", "awaiting_approval"} and not args.force:
         return _die(f"refusing checkpoint in status={st.get('run_status')} (use --force)")
 
+    # --- C-01: enforce timeout/budget at every checkpoint ---
+    timeout_action = check_approval_timeout(repo_root, st)
+    if timeout_action:
+        print(f"[warn] approval timed out (policy_action={timeout_action})", file=sys.stderr)
+        return 0  # state already mutated; don't continue the checkpoint
+    if check_approval_budget(repo_root, st):
+        print("[warn] approval budget exhausted", file=sys.stderr)
+        return 0
+    # --- end C-01 ---
+
     if args.step_id or args.step_title:
         step_id = str(args.step_id or (st.get("current_step") or {}).get("step_id") or "STEP")
         title = str(args.step_title or (st.get("current_step") or {}).get("title") or "")
@@ -1027,7 +1039,7 @@ def _cmd_branch_add_locked(repo_root: Path, args: argparse.Namespace) -> int:
     if isinstance(branching_existing, dict):
         try:
             base_cap = int(branching_existing.get("max_branches_per_decision") or 5)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
             base_cap = 5
     if base_cap < 1:
         base_cap = 5
@@ -1040,14 +1052,14 @@ def _cmd_branch_add_locked(repo_root: Path, args: argparse.Namespace) -> int:
             branches_existing = existing_decision["branches"]
         try:
             decision_cap = int(existing_decision.get("max_branches") or 0)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
             decision_cap = 0
         if decision_cap < 1:
             decision_cap = base_cap
         if existing_decision.get("cap_override") is not None:
             try:
                 existing_cap_override = int(existing_decision["cap_override"])
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                 existing_cap_override = None
 
     branches_dicts = [b for b in branches_existing if isinstance(b, dict)]
@@ -1432,7 +1444,7 @@ def _request_approval(
     active_branch_id = get_active_branch_id(st)
     try:
         state_rel = os.fspath(state_path(repo_root).relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         state_rel = os.fspath(state_path(repo_root))
     plan_ssot_pointer = f"{state_rel}#/plan"
 
@@ -1584,6 +1596,15 @@ def _require_pending(st: dict, approval_id: str) -> dict | None:
 def cmd_approve(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
     st = _read_or_init_state(repo_root)
+
+    # --- C-01: enforce timeout/budget before allowing approval ---
+    timeout_action = check_approval_timeout(repo_root, st)
+    if timeout_action:
+        return _die(f"approval timed out (policy_action={timeout_action})")
+    if check_approval_budget(repo_root, st):
+        return _die("BUDGET_EXHAUSTED: approval budget has been reached")
+    # --- end C-01 ---
+
     pending = _require_pending(st, args.approval_id)
     if not pending:
         return _die(f"no matching pending approval: {args.approval_id}")
@@ -2366,7 +2387,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
         try:
             st["plan_md_path"] = os.fspath(plan_md_path(repo_root).relative_to(repo_root))
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             st["plan_md_path"] = os.fspath(plan_md_path(repo_root))
 
         now = _now_z()
@@ -2479,10 +2500,18 @@ def cmd_run(args: argparse.Namespace) -> int:
         save_state(repo_root, st)
         return 4
 
+    # --- C-01: enforce timeout/budget before continuing a run ---
     pending = st.get("pending_approval")
     if pending:
+        timeout_action = check_approval_timeout(repo_root, st)
+        if timeout_action:
+            print(f"[warn] approval timed out (policy_action={timeout_action})", file=sys.stderr)
+            return 2 if timeout_action == "reject" else 3
+        if check_approval_budget(repo_root, st):
+            return _die("BUDGET_EXHAUSTED: approval budget has been reached")
         print(f"[info] awaiting approval: {pending.get('approval_id')}")
         return 3
+    # --- end C-01 ---
 
     if st.get("run_status") == "completed" and not args.force:
         print("[ok] already completed")
@@ -3171,7 +3200,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 if run_card_from_file:
                     try:
                         run_card_ref = os.fspath(run_card_path.relative_to(repo_root))
-                    except Exception:
+                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
                         run_card_ref = os.fspath(run_card_path)
                 raise GateResolutionError(
                     f"{e} (run_id={args.run_id}, workflow_id={args.workflow_id}, run_card={run_card_ref})"
@@ -3394,7 +3423,7 @@ def cmd_logs(args: argparse.Namespace) -> int:
                 continue
             try:
                 event = json.loads(line)
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip malformed JSON lines
                 continue
             if target_run_id and event.get("run_id") != target_run_id:
                 continue
@@ -3456,14 +3485,14 @@ def cmd_export(args: argparse.Namespace) -> int:
     def rel(p: Path) -> str:
         try:
             return os.fspath(p.relative_to(repo_root)).replace(os.sep, "/")
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return os.fspath(p)
 
     def is_within(path: Path, root: Path) -> bool:
         try:
             path.relative_to(root)
             return True
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path containment
             return False
 
     def safe_kb_file(rel_path: str) -> Path:
@@ -3587,7 +3616,7 @@ def _mcp_env(repo_root: Path, cfg_env: dict[str, str], args: argparse.Namespace,
         try:
             hep_real.relative_to(repo_real)
             under_repo = True
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path containment
             under_repo = False
 
         if under_repo:
@@ -3628,14 +3657,14 @@ def _doctor_runtime_user_bin_candidates() -> list[str]:
     candidates: set[str] = set()
     try:
         user_base = site.getuserbase()
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort PATH discovery
         user_base = ""
     if isinstance(user_base, str) and user_base:
         candidates.add(os.path.realpath(os.path.join(user_base, "bin")))
 
     try:
         user_site = site.getusersitepackages()
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort PATH discovery
         user_site = ""
     if isinstance(user_site, str) and user_site:
         candidates.add(os.path.realpath(os.path.join(user_site, "..", "..", "bin")))
@@ -3650,7 +3679,7 @@ def _doctor_runtime_user_bin_candidates() -> list[str]:
     try:
         for p in mac_py_root.glob("*/bin"):
             candidates.add(os.path.realpath(os.fspath(p)))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort PATH discovery
         pass
 
     return sorted({p for p in candidates if p})
@@ -3987,7 +4016,7 @@ def cmd_bridge(args: argparse.Namespace) -> int:
     def _rel(p: Path) -> str:
         try:
             return os.fspath(p.resolve().relative_to(repo_root.resolve())).replace(os.sep, "/")
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return os.fspath(p).replace(os.sep, "/")
 
     # Prepare staged payloads (keep them JSON so they can be consumed later).
@@ -4367,7 +4396,7 @@ def _c1_as_int(v: object) -> int | None:
             return None
         try:
             return int(s)
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
             return None
     return None
 
@@ -4385,7 +4414,7 @@ def _c1_extract_year(p: dict[str, Any]) -> int | None:
         if m:
             try:
                 return int(m.group(1))
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip on error
                 continue
     return None
 
@@ -4673,7 +4702,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
     def _rel(p: Path) -> str:
         try:
             return os.fspath(p.resolve().relative_to(repo_root.resolve())).replace(os.sep, "/")
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return os.fspath(p).replace(os.sep, "/")
 
     def _sha256_file(path: Path) -> str:
@@ -4935,7 +4964,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
         stats_candidates = candidates_json.get("stats") if isinstance(candidates_json, dict) else None
         try:
             cand_count = int((stats_candidates or {}).get("unique_recids") or 0) if isinstance(stats_candidates, dict) else 0
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
             cand_count = 0
         if cand_count == 0:
             print("[warn] literature-gap discover: 0 candidates extracted; seed_selection.json will have nothing to select from")
@@ -5013,7 +5042,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
     try:
         inps = cand_obj.get("inputs") if isinstance(cand_obj, dict) else None
         cand_topic = str((inps or {}).get("topic") or "").strip() if isinstance(inps, dict) else ""
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
         cand_topic = ""
 
     if cli_topic and cand_topic and cli_topic != cand_topic:
@@ -5025,7 +5054,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
     if not topic:
         try:
             topic = cand_topic
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
             topic = ""
     if not topic:
         return _die("--topic missing and could not infer it from candidates.json#/inputs/topic")

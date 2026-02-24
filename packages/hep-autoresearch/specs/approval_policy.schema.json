@@ -26,7 +26,8 @@
       "type": "object",
       "properties": {
         "max_network_calls": { "type": "integer", "minimum": 0 },
-        "max_runtime_minutes": { "type": "integer", "minimum": 0 }
+        "max_runtime_minutes": { "type": "integer", "minimum": 0 },
+        "max_approvals": { "type": "integer", "minimum": 0, "description": "Maximum number of approvals allowed per run. 0 means unlimited." }
       },
       "additionalProperties": false
     },

@@ -92,7 +92,7 @@ def state_lock(repo_root: Path, *, timeout_seconds: float = 10.0, poll_seconds: 
             finally:
                 try:
                     fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-                except Exception:
+                except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort lock release in finally
                     pass
 
     return _cm()
@@ -166,7 +166,7 @@ def _schema_resolve_ref(root_schema: dict[str, Any], ref: str) -> dict[str, Any]
         if isinstance(cur, list):
             try:
                 cur = cur[int(t)]
-            except Exception:
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
                 return None
             continue
         if isinstance(cur, dict):
@@ -483,15 +483,15 @@ def write_plan_md(repo_root: Path, *, plan: dict[str, Any]) -> str:
     tmp.write_text(render_plan_md(plan), encoding="utf-8")
     try:
         os.replace(tmp, p)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 cleanup before re-raise
         try:
             tmp.unlink()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
             pass
         raise
     try:
         return os.fspath(p.relative_to(repo_root))
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
         return os.fspath(p)
 
 
@@ -511,7 +511,7 @@ def save_state(repo_root: Path, state: dict[str, Any]) -> None:
         validate_plan(repo_root, plan=plan)
         try:
             state["plan_md_path"] = os.fspath(plan_md_path(repo_root).relative_to(repo_root))
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             state["plan_md_path"] = os.fspath(plan_md_path(repo_root))
     _write_json_atomic(state_path(repo_root), state)
     if isinstance(plan, dict):
@@ -569,7 +569,7 @@ def _persist_state_with_ledger_event_locked(
         validate_plan(repo_root, plan=plan)
         try:
             state["plan_md_path"] = os.fspath(plan_md_path(repo_root).relative_to(repo_root))
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             state["plan_md_path"] = os.fspath(plan_md_path(repo_root))
 
     ensure_runtime_dirs(repo_root)
@@ -586,10 +586,10 @@ def _persist_state_with_ledger_event_locked(
             step_id=step_id,
             details=details,
         )
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 cleanup before re-raise
         try:
             staged.unlink()
-        except Exception:
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort cleanup
             pass
         raise
 
@@ -680,7 +680,7 @@ def maybe_mark_needs_recovery(repo_root: Path, state: dict[str, Any]) -> bool:
 
         last_dt = dt.datetime.fromisoformat(str(last).replace("Z", "+00:00"))
         now_dt = dt.datetime.now(dt.timezone.utc)
-    except Exception:
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
         return False
     if (now_dt - last_dt).total_seconds() <= 2 * interval:
         return False
@@ -695,5 +695,120 @@ def maybe_mark_needs_recovery(repo_root: Path, state: dict[str, Any]) -> bool:
         workflow_id=state.get("workflow_id"),
         step_id=(state.get("current_step") or {}).get("step_id") if isinstance(state.get("current_step"), dict) else None,
         details={"reason": "checkpoint_stale"},
+    )
+    return True
+
+
+def check_approval_timeout(repo_root: Path, state: dict[str, Any]) -> str | None:
+    """Check if the pending approval has timed out.
+
+    Returns the ``on_timeout`` action string (``"block"``/``"reject"``/``"escalate"``)
+    if the approval has timed out, or ``None`` if not timed out or no pending approval.
+    Side-effects: on timeout, mutates *state*, persists to disk, and writes a ledger event.
+    """
+    pending = state.get("pending_approval")
+    if not pending or not isinstance(pending, dict):
+        return None
+    timeout_at = pending.get("timeout_at")
+    if not timeout_at:
+        return None
+
+    import datetime as dt
+
+    try:
+        deadline = dt.datetime.fromisoformat(str(timeout_at).replace("Z", "+00:00"))
+        now = dt.datetime.now(dt.timezone.utc)
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback for malformed timestamp
+        return None
+    if now <= deadline:
+        return None
+
+    on_timeout = str(pending.get("on_timeout") or "block")
+    approval_id = pending.get("approval_id", "")
+
+    if on_timeout == "reject":
+        state["pending_approval"] = None
+        state["run_status"] = "rejected"
+        state["notes"] = f"approval {approval_id} timed out — auto-rejected"
+        state.setdefault("approval_history", []).append(
+            {
+                "ts": utc_now_iso().replace("+00:00", "Z"),
+                "approval_id": approval_id,
+                "category": pending.get("category"),
+                "decision": "timeout_rejected",
+                "note": f"auto-rejected: timed out at {timeout_at}",
+            }
+        )
+    elif on_timeout == "escalate":
+        state["run_status"] = "needs_recovery"
+        state["notes"] = f"approval {approval_id} timed out — escalated"
+    else:  # "block" (default)
+        state["run_status"] = "blocked"
+        state["notes"] = f"approval {approval_id} timed out — blocked"
+
+    save_state(repo_root, state)
+    append_ledger_event(
+        repo_root,
+        event_type="approval_timeout",
+        run_id=state.get("run_id"),
+        workflow_id=state.get("workflow_id"),
+        step_id=(
+            (state.get("current_step") or {}).get("step_id")
+            if isinstance(state.get("current_step"), dict)
+            else None
+        ),
+        details={
+            "approval_id": approval_id,
+            "policy_action": on_timeout,
+            "timeout_at": timeout_at,
+        },
+    )
+    return on_timeout
+
+
+def check_approval_budget(
+    repo_root: Path, state: dict[str, Any], *, max_approvals: int | None = None
+) -> bool:
+    """Check if the approval budget is exhausted.
+
+    *max_approvals* is read from the approval policy ``budgets.max_approvals``
+    when not supplied explicitly.
+
+    Returns ``True`` if the budget is exhausted (and the state is updated on disk),
+    ``False`` otherwise.
+    """
+    if max_approvals is None:
+        policy = read_approval_policy(repo_root)
+        budgets = policy.get("budgets") or {}
+        raw = budgets.get("max_approvals")
+        if raw is None:
+            return False
+        max_approvals = int(raw)
+
+    if max_approvals <= 0:
+        return False
+
+    history = state.get("approval_history") or []
+    granted = sum(1 for h in history if isinstance(h, dict) and h.get("decision") == "approved")
+
+    if granted < max_approvals:
+        return False
+
+    state["run_status"] = "blocked"
+    state["notes"] = f"approval budget exhausted ({granted}/{max_approvals})"
+    if state.get("pending_approval"):
+        state["pending_approval"] = None
+    save_state(repo_root, state)
+    append_ledger_event(
+        repo_root,
+        event_type="approval_budget_exhausted",
+        run_id=state.get("run_id"),
+        workflow_id=state.get("workflow_id"),
+        step_id=(
+            (state.get("current_step") or {}).get("step_id")
+            if isinstance(state.get("current_step"), dict)
+            else None
+        ),
+        details={"granted": granted, "max_approvals": max_approvals},
     )
     return True
