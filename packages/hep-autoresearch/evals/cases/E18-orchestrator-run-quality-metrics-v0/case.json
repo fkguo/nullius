@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "case_id": "E18-orchestrator-run-quality-metrics-v0",
+  "workflow": "custom",
+  "description": "Run quality metrics v0: orchestrator_regression writes per-scenario quality_metrics/*.json derived from isolated ledger + artifacts, and analysis.json references them.",
+  "inputs": {},
+  "acceptance": {
+    "required_paths_exist": [
+      "specs/run_quality_metrics.schema.json",
+      "src/hep_autoresearch/toolkit/run_quality_metrics.py",
+      "src/hep_autoresearch/toolkit/orchestrator_regression.py",
+      "artifacts/runs/M34-t31-r1/orchestrator_regression/manifest.json",
+      "artifacts/runs/M34-t31-r1/orchestrator_regression/summary.json",
+      "artifacts/runs/M34-t31-r1/orchestrator_regression/analysis.json",
+      "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json"
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/quality_metrics_paths/w2",
+        "type": "string",
+        "equals": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json"
+      },
+      {
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "pointer": "#/run_id",
+        "type": "string",
+        "equals": "M34-t31-r1-w2"
+      },
+      {
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "pointer": "#/ledger/ledger_path",
+        "type": "string",
+        "contains": "ledger.jsonl"
+      },
+      {
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "pointer": "#/artifacts/run_dir",
+        "type": "string",
+        "contains": "artifacts/runs/M34-t31-r1-w2"
+      },
+      {
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "pointer": "#/artifacts/run_dir_exists",
+        "type": "boolean",
+        "equals": true
+      }
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "pointer": "#/ledger/total_events",
+        "min": 1
+      },
+      {
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "pointer": "#/ledger/approvals/requested_total",
+        "min": 1
+      }
+    ]
+  },
+  "notes": "Anchored to orchestrator_regression tag M34-t31-r1; checks that quality metrics exist, are schema-valid, and are referenced by analysis.json."
+}
+

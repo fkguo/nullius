@@ -1,0 +1,12 @@
+\section{Future Work}\label{sec:future_work}
+
+\xhdr{Principled Approach for Token-level Grammars}
+GCD relies on a token-level grammar to constrain the output of LLMs.
+In this work, we defined a token-level grammar by applying the tokenization function to the terminal symbols of a character-level grammar.
+In order to avoid ambiguity, we had to carefully design the output structure of the task so that no ambiguity is introduced by the tokenization function.
+A more principled approach for defining token-level grammars is an interesting direction for future work.
+
+\xhdr{Lightweight Finetuning for GCD}
+For tasks such as CP, the performance of GCD is far from the state-of-the-art.
+A lightweight finetuning may be able to improve the performance on this task, and it may also overcome the issue of likelihood misalignment.
+

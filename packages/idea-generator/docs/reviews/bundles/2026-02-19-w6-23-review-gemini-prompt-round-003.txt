@@ -1,0 +1,122 @@
+You are reviewer B (gemini-3-pro-preview). Tools are disabled.
+
+STRICT OUTPUT CONTRACT (non-negotiable):
+- Output MUST start immediately with: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT include any planning text, tool intentions, or other preamble.
+- Must contain these exact Markdown headers in this exact order:
+  - ## Blockers
+  - ## Non-blocking
+  - ## Real-research fit
+  - ## Robustness & safety
+  - ## Specific patch suggestions
+- For empty sections, write `- None.`
+- Do not rename or omit headers.
+
+Review ONLY the packet below.
+
+--- BEGIN PACKET ---
+# W6-23 Review Packet (Round-003) — ECOS status-clean cross-check + $A_{\\min}$ systematics + full artifact paths
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## Additions since Round-002 (addresses Opus blockers)
+
+1) **ECOS cross-check status-clean rerun**: v107 repeats the sparse ECOS cross-check at $Q^2\\in\\{1,5,10,Q^*\\}$ with eps_abs=eps_rel=5e-9 and reports `termination_feasibility=OPTIMAL` plus `min_status=max_status=OPTIMAL` at all four points.
+2) **$A_{\\min}$ systematics added**: cross-solver + tail-scale + ASR-tol tables now include $A_{\\min}$ (and deltas), not only $A_{\\max}$.
+3) **No truncated paths**: artifact paths in this packet are full (no `...`).
+4) Evidence note v2 updated accordingly (same path as Round-002, new content).
+
+## Baseline (Clarabel v100; tol=62; tail=1.0)
+
+Selected points from v100 `results.json`:
+
+| $Q^2$ ($m_\\pi^2$) | $A_{\\min}$ | $A_{\\max}$ |
+|---:|---:|---:|
+| 1.0 | 0.987172732 | 0.988922454 |
+| 5.0 | 0.938747344 | 0.947008802 |
+| 10.0 | 0.884001582 | 0.899127707 |
+| $Q^*=15.438$ | 0.830684547 | 0.851753713 |
+
+## (1) ECOS cross-check (v107; tol=62; tail=1.0)
+
+ECOS v107 vs Clarabel v100 deltas:
+
+| $Q^2$ | Clarabel v100 $A_{\\min}$ | ECOS v107 $A_{\\min}$ | $\\Delta A_{\\min}$ | Clarabel v100 $A_{\\max}$ | ECOS v107 $A_{\\max}$ | $\\Delta A_{\\max}$ |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1.0 | 0.987172732 | 0.987182144 | $+9.41\\times 10^{-6}$ | 0.988922454 | 0.988238188 | $-6.84\\times 10^{-4}$ |
+| 5.0 | 0.938747344 | 0.938944152 | $+1.97\\times 10^{-4}$ | 0.947008802 | 0.944763237 | $-2.25\\times 10^{-3}$ |
+| 10.0 | 0.884001582 | 0.884569531 | $+5.68\\times 10^{-4}$ | 0.899127707 | 0.894626985 | $-4.50\\times 10^{-3}$ |
+| $Q^*$ | 0.830684547 | 0.832048670 | $+1.36\\times 10^{-3}$ | 0.851753713 | 0.851778996 | $+2.53\\times 10^{-5}$ |
+
+Notes:
+- v101 (eps=1e-9) and v108 (eps=1e-9 + nitref=5) exist as strict-tolerance ECOS diagnostics, but both report `ALMOST_OPTIMAL` and are not used here as the “status-clean” cross-check.
+
+## (2) Tail-scale propagation (Clarabel v102/v103; tol=62)
+
+Tail envelope for $A_{\\min}$:
+
+| $Q^2$ | $A_{\\min}$ (tail=0.8) | $A_{\\min}$ (tail=1.0) | $A_{\\min}$ (tail=1.2) |
+|---:|---:|---:|---:|
+| 1.0 | 0.987172631 | 0.987172732 | 0.987172855 |
+| 5.0 | 0.938745436 | 0.938747344 | 0.938750173 |
+| 10.0 | 0.883987084 | 0.884001582 | 0.883999742 |
+| $Q^*$ | 0.830675348 | 0.830684547 | 0.830672107 |
+
+Tail envelope for $A_{\\max}$:
+
+| $Q^2$ | $A_{\\max}$ (tail=0.8) | $A_{\\max}$ (tail=1.0) | $A_{\\max}$ (tail=1.2) |
+|---:|---:|---:|---:|
+| 1.0 | 0.988666482 | 0.988922454 | 0.989137512 |
+| 5.0 | 0.945821343 | 0.947008802 | 0.948019480 |
+| 10.0 | 0.896878633 | 0.899127707 | 0.900973160 |
+| $Q^*$ | 0.848622730 | 0.851753713 | 0.854507878 |
+
+## (3) ASR tolerance spot-check (Clarabel v104/v105)
+
+$A_{\\min}$ at two points for tol=50/62/80:
+
+| $Q^2$ | $A_{\\min}$ (tol=50) | $A_{\\min}$ (tol=62) | $A_{\\min}$ (tol=80) |
+|---:|---:|---:|---:|
+| 1.0 | 0.987171116 | 0.987172732 | 0.987174308 |
+| $Q^*$ | 0.830546125 | 0.830684547 | 0.830832162 |
+
+$A_{\\max}$ at two points for tol=50/62/80:
+
+| $Q^2$ | $A_{\\max}$ (tol=50) | $A_{\\max}$ (tol=62) | $A_{\\max}$ (tol=80) |
+|---:|---:|---:|---:|
+| 1.0 | 0.987744340 | 0.988922454 | 0.989423504 |
+| $Q^*$ | 0.837407609 | 0.851753713 | 0.868490167 |
+
+Interpretation: ${\\rm tol}_{\\rm ASR}$ remains the dominant UV knob for $A_{\\max}$ at large $Q^2$, while $A_{\\min}$ is far less sensitive under the same variations.
+
+## Artifacts (full paths)
+
+Baseline:
+- v100 config: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v4cay_dispersion_grid200_enf200_multiq_audit8_clarabel_asrband_slope_tmd_asrtol62p0.json`
+- v100 run: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v100-dispersion-grid200-enf200-multiq-audit8-clarabel-asrband-slope-tmd-asrtol62p0/results.json`
+
+Cross-check/systematics runs:
+- v107 (ECOS; status-clean): `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-19-a-bochner-k0-socp-v107-dispersion-grid200-enf200-multiq4-audit8-ecos-asrband-slope-tmd-asrtol62p0-eps5e9/results.json`
+- v101 (ECOS; strict eps=1e-9; all solves ALMOST_OPTIMAL): `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v101-dispersion-grid200-enf200-multiq4-audit8-ecos-asrband-slope-tmd-asrtol62p0/results.json`
+- v102 (Clarabel; tail=0.8): `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v102-dispersion-grid200-enf200-multiq4-audit8-clarabel-asrband-slope-tmd-asrtol62p0-tail0p8/results.json`
+- v103 (Clarabel; tail=1.2): `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v103-dispersion-grid200-enf200-multiq4-audit8-clarabel-asrband-slope-tmd-asrtol62p0-tail1p2/results.json`
+- v104 (Clarabel; ASR tol=50; $Q^2\\in\\{1,Q^*\\}$): `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v104-dispersion-grid200-enf200-multiq2-audit8-clarabel-asrband-slope-tmd-asrtol50p0/results.json`
+- v105 (Clarabel; ASR tol=80; $Q^2\\in\\{1,Q^*\\}$): `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v105-dispersion-grid200-enf200-multiq2-audit8-clarabel-asrband-slope-tmd-asrtol80p0/results.json`
+
+Evidence note (tables + interpretation):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/evidence/2026-02-18-w6-23-multiq-asrband-slope-summary-v2.md`
+
+Manuscript:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+
+## Question for reviewers
+
+Given:
+- baseline multi-$Q^2$ curve v100 (Clarabel; all-OPTIMAL),
+- status-clean ECOS cross-check v107 at interior points,
+- tail and ASR-tolerance systematics tables for both $A_{\\min}$ and $A_{\\max}$,
+
+is W6-23 now `READY`?
+
+--- END PACKET ---
+

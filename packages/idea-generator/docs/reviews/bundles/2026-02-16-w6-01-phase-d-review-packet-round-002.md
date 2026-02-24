@@ -1,0 +1,81 @@
+# W6-01 Phase D Review Packet (Round 002) — Eta(s) Envelope Tightening Run (v1)
+
+## Delta From Round 001
+
+Round 001 established a reproducible D0 LP envelope run (v2) and updated the report/island progress accordingly.
+
+This Round 002 reviews an additional **in-scope** tightening step:
+
+- Add an explicit **$\eta(s)$-envelope robustness knob** (no coupled-channel; pion-only) as a post-process,
+  using the 3x3 PSD determinant consequence:
+  $$|\mathcal{F}(s)|^2 \le \rho(s)\,\frac{1+\eta(s)}{2},\qquad |S(s)|\le \eta(s)\le 1.$$
+
+## Deliverables Added
+
+Project: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15`
+
+Code + config:
+- `compute/d0_eta_envelope_postprocess.py`
+- `compute/d0_eta_envelope_config_v1.json`
+
+Run outputs (v1):
+- `runs/2026-02-16-d0-eta-envelope-v1/`
+  - `results.json`
+  - `config.json`
+  - `log.txt`
+  - `F_abs_upper_eta.png`
+
+Report update:
+- `reports/draft.md` now includes an “Eta-envelope tightening” subsection with reproduction pointers.
+
+Island progress stream (append-only):
+- `artifacts/islands/idea_island_progress_v1.jsonl` appended with a new ARTIFACT_ADDED event for the eta-envelope run.
+
+## Key Numerical Summary (eta-envelope v1)
+
+From `runs/2026-02-16-d0-eta-envelope-v1/results.json`:
+- input: `runs/2026-02-16-d0-spectral-lp-v2/results.json`
+- toy profiles (piecewise-constant, anchored at $s_{\mathrm{inel}}=16$):
+  - `elastic_only` (eta_floor=1.0): identical to base bound
+  - `eta_floor_0p8`: high-$s$ tightening factor $\sqrt{(1+0.8)/2}\approx 0.9487$
+  - `eta_floor_0p6`: high-$s$ tightening factor $\sqrt{(1+0.6)/2}\approx 0.8944$
+- example at $s=212$ (from summary artifact):
+  - base $|F|$ upper $\approx 6.5921$
+  - eta_floor=0.8: $|F|$ upper $\approx 6.2538$
+  - eta_floor=0.6: $|F|$ upper $\approx 5.8962$
+
+Summary artifact:
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-d-d0-eta-envelope-summary-v1.txt`
+
+## Reproduction
+
+From project root:
+```bash
+python3 compute/d0_eta_envelope_postprocess.py
+```
+
+## Verification Commands + Evidence (PASS)
+
+Eta run evidence:
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-d-d0-eta-envelope-run-v1.txt`
+
+Gates (re-run after eta-envelope additions):
+- `idea-runs make validate`:
+  - `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-d-idea-runs-validate-v2.txt`
+- `idea-runs PROJECT=... make validate-project`:
+  - `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-d-idea-runs-validate-project-v2.txt`
+- failure library hook:
+  - `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-d-failure-library-index-build-v2.txt`
+  - `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-d-failure-library-query-run-v2.txt`
+
+## Review Focus
+
+1) Is the determinant-based tightening correctly stated (as a conservative envelope) and clearly separated from the rho-only LP envelope?
+2) Is the $\eta(s)$ knob clearly labeled as a *toy envelope* pending a more defensible envelope, to avoid accidental over-claiming?
+3) Does the added code/run preserve pion-only + no coupled-channel constraints?
+4) READY to proceed to the next mainline unit (e.g., incorporate $\eta(s)$ more tightly into the optimization, or move toward a coupled (S,F,rho) truncation)?
+
+## Required Verdict Format
+
+First line must be exactly `VERDICT: READY` or `VERDICT: NOT_READY`, with no preamble.
+

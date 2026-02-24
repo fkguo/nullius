@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Structured Plan (SSOT)",
+  "type": "object",
+  "required": ["schema_version", "created_at", "updated_at", "steps"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "plan_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "workflow_id": { "type": "string" },
+    "current_step_id": { "type": "string" },
+    "branching": {
+      "oneOf": [{ "$ref": "#/$defs/plan_branching" }, { "type": "null" }]
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/plan_step" }
+    },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "approval_category": {
+      "type": "string",
+      "enum": ["A1", "A2", "A3", "A4", "A5"]
+    },
+    "branch_status": {
+      "type": "string",
+      "enum": ["candidate", "active", "abandoned", "failed", "completed"]
+    },
+    "branch_candidate": {
+      "type": "object",
+      "required": [
+        "branch_id",
+        "label",
+        "description",
+        "status",
+        "expected_approvals",
+        "expected_outputs",
+        "recovery_notes"
+      ],
+      "properties": {
+        "branch_id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/branch_status" },
+        "expected_approvals": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/approval_category" }
+        },
+        "expected_outputs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "recovery_notes": { "type": "string" },
+        "created_at": {
+          "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+        },
+        "updated_at": {
+          "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+        }
+      },
+      "additionalProperties": false
+    },
+    "branch_decision": {
+      "type": "object",
+      "required": [
+        "decision_id",
+        "title",
+        "step_id",
+        "created_at",
+        "updated_at",
+        "max_branches",
+        "active_branch_id",
+        "branches",
+        "notes"
+      ],
+      "properties": {
+        "decision_id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "step_id": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "max_branches": { "type": "integer", "minimum": 1 },
+        "cap_override": {
+          "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "active_branch_id": {
+          "description": "When non-null, MUST match a branch_id in branches array.",
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "branches": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/branch_candidate" }
+        },
+        "notes": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "active_branch_id": { "type": "string" } } },
+          "then": { "properties": { "branches": { "minItems": 1 } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "plan_branching": {
+      "type": "object",
+      "required": ["schema_version", "active_branch_id", "max_branches_per_decision", "decisions", "notes"],
+      "properties": {
+        "schema_version": { "type": "integer", "minimum": 1 },
+        "active_branch_id": {
+          "description": "Composite id '<decision_id>:<branch_id>' for the globally active branch (when non-null).",
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "max_branches_per_decision": { "type": "integer", "minimum": 1 },
+        "decisions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/branch_decision" }
+        },
+        "notes": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "active_branch_id": { "type": "string" } } },
+          "then": { "properties": { "decisions": { "minItems": 1 } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "plan_step": {
+      "type": "object",
+      "required": ["step_id", "description", "status", "expected_approvals", "expected_outputs", "recovery_notes"],
+      "properties": {
+        "step_id": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "completed", "blocked", "failed", "skipped"]
+        },
+        "expected_approvals": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/approval_category" }
+        },
+        "expected_outputs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "recovery_notes": { "type": "string" },
+        "started_at": {
+          "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+        },
+        "completed_at": {
+          "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

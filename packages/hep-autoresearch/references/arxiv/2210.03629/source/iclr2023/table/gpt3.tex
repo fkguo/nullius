@@ -1,0 +1,12 @@
+\begin{table}[ht]
+    \centering
+\begin{tabular}{c | cc}
+\toprule
+ & PaLM-540B & GPT-3 \\ \midrule
+HotpotQA (exact match) & 29.4 & \textbf{30.8} \\
+ALFWorld (success rate \%) & 70.9 & \textbf{78.4} \\ 
+\bottomrule
+\end{tabular}%
+    \caption{\model{} prompting results using PaLM-540B vs.\,GPT-3 (text-davinci-002, greedy decoding). On HotpotQA, we randomly sample a subset of 500 validation questions. On ALFWorld, we use all 134 unseen validation task instances, and use the best prompt set according to PaLM-540B.}
+    \label{tab:gpt3}
+\end{table}

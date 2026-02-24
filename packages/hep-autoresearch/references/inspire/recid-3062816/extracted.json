@@ -1,0 +1,18 @@
+{
+  "arxiv": {
+    "id": "2510.02426",
+    "primary_class": "hep-ph"
+  },
+  "authors_short": "Bakshi et al.",
+  "citekey": "Bakshi:2025fgx",
+  "inspire_recid": "3062816",
+  "links": {
+    "arxiv": "https://arxiv.org/abs/2510.02426",
+    "inspire": "https://inspirehep.net/literature/3062816",
+    "inspire_api": "https://inspirehep.net/api/literature/3062816"
+  },
+  "publication": "arXiv:2510.02426 [hep-ph]",
+  "refkey": "recid-3062816-argoloom-agentic-ai-for-fundamental-physics-from-quarks-to-cosmos",
+  "title": "ArgoLOOM: agentic AI for fundamental physics from quarks to cosmos",
+  "year": "2025"
+}

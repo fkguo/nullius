@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "case_id": "E13-evolution-proposal-v0",
+  "workflow": "custom",
+  "description": "EVOLUTION v0: from a failed/partial run, generate deterministic improvement proposals (JSON SSOT + proposal.md + trace stub) and bind suggested next actions.",
+  "inputs": {
+    "tag": "M17-t23-evolution-r1",
+    "source_run_tag": "M15-agentlit-src-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_evolution_proposal.py",
+      "src/hep_autoresearch/toolkit/evolution_proposal.py",
+      "artifacts/runs/M17-t23-evolution-r1/evolution_proposal/manifest.json",
+      "artifacts/runs/M17-t23-evolution-r1/evolution_proposal/summary.json",
+      "artifacts/runs/M17-t23-evolution-r1/evolution_proposal/analysis.json",
+      "artifacts/runs/M17-t23-evolution-r1/evolution_proposal/proposal.md",
+      "artifacts/runs/M17-t23-evolution-r1/evolution_proposal/report.md",
+      "artifacts/runs/M17-t23-evolution-r1/evolution_proposal/trace_stub.md",
+      "artifacts/runs/M17-t23-evolution-r1/evolution_proposal/suggested_eval_case.case.json"
+    ],
+    "reading_note_required_fields": [
+      "# Evolution proposals",
+      "network_flakiness",
+      "requires_approval",
+      "A2",
+      "suggested_eval_case_path"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M17-t23-evolution-r1/evolution_proposal/analysis.json",
+        "pointer": "#/results/proposals_total",
+        "min": 1
+      }
+    ]
+  },
+  "notes": "This is an evidence-first self-evolution entrypoint: it does not apply code changes; it emits A2-gated proposals with pointers and suggested regression anchors."
+}

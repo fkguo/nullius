@@ -1,0 +1,69 @@
+\section{Decision Making Tasks}
+\label{decision_making_tasks}
+
+We also test \model{} on two language-based interactive decision-making tasks, ALFWorld and WebShop,
+both of which feature complex environments that require agents to act over long horizons with sparse rewards, warranting the need for reasoning to act and explore effectively.
+
+
+
+\myparagraph{ALFWorld}
+ALFWorld~\citep{shridhar2020alfworld} (Figure~\ref{fig:teaser}(2)) is a synthetic text-based game designed to align with the embodied ALFRED benchmark~\citep{shridhar2020alfred}. It includes 6 types of tasks in which an agent needs to achieve a high-level goal (e.g.\,examine paper under desklamp) by navigating and interacting with a simulated household via text actions (e.g.\,
+go to coffeetable 1, take paper 2, use desklamp 1).
+A task instance can have more than 50 locations and take an expert policy more than 50 steps to solve, thus challenging an agent to plan and track subgoals, as well as explore systematically (e.g.\,check all desks one by one for desklamp). In particular, one challenge built into ALFWorld is the need to determine likely locations for common household items (e.g.\,desklamps will likely be on desks, shelfs, or dressers), making this environment a good fit for LLMs to exploit their pretrained commonsense knowledge.
+To prompt \model{}, we randomly annotate three trajectories from the training set for each task type, where each trajectory includes sparse thoughts that (1) decompose the goal, (2) track subgoal completion, (3) determine the next subgoal, and (4) reason via commonsense where to find an object and what to do with it.
+We show prompts used for ALFWorld in Appendix~\ref{appendix:ALFWorld_prompts}.
+Following ~\citet{shridhar2020alfworld}, we evaluate on 134 unseen evaluation games in a task-specific setup. For robustness, we construct 6 prompts for each task type through each permutation of 2 annotated trajectories from the 3 we annotate. \act{} prompts are constructed using the same trajectories, but without thoughts --- since task instances are randomly chosen from the training set, it favors neither \model{} nor \act{} and provides a fair and controlled comparison to test the importance of sparse thoughts. 
+For baselines, we use BUTLER~\citep{shridhar2020alfworld}, an imitation learning agent trained on $10^5$ expert trajectories for each task type\footnote{\citet{micheli2021language} finetuned a GPT-2 model on 3553 task instances and achieved a much improved performance than BUTLER, but it is trained on all task types, thus not included as a baseline.}. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\myparagraph{WebShop}
+\label{sec:webshop}
+Can \model{} also interact with noisy real-world language environments for practical applications? 
+We investigate WebShop~\citep{yao2022webshop}, a recently proposed online shopping website environment with 1.18M real-world products and 12k human instructions. Unlike ALFWorld, Webshop contains a high variety of structured and unstructured texts (e.g.\,product titles, descriptions, and options crawled from Amazon), and requires an agent to purchase a product based on a user instruction (e.g.\,``I am looking for a nightstand
+with drawers. It should have a nickel finish, and priced lower than \$140'') through web interactions (e.g.\,search ``nightstand drawers'', choose buttons such as ``color: modern-nickel-white'' or ``back to search''). 
+This task is evaluated by average score (percentage of desired attributes covered by the chosen product averaged across all episodes) and success rate (percentage of episodes where the chosen product satisfies all requirements) on 500 test instructions. 
+We formulate \act{} prompts with actions to search, choose product, choose options, and buy, with \model{} prompts additionally reasoning to determine what to explore, when to buy, and what products options are relevant to the instruction.
+See Table~\ref{prompts:webshop} for an example prompt, and Table~\ref{trajectories:webshop} for model predictions in the Appendix.
+We compare to an imitation learning (IL) method trained with 1,012 human annotated trajectories, and a imitation + reinforcement learning (IL + RL) method additionally trained with 10,587 training instructions.
+
+
+
+
+
+
+
+
+
+
+
+\myparagraph{Results}
+
+\input{iclr2023/table/rl}
+
+\model{} outperforms \act{} on both ALFWorld (Table~\ref{table:alfworld}) and Webshop (Table \ref{table:webshop}). On ALFWorld, the best \model{} trial achieves an average success rate of 71\%, significantly outperforming the best \act{} (45\%) and BUTLER (37\%) trials. In fact, even the worse \model{} trial (48\%) beats the best trial of both methods. Moreover, the advantage of \model{} over \act{} is consistent across six controlled trials, with relative performance gain ranging from 33\% to 90\% and averaging 62\%. Qualitatively, we saw that, without any thoughts at all, \act{} fails to correctly decompose goals into smaller subgoals, or loses track of the current state of the environment. Example trajectories comparing \model{} and \act{} can be found in Appendix~\ref{appendix:react_ALFWorld_trajectory} and Appendix~\ref{appendix:act_ALFWorld_trajectory}. %
+
+On Webshop, one-shot \act{} prompting already performs on par with IL and IL+RL methods. With additional sparse reasoning, \model{} achieves significantly better performance, with an absolute 10\% improvement over the  previous best success rate. 
+By checking examples, we find that \model{} is more likely to identify instruction-relevant products and options by reasoning to bridge the gap between noisy observations and actions (e.g.\,``For `space-saving ottoman bench for living room', the item has options `39x18x18inch' and `blue' and seems good to buy.'').
+However, existing methods are still far from the performance of expert humans (Table~\ref{table:webshop}), who perform significantly more product explorations and query re-formulations that are still challenging for prompting-based methods.
+
+\myparagraph{On the value of internal reasoning vs. external feedback}
+
+To our knowledge, \model{} is the first demonstration of combined reasoning and action using an LLM applied to an interactive environment within a closed-loop system. Perhaps the closest prior work is Inner Monologue (IM), from \cite{huang2022inner}, in which actions from an embodied agent are motivated by an eponymous ``inner monologue''. \textbf{However, IM's ``inner monologue'' 
+is limited to observations of the environment state and what needs to be completed by the agent for the goal to be satisfied.}
+In contrast, the reasoning traces in \model{} for decision making is flexible and sparse, allowing diverse reasoning types (see Section~\ref{sec:react}) to be induced for different tasks.
+
+To demonstrate the differences between \model{} and IM, and to highlight the importance of internal reasoning vs. simple reactions to external feedback, we ran an ablation experiment using a thought pattern composed of IM-like dense external feedback. As can be seen in Table~\ref{table:alfworld}, \model{} substantially outperforms IM-style prompting (\modelim{}) (71 vs.\,53 overall success rate), with consistent advantages on five out of six tasks. 
+Qualitatively, we observed that \modelim{} often made mistakes in identifying when subgoals were finished, or what the next subgoal should be, due to a lack of high-level goal decomposition. Additionally, many \modelim{} trajectories struggled to determine where an item would likely be within the ALFWorld environment, due to a lack of commonsense reasoning. Both shortcomings can be addressed in the \model{} paradigm. 
+More details about \modelim{} is in Appendix~\ref{sec:alfworld_im}. An example prompt for \modelim{} can be found in Appendix~\ref{appendix:ALFWorld_prompts}, and an example trajectory in Appendix~\ref{appendix:reactim_ALFWorld_trajectory}.

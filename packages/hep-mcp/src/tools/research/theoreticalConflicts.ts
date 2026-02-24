@@ -1,0 +1,1030 @@
+import * as fs from 'fs';
+import { createHash } from 'crypto';
+import { invalidParams } from '@autoresearch/shared';
+
+import * as api from '../../api/client.js';
+import { writeRunJsonArtifact } from '../../vnext/citations.js';
+import { getRunArtifactPath } from '../../vnext/paths.js';
+import { getRun, type RunArtifactRef } from '../../vnext/runs.js';
+import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
+import { createLLMClient } from '../writing/llm/clients/index.js';
+import { getLLMConfigFromEnv } from '../writing/llm/config.js';
+import { classifyAxisPosition, mutualExclusionRuleHits, type DebateAxis } from './theoreticalConflict/lexicon.js';
+import {
+  buildAdjudicateEdgePrompt,
+  isAdjudicateEdgePromptVersion,
+  isEdgeRelation,
+  type AdjudicateEdgePromptVersion,
+} from './theoreticalConflict/prompts.js';
+
+type InputType = 'title' | 'abstract' | 'citation_context' | 'evidence_paragraph';
+type ClaimType = 'interpretation' | 'prediction' | 'methodology' | 'assumption' | 'measurement';
+
+type EdgeRelation = 'contradict' | 'compatible' | 'different_scope' | 'unclear';
+type EvidenceStrength = 'strong' | 'moderate' | 'weak';
+
+export interface TheoreticalConflictsResult {
+  run_id: string;
+  project_id: string;
+  manifest_uri: string;
+  artifacts: RunArtifactRef[];
+  summary: Record<string, unknown>;
+  next_actions?: Array<{ tool: string; args: Record<string, unknown>; reason: string }>;
+}
+
+type ClaimCandidateV1 = {
+  version: 1;
+  claim_candidate_id: string;
+  input_type: InputType;
+  text: string;
+  locator?: { recid: string; field?: 'title' | 'abstract'; evidence_id?: string };
+  subject_entity_hint?: string;
+  trigger_signals?: string[];
+};
+
+type NormalizedClaimV1 = {
+  version: 1;
+  claim_id: string;
+  claim_type: ClaimType;
+  subject_entity: string;
+  axis: DebateAxis;
+  position: string;
+  polarity: 'assert' | 'support' | 'disfavor' | 'uncertain';
+  qualifiers?: string[];
+  original_text: string;
+  source: { recid: string; title?: string; year?: number };
+  confidence: number;
+  evidence_refs?: Array<{ recid: string; field?: 'title' | 'abstract'; evidence_id?: string }>;
+};
+
+type DebateNodeV1 = {
+  version: 1;
+  subject_entity: string;
+  axis: DebateAxis;
+  positions: Array<{
+    position: string;
+    claims: NormalizedClaimV1[];
+    support_strength: EvidenceStrength;
+  }>;
+};
+
+type ConflictEdgeV1 = {
+  version: 1;
+  edge_id: string;
+  subject_entity: string;
+  axis: DebateAxis;
+  position_a: string;
+  position_b: string;
+  relation: EdgeRelation;
+  confidence: number;
+  reasoning?: string;
+  compatibility_note?: string;
+  evidence_strength: EvidenceStrength;
+  claim_ids: string[];
+};
+
+type LlmMode = 'passthrough' | 'client' | 'internal';
+
+type LlmRequestV1 = {
+  version: 1;
+  generated_at: string;
+  request_id: string;
+  prompt_version: string;
+  kind: 'adjudicate_edge';
+  edge_id: string;
+  subject_entity: string;
+  axis: DebateAxis;
+  position_a: string;
+  position_b: string;
+  score?: number;
+  claims_a: Array<{ recid: string; title?: string; year?: number; text: string }>;
+  claims_b: Array<{ recid: string; title?: string; year?: number; text: string }>;
+  prompt: string;
+};
+
+type ClientLlmResponseInput = {
+  request_id: string;
+  json_response: unknown;
+  model?: string;
+  created_at?: string;
+  [key: string]: unknown;
+};
+
+type ParsedAdjudication = {
+  relation: EdgeRelation;
+  confidence: number;
+  reasoning: string;
+  compatibility_note?: string;
+};
+
+type SparseVector = { dim: number; indices: number[]; values: number[] };
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function sha256Hex(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
+}
+
+function runArtifactUri(runId: string, artifactName: string): string {
+  return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
+}
+
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > 1) return 1;
+  return n;
+}
+
+function writeRunJsonlArtifact(runId: string, artifactName: string, rows: unknown[]): RunArtifactRef {
+  const p = getRunArtifactPath(runId, artifactName);
+  const lines = rows.map(r => JSON.stringify(r));
+  fs.writeFileSync(p, `${lines.join('\n')}\n`, 'utf-8');
+  return { name: artifactName, uri: runArtifactUri(runId, artifactName), mimeType: 'application/x-ndjson' };
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of values) {
+    const s = String(v);
+    if (!s) continue;
+    if (seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
+
+function normalizeWhitespace(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function splitSentences(text: string): string[] {
+  const t = normalizeWhitespace(text);
+  if (!t) return [];
+  return t
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+const TRIGGER_PATTERNS: Array<{ name: string; re: RegExp }> = [
+  { name: 'we_propose', re: /\bwe\s+propose\b/i },
+  { name: 'we_interpret', re: /\bwe\s+interpret\b/i },
+  { name: 'we_argue', re: /\bwe\s+argue\b/i },
+  { name: 'we_conclude', re: /\bwe\s+conclude\b/i },
+  { name: 'favors', re: /\bfavor(?:s|ed|ing)?\b/i },
+  { name: 'disfavors', re: /\bdisfavor(?:s|ed|ing)?\b/i },
+  { name: 'inconsistent', re: /\binconsistent\s+with\b/i },
+  { name: 'compatible', re: /\bcompatible\s+with\b/i },
+];
+
+function guessPolarity(text: string): NormalizedClaimV1['polarity'] {
+  const lower = text.toLowerCase();
+  if (/\bdisfavor\b|\brule\s+out\b|\bexclude\b/.test(lower)) return 'disfavor';
+  if (/\bfavor\b|\bsupport\b/.test(lower)) return 'support';
+  if (/\buncertain\b|\bmaybe\b|\bpossible\b/.test(lower)) return 'uncertain';
+  return 'assert';
+}
+
+function evidenceStrengthFromCount(n: number): EvidenceStrength {
+  if (n >= 3) return 'strong';
+  if (n >= 1) return 'moderate';
+  return 'weak';
+}
+
+function normalizeText(text: string): string {
+  return normalizeTextPreserveUnits(text);
+}
+
+function tokenizeForEmbedding(text: string): string[] {
+  return normalizeText(text)
+    .replace(/[^a-zA-Z0-9_:+-]+/g, ' ')
+    .split(' ')
+    .map(t => t.trim())
+    .filter(Boolean);
+}
+
+function fnv1a32(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+function buildSparseVector(text: string, dim: number): SparseVector {
+  const counts = new Map<number, number>();
+  const tokens = tokenizeForEmbedding(text);
+  for (const token of tokens) {
+    const h = fnv1a32(token);
+    const idx = h % dim;
+    const sign = (h & 1) === 0 ? 1 : -1;
+    counts.set(idx, (counts.get(idx) ?? 0) + sign);
+  }
+
+  const entries = Array.from(counts.entries()).sort((a, b) => a[0] - b[0]);
+  const indices: number[] = [];
+  const values: number[] = [];
+  let norm2 = 0;
+  for (const [, v] of entries) norm2 += v * v;
+  const norm = norm2 > 0 ? Math.sqrt(norm2) : 1;
+
+  for (const [i, v] of entries) {
+    if (v === 0) continue;
+    indices.push(i);
+    values.push(v / norm);
+  }
+
+  return { dim, indices, values };
+}
+
+function dotSparse(a: SparseVector, b: SparseVector): number {
+  if (a.dim !== b.dim) return 0;
+  let i = 0;
+  let j = 0;
+  let sum = 0;
+  while (i < a.indices.length && j < b.indices.length) {
+    const ai = a.indices[i]!;
+    const bj = b.indices[j]!;
+    if (ai === bj) {
+      sum += (a.values[i] ?? 0) * (b.values[j] ?? 0);
+      i++;
+      j++;
+      continue;
+    }
+    if (ai < bj) i++;
+    else j++;
+  }
+  return sum;
+}
+
+function tokenOverlapExplanation(aText: string, bText: string, cap: number = 40): { matched_tokens: string[]; token_overlap_ratio: number } {
+  const aTokens = tokenizeForEmbedding(aText);
+  const bTokens = tokenizeForEmbedding(bText);
+  if (aTokens.length === 0 || bTokens.length === 0) return { matched_tokens: [], token_overlap_ratio: 0 };
+  const bSet = new Set(bTokens);
+  const matched: string[] = [];
+  const seen = new Set<string>();
+  for (const t of aTokens) {
+    if (!bSet.has(t)) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    matched.push(t);
+    if (matched.length >= cap) break;
+  }
+  const denom = Math.max(1, Math.min(aTokens.length, bTokens.length));
+  return {
+    matched_tokens: matched,
+    token_overlap_ratio: clamp01(seen.size / denom),
+  };
+}
+
+function extractEntityHint(text: string): string | undefined {
+  const t = normalizeWhitespace(text);
+  if (!t) return undefined;
+  const m = t.match(/\b[A-Z][A-Za-z]{0,3}\(\s*\d{3,5}\s*\)\b/);
+  if (m && m[0]) return normalizeWhitespace(m[0]);
+  const tcc = t.match(/\bT(?:_\{?cc\}?|cc)\b/i);
+  if (tcc && tcc[0]) return normalizeWhitespace(tcc[0]);
+  return undefined;
+}
+
+function parseClientJsonResponse(input: unknown): unknown {
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      const start = trimmed.indexOf('{');
+      const end = trimmed.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        try {
+          return JSON.parse(trimmed.slice(start, end + 1));
+        } catch {
+          return input;
+        }
+      }
+      return input;
+    }
+  }
+  return input;
+}
+
+function parseAdjudication(input: unknown): ParsedAdjudication | null {
+  const obj = parseClientJsonResponse(input);
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  const o = obj as Record<string, unknown>;
+  const relationRaw = String(o.relation ?? '').trim();
+  if (!isEdgeRelation(relationRaw)) return null;
+  const relation = relationRaw as EdgeRelation;
+  const confidence = Number(o.confidence);
+  const reasoning = String(o.reasoning ?? '').trim();
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) return null;
+  if (!reasoning) return null;
+  const compatibility_note = typeof o.compatibility_note === 'string' && o.compatibility_note.trim() ? o.compatibility_note.trim() : undefined;
+  return { relation, confidence, reasoning, compatibility_note };
+}
+
+function stableSort<T>(items: T[], key: (t: T) => string): T[] {
+  const copy = [...items];
+  copy.sort((a, b) => key(a).localeCompare(key(b)));
+  return copy;
+}
+
+function takeTopK<T>(items: T[], k: number): T[] {
+  if (k <= 0) return [];
+  if (items.length <= k) return items;
+  return items.slice(0, k);
+}
+
+export async function performTheoreticalConflicts(params: {
+  run_id: string;
+  recids: string[];
+  options: {
+    subject_entity?: string;
+    inputs?: InputType[];
+    max_papers?: number;
+    max_claim_candidates_per_paper?: number;
+    max_candidates_total?: number;
+    llm_mode?: LlmMode;
+    max_llm_requests?: number;
+    strict_llm?: boolean;
+    prompt_version?: string;
+    stable_sort?: boolean;
+    client_llm_responses?: ClientLlmResponseInput[];
+  };
+}): Promise<TheoreticalConflictsResult> {
+  const run = getRun(params.run_id);
+  const runStartedAt = nowIso();
+  const stableSortEnabled = params.options.stable_sort ?? true;
+  const llmMode: LlmMode = params.options.llm_mode ?? 'passthrough';
+  const strictLlm = params.options.strict_llm ?? false;
+
+  const promptVersionRaw = params.options.prompt_version ?? 'v1';
+  if (!isAdjudicateEdgePromptVersion(promptVersionRaw)) {
+    throw invalidParams('Unknown prompt_version for theoretical adjudication', {
+      prompt_version: promptVersionRaw,
+      supported: ['v1'],
+    });
+  }
+  const promptVersion = promptVersionRaw as AdjudicateEdgePromptVersion;
+
+  const warnings: string[] = [];
+
+  const inputsRequested: InputType[] = (params.options.inputs && params.options.inputs.length > 0)
+    ? params.options.inputs
+    : ['title', 'abstract'];
+  const inputsEffective = inputsRequested.filter(t => t === 'title' || t === 'abstract');
+  const unsupportedInputs = inputsRequested.filter(t => t !== 'title' && t !== 'abstract');
+  if (unsupportedInputs.length > 0) warnings.push(`unsupported_inputs_ignored:${unsupportedInputs.join(',')}`);
+
+  const maxPapers = Math.max(1, Math.min(params.options.max_papers ?? params.recids.length, params.recids.length));
+  const maxPerPaper = Math.max(1, Math.min(params.options.max_claim_candidates_per_paper ?? 20, 200));
+  const maxCandidatesTotal = Math.max(1, Math.min(params.options.max_candidates_total ?? 200, 5000));
+  const maxLlmRequests = Math.max(1, Math.min(params.options.max_llm_requests ?? 50, 5000));
+
+  const recids = uniqueStrings(params.recids).slice(0, maxPapers);
+  const recidsOrdered = stableSortEnabled ? recids.slice().sort((a, b) => a.localeCompare(b)) : recids;
+
+  const subjectEntityDefault = params.options.subject_entity?.trim() || 'unknown';
+
+  const sourceStatus: Array<{ recid: string; status: 'success' | 'failed'; stage: 'fetch' | 'extract' | 'llm'; error?: string }> = [];
+  const papers: Array<{ recid: string; title?: string; year?: number; abstract?: string | null }> = [];
+
+  for (const recid of recidsOrdered) {
+    try {
+      const paper = await api.getPaper(recid);
+      papers.push({ recid, title: paper.title, year: paper.year, abstract: paper.abstract ?? null });
+      sourceStatus.push({ recid, status: 'success', stage: 'fetch' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      sourceStatus.push({ recid, status: 'failed', stage: 'fetch', error: msg });
+    }
+  }
+
+  const candidates: ClaimCandidateV1[] = [];
+  const candidatesById = new Set<string>();
+
+  for (const paper of papers) {
+    const collected: Array<{ input_type: InputType; field?: 'title' | 'abstract'; text: string }> = [];
+    if (inputsEffective.includes('title') && paper.title) {
+      collected.push({ input_type: 'title', field: 'title', text: paper.title });
+    }
+    if (inputsEffective.includes('abstract') && paper.abstract) {
+      collected.push({ input_type: 'abstract', field: 'abstract', text: paper.abstract });
+    }
+
+    const perPaper: ClaimCandidateV1[] = [];
+    for (const item of collected) {
+      const sentences = item.input_type === 'title' ? [item.text] : splitSentences(item.text);
+      for (const s of sentences) {
+        const text = normalizeWhitespace(s);
+        if (!text) continue;
+
+        const triggerSignals = TRIGGER_PATTERNS.filter(p => p.re.test(text)).map(p => p.name);
+        const classified = classifyAxisPosition(text);
+        const axis = classified.axis;
+
+        // Keep only sentences that look like claims, or that strongly match a known debate lexicon axis.
+        if (triggerSignals.length === 0 && axis !== 'internal_structure') continue;
+
+        const claimCandidateId = `cc_${sha256Hex(JSON.stringify({ recid: paper.recid, input_type: item.input_type, text })).slice(0, 16)}`;
+        if (candidatesById.has(claimCandidateId)) continue;
+        candidatesById.add(claimCandidateId);
+
+        const entityHint = subjectEntityDefault !== 'unknown' ? subjectEntityDefault : (extractEntityHint(text) ?? 'unknown');
+
+        perPaper.push({
+          version: 1,
+          claim_candidate_id: claimCandidateId,
+          input_type: item.input_type,
+          text,
+          locator: item.field ? { recid: paper.recid, field: item.field } : { recid: paper.recid },
+          subject_entity_hint: entityHint !== 'unknown' ? entityHint : undefined,
+          trigger_signals: [...triggerSignals, ...classified.hits].length > 0 ? [...triggerSignals, ...classified.hits] : undefined,
+        });
+      }
+    }
+
+    candidates.push(...perPaper.slice(0, maxPerPaper));
+    sourceStatus.push({ recid: paper.recid, status: 'success', stage: 'extract' });
+  }
+
+  const maxClaimCandidates = Math.min(5000, maxPapers * maxPerPaper);
+  const candidatesFinal = stableSortEnabled
+    ? stableSort(candidates.slice(0, maxClaimCandidates), c => c.claim_candidate_id)
+    : candidates.slice(0, maxClaimCandidates);
+
+  const paperMetaByRecid = new Map(papers.map(p => [p.recid, p]));
+
+  // Baseline normalization (0 LLM).
+  const claims: NormalizedClaimV1[] = candidatesFinal.map(c => {
+    const classified = classifyAxisPosition(c.text);
+    const polarity = guessPolarity(c.text);
+    const triggerCount = Array.isArray(c.trigger_signals) ? c.trigger_signals.length : 0;
+    const confidence = classified.axis === 'internal_structure' && classified.position !== 'unknown'
+      ? clamp01(0.55 + Math.min(0.25, triggerCount * 0.05))
+      : 0.35;
+
+    const effectiveEntity = subjectEntityDefault !== 'unknown' ? subjectEntityDefault : (c.subject_entity_hint?.trim() || 'unknown');
+    const claimId = `cl_${sha256Hex(JSON.stringify({
+      recid: c.locator?.recid ?? '',
+      subject_entity: effectiveEntity,
+      axis: classified.axis,
+      position: classified.position,
+      text: c.text.toLowerCase(),
+    })).slice(0, 16)}`;
+
+    const recid = c.locator?.recid ?? '';
+    const meta = paperMetaByRecid.get(recid);
+    return {
+      version: 1,
+      claim_id: claimId,
+      claim_type: 'interpretation',
+      subject_entity: effectiveEntity,
+      axis: classified.axis,
+      position: classified.position,
+      polarity,
+      original_text: c.text,
+      source: { recid, title: meta?.title, year: meta?.year },
+      confidence,
+      evidence_refs: recid ? [{ recid, field: c.locator?.field }] : undefined,
+    };
+  });
+
+  const claimsFinal = stableSortEnabled ? stableSort(claims, c => c.claim_id) : claims;
+
+  // Debate map: group by subject_entity + axis.
+  const byKey = new Map<string, NormalizedClaimV1[]>();
+  for (const c of claimsFinal) {
+    const key = `${c.subject_entity}__${c.axis}`;
+    const list = byKey.get(key) ?? [];
+    list.push(c);
+    byKey.set(key, list);
+  }
+
+  const debateNodes: DebateNodeV1[] = [];
+  for (const [key, axisClaims] of byKey.entries()) {
+    const [subjectEntity, axisRaw] = key.split('__');
+    const axis = (axisRaw ?? 'other') as DebateAxis;
+
+    const byPos = new Map<string, NormalizedClaimV1[]>();
+    for (const c of axisClaims) {
+      const list = byPos.get(c.position) ?? [];
+      list.push(c);
+      byPos.set(c.position, list);
+    }
+
+    const positions = Array.from(byPos.entries()).map(([position, cs]) => ({
+      position,
+      claims: stableSortEnabled ? stableSort(cs, x => x.claim_id) : cs,
+      support_strength: evidenceStrengthFromCount(cs.length),
+    }));
+
+    debateNodes.push({
+      version: 1,
+      subject_entity: subjectEntity ?? 'unknown',
+      axis,
+      positions: stableSortEnabled ? stableSort(positions, p => p.position) : positions,
+    });
+  }
+
+  const debateNodesFinal = stableSortEnabled
+    ? stableSort(debateNodes, n => `${n.subject_entity}__${n.axis}`)
+    : debateNodes;
+
+  const EMBEDDING_DIM = 256;
+  const TOP_K_PER_BUCKET = 20;
+
+  type ConflictCandidateV1 = {
+    version: 1;
+    edge_id: string;
+    subject_entity: string;
+    axis: DebateAxis;
+    position_a: string;
+    position_b: string;
+    score: number;
+    rule_hits: string[];
+    retrieval_explanation: { matched_tokens: string[]; token_overlap_ratio: number };
+    embedding_similarity: number;
+    support_balance: number;
+    claims_a_count: number;
+    claims_b_count: number;
+    baseline_relation: EdgeRelation;
+    baseline_confidence: number;
+    evidence_strength: EvidenceStrength;
+    claim_ids: string[];
+  };
+
+  const conflictCandidatesAll: ConflictCandidateV1[] = [];
+  for (const node of debateNodesFinal) {
+    const positions = node.positions.map(p => p.position).filter(p => p !== 'unknown');
+    const uniquePositions = uniqueStrings(positions);
+    if (uniquePositions.length < 2) continue;
+
+    const positionText = new Map<string, string>();
+    const positionVec = new Map<string, SparseVector>();
+    const positionCount = new Map<string, number>();
+
+    for (const pos of uniquePositions) {
+      const cs = node.positions.find(p => p.position === pos)?.claims ?? [];
+      const joined = cs.map(c => c.original_text).join('\n');
+      positionText.set(pos, joined);
+      positionVec.set(pos, buildSparseVector(joined, EMBEDDING_DIM));
+      positionCount.set(pos, cs.length);
+    }
+
+    const bucket: ConflictCandidateV1[] = [];
+    for (let i = 0; i < uniquePositions.length; i++) {
+      for (let j = i + 1; j < uniquePositions.length; j++) {
+        const a = uniquePositions[i]!;
+        const b = uniquePositions[j]!;
+        const posA = a.localeCompare(b) <= 0 ? a : b;
+        const posB = a.localeCompare(b) <= 0 ? b : a;
+
+        const edgeId = `ed_${sha256Hex(JSON.stringify({
+          subject_entity: node.subject_entity,
+          axis: node.axis,
+          position_a: posA,
+          position_b: posB,
+        })).slice(0, 16)}`;
+
+        const claimsA = node.positions.find(p => p.position === posA)?.claims ?? [];
+        const claimsB = node.positions.find(p => p.position === posB)?.claims ?? [];
+        const claimIds = stableSortEnabled
+          ? [...claimsA.map(c => c.claim_id), ...claimsB.map(c => c.claim_id)].sort((x, y) => x.localeCompare(y))
+          : [...claimsA.map(c => c.claim_id), ...claimsB.map(c => c.claim_id)];
+
+        const countA = positionCount.get(posA) ?? claimsA.length;
+        const countB = positionCount.get(posB) ?? claimsB.length;
+        const balance = (countA > 0 && countB > 0) ? clamp01(Math.min(countA, countB) / Math.max(countA, countB)) : 0;
+
+        const vecA = positionVec.get(posA) ?? buildSparseVector(positionText.get(posA) ?? '', EMBEDDING_DIM);
+        const vecB = positionVec.get(posB) ?? buildSparseVector(positionText.get(posB) ?? '', EMBEDDING_DIM);
+        const embeddingSim = clamp01((dotSparse(vecA, vecB) + 1) / 2);
+
+        const textA = positionText.get(posA) ?? '';
+        const textB = positionText.get(posB) ?? '';
+        const explanation = tokenOverlapExplanation(textA, textB);
+
+        const ruleHits = mutualExclusionRuleHits(node.axis, posA, posB);
+        const baselineRelation: EdgeRelation = ruleHits.length > 0 ? 'contradict' : 'unclear';
+        const baselineConfidence = baselineRelation === 'contradict' ? 0.65 : 0.35;
+        const ruleBoost = ruleHits.length > 0 ? 0.7 : 0;
+        const score = (0.5 * explanation.token_overlap_ratio) + (0.5 * embeddingSim) + (0.3 * balance) + ruleBoost;
+
+        bucket.push({
+          version: 1,
+          edge_id: edgeId,
+          subject_entity: node.subject_entity,
+          axis: node.axis,
+          position_a: posA,
+          position_b: posB,
+          score,
+          rule_hits: ruleHits,
+          retrieval_explanation: explanation,
+          embedding_similarity: embeddingSim,
+          support_balance: balance,
+          claims_a_count: countA,
+          claims_b_count: countB,
+          baseline_relation: baselineRelation,
+          baseline_confidence: baselineConfidence,
+          evidence_strength: evidenceStrengthFromCount(Math.min(countA, countB)),
+          claim_ids: claimIds,
+        });
+      }
+    }
+
+    bucket.sort((x, y) => (y.score - x.score) || x.edge_id.localeCompare(y.edge_id));
+    conflictCandidatesAll.push(...takeTopK(bucket, TOP_K_PER_BUCKET));
+  }
+
+  conflictCandidatesAll.sort((x, y) => (y.score - x.score) || x.edge_id.localeCompare(y.edge_id));
+  const conflictCandidatesFinal = conflictCandidatesAll.slice(0, maxCandidatesTotal);
+  if (conflictCandidatesAll.length > conflictCandidatesFinal.length) {
+    warnings.push(`conflict_candidates_truncated:max_candidates_total=${maxCandidatesTotal}`);
+  }
+
+  const edgesFinal: ConflictEdgeV1[] = (stableSortEnabled ? stableSort(conflictCandidatesFinal, c => c.edge_id) : conflictCandidatesFinal)
+    .map(c => ({
+      version: 1,
+      edge_id: c.edge_id,
+      subject_entity: c.subject_entity,
+      axis: c.axis,
+      position_a: c.position_a,
+      position_b: c.position_b,
+      relation: c.baseline_relation,
+      confidence: c.baseline_confidence,
+      evidence_strength: c.evidence_strength,
+      claim_ids: c.claim_ids,
+    }));
+
+  const candidatesForRequests = [...conflictCandidatesFinal].sort((a, b) => (b.score - a.score) || a.edge_id.localeCompare(b.edge_id));
+  const requests: LlmRequestV1[] = candidatesForRequests.slice(0, maxLlmRequests).map(cand => {
+    const node = debateNodesFinal.find(n => n.subject_entity === cand.subject_entity && n.axis === cand.axis);
+    const claimsA = node?.positions.find(p => p.position === cand.position_a)?.claims ?? [];
+    const claimsB = node?.positions.find(p => p.position === cand.position_b)?.claims ?? [];
+    const reqId = `rq_${sha256Hex(JSON.stringify({ edge_id: cand.edge_id, prompt_version: promptVersion })).slice(0, 16)}`;
+
+    const claimsAForPrompt = takeTopK(
+      (stableSortEnabled ? stableSort(claimsA, x => x.claim_id) : claimsA).map(c => ({
+        recid: c.source.recid,
+        title: c.source.title,
+        year: c.source.year,
+        text: c.original_text,
+      })),
+      5
+    );
+    const claimsBForPrompt = takeTopK(
+      (stableSortEnabled ? stableSort(claimsB, x => x.claim_id) : claimsB).map(c => ({
+        recid: c.source.recid,
+        title: c.source.title,
+        year: c.source.year,
+        text: c.original_text,
+      })),
+      5
+    );
+
+    const prompt = buildAdjudicateEdgePrompt({
+      prompt_version: promptVersion,
+      subject_entity: cand.subject_entity,
+      axis: cand.axis,
+      position_a: cand.position_a,
+      position_b: cand.position_b,
+      claims_a: claimsAForPrompt,
+      claims_b: claimsBForPrompt,
+    });
+
+    return {
+      version: 1,
+      generated_at: runStartedAt,
+      request_id: reqId,
+      prompt_version: promptVersion,
+      kind: 'adjudicate_edge',
+      edge_id: cand.edge_id,
+      subject_entity: cand.subject_entity,
+      axis: cand.axis,
+      position_a: cand.position_a,
+      position_b: cand.position_b,
+      score: cand.score,
+      claims_a: claimsAForPrompt,
+      claims_b: claimsBForPrompt,
+      prompt,
+    };
+  });
+
+  const requestsFinal = stableSortEnabled ? stableSort(requests, r => r.request_id) : requests;
+
+  const responseInputs = Array.isArray(params.options.client_llm_responses) ? params.options.client_llm_responses : [];
+  const hasClientResponses = llmMode === 'client' && responseInputs.length > 0;
+
+  const byRequestId = new Map<string, LlmRequestV1>();
+  for (const r of requestsFinal) byRequestId.set(r.request_id, r);
+
+  const responsesJsonl: Array<Record<string, unknown>> = [];
+  const adjudications = new Map<string, ParsedAdjudication>();
+  let strictFailure: { request_id: string; error: string } | null = null;
+
+  async function collectInternalResponses(): Promise<ClientLlmResponseInput[]> {
+    if (requestsFinal.length === 0) return [];
+    const cfg = getLLMConfigFromEnv();
+    if (!cfg) {
+      throw invalidParams("llm_mode='internal' requires WRITING_LLM_PROVIDER + WRITING_LLM_API_KEY", {
+        llm_mode: llmMode,
+      });
+    }
+
+    const timeoutEnv = process.env.WRITING_LLM_TIMEOUT ? parseInt(process.env.WRITING_LLM_TIMEOUT, 10) : NaN;
+    const timeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 90_000; // Default: 90 seconds per LLM call
+    const maxRetriesEnv = process.env.WRITING_LLM_MAX_RETRIES ? parseInt(process.env.WRITING_LLM_MAX_RETRIES, 10) : NaN;
+    const maxRetries = Number.isFinite(maxRetriesEnv) && maxRetriesEnv > 0 ? maxRetriesEnv : 3;
+    const concurrency = 4;
+
+    const client = createLLMClient(cfg, timeout);
+    const out: ClientLlmResponseInput[] = [];
+
+    const queue = requestsFinal.slice();
+    const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+      while (queue.length > 0) {
+        const req = queue.shift();
+        if (!req) return;
+
+        let attempt = 0;
+        let lastErr: unknown = null;
+        while (attempt < Math.max(1, maxRetries)) {
+          attempt += 1;
+          try {
+            const raw = await client.generate(req.prompt);
+            out.push({
+              request_id: req.request_id,
+              json_response: raw,
+              model: client.model,
+              created_at: nowIso(),
+              attempts: attempt,
+            });
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (attempt >= Math.max(1, maxRetries)) break;
+          }
+        }
+
+        if (lastErr) {
+          out.push({
+            request_id: req.request_id,
+            json_response: '',
+            model: client.model,
+            created_at: nowIso(),
+            error: lastErr instanceof Error ? lastErr.message : String(lastErr),
+          });
+        }
+      }
+    });
+
+    await Promise.all(workers);
+    return out;
+  }
+
+  const effectiveResponseInputs: ClientLlmResponseInput[] =
+    llmMode === 'internal'
+      ? await collectInternalResponses()
+      : responseInputs;
+
+  if ((llmMode === 'client' && responseInputs.length > 0) || llmMode === 'internal') {
+    for (const resp of effectiveResponseInputs) {
+      const requestId = String(resp.request_id ?? '').trim();
+      if (!requestId) continue;
+
+      if (!byRequestId.has(requestId)) {
+        responsesJsonl.push({
+          version: 1,
+          generated_at: runStartedAt,
+          request_id: requestId,
+          ok: false,
+          parse_error: 'unknown_request_id',
+          model: typeof resp.model === 'string' ? resp.model : null,
+          created_at: typeof resp.created_at === 'string' ? resp.created_at : null,
+          raw: resp.json_response,
+        });
+        if (!strictFailure) strictFailure = { request_id: requestId, error: 'unknown_request_id' };
+        continue;
+      }
+
+      const errorField = resp.error;
+      if (typeof errorField === 'string' && errorField.trim()) {
+        responsesJsonl.push({
+          version: 1,
+          generated_at: runStartedAt,
+          request_id: requestId,
+          ok: false,
+          parse_error: 'llm_call_error',
+          error: errorField.trim(),
+          model: typeof resp.model === 'string' ? resp.model : null,
+          created_at: typeof resp.created_at === 'string' ? resp.created_at : null,
+          raw: resp.json_response,
+        });
+        if (!strictFailure) strictFailure = { request_id: requestId, error: 'llm_call_error' };
+        continue;
+      }
+
+      const parsed = parseAdjudication(resp.json_response);
+      if (!parsed) {
+        const err = 'invalid_json_response';
+        responsesJsonl.push({
+          version: 1,
+          generated_at: runStartedAt,
+          request_id: requestId,
+          ok: false,
+          parse_error: err,
+          model: typeof resp.model === 'string' ? resp.model : null,
+          created_at: typeof resp.created_at === 'string' ? resp.created_at : null,
+          raw: resp.json_response,
+        });
+        if (!strictFailure) strictFailure = { request_id: requestId, error: err };
+        continue;
+      }
+
+      adjudications.set(requestId, parsed);
+      responsesJsonl.push({
+        version: 1,
+        generated_at: runStartedAt,
+        request_id: requestId,
+        ok: true,
+        parsed,
+        model: typeof resp.model === 'string' ? resp.model : null,
+        created_at: typeof resp.created_at === 'string' ? resp.created_at : null,
+        raw: resp.json_response,
+      });
+    }
+  } else if (llmMode === 'client' && responseInputs.length === 0 && params.options.client_llm_responses) {
+    warnings.push('client_llm_responses_ignored:llm_mode_not_client_or_empty');
+  }
+
+  // Apply adjudications to edges (best-effort).
+  const edgesAdjudicated: ConflictEdgeV1[] = edgesFinal.map(edge => {
+    const reqId = `rq_${sha256Hex(JSON.stringify({ edge_id: edge.edge_id, prompt_version: promptVersion })).slice(0, 16)}`;
+    const adjudicated = adjudications.get(reqId);
+    if (!adjudicated) return edge;
+    return {
+      ...edge,
+      relation: adjudicated.relation,
+      confidence: adjudicated.confidence,
+      reasoning: adjudicated.reasoning,
+      compatibility_note: adjudicated.compatibility_note,
+    };
+  });
+
+  // ── Artifacts (Evidence-first)
+  const artifacts: RunArtifactRef[] = [];
+
+  const configSnapshot = {
+    prompt_version: promptVersion,
+    llm_mode: llmMode,
+    strict_llm: strictLlm,
+    stable_sort: stableSortEnabled,
+    inputs_requested: inputsRequested,
+    inputs_effective: inputsEffective,
+    max_papers: maxPapers,
+    max_claim_candidates_per_paper: maxPerPaper,
+    max_candidates_total: maxCandidatesTotal,
+    max_llm_requests: maxLlmRequests,
+    embedding: { model: `hashing_fnv1a32_dim${EMBEDDING_DIM}_v1`, dim: EMBEDDING_DIM },
+    selection: { top_k_per_bucket: TOP_K_PER_BUCKET },
+  };
+
+  const metaPayload = {
+    version: 1,
+    generated_at: runStartedAt,
+    run_id: params.run_id,
+    project_id: run.project_id,
+    config_snapshot: configSnapshot,
+    warnings,
+    counts: {
+      papers_input: params.recids.length,
+      papers_used: recidsOrdered.length,
+      papers_fetched: papers.length,
+      papers_failed: sourceStatus.filter(s => s.stage === 'fetch' && s.status === 'failed').length,
+      claim_candidates: candidatesFinal.length,
+      claims_normalized: claimsFinal.length,
+      conflict_candidates: conflictCandidatesFinal.length,
+      edges: edgesFinal.length,
+      llm_requests: requestsFinal.length,
+      llm_responses: responsesJsonl.length,
+      llm_responses_ok: responsesJsonl.filter(r => r.ok === true).length,
+      llm_responses_failed: responsesJsonl.filter(r => r.ok === false).length,
+    },
+  };
+  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_meta.json', metaPayload));
+
+  const sourceStatusPayload = {
+    version: 1,
+    generated_at: runStartedAt,
+    run_id: params.run_id,
+    config_snapshot: configSnapshot,
+    sources: sourceStatus,
+    summary: {
+      papers_input: params.recids.length,
+      papers_used: recidsOrdered.length,
+      papers_fetched: papers.length,
+      papers_failed: sourceStatus.filter(s => s.stage === 'fetch' && s.status === 'failed').length,
+      claim_candidates: candidatesFinal.length,
+      claims_normalized: claimsFinal.length,
+      conflict_candidates: conflictCandidatesFinal.length,
+      edges: edgesFinal.length,
+      llm_requests: requestsFinal.length,
+      llm_responses: responsesJsonl.length,
+      llm_mode: llmMode,
+    },
+    warnings,
+  };
+  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_source_status.json', sourceStatusPayload));
+
+  artifacts.push(writeRunJsonlArtifact(params.run_id, 'theoretical_claim_candidates.jsonl', candidatesFinal));
+  artifacts.push(writeRunJsonlArtifact(params.run_id, 'theoretical_claims_normalized.jsonl', claimsFinal));
+  artifacts.push(writeRunJsonlArtifact(params.run_id, 'theoretical_conflict_candidates.jsonl', conflictCandidatesFinal));
+  artifacts.push(writeRunJsonlArtifact(params.run_id, 'theoretical_llm_requests.jsonl', requestsFinal));
+  if (responsesJsonl.length > 0) {
+    artifacts.push(writeRunJsonlArtifact(
+      params.run_id,
+      'theoretical_llm_responses.jsonl',
+      stableSortEnabled ? stableSort(responsesJsonl, r => String(r.request_id ?? '')) : responsesJsonl
+    ));
+  }
+  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_debate_map.json', debateNodesFinal));
+
+  const conflictsPayload = {
+    version: 1,
+    generated_at: runStartedAt,
+    run_id: params.run_id,
+    subject_entity: subjectEntityDefault,
+    llm_mode: llmMode,
+    prompt_version: promptVersion,
+    config_snapshot: configSnapshot,
+    conflicts: edgesAdjudicated,
+    summary: {
+      claim_candidates: candidatesFinal.length,
+      claims_normalized: claimsFinal.length,
+      candidates_evaluated: conflictCandidatesFinal.length,
+      edges: edgesAdjudicated.length,
+      llm_requests: requestsFinal.length,
+      llm_responses_ok: responsesJsonl.filter(r => r.ok === true).length,
+      llm_responses_failed: responsesJsonl.filter(r => r.ok === false).length,
+    },
+    artifacts: {
+      meta_uri: runArtifactUri(params.run_id, 'theoretical_meta.json'),
+      source_status_uri: runArtifactUri(params.run_id, 'theoretical_source_status.json'),
+      claim_candidates_uri: runArtifactUri(params.run_id, 'theoretical_claim_candidates.jsonl'),
+      claims_normalized_uri: runArtifactUri(params.run_id, 'theoretical_claims_normalized.jsonl'),
+      conflict_candidates_uri: runArtifactUri(params.run_id, 'theoretical_conflict_candidates.jsonl'),
+      llm_requests_uri: runArtifactUri(params.run_id, 'theoretical_llm_requests.jsonl'),
+      llm_responses_uri: responsesJsonl.length > 0 ? runArtifactUri(params.run_id, 'theoretical_llm_responses.jsonl') : null,
+      debate_map_uri: runArtifactUri(params.run_id, 'theoretical_debate_map.json'),
+      conflicts_uri: runArtifactUri(params.run_id, 'theoretical_conflicts.json'),
+    },
+    warnings,
+  };
+  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_conflicts.json', conflictsPayload));
+
+  if (strictLlm && strictFailure) {
+    throw invalidParams('LLM response parse failed in strict mode', {
+      request_id: strictFailure.request_id,
+      error: strictFailure.error,
+      prompt_version: promptVersion,
+    });
+  }
+
+  const nextActions: TheoreticalConflictsResult['next_actions'] = [];
+  if (llmMode === 'client' && !hasClientResponses && requestsFinal.length > 0) {
+    nextActions.push({
+      tool: 'inspire_critical_research',
+      args: {
+        mode: 'theoretical',
+        recids: recidsOrdered,
+        run_id: params.run_id,
+        options: {
+          ...params.options,
+          llm_mode: 'client',
+          prompt_version: promptVersion,
+          client_llm_responses: [{ request_id: '<from theoretical_llm_requests.jsonl>', json_response: { relation: '...', confidence: 0.9, reasoning: '...' } }],
+        },
+      },
+      reason: 'Phase B: submit client LLM responses to produce adjudicated Conflict Edges.',
+    });
+  }
+
+  return {
+    run_id: params.run_id,
+    project_id: run.project_id,
+    manifest_uri: `hep://runs/${encodeURIComponent(params.run_id)}/manifest`,
+    artifacts,
+    summary: conflictsPayload.summary,
+    next_actions: nextActions.length > 0 ? nextActions : undefined,
+  };
+}

@@ -1,0 +1,4 @@
+cd /opt/MG5_aMC/models
+# Download dim6top_LO_UFO from its official source
+tar -xzf /path/to/dim6top_LO_UFO.tar.gz
+# This should create /opt/MG5_aMC/models/dim6top_LO_UFO

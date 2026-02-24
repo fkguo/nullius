@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ecosystem-manifest.schema.json",
+  "title": "EcosystemManifest v1",
+  "type": "object",
+  "required": ["manifest_version", "updated_at", "org", "channels", "components", "platforms"],
+  "properties": {
+    "manifest_version": {
+      "type": "string",
+      "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "org": {
+      "type": "string",
+      "minLength": 1
+    },
+    "channels": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 3,
+      "items": {
+        "enum": ["stable", "beta", "dev"]
+      }
+    },
+    "components": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["repo", "type", "channel", "version"],
+        "properties": {
+          "repo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          },
+          "type": {
+            "enum": [
+              "skill-pack",
+              "tool-pack",
+              "engine-pack",
+              "workflow-pack",
+              "contract-pack",
+              "skill-pack-index"
+            ]
+          },
+          "channel": {
+            "enum": ["stable", "beta", "dev"]
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(v?[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.]+)?|schemas-v[0-9]+\\.[0-9]+\\.[0-9]+)$"
+          },
+          "depends_on": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^>=?[0-9]+\\.[0-9]+\\.[0-9]+(?:\\s+<[=]?[0-9]+\\.[0-9]+\\.[0-9]+)?$"
+            }
+          },
+          "openrpc": {
+            "type": "string"
+          },
+          "source_path": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "platforms": {
+      "type": "object",
+      "required": ["claude_code", "codex", "opencode"],
+      "properties": {
+        "claude_code": {
+          "type": "object",
+          "required": ["install_mode"],
+          "properties": {
+            "install_mode": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "codex": {
+          "type": "object",
+          "required": ["install_mode"],
+          "properties": {
+            "install_mode": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "opencode": {
+          "type": "object",
+          "required": ["install_mode"],
+          "properties": {
+            "install_mode": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

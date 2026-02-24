@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "case_id": "E15-adapter-shell-smoke",
+  "workflow": "custom",
+  "description": "Unified adapter template: ADAPTER_shell_smoke runs via Orchestrator, requests A3 approval, then produces SSOT artifacts (manifest/summary/analysis) + report.md deterministically (offline).",
+  "inputs": {
+    "tag": "M27-adapter-smoke-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "docs/ADAPTERS.md",
+      "scripts/run_adapter_smoke.py",
+      "src/hep_autoresearch/toolkit/adapters/base.py",
+      "src/hep_autoresearch/toolkit/adapters/artifacts.py",
+      "src/hep_autoresearch/toolkit/adapters/shell.py",
+      "src/hep_autoresearch/toolkit/adapters/registry.py",
+      "artifacts/runs/M27-adapter-smoke-r1/context/context.md",
+      "artifacts/runs/M27-adapter-smoke-r1/context/context.json",
+      "artifacts/runs/M27-adapter-smoke-r1/approvals/A3-0001/packet.md",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/manifest.json",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/summary.json",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/analysis.json",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/run_card.json",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/report.md",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/logs/stdout.txt",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/logs/stderr.txt",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_smoke_regression/manifest.json",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_smoke_regression/summary.json",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_smoke_regression/analysis.json",
+      "artifacts/runs/M27-adapter-smoke-r1/adapter_smoke_regression/report.md"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/analysis.json",
+        "pointer": "#/results/exit_code",
+        "max_abs": 0
+      },
+      {
+        "path": "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/analysis.json",
+        "pointer": "#/results/headlines/duration_seconds",
+        "min": 0
+      }
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/analysis.json",
+        "pointer": "#/results/status",
+        "type": "string",
+        "equals": "completed"
+      },
+      {
+        "path": "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/analysis.json",
+        "pointer": "#/results/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/summary.json",
+        "pointer": "#/stats/status",
+        "type": "string",
+        "equals": "completed"
+      },
+      {
+        "path": "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/manifest.json",
+        "pointer": "#/backend_kind",
+        "type": "string",
+        "equals": "shell"
+      },
+      {
+        "path": "artifacts/runs/M27-adapter-smoke-r1/adapter_shell_smoke/run_card.json",
+        "pointer": "#/backend/argv",
+        "type": "array",
+        "min_length": 1
+      }
+    ]
+  },
+  "notes": "Run first: python3 scripts/run_adapter_smoke.py --tag M27-adapter-smoke-r1 (offline). Then: python3 scripts/run_evals.py --case-id E15-adapter-shell-smoke --tag M27-adapter-smoke-r1."
+}
+

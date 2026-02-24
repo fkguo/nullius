@@ -1,0 +1,18 @@
+include README.md
+include README.zh.md
+include pyproject.toml
+
+recursive-include src *.py
+
+prune artifacts
+prune docs
+prune evals
+prune knowledge_base
+prune paper
+prune prompts
+prune references
+prune scripts
+prune specs
+prune team
+prune templates
+prune workflows

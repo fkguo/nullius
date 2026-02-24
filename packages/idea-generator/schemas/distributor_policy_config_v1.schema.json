@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "distributor_policy_config_v1.schema.json",
+  "title": "DistributorPolicyConfig v1",
+  "description": "Immutable per-campaign Distributor/BanditPolicy configuration for audit + replay.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "policy_id",
+    "policy_family",
+    "action_space",
+    "created_at"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "policy_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_family": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Policy family identifier (e.g., softmax_ema, annealed_gibbs_entropy_floor, replicator_mw_kl, ucb_v, thompson, exp3)."
+    },
+    "action_space": {
+      "type": "object",
+      "required": [
+        "factorization"
+      ],
+      "properties": {
+        "factorization": {
+          "enum": [
+            "joint",
+            "factorized"
+          ]
+        },
+        "backend_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "operator_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "island_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "team_policy_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "factorization": {
+                "const": "factorized"
+              }
+            },
+            "required": [
+              "factorization"
+            ]
+          },
+          "then": {
+            "required": [
+              "backend_ids",
+              "operator_ids",
+              "island_ids"
+            ]
+          }
+        }
+      ]
+    },
+    "reward_mapping": {
+      "type": "object",
+      "description": "Mapping from multi-objective scorecards to a scalar reward (must be logged for audit).",
+      "properties": {
+        "score_weights": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "gate_fail_penalty": {
+          "type": "number"
+        },
+        "reward_range": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "cost_mapping": {
+      "type": "object",
+      "description": "Cost mapping and/or Lagrangian penalty configuration.",
+      "properties": {
+        "lambda_cost": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cost_unit": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "hyperparameters": {
+      "type": "object",
+      "description": "Policy-family specific hyperparameters (e.g., temperature schedule, epsilon floor, eta schedule, p_min).",
+      "additionalProperties": true
+    },
+    "deterministic_sampling": {
+      "type": "object",
+      "description": "Determinism controls for replay (required when runtime sampling is used).",
+      "properties": {
+        "rng_alg": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seed_strategy": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

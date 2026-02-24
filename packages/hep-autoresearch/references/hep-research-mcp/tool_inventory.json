@@ -1,0 +1,3216 @@
+{
+  "generated_at": "2026-02-01T15:09:40.158712+00:00",
+  "source": {
+    "repo_root": "/home/user/Seafile/AI/hep-research-mcp-main",
+    "package_dir": "/home/user/Seafile/AI/hep-research-mcp-main/packages/hep-research-mcp",
+    "entrypoint": "dist/index.js",
+    "version": "0.3.0",
+    "git_commit": "f147de5ff1a2ce0dab57321d4e528f53136ae0de",
+    "git_dirty": false
+  },
+  "modes": {
+    "standard": {
+      "mode": "standard",
+      "tool_count": 72,
+      "tools": [
+        {
+          "name": "hep_export_paper_scaffold",
+          "description": "Export a publication-ready paper/ scaffold for a run (RevTeX4-2): materialize LaTeX + bib split into paper/ and write a portable paper_scaffold.zip (Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "bibliography_raw_artifact_name",
+              "integrated_latex_artifact_name",
+              "output_dir_name",
+              "overwrite",
+              "paper_manifest_artifact_name",
+              "run_id",
+              "writing_master_bib_artifact_name",
+              "zip_artifact_name"
+            ],
+            "required": [
+              "bibliography_raw_artifact_name",
+              "integrated_latex_artifact_name",
+              "output_dir_name",
+              "overwrite",
+              "paper_manifest_artifact_name",
+              "run_id",
+              "writing_master_bib_artifact_name",
+              "zip_artifact_name"
+            ]
+          }
+        },
+        {
+          "name": "hep_export_project",
+          "description": "Export run outputs as research assets: master.bib, report.tex, report.md, research_pack.zip, and NotebookLM-friendly artifacts (Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "bibliography_raw_artifact_name",
+              "include_evidence_digests",
+              "include_paper_bundle",
+              "include_pdg_artifacts",
+              "master_bib_artifact_name",
+              "max_chars_per_notebooklm_file",
+              "notebooklm_pack_prefix",
+              "paper_bundle_manifest_artifact_name",
+              "paper_bundle_zip_artifact_name",
+              "rendered_latex_artifact_name",
+              "rendered_latex_verification_artifact_name",
+              "report_md_artifact_name",
+              "report_tex_artifact_name",
+              "research_pack_zip_artifact_name",
+              "run_id"
+            ],
+            "required": [
+              "bibliography_raw_artifact_name",
+              "include_evidence_digests",
+              "include_paper_bundle",
+              "include_pdg_artifacts",
+              "master_bib_artifact_name",
+              "max_chars_per_notebooklm_file",
+              "notebooklm_pack_prefix",
+              "paper_bundle_manifest_artifact_name",
+              "paper_bundle_zip_artifact_name",
+              "rendered_latex_artifact_name",
+              "rendered_latex_verification_artifact_name",
+              "report_md_artifact_name",
+              "report_tex_artifact_name",
+              "research_pack_zip_artifact_name",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_health",
+          "description": "Server health/config snapshot + optional INSPIRE connectivity probe (local-only; network optional).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "check_inspire",
+              "inspire_timeout_ms"
+            ],
+            "required": [
+              "check_inspire",
+              "inspire_timeout_ms"
+            ]
+          }
+        },
+        {
+          "name": "hep_import_from_zotero",
+          "description": "Import Zotero items into a run mapping (Zotero item → identifiers → INSPIRE recid). Requires Zotero Local API; resolves via INSPIRE when needed (network) and writes `zotero_map.json` artifact (Evidence-first).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "collection_key",
+              "concurrency",
+              "item_keys",
+              "limit",
+              "run_id",
+              "start"
+            ],
+            "required": [
+              "concurrency",
+              "item_keys",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_import_paper_bundle",
+          "description": "Import a finalized paper/ (post research-writer) back into a run as portable artifacts (paper_bundle.zip + paper_bundle_manifest.json + optional paper_final.pdf) (Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allow_external_symlink_targets",
+              "bundle_manifest_artifact_name",
+              "dereference_symlinks",
+              "overwrite",
+              "paper_dir_name",
+              "pdf_artifact_name",
+              "run_id",
+              "zip_artifact_name"
+            ],
+            "required": [
+              "allow_external_symlink_targets",
+              "bundle_manifest_artifact_name",
+              "dereference_symlinks",
+              "overwrite",
+              "paper_dir_name",
+              "pdf_artifact_name",
+              "run_id",
+              "zip_artifact_name"
+            ]
+          }
+        },
+        {
+          "name": "hep_inspire_resolve_identifiers",
+          "description": "Batch resolve identifiers (recid/arXiv/DOI) to INSPIRE recids and write mapping artifacts (network; Evidence-first URIs + summary).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "identifiers",
+              "meta_artifact_name",
+              "run_id"
+            ],
+            "required": [
+              "identifiers",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_inspire_search_export",
+          "description": "Export an INSPIRE search (safe pagination) to run artifacts (jsonl/json). Network (INSPIRE) + Evidence-first output (URIs + summary).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "max_results",
+              "meta_artifact_name",
+              "output_format",
+              "query",
+              "run_id",
+              "size",
+              "sort"
+            ],
+            "required": [
+              "max_results",
+              "output_format",
+              "query",
+              "run_id",
+              "size"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_build_evidence",
+          "description": "Build a LaTeX Evidence Catalog for a project paper and write `catalog.jsonl` (Evidence-first: URI + summary; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "identifier",
+              "include_cross_refs",
+              "include_inline_math",
+              "main_tex_path",
+              "max_paragraph_length",
+              "paper_id",
+              "project_id"
+            ],
+            "required": [
+              "include_cross_refs",
+              "include_inline_math",
+              "max_paragraph_length",
+              "project_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_create",
+          "description": "Create a local project (Project/Run foundation) and return `hep://projects/{project_id}` (read details via MCP resources; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "description",
+              "name"
+            ],
+            "required": [
+              "name"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_get",
+          "description": "Get a project summary + `hep://projects/{project_id}` URI (read the full manifest via MCP resources; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "project_id"
+            ],
+            "required": [
+              "project_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_list",
+          "description": "List local projects (small summaries + `hep://projects/{project_id}` URIs; read details via MCP resources; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [],
+            "required": null
+          }
+        },
+        {
+          "name": "hep_project_playback_evidence",
+          "description": "Playback an evidence locator and return a stable snippet (local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "after_chars",
+              "before_chars",
+              "evidence_id",
+              "paper_id",
+              "project_id"
+            ],
+            "required": [
+              "after_chars",
+              "before_chars",
+              "evidence_id",
+              "paper_id",
+              "project_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_query_evidence",
+          "description": "Lexical query over a project Evidence Catalog (returns top hits + `evidence_id`/locator; no embeddings; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "concurrency",
+              "limit",
+              "paper_id",
+              "project_id",
+              "query",
+              "types"
+            ],
+            "required": [
+              "concurrency",
+              "limit",
+              "project_id",
+              "query"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_query_evidence_semantic",
+          "description": "Semantic query interface for a project Evidence Catalog. Currently falls back to lexical search and writes a run artifact (URI + summary; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "include_explanation",
+              "limit",
+              "paper_id",
+              "project_id",
+              "query",
+              "run_id",
+              "types"
+            ],
+            "required": [
+              "include_explanation",
+              "limit",
+              "project_id",
+              "query",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_render_latex",
+          "description": "Render structured SectionDraft/ReportDraft into LaTeX, enforce allowed_citations via citation verifier, and write artifacts (Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allowed_citations",
+              "cite_mapping",
+              "draft",
+              "latex_artifact_name",
+              "run_id",
+              "section_output_artifact_name",
+              "verification_artifact_name"
+            ],
+            "required": [
+              "draft",
+              "latex_artifact_name",
+              "run_id",
+              "section_output_artifact_name",
+              "verification_artifact_name"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_citation_mapping",
+          "description": "Build bibliography→INSPIRE mapping artifacts for a run (runs locally; uses INSPIRE network) and write `bibliography_raw.json`, `citekey_to_inspire.json`, `allowed_citations.json` (Evidence-first URIs + summary).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allowed_citations_primary",
+              "identifier",
+              "include_mapped_references",
+              "run_id"
+            ],
+            "required": [
+              "allowed_citations_primary",
+              "identifier",
+              "include_mapped_references",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_evidence_index_v1",
+          "description": "Build LaTeX EvidenceChunks + BM25 index for a run (fail-fast; no PDF fallback) and write artifacts (Evidence-first)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "force_rebuild",
+              "metrics_artifact_name",
+              "output_artifact_name",
+              "paper_cache_prefix",
+              "paper_ids",
+              "run_id"
+            ],
+            "required": [
+              "force_rebuild",
+              "metrics_artifact_name",
+              "output_artifact_name",
+              "paper_cache_prefix",
+              "paper_ids",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_measurements",
+          "description": "Extract HEP-style numeric measurements from a run LaTeX evidence catalog and write artifacts + diagnostics (Evidence-first, local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "include_types",
+              "latex_catalog_artifact_name",
+              "max_results",
+              "measurements_artifact_name",
+              "meta_artifact_name",
+              "run_id",
+              "target_quantities"
+            ],
+            "required": [
+              "include_types",
+              "latex_catalog_artifact_name",
+              "max_results",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_pdf_evidence",
+          "description": "Build PDF evidence for a run (text pages + optional visual region snippets) and write artifacts (Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "docling_json_artifact_name",
+              "docling_json_path",
+              "fulltext_artifact_name",
+              "max_pages",
+              "max_regions_total",
+              "mode",
+              "output_prefix",
+              "pdf_artifact_name",
+              "pdf_path",
+              "render_dpi",
+              "run_id",
+              "zotero_attachment_key"
+            ],
+            "required": [
+              "max_pages",
+              "max_regions_total",
+              "mode",
+              "output_prefix",
+              "render_dpi",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_writing_critical",
+          "description": "Build writing-critical artifacts for a run: conflicts.json, stance.jsonl, evidence_grades.json, and a summary (Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "claims_artifact_name",
+              "conflicts_artifact_name",
+              "evidence_grades_artifact_name",
+              "include_tables",
+              "min_tension_sigma",
+              "recids",
+              "run_id",
+              "stance_artifact_name",
+              "summary_artifact_name",
+              "target_quantities"
+            ],
+            "required": [
+              "claims_artifact_name",
+              "conflicts_artifact_name",
+              "evidence_grades_artifact_name",
+              "include_tables",
+              "min_tension_sigma",
+              "recids",
+              "run_id",
+              "stance_artifact_name",
+              "summary_artifact_name"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_writing_evidence",
+          "description": "Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; optional PDF evidence; Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "continue_on_error",
+              "embedding_dim",
+              "latex_catalog_artifact_name",
+              "latex_embeddings_artifact_name",
+              "latex_enrichment_artifact_name",
+              "latex_sources",
+              "latex_types",
+              "max_evidence_items",
+              "pdf_embeddings_artifact_name",
+              "pdf_enrichment_artifact_name",
+              "pdf_source",
+              "pdf_types",
+              "run_id"
+            ],
+            "required": [
+              "continue_on_error",
+              "embedding_dim",
+              "latex_catalog_artifact_name",
+              "latex_embeddings_artifact_name",
+              "latex_enrichment_artifact_name",
+              "latex_sources",
+              "latex_types",
+              "max_evidence_items",
+              "pdf_embeddings_artifact_name",
+              "pdf_enrichment_artifact_name",
+              "pdf_types",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_clear_manifest_lock",
+          "description": "Clear a stale run manifest lock file (fail-fast; local-only). Use force=true only if you are sure no other tool is updating the run manifest.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "force",
+              "run_id"
+            ],
+            "required": [
+              "force",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_create",
+          "description": "Create a run under a project (writes run manifest + artifacts dir; returns `hep://runs/{run_id}` URIs; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "args_snapshot",
+              "project_id"
+            ],
+            "required": [
+              "project_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_read_artifact_chunk",
+          "description": "Read a small byte-range chunk from a HEP run artifact (debug helper; returns base64 chunk; local-only). Note: This tool only works for HEP run artifacts (hep://runs/...). For PDG artifacts (pdg://artifacts/...), use MCP Resources (ReadResource request) instead.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "length",
+              "offset",
+              "run_id"
+            ],
+            "required": [
+              "artifact_name",
+              "length",
+              "offset",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_stage_content",
+          "description": "Stage large client content into a run artifact and return its URI (token-limit safe two-step submission; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_suffix",
+              "content",
+              "content_type",
+              "run_id"
+            ],
+            "required": [
+              "content",
+              "content_type",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_build_evidence_packet_section_v2",
+          "description": "Build per-section retrieval candidates, run LLM rerank (client/internal), and write `writing_evidence_packet_section_###_v2.json` (fail-fast; no BM25 fallback; Evidence-first).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "claim_ids",
+              "claims_table_artifact_name",
+              "evidence_index_artifact_name",
+              "llm_mode",
+              "max_candidates",
+              "max_chunk_chars",
+              "max_chunks_per_source",
+              "max_context_tokens",
+              "max_queries",
+              "max_selected_chunks",
+              "max_total_tokens",
+              "min_per_query",
+              "min_sources",
+              "outline_artifact_name",
+              "output_candidates_artifact_name",
+              "output_packet_artifact_name",
+              "output_rerank_packet_artifact_name",
+              "output_rerank_prompt_artifact_name",
+              "output_rerank_raw_artifact_name",
+              "output_rerank_result_artifact_name",
+              "queries",
+              "rerank_output_top_n",
+              "rerank_top_k",
+              "reserved_output_tokens",
+              "run_id",
+              "safety_margin_tokens",
+              "section_index",
+              "section_title",
+              "section_type",
+              "token_budget_plan_artifact_name",
+              "top_k_per_query"
+            ],
+            "required": [
+              "claim_ids",
+              "claims_table_artifact_name",
+              "evidence_index_artifact_name",
+              "llm_mode",
+              "max_candidates",
+              "max_chunk_chars",
+              "max_chunks_per_source",
+              "max_queries",
+              "max_selected_chunks",
+              "max_total_tokens",
+              "min_per_query",
+              "min_sources",
+              "outline_artifact_name",
+              "rerank_output_top_n",
+              "rerank_top_k",
+              "run_id",
+              "section_index",
+              "top_k_per_query"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_outline_candidates_packet_v1",
+          "description": "Create an N-best outline candidates prompt_packet + next_actions (M13; N>=2 hard requirement; Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "claims_table_artifact_name",
+              "language",
+              "n_candidates",
+              "run_id",
+              "seeds",
+              "structure_hints",
+              "target_length",
+              "temperatures",
+              "title",
+              "topic",
+              "user_outline",
+              "variation_strategy"
+            ],
+            "required": [
+              "language",
+              "run_id",
+              "target_length",
+              "title"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_outline_judge_packet_v1",
+          "description": "Create a Judge prompt_packet for selecting the best outline candidate (M13; hard gates; Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidates_uri",
+              "run_id"
+            ],
+            "required": [
+              "candidates_uri",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_paperset_curation_packet",
+          "description": "Create a PaperSetCuration prompt_packet artifact for client paperset planning (Evidence-first; writes run artifact; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidate_pool_artifact_name",
+              "language",
+              "output_artifact_name",
+              "run_id",
+              "seed_identifiers",
+              "structure_hints",
+              "target_length",
+              "title",
+              "topic"
+            ],
+            "required": [
+              "language",
+              "run_id",
+              "seed_identifiers",
+              "target_length",
+              "title"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_revision_plan_packet_v1",
+          "description": "Create a RevisionPlanV1 prompt_packet for client revision planning (requires ReviewerReport v2; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "manifest_uri",
+              "quality_policy_uri",
+              "reviewer_report_uri",
+              "round"
+            ],
+            "required": [
+              "manifest_uri",
+              "reviewer_report_uri",
+              "round"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_section_candidates_packet_v1",
+          "description": "Create an N-best section candidates prompt_packet + next_actions (M13; N>=2 hard requirement; Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "n_candidates",
+              "output_artifact_name",
+              "run_id",
+              "section_index",
+              "seeds",
+              "temperatures",
+              "variation_strategy"
+            ],
+            "required": [
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_section_judge_packet_v1",
+          "description": "Create a Judge prompt_packet for selecting the best section candidate (M13; hard gates; Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidates_uri",
+              "run_id",
+              "section_index"
+            ],
+            "required": [
+              "candidates_uri",
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_section_write_packet_v1",
+          "description": "Create a per-section PromptPacket + evidence context artifacts for client section writing, gated by TokenGate (M06; fail-fast; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "claims_table_artifact_name",
+              "evidence_packet_artifact_name",
+              "outline_artifact_name",
+              "output_evidence_context_artifact_name",
+              "output_packet_artifact_name",
+              "output_prompt_text_artifact_name",
+              "paperset_artifact_name",
+              "run_id",
+              "section_index",
+              "token_budget_plan_artifact_name"
+            ],
+            "required": [
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_token_budget_plan_v1",
+          "description": "Create a `writing_token_budget_plan_v1.json` artifact for a run (M05: TokenBudgetPlan SSOT; overflow_policy=fail_fast; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "model",
+              "model_context_tokens",
+              "output_artifact_name",
+              "reserved_output_tokens",
+              "run_id",
+              "safety_margin_tokens"
+            ],
+            "required": [
+              "model_context_tokens",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_integrate_sections_v1",
+          "description": "Integrate run writing_section_*.json into writing_integrated.tex + diagnostics and run LaTeX compile gate (fail-fast; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "add_cross_references",
+              "final_polish",
+              "fix_unused_materials",
+              "max_retries",
+              "run_id",
+              "unify_terminology"
+            ],
+            "required": [
+              "add_cross_references",
+              "final_polish",
+              "fix_unused_materials",
+              "run_id",
+              "unify_terminology"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_refinement_orchestrator_v1",
+          "description": "Advance one writing refinement round state machine step (Review → RevisionPlan → Execute → Re-verify → Integrate → Repeat) (Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "reviewer_report_uri",
+              "revision_plan_uri",
+              "round",
+              "run_id"
+            ],
+            "required": [
+              "round",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_outline_candidates_v1",
+          "description": "Submit N-best outline candidates (strict validation; writes writing_candidates_outline_v1.json; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidates",
+              "run_id"
+            ],
+            "required": [
+              "candidates",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_outline_judge_decision_v1",
+          "description": "Submit a client-generated JudgeDecision for outline selection, enforce hard gates, then write writing_outline_v2.json (M13; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "client_model",
+              "judge_decision_uri",
+              "run_id",
+              "seed",
+              "temperature"
+            ],
+            "required": [
+              "judge_decision_uri",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_paperset_curation",
+          "description": "Submit a client-generated PaperSetCuration into run artifacts (fail-fast validated; writes writing_paperset_v1.json; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "paperset",
+              "paperset_artifact_name",
+              "paperset_uri",
+              "prompt_packet_artifact_name",
+              "run_id"
+            ],
+            "required": [
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_rerank_result_v1",
+          "description": "Submit client LLM rerank indices (for a previously generated rerank packet) and write `writing_rerank_result_section_###_v1.json` + `writing_evidence_packet_section_###_v2.json` (fail-fast; no BM25 fallback; Evidence-first).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "max_context_tokens",
+              "output_packet_artifact_name",
+              "output_rerank_raw_artifact_name",
+              "output_rerank_result_artifact_name",
+              "ranked_indices",
+              "rerank_packet_artifact_name",
+              "reserved_output_tokens",
+              "run_id",
+              "safety_margin_tokens",
+              "section_index",
+              "token_budget_plan_artifact_name"
+            ],
+            "required": [
+              "ranked_indices",
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_review",
+          "description": "Submit a client-generated reviewer report for a completed run write (Evidence-first: writes run artifacts; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "client_model",
+              "reviewer_report",
+              "reviewer_report_uri",
+              "round",
+              "run_id",
+              "seed",
+              "temperature"
+            ],
+            "required": [
+              "round",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_revision_plan_v1",
+          "description": "Submit a client-generated RevisionPlan v1 into run artifacts (fail-fast validated; writes writing_revision_plan_round_XX_v1.json; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "revision_plan",
+              "revision_plan_uri",
+              "run_id"
+            ],
+            "required": [
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_section_candidates_v1",
+          "description": "Submit N-best section candidates (strict schema validation; writes writing_candidates_section_###_v1.json; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidates",
+              "run_id",
+              "section_index"
+            ],
+            "required": [
+              "candidates",
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_section_judge_decision_v1",
+          "description": "Submit a client-generated JudgeDecision for section selection, enforce hard gates, then run verifiers (M13; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "client_model",
+              "judge_decision_uri",
+              "quality_eval",
+              "run_id",
+              "section_index",
+              "seed",
+              "temperature"
+            ],
+            "required": [
+              "judge_decision_uri",
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_token_gate_v1",
+          "description": "Run TokenGate on a prompt_packet (+ optional evidence_packet) and write either token gate pass or writing_token_overflow artifacts (M05; fail-fast; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "evidence_packet_uri",
+              "max_context_tokens",
+              "output_overflow_artifact_name",
+              "output_pass_artifact_name",
+              "prompt_packet",
+              "prompt_packet_uri",
+              "reserved_output_tokens",
+              "run_id",
+              "safety_margin_tokens",
+              "section_index",
+              "step",
+              "token_budget_plan_artifact_name"
+            ],
+            "required": [
+              "run_id",
+              "step"
+            ]
+          }
+        },
+        {
+          "name": "inspire_advanced",
+          "description": "Unified advanced INSPIRE tools (network). Modes: parse_latex_content/find_experts/analyze_papers/find_connections/trace_original_source",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "analysis_type",
+              "components",
+              "cross_validate",
+              "format",
+              "identifier",
+              "include_external",
+              "limit",
+              "max_depth",
+              "max_external_depth",
+              "max_refs_per_level",
+              "mode",
+              "options",
+              "recid",
+              "recids",
+              "topic"
+            ],
+            "required": [
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_critical_research",
+          "description": "Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "mode",
+              "options",
+              "recids",
+              "run_id"
+            ],
+            "required": [
+              "mode",
+              "recids"
+            ]
+          }
+        },
+        {
+          "name": "inspire_deep_research",
+          "description": "End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize/write. write mode is Evidence-first via `run_id` (writes artifacts/URIs; network) and supports resume via `resume_from`.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "format",
+              "identifiers",
+              "mode",
+              "options",
+              "resume_from",
+              "run_id"
+            ],
+            "required": [
+              "identifiers",
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_discover_papers",
+          "description": "Unified paper discovery tool (network). Modes: seminal/related/expansion/survey",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "limit",
+              "mode",
+              "options",
+              "seed_recids",
+              "topic"
+            ],
+            "required": [
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_field_survey",
+          "description": "Physicist's literature review workflow (network): reviews → seminal → citation expansion → controversies",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "focus",
+              "iterations",
+              "max_papers",
+              "prefer_journal",
+              "seed_recid",
+              "topic"
+            ],
+            "required": [
+              "topic"
+            ]
+          }
+        },
+        {
+          "name": "inspire_literature",
+          "description": "Unified INSPIRE literature access tool (network).\n\nModes + required args:\n- get_paper: { recid }\n- get_references: { recid, size? }\n- lookup_by_id: { identifier } // identifier can be a recid, DOI (10.x), or arXiv id; tool auto-routes\n- get_citations: { recid, size?, sort? } // IMPORTANT: use recid (not identifier); use size (not options.limit)\n- search_affiliation: { affiliation, size?, sort? }\n- get_bibtex: { recids }\n- get_author: { identifier } // identifier can be INSPIRE BAI (e.g. E.Witten.1), ORCID, or a name query; returns `bai` for disambiguation.\n\nTip: For ambiguous names, call `get_author` first, then use `inspire_search` with `query=\"a:<bai>\"`.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "affiliation",
+              "identifier",
+              "mode",
+              "recid",
+              "recids",
+              "size",
+              "sort"
+            ],
+            "required": [
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_network_analysis",
+          "description": "Unified network analysis tool (network). Modes: citation/collaboration",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "limit",
+              "mode",
+              "options",
+              "seed"
+            ],
+            "required": [
+              "mode",
+              "seed"
+            ]
+          }
+        },
+        {
+          "name": "inspire_paper_source",
+          "description": "Unified paper source access tool (network). Modes: urls/content/metadata/auto (downloads arXiv sources/PDFs and optionally extracts).\n\n- 'urls': Only return download URLs without downloading (fast check)\n- 'content': Actually download and extract paper source (LaTeX or PDF). Use this mode to download arXiv LaTeX source.\n- 'metadata': Get arXiv metadata and source availability info\n- 'auto': Get URLs first with availability check, but does NOT automatically download\n\nTo download arXiv LaTeX source, use mode='content' with options.prefer='latex' and options.extract=true.\n\nSafety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a relative output_dir (e.g. \"arxiv_sources/<arxiv_id>\"); relative paths are resolved under HEP_DATA_DIR. Or set HEP_DATA_DIR to change the root.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "identifier",
+              "mode",
+              "options"
+            ],
+            "required": [
+              "identifier",
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_search",
+          "description": "Search INSPIRE-HEP literature database (network). Supports combining multiple conditions in one query.\n\nNote: Some MCP clients prefix tool names (e.g. `mcp__hep__inspire_search`); always use the exact tool name shown by your client.\n\nAuthor search: Use \"a:lastname, firstname\" or BAI format \"a:Feng.Kun.Guo.1\". Do NOT use quotes around author names.\n\nAuthor disambiguation tip (IMPORTANT for common names):\n- Prefer INSPIRE BAI when available: `a:E.Witten.1` (stable unique author identifier).\n- If you only have a name, first call `inspire_literature` with `mode=get_author` to obtain `bai`, then search with `a:<bai>`.\n\nFull-text search: Use \"fulltext:\" to search paper content (not just metadata).\n- fulltext:\"dark matter detection\" - search for exact phrase in paper text\n- fulltext:WIMP AND t:direct - combine full-text with title search\n\nCommon search operators:\n- a: author (e.g., \"a:guo, feng-kun\" or \"a:Feng.Kun.Guo.1\")\n- fa: first author (e.g., \"fa:witten\")\n- t: title (e.g., \"t:pentaquark\")\n- fulltext: full-text search (e.g., \"fulltext:lattice QCD\")\n- topcite: citation count (e.g., \"topcite:250+\" for >=250 citations)\n- authorcount: author count (e.g., \"authorcount:1->10\" for 1-10 authors)\n- date: date range (e.g., \"date:2020->2024\")\n- j: journal (e.g., \"j:Phys.Rev.D\")\n- eprint: arXiv ID (e.g., \"eprint:2301.12345\")\n- primarch: primary arXiv category (e.g., \"primarch:hep-ph\", \"primarch:hep-th\")\n- cn: collaboration (e.g., \"cn:LHCb\")\n- aff: affiliation (e.g., \"aff:CERN\")\n- tc: document type (p=published, c=conference, r=review, t=thesis)\n\nReview paper handling via `review_mode`:\n- mixed (default): keep result order\n- exclude: remove review papers\n- deprioritize/separate: move review papers to the end\n\nExample combined query: \"a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10\"",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "format",
+              "page",
+              "query",
+              "review_mode",
+              "size",
+              "sort"
+            ],
+            "required": [
+              "format",
+              "page",
+              "query",
+              "review_mode",
+              "size"
+            ]
+          }
+        },
+        {
+          "name": "inspire_search_next",
+          "description": "Follow an INSPIRE `next_url` returned by `inspire_search` with strict same-origin checks (network; avoids arbitrary URL fetch).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "next_url",
+              "review_mode"
+            ],
+            "required": [
+              "next_url",
+              "review_mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_query",
+          "description": "Query a journal style corpus (default: RMP) for style evidence (local-only).\n\nEvidence-first:\n- Writes a compact query result artifact to disk\n- Returns only {uri + summary} (read details via MCP resources)\n\nNote: Requires a built local corpus index (run `inspire_style_corpus_build_index` first).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "filters",
+              "mode",
+              "query",
+              "retrieval",
+              "style_id",
+              "top_k",
+              "types"
+            ],
+            "required": [
+              "mode",
+              "query",
+              "retrieval",
+              "style_id",
+              "top_k"
+            ]
+          }
+        },
+        {
+          "name": "inspire_topic_analysis",
+          "description": "Unified topic analysis tool (network). Modes: timeline/evolution/emerging/all",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "limit",
+              "mode",
+              "options",
+              "time_range",
+              "topic"
+            ],
+            "required": [
+              "mode",
+              "topic"
+            ]
+          }
+        },
+        {
+          "name": "pdg_find_particle",
+          "description": "Find particle candidates by name / MCID / PDG identifier (small result; supports pagination; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "case_sensitive",
+              "limit",
+              "match",
+              "mcid",
+              "name",
+              "pdg_code",
+              "pdgid",
+              "start"
+            ],
+            "required": [
+              "case_sensitive",
+              "limit",
+              "match",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "pdg_find_reference",
+          "description": "Find PDG references by DOI / INSPIRE recid / document id / title (small result; supports pagination; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "case_sensitive",
+              "document_id",
+              "doi",
+              "inspire_id",
+              "limit",
+              "match",
+              "start",
+              "title"
+            ],
+            "required": [
+              "case_sensitive",
+              "limit",
+              "match",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get",
+          "description": "Get a PDG identifier object (writes a JSON artifact; returns URI + summary; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "edition",
+              "pdgid"
+            ],
+            "required": [
+              "pdgid"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get_decays",
+          "description": "List decay modes for a particle (writes JSONL artifact; returns URI + summary; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "edition",
+              "limit",
+              "particle",
+              "start"
+            ],
+            "required": [
+              "limit",
+              "particle",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get_measurements",
+          "description": "List PDG measurements for an identifier (writes JSONL artifact; includes references/values/footnotes; local-only; requires `PDG_DB_PATH`). Can be called with pdgid, particle selector, or property_pdgid directly. CRITICAL: If the result has kind=\"series_options\" or stop_here=true, you MUST STOP querying and select one series using property_pdgid or data_type from example_next_calls. Do NOT call again with the same particle/pdgid - this will cause infinite loops. If has_more=true, use start parameter to paginate (e.g., start=previous_start+limit).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "case_sensitive",
+              "data_type",
+              "include_footnotes",
+              "include_reference",
+              "include_values",
+              "limit",
+              "particle",
+              "pdgid",
+              "property_pdgid",
+              "start"
+            ],
+            "required": [
+              "case_sensitive",
+              "include_footnotes",
+              "include_reference",
+              "include_values",
+              "limit",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get_property",
+          "description": "Get a high-frequency particle property (mass/width/lifetime) with uncertainties and PDG locator (local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allow_derived",
+              "edition",
+              "particle",
+              "property"
+            ],
+            "required": [
+              "allow_derived",
+              "particle",
+              "property"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get_reference",
+          "description": "Get a PDG reference record (small result; includes INSPIRE lookup identifiers; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "case_sensitive",
+              "document_id",
+              "id"
+            ],
+            "required": [
+              "case_sensitive"
+            ]
+          }
+        },
+        {
+          "name": "pdg_info",
+          "description": "Return PDG MCP server info and local data directories (small result; local-only) (requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [],
+            "required": null
+          }
+        },
+        {
+          "name": "zotero_add",
+          "description": "Preview a Zotero add/update operation and return a confirm_token; execute via zotero_confirm (local-only write). Sources: `item` (no network), or `inspire`/`doi`/`arxiv` (fetches metadata from INSPIRE; network). If collection_keys is empty/missing, writes into the currently selected Zotero collection (requires Zotero Connector mapping); library root is rejected unless allow_library_root=true.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allow_library_root",
+              "collection_keys",
+              "dedupe",
+              "note",
+              "open_in_zotero",
+              "source",
+              "tags"
+            ],
+            "required": [
+              "allow_library_root",
+              "collection_keys",
+              "dedupe",
+              "open_in_zotero",
+              "source",
+              "tags"
+            ]
+          }
+        },
+        {
+          "name": "zotero_confirm",
+          "description": "Confirm and execute a previewed Zotero write operation (local-only). Use the confirm_token returned by tools like zotero_add.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "confirm_token"
+            ],
+            "required": [
+              "confirm_token"
+            ]
+          }
+        },
+        {
+          "name": "zotero_export_items",
+          "description": "Export Zotero items into BibTeX/CSL-JSON/RIS/etc via Local API (local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "format",
+              "linkwrap",
+              "locale",
+              "max_chars",
+              "scope",
+              "style"
+            ],
+            "required": [
+              "format",
+              "max_chars",
+              "scope"
+            ]
+          }
+        },
+        {
+          "name": "zotero_find_items",
+          "description": "Resolve Zotero items by identifiers (doi/arxiv/recid/item_key/title) with optional local filters (tags/authors/publication_title/year/volume/issue), optionally scoped by collection_key (and include_children). Internally, it fetches a limited candidate set via Zotero Local API search and then verifies matches; for interactive browsing, prefer zotero_search_items (local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": null,
+            "required": null
+          }
+        },
+        {
+          "name": "zotero_get_selected_collection",
+          "description": "Resolve the Zotero UI-selected collection to a Local API collection_key (requires Zotero Connector + Zotero open; maps connector path → Local API key; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allow_library_root"
+            ],
+            "required": [
+              "allow_library_root"
+            ]
+          }
+        },
+        {
+          "name": "zotero_local",
+          "description": "Unified Zotero Local API tool (requires Zotero Local API at `http://127.0.0.1:23119`). Modes: list_collections/list_collection_paths/list_items/get_item/get_item_attachments/download_attachment/get_attachment_fulltext/list_tags (fulltext requires `ZOTERO_DATA_DIR`; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "attachment_key",
+              "case_sensitive",
+              "collection_key",
+              "item_key",
+              "limit",
+              "match",
+              "mode",
+              "q",
+              "qmode",
+              "query",
+              "scope",
+              "start"
+            ],
+            "required": [
+              "case_sensitive",
+              "limit",
+              "match",
+              "mode",
+              "scope",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "zotero_search_items",
+          "description": "Browse/search Zotero items via Zotero Local API query params (q/qmode/tag/itemType, optional collection scope). Returns summarized items with select_uri + identifier digest; does not guarantee exact identifier resolution (use zotero_find_items for that; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "collection_key",
+              "direction",
+              "include_trashed",
+              "item_type",
+              "limit",
+              "q",
+              "qmode",
+              "sort",
+              "start",
+              "tag",
+              "top_level_only"
+            ],
+            "required": [
+              "include_trashed",
+              "limit",
+              "start",
+              "top_level_only"
+            ]
+          }
+        }
+      ]
+    },
+    "full": {
+      "mode": "full",
+      "tool_count": 84,
+      "tools": [
+        {
+          "name": "hep_export_paper_scaffold",
+          "description": "Export a publication-ready paper/ scaffold for a run (RevTeX4-2): materialize LaTeX + bib split into paper/ and write a portable paper_scaffold.zip (Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "bibliography_raw_artifact_name",
+              "integrated_latex_artifact_name",
+              "output_dir_name",
+              "overwrite",
+              "paper_manifest_artifact_name",
+              "run_id",
+              "writing_master_bib_artifact_name",
+              "zip_artifact_name"
+            ],
+            "required": [
+              "bibliography_raw_artifact_name",
+              "integrated_latex_artifact_name",
+              "output_dir_name",
+              "overwrite",
+              "paper_manifest_artifact_name",
+              "run_id",
+              "writing_master_bib_artifact_name",
+              "zip_artifact_name"
+            ]
+          }
+        },
+        {
+          "name": "hep_export_project",
+          "description": "Export run outputs as research assets: master.bib, report.tex, report.md, research_pack.zip, and NotebookLM-friendly artifacts (Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "bibliography_raw_artifact_name",
+              "include_evidence_digests",
+              "include_paper_bundle",
+              "include_pdg_artifacts",
+              "master_bib_artifact_name",
+              "max_chars_per_notebooklm_file",
+              "notebooklm_pack_prefix",
+              "paper_bundle_manifest_artifact_name",
+              "paper_bundle_zip_artifact_name",
+              "rendered_latex_artifact_name",
+              "rendered_latex_verification_artifact_name",
+              "report_md_artifact_name",
+              "report_tex_artifact_name",
+              "research_pack_zip_artifact_name",
+              "run_id"
+            ],
+            "required": [
+              "bibliography_raw_artifact_name",
+              "include_evidence_digests",
+              "include_paper_bundle",
+              "include_pdg_artifacts",
+              "master_bib_artifact_name",
+              "max_chars_per_notebooklm_file",
+              "notebooklm_pack_prefix",
+              "paper_bundle_manifest_artifact_name",
+              "paper_bundle_zip_artifact_name",
+              "rendered_latex_artifact_name",
+              "rendered_latex_verification_artifact_name",
+              "report_md_artifact_name",
+              "report_tex_artifact_name",
+              "research_pack_zip_artifact_name",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_health",
+          "description": "Server health/config snapshot + optional INSPIRE connectivity probe (local-only; network optional).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "check_inspire",
+              "inspire_timeout_ms"
+            ],
+            "required": [
+              "check_inspire",
+              "inspire_timeout_ms"
+            ]
+          }
+        },
+        {
+          "name": "hep_import_from_zotero",
+          "description": "Import Zotero items into a run mapping (Zotero item → identifiers → INSPIRE recid). Requires Zotero Local API; resolves via INSPIRE when needed (network) and writes `zotero_map.json` artifact (Evidence-first).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "collection_key",
+              "concurrency",
+              "item_keys",
+              "limit",
+              "run_id",
+              "start"
+            ],
+            "required": [
+              "concurrency",
+              "item_keys",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_import_paper_bundle",
+          "description": "Import a finalized paper/ (post research-writer) back into a run as portable artifacts (paper_bundle.zip + paper_bundle_manifest.json + optional paper_final.pdf) (Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allow_external_symlink_targets",
+              "bundle_manifest_artifact_name",
+              "dereference_symlinks",
+              "overwrite",
+              "paper_dir_name",
+              "pdf_artifact_name",
+              "run_id",
+              "zip_artifact_name"
+            ],
+            "required": [
+              "allow_external_symlink_targets",
+              "bundle_manifest_artifact_name",
+              "dereference_symlinks",
+              "overwrite",
+              "paper_dir_name",
+              "pdf_artifact_name",
+              "run_id",
+              "zip_artifact_name"
+            ]
+          }
+        },
+        {
+          "name": "hep_inspire_resolve_identifiers",
+          "description": "Batch resolve identifiers (recid/arXiv/DOI) to INSPIRE recids and write mapping artifacts (network; Evidence-first URIs + summary).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "identifiers",
+              "meta_artifact_name",
+              "run_id"
+            ],
+            "required": [
+              "identifiers",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_inspire_search_export",
+          "description": "Export an INSPIRE search (safe pagination) to run artifacts (jsonl/json). Network (INSPIRE) + Evidence-first output (URIs + summary).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "max_results",
+              "meta_artifact_name",
+              "output_format",
+              "query",
+              "run_id",
+              "size",
+              "sort"
+            ],
+            "required": [
+              "max_results",
+              "output_format",
+              "query",
+              "run_id",
+              "size"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_build_evidence",
+          "description": "Build a LaTeX Evidence Catalog for a project paper and write `catalog.jsonl` (Evidence-first: URI + summary; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "identifier",
+              "include_cross_refs",
+              "include_inline_math",
+              "main_tex_path",
+              "max_paragraph_length",
+              "paper_id",
+              "project_id"
+            ],
+            "required": [
+              "include_cross_refs",
+              "include_inline_math",
+              "max_paragraph_length",
+              "project_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_create",
+          "description": "Create a local project (Project/Run foundation) and return `hep://projects/{project_id}` (read details via MCP resources; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "description",
+              "name"
+            ],
+            "required": [
+              "name"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_get",
+          "description": "Get a project summary + `hep://projects/{project_id}` URI (read the full manifest via MCP resources; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "project_id"
+            ],
+            "required": [
+              "project_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_list",
+          "description": "List local projects (small summaries + `hep://projects/{project_id}` URIs; read details via MCP resources; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [],
+            "required": null
+          }
+        },
+        {
+          "name": "hep_project_playback_evidence",
+          "description": "Playback an evidence locator and return a stable snippet (local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "after_chars",
+              "before_chars",
+              "evidence_id",
+              "paper_id",
+              "project_id"
+            ],
+            "required": [
+              "after_chars",
+              "before_chars",
+              "evidence_id",
+              "paper_id",
+              "project_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_query_evidence",
+          "description": "Lexical query over a project Evidence Catalog (returns top hits + `evidence_id`/locator; no embeddings; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "concurrency",
+              "limit",
+              "paper_id",
+              "project_id",
+              "query",
+              "types"
+            ],
+            "required": [
+              "concurrency",
+              "limit",
+              "project_id",
+              "query"
+            ]
+          }
+        },
+        {
+          "name": "hep_project_query_evidence_semantic",
+          "description": "Semantic query interface for a project Evidence Catalog. Currently falls back to lexical search and writes a run artifact (URI + summary; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "include_explanation",
+              "limit",
+              "paper_id",
+              "project_id",
+              "query",
+              "run_id",
+              "types"
+            ],
+            "required": [
+              "include_explanation",
+              "limit",
+              "project_id",
+              "query",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_render_latex",
+          "description": "Render structured SectionDraft/ReportDraft into LaTeX, enforce allowed_citations via citation verifier, and write artifacts (Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allowed_citations",
+              "cite_mapping",
+              "draft",
+              "latex_artifact_name",
+              "run_id",
+              "section_output_artifact_name",
+              "verification_artifact_name"
+            ],
+            "required": [
+              "draft",
+              "latex_artifact_name",
+              "run_id",
+              "section_output_artifact_name",
+              "verification_artifact_name"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_citation_mapping",
+          "description": "Build bibliography→INSPIRE mapping artifacts for a run (runs locally; uses INSPIRE network) and write `bibliography_raw.json`, `citekey_to_inspire.json`, `allowed_citations.json` (Evidence-first URIs + summary).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allowed_citations_primary",
+              "identifier",
+              "include_mapped_references",
+              "run_id"
+            ],
+            "required": [
+              "allowed_citations_primary",
+              "identifier",
+              "include_mapped_references",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_evidence_index_v1",
+          "description": "Build LaTeX EvidenceChunks + BM25 index for a run (fail-fast; no PDF fallback) and write artifacts (Evidence-first)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "force_rebuild",
+              "metrics_artifact_name",
+              "output_artifact_name",
+              "paper_cache_prefix",
+              "paper_ids",
+              "run_id"
+            ],
+            "required": [
+              "force_rebuild",
+              "metrics_artifact_name",
+              "output_artifact_name",
+              "paper_cache_prefix",
+              "paper_ids",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_measurements",
+          "description": "Extract HEP-style numeric measurements from a run LaTeX evidence catalog and write artifacts + diagnostics (Evidence-first, local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "include_types",
+              "latex_catalog_artifact_name",
+              "max_results",
+              "measurements_artifact_name",
+              "meta_artifact_name",
+              "run_id",
+              "target_quantities"
+            ],
+            "required": [
+              "include_types",
+              "latex_catalog_artifact_name",
+              "max_results",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_pdf_evidence",
+          "description": "Build PDF evidence for a run (text pages + optional visual region snippets) and write artifacts (Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "docling_json_artifact_name",
+              "docling_json_path",
+              "fulltext_artifact_name",
+              "max_pages",
+              "max_regions_total",
+              "mode",
+              "output_prefix",
+              "pdf_artifact_name",
+              "pdf_path",
+              "render_dpi",
+              "run_id",
+              "zotero_attachment_key"
+            ],
+            "required": [
+              "max_pages",
+              "max_regions_total",
+              "mode",
+              "output_prefix",
+              "render_dpi",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_writing_critical",
+          "description": "Build writing-critical artifacts for a run: conflicts.json, stance.jsonl, evidence_grades.json, and a summary (Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "claims_artifact_name",
+              "conflicts_artifact_name",
+              "evidence_grades_artifact_name",
+              "include_tables",
+              "min_tension_sigma",
+              "recids",
+              "run_id",
+              "stance_artifact_name",
+              "summary_artifact_name",
+              "target_quantities"
+            ],
+            "required": [
+              "claims_artifact_name",
+              "conflicts_artifact_name",
+              "evidence_grades_artifact_name",
+              "include_tables",
+              "min_tension_sigma",
+              "recids",
+              "run_id",
+              "stance_artifact_name",
+              "summary_artifact_name"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_build_writing_evidence",
+          "description": "Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; optional PDF evidence; Evidence-first, local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "continue_on_error",
+              "embedding_dim",
+              "latex_catalog_artifact_name",
+              "latex_embeddings_artifact_name",
+              "latex_enrichment_artifact_name",
+              "latex_sources",
+              "latex_types",
+              "max_evidence_items",
+              "pdf_embeddings_artifact_name",
+              "pdf_enrichment_artifact_name",
+              "pdf_source",
+              "pdf_types",
+              "run_id"
+            ],
+            "required": [
+              "continue_on_error",
+              "embedding_dim",
+              "latex_catalog_artifact_name",
+              "latex_embeddings_artifact_name",
+              "latex_enrichment_artifact_name",
+              "latex_sources",
+              "latex_types",
+              "max_evidence_items",
+              "pdf_embeddings_artifact_name",
+              "pdf_enrichment_artifact_name",
+              "pdf_types",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_clear_manifest_lock",
+          "description": "Clear a stale run manifest lock file (fail-fast; local-only). Use force=true only if you are sure no other tool is updating the run manifest.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "force",
+              "run_id"
+            ],
+            "required": [
+              "force",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_create",
+          "description": "Create a run under a project (writes run manifest + artifacts dir; returns `hep://runs/{run_id}` URIs; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "args_snapshot",
+              "project_id"
+            ],
+            "required": [
+              "project_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_read_artifact_chunk",
+          "description": "Read a small byte-range chunk from a HEP run artifact (debug helper; returns base64 chunk; local-only). Note: This tool only works for HEP run artifacts (hep://runs/...). For PDG artifacts (pdg://artifacts/...), use MCP Resources (ReadResource request) instead.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "length",
+              "offset",
+              "run_id"
+            ],
+            "required": [
+              "artifact_name",
+              "length",
+              "offset",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_stage_content",
+          "description": "Stage large client content into a run artifact and return its URI (token-limit safe two-step submission; local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_suffix",
+              "content",
+              "content_type",
+              "run_id"
+            ],
+            "required": [
+              "content",
+              "content_type",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_build_evidence_packet_section_v2",
+          "description": "Build per-section retrieval candidates, run LLM rerank (client/internal), and write `writing_evidence_packet_section_###_v2.json` (fail-fast; no BM25 fallback; Evidence-first).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "claim_ids",
+              "claims_table_artifact_name",
+              "evidence_index_artifact_name",
+              "llm_mode",
+              "max_candidates",
+              "max_chunk_chars",
+              "max_chunks_per_source",
+              "max_context_tokens",
+              "max_queries",
+              "max_selected_chunks",
+              "max_total_tokens",
+              "min_per_query",
+              "min_sources",
+              "outline_artifact_name",
+              "output_candidates_artifact_name",
+              "output_packet_artifact_name",
+              "output_rerank_packet_artifact_name",
+              "output_rerank_prompt_artifact_name",
+              "output_rerank_raw_artifact_name",
+              "output_rerank_result_artifact_name",
+              "queries",
+              "rerank_output_top_n",
+              "rerank_top_k",
+              "reserved_output_tokens",
+              "run_id",
+              "safety_margin_tokens",
+              "section_index",
+              "section_title",
+              "section_type",
+              "token_budget_plan_artifact_name",
+              "top_k_per_query"
+            ],
+            "required": [
+              "claim_ids",
+              "claims_table_artifact_name",
+              "evidence_index_artifact_name",
+              "llm_mode",
+              "max_candidates",
+              "max_chunk_chars",
+              "max_chunks_per_source",
+              "max_queries",
+              "max_selected_chunks",
+              "max_total_tokens",
+              "min_per_query",
+              "min_sources",
+              "outline_artifact_name",
+              "rerank_output_top_n",
+              "rerank_top_k",
+              "run_id",
+              "section_index",
+              "top_k_per_query"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_outline_candidates_packet_v1",
+          "description": "Create an N-best outline candidates prompt_packet + next_actions (M13; N>=2 hard requirement; Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "claims_table_artifact_name",
+              "language",
+              "n_candidates",
+              "run_id",
+              "seeds",
+              "structure_hints",
+              "target_length",
+              "temperatures",
+              "title",
+              "topic",
+              "user_outline",
+              "variation_strategy"
+            ],
+            "required": [
+              "language",
+              "run_id",
+              "target_length",
+              "title"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_outline_judge_packet_v1",
+          "description": "Create a Judge prompt_packet for selecting the best outline candidate (M13; hard gates; Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidates_uri",
+              "run_id"
+            ],
+            "required": [
+              "candidates_uri",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_paperset_curation_packet",
+          "description": "Create a PaperSetCuration prompt_packet artifact for client paperset planning (Evidence-first; writes run artifact; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidate_pool_artifact_name",
+              "language",
+              "output_artifact_name",
+              "run_id",
+              "seed_identifiers",
+              "structure_hints",
+              "target_length",
+              "title",
+              "topic"
+            ],
+            "required": [
+              "language",
+              "run_id",
+              "seed_identifiers",
+              "target_length",
+              "title"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_revision_plan_packet_v1",
+          "description": "Create a RevisionPlanV1 prompt_packet for client revision planning (requires ReviewerReport v2; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "manifest_uri",
+              "quality_policy_uri",
+              "reviewer_report_uri",
+              "round"
+            ],
+            "required": [
+              "manifest_uri",
+              "reviewer_report_uri",
+              "round"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_section_candidates_packet_v1",
+          "description": "Create an N-best section candidates prompt_packet + next_actions (M13; N>=2 hard requirement; Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "n_candidates",
+              "output_artifact_name",
+              "run_id",
+              "section_index",
+              "seeds",
+              "temperatures",
+              "variation_strategy"
+            ],
+            "required": [
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_section_judge_packet_v1",
+          "description": "Create a Judge prompt_packet for selecting the best section candidate (M13; hard gates; Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidates_uri",
+              "run_id",
+              "section_index"
+            ],
+            "required": [
+              "candidates_uri",
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_section_write_packet_v1",
+          "description": "Create a per-section PromptPacket + evidence context artifacts for client section writing, gated by TokenGate (M06; fail-fast; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "claims_table_artifact_name",
+              "evidence_packet_artifact_name",
+              "outline_artifact_name",
+              "output_evidence_context_artifact_name",
+              "output_packet_artifact_name",
+              "output_prompt_text_artifact_name",
+              "paperset_artifact_name",
+              "run_id",
+              "section_index",
+              "token_budget_plan_artifact_name"
+            ],
+            "required": [
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_create_token_budget_plan_v1",
+          "description": "Create a `writing_token_budget_plan_v1.json` artifact for a run (M05: TokenBudgetPlan SSOT; overflow_policy=fail_fast; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "model",
+              "model_context_tokens",
+              "output_artifact_name",
+              "reserved_output_tokens",
+              "run_id",
+              "safety_margin_tokens"
+            ],
+            "required": [
+              "model_context_tokens",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_integrate_sections_v1",
+          "description": "Integrate run writing_section_*.json into writing_integrated.tex + diagnostics and run LaTeX compile gate (fail-fast; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "add_cross_references",
+              "final_polish",
+              "fix_unused_materials",
+              "max_retries",
+              "run_id",
+              "unify_terminology"
+            ],
+            "required": [
+              "add_cross_references",
+              "final_polish",
+              "fix_unused_materials",
+              "run_id",
+              "unify_terminology"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_refinement_orchestrator_v1",
+          "description": "Advance one writing refinement round state machine step (Review → RevisionPlan → Execute → Re-verify → Integrate → Repeat) (Evidence-first; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "reviewer_report_uri",
+              "revision_plan_uri",
+              "round",
+              "run_id"
+            ],
+            "required": [
+              "round",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_outline_candidates_v1",
+          "description": "Submit N-best outline candidates (strict validation; writes writing_candidates_outline_v1.json; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidates",
+              "run_id"
+            ],
+            "required": [
+              "candidates",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_outline_judge_decision_v1",
+          "description": "Submit a client-generated JudgeDecision for outline selection, enforce hard gates, then write writing_outline_v2.json (M13; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "client_model",
+              "judge_decision_uri",
+              "run_id",
+              "seed",
+              "temperature"
+            ],
+            "required": [
+              "judge_decision_uri",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_paperset_curation",
+          "description": "Submit a client-generated PaperSetCuration into run artifacts (fail-fast validated; writes writing_paperset_v1.json; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "paperset",
+              "paperset_artifact_name",
+              "paperset_uri",
+              "prompt_packet_artifact_name",
+              "run_id"
+            ],
+            "required": [
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_rerank_result_v1",
+          "description": "Submit client LLM rerank indices (for a previously generated rerank packet) and write `writing_rerank_result_section_###_v1.json` + `writing_evidence_packet_section_###_v2.json` (fail-fast; no BM25 fallback; Evidence-first).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "max_context_tokens",
+              "output_packet_artifact_name",
+              "output_rerank_raw_artifact_name",
+              "output_rerank_result_artifact_name",
+              "ranked_indices",
+              "rerank_packet_artifact_name",
+              "reserved_output_tokens",
+              "run_id",
+              "safety_margin_tokens",
+              "section_index",
+              "token_budget_plan_artifact_name"
+            ],
+            "required": [
+              "ranked_indices",
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_review",
+          "description": "Submit a client-generated reviewer report for a completed run write (Evidence-first: writes run artifacts; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "client_model",
+              "reviewer_report",
+              "reviewer_report_uri",
+              "round",
+              "run_id",
+              "seed",
+              "temperature"
+            ],
+            "required": [
+              "round",
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_revision_plan_v1",
+          "description": "Submit a client-generated RevisionPlan v1 into run artifacts (fail-fast validated; writes writing_revision_plan_round_XX_v1.json; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "revision_plan",
+              "revision_plan_uri",
+              "run_id"
+            ],
+            "required": [
+              "run_id"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_section_candidates_v1",
+          "description": "Submit N-best section candidates (strict schema validation; writes writing_candidates_section_###_v1.json; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "candidates",
+              "run_id",
+              "section_index"
+            ],
+            "required": [
+              "candidates",
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_submit_section_judge_decision_v1",
+          "description": "Submit a client-generated JudgeDecision for section selection, enforce hard gates, then run verifiers (M13; fail-fast; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "client_model",
+              "judge_decision_uri",
+              "quality_eval",
+              "run_id",
+              "section_index",
+              "seed",
+              "temperature"
+            ],
+            "required": [
+              "judge_decision_uri",
+              "run_id",
+              "section_index"
+            ]
+          }
+        },
+        {
+          "name": "hep_run_writing_token_gate_v1",
+          "description": "Run TokenGate on a prompt_packet (+ optional evidence_packet) and write either token gate pass or writing_token_overflow artifacts (M05; fail-fast; Evidence-first; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "evidence_packet_uri",
+              "max_context_tokens",
+              "output_overflow_artifact_name",
+              "output_pass_artifact_name",
+              "prompt_packet",
+              "prompt_packet_uri",
+              "reserved_output_tokens",
+              "run_id",
+              "safety_margin_tokens",
+              "section_index",
+              "step",
+              "token_budget_plan_artifact_name"
+            ],
+            "required": [
+              "run_id",
+              "step"
+            ]
+          }
+        },
+        {
+          "name": "inspire_advanced",
+          "description": "Unified advanced INSPIRE tools (network). Modes: parse_latex_content/find_experts/analyze_papers/find_connections/trace_original_source",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "analysis_type",
+              "components",
+              "cross_validate",
+              "format",
+              "identifier",
+              "include_external",
+              "limit",
+              "max_depth",
+              "max_external_depth",
+              "max_refs_per_level",
+              "mode",
+              "options",
+              "recid",
+              "recids",
+              "topic"
+            ],
+            "required": [
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_analyze_citation_stance",
+          "description": "[Advanced] Analyze how a paper cites another paper (stance detection; resolves citekeys via INSPIRE as needed; network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "bib_content",
+              "latex_content",
+              "max_contexts",
+              "target_recid"
+            ],
+            "required": [
+              "latex_content",
+              "max_contexts",
+              "target_recid"
+            ]
+          }
+        },
+        {
+          "name": "inspire_cleanup_downloads",
+          "description": "[Advanced] Delete cached arXiv source download directories created by this server (marker-checked). Supports `dry_run`, `older_than_hours`, and `arxiv_id` filtering (local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "arxiv_id",
+              "dry_run",
+              "older_than_hours"
+            ],
+            "required": null
+          }
+        },
+        {
+          "name": "inspire_critical_research",
+          "description": "Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "mode",
+              "options",
+              "recids",
+              "run_id"
+            ],
+            "required": [
+              "mode",
+              "recids"
+            ]
+          }
+        },
+        {
+          "name": "inspire_deep_research",
+          "description": "End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize/write. write mode is Evidence-first via `run_id` (writes artifacts/URIs; network) and supports resume via `resume_from`.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "format",
+              "identifiers",
+              "mode",
+              "options",
+              "resume_from",
+              "run_id"
+            ],
+            "required": [
+              "identifiers",
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_discover_papers",
+          "description": "Unified paper discovery tool (network). Modes: seminal/related/expansion/survey",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "limit",
+              "mode",
+              "options",
+              "seed_recids",
+              "topic"
+            ],
+            "required": [
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_field_survey",
+          "description": "Physicist's literature review workflow (network): reviews → seminal → citation expansion → controversies",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "focus",
+              "iterations",
+              "max_papers",
+              "prefer_journal",
+              "seed_recid",
+              "topic"
+            ],
+            "required": [
+              "topic"
+            ]
+          }
+        },
+        {
+          "name": "inspire_find_crossover_topics",
+          "description": "[Advanced] Discover emerging interdisciplinary research areas by analyzing papers spanning multiple arXiv categories (network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "categories",
+              "limit",
+              "min_papers",
+              "scan_popular",
+              "time_range"
+            ],
+            "required": [
+              "scan_popular"
+            ]
+          }
+        },
+        {
+          "name": "inspire_literature",
+          "description": "Unified INSPIRE literature access tool (network).\n\nModes + required args:\n- get_paper: { recid }\n- get_references: { recid, size? }\n- lookup_by_id: { identifier } // identifier can be a recid, DOI (10.x), or arXiv id; tool auto-routes\n- get_citations: { recid, size?, sort? } // IMPORTANT: use recid (not identifier); use size (not options.limit)\n- search_affiliation: { affiliation, size?, sort? }\n- get_bibtex: { recids }\n- get_author: { identifier } // identifier can be INSPIRE BAI (e.g. E.Witten.1), ORCID, or a name query; returns `bai` for disambiguation.\n\nTip: For ambiguous names, call `get_author` first, then use `inspire_search` with `query=\"a:<bai>\"`.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "affiliation",
+              "identifier",
+              "mode",
+              "recid",
+              "recids",
+              "size",
+              "sort"
+            ],
+            "required": [
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_network_analysis",
+          "description": "Unified network analysis tool (network). Modes: citation/collaboration",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "limit",
+              "mode",
+              "options",
+              "seed"
+            ],
+            "required": [
+              "mode",
+              "seed"
+            ]
+          }
+        },
+        {
+          "name": "inspire_paper_source",
+          "description": "Unified paper source access tool (network). Modes: urls/content/metadata/auto (downloads arXiv sources/PDFs and optionally extracts).\n\n- 'urls': Only return download URLs without downloading (fast check)\n- 'content': Actually download and extract paper source (LaTeX or PDF). Use this mode to download arXiv LaTeX source.\n- 'metadata': Get arXiv metadata and source availability info\n- 'auto': Get URLs first with availability check, but does NOT automatically download\n\nTo download arXiv LaTeX source, use mode='content' with options.prefer='latex' and options.extract=true.\n\nSafety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a relative output_dir (e.g. \"arxiv_sources/<arxiv_id>\"); relative paths are resolved under HEP_DATA_DIR. Or set HEP_DATA_DIR to change the root.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "identifier",
+              "mode",
+              "options"
+            ],
+            "required": [
+              "identifier",
+              "mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_search",
+          "description": "Search INSPIRE-HEP literature database (network). Supports combining multiple conditions in one query.\n\nNote: Some MCP clients prefix tool names (e.g. `mcp__hep__inspire_search`); always use the exact tool name shown by your client.\n\nAuthor search: Use \"a:lastname, firstname\" or BAI format \"a:Feng.Kun.Guo.1\". Do NOT use quotes around author names.\n\nAuthor disambiguation tip (IMPORTANT for common names):\n- Prefer INSPIRE BAI when available: `a:E.Witten.1` (stable unique author identifier).\n- If you only have a name, first call `inspire_literature` with `mode=get_author` to obtain `bai`, then search with `a:<bai>`.\n\nFull-text search: Use \"fulltext:\" to search paper content (not just metadata).\n- fulltext:\"dark matter detection\" - search for exact phrase in paper text\n- fulltext:WIMP AND t:direct - combine full-text with title search\n\nCommon search operators:\n- a: author (e.g., \"a:guo, feng-kun\" or \"a:Feng.Kun.Guo.1\")\n- fa: first author (e.g., \"fa:witten\")\n- t: title (e.g., \"t:pentaquark\")\n- fulltext: full-text search (e.g., \"fulltext:lattice QCD\")\n- topcite: citation count (e.g., \"topcite:250+\" for >=250 citations)\n- authorcount: author count (e.g., \"authorcount:1->10\" for 1-10 authors)\n- date: date range (e.g., \"date:2020->2024\")\n- j: journal (e.g., \"j:Phys.Rev.D\")\n- eprint: arXiv ID (e.g., \"eprint:2301.12345\")\n- primarch: primary arXiv category (e.g., \"primarch:hep-ph\", \"primarch:hep-th\")\n- cn: collaboration (e.g., \"cn:LHCb\")\n- aff: affiliation (e.g., \"aff:CERN\")\n- tc: document type (p=published, c=conference, r=review, t=thesis)\n\nReview paper handling via `review_mode`:\n- mixed (default): keep result order\n- exclude: remove review papers\n- deprioritize/separate: move review papers to the end\n\nExample combined query: \"a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10\"",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "format",
+              "page",
+              "query",
+              "review_mode",
+              "size",
+              "sort"
+            ],
+            "required": [
+              "format",
+              "page",
+              "query",
+              "review_mode",
+              "size"
+            ]
+          }
+        },
+        {
+          "name": "inspire_search_next",
+          "description": "Follow an INSPIRE `next_url` returned by `inspire_search` with strict same-origin checks (network; avoids arbitrary URL fetch).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "next_url",
+              "review_mode"
+            ],
+            "required": [
+              "next_url",
+              "review_mode"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_build_evidence",
+          "description": "[Advanced] Build Docling-like LaTeX evidence catalogs for a style corpus (local compute; optional INSPIRE citation mapping when enabled; network optional).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "concurrency",
+              "force",
+              "include_inline_math",
+              "limit",
+              "map_citations_to_inspire",
+              "max_paragraph_length",
+              "style_id"
+            ],
+            "required": [
+              "force",
+              "include_inline_math",
+              "map_citations_to_inspire",
+              "style_id"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_build_index",
+          "description": "[Advanced] Build hybrid retrieval index for a style corpus (local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "embedding_dim",
+              "embedding_model",
+              "style_id"
+            ],
+            "required": [
+              "style_id"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_build_manifest",
+          "description": "[Advanced] Build/extend a style corpus manifest from INSPIRE search results (incremental + deterministic; network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "max_results_per_category",
+              "page_size",
+              "search_sort",
+              "style_id",
+              "target_papers"
+            ],
+            "required": [
+              "style_id"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_download",
+          "description": "[Advanced] Download style corpus papers from arXiv (LaTeX preferred, PDF fallback; checkpointable; network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "concurrency",
+              "force",
+              "limit",
+              "style_id"
+            ],
+            "required": [
+              "force",
+              "style_id"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_export_pack",
+          "description": "[Advanced] Export a style corpus pack (zip + sha256 manifest) for transfer to another machine (local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "compression_level",
+              "include_artifacts",
+              "include_evidence",
+              "include_index",
+              "include_pdf",
+              "include_sources",
+              "style_id"
+            ],
+            "required": [
+              "compression_level",
+              "include_artifacts",
+              "include_evidence",
+              "include_index",
+              "include_pdf",
+              "include_sources",
+              "style_id"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_import_pack",
+          "description": "[Advanced] Import a style corpus pack (zip + sha256 manifest) into HEP_DATA_DIR/corpora (local-only)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "overwrite",
+              "pack_path"
+            ],
+            "required": [
+              "overwrite",
+              "pack_path"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_init_profile",
+          "description": "[Advanced] Initialize a built-in style corpus profile on disk (local-only; Evidence-first)",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "overwrite",
+              "style_id"
+            ],
+            "required": [
+              "overwrite",
+              "style_id"
+            ]
+          }
+        },
+        {
+          "name": "inspire_style_corpus_query",
+          "description": "Query a journal style corpus (default: RMP) for style evidence (local-only).\n\nEvidence-first:\n- Writes a compact query result artifact to disk\n- Returns only {uri + summary} (read details via MCP resources)\n\nNote: Requires a built local corpus index (run `inspire_style_corpus_build_index` first).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "filters",
+              "mode",
+              "query",
+              "retrieval",
+              "style_id",
+              "top_k",
+              "types"
+            ],
+            "required": [
+              "mode",
+              "query",
+              "retrieval",
+              "style_id",
+              "top_k"
+            ]
+          }
+        },
+        {
+          "name": "inspire_topic_analysis",
+          "description": "Unified topic analysis tool (network). Modes: timeline/evolution/emerging/all",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "limit",
+              "mode",
+              "options",
+              "time_range",
+              "topic"
+            ],
+            "required": [
+              "mode",
+              "topic"
+            ]
+          }
+        },
+        {
+          "name": "inspire_validate_bibliography",
+          "description": "[Advanced] Cross-validate LaTeX bibliography entries against INSPIRE for a given paper identifier (recid/arXiv/DOI) and report matches/discrepancies (network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "check_discrepancies",
+              "identifier",
+              "max_entries"
+            ],
+            "required": [
+              "identifier"
+            ]
+          }
+        },
+        {
+          "name": "pdg_batch",
+          "description": "Execute multiple PDG tool calls in one request (writes a JSON artifact; supports limited parallelism; local-only; requires `PDG_DB_PATH` for most calls).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "calls",
+              "concurrency",
+              "continue_on_error"
+            ],
+            "required": [
+              "calls",
+              "concurrency",
+              "continue_on_error"
+            ]
+          }
+        },
+        {
+          "name": "pdg_find_particle",
+          "description": "Find particle candidates by name / MCID / PDG identifier (small result; supports pagination; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "case_sensitive",
+              "limit",
+              "match",
+              "mcid",
+              "name",
+              "pdg_code",
+              "pdgid",
+              "start"
+            ],
+            "required": [
+              "case_sensitive",
+              "limit",
+              "match",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "pdg_find_reference",
+          "description": "Find PDG references by DOI / INSPIRE recid / document id / title (small result; supports pagination; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "case_sensitive",
+              "document_id",
+              "doi",
+              "inspire_id",
+              "limit",
+              "match",
+              "start",
+              "title"
+            ],
+            "required": [
+              "case_sensitive",
+              "limit",
+              "match",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get",
+          "description": "Get a PDG identifier object (writes a JSON artifact; returns URI + summary; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "edition",
+              "pdgid"
+            ],
+            "required": [
+              "pdgid"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get_decays",
+          "description": "List decay modes for a particle (writes JSONL artifact; returns URI + summary; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "edition",
+              "limit",
+              "particle",
+              "start"
+            ],
+            "required": [
+              "limit",
+              "particle",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get_measurements",
+          "description": "List PDG measurements for an identifier (writes JSONL artifact; includes references/values/footnotes; local-only; requires `PDG_DB_PATH`). Can be called with pdgid, particle selector, or property_pdgid directly. CRITICAL: If the result has kind=\"series_options\" or stop_here=true, you MUST STOP querying and select one series using property_pdgid or data_type from example_next_calls. Do NOT call again with the same particle/pdgid - this will cause infinite loops. If has_more=true, use start parameter to paginate (e.g., start=previous_start+limit).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "artifact_name",
+              "case_sensitive",
+              "data_type",
+              "include_footnotes",
+              "include_reference",
+              "include_values",
+              "limit",
+              "particle",
+              "pdgid",
+              "property_pdgid",
+              "start"
+            ],
+            "required": [
+              "case_sensitive",
+              "include_footnotes",
+              "include_reference",
+              "include_values",
+              "limit",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get_property",
+          "description": "Get a high-frequency particle property (mass/width/lifetime) with uncertainties and PDG locator (local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allow_derived",
+              "edition",
+              "particle",
+              "property"
+            ],
+            "required": [
+              "allow_derived",
+              "particle",
+              "property"
+            ]
+          }
+        },
+        {
+          "name": "pdg_get_reference",
+          "description": "Get a PDG reference record (small result; includes INSPIRE lookup identifiers; local-only; requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "case_sensitive",
+              "document_id",
+              "id"
+            ],
+            "required": [
+              "case_sensitive"
+            ]
+          }
+        },
+        {
+          "name": "pdg_info",
+          "description": "Return PDG MCP server info and local data directories (small result; local-only) (requires `PDG_DB_PATH`).",
+          "input_schema": {
+            "type": "object",
+            "properties": [],
+            "required": null
+          }
+        },
+        {
+          "name": "zotero_add",
+          "description": "Preview a Zotero add/update operation and return a confirm_token; execute via zotero_confirm (local-only write). Sources: `item` (no network), or `inspire`/`doi`/`arxiv` (fetches metadata from INSPIRE; network). If collection_keys is empty/missing, writes into the currently selected Zotero collection (requires Zotero Connector mapping); library root is rejected unless allow_library_root=true.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allow_library_root",
+              "collection_keys",
+              "dedupe",
+              "note",
+              "open_in_zotero",
+              "source",
+              "tags"
+            ],
+            "required": [
+              "allow_library_root",
+              "collection_keys",
+              "dedupe",
+              "open_in_zotero",
+              "source",
+              "tags"
+            ]
+          }
+        },
+        {
+          "name": "zotero_confirm",
+          "description": "Confirm and execute a previewed Zotero write operation (local-only). Use the confirm_token returned by tools like zotero_add.",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "confirm_token"
+            ],
+            "required": [
+              "confirm_token"
+            ]
+          }
+        },
+        {
+          "name": "zotero_export_items",
+          "description": "Export Zotero items into BibTeX/CSL-JSON/RIS/etc via Local API (local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "format",
+              "linkwrap",
+              "locale",
+              "max_chars",
+              "scope",
+              "style"
+            ],
+            "required": [
+              "format",
+              "max_chars",
+              "scope"
+            ]
+          }
+        },
+        {
+          "name": "zotero_find_items",
+          "description": "Resolve Zotero items by identifiers (doi/arxiv/recid/item_key/title) with optional local filters (tags/authors/publication_title/year/volume/issue), optionally scoped by collection_key (and include_children). Internally, it fetches a limited candidate set via Zotero Local API search and then verifies matches; for interactive browsing, prefer zotero_search_items (local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": null,
+            "required": null
+          }
+        },
+        {
+          "name": "zotero_get_selected_collection",
+          "description": "Resolve the Zotero UI-selected collection to a Local API collection_key (requires Zotero Connector + Zotero open; maps connector path → Local API key; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "allow_library_root"
+            ],
+            "required": [
+              "allow_library_root"
+            ]
+          }
+        },
+        {
+          "name": "zotero_local",
+          "description": "Unified Zotero Local API tool (requires Zotero Local API at `http://127.0.0.1:23119`). Modes: list_collections/list_collection_paths/list_items/get_item/get_item_attachments/download_attachment/get_attachment_fulltext/list_tags (fulltext requires `ZOTERO_DATA_DIR`; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "attachment_key",
+              "case_sensitive",
+              "collection_key",
+              "item_key",
+              "limit",
+              "match",
+              "mode",
+              "q",
+              "qmode",
+              "query",
+              "scope",
+              "start"
+            ],
+            "required": [
+              "case_sensitive",
+              "limit",
+              "match",
+              "mode",
+              "scope",
+              "start"
+            ]
+          }
+        },
+        {
+          "name": "zotero_search_items",
+          "description": "Browse/search Zotero items via Zotero Local API query params (q/qmode/tag/itemType, optional collection scope). Returns summarized items with select_uri + identifier digest; does not guarantee exact identifier resolution (use zotero_find_items for that; local-only).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "collection_key",
+              "direction",
+              "include_trashed",
+              "item_type",
+              "limit",
+              "q",
+              "qmode",
+              "sort",
+              "start",
+              "tag",
+              "top_level_only"
+            ],
+            "required": [
+              "include_trashed",
+              "limit",
+              "start",
+              "top_level_only"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "notes": [
+    "This inventory is obtained via MCP listTools against the package entrypoint.",
+    "The spawned server uses the provided HEP_DATA_DIR (kept inside this repo by default)."
+  ]
+}

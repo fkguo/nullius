@@ -1,0 +1,9 @@
+ERROR: LoadError: run dir exists and is non-empty: /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v21-dispersion-grid200-enf200-qstar-audit3-clarabel
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:35
+ [2] main()
+   @ Main ~/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl:1027
+ [3] top-level scope
+   @ ~/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl:1144
+in expression starting at /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl:1143

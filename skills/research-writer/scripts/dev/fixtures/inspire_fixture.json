@@ -1,0 +1,67 @@
+{
+    "hits": {
+        "total": 2,
+        "hits": [
+            {
+                "id": "fixture-1",
+                "metadata": {
+          "arxiv_eprints": [
+            {
+              "value": "1234.56789"
+            }
+          ],
+          "titles": [
+            {
+              "title": "Fixture Paper (offline corpus test)"
+            }
+          ],
+          "publication_info": [
+            {
+              "year": 2024
+            }
+          ],
+          "dois": [
+            {
+              "value": "10.0000/fixture"
+            }
+          ],
+          "authors": [
+            {
+              "full_name": "A. Author"
+            }
+                    ]
+                }
+            },
+            {
+                "id": "fixture-2",
+                "metadata": {
+                    "arxiv_eprints": [
+                        {
+                            "value": "2345.67890"
+                        }
+                    ],
+                    "titles": [
+                        {
+                            "title": "Second Fixture Paper (offline corpus test)"
+                        }
+                    ],
+                    "publication_info": [
+                        {
+                            "year": 2023
+                        }
+                    ],
+                    "dois": [
+                        {
+                            "value": "10.0000/fixture2"
+                        }
+                    ],
+                    "authors": [
+                        {
+                            "full_name": "B. Author"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

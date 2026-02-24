@@ -1,0 +1,5 @@
+idea-runs make validate-project PROJECT=... (W6-36)
+timestamp_utc: 2026-02-21T09:31:14Z
+
+python3 scripts/validate_project_artifacts.py --project "projects/pion-gff-bootstrap-positivity-pilot-2026-02-15"
+OK: validated project artifacts: pion-gff-bootstrap-positivity-pilot-2026-02-15

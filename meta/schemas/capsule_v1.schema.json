@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/capsule_v1.schema.json",
+  "title": "Capsule V1",
+  "description": "Verified fix instance — a Gene applied to specific signals producing a specific outcome. Ported from Evolver GEP Capsule model (MIT, AutoGame Limited).",
+  "type": "object",
+  "required": ["capsule_id", "gene_id", "trigger", "signal_key", "confidence", "blast_radius", "created_at"],
+  "properties": {
+    "capsule_id": {
+      "type": "string",
+      "pattern": "^cap_[0-9a-f-]+$",
+      "description": "Unique capsule identifier (ID-01 compliant)"
+    },
+    "gene_id": {
+      "type": "string",
+      "description": "Gene that produced this capsule"
+    },
+    "trigger": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Signal set that triggered this capsule's creation"
+    },
+    "signal_key": {
+      "type": "string",
+      "description": "FNV-1a hash of normalized trigger signals. Required — computed via computeSignalKey(trigger) at capsule creation time."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence score at creation time"
+    },
+    "blast_radius": {
+      "$ref": "#/$defs/BlastRadius"
+    },
+    "mutation_type": {
+      "type": "string",
+      "enum": ["repair", "optimize", "innovate"],
+      "default": "repair"
+    },
+    "validation_result": {
+      "$ref": "#/$defs/ValidationResult"
+    },
+    "contract_guard_result": {
+      "$ref": "#/$defs/ContractGuardResult"
+    },
+    "gate_level": {
+      "type": "string",
+      "enum": ["A0", "A1", "A2", "reject"],
+      "description": "Determined gate level for this capsule"
+    },
+    "files_modified": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of files modified by this capsule"
+    },
+    "artifact_uri": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "H-18 ArtifactRef URI to capsule content (diff, patch). Full ArtifactRef object resolved via artifact store."
+    },
+    "run_id": {
+      "type": ["string", "null"],
+      "pattern": "^run_[0-9a-f-]+$"
+    },
+    "node_id": {
+      "type": ["string", "null"],
+      "pattern": "^mgn_[0-9a-f-]+$",
+      "description": "Corresponding Memory Graph node ID (EVO-20)"
+    },
+    "generalized_to_gene": {
+      "type": ["string", "null"],
+      "description": "If this capsule was generalized, the resulting gene_id"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "BlastRadius": {
+      "type": "object",
+      "required": ["files_changed", "lines_added", "lines_removed"],
+      "properties": {
+        "files_changed": { "type": "integer", "minimum": 0 },
+        "lines_added": { "type": "integer", "minimum": 0 },
+        "lines_removed": { "type": "integer", "minimum": 0 },
+        "severity": {
+          "type": "string",
+          "enum": ["within_limit", "approaching_limit", "exceeded", "critical_overrun", "hard_cap_breach"]
+        },
+        "files_list": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "untracked_files": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ValidationResult": {
+      "type": "object",
+      "required": ["all_passed", "steps"],
+      "properties": {
+        "all_passed": { "type": "boolean" },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["command", "passed"],
+            "properties": {
+              "command": { "type": "string" },
+              "passed": { "type": "boolean" },
+              "stdout": { "type": "string" },
+              "stderr": { "type": "string" },
+              "error": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContractGuardResult": {
+      "type": "object",
+      "required": ["passed", "violations", "checked_rules"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["rule_id", "file", "message", "severity", "auto_fixable"],
+            "properties": {
+              "rule_id": { "type": "string" },
+              "file": { "type": "string" },
+              "line": { "type": "integer" },
+              "message": { "type": "string" },
+              "severity": { "type": "string", "enum": ["error", "warning"] },
+              "auto_fixable": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "checked_rules": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

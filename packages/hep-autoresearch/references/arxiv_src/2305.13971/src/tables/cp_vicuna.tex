@@ -1,0 +1,25 @@
+\begin{table}[h]
+\centering
+\resizebox{0.48\textwidth}{!}{
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\hspace{4mm} Method & Precision & Recall & Tag Accuracy & Validity \\
+\midrule
+\emph{\textbf{Unconstrained}}\\
+\hspace{4mm} Vicuna-7B     &    13.5     &    12.7     &    27.8   &    42.2 \\
+\hspace{4mm} Vicuna-13B    &    31.6     &    28.1     &    29.6   &    51.4 \\
+\midrule
+\emph{\textbf{Constrained IIG}}\\
+\hspace{4mm} Vicuna-7B     &    17.4     &    16.3     &    30.5   &    54.3 \\
+\hspace{4mm} Vicuna-13B    &    30.8     &    27.7     &    33.4   &    56.1 \\
+\midrule
+\emph{\textbf{Constrained IDG}}\\
+\hspace{4mm} Vicuna-7B     &    35.6     &    31.9     &    41.4   &    100.0 \\
+\hspace{4mm} Vicuna-13B    &    51.6     &    44.4     &    42.4   &    100.0 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Constituency parsing results with Vicuna. The experiments setting is the same as in Table~\ref{tab:ConstituencyParsingResults}.}
+\label{tab:ConstituencyParsingResultsWithVicuna}
+\end{table}

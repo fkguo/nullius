@@ -1,0 +1,14 @@
+{
+  "name": "exotic_hadrons_2023_2026",
+  "query": "t:exotic hadrons date:2023->2026",
+  "sort": "mostcited",
+  "max_results": 3,
+  "size": 2,
+  "expected": {
+    "structure": {
+      "has_recids": true,
+      "min_count": 3
+    }
+  }
+}
+

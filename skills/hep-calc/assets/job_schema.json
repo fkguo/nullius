@@ -1,0 +1,297 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "hep-calc job schema",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": { "type": "integer", "default": 1 },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "run_card": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Optional run-card pointer (YAML/JSON/MD). If provided, hep-calc copies it into out_dir/inputs/ as run_card.<ext> and records it in manifest.json."
+    },
+    "tolerance": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "rel": { "type": "number", "default": 1e-4 },
+        "abs": { "type": "number", "default": 1e-12 },
+        "per_target": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "rel": { "type": "number" },
+              "abs": { "type": "number" }
+            }
+          },
+          "default": {}
+        }
+      }
+    },
+    "mathematica": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "entry": {
+          "type": ["string", "null"],
+          "description": "Path to .wls/.m (recommended) or .nb (best-effort)"
+        }
+      }
+    },
+    "numeric": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enable": { "type": "boolean", "default": true },
+        "engine": { "type": "string", "enum": ["julia"], "default": "julia" }
+      }
+    },
+    "latex": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "tex_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "label_patterns": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "extractor_plugin": { "type": ["string", "null"] },
+        "targets": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": "string" },
+              "file": { "type": "string" },
+              "label": { "type": "string" },
+              "regex": { "type": "string" },
+              "window_chars": { "type": "integer", "default": 800 },
+              "scaling": {
+                "type": "number",
+                "default": 1.0,
+                "description": "Multiplier applied to extracted LaTeX value before comparison (e.g. 1000 for GeV->MeV)."
+              },
+              "tolerance": {
+                "type": "object",
+                "properties": {
+                  "rel": { "type": "number" },
+                  "abs": { "type": "number" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "enable_fa_fc": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable the (scaffold) FeynArts→FormCalc pipeline; requires custom scripts/spec for real processes."
+    },
+    "feynarts_formcalc_spec": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "entry": {
+          "type": "string",
+          "description": "Path to a Mathematica .wls/.m file to execute when FA/FC pipeline is enabled."
+        }
+      }
+    },
+    "auto_qft": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Automated FeynRules → FeynArts → FormCalc pipeline for generating diagrams and (unrenormalized) amplitudes.",
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Explicit enable/disable switch. If true, always run auto_qft. If false, always skip. If omitted, hep-calc may implicitly enable auto_qft when both process + model are specified."
+        },
+        "feynarts_model": {
+          "type": ["string", "null"],
+          "description": "FeynArts-only mode: use a built-in (or already-available) FeynArts model name, and skip the FeynRules export step. Example: QED. When set, process.in_fa/out_fa are required."
+        },
+        "feynarts_generic_model": {
+          "type": ["string", "null"],
+          "description": "FeynArts-only mode: optional GenericModel name (default: same as feynarts_model). Example: QED."
+        },
+        "feynrules_root": {
+          "type": ["string", "null"],
+          "description": "Path to FeynRules installation directory (must contain FeynRules.m and FeynRulesPackage.m). If null/omitted, uses FEYNRULES_PATH env var or ~/Library/Wolfram/Applications/FeynRules."
+        },
+        "model_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "FeynRules mode: one or more FeynRules .fr files to LoadModel[...]. Ignored when feynarts_model is set."
+        },
+        "lagrangian_symbol": {
+          "type": "string",
+          "default": "LSM",
+          "description": "FeynRules mode: name of the Lagrangian symbol to export (e.g. LSM). Must be a simple symbol name. Ignored when feynarts_model is set."
+        },
+        "model_build": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Optional: build/augment a FeynRules model from LaTeX-extracted blocks (agent supplies rewrite rules).",
+          "properties": {
+            "enable": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable/disable model_build explicitly. If omitted, providing tex_paths or inline_tex implicitly enables this stage."
+            },
+            "tex_paths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "description": "LaTeX source files to extract math blocks from. Paths are resolved relative to the job file."
+            },
+            "inline_tex": {
+              "type": "string",
+              "default": "",
+              "description": "Inline LaTeX snippet (as a single virtual block). Mutually exclusive with tex_paths."
+            },
+            "preprocess": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "flatten": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "If true, run latexpand to flatten multi-file TeX inputs."
+                },
+                "expand_usepackage": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Pass --expand-usepackage to latexpand (may be slower/more fragile)."
+                },
+                "macro_overrides": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "default": {},
+                  "description": "Macro overrides applied after preamble extraction (best-effort). Keys may be with or without leading backslash."
+                }
+              }
+            },
+            "selection": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["lagrangian_like", "all_math_blocks"],
+                  "default": "lagrangian_like",
+                  "description": "Block selection strategy. lagrangian_like uses include/exclude regex on normalized TeX; all_math_blocks selects everything extracted."
+                },
+                "include_patterns": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "default": ["\\\\mathcal\\{L\\}", "\\\\mathscr\\{L\\}"],
+                  "description": "Regex patterns (Python re) used for selecting blocks when mode=lagrangian_like. Default matches \\\\mathcal{L} and \\\\mathscr{L}."
+                },
+                "exclude_patterns": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "default": [],
+                  "description": "Regex patterns to exclude after include filtering."
+                }
+              }
+            },
+            "parse_policy": {
+              "type": "string",
+              "enum": ["best_effort", "strict"],
+              "default": "best_effort",
+              "description": "How to handle Mathematica TeXForm parse failures: best_effort records failures and continues; strict fails model_build if any selected row fails."
+            },
+            "base_model_files": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "description": "Optional FeynRules .fr skeleton files to load before the generated Lagrangian (fields/parameters declarations, background sources, etc.)."
+            },
+            "rewrite_wls": {
+              "type": ["string", "null"],
+              "description": "Path to a Mathematica .wls/.m file defining HepCalcModelBuildRewrite[parsedBlocks_, ctx_]. This is agent-provided code and executes with full Mathematica privileges."
+            }
+          }
+        },
+        "process": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "in": { "type": "array", "items": { "type": "string" }, "default": [] },
+            "out": { "type": "array", "items": { "type": "string" }, "default": [] },
+            "in_fa": { "type": "array", "items": { "type": "string" }, "default": [] },
+            "out_fa": { "type": "array", "items": { "type": "string" }, "default": [] }
+          },
+          "description": "Process definition. In FeynRules mode, prefer process.in/out with ParticleName strings (e.g. e-, e+). Use in_fa/out_fa for explicit FeynArts fields (e.g. F[1,{1}], -F[1,{1}]). In FeynArts-only mode (feynarts_model set), in_fa/out_fa are required."
+        },
+        "feynarts": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "loop_order": { "type": "integer", "default": 1 },
+            "insertion_level": { "type": "string", "enum": ["Classes", "Particles"], "default": "Particles" },
+            "exclude_topologies": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["Tadpoles"],
+              "description": "FeynArts ExcludeTopologies list (string tokens; currently recognized: Tadpoles)."
+            },
+            "counterterms": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to include counterterm vertices (default false for unrenormalized amplitudes)."
+            }
+          }
+        },
+        "formcalc": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enable": {
+              "type": "boolean",
+              "default": false,
+              "description": "If true, attempt FormCalc reduction (may require external FORM/ReadForm binaries). If false, keep raw FeynArts amplitude expressions."
+            },
+            "pave_reduce": { "type": "string", "enum": ["LoopTools", "False"], "default": "LoopTools" }
+          }
+        },
+        "export": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "diagrams": { "type": "boolean", "default": true },
+            "amplitude_md": { "type": "boolean", "default": true },
+            "amplitude_tex": { "type": "boolean", "default": false },
+            "per_diagram": { "type": "boolean", "default": false }
+          }
+        }
+      }
+    },
+    "integrations": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["research-team"] },
+      "default": []
+    },
+    "tag": {
+      "type": ["string", "null"],
+      "description": "When integrations includes research-team, required to sync core artifacts to artifacts/runs/<TAG>/"
+    },
+    "research_team_root": {
+      "type": ["string", "null"],
+      "description": "Optional explicit root directory for research-team integration sync. If null/omitted, auto-detect a parent directory containing artifacts/ or artifacts/runs (fallback: current working directory). Can also be set via RESEARCH_TEAM_ROOT env var."
+    }
+  }
+}

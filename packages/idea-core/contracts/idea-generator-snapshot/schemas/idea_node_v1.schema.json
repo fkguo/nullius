@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_node_v1.schema.json",
+  "title": "IdeaNode v1",
+  "description": "A single candidate node in the ideation search space, with lineage, traces, diagnostics, and optional formalized IdeaCard.\n\nMutability contract (audit-first): Fields campaign_id, idea_id, node_id, parent_node_ids, island_id, operator_id, operator_family, origin, operator_trace, rationale_draft, created_at are IMMUTABLE after creation. Fields revision, idea_card, eval_info, grounding_audit, reduction_report, reduction_audit, updated_at are MUTABLE (append/replace semantics; prior values should be preserved in the ledger or history artifacts). revision is engine-managed: initialized to 1 at creation and incremented on each mutation.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "idea_id",
+    "node_id",
+    "revision",
+    "parent_node_ids",
+    "island_id",
+    "operator_id",
+    "origin",
+    "operator_trace",
+    "rationale_draft",
+    "created_at"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "idea_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "node_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing revision counter. Incremented on each mutation (eval_info, grounding_audit, idea_card update). Enables stale-read detection and future optimistic concurrency."
+    },
+    "parent_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "island_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operator_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operator_family": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Operator family (stable tag for audits/gates; recommended but not strictly required in v0.2)."
+    },
+    "rationale_draft": {
+      "$ref": "./rationale_draft_v1.schema.json"
+    },
+    "idea_card": {
+      "oneOf": [
+        {
+          "$ref": "./idea_card_v1.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "origin": {
+      "type": "object",
+      "required": [
+        "model",
+        "temperature",
+        "prompt_hash",
+        "timestamp",
+        "role"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0
+        },
+        "prompt_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Physicist role/persona that produced this node (e.g., Ideator, Librarian, Formalizer, Derivation, Checker, Referee, Editor)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "operator_trace": {
+      "type": "object",
+      "required": [
+        "inputs",
+        "params",
+        "evidence_uris_used"
+      ],
+      "properties": {
+        "inputs": {
+          "type": "object"
+        },
+        "params": {
+          "type": "object"
+        },
+        "random_seed": {
+          "type": "integer"
+        },
+        "evidence_uris_used": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "prompt_snapshot_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "eval_info": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "scores",
+            "fix_suggestions",
+            "failure_modes"
+          ],
+          "properties": {
+            "scores": {
+              "type": "object",
+              "description": "Aggregated per-dimension scores for this node (from the latest eval snapshot). Keys should match EvaluatorConfig.dimensions.",
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "novelty_delta_table": {
+              "$ref": "./novelty_delta_table_v1.schema.json"
+            },
+            "fix_suggestions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "failure_mode",
+                  "suggested_action",
+                  "target_field",
+                  "priority"
+                ],
+                "properties": {
+                  "failure_mode": {
+                    "enum": [
+                      "missing_evidence",
+                      "too_similar",
+                      "physics_inconsistency",
+                      "not_computable",
+                      "folklore_overlap",
+                      "untestable"
+                    ]
+                  },
+                  "suggested_action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_field": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "operator_hint": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "enum": [
+                      "critical",
+                      "major",
+                      "minor"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "failure_modes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Superset of failure modes (may include free-text diagnostics beyond the fix_suggestions enum). Structured actionable failures should appear in fix_suggestions; this field captures all detected issues including informational ones."
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "grounding_audit": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "folklore_risk_score",
+            "failures",
+            "timestamp"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "fail",
+                "partial"
+              ]
+            },
+            "folklore_risk_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "failures": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "reduction_report": {
+      "oneOf": [
+        {
+          "$ref": "./reduction_report_v1.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reduction_audit": {
+      "oneOf": [
+        {
+          "$ref": "./reduction_audit_v1.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of last mutation (e.g., eval_info update, grounding re-audit)."
+    }
+  },
+  "additionalProperties": false
+}

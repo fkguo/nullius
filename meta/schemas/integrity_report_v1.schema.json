@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/integrity_report_v1.schema.json",
+  "title": "IntegrityReport V1",
+  "description": "Scientific integrity assessment report. Aggregates results from multiple IntegrityChecks. Content-addressed via SHA-256 of RFC 8785 (JCS) canonical JSON. Used by RDI fail-closed gate to block publication of unverified assets.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "target_ref",
+    "checks",
+    "overall_status",
+    "domain",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding report_id itself."
+    },
+    "target_ref": {
+      "type": "object",
+      "required": ["uri", "sha256"],
+      "properties": {
+        "uri": { "type": "string" },
+        "kind": { "type": "string" },
+        "schema_version": { "type": "integer" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "produced_by": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "description": "ArtifactRef V1 of the artifact being checked."
+    },
+    "checks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/IntegrityCheckResult" },
+      "description": "Results of individual integrity checks."
+    },
+    "overall_status": {
+      "type": "string",
+      "enum": ["pass", "fail", "advisory_only"],
+      "description": "'fail' if any blocking check failed. 'advisory_only' if all blocking checks passed but advisory checks have findings. 'pass' if all checks passed."
+    },
+    "blocking_failures": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Check IDs of failed blocking checks. Empty array if overall_status is 'pass' or 'advisory_only'."
+    },
+    "domain": {
+      "type": "string",
+      "description": "Domain of the checks (e.g., 'hep-th')."
+    },
+    "domain_pack_version": {
+      "type": "string",
+      "description": "Version of the domain pack used for checks."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run in which this report was generated."
+    },
+    "trace_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Trace ID for cross-layer correlation."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z timestamp of report creation."
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total time taken for all checks in milliseconds."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "IntegrityCheckResult": {
+      "type": "object",
+      "required": ["check_id", "check_name", "status", "severity", "message"],
+      "properties": {
+        "check_id": {
+          "type": "string",
+          "description": "Unique identifier of the check (e.g., 'hep_cross_check.ward_identity')."
+        },
+        "check_name": {
+          "type": "string",
+          "description": "Human-readable name of the check."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "advisory", "skipped"],
+          "description": "'pass' means check succeeded. 'fail' means check found a problem. 'advisory' means informational finding. 'skipped' means check was not applicable."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["blocking", "advisory"],
+          "description": "Whether this check is blocking (prevents publication) or advisory (informational)."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence in the check result (0-1)."
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Evidence" },
+          "description": "Supporting evidence for the check result."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable explanation of the result."
+        },
+        "remediation": {
+          "type": "string",
+          "description": "Suggested remediation if check failed."
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["computation", "reference", "comparison", "limit_check", "statistical"],
+          "description": "Type of evidence. V1 covers numerical/computational verification domains. V2 will add 'formal_proof' for mechanized verification workflows (see DESIGN_DEBT.md item 6)."
+        },
+        "artifact_ref": {
+          "type": "object",
+          "properties": {
+            "uri": { "type": "string" },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "size_bytes": { "type": "integer", "minimum": 0 }
+          },
+          "description": "Optional reference to an artifact containing detailed evidence."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this evidence."
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Structured data specific to the evidence type."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

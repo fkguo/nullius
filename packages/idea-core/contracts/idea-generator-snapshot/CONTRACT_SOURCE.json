@@ -1,0 +1,9 @@
+{
+  "source_repo": "../idea-generator",
+  "source_branch": "main",
+  "source_commit": "445c88d",
+  "synced_at_utc": "2026-02-13T04:19:35Z",
+  "openrpc_file": "schemas/idea_core_rpc_v1.openrpc.json",
+  "bundled_openrpc_file": "schemas/idea_core_rpc_v1.bundled.json",
+  "policy": "read-only vendored snapshot + generated bundled OpenRPC; do not hand-edit vendored schemas or bundled artifact"
+}

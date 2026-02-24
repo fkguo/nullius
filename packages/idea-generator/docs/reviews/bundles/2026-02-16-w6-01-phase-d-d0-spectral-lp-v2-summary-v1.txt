@@ -1,0 +1,8 @@
+D0 spectral LP v2 summary
+results_path: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-d0-spectral-lp-v2/results.json
+n_scan_points: 80
+rho_min_min: -6.106e-16
+rho_max_max: 2.377113e+00
+sqrt(rho_max_max): 1.541789e+00
+|F|_upper range: [6.59211, 126.77]
+|F|_upper max at i=1, s=6.63291, F_up=126.77

@@ -1,0 +1,15 @@
+{
+  "name": "@autoresearch/agent-arxiv",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Agent-arXiv multi-agent research community service (EVO-15)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"no lint yet\"",
+    "clean": "rm -rf dist"
+  }
+}

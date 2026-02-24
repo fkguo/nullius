@@ -1,0 +1,59 @@
+=== all:"pion" AND all:"gravitational form factor"
+url: http://export.arxiv.org/api/query?search_query=all%3A%22pion%22+AND+all%3A%22gravitational+form+factor%22&start=0&max_results=12&sortBy=relevance&sortOrder=descending
+- 2022-11-12 hep-ph 2211.06635v1 A glimpse into pion gravitational form factor
+- 2020-10-22 hep-ph 2010.11640v3 Pion gravitational form factors in a relativistic theory of composite particles
+- 2024-05-13 hep-ph 2405.07815v2 Gravitational form factors of the pion and meson dominance
+- 2024-05-25 hep-ph 2405.16269v1 Pion gravitational form factors in the QCD instanton vacuum II
+- 2023-07-21 hep-lat 2307.11707v2 Gravitational form factors of the pion from lattice QCD
+- 2023-11-24 hep-ph 2311.14832v1 Pion and kaon electromagnetic and gravitational form factors
+- 2025-07-07 hep-ph 2507.05375v2 Gravitational form factors of pions, kaons and nucleons from dispersion relations
+- 2025-04-01 hep-ph 2504.01115v1 Pion Gravitational Form Factors in Holographic QCD
+- 2025-02-17 hep-ph 2502.12061v2 Sullivan process near threshold and the pion gravitational form factors
+- 2025-03-29 hep-ph 2503.23166v1 Pion, Kaon and nucleon gravitational form factors
+- 2025-07-08 hep-ph 2507.06025v1 Gravitational form factors of pion in a nonlocal quark model
+- 2023-12-15 hep-ph 2312.09675v2 Gravitational form factors of the nucleon and one pion graviproduction in chiral EFT
+
+=== all:"pion" AND all:"D-term" AND (all:"bound" OR all:"positivity" OR all:"constraint")
+url: http://export.arxiv.org/api/query?search_query=all%3A%22pion%22+AND+all%3A%22D-term%22+AND+%28all%3A%22bound%22+OR+all%3A%22positivity%22+OR+all%3A%22constraint%22%29&start=0&max_results=12&sortBy=relevance&sortOrder=descending
+- 2024-11-15 hep-ph 2411.10354v2 Scalar and tensor meson dominance and gravitational form factors of the pion
+- 2025-03-12 hep-ph 2503.09686v2 Dominance of gluonic scale anomaly in confining pressure inside nucleon and D-term
+- 2022-11-12 hep-ph 2211.06635v1 A glimpse into pion gravitational form factor
+- 2021-10-13 hep-ph 2110.06463v2 Regularization dependence of pion generalised parton distributions
+- 2022-01-13 hep-ph 2201.04991v3 Relativistic composite-particle theory of the gravitational form factors of pion: quantitative results
+
+=== all:"energy-momentum tensor" AND (all:"positivity" OR all:"bound") AND (all:"form factor" OR all:"D-term")
+url: http://export.arxiv.org/api/query?search_query=all%3A%22energy-momentum+tensor%22+AND+%28all%3A%22positivity%22+OR+all%3A%22bound%22%29+AND+%28all%3A%22form+factor%22+OR+all%3A%22D-term%22%29&start=0&max_results=12&sortBy=relevance&sortOrder=descending
+- 2015-10-27 hep-ph 1510.08015v2 The energy-momentum tensor and D-term of Q-clouds
+- 2014-02-02 hep-ph 1402.0161v3 In-medium modified energy-momentum tensor form factors of the nucleon within the framework of a $π$-$ρ$-$ω$ soliton model
+- 2024-12-01 hep-ph 2412.00848v2 Transverse densities of the energy-momentum tensor and the gravitational form factors the pion
+- 2021-04-09 hep-ph 2104.04207v2 The gravitational form factor D(t) of the electron
+- 2025-03-12 hep-ph 2503.09686v2 Dominance of gluonic scale anomaly in confining pressure inside nucleon and D-term
+- 2024-07-15 hep-ph 2407.10437v2 Gravitational form factors of pseudoscalar mesons in a contact interaction
+- 2014-05-28 hep-ph 1405.7176v1 Electromagnetic and gravitational form factors in simulated QED and Yukawa model
+- 2022-10-07 hep-ph 2210.03320v1 Gravitational form factors of the baryon octet with flavor SU(3) symmetry breaking
+- 2020-10-13 hep-ph 2010.06665v3 Mass structure of hadrons and light-front sum rules in t' Hooft model
+- 2019-09-25 hep-ph 1909.11318v1 Energy, angular momentum and pressure force distributions inside nucleons
+- 2018-03-06 hep-ph 1803.02144v2 Dark Matter Direct Detection from new interactions in models with spin-two mediators
+- 2018-11-07 hep-ph 1811.02789v1 Dark matter direct detection with spin-2 mediators
+
+=== all:"gravitational form factor" AND (all:"positivity" OR all:"unitarity" OR all:"dispersion")
+url: http://export.arxiv.org/api/query?search_query=all%3A%22gravitational+form+factor%22+AND+%28all%3A%22positivity%22+OR+all%3A%22unitarity%22+OR+all%3A%22dispersion%22%29&start=0&max_results=12&sortBy=relevance&sortOrder=descending
+- 2024-11-20 hep-ph 2411.13398v2 Dispersive Determination of Nucleon Gravitational Form Factors
+- 2025-07-07 hep-ph 2507.05375v2 Gravitational form factors of pions, kaons and nucleons from dispersion relations
+- 2024-05-13 hep-ph 2405.07815v2 Gravitational form factors of the pion and meson dominance
+- 2019-02-12 hep-ph 1902.04333v1 Hadron tomography in meson-pair production and gravitational form factors
+- 2025-03-12 hep-ph 2503.09297v3 Gravitational form factors and mechanical properties of the nucleon in a meson dominance approach
+- 2019-03-06 hep-ph 1903.02298v1 Hadron tomography for pion and its gravitational form factors
+- 2022-10-07 hep-ph 2210.03320v1 Gravitational form factors of the baryon octet with flavor SU(3) symmetry breaking
+- 2017-11-28 hep-ph 1711.10086v1 3D structure of hadrons by generalized distribution amplitudes and gravitational form factors
+- 2024-11-15 hep-ph 2411.10354v2 Scalar and tensor meson dominance and gravitational form factors of the pion
+- 2017-11-22 hep-ph 1711.08088v3 Hadron tomography by generalized distribution amplitudes in pion-pair production process $γ^* γ\rightarrow π^0 π^0 $ and gravitational form 
+- 2024-12-01 hep-ph 2412.00848v2 Transverse densities of the energy-momentum tensor and the gravitational form factors the pion
+- 2018-01-19 hep-ph 1801.06264v1 Hadron tomography and its application to gravitational radii of hadrons
+
+=== all:"D-term" AND all:"mechanical stability"
+url: http://export.arxiv.org/api/query?search_query=all%3A%22D-term%22+AND+all%3A%22mechanical+stability%22&start=0&max_results=12&sortBy=relevance&sortOrder=descending
+- 2021-10-27 hep-ph 2110.14781v2 Momentum-Current Gravitational Multipoles of Hadrons
+- 2023-04-04 hep-ph 2304.02095v1 3D EMT distributions as an Abel image of 2D EMT distributions on the light-front
+- 2025-07-20 hep-ph 2507.14840v2 Mechanical properties of the $Ω^-$ baryon from gravitational form factors
+

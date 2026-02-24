@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "run_id": "schrodinger-ho-r1",
+  "workflow_id": "W_compute",
+  "title": "Solve radial Schrodinger equation for HO potential",
+
+  "parameters": {
+    "a0_fm": {"type": "number", "default": 5.0, "description": "S-wave scattering length (fm)"},
+    "r0_fm": {"type": "number", "default": 2.0, "description": "Effective range (fm)"},
+    "r_max_fm": {"type": "number", "default": 20.0, "description": "Max radial distance (fm)"},
+    "n_grid": {"type": "integer", "default": 1000, "description": "Radial grid points"}
+  },
+
+  "on_failure": "fail-fast",
+
+  "phases": [
+    {
+      "phase_id": "derive_params",
+      "description": "Analytically derive omega from a_0 and r_0 using sympy",
+      "inputs": [],
+      "backend": {
+        "kind": "shell",
+        "argv": ["python3", "scripts/derive_params.py",
+                 "--a0", "${a0_fm}", "--r0", "${r0_fm}"],
+        "cwd": ".",
+        "timeout_seconds": 60
+      },
+      "outputs": ["results/ho_params.json"],
+      "gates": [],
+      "depends_on": [],
+      "retries": 0
+    },
+    {
+      "phase_id": "solve_numerics",
+      "description": "Numerically solve radial Schrodinger equation via scipy.integrate.solve_ivp",
+      "depends_on": ["derive_params"],
+      "inputs": ["phases/derive_params/results/ho_params.json"],
+      "backend": {
+        "kind": "shell",
+        "argv": ["python3", "scripts/solve_numerics.py",
+                 "--params", "phases/derive_params/results/ho_params.json",
+                 "--r-max", "${r_max_fm}", "--n-grid", "${n_grid}"],
+        "cwd": ".",
+        "timeout_seconds": 300
+      },
+      "outputs": ["results/wavefunction.npy", "results/numerics_report.json"],
+      "gates": [],
+      "retries": 1
+    },
+    {
+      "phase_id": "validate",
+      "description": "Compare numerical wave function against analytical solution; verify scattering length",
+      "depends_on": ["solve_numerics", "derive_params"],
+      "inputs": [
+        "phases/solve_numerics/results/wavefunction.npy",
+        "phases/solve_numerics/results/numerics_report.json",
+        "phases/derive_params/results/ho_params.json"
+      ],
+      "backend": {
+        "kind": "shell",
+        "argv": ["python3", "scripts/validate.py",
+                 "--wavefunction", "phases/solve_numerics/results/wavefunction.npy",
+                 "--params", "phases/derive_params/results/ho_params.json",
+                 "--a0-expected", "${a0_fm}"],
+        "cwd": ".",
+        "timeout_seconds": 120
+      },
+      "outputs": ["results/validation_report.json"],
+      "gates": [],
+      "retries": 0
+    }
+  ],
+
+  "headline_numbers": {
+    "source": "phases/validate/results/validation_report.json",
+    "extract": [
+      {"pointer": "#/omega_derived", "label": "omega (MeV)", "tier": "T1"},
+      {"pointer": "#/wavefunction_rmse", "label": "Psi RMSE (num vs analytical)", "tier": "T1"},
+      {"pointer": "#/a0_reconstructed_fm", "label": "a_0 reconstructed (fm)", "tier": "T1"}
+    ]
+  },
+
+  "acceptance": {
+    "json_numeric_checks": [
+      {"path": "phases/validate/results/validation_report.json", "pointer": "#/wavefunction_rmse", "max": 1e-4},
+      {"path": "phases/validate/results/validation_report.json", "pointer": "#/a0_relative_error", "max": 0.01}
+    ]
+  }
+}

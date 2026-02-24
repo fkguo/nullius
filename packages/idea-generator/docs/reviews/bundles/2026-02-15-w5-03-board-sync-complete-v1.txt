@@ -1,0 +1,5 @@
+# W5-03 Completion + W5-04 Start Board Sync
+Date: 2026-02-15T12:40:06Z
+Project: https://github.com/users/fkguo/projects/1
+
+[{"status":"Done","title":"[W5-03] test-instance 解耦 + idea-runs + 反污染 gate"},{"status":"In Progress","title":"[W5-04] 通用质量门禁 schema + checklist（无实例内容）"},{"status":"Todo","title":"[W5-05] control-plane 工程硬化 + 回归测试"}]

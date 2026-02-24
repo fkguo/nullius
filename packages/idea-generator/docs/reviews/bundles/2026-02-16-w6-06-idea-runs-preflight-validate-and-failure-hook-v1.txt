@@ -1,0 +1,18 @@
+Idea-runs preflight (validate + failure-library hook)
+timestamp_utc: 2026-02-16T17:25:54Z
+
+== make validate (idea-runs) ==
+python3 scripts/validate_manifest_lock.py
+OK: validated 4 manifest.lock.json files
+
+== make validate-project (pilot) ==
+python3 scripts/validate_project_artifacts.py --project "projects/pion-gff-bootstrap-positivity-pilot-2026-02-15"
+OK: validated project artifacts: pion-gff-bootstrap-positivity-pilot-2026-02-15
+
+== make build-failure-library-index ==
+python3 scripts/build_failure_library_index.py
+OK: wrote failure library index with 8 entries -> /home/user/Coding/Agents/Autoresearch/idea-runs/evidence/failure_library_index_v1.json
+
+== make run-failure-library-query (pilot) ==
+python3 scripts/run_failure_library_query.py --project "projects/pion-gff-bootstrap-positivity-pilot-2026-02-15"
+OK: wrote 5 failure-library hits -> /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/failure_library/failure_library_hits_v1.json

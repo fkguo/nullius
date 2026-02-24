@@ -1,0 +1,17 @@
+{
+  "name": "retrieval_demo_v1",
+  "cases": [
+    {
+      "query": "molecular near threshold",
+      "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_1c71d16cf49c5f3d"]
+    },
+    {
+      "query": "diquark-antidiquark tetraquark picture",
+      "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_19755297890f148a"]
+    },
+    {
+      "query": "hybrid gluonic excitation",
+      "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69"]
+    }
+  ]
+}

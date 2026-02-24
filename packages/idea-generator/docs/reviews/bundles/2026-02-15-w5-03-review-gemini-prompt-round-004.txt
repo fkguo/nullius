@@ -1,0 +1,26 @@
+You are reviewer B. Review the W5-03 packet and enforce strict output contract.
+
+Hard review boundaries for this stage:
+1) Pollution definition for W5-03 is structural and machine-checkable:
+   - forbidden: `research/**`, `docs/research/**`, `artifacts/runs/**`
+   - allowed: design/review SSOT evidence under `docs/plans/**` and `docs/reviews/**`
+2) `docs/plans/agent-team-output/2026-02-15-m5-retro-swarm-v1/` is a required SSOT design archive for this program stage and should not be treated as run-tree pollution.
+3) Transient `docs/plans/auto-relay/**` must be absent.
+
+If these boundaries and DoD evidence are satisfied, return READY.
+If not, return NOT_READY with concrete blockers.
+
+STRICT FORMAT (must be exact):
+1) First line MUST be exactly one of:
+   - VERDICT: READY
+   - VERDICT: NOT_READY
+2) Must contain exact headers in order:
+   - ## Blockers
+   - ## Non-blocking
+   - ## Real-research fit
+   - ## Robustness & safety
+   - ## Specific patch suggestions
+3) For empty sections, write `- None.`
+
+Read packet:
+- /home/user/Coding/Agents/Autoresearch/idea-generator/docs/reviews/bundles/2026-02-15-w5-03-review-packet-round-004.md

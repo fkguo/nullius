@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Run Quality Metrics",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "run_id", "ledger", "artifacts", "llm"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "workflow_id": { "type": "string" },
+    "ledger": {
+      "type": "object",
+      "required": ["total_events", "event_counts"],
+      "properties": {
+        "ledger_path": { "type": "string" },
+        "total_events": { "type": "integer", "minimum": 0 },
+        "event_counts": { "type": "object" },
+        "first_ts": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "last_ts": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "duration_seconds": { "oneOf": [{ "type": "number" }, { "type": "null" }] },
+        "approvals": { "type": "object" },
+        "errors": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["run_dir"],
+      "properties": {
+        "run_dir": { "type": "string" },
+        "run_dir_exists": { "type": "boolean" },
+        "total_files": { "type": "integer", "minimum": 0 },
+        "total_bytes": { "type": "integer", "minimum": 0 },
+        "by_ext": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "llm": {
+      "type": "object",
+      "required": ["tool_calls", "tokens_in", "tokens_out", "cost_usd"],
+      "properties": {
+        "tool_calls": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+        "tokens_in": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+        "tokens_out": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+        "cost_usd": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

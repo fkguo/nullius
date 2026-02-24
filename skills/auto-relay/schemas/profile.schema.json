@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex.local/skills/auto-relay/profile.schema.json",
+  "title": "Auto Relay Profile",
+  "type": "object",
+  "required": [
+    "project_id",
+    "repos",
+    "tracker",
+    "board",
+    "queue",
+    "gates",
+    "push_policy",
+    "stop_conditions",
+    "output_contract",
+    "permissions"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repos": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "tracker": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "format": { "type": "string", "enum": ["json", "yaml", "yml"] },
+        "parse": {
+          "type": "object",
+          "properties": {
+            "tasks_key": { "type": "string" },
+            "id_field": { "type": "string" },
+            "status_field": { "type": "string" },
+            "milestone_field": { "type": "string" },
+            "description_field": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "board": {
+      "type": "object",
+      "required": ["platform", "project_id"],
+      "properties": {
+        "platform": { "type": "string", "minLength": 1 },
+        "project_id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "format": { "type": "string", "enum": ["json", "yaml", "yml"] },
+        "status_field": { "type": "string" },
+        "status_map": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "queue": {
+      "type": "object",
+      "required": ["tasks"],
+      "properties": {
+        "order": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dependencies": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "tasks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "depends_on": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "execute": {
+                "oneOf": [
+                  { "type": "string" },
+                  {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "gates": {
+      "type": "object",
+      "properties": {
+        "verify_commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "command_retries": {
+          "type": "object",
+          "properties": {
+            "execute_max_retries": { "type": "integer", "minimum": 0 },
+            "verify_max_retries": { "type": "integer", "minimum": 0 },
+            "backoff_seconds": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": true
+        },
+        "review": {
+          "type": "object",
+          "properties": {
+            "required": { "type": "boolean" },
+            "strategy": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "model_constraints": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "model_routing": {
+      "type": "object",
+      "properties": {
+        "default": { "type": "string", "minLength": 1 },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["model"],
+            "properties": {
+              "model": { "type": "string", "minLength": 1 },
+              "task_ids": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "task_pattern": { "type": "string" },
+              "milestone_pattern": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "push_policy": {
+      "type": "object",
+      "properties": {
+        "env_inject": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean"]
+          }
+        },
+        "session_launcher": {
+          "type": "object",
+          "properties": {
+            "mode": { "type": "string" },
+            "command": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "prompt_template": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "stop_conditions": {
+      "type": "object",
+      "properties": {
+        "blocker_statuses": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "max_failures": { "type": "integer", "minimum": 1 },
+        "require_human_on": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "output_contract": {
+      "type": "object",
+      "required": ["required_fields"],
+      "properties": {
+        "strict": { "type": "boolean" },
+        "required_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "allow_commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "deny_commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "allow_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "deny_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

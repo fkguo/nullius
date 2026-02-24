@@ -1,0 +1,1 @@
+OK: wrote run outputs -> /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v102-dispersion-grid200-enf200-multiq4-audit8-clarabel-asrband-slope-tmd-asrtol62p0-tail0p8

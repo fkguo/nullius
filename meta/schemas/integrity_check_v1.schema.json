@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/integrity_check_v1.schema.json",
+  "title": "IntegrityCheck V1",
+  "description": "Definition of a single integrity check that can be executed against a research artifact. Domain-agnostic interface; domain-specific checks are provided by domain packs.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "check_id",
+    "name",
+    "domain",
+    "severity",
+    "description"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "check_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$",
+      "description": "Unique identifier. Format: '{domain}_{check_name}' or '{domain}_{check_name}.{sub_check}' (e.g., 'hep_cross_check.ward_identity')."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Human-readable name."
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Domain this check belongs to (e.g., 'hep-th'). Use '*' for domain-agnostic checks."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["blocking", "advisory"],
+      "description": "Default severity. 'blocking' means failure prevents publication (at A5 gate). 'advisory' means informational only."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "What this check verifies."
+    },
+    "configurable": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether severity can be overridden per run_card."
+    },
+    "phase_overrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["blocking", "advisory", "disabled"]
+      },
+      "description": "Phase-specific severity overrides. Key is phase name (e.g., 'exploration', 'A5'). Value is severity for that phase."
+    },
+    "requires": {
+      "type": "object",
+      "properties": {
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MCP tools needed (e.g., ['inspire_search', 'inspire_deep_research'])."
+        },
+        "databases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Databases needed (e.g., ['inspire', 'pdg'])."
+        },
+        "computation_packages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Computation packages needed (e.g., ['FeynCalc', 'LoopTools'])."
+        }
+      },
+      "description": "External dependencies for this check."
+    },
+    "input_schema": {
+      "type": "object",
+      "description": "JSON Schema for the expected input context (CheckContext.domain_config).",
+      "additionalProperties": true
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "minimum": 1000,
+      "default": 300000,
+      "description": "Maximum execution time in milliseconds (default 5 minutes)."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Tags for categorization (e.g., ['symmetry', 'consistency', 'novelty'])."
+    }
+  },
+  "additionalProperties": false
+}

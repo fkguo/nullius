@@ -1,0 +1,18 @@
+Board sync check (post-update; elastic-window ImA(s)>=0 evidence appended)
+timestamp_utc: 2026-02-16T10:10:27Z
+project_owner: fkguo
+project_number: 1
+
+Raw snapshots:
+- docs/reviews/bundles/2026-02-16-w6-01-elastic-impos-board-project-view-v1.json
+- docs/reviews/bundles/2026-02-16-w6-01-elastic-impos-board-field-list-v1.json
+- docs/reviews/bundles/2026-02-16-w6-01-elastic-impos-board-item-list-v1.json
+- docs/reviews/bundles/2026-02-16-w6-01-elastic-impos-board-item-edit-w6-01-body-v1.json
+- docs/reviews/bundles/2026-02-16-w6-01-elastic-impos-board-item-edit-w6-01-body-v1.out.json
+- docs/reviews/bundles/2026-02-16-w6-01-elastic-impos-board-item-list-v2.json
+
+Key item (Status, Title, ItemID):
+- In Progress\t[W6-01] Pion GFF bootstrap campaign (islands+opportunity pool + constraints)\tPVTI_lAHOA7u0gc4BPFjmzglgVQg
+
+Notes:
+- gh CLI defect/workaround: updating DraftIssue body required passing --title explicitly (otherwise GraphQL error: Title can\x27t be blank).

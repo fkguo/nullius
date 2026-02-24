@@ -1,0 +1,42 @@
+\begin{table*}[h!]
+\centering
+\resizebox{0.9\textwidth}{!}{
+\setlength{\tabcolsep}{9pt}
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+\hspace{4mm} Method & AIDA & MSNBC & AQUAINT  & ACE2004 & CWeb & WIKI  & Avg.  \\
+\midrule
+%\emph{\textbf{Micro}} \\
+% \hspace{4mm} SotA Pipeline (R)    &    43.30     &    41.73 {\scriptsize± 0.13}    &    42.50 {\scriptsize± 0.13}    &    17.89 {\scriptsize± 0.24} \\
+\emph{\textbf{Supervised}}\\
+\hspace{4mm} \citet{le-titov-2018-improving} &  89.6 & 92.2 & 90.7 & 88.1 & 78.2 & 81.7 & 86.8 \\
+\hspace{4mm} BLINK w/o candidate set  & 79.6 & 80.0 & 80.3 & 82.5 & 64.2 & 75.5 & 77.0 \\
+\hspace{4mm} BLINK~\cite{wu-etal-2020-scalable}                   & 86.7  & 90.3  & 88.9  & 88.7  & \textbf{82.6}  & 86.1  & 87.2  \\
+\hspace{4mm} GENRE only AIDA data         & 88.6  & 88.1  & 77.1  & 82.3  & 71.9  & 71.7  & 80.0  \\
+\hspace{4mm} GENRE~\cite{decao2021autoregressive}      & 93.3  & \textbf{94.3}  & 89.9  & 90.1  & 77.3  & 87.4  & 88.8  \\
+\hspace{4mm} ReFinED w/o pretraining      & 88.2  & 92.3  & 86.8  & 90.6  & 75.1  & 74.5  & 84.6   \\
+\hspace{4mm} ReFinED~\cite{ayoola-etal-2022-refined}   & \textbf{93.9}  & 94.1  & \textbf{90.8}  & \textbf{90.8}  & 79.4  & \textbf{87.4}  & \textbf{89.4}   \\
+\midrule
+\emph{\textbf{Few-shot unconstrained}}\\
+\hspace{4mm} LLaMA-7B                                 & 42.0  & 44.6  & 30.2  & 43.8  & 35.8  & 27.7  & 37.4 \\
+\hspace{4mm} LLaMA-13B                                 & 48.1  & 50.2  & 36.2  & 47.5  & 40.7  & 37.2  & 43.3 \\
+\hspace{4mm} LLaMA-33B                                 & 62.6  & 63.0  & 42.9  & 56.3  & 48.1  & 51.4  & 54.1 \\
+\midrule
+\emph{\textbf{Few-shot constrained (IIG)}}\\
+\hspace{4mm} LLaMA-7B                        &     56.3    &    57.3     &    61.6     &     54.6    &   50.5     &   47.0    &   54.5      \\
+\hspace{4mm} LLaMA-13B                        &     51.8    &     57.3    &    53.3     &     50.8    &   48.2     &   39.7    &   50.6      \\
+\hspace{4mm} LLaMA-33B                        &     69.8    &    73.3     &    74.9     &     71.7    &   61.6     &   57.6    &   68.2      \\
+\midrule
+\emph{\textbf{Few-shot constrained (IDG)}}\\
+\hspace{4mm} LLaMA-7B                                 & 73.4  & 87.6  & 83.2  & 82.9  & 69.4  & 67.1 & 77.2 \\
+\hspace{4mm} LLaMA-13B                                 & 75.8  & 86.6  & 82.4  & 84.2  & 68.1  & 68.1  & 77.5 \\
+\hspace{4mm} LLaMA-33B                                 & 81.0  & 88.2  & 86.2  & 85.4  & 70.7  & 70.5  & 80.3 \\
+\bottomrule
+\end{tabular}
+}
+\caption{\textbf{Main results for entity disambiguation (4 shots),} in terms of micro-accuracy.
+Width of 90\% confidence intervals is between 0.1 and 0.3 for all results. Best results in bold.
+IIG stands for ``input-independent grammar'', IDG for ``input-dependent grammar''.
+}
+\label{tab:EntityDisambiguationResults}
+\end{table*}

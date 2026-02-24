@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "case_id": "E1-ingest-recid-3112995",
+  "workflow": "W1_ingest",
+  "description": "Paper ingestion: INSPIRE recid 3112995 -> references snapshot + reading note",
+  "inputs": {
+    "inspire_recid": "3112995",
+    "refkey": "recid-3112995-madagants"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "knowledge_base/literature/recid-3112995-madagants.md"
+    ],
+    "reading_note_required_fields": [
+      "RefKey:",
+      "INSPIRE recid:",
+      "Citekey:",
+      "Links:"
+    ]
+  },
+  "notes": "Later: add references/ snapshot existence checks once ingestion pipeline is implemented."
+}
+

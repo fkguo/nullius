@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "hep-research-mcp": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js"
+      ],
+      "env": {
+        "HEP_DATA_DIR": "/absolute/path/to/hep-research-mcp/tmp/hep_data",
+        "HEP_TOOL_MODE": "standard",
+        "HEP_ENABLE_ZOTERO": "",
+        "HEP_DOWNLOAD_DIR": "/absolute/path/to/hep-research-mcp/tmp/hep_data/downloads",
+        "HEP_DEBUG": "",
+        "ZOTERO_BASE_URL": "http://127.0.0.1:23119",
+        "ZOTERO_DATA_DIR": "/absolute/path/to/Zotero",
+        "WRITING_PROGRESS_DIR": "/absolute/path/to/hep-research-mcp/tmp/research_progress",
+        "WRITING_LLM_PROVIDER": "deepseek",
+        "WRITING_LLM_MODEL": "deepseek-chat",
+        "WRITING_LLM_API_KEY": "YOUR_API_KEY"
+      }
+    },
+    "zotero-mcp": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/hep-research-mcp/packages/zotero-mcp/dist/index.js"
+      ],
+      "env": {
+        "ZOTERO_TOOL_MODE": "standard",
+        "ZOTERO_BASE_URL": "http://127.0.0.1:23119",
+        "ZOTERO_DATA_DIR": "/absolute/path/to/Zotero"
+      }
+    }
+  }
+}

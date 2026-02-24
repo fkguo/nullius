@@ -1,0 +1,330 @@
+% Orchestral LaTeX Module
+% Include this file in your paper's preamble with: \input{orchestral.tex}
+% Then use \begin{orchestralusermessage}, \begin{orchestralagentmessage}, etc.
+
+\usepackage[most]{tcolorbox}
+%\usepackage{minted}
+\usepackage[frozencache,cachedir=_minted/]{minted} % For arXiv submission
+\usepackage{fancyvrb}  % For better verbatim handling
+\usepackage{xcolor}
+\usepackage{xspace}
+\usepackage{setspace}
+\usepackage{enumitem}  % For customizing list spacing
+\usepackage{etoolbox}  % For \AtBeginEnvironment
+\usepackage{varwidth}  % For variable-width boxes
+\definecolor{darkblue}{RGB}{0,0,139}
+%\usepackage[colorlinks=true, urlcolor=darkblue]{hyperref}
+
+% ============================================================================
+% Configuration Variables (edit these to customize appearance)
+% ============================================================================
+
+% Use this when refering to Orchestral AI
+\newcommand{\orchestralai}{\textsc{Orchestral AI}\xspace}
+
+% Panel widths
+\newcommand{\orchestralwidth}{\textwidth}
+\newcommand{\orchestralnestindent}{1.5em}  % Indentation for nested tool panels
+
+% Font configuration
+% Uncomment and modify if you want to use specific fonts:
+% \usepackage{fontspec}  % Requires XeLaTeX or LuaLaTeX
+% \setmainfont{Times New Roman}
+
+% Font size for all orchestral content
+\newcommand{\orchestralfontsize}{\small}  % Options: \tiny, \scriptsize, \footnotesize, \small, \normalsize, \large
+
+% Code theme (minted style - see minted docs for options)
+\newcommand{\orchestralcodestyle}{vs}  % Options: vs, monokai, pastie, friendly, etc.
+
+% List spacing (tight by default for single-spaced appearance)
+\newcommand{\orchestralitemsep}{0pt}           % Space between items
+\newcommand{\orchestralparsep}{0pt}            % Space between paragraphs within items
+\newcommand{\orchestraltopsep}{0pt}            % Space before/after list
+\newcommand{\orchestralpartopsep}{0pt}         % Additional space when list starts new paragraph
+
+% ============================================================================
+% Color Definitions (RGB values from Orchestral UI)
+% ============================================================================
+
+% Role colors
+\definecolor{OrcUserColor}{RGB}{210, 80, 80}         % Pale Red
+\definecolor{OrcAgentColor}{RGB}{120, 120, 255}     % Pale Blue
+\definecolor{OrcSystemColor}{RGB}{180, 30, 180}      % Purple
+\definecolor{OrcToolColor}{RGB}{200, 100, 0}        % Orange
+
+% Status colors
+\definecolor{OrcPendingColor}{RGB}{128, 128, 128}   % Gray (dim)
+\definecolor{OrcFailedColor}{RGB}{220, 20, 60}      % Crimson
+
+% Code background
+\definecolor{OrcCodeBg}{RGB}{36, 41, 51}            % Dark background for code
+
+% ============================================================================
+% Convenience Wrappers for Different Message Types
+% ============================================================================
+
+% User message
+\newtcolorbox{orchestralusermessage}{%
+  enhanced,
+  breakable,
+  colback=white,
+  colframe=OrcUserColor,
+  boxrule=0.6pt,
+  arc=1.5mm,
+  width=\linewidth,
+  top=8pt,
+  bottom=8pt,
+  left=10pt,
+  right=10pt,
+  fontupper=\orchestralfontsize,
+  attach boxed title to top left={
+    yshift=-6pt,
+    xshift=3.5mm
+  },
+  boxed title style={
+    colback=white,
+    colframe=white,
+    boxrule=0pt,
+    left=0pt,
+    right=0pt,
+    top=3pt,
+    bottom=0pt,
+    sharp corners,
+  },
+  coltitle=OrcUserColor,
+  fonttitle=\sffamily,
+  title={\raisebox{0pt}[0pt][0pt]{User}},
+}
+
+% Agent message
+\newtcolorbox{orchestralagentmessage}{%
+  enhanced,
+  breakable,
+  colback=white,
+  colframe=OrcAgentColor,
+  boxrule=0.6pt,
+  arc=1.5mm,
+  width=\linewidth,
+  top=8pt,
+  bottom=8pt,
+  left=10pt,
+  right=10pt,
+  fontupper=\orchestralfontsize,
+  attach boxed title to top left={
+    yshift=-6pt,
+    xshift=3.5mm
+  },
+  boxed title style={
+    colback=white,
+    colframe=white,
+    boxrule=0pt,
+    left=0pt,
+    right=0pt,
+    top=3pt,
+    bottom=0pt,
+    sharp corners,
+  },
+  coltitle=OrcAgentColor,
+  fonttitle=\sffamily,
+  title={\raisebox{0pt}[0pt][0pt]{Agent}},
+}
+
+% System message
+\newtcolorbox{orchestralsystemmessage}{%
+  enhanced,
+  breakable,
+  colback=white,
+  colframe=OrcSystemColor,
+  boxrule=0.6pt,
+  arc=1.5mm,
+  width=\linewidth,
+  top=8pt,
+  bottom=8pt,
+  left=10pt,
+  right=10pt,
+  fontupper=\orchestralfontsize,
+  attach boxed title to top left={
+    yshift=-6pt,
+    xshift=3.5mm
+  },
+  boxed title style={
+    colback=white,
+    colframe=white,
+    boxrule=0pt,
+    left=0pt,
+    right=0pt,
+    top=3pt,
+    bottom=0pt,
+    sharp corners,
+  },
+  coltitle=OrcSystemColor,
+  fonttitle=\sffamily,
+  title={\raisebox{0pt}[0pt][0pt]{System}},
+}
+
+% Tool message (for nested tools within agent messages)
+% Takes one argument: the tool title (e.g., "RunCommand: ls")
+\newtcolorbox{orchestraltoolmessage}[1]{%
+  enhanced,
+  breakable,
+  colback=white,
+  colframe=OrcToolColor,
+  boxrule=0.5pt,
+  arc=1mm,
+  width=\linewidth,
+  left=\orchestralnestindent,
+  right=1em,
+  top=6pt,
+  bottom=6pt,
+  fontupper=\orchestralfontsize,
+  attach boxed title to top left={
+    yshift=-5pt,
+    xshift=3.5mm
+  },
+  boxed title style={
+    colback=white,
+    colframe=white,
+    boxrule=0pt,
+    left=0pt,
+    right=0pt,
+    top=3pt,
+    bottom=0pt,
+    sharp corners,
+  },
+  coltitle=OrcToolColor,
+  fonttitle=\sffamily\orchestralfontsize,
+  title={\raisebox{0pt}[0pt][0pt]{#1}},
+}
+
+% Multi-line tool message (for tool calls with long arguments that need wrapping)
+% Takes one argument: the tool title (can include \\ for line breaks and \hphantom for alignment)
+\newtcolorbox{orchestraltoolmessageml}[1]{%
+  enhanced,
+  breakable,
+  colback=white,
+  colframe=OrcToolColor,
+  boxrule=0.5pt,
+  arc=1mm,
+  width=\linewidth,
+  left=\orchestralnestindent,
+  right=1em,
+  top=34pt,
+  bottom=6pt,
+  fontupper=\orchestralfontsize,
+  attach boxed title to top left={
+    yshift=-35pt,
+    xshift=3.5mm
+  },
+  boxed title style={
+    colback=white,
+    colframe=white,
+    boxrule=0pt,
+    left=0pt,
+    right=0pt,
+    top=3pt,
+    bottom=0pt,
+    sharp corners,
+  },
+  coltitle=OrcToolColor,
+  fonttitle=\sffamily\orchestralfontsize,
+  title={\begin{varwidth}{\dimexpr\linewidth-\orchestralnestindent-1em-3.5mm\relax}#1\end{varwidth}},
+}
+
+% ============================================================================
+% Code Block Environment (uses minted for syntax highlighting)
+% ============================================================================
+
+\newcommand{\orchestralcode}[2]{%
+  % #1 = language (python, bash, etc.)
+  % #2 = code content
+  \begin{tcolorbox}[
+    enhanced,
+    colback=OrcCodeBg,
+    colframe=OrcCodeBg,
+    boxrule=0pt,
+    arc=0mm,
+    top=4pt,
+    bottom=4pt,
+    left=8pt,
+    right=8pt,
+    fontupper=\small\ttfamily,
+  ]
+  \inputminted[
+    style=\orchestralcodestyle,
+    fontsize=\small,
+    breaklines,
+    autogobble
+  ]{#1}{#2}
+  \end{tcolorbox}
+}
+
+% Inline code block (for code embedded directly, not from file)
+\newminted{python}{
+  style=\orchestralcodestyle,
+  fontsize=\small,
+  breaklines,
+  autogobble
+}
+
+\newminted{bash}{
+  style=\orchestralcodestyle,
+  fontsize=\small,
+  breaklines,
+  autogobble
+}
+
+% ============================================================================
+% Helper Commands
+% ============================================================================
+
+% Tool call formatting (for displaying tool arguments)
+\newcommand{\orchestraltoolcall}[2]{%
+  % #1 = tool name
+  % #2 = arguments description
+  \texttt{\textcolor{blue}{#1}(#2)}
+}
+
+% Dimmed text (for tool output)
+\newcommand{\orchestraloutput}[1]{%
+  \textcolor{gray}{#1}
+}
+
+% ============================================================================
+% List Configuration (apply tight spacing globally)
+% ============================================================================
+
+% Configure enumerate and itemize to use the spacing parameters
+\setlist[enumerate]{
+  itemsep=\orchestralitemsep,
+  parsep=\orchestralparsep,
+  topsep=\orchestraltopsep,
+  partopsep=\orchestralpartopsep
+}
+
+\setlist[itemize]{
+  itemsep=\orchestralitemsep,
+  parsep=\orchestralparsep,
+  topsep=\orchestraltopsep,
+  partopsep=\orchestralpartopsep
+}
+
+% ============================================================================
+% Minted Configuration (syntax highlighting for code blocks)
+% ============================================================================
+
+% Global minted settings
+\setminted{
+  style=vs,
+  fontsize=\orchestralfontsize,
+  frame=lines,
+  bgcolor=gray!5,
+  xleftmargin=0pt,
+  xrightmargin=0pt,
+  tabsize=4,
+  showtabs=false
+}
+
+% Add proper spacing before/after minted blocks to prevent border overlap
+\AtBeginEnvironment{minted}{\vspace{0.3\baselineskip}}
+\AtEndEnvironment{minted}{\vspace{0.3\baselineskip}}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "case_id": "E2-ingest-arxiv-2210.03629",
+  "workflow": "W1_ingest",
+  "description": "Paper ingestion: arXiv 2210.03629 -> references snapshot + reading note",
+  "inputs": {
+    "arxiv_id": "2210.03629",
+    "refkey": "arxiv-2210.03629-react"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "knowledge_base/literature/arxiv-2210.03629-react.md",
+      "references/arxiv/2210.03629/metadata.json"
+    ],
+    "reading_note_required_fields": [
+      "RefKey:",
+      "arXiv:",
+      "Links:"
+    ]
+  },
+  "notes": "This case asserts that the arXiv fallback ingestion writes a minimal metadata snapshot under references/arxiv/."
+}
+

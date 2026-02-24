@@ -1,0 +1,8 @@
+{
+  "name": "mw_2024_pdg",
+  "quantity": "m_W",
+  "particle": { "name": "W boson" },
+  "property": "mass",
+  "expected": { "unit": "GeV" }
+}
+

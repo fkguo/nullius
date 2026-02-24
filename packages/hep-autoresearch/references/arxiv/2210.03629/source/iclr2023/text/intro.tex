@@ -1,0 +1,54 @@
+\section{Introduction}
+
+
+A unique feature of human intelligence is the ability to seamlessly combine task-oriented actions with verbal reasoning (or inner speech, ~\citealp{alderson2015inner}), which has been theorized to play an important role in human cognition for enabling self-regulation or strategization~\citep{vygotsky1987thinking,luria1965ls,fernyhough2010vygotsky} and maintaining a working memory~\citep{baddeley1992working}.
+Consider the example of cooking up a dish in the kitchen. Between any two specific actions, we may reason in language in order to track progress (``now that everything is cut, I should heat up the pot of water’’), to handle exceptions or adjust the plan according to the situation (``I don’t have salt, so let me use soy sauce and pepper instead’’), and to realize when external information is needed (``how do I prepare dough? Let me search on the Internet’’). 
+We may also act (open a cookbook to read the recipe, open the fridge, check ingredients) to support the reasoning and to answer questions (``What dish can I make right now?'').
+This tight synergy between ``acting'’ and ``reasoning'’ allows humans to learn new tasks quickly and perform robust decision making or reasoning, even under previously unseen circumstances or facing information uncertainties.
+
+
+
+Recent results have hinted at the possibility of combining verbal reasoning with interactive decision making in autonomous systems. 
+On one hand, properly prompted large language models (LLMs) have demonstrated emergent capabilities to carry out several steps of reasoning traces to derive answers from questions in arithmetic, commonsense, and symbolic reasoning tasks~\citep{wei2022chain}.  However, this ``chain-of-thought’' reasoning is a static black box, in that the model uses its own internal representations to generate thoughts and is not grounded in the external world,
+which limits its ability to reason reactively or update its knowledge. This can lead to issues like fact hallucination and error propagation over the reasoning process (Figure~\ref{fig:teaser} (1b)). 
+On the other hand, recent work has explored the use of pre-trained language models for planning and acting in interactive environments~\citep{ahn2022do, nakano2021webgpt, yao2020keep, huang2022language}, {with a focus  on predicting actions via language priors.} These approaches usually convert multi-modal observations into text, use a language model to generate domain-specific actions or plans, and then use a controller to choose or execute them. 
+However, they do not employ language models to reason abstractly about high-level goals or maintain a working memory to support acting, barring~\cite{huang2022inner} who perform a limited form of verbal reasoning to reiterate spatial facts about the current state.
+Beyond such simple embodied tasks to interact with a few blocks, there have not been studies on how reasoning and acting can be combined in a synergistic manner for general task solving, and if such a combination can bring systematic benefits compared to reasoning or acting alone.
+
+\input{iclr2023/figuretext/teaser}
+
+In this work, we present \model{}, a general paradigm to combine reasoning and acting with language models for solving diverse language reasoning and decision making tasks (Figure~\ref{fig:teaser}). 
+\model{} prompts LLMs to generate both verbal reasoning traces and actions pertaining to a task in an interleaved manner, which allows the model to perform dynamic reasoning to create, maintain, and adjust high-level plans for acting (reason to act), while also interact with the external environments (e.g.\,Wikipedia) to incorporate additional information into reasoning (act to reason).
+
+We conduct empirical evaluations of \model{} and state-of-the-art baselines on four diverse benchmarks: question answering (HotPotQA, \citealp{yang2018hotpotqa}), fact verification (Fever, \citealp{thorne2018fever}), text-based game (ALFWorld, \citealp{shridhar2020alfworld}), and webpage navigation (WebShop, \citealp{yao2022webshop}). 
+For HotPotQA and Fever, with access to a Wikipedia API that the model can interact with, \model{} outperforms vanilla action generation models while being competitive with chain-of-thought reasoning (\reason{})~\citep{wei2022chain}. The best approach overall is a combination of \model{} and \reason{} that allows for the use of both internal knowledge and externally obtained information during reasoning.
+On ALFWorld and WebShop, two or even one-shot \model{} prompting is able to outperform imitation or reinforcement learning methods trained with $10^3 \sim 10^5$ task instances, with an absolute improvement of 34\% and 10\% in success rates respectively. We also demonstrate the importance of sparse, versatile reasoning in decision making by showing consistent advantages over controlled baselines with actions only. 
+Besides general applicability and performance boost, the combination of reasoning and acting also contributes to model interpretability, trustworthiness, and diagnosability across all domains, as humans can readily distinguish information from model's internal knowledge versus external environments, as well as inspect reasoning traces to understand the decision basis of model actions. 
+
+
+To summarize, our key contributions are the following: 
+(1) we introduce \model{}, a novel prompt-based paradigm to synergize reasoning and acting in language models for general task solving; 
+(2) we perform extensive experiments across diverse benchmarks to showcase the advantage of \model{} in a few-shot learning setup over prior approaches that perform either reasoning or action generation in isolation;
+(3) we present systematic ablations and analysis to understand the importance of acting in reasoning tasks, and reasoning in interactive tasks; 
+(4) we analyze the limitations of \model{} under the prompting setup (i.e.\,limited support of reasoning and acting behaviors), and perform initial finetuning experiments showing the potential of \model{} to improve with additional training data. 
+Scaling up \model{} to train and operate on more tasks and combining it with complementary paradigms like reinforcement learning could further unlock the potential of large language models. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

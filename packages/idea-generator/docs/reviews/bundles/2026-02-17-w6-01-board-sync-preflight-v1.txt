@@ -1,0 +1,24 @@
+Board sync preflight (2026-02-17 session start)
+timestamp_utc: 2026-02-17T01:34:04Z
+project_title: Idea Generator Program
+project_id: PVT_kwHOA7u0gc4BPFjm
+
+Raw snapshots:
+- docs/reviews/bundles/2026-02-17-board-project-view-v1.json
+- docs/reviews/bundles/2026-02-17-board-field-list-v1.json
+- docs/reviews/bundles/2026-02-17-board-item-list-v1.json
+
+Status field:
+- field_id: PVTSSF_lAHOA7u0gc4BPFjmzg9mWy4
+  - option: Todo ( f75ad846 )
+  - option: In Progress ( 47fc9ee4 )
+  - option: Done ( 98236657 )
+
+W6-01 item:
+- index: 28
+- status: In Progress
+- item_id: PVTI_lAHOA7u0gc4BPFjmzglgVQg
+- content_id: DI_lAHOA7u0gc4BPFjmzgKK9dA
+- body_contains_W6-07_section: True
+- body_contains_W6-08_section: True
+- body_contains_v19: True

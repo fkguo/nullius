@@ -1,0 +1,130 @@
+# W6-04 Review Packet (Round 002) — IR-Matched GTB Envelope + Stronger Bochner/K0 Positivity Bounds on Pion $A^\pi(-Q^2)$
+
+## Scope
+W6-04 is a physics + numerics tightening stage for the pion-only / no-coupled-channel bootstrap campaign:
+
+1) Incorporate a **new (latest GTB) ingredient** from arXiv:2505.19332: IR (low-energy) constraints on the D0 spectral density $\rho_2^0(s)$.
+2) Propagate the tightened envelope into the **transverse-density positivity LP** (arXiv:2412.00848) to obtain strictly tighter numerical bounds on $A^\pi(-Q^2)$.
+3) Close the loop on a machine-checkable negative result: naive absolute IR normalization matching is infeasible (normalization mismatch), recorded in `failed_approach_v1` and retrievable via failure library hook.
+
+Hard constraints:
+- pion-only; **no coupled-channel execution**
+- laptop-only; NOT_FOR_CITATION
+- key conclusions traceable to code/numerics/literature evidence
+
+## What Changed Since Round 001 (addressing reviewer blockers)
+
+1) **Scale-factor uncertainty quantified** (IR matching normalization knob)
+- Added an explicit scan over `constraints.ir_matching.scale_factor` in {5000, 8000, 10000, 12000}.
+- Result: downstream $A^\pi(-Q^2)$ bounds (including the positive-lower-bound region) are stable at the percent level across this range.
+- Evidence: configs `compute/*scale*.json` and immutable runs (see below); report section “Robustness scan: IR-matching scale_factor knob”.
+
+2) **$s_{\max}$ dependence is treated as an explicit physics knob (scenario scan)**
+- The elastic-window sign constraint ${\rm Im}A(s)\ge 0$ is *conditional* on the assumed elastic regime extent.
+- We now treat $s_{\max}$ as a scanned knob (16, 25, 36, 50) and do not claim the positive-lower-bound region as unconditional.
+- Evidence: v6/v7/v8/v4 runs + report section “Robustness scan: elastic-window sign cutoff $s_{\max}$”.
+
+## Deliverables (What Exists Now)
+
+### 1) New IR-matching knob for $\rho_2^0(s)$ envelope (latest GTB ingredient)
+
+- Code (supports `--config` and config-driven `output.run_slug`):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/d0_spectral_lp.py`
+- Config implementing IR constraints (scaled pointwise bounds near threshold):
+  - `idea-runs/.../compute/d0_spectral_lp_config_v2.json`
+- Output run (immutable):
+  - `idea-runs/.../runs/2026-02-16-d0-spectral-lp-v3-ir-match-v1/`
+
+Scale-factor scan artifacts:
+- Configs:
+  - `idea-runs/.../compute/d0_spectral_lp_config_v2_scale{5000,8000,10000,12000}.json`
+- Runs:
+  - `idea-runs/.../runs/2026-02-16-d0-spectral-lp-v3-ir-scale{5000,8000,10000,12000}-v1/`
+
+### 2) Eta-envelope postprocess recomputed on the IR-matched input
+
+- Code (supports `--config` and config-driven run slugs):
+  - `idea-runs/.../compute/d0_eta_envelope_postprocess.py`
+- Config:
+  - `idea-runs/.../compute/d0_eta_envelope_config_v2.json`
+- Output run:
+  - `idea-runs/.../runs/2026-02-16-d0-eta-envelope-v2-ir-match-v1/`
+
+Scale-factor scan artifacts:
+- Configs:
+  - `idea-runs/.../compute/d0_eta_envelope_config_v2_scale{5000,8000,10000,12000}.json`
+- Runs:
+  - `idea-runs/.../runs/2026-02-16-d0-eta-envelope-v2-ir-scale{5000,8000,10000,12000}-v1/`
+
+### 3) Stronger Bochner/K0 LP bounds on $A^\pi(-Q^2)$ using IR-matched envelope
+
+Main run (aggressive sign-window assumption per arXiv:2412.00848 up to KK threshold):
+- Config:
+  - `idea-runs/.../compute/a_bochner_k0_lp_config_v4.json`
+- Output:
+  - `idea-runs/.../runs/2026-02-16-a-bochner-k0-lp-v4-ir-envelope-bmin0p08/`
+
+Key results (v4):
+- $Q^2=10 m_\pi^2$: $A^\pi(-Q^2)\in[0.0547,\ 0.8588]$
+- $Q^2=50 m_\pi^2$: $A^\pi(-Q^2)\in[-0.0600,\ 0.5189]$
+- $Q^2=200 m_\pi^2$: $A^\pi(-Q^2)\in[-0.0374,\ 0.1657]$
+- Positive lower bound region exists in this scenario: $A^\pi(-Q^2)\ge 0$ for $Q^2\lesssim 13.9\,m_\pi^2\approx 0.27$ GeV$^2$.
+
+Robustness scan vs elastic-window sign cutoff $s_{\max}$ (all use IR-matched envelope):
+- $s_{\max}=16$: `runs/2026-02-16-a-bochner-k0-lp-v6-ir-envelope-smax16/` (at $Q^2=10$: min=-0.0718)
+- $s_{\max}=25$: `runs/2026-02-16-a-bochner-k0-lp-v7-ir-envelope-smax25/` (at $Q^2=10$: min=-0.0163)
+- $s_{\max}=36$: `runs/2026-02-16-a-bochner-k0-lp-v8-ir-envelope-smax36/` (at $Q^2=10$: min=+0.0211)
+- $s_{\max}=50$: v4 (at $Q^2=10$: min=+0.0547)
+
+Scale-factor scan artifacts (examples):
+- $s_{\max}=36$:
+  - `runs/2026-02-16-a-bochner-k0-lp-v8-smax36-ir-scale{5000,8000,10000,12000}-v1/`
+- $s_{\max}=50$:
+  - `runs/2026-02-16-a-bochner-k0-lp-v4-smax50-ir-scale{5000,8000,10000,12000}-v1/`
+
+### 4) Negative result closure: absolute IR normalization infeasible
+
+- Evidence note:
+  - `idea-runs/.../evidence/neg_results/2026-02-16-d0-ir-absolute-matching-infeasible.txt`
+- Structured record appended:
+  - `idea-runs/.../artifacts/ideas/failed_approach_v1.jsonl` (tag `failure:normalization_mismatch`)
+
+### 5) Campaign report updated (NOT_FOR_CITATION)
+
+- `idea-runs/.../reports/draft.md` updated with:
+  - IR matching description + caveat
+  - v4 bounds + positive-lower-bound region (conditional)
+  - $s_{\max}$ robustness scan
+  - `scale_factor` robustness scan tables
+
+## DoD Checklist (W6-04)
+- [x] New constraint wiring implemented as code + configs + immutable runs.
+- [x] Bounds are strictly tighter than v3 in the same sign-window scenario (documented; runs preserved).
+- [x] Negative result recorded (failed_approach) and retrievable via failure library hook.
+- [x] Gates pass (validate + validate-project + failure library hook).
+- [x] $s_{\max}$ and `scale_factor` treated as explicit knobs; no unconditional claim of positivity region.
+
+## Verification Commands + Results
+
+- `idea-generator`: `make validate` => PASS  
+  Evidence: `docs/reviews/bundles/2026-02-16-w6-04-idea-generator-validate-v2.txt`
+
+- `idea-runs`: `make validate` => PASS  
+  Evidence: `docs/reviews/bundles/2026-02-16-w6-04-idea-runs-validate-v2.txt`
+
+- `idea-runs`: `PROJECT=projects/pion-gff-bootstrap-positivity-pilot-2026-02-15 make validate-project` => PASS  
+  Evidence: `docs/reviews/bundles/2026-02-16-w6-04-idea-runs-validate-project-v2.txt`
+
+- `idea-runs`: `make build-failure-library-index` => PASS  
+  Evidence: `docs/reviews/bundles/2026-02-16-w6-04-failure-library-index-build-v2.txt`
+
+- `idea-runs`: `PROJECT=projects/pion-gff-bootstrap-positivity-pilot-2026-02-15 make run-failure-library-query` => PASS  
+  Evidence: `docs/reviews/bundles/2026-02-16-w6-04-failure-library-query-run-v2.txt`
+
+## Review Focus (What could still be wrong)
+1) **Are the conditional claims scoped correctly?** (no overstating the positivity region)
+2) **Are the robustness knobs sufficient for this stage?** (tail sensitivity can be postponed, but is it clearly called out?)
+3) **Is novelty credibly argued?** (latest GTB IR input + 2412 transverse positivity + convex LP bounds)
+
+## Required verdict format
+First line must be exactly `VERDICT: READY` or `VERDICT: NOT_READY`.

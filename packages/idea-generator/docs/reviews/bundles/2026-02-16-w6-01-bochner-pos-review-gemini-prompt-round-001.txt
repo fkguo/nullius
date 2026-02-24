@@ -1,0 +1,119 @@
+You are the Gemini reviewer for W6-01 Round 004 (Bochner/K0 transverse-positivity LP bounds for pion A^pi).
+
+ABSOLUTE OUTPUT CONTRACT (do not violate):
+- The first character of your response MUST be the letter V (no leading whitespace/newlines).
+- Your FIRST LINE must be exactly: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT output any preamble, planning text, tool intentions, or other text before the verdict line.
+- Then include these sections in order:
+  1) ## Blockers (bulleted; if none: - None.)
+  2) ## Non-blocking (bulleted; if none: - None.)
+  3) ## Evidence & Gate Check (bulleted; cite key file paths)
+
+Review ONLY the packet below. Tools are disabled.
+
+--- BEGIN PACKET ---
+# W6-01 Review Packet (Bochner/K0 Positivity LP, Round 001)
+
+NOT_FOR_CITATION (process + preliminary research notes).
+
+## Goal of This Round
+
+Compare the **GTB-style positivity constraints** (arXiv:2403.10772, 2505.19332, 2410.23333) with the **transverse-density positivity** in arXiv:2412.00848, and integrate 2412’s positivity into a **machine-checkable tightening constraint** that produces **numerical bounds**.
+
+Deliverable in this round:
+- A reproducible, laptop-feasible optimizer that turns 2412 transverse positivity into enforceable constraints and yields preliminary numerical bounds on the pion momentum GFF $A^\pi(-Q^2)$.
+
+## What Changed (Delta)
+
+Project instance: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15`
+
+### New compute kernel + config
+
+- Added: `compute/a_bochner_k0_lp.py`
+- Added: `compute/a_bochner_k0_lp_config_v1.json`
+
+### New reproducible run outputs
+
+- Added run dir: `runs/2026-02-16-a-bochner-k0-lp-v1/`
+  - `config.json`, `results.json`, `A_bounds_vs_Q2.png`, `log.txt`
+
+### Report updated (step-by-step derivation + results + limitations)
+
+- Updated: `reports/draft.md` (adds Phase E section: K0-kernel LP bounds from transverse positivity)
+
+### Machine-checkable artifacts updated
+
+- Appended: `artifacts/islands/idea_island_progress_v1.jsonl` (records new method + run)
+- Updated: `artifacts/islands/idea_island_registry_v1.json` (timestamp refresh)
+- Appended: `artifacts/opportunities/bootstrap_opportunity_pool_v1.jsonl` (new opportunity card for K0-kernel LP method)
+
+### idea-generator evidence + validation
+
+Board sync (post-update snapshot + item-edit evidence):
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-bochner-pos-board-sync-check-v1.txt`
+
+Gates (PASS) for this round:
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-bochner-pos-idea-generator-validate-v1.txt`
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-bochner-pos-idea-runs-validate-v1.txt`
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-bochner-pos-idea-runs-validate-project-v2.txt`
+- failure library hook:
+  - `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-bochner-pos-failure-library-index-build-v1.txt`
+  - `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-bochner-pos-failure-library-query-run-v1.txt`
+
+## Core Technical Claim to Review
+
+We use the following executable constraint chain:
+
+1) (2412) **Transverse positivity**: interpret $A(b)$ as a nonnegative transverse density for $\Theta^{++}$, hence enforce $A(b)\ge 0$.
+
+2) (2412) **Unsubtracted dispersion**:
+$$
+A^\pi(-Q^2)=\frac{1}{\pi}\int_{4}^{\infty}ds\,\frac{{\rm Im}\,A^\pi(s)}{s+Q^2}.
+$$
+
+3) Combine (2) with the Fourier–Bessel transform definition of the transverse density:
+$$
+A(b)=\int_0^\infty \frac{q\,dq}{2\pi}J_0(bq)\,A^\pi(-q^2)
+=\frac{1}{2\pi^2}\int_{4}^{\infty}ds\,{\rm Im}\,A^\pi(s)\,K_0(b\sqrt{s}).
+$$
+This turns $A(b)\ge 0$ into **linear inequalities on** ${\rm Im}\,A^\pi(s)$ (since $K_0>0$).
+
+4) Add a conservative envelope input (from earlier LP guardrails): $|{\rm Im}\,A(s_i)|\le U(s_i)$, with $U(s)$ imported from:
+`runs/2026-02-16-d0-eta-envelope-v1/results.json` profile `eta_floor_0p6`.
+
+5) Solve LPs to bound $A^\pi(-Q^2)$ at multiple $Q^2$ values.
+
+## Key Numerical Output (preliminary)
+
+From `runs/2026-02-16-a-bochner-k0-lp-v1/results.json` (units: $Q^2$ in $m_\pi^2$, with $m_\pi=0.13957$ GeV):
+- $Q^2=10\,m_\pi^2 \approx 0.195$ GeV$^2$: $A^\pi(-Q^2)\in[-0.147,\ 0.879]$
+- $Q^2=50\,m_\pi^2 \approx 0.974$ GeV$^2$: $A^\pi(-Q^2)\in[-0.191,\ 0.577]$
+- $Q^2=200\,m_\pi^2 \approx 3.90$ GeV$^2$: $A^\pi(-Q^2)\in[-0.116,\ 0.176]$
+
+Plot: `runs/2026-02-16-a-bochner-k0-lp-v1/A_bounds_vs_Q2.png`
+
+## Review Focus / Questions
+
+1) **Physics/normalization correctness**:
+   - Is it valid (in this prototype stage) to treat the D0 channel form factor in the envelope input as the same $A^\pi(t)$ whose transverse density is constrained in 2412?
+   - Are there missing kinematic factors or convention mismatches that would invalidate the kernel inequality as implemented?
+
+2) **Positivity meaning in 2412**:
+   - Does 2412’s “positive definite” statement justify enforcing pointwise $A(b)\ge 0$, or is it a weaker quadratic-form positivity?
+   - If weaker, what is the correct machine-checkable constraint to enforce instead?
+
+3) **Numerical rigor / tail handling**:
+   - v1 truncates integrals at $s_{\max}=s_0$ from the envelope run and enforces sum rules on that truncated interval.
+   - Is this acceptable for a preliminary bound prototype? What is the minimum fix to make bounds conservative w.r.t. the UV tail?
+
+4) **Method novelty**:
+   - Does the K0-kernel LP formulation constitute a meaningful new constraint wiring beyond the seed GTB papers?
+   - Is the result likely to be nontrivial once normalization/tail issues are fixed?
+
+## Required Verdict Format
+
+First line must be exactly `VERDICT: READY` or `VERDICT: NOT_READY`, with no preamble.
+
+
+--- END PACKET ---
+

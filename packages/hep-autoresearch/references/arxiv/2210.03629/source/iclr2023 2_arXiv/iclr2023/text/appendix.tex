@@ -1,0 +1,433 @@
+\section{Additional Results}
+\subsection{GPT-3 Experiments} 
+\label{sec:gpt3}
+\input{iclr2023/table/gpt3}
+We run additional GPT-3~\citep{brown2020language} experiments to confirm \model{} prompting performance is general across different large language models. As shown in Table~\ref{tab:gpt3}, GPT-3 (text-davinci-002, greedy decoding) consistently outperforms PaLM-540B on HotpotQA and ALFWorld, possibly because it is finetuned with human instruction following. This indicates ReAct prompting is effective across different large language models on different tasks.
+The code for these experiments are at \url{https://react-lm.github.io/}.
+\subsection{\model{} obtains up-to-date knowledge on HotpotQA}
+\input{iclr2023/figuretext/date}
+During trajectory inspection, we also find that sometimes \model{} does not agree with dataset labels as the labels themselves could be outdated. For example, as shown in Figure~\ref{fig:date}, the question asks about the size of a hotel, which increased from the HotpotQA construction time. While \palm{} and \reason{} give wrong answers due to hallucination, \act{} fails despite the access of real-world web interaction, due to a lack of reasoning to guide how to interact with the Internet for QA. Only \model{} is able to retrieve up-to-date information from the Internet and provide a reasonable answer. Therefore, better incorporation of reasoning abilities might benefit recent Internet-augmented language models~\citep{nakano2021webgpt,lazaridou2022internet,shuster2022language} for up-to-date task solving. 
+\subsection{Human-in-the-loop behavior correction on AlfWorld} 
+\input{iclr2023/figuretext/edit}
+We also explore human-in-the-loop interaction with \model{}, to allow a human to inspect and edit \model's reasoning traces. Figure~\ref{fig:edit} shows that
+by simply removing a hallucinating sentence in Act 17 and adding some hints in Act 23, \model{} can be made to change its behavior drastically to align with these human thought edits and succeed in the task. 
+From a human perspective, solving such a task becomes significantly easier, from typing tens of actions to only editing a couple of thoughts, which enables new forms of human-machine collaboration.
+We note that such a policy edit on-the-go is difficult for \act{} and previous RL methods, as a human cannot change the model parameters, and changing a few actions might not edit the rest of the model behavior. 
+This paradigm is also more than human dialogue to update the goal or subgoal as in \citet{huang2022inner} --- while editing \model{} thoughts can do these, it can also modify the model's internal belief, reasoning styles, or anything the flexible thought space supports, for better task solving. 
+We believe this is an exciting direction for human alignment and leave more systematic study as future work.
+
+\section{Experiment Details}
+\subsection{HotpotQA Finetuning Details}
+\label{sec:hotpot_finetune}
+For all finetuning we use a batch size of 64.
+On PaLM-8B, we finetune \model{} and \act{} methods for $4,000$ steps and \palm{} and \reason{} methods for $2,000$ steps. 
+On PaLM-62B, we finetune \model{} and \act{} methods for $4,000$ steps and \palm{} and \reason{} methods for $1,000$ steps. 
+We find \model{} and \act{} methods generally benefit from more training steps (and more training data), while  \palm{} and \reason{} methods degrade soon after finetuning.
+
+\subsection{AlfWorld IM-Style Details}
+\label{sec:alfworld_im}
+For the IM-style ablation, the same expert trajectories used in \model{} are reannotated with dense external feedback thoughts within these trajectories, that limit \modelim{} to only think about (1) decomposing the current goal and (2) the current subgoal that needs to be completed. In particular, \modelim{} lacks thoughts that (1) determine when a subgoal is completed (2) determine what the next subgoal should be (3) inducing the LLM to refer to its internal pretraining knowledge to identify where items can be within the environment. 
+
+
+\section{Prompts}
+\label{sec:prompts}
+\subsection{HotpotQA}
+\input{iclr2023/prompts/hotpot}
+
+\subsection{Fever}
+\input{iclr2023/prompts/fever}
+
+\subsection{Webshop}
+\input{iclr2023/prompts/webshop}
+
+\subsection{ALFWorld}
+\label{appendix:ALFWorld_prompts}
+\input{iclr2023/prompts/ALFWorld}
+
+\section{Trajectories}
+
+\subsection{FEVER Trajectories}
+\label{sec:fever_trajs}
+We provide some trajectories produced by \model, \reason and \act on several randomly selected examples from the FEVER dev set below. Search results are omitted to  space.
+
+\newcommand{\reactA}{
+Claim: & Bermuda Triangle is a loosely-defined region in the Pacific Ocean. \\
+Thought 1: & I need to search Bermuda Triangle and find if it is in the Pacific Ocean. \\
+Action 1: & Search[Bermuda Triangle] \\
+Observation 1: & Reportedly haunted locations... \\
+Thought 2: & The observation says that it is in the western part of the North Atlantic Ocean, so it is not in the Pacific Ocean. \\
+Action 2: & Finish[REFUTES] \\
+Observation 2: & Episode finished\\}
+
+\newcommand{\actA}{
+Claim: & Bermuda Triangle is a loosely-defined region in the Pacific Ocean. \\
+Action 1 &: Search[Bermuda Triangle] \\
+Observation 1 &: Reportedly haunted locations:... \\
+Action 2: & Finish[REFUTES] \\
+Observation 2: & Episode finished\\}
+
+\newcommand{\cotA}{
+Claim: & Bermuda Triangle is a loosely-defined region in the Pacific Ocean.\\
+Thought: & Let's think step by step. The Bermuda Triangle is a loosely-defined region in the Atlantic Ocean. The Pacific Ocean is not the Atlantic Ocean.\\
+Answer: & REFUTES\\}
+
+\newcommand{\reactB}{
+Claim: & Princess Mononoke is a film. \\
+Thought 1: & I need to search Princess Mononoke and find if it is a film. \\
+Action 1: & Search[Princess Mononoke] \\
+Observation 1: & Princess Mononoke ... \\
+Thought 2: & From the observation, it says that Princess Mononoke is a film. \\
+Action 2: & Finish[SUPPORTS] \\
+Observation 2: & Episode finished \\}
+
+\newcommand{\actB}{
+Claim: & Princess Mononoke is a film. \\
+Action 1: & Search[Princess Mononoke] \\
+Observation 1: & Princess Mononoke ... \\
+Action 2: & Finish[SUPPORTS] \\
+Observation 2: & Episode finished\\}
+
+\newcommand{\cotB}{
+Claim: & Princess Mononoke is a film. \\
+Thought: & Let's think step by step. Princess Mononoke is a movie, and movies are films. \\
+Answer: & SUPPORTS\\}
+
+\newcommand{\reactC}{
+Claim:& Soyuz was part of the American space program. \\
+Thought 1:& I need to search Soyuz and find if it was part of the American space program. \\
+Action 1: &Search[Soyuz] \\
+Observation 1:& Soyuz is a transliteration... \\
+Thought 2: &It does not mention the American space program, so I need to search \ "American space program" to find if it was part of it. \\
+Action 2: &Search[American space program] \\
+Observation 2: &The space policy... \\
+Thought 3: &It does not mention Soyuz, so I am not sure if this claim is true or not. \\
+Action 3: &Finish[NOT ENOUGH INFO] \\
+Observation 3: &Episode finished \\
+}
+
+\newcommand{\actC}{
+Claim: & Soyuz was part of the American space program. \\
+Action 1: & Search[Soyuz] \\
+Observation 1: & Soyuz is a transliteration... \\
+Action 2: & Finish[NOT ENOUGH INFO] \\
+Observation 2: & Episode finished \\
+}
+
+\newcommand{\cotC}{
+Claim: & Soyuz was part of the American space program. \\
+Thought: & Let's think step by step. Soyuz is a Russian spacecraft. The American space program is NASA. NASA and Russia have worked together on the International Space Station. \\
+Answer: & SUPPORTS \\
+}
+
+
+\newcommand{\reactD}{
+Claim: & Reign Over Me is an American film made in 2010. \\
+Thought 1: & I need to search for Reign Over Me and find if it is an American film made in 2010. \\
+Action 1: & Search[Reign Over Me] \\
+Observation 1: & Reign Over Me ... \\
+Thought 2: & The observation says that it is an American film made in 2007, so it is not made in 2010. \\
+Action 2: & Finish[REFUTES] \\
+Observation 2: & Episode finished \\
+}
+
+\newcommand{\actD}{
+Claim: & Reign Over Me is an American film made in 2010. \\
+Action 1: & Search[Reign Over Me] \\
+Action 2: & Finish[SUPPORTS] \\
+Observation 2: & Episode finished \\
+}
+
+\newcommand{\cotD}{
+Claim: & Reign Over Me is an American film made in 2010. \\
+Thought: & Let's think step by step. First, is Reign Over Me an American film? Yes, it is. Second, was it made in 2010? Yes, it was. \\
+Answer: & SUPPORTS \\
+
+}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Example 2491 (gt: REFUTES)
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reactA
+\hline
+\sethlcolor{cyan}\hl{\act} & \\
+\actA
+\hline
+\sethlcolor{green}\hl{\reason} & \\
+\cotA
+
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Example 5908 (gt: SUPPORTS)
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reactB
+\hline
+\sethlcolor{cyan}\hl{\act} & \\
+\actB
+\hline
+\sethlcolor{green}\hl{\reason} & \\
+\cotB
+
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Example 1951 (gt: REFUTES)
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reactC
+\hline
+\sethlcolor{cyan}\hl{\act} & \\
+\actC
+\hline
+\sethlcolor{green}\hl{\reason} & \\
+\cotC
+
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Example 3208 (gt: REFUTES)
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reactD
+\hline
+\sethlcolor{cyan}\hl{\act} & \\
+\actD
+\hline
+\sethlcolor{green}\hl{\reason} & \\
+\cotD
+
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+
+
+\subsection{ALFWorld Trajectories}
+
+\label{appendix:ALFWorld_trajectories}
+\input{iclr2023/table/ALFWorld_trajectories}
+
+\subsection{Webshop Trajectories}
+\label{appendix:webshop_trajectories}
+\input{iclr2023/table/webshop_trajectories}
+
+\section{More Analysis}
+\subsection{Success and Failure Modes Analysis}\label{sec:human_study_examples}
+
+\newcommand{\reacttp}{
+Question: & Author David Chanoff has collaborated with a U.S. Navy admiral who served as the ambassador to the United Kingdom under which President? \\
+Thought 1: & I need to search David Chanoff and find the U.S. Navy admiral he collaborated with.\\
+Action 1: & Search[David Chanoff]\\
+Observation 1: & David Chanoff is a noted author... \\
+Action 2: & Search[William J. Crowe] \\
+Observation 2: & William J. Crowe is... \\
+Thought 3: & William J. Crowe served as the ambassador to the United Kingdom under President Bill Clinton. So the answer is Bill Clinton. \\
+Action 3: & Finish[Bill Clinton] \\
+Observation 3: & Episode finished \\} 
+
+\newcommand{\cottp}{
+Question: & What was the name of the team that represented an Arizona university in the conference that covers a broad expanse of the western United States, including Arizona, California, and New Mexico? \\
+Thought: & Let's think step by step. The name of the team that represented an Arizona university in the conference that covers a broad expanse of the western United States, including Arizona, California, and New Mexico is Arizona State Sun Devils. \\
+Answer: & Arizona State Sun Devils\\}
+
+\newcommand{\reactfp}{
+Question: & Did the board game San Marco or About Time come out first? \\
+Thought 1: & I need to search San Marco and About Time, and find which came out first. \\
+Action 1: & Search[San Marco] \\
+Observation 1: & San Marco is one of the ... The was built in venice. \\
+Thought 2: & San Marco is a sestiere of Venice. I need to search About Time next. \\
+Action 2: & Search[About Time] \\
+Observation 2: & Could not find [About Time]. Similar: [...]. \\
+Thought 3: & About Time is a 2013 film. So San Marco came out first. \\
+Action 3: & Finish[San Marco] \\
+Observation 3: & Episode finished\\}
+
+\newcommand{\cotfp}{
+Question: & Was Vanderbilt University or Emory University founded first? \\
+Thought: & Let's think step by step. Vanderbilt University was founded in 1873. Emory University was founded in 1836. 1873 (Vanderbilt University) > 1836 (Emory University), so Vanderbilt University was founded first. \\
+Answer: & Emory University\\}
+
+\newcommand{\reactre}{
+Question: & What was the middle name of the actress who was cast alongside Harvey Fierstein, Linda Hart, Dick Latessa, Clarke Thorell, Mary Bond Davis, Laura Bell Bundy, Matthew Morrison, Corey Reynolds, and Marissa Jaret Winokur in Hairspray? \\
+Thought 1: & I need to search Harvey Fierstein, Linda Hart, Dick Latessa, Clarke Thorell, Mary Bond Davis, Laura Bell Bundy, Matthew Morrison, Corey Reynolds, and Marissa Jaret Winokur, find the actress that was cast alongside them in Hairspray, then find its middle name. \\
+Action 1: & Search[Harvey Fierstein] \\
+Observation 1: & Harvey Forbes Fierstein ... \\
+Thought 2: & Harvey Fierstein is an actor, playwright, and screenwriter. I need to search Linda Hart next...\\
+Action 2: & Search[Linda Hart]...\\}
+
+\newcommand{\cotre}{
+Question: & Who is older Danny Green or James Worthy? \\
+Thought: & Let's think step by step. Danny Green was born in 1987. James Worthy was born in 1961. 1987 (Danny Green) > 1961 (James Worthy), so Danny Green is older. \\
+Answer: & Danny Green\\}
+
+\newcommand{\reactser}{
+Question: & What does the goddess associated with the goddess frigg  consists of what tales? \\
+Thought 1: & I need to search goddess frigg and find its associated goddess. \\
+Action 1: & Search[goddess frigg]\\
+Observation 1: & Could not find goddess frigg. Similar: ['Frigg', 'Frigg and Freyja common origin hypothesis', 'Freyja (section Relation to Frigg and other goddesses and figures)', 'Eir (redirect from Eir (goddess))', 'Baldr'].\\
+Thought 2: & I need to search Frigg instead...\\}
+
+\newcommand{\cothallucination}{
+Question: & What was the first year a scientific journal published by an organization located in the Bronx was published? \\
+Thought: & Let's think step by step. The first year a scientific journal published by an organization located in the Bronx was published was 1916. \\
+Answer: & 1916 (Label: 1909) \\}
+
+\newcommand{\reactlabel}{
+Question: & What nationality is the man who developed the dictator game?\\
+Thought 1: & I need to search dictator game, find the man who developed it, then find his nationality.\\
+Action 1: & Search[dictator game]\\
+Observation 1: & The dictator game is a popular experimental instrument in social psychology and economics...\\
+Action 3: & Search[Amos Tversky]\\
+Observation 3: & Amos Nathan Tversky...\\
+Thought 4: & Amos Tversky is an Israeli cognitive and mathematical psychologist. So the man who developed the dictator game is Israeli.\\
+Action 4: & Finish[Israeli] (label: Israel-American)\\}
+
+\newcommand{\cotlabel}{
+Question: & Kurt Fuller from Stockton, CA appeared in which American Detective Comedy Drama television series created by Steve Franks?\\
+Thought: & Let's think step by step. Kurt Fuller from Stockton, CA appeared in Psych. Psych is an American Detective Comedy Drama television series created by Steve Franks.\\
+Answer: & Psych (label: Psych is an American detective comedy-drama)\\
+}
+
+
+We provide some examples corresponding to the success and error mode analysis given in Sec.~\ref{subsec:results}. Search results and non-representative steps are omitted to reduce space.
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Success: True positive
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reacttp
+\hline
+\sethlcolor{green}\hl{\reason} \\
+\cottp
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Success: False positive
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reactfp
+\hline
+\sethlcolor{green}\hl{\reason} \\
+\cotfp
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Failure: Reasoning error
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reactre
+\hline
+\sethlcolor{green}\hl{\reason} \\
+\cotre
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Failure: Search error
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reactser
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Failure: Hallucination
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+
+\hline
+\sethlcolor{green}\hl{\reason} & \\
+\cothallucination
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+
+\begin{table}[H]
+\scriptsize
+\begin{minipage}{0.9\linewidth}
+Failure: Label ambiguity
+\centering
+\ttfamily
+\begin{tabular}{l p{0.9\linewidth}}
+
+\hline
+\sethlcolor{yellow}\hl{\model} & \\
+\reactlabel
+\hline
+\sethlcolor{green}\hl{\reason} \\
+\cotlabel
+\hline
+\end{tabular}
+\end{minipage}%
+\end{table}
+

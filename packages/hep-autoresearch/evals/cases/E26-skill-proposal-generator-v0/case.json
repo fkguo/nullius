@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "case_id": "E26-skill-proposal-generator-v0",
+  "workflow": "custom",
+  "description": "T38 regression: deterministic skill proposal scaffolds (JSON SSOT + proposal.md + scaffold SKILL.md) derived from a past run; must only write under artifacts/runs/<tag>/skill_proposal/.",
+  "inputs": {
+    "tag": "M46-t38-r1",
+    "source_run_tag": "M45-t40-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_skill_proposal.py",
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "src/hep_autoresearch/toolkit/skill_proposal.py",
+      "artifacts/runs/M46-t38-r1/skill_proposal/manifest.json",
+      "artifacts/runs/M46-t38-r1/skill_proposal/summary.json",
+      "artifacts/runs/M46-t38-r1/skill_proposal/analysis.json",
+      "artifacts/runs/M46-t38-r1/skill_proposal/proposal.md",
+      "artifacts/runs/M46-t38-r1/skill_proposal/report.md",
+      "artifacts/runs/M46-t38-r1/skill_proposal/scaffolds/P001/SKILL.md"
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M46-t38-r1/skill_proposal/analysis.json",
+        "pointer": "#/results/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M46-t38-r1/skill_proposal/analysis.json",
+        "pointer": "#/results/write_scope/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M46-t38-r1/skill_proposal/analysis.json",
+        "pointer": "#/results/write_scope/root",
+        "type": "string",
+        "equals": "artifacts/runs/M46-t38-r1/skill_proposal"
+      },
+      {
+        "path": "artifacts/runs/M46-t38-r1/skill_proposal/analysis.json",
+        "pointer": "#/results/proposals/0/requires_approval",
+        "type": "string",
+        "equals": "A2"
+      },
+      {
+        "path": "artifacts/runs/M46-t38-r1/skill_proposal/manifest.json",
+        "pointer": "#/outputs",
+        "type": "array",
+        "min_length": 6
+      }
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M46-t38-r1/skill_proposal/analysis.json",
+        "pointer": "#/results/proposals_total",
+        "min": 1
+      }
+    ],
+    "text_contains_checks": [
+      {
+        "path": "artifacts/runs/M46-t38-r1/skill_proposal/proposal.md",
+        "contains": [
+          "# Skill proposals (v0)",
+          "## Proposals"
+        ]
+      },
+      {
+        "path": "artifacts/runs/M46-t38-r1/skill_proposal/scaffolds/P001/SKILL.md",
+        "contains": [
+          "## Safety contract (v0)",
+          "requires **A2** + dual review"
+        ]
+      }
+    ]
+  },
+  "notes": "Anchored to tag M46-t38-r1 (source_run_tag=M45-t40-r1); validates deterministic scaffold outputs and write-scope contract."
+}

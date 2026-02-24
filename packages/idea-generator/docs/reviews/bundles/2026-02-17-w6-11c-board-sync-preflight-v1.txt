@@ -1,0 +1,9 @@
+Board sync preflight (W6-11c SCS tuned retry append, 2026-02-17)
+timestamp_utc: 2026-02-17T12:13:01Z
+project_snapshot: docs/reviews/bundles/2026-02-17-w6-11c-board-project-view-v1.json
+field_snapshot: docs/reviews/bundles/2026-02-17-w6-11c-board-field-list-v1.json
+item_snapshot: docs/reviews/bundles/2026-02-17-w6-11c-board-item-list-v1.json
+project_title: Idea Generator Program
+project_id: PVT_kwHOA7u0gc4BPFjm
+W6-01 draft_issue_id: DI_lAHOA7u0gc4BPFjmzgKK9dA
+body_contains_w6_11c: false

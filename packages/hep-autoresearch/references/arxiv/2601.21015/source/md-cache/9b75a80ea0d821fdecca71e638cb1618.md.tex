@@ -1,0 +1,628 @@
+\markdownRendererDocumentBegin
+\markdownRendererSectionBegin
+\markdownRendererHeadingOne{UFO EFT \markdownRendererInlineMath{pp \to t\bar t} dataset documentation}\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingTwo{1. Introduction and overview}\markdownRendererInterblockSeparator
+{}This document describes a simulated dataset of effective-field-theory (EFT) top–antitop production at the LHC, including detector effects at Delphes level. The central artifact is the NumPy archive\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererCodeSpan{/output/dataset/output/dataset/ufo\markdownRendererUnderscore{}ttbar\markdownRendererUnderscore{}reweighted.npz}\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}which contains \markdownRendererInlineMath{N = 100000} events with reconstructed jets, electrons, muons, missing transverse energy (MET), and per-event weights.\markdownRendererParagraphSeparator
+{}The hard-process signal is \markdownRendererInlineMath{pp \to t\bar t} at \markdownRendererInlineMath{\sqrt{s} = 13\,\text{TeV}}, generated with MadGraph5\markdownRendererUnderscore{}aMC@NLO (MG5\markdownRendererUnderscore{}aMC), interfaced to Pythia8 for parton showering and hadronization, and Delphes 3 for fast detector simulation. An EFT dimension-6 chromomagnetic operator with Wilson coefficient \markdownRendererInlineMath{c_{tG}} is activated in the UFO model \markdownRendererCodeSpan{dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO}. The parton-level EFT sample is generated at leading order (LO) in QCD and then reweighted with an \markdownRendererInlineMath{m_{t\bar t}}-dependent \markdownRendererInlineMath{K}-factor extracted from Standard Model (SM) LO and next-to-leading order (NLO) \markdownRendererInlineMath{t\bar t} samples.\markdownRendererParagraphSeparator
+{}This documentation aims to make the dataset reproducible and interpretable for particle-physics PhD students and practitioners. It covers\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem the software environment and recommended installation,\markdownRendererUlItemEnd 
+\markdownRendererUlItem the physics setup and modeling assumptions,\markdownRendererUlItemEnd 
+\markdownRendererUlItem the event-generation and reweighting pipeline from hard process to NPZ file,\markdownRendererUlItemEnd 
+\markdownRendererUlItem the structure and meaning of each NPZ field, and\markdownRendererUlItemEnd 
+\markdownRendererUlItem verification steps and known limitations.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingTwo{2. Software environment and installation}\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingThree{2.1 Generator stack (explicit information)}\markdownRendererInterblockSeparator
+{}The dataset was produced with the following generator stack and tools. Items marked "explicit" are read directly from configuration files and logs.\markdownRendererInterblockSeparator
+{}\markdownRendererUlBegin
+\markdownRendererUlItem \markdownRendererStrongEmphasis{MadGraph5\markdownRendererUnderscore{}aMC@NLO core} (explicit)\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Version: 3.7.0.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Evidence: \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/VERSION} and the banner at the top of \markdownRendererCodeSpan{/output/dataset/output/log.txt}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{MadGraph template versions} (explicit)\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem LO and UFO processes (\markdownRendererCodeSpan{proc\markdownRendererUnderscore{}sm\markdownRendererUnderscore{}lo\markdownRendererUnderscore{}ttbar}, \markdownRendererCodeSpan{proc\markdownRendererUnderscore{}ufo\markdownRendererUnderscore{}parton\markdownRendererUnderscore{}ttbar}): \markdownRendererCodeSpan{TemplateVersion.txt = 2.5.0}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem NLO process (\markdownRendererCodeSpan{proc\markdownRendererUnderscore{}sm\markdownRendererUnderscore{}nlo\markdownRendererUnderscore{}ttbar}): \markdownRendererCodeSpan{TemplateVersion.txt = 2.4.31}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{LHAPDF} (explicit)\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Interface version: 6.5.5.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Evidence: MG5 log messages ("Using LHAPDF v6.5.5 interface for PDFs"), and \markdownRendererCodeSpan{lhapdf-config --version} under \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/HEPTools/lhapdf6\markdownRendererUnderscore{}py3}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Pythia8} (semi-explicit)\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Installed under \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/HEPTools/pythia8}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem The installation log refers to unpacking \markdownRendererCodeSpan{pythia8316}, consistent with Pythia 8.316.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Exact minor version is not recorded in the dataset area but is expected to be 8.316.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Delphes} (semi-explicit)\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Installed under \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/Delphes}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem The README describes installation from \markdownRendererCodeSpan{Delphes-3.5.0.tar.gz}, consistent with Delphes version 3.5.0.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{MG5–Pythia8 interface} (explicit)\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Path: \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/HEPTools/MG5aMC\markdownRendererUnderscore{}PY8\markdownRendererUnderscore{}interface}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Registered in \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/input/mg5\markdownRendererUnderscore{}configuration.txt} and in the UFO process card.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{UFO model} (explicit)\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Name: \markdownRendererCodeSpan{dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Location: \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/models/dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Used in \markdownRendererCodeSpan{mg5\markdownRendererUnderscore{}ufo\markdownRendererUnderscore{}parton\markdownRendererUnderscore{}ttbar.mg5} via \markdownRendererCodeSpan{import model /opt/MG5\markdownRendererUnderscore{}aMC/models/dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEnd \markdownRendererInterblockSeparator
+{}All three MG5 processes (SM LO, SM NLO, and EFT UFO) use LHAPDF with \markdownRendererCodeSpan{pdlabel = lhapdf} and PDF set ID \markdownRendererCodeSpan{lhaid = 303400}.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{2.2 Python environment (inferred)}\markdownRendererInterblockSeparator
+{}The analysis and conversion scripts are Python 3 programs. In the current container, the environment is:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Python:} 3.11.2 (inferred via \markdownRendererCodeSpan{python3 --version}).\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{NumPy:} \markdownRendererCodeSpan{numpy==2.3.5} (inferred).\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Awkward Array:} \markdownRendererCodeSpan{awkward==2.8.11} (inferred).\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Uproot:} originally installed for the generation run, but the exact version is not recorded. A modern version compatible with Python 3.11, NumPy 2.x, and Awkward 2.x (for example \markdownRendererCodeSpan{uproot\markdownRendererTilde{}=5.3}) is recommended for reproduction.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}These library versions are not guaranteed to match exactly those used in the original run but are physically compatible. Exact bitwise reproducibility is therefore not guaranteed, but physics-level reproducibility (distributions and cross sections within statistical uncertainties) is expected.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{2.3 Clean-machine installation recipe (recommended)}\markdownRendererInterblockSeparator
+{}This subsection presents a concrete installation recipe for a new Linux machine. Paths can be adapted as needed; the original project assumes\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem MG5\markdownRendererUnderscore{}aMC at \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC}, and\markdownRendererUlItemEnd 
+\markdownRendererUlItem the project directory at \markdownRendererCodeSpan{/output/dataset}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}If these locations are not writable, you can install elsewhere and either adjust the paths in \markdownRendererCodeSpan{run.sh} and the \markdownRendererCodeSpan{.mg5} cards or create suitable symbolic links.\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingFour{2.3.1 System prerequisites (example for Debian/Ubuntu)}\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/1dbd1ac22555b841207230c2614f25b9.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{2.3.2 Python virtual environment for analysis}\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/53dcfe158ec104d7de5690155fb56fd9.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{2.3.3 Install MG5\markdownRendererUnderscore{}aMC 3.7.0 and HEP tools}\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/72c938850fda7e7ce7830a750c5bc8a8.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}This will populate\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/HEPTools/lhapdf6\markdownRendererUnderscore{}py3},\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/HEPTools/pythia8},\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/Delphes}, and\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/HEPTools/MG5aMC\markdownRendererUnderscore{}PY8\markdownRendererUnderscore{}interface},\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}and will update \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/input/mg5\markdownRendererUnderscore{}configuration.txt} with the appropriate paths for Pythia8 and the interface.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{2.3.4 Install the UFO model \markdownRendererCodeSpan{dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO}}\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/5d14fff1cb3a7d9cee15077388a55fe4.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}Verify that the directory \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/models/dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO} exists and contains UFO model files such as \markdownRendererCodeSpan{particles.py}, \markdownRendererCodeSpan{parameters.py}, \markdownRendererCodeSpan{vertices.py}, etc.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{2.3.5 Place this project}\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/f595e5b92b4d28f292dbac58ed5d8a7f.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}If you choose a different root (for example \markdownRendererCodeSpan{\markdownRendererDollarSign{}HOME/ufo\markdownRendererUnderscore{}ttbar\markdownRendererUnderscore{}dataset} instead of \markdownRendererCodeSpan{/output/dataset}), update the hard-coded paths in \markdownRendererCodeSpan{run.sh} and in the \markdownRendererCodeSpan{.mg5} cards or provide suitable symlinks.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{2.4 Explicit vs inferred versions}\markdownRendererInterblockSeparator
+{}For clarity:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBegin
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Explicit versions (from logs/configs):}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem MG5\markdownRendererUnderscore{}aMC core 3.7.0, template versions 2.5.0 (LO/UFO) and 2.4.31 (NLO).\markdownRendererUlItemEnd 
+\markdownRendererUlItem LHAPDF 6.5.5.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Pythia8 approximately 8.316 (from installation log).\markdownRendererUlItemEnd 
+\markdownRendererUlItem Delphes 3.5.0 (from README).\markdownRendererUlItemEnd 
+\markdownRendererUlItem UFO model \markdownRendererCodeSpan{dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO} (exact internal version not specified in the dataset area).\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Inferred Python environment:}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Python 3.11.2, NumPy 2.3.5, Awkward 2.8.11.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Uproot: any recent 5.x compatible with the above; exact original version unknown.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEnd \markdownRendererInterblockSeparator
+{}Exact bitwise reproduction of the dataset is not guaranteed, but reproductions with the versions above should agree within statistical uncertainties.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingTwo{3. Physics and modeling assumptions}\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingThree{3.1 Processes and models}\markdownRendererInterblockSeparator
+{}Three MG5 processes are used in the pipeline:\markdownRendererInterblockSeparator
+{}\markdownRendererOlBegin
+\markdownRendererOlItemWithNumber{1}\markdownRendererStrongEmphasis{SM LO \markdownRendererInlineMath{pp \to t\bar t}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Card: \markdownRendererCodeSpan{scripts/mg5\markdownRendererUnderscore{}sm\markdownRendererUnderscore{}lo\markdownRendererUnderscore{}ttbar.mg5}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Model: \markdownRendererCodeSpan{sm} (Standard Model).\markdownRendererUlItemEnd 
+\markdownRendererUlItem Process: \markdownRendererCodeSpan{generate p p > t t\markdownRendererTilde{}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Beam energies: \markdownRendererCodeSpan{ebeam1 = ebeam2 = 6500\markdownRendererBackslash{},\markdownRendererBackslash{}text\markdownRendererLeftBrace{}GeV\markdownRendererRightBrace{}} (\markdownRendererInlineMath{\sqrt{s} = 13\,\text{TeV}}).\markdownRendererUlItemEnd 
+\markdownRendererUlItem PDFs: \markdownRendererCodeSpan{pdlabel = lhapdf}, \markdownRendererCodeSpan{lhaid = 303400}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Perturbative order: LO QCD (no loop tags).\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererOlItemEnd 
+\markdownRendererOlItemWithNumber{2}\markdownRendererStrongEmphasis{SM NLO \markdownRendererInlineMath{pp \to t\bar t}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Card: \markdownRendererCodeSpan{scripts/mg5\markdownRendererUnderscore{}sm\markdownRendererUnderscore{}nlo\markdownRendererUnderscore{}ttbar.mg5}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Model: \markdownRendererCodeSpan{sm}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Process: \markdownRendererCodeSpan{generate p p > t t\markdownRendererTilde{} [QCD]} (NLO QCD corrections via aMC@NLO).\markdownRendererUlItemEnd 
+\markdownRendererUlItem Same collider and PDF settings as LO.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Perturbative order: NLO QCD in fixed-order, no-shower mode.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererOlItemEnd 
+\markdownRendererOlItemWithNumber{3}\markdownRendererStrongEmphasis{EFT UFO \markdownRendererInlineMath{pp \to t\bar t} with dim-6 operator}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Card: \markdownRendererCodeSpan{scripts/mg5\markdownRendererUnderscore{}ufo\markdownRendererUnderscore{}parton\markdownRendererUnderscore{}ttbar.mg5}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Model: \markdownRendererCodeSpan{dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO} via \markdownRendererCodeSpan{import model /opt/MG5\markdownRendererUnderscore{}aMC/models/dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Process: \markdownRendererCodeSpan{generate p p > t t\markdownRendererTilde{} FCNC=0 DIM6=1}.\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererCodeSpan{FCNC = 0} disables flavor-changing neutral current operators.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{DIM6 = 1} activates dimension-6 contributions.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem Collider and PDFs: same 13 TeV setup, \markdownRendererCodeSpan{pdlabel = lhapdf}, \markdownRendererCodeSpan{lhaid = 303400}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem EFT-specific setting: \markdownRendererCodeSpan{set ctG 1.0} (non-zero chromomagnetic top–gluon operator coefficient in the model’s normalization).\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererOlItemEnd 
+\markdownRendererOlEnd \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{3.2 Top-quark parameters}\markdownRendererInterblockSeparator
+{}From the param cards (\markdownRendererCodeSpan{Cards/param\markdownRendererUnderscore{}card.dat}):\markdownRendererInterblockSeparator
+{}\markdownRendererUlBegin
+\markdownRendererUlItem \markdownRendererStrongEmphasis{SM LO and NLO samples}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Top mass: \markdownRendererInlineMath{m_t = 173\,\text{GeV}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Yukawa: \markdownRendererInlineMath{y_t = 173\,\text{GeV}} (in SM convention).\markdownRendererUlItemEnd 
+\markdownRendererUlItem Width: \markdownRendererInlineMath{\Gamma_t \approx 1.49\,\text{GeV}}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{EFT UFO sample}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Top mass: \markdownRendererInlineMath{m_t = 172\,\text{GeV}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Yukawa: \markdownRendererInlineMath{y_t = 172\,\text{GeV}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Width: \markdownRendererInlineMath{\Gamma_t \approx 1.51\,\text{GeV}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem DIM6 block (excerpt): the EFT scale parameter is set to \markdownRendererInlineMath{\lambda = 1\,\text{TeV}}, and among the listed Wilson coefficients only \markdownRendererInlineMath{c_{tG}} is non-zero; all other entries in that block are set to zero.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEnd \markdownRendererInterblockSeparator
+{}This introduces a small mismatch between the SM reference samples and the EFT UFO sample in \markdownRendererInlineMath{m_t} and \markdownRendererInlineMath{\Gamma_t}, which is acceptable for many use cases but should be kept in mind for precision studies.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{3.3 K-factor construction in \markdownRendererInlineMath{m_{t\bar t}}}\markdownRendererInterblockSeparator
+{}To approximate NLO QCD effects for the EFT sample, a one-dimensional \markdownRendererInlineMath{K}-factor in the invariant mass of the top pair \markdownRendererInlineMath{m_{t\bar t}} is constructed.\markdownRendererParagraphSeparator
+{}For each LO or NLO SM event, top and anti-top four-vectors are reconstructed from the LHE records. If \markdownRendererInlineMath{p_t = (E_t, \vec p_t)} and \markdownRendererInlineMath{p_{\bar t} = (E_{\bar t}, \vec p_{\bar t})}, then\markdownRendererParagraphSeparator
+{}\markdownRendererDisplayMath{
+m_{t\bar t} = \sqrt{(E_t + E_{\bar t})^2 - \lVert \vec p_t + \vec p_{\bar t} \rVert^2} \,.
+}\markdownRendererParagraphSeparator
+{}Events are binned into \markdownRendererInlineMath{N_\text{bins} = 60} uniform bins in \markdownRendererInlineMath{m_{t\bar t} \in [m_\text{min}, m_\text{max}]} with\markdownRendererParagraphSeparator
+{}\markdownRendererDisplayMath{
+m_\text{min} = 340\,\text{GeV}, \quad m_\text{max} = 2000\,\text{GeV},
+}\markdownRendererParagraphSeparator
+{}and edges\markdownRendererParagraphSeparator
+{}\markdownRendererDisplayMath{
+m_i = m_\text{min} + i\,\Delta m, \quad \Delta m = \frac{m_\text{max} - m_\text{min}}{N_\text{bins}}, \quad i = 0, \dots, N_\text{bins}.
+}\markdownRendererParagraphSeparator
+{}If \markdownRendererInlineMath{N^i_\text{LO}} and \markdownRendererInlineMath{N^i_\text{NLO}} denote the number of events in bin \markdownRendererInlineMath{i} for the LO and NLO SM samples, respectively, then the bin-wise \markdownRendererInlineMath{K}-factors are defined as\markdownRendererParagraphSeparator
+{}\markdownRendererDisplayMath{
+K_i = \begin{cases}
+\dfrac{N^i_\text{NLO}}{N^i_\text{LO}} & \text{if } N^i_\text{LO} > 0, \\
+1 & \text{if } N^i_\text{LO} = 0.\end{cases}
+}\markdownRendererParagraphSeparator
+{}Events with \markdownRendererInlineMath{m_{t\bar t}} outside \markdownRendererInlineMath{[m_\text{min}, m_\text{max}]} are ignored in the histogram and do not affect the \markdownRendererInlineMath{K_i}.\markdownRendererParagraphSeparator
+{}The resulting array of edges \markdownRendererInlineMath{\{m_i\}} and values \markdownRendererInlineMath{\{K_i\}} is stored in JSON format as \markdownRendererCodeSpan{kfactors\markdownRendererUnderscore{}mtt.json}.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{3.4 Application of \markdownRendererInlineMath{K(m_{t\bar t})} to EFT UFO events}\markdownRendererInterblockSeparator
+{}For the EFT UFO sample, \markdownRendererInlineMath{m_{t\bar t}} is reconstructed per event using the first top and anti-top found in the LHE records (by PDG IDs \markdownRendererInlineMath{+6} and \markdownRendererInlineMath{-6}). The \markdownRendererInlineMath{K}-factor is then applied piecewise:\markdownRendererParagraphSeparator
+{}\markdownRendererDisplayMath{
+K(m_{t\bar t}) = \begin{cases}
+K_0, & m_{t\bar t} < m_0, \\
+K_i, & m_i \le m_{t\bar t} < m_{i+1}, \\
+K_{N_\text{bins}-1}, & m_{t\bar t} \ge m_{N_\text{bins}}.\end{cases}
+}\markdownRendererParagraphSeparator
+{}The new event weight is defined as\markdownRendererParagraphSeparator
+{}\markdownRendererDisplayMath{
+w_\text{new}(m_{t\bar t}) = w_\text{orig}\,K(m_{t\bar t}),
+}\markdownRendererParagraphSeparator
+{}where \markdownRendererInlineMath{w_\text{orig}} is the original weight from the UFO LHE file. Negative weights (if present) are preserved in sign and scaled in magnitude.\markdownRendererParagraphSeparator
+{}The script \markdownRendererCodeSpan{scripts/apply\markdownRendererUnderscore{}kfactor\markdownRendererUnderscore{}to\markdownRendererUnderscore{}lhe.py} performs this transformation and writes a CSV file \markdownRendererCodeSpan{ufo\markdownRendererUnderscore{}event\markdownRendererUnderscore{}weights.csv} with columns\markdownRendererParagraphSeparator
+{}\markdownRendererDisplayMath{
+(\text{ievt},\, m_{t\bar t},\, K(m_{t\bar t}),\, w_\text{orig},\, w_\text{new}).
+}\markdownRendererParagraphSeparator
+{}Note that events with \markdownRendererInlineMath{m_{t\bar t}} outside \markdownRendererInlineMath{[m_\text{min}, m_\text{max}]} are assigned \markdownRendererInlineMath{K_0} or \markdownRendererInlineMath{K_{N_\text{bins}-1}} as above, not \markdownRendererInlineMath{K=1}.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{3.5 Approximations and assumptions}\markdownRendererInterblockSeparator
+{}Key modeling assumptions:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem The EFT UFO sample is generated at LO in QCD; NLO QCD effects are approximated by a one-dimensional \markdownRendererInlineMath{K(m_{t\bar t})} derived from SM LO and NLO samples.\markdownRendererUlItemEnd 
+\markdownRendererUlItem The \markdownRendererInlineMath{K}-factor depends only on \markdownRendererInlineMath{m_{t\bar t}}, assuming that higher-order QCD corrections factorize and can be well approximated by a function of \markdownRendererInlineMath{m_{t\bar t}} alone.\markdownRendererUlItemEnd 
+\markdownRendererUlItem The same \markdownRendererInlineMath{K(m_{t\bar t})} is applied to the EFT process with \markdownRendererInlineMath{c_{tG} \ne 0}, assuming that NLO QCD corrections factorize similarly in the presence of this operator.\markdownRendererUlItemEnd 
+\markdownRendererUlItem SM and EFT samples have slightly different \markdownRendererInlineMath{m_t} and \markdownRendererInlineMath{\Gamma_t}, which may induce small inconsistencies in the mapping.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Background processes such as \markdownRendererInlineMath{W}+jets, single top, and QCD multijets are not included in this dataset; it contains only the EFT \markdownRendererInlineMath{t\bar t} signal.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Detector effects are modeled with Delphes 3.5.0 using a standard MG5-supplied card, not a full GEANT-based simulation, and no pileup.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}These approximations are acceptable for many new-physics sensitivity and machine-learning studies, but the dataset should not be used as a precision reference for full NLO+PS+EW phenomenology.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingTwo{4. Generation pipeline (from hard process to NPZ)}\markdownRendererInterblockSeparator
+{}This section summarizes the full pipeline orchestrated by \markdownRendererCodeSpan{/output/dataset/run.sh}.\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingThree{4.1 SM LO and NLO generation}\markdownRendererInterblockSeparator
+{}\markdownRendererOlBegin
+\markdownRendererOlItemWithNumber{1}\markdownRendererStrongEmphasis{SM NLO \markdownRendererInlineMath{pp \to t\bar t}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem MG5 card: \markdownRendererCodeSpan{scripts/mg5\markdownRendererUnderscore{}sm\markdownRendererUnderscore{}nlo\markdownRendererUnderscore{}ttbar.mg5}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Output directory: \markdownRendererCodeSpan{/output/dataset/output/proc\markdownRendererUnderscore{}sm\markdownRendererUnderscore{}nlo\markdownRendererUnderscore{}ttbar} (with run name \markdownRendererCodeSpan{sm\markdownRendererUnderscore{}nlo}).\markdownRendererUlItemEnd 
+\markdownRendererUlItem Settings:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererCodeSpan{ebeam1 = ebeam2 = 6500\markdownRendererBackslash{},\markdownRendererBackslash{}text\markdownRendererLeftBrace{}GeV\markdownRendererRightBrace{}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{pdlabel = lhapdf}, \markdownRendererCodeSpan{lhaid = 303400}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Dynamical scales with \markdownRendererCodeSpan{fixed\markdownRendererUnderscore{}ren\markdownRendererUnderscore{}scale = fixed\markdownRendererUnderscore{}fac\markdownRendererUnderscore{}scale = False}, \markdownRendererCodeSpan{dynamical\markdownRendererUnderscore{}scale\markdownRendererUnderscore{}choice = -1} (default MG5 dynamic scale), and reference scales \markdownRendererCodeSpan{\markdownRendererBackslash{}mu\markdownRendererUnderscore{}R\markdownRendererCircumflex{}\markdownRendererBackslash{}text\markdownRendererLeftBrace{}ref\markdownRendererRightBrace{} = \markdownRendererBackslash{}mu\markdownRendererUnderscore{}F\markdownRendererCircumflex{}\markdownRendererBackslash{}text\markdownRendererLeftBrace{}ref\markdownRendererRightBrace{} \markdownRendererBackslash{}approx 91.1\markdownRendererBackslash{},\markdownRendererBackslash{}text\markdownRendererLeftBrace{}GeV\markdownRendererRightBrace{}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem No parton shower in this step (\markdownRendererCodeSpan{shower=OFF} in the card, and run in "noshower" mode).\markdownRendererUlItemEnd 
+\markdownRendererUlItem Generator-level cuts: minimal jet transverse momentum of 10 GeV (\markdownRendererCodeSpan{ptj = 10}), minimal photon transverse momentum of 20 GeV (\markdownRendererCodeSpan{ptgmin = 20}), and no explicit \markdownRendererInlineMath{\eta} cuts on jets or leptons (\markdownRendererCodeSpan{etaj = -1}, \markdownRendererCodeSpan{etal = -1}).\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererOlItemEnd 
+\markdownRendererOlItemWithNumber{2}\markdownRendererStrongEmphasis{SM LO \markdownRendererInlineMath{pp \to t\bar t}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem MG5 card: \markdownRendererCodeSpan{scripts/mg5\markdownRendererUnderscore{}sm\markdownRendererUnderscore{}lo\markdownRendererUnderscore{}ttbar.mg5}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Output directory: \markdownRendererCodeSpan{/output/dataset/output/proc\markdownRendererUnderscore{}sm\markdownRendererUnderscore{}lo\markdownRendererUnderscore{}ttbar} (run name \markdownRendererCodeSpan{sm\markdownRendererUnderscore{}lo}).\markdownRendererUlItemEnd 
+\markdownRendererUlItem Settings: same collider and PDF configuration as NLO, LO matrix elements, and no explicit generator-level \markdownRendererInlineMath{p_T} or \markdownRendererInlineMath{\eta} cuts beyond MG5 defaults.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererOlItemEnd 
+\markdownRendererOlEnd \markdownRendererInterblockSeparator
+{}Both SM samples use a 4-flavor scheme (\markdownRendererCodeSpan{maxjetflavor = 4} in the LO and UFO run cards), treating \markdownRendererInlineMath{b} as heavier than the maximum jet flavor.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{4.2 K-factor construction}\markdownRendererInterblockSeparator
+{}The script \markdownRendererCodeSpan{scripts/build\markdownRendererUnderscore{}kfactor\markdownRendererUnderscore{}mtt.py} is called with\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/25a79e3fc90f9deb811acf121cc8d6e5.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}It automatically locates the relevant LHE files in the \markdownRendererCodeSpan{Events/} subdirectories, reconstructs \markdownRendererInlineMath{m_{t\bar t}} per event, fills LO and NLO histograms, and computes \markdownRendererInlineMath{K_i} as described in Section 3.3. The resulting JSON is later used to reweight the EFT UFO sample.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{4.3 EFT UFO generation}\markdownRendererInterblockSeparator
+{}The EFT process \markdownRendererCodeSpan{pp \markdownRendererBackslash{}to t\markdownRendererBackslash{}bar t} with \markdownRendererCodeSpan{DIM6=1} and \markdownRendererCodeSpan{FCNC=0} is generated using\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/677abe65004984e5c30e9d7949063fc2.verbatim}{text}{text}\markdownRendererInterblockSeparator
+{}with key lines:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererCodeSpan{import model /opt/MG5\markdownRendererUnderscore{}aMC/models/dim6top\markdownRendererUnderscore{}LO\markdownRendererUnderscore{}UFO}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{generate p p > t t\markdownRendererTilde{} FCNC=0 DIM6=1}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{set ctG 1.0}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{set ebeam1 6500}, \markdownRendererCodeSpan{set ebeam2 6500}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{set pdlabel lhapdf}, \markdownRendererCodeSpan{set lhaid 303400}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}MG5 outputs to \markdownRendererCodeSpan{/output/dataset/output/proc\markdownRendererUnderscore{}ufo\markdownRendererUnderscore{}parton\markdownRendererUnderscore{}ttbar} with run name \markdownRendererCodeSpan{ufo\markdownRendererUnderscore{}parton}, producing an unweighted UFO LHE file at parton level.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{4.4 Reweighting UFO events}\markdownRendererInterblockSeparator
+{}The script \markdownRendererCodeSpan{scripts/apply\markdownRendererUnderscore{}kfactor\markdownRendererUnderscore{}to\markdownRendererUnderscore{}lhe.py} is then used to apply the \markdownRendererInlineMath{m_{t\bar t}}-dependent \markdownRendererInlineMath{K}-factor to the UFO events:\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/6fccacc06c208ad96d8219a2ff4edae6.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}The resulting reweighted LHE file replaces the original UFO LHE, and \markdownRendererCodeSpan{ufo\markdownRendererUnderscore{}event\markdownRendererUnderscore{}weights.csv} records \markdownRendererInlineMath{(\text{ievt}, m_{t\bar t}, K, w_\text{orig}, w_\text{new})} for each event.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{4.5 Pythia8 shower and Delphes detector simulation}\markdownRendererInterblockSeparator
+{}\markdownRendererCodeSpan{run.sh} then:\markdownRendererInterblockSeparator
+{}\markdownRendererOlBegin
+\markdownRendererOlItemWithNumber{1}Ensures MG5 configuration values for Pythia8 and the MG5aMC–Pythia interface are set in \markdownRendererCodeSpan{me5\markdownRendererUnderscore{}configuration.txt} under \markdownRendererCodeSpan{proc\markdownRendererUnderscore{}ufo\markdownRendererUnderscore{}parton\markdownRendererUnderscore{}ttbar/Cards}.\markdownRendererOlItemEnd 
+\markdownRendererOlItemWithNumber{2}Selects a Delphes card by copying the first matching \markdownRendererCodeSpan{delphes\markdownRendererUnderscore{}card*.dat} from\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/Template/Cards/} or\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{/opt/MG5\markdownRendererUnderscore{}aMC/Template/Common/Cards/}\markdownRendererSoftLineBreak
+{}into \markdownRendererCodeSpan{/output/dataset/output/proc\markdownRendererUnderscore{}ufo\markdownRendererUnderscore{}parton\markdownRendererUnderscore{}ttbar/Cards/delphes\markdownRendererUnderscore{}card.dat}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererOlItemEnd 
+\markdownRendererOlItemWithNumber{3}Runs MG5’s \markdownRendererCodeSpan{madevent} with the commands\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/b9966ada17fbb7d2128a66f463428d54.verbatim}{text}{text}\markdownRendererInterblockSeparator
+{}to shower the UFO events with Pythia8 and then simulate detector response with Delphes.\markdownRendererOlItemEnd 
+\markdownRendererOlEnd \markdownRendererInterblockSeparator
+{}The resulting Delphes ROOT file is stored under \markdownRendererCodeSpan{proc\markdownRendererUnderscore{}ufo\markdownRendererUnderscore{}parton\markdownRendererUnderscore{}ttbar/Events/ufo\markdownRendererUnderscore{}parton/} and the first \markdownRendererCodeSpan{tag\markdownRendererUnderscore{}*\markdownRendererUnderscore{}delphes*.root} is copied into\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererCodeSpan{/output/dataset/output/dataset/ufo\markdownRendererUnderscore{}ttbar\markdownRendererUnderscore{}reweighted\markdownRendererUnderscore{}delphes.root}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{4.6 ROOT to NPZ conversion}\markdownRendererInterblockSeparator
+{}The last step uses \markdownRendererCodeSpan{scripts/delphes\markdownRendererUnderscore{}to\markdownRendererUnderscore{}npz.py}:\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/0ad8e0659520892f22193f55ae3bfd4f.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}This script:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Opens the \markdownRendererCodeSpan{Delphes} tree in the ROOT file with \markdownRendererCodeSpan{uproot}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Reads jet, MET, electron, muon, and event-level branches using \markdownRendererCodeSpan{awkward} for jagged arrays.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Pads jets to \markdownRendererCodeSpan{\markdownRendererBackslash{}text\markdownRendererLeftBrace{}max\markdownRendererBackslash{}\markdownRendererUnderscore{}jets\markdownRendererRightBrace{} = 10}, electrons to \markdownRendererCodeSpan{\markdownRendererBackslash{}text\markdownRendererLeftBrace{}max\markdownRendererBackslash{}\markdownRendererUnderscore{}ele\markdownRendererRightBrace{} = 4}, and muons to \markdownRendererCodeSpan{\markdownRendererBackslash{}text\markdownRendererLeftBrace{}max\markdownRendererBackslash{}\markdownRendererUnderscore{}mu\markdownRendererRightBrace{} = 4} using zero-padding.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Extracts event weights and cross sections from the \markdownRendererCodeSpan{Event} branch.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Writes all arrays into \markdownRendererCodeSpan{ufo\markdownRendererUnderscore{}ttbar\markdownRendererUnderscore{}reweighted.npz} as compressed NumPy arrays.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingTwo{5. Dataset contents and field definitions}\markdownRendererInterblockSeparator
+{}The NPZ file \markdownRendererCodeSpan{ufo\markdownRendererUnderscore{}ttbar\markdownRendererUnderscore{}reweighted.npz} contains 17 arrays. All arrays have a leading dimension of \markdownRendererInlineMath{N = 100000} events.\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingThree{5.1 Overview of fields}\markdownRendererInterblockSeparator
+{}\markdownRendererTable{}{18}{6}{dddddd}{{Field}{Shape}{Dtype}{Description}{Units}{Level}}{{\markdownRendererCodeSpan{event\markdownRendererUnderscore{}weight}}{\markdownRendererInlineMath{(N, 1)}}{float32}{Per-event weight after EFT + \markdownRendererInlineMath{K(m_{t\bar t})}}{1}{event}}{{\markdownRendererCodeSpan{event\markdownRendererUnderscore{}xs\markdownRendererUnderscore{}pb}}{\markdownRendererInlineMath{(N, 1)}}{float32}{Per-event cross section}{pb}{event}}{{\markdownRendererCodeSpan{met}}{\markdownRendererInlineMath{(N, 1)}}{float32}{Missing transverse energy \markdownRendererInlineMath{E_T^{\text{miss}}}}{GeV}{event}}{{\markdownRendererCodeSpan{met\markdownRendererUnderscore{}phi}}{\markdownRendererInlineMath{(N, 1)}}{float32}{Azimuthal angle of MET}{rad}{event}}{{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}pt}}{\markdownRendererInlineMath{(N, 10)}}{float64}{Jet transverse momentum}{GeV}{jet}}{{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}eta}}{\markdownRendererInlineMath{(N, 10)}}{float64}{Jet pseudorapidity}{1}{jet}}{{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}phi}}{\markdownRendererInlineMath{(N, 10)}}{float64}{Jet azimuthal angle}{rad}{jet}}{{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}mass}}{\markdownRendererInlineMath{(N, 10)}}{float64}{Jet invariant mass}{GeV}{jet}}{{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}btag}}{\markdownRendererInlineMath{(N, 10)}}{int64}{Jet \markdownRendererInlineMath{b}-tag flag}{0/1}{jet}}{{\markdownRendererCodeSpan{ele\markdownRendererUnderscore{}pt}}{\markdownRendererInlineMath{(N, 4)}}{float64}{Electron transverse momentum}{GeV}{lepton}}{{\markdownRendererCodeSpan{ele\markdownRendererUnderscore{}eta}}{\markdownRendererInlineMath{(N, 4)}}{float64}{Electron pseudorapidity}{1}{lepton}}{{\markdownRendererCodeSpan{ele\markdownRendererUnderscore{}phi}}{\markdownRendererInlineMath{(N, 4)}}{float64}{Electron azimuthal angle}{rad}{lepton}}{{\markdownRendererCodeSpan{ele\markdownRendererUnderscore{}q}}{\markdownRendererInlineMath{(N, 4)}}{int64}{Electron charge}{\markdownRendererInlineMath{\pm 1}}{lepton}}{{\markdownRendererCodeSpan{mu\markdownRendererUnderscore{}pt}}{\markdownRendererInlineMath{(N, 4)}}{float64}{Muon transverse momentum}{GeV}{lepton}}{{\markdownRendererCodeSpan{mu\markdownRendererUnderscore{}eta}}{\markdownRendererInlineMath{(N, 4)}}{float64}{Muon pseudorapidity}{1}{lepton}}{{\markdownRendererCodeSpan{mu\markdownRendererUnderscore{}phi}}{\markdownRendererInlineMath{(N, 4)}}{float64}{Muon azimuthal angle}{rad}{lepton}}{{\markdownRendererCodeSpan{mu\markdownRendererUnderscore{}q}}{\markdownRendererInlineMath{(N, 4)}}{int64}{Muon charge}{\markdownRendererInlineMath{\pm 1}}{lepton}}\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{5.2 Event-level fields}\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingFour{\markdownRendererCodeSpan{event\markdownRendererUnderscore{}weight}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 1)}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Dtype: float32.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: per-event weight, propagated from the Delphes \markdownRendererCodeSpan{Event.Weight} branch. Given the pipeline, this weight incorporates the EFT contribution and the \markdownRendererInlineMath{m_{t\bar t}}-dependent \markdownRendererInlineMath{K}-factor.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: dimensionless.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Notes: weights may be positive or negative; a small fraction of events can have negative weights, which is normal in Monte Carlo simulations involving reweighting.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{\markdownRendererCodeSpan{event\markdownRendererUnderscore{}xs\markdownRendererUnderscore{}pb}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 1)}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Dtype: float32.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: per-event cross section, from the Delphes \markdownRendererCodeSpan{Event.CrossSection} branch.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: picobarns (pb), following Delphes conventions.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Notes: for unweighted samples, one typically has \markdownRendererInlineMath{\sum_i w_i = \sigma_\text{tot}} in pb; here, both \markdownRendererCodeSpan{event\markdownRendererUnderscore{}xs\markdownRendererUnderscore{}pb} and \markdownRendererCodeSpan{event\markdownRendererUnderscore{}weight} are provided for flexibility.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{\markdownRendererCodeSpan{met} and \markdownRendererCodeSpan{met\markdownRendererUnderscore{}phi}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBegin
+\markdownRendererUlItem \markdownRendererCodeSpan{met}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 1)}, dtype float32.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: missing transverse energy \markdownRendererInlineMath{E_T^{\text{miss}}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: GeV.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{met\markdownRendererUnderscore{}phi}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 1)}, dtype float32.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: azimuthal angle of the MET vector.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: radians.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Convention: standard azimuth in the transverse plane, expected in \markdownRendererInlineMath{[-\pi, \pi)}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEnd \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{5.3 Jet fields}\markdownRendererInterblockSeparator
+{}All jet arrays have shape \markdownRendererInlineMath{(N, N_\text{jets}^{\text{max}})} with \markdownRendererInlineMath{N_\text{jets}^{\text{max}} = 10}.\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Origin:} Delphes \markdownRendererCodeSpan{Jet} branches, e.g. \markdownRendererCodeSpan{Jet.PT}, \markdownRendererCodeSpan{Jet.Eta}, \markdownRendererCodeSpan{Jet.Phi}, \markdownRendererCodeSpan{Jet.Mass}, and \markdownRendererCodeSpan{Jet.BTag}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Ordering:} Inherited from Delphes. In standard Delphes cards, jets are ordered by decreasing \markdownRendererInlineMath{p_T}, but this is not explicitly re-sorted by \markdownRendererCodeSpan{delphes\markdownRendererUnderscore{}to\markdownRendererUnderscore{}npz.py}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Padding:} Events with fewer than 10 jets are padded with zeros:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererInlineMath{p_T = 0}, \markdownRendererInlineMath{\eta = 0}, \markdownRendererInlineMath{\phi = 0}, \markdownRendererInlineMath{m = 0}, \markdownRendererInlineMath{b\text{tag} = 0} indicate "no jet" at that index.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingFour{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}pt}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 10)}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Dtype: float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: transverse momentum of reconstructed jets.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: GeV.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}eta}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 10)}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Dtype: float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: pseudorapidity of jets.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: dimensionless.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Convention: \markdownRendererInlineMath{\eta = -\ln \tan(\theta/2)} with \markdownRendererInlineMath{\theta} the polar angle.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}phi}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 10)}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Dtype: float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: azimuthal angle of jets.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: radians.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Convention: standard azimuth in the transverse plane, expected in \markdownRendererInlineMath{[-\pi, \pi)}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}mass}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 10)}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Dtype: float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: reconstructed invariant mass of jets.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: GeV.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{\markdownRendererCodeSpan{jet\markdownRendererUnderscore{}btag}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 10)}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Dtype: int64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: \markdownRendererInlineMath{b}-tag flag per jet.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Values: 1 for \markdownRendererInlineMath{b}-tagged jets, 0 otherwise.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Notes: padded jets always have \markdownRendererCodeSpan{jet\markdownRendererUnderscore{}btag = 0}.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{5.4 Electron and muon fields}\markdownRendererInterblockSeparator
+{}Electron and muon arrays each have shape \markdownRendererInlineMath{(N, N_\ell^{\text{max}})} with \markdownRendererInlineMath{N_\ell^{\text{max}} = 4}.\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Origin:} Delphes \markdownRendererCodeSpan{Electron} and \markdownRendererCodeSpan{Muon} branches.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Ordering:} Inherited from Delphes, typically by decreasing \markdownRendererInlineMath{p_T}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Padding:} Events with fewer than 4 leptons of a given flavor are padded with zeros:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem \markdownRendererInlineMath{p_T = 0}, \markdownRendererInlineMath{\eta = 0}, \markdownRendererInlineMath{\phi = 0}, \markdownRendererInlineMath{q = 0} indicate no lepton at that index.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingFour{Electron fields: \markdownRendererCodeSpan{ele\markdownRendererUnderscore{}pt}, \markdownRendererCodeSpan{ele\markdownRendererUnderscore{}eta}, \markdownRendererCodeSpan{ele\markdownRendererUnderscore{}phi}, \markdownRendererCodeSpan{ele\markdownRendererUnderscore{}q}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBegin
+\markdownRendererUlItem \markdownRendererCodeSpan{ele\markdownRendererUnderscore{}pt}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 4)}, dtype float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: electron transverse momentum.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: GeV.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{ele\markdownRendererUnderscore{}eta}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 4)}, dtype float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: electron pseudorapidity.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: dimensionless.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{ele\markdownRendererUnderscore{}phi}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 4)}, dtype float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: electron azimuthal angle.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: radians.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{ele\markdownRendererUnderscore{}q}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 4)}, dtype int64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: electron charge.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: units of \markdownRendererInlineMath{e}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Values: \markdownRendererInlineMath{+1} for positrons, \markdownRendererInlineMath{-1} for electrons; 0 indicates a padded (non-existent) slot.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEnd \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingFour{Muon fields: \markdownRendererCodeSpan{mu\markdownRendererUnderscore{}pt}, \markdownRendererCodeSpan{mu\markdownRendererUnderscore{}eta}, \markdownRendererCodeSpan{mu\markdownRendererUnderscore{}phi}, \markdownRendererCodeSpan{mu\markdownRendererUnderscore{}q}}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBegin
+\markdownRendererUlItem \markdownRendererCodeSpan{mu\markdownRendererUnderscore{}pt}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 4)}, dtype float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: muon transverse momentum.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: GeV.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{mu\markdownRendererUnderscore{}eta}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 4)}, dtype float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: muon pseudorapidity.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: dimensionless.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{mu\markdownRendererUnderscore{}phi}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 4)}, dtype float64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: muon azimuthal angle.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: radians.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererCodeSpan{mu\markdownRendererUnderscore{}q}:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Shape: \markdownRendererInlineMath{(N, 4)}, dtype int64.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Meaning: muon charge.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Units: units of \markdownRendererInlineMath{e}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Values: \markdownRendererInlineMath{+1} for \markdownRendererInlineMath{\mu^+}, \markdownRendererInlineMath{-1} for \markdownRendererInlineMath{\mu^-}; 0 indicates padding.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEnd \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingTwo{6. Verification and smoke tests}\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingThree{6.1 Inspecting the NPZ structure}\markdownRendererInterblockSeparator
+{}After activating the Python environment and ensuring that this project is available at \markdownRendererCodeSpan{/output/dataset}, you can inspect the NPZ file using\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/f8d235d4a5f770647e69c22b5e24897c.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}This script prints\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem the NPZ path,\markdownRendererUlItemEnd 
+\markdownRendererUlItem the list of keys,\markdownRendererUlItemEnd 
+\markdownRendererUlItem the inferred number of events, and\markdownRendererUlItemEnd 
+\markdownRendererUlItem for each field: shape, dtype, and basic statistics (min, max, mean) and, where appropriate, the distribution of discrete values (e.g. charges, \markdownRendererInlineMath{b}-tags).\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{6.2 Plotting basic distributions}\markdownRendererInterblockSeparator
+{}A plotting script \markdownRendererCodeSpan{documentation/scripts/plot\markdownRendererUnderscore{}distributions.py} is provided with this project; you can generate basic diagnostic plots, for example:\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/04400b27c65acf890a4a26671c76977b.verbatim}{bash}{bash}\markdownRendererInterblockSeparator
+{}Typical plots (assuming they are created under \markdownRendererCodeSpan{documentation/plots/}) include\markdownRendererInterblockSeparator
+{}\markdownRendererUlBegin
+\markdownRendererUlItem Leading jet \markdownRendererInlineMath{p_T} distribution:\markdownRendererParagraphSeparator
+{}\markdownRendererImage{Leading jet \markdownRendererInlineMath{p_T} distribution}{../figs/plots\markdownRendererUnderscore{}documentation/leading\markdownRendererUnderscore{}jet\markdownRendererUnderscore{}pt.png}{../figs/plots_documentation/leading_jet_pt.png}{}\markdownRendererUlItemEnd 
+\markdownRendererUlItem MET distribution:\markdownRendererParagraphSeparator
+{}\markdownRendererImage{MET distribution}{../figs/plots\markdownRendererUnderscore{}documentation/met.png}{../figs/plots_documentation/met.png}{}\markdownRendererUlItemEnd 
+\markdownRendererUlItem Event-weight distribution:\markdownRendererParagraphSeparator
+{}\markdownRendererImage{Event weight distribution}{../figs/plots\markdownRendererUnderscore{}documentation/event\markdownRendererUnderscore{}weight.png}{../figs/plots_documentation/event_weight.png}{}\markdownRendererUlItemEnd 
+\markdownRendererUlItem Jet multiplicity:\markdownRendererParagraphSeparator
+{}\markdownRendererImage{Jet multiplicity}{../figs/plots\markdownRendererUnderscore{}documentation/jet\markdownRendererUnderscore{}multiplicity.png}{../figs/plots_documentation/jet_multiplicity.png}{}\markdownRendererUlItemEnd 
+\markdownRendererUlItem Lepton multiplicity (electrons + muons):\markdownRendererParagraphSeparator
+{}\markdownRendererImage{Lepton multiplicity}{../figs/plots\markdownRendererUnderscore{}documentation/lepton\markdownRendererUnderscore{}multiplicity.png}{../figs/plots_documentation/lepton_multiplicity.png}{}\markdownRendererUlItemEnd 
+\markdownRendererUlEnd \markdownRendererInterblockSeparator
+{}These plots provide a quick visual check that the dataset looks reasonable for EFT \markdownRendererInlineMath{t\bar t} production: typical jet multiplicities, MET tails, and weight distributions.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{6.3 Reduced-run reproduction test (conceptual)}\markdownRendererInterblockSeparator
+{}To test the full pipeline on a clean installation without regenerating the entire 100k-event dataset, one can conceptually perform a reduced run:\markdownRendererInterblockSeparator
+{}\markdownRendererOlBegin
+\markdownRendererOlItemWithNumber{1}Set environment variables to reduce the number of events, e.g.\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/869ccfa807b3fad882069ce7cb49027b.verbatim}{bash}{bash}\markdownRendererOlItemEnd 
+\markdownRendererOlItemWithNumber{2}Run the pipeline:\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/ece3c75a369b29c0c88194769bc65e3b.verbatim}{bash}{bash}\markdownRendererOlItemEnd 
+\markdownRendererOlItemWithNumber{3}Inspect the new NPZ and compare with the reference:\markdownRendererInterblockSeparator
+{}\markdownRendererInputFencedCode{md-cache/c3809ef778c446be0586395eb30d72d1.verbatim}{bash}{bash}\markdownRendererOlItemEnd 
+\markdownRendererOlItemWithNumber{4}Compare summary statistics (mean MET, mean leading jet \markdownRendererInlineMath{p_T}, etc.) and distribution shapes to those from the reference dataset, allowing for statistical fluctuations.\markdownRendererOlItemEnd 
+\markdownRendererOlEnd \markdownRendererInterblockSeparator
+{}This test validates that the MG5\markdownRendererUnderscore{}aMC + Pythia8 + Delphes stack and the Python environment are correctly configured.\markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingTwo{7. Validity regime, use cases, and limitations}\markdownRendererInterblockSeparator
+{}\markdownRendererSectionBegin
+\markdownRendererHeadingThree{7.1 Included physics and intended use}\markdownRendererInterblockSeparator
+{}The dataset is well suited for:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Studies of EFT effects in \markdownRendererInlineMath{t\bar t} production with a non-zero chromomagnetic operator \markdownRendererInlineMath{c_{tG}}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Machine-learning applications (classification and regression) using Delphes-level objects (jets, leptons, MET) and event weights.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Benchmarking reconstruction algorithms and simplified analyses that do not require full detector or background modeling.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}Relevant physics ingredients:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem LO matrix elements for SM and EFT \markdownRendererInlineMath{pp \to t\bar t}.\markdownRendererUlItemEnd 
+\markdownRendererUlItem SM NLO corrections approximated by an \markdownRendererInlineMath{m_{t\bar t}}-dependent \markdownRendererInlineMath{K}-factor.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Pythia8 parton showering and hadronization.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Delphes 3.5.0 fast detector simulation with a standard MG5-supplied card.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{7.2 Limitations and caveats}\markdownRendererInterblockSeparator
+{}Users should be aware of the following limitations:\markdownRendererInterblockSeparator
+{}\markdownRendererUlBegin
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Approximate NLO effects:}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem The EFT UFO sample is LO in QCD; NLO QCD effects are approximated by a one-dimensional \markdownRendererInlineMath{K(m_{t\bar t})} derived from SM LO and NLO samples.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Correlations beyond \markdownRendererInlineMath{m_{t\bar t}} (e.g. in jet multiplicities, angular variables) are not modeled at NLO accuracy.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{EFT-specific assumptions:}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Only one dim-6 operator (\markdownRendererInlineMath{c_{tG}}) is non-zero in the DIM6 block; other Wilson coefficients are set to zero.\markdownRendererUlItemEnd 
+\markdownRendererUlItem The applicability of SM-derived \markdownRendererInlineMath{K}-factors to EFT kinematics is an assumption and has not been validated beyond the one-dimensional \markdownRendererInlineMath{m_{t\bar t}} comparison.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Top mass and width mismatch:}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem SM and EFT samples use slightly different \markdownRendererInlineMath{m_t} and \markdownRendererInlineMath{\Gamma_t}, which could introduce small shape differences unrelated to EFT effects.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{No backgrounds:}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem The dataset contains only signal \markdownRendererInlineMath{t\bar t} events with EFT contributions; no SM background processes are included.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Detector modeling:}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem Detector response is modeled by Delphes 3.5.0 with a standard card; there is no full GEANT-based simulation and no explicit pileup modeling.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Performance metrics derived from this dataset are not directly comparable to full experimental analyses.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlItem \markdownRendererStrongEmphasis{Reproducibility:}\markdownRendererInterblockSeparator
+{}\markdownRendererUlBeginTight
+\markdownRendererUlItem The documentation lists explicit generator versions and reasonable Python package versions, but exact internal states (random seeds, compiler versions, parallelization details) are not fully controlled.\markdownRendererUlItemEnd 
+\markdownRendererUlItem All run cards set \markdownRendererCodeSpan{iseed = 0}, allowing MadGraph5\markdownRendererUnderscore{}aMC to choose random seeds automatically; for strict bitwise determinism, one would need to fix \markdownRendererCodeSpan{iseed} explicitly in the run cards.\markdownRendererUlItemEnd 
+\markdownRendererUlItem Regenerated datasets will be statistically consistent but not bit-identical.\markdownRendererUlItemEnd 
+\markdownRendererUlEndTight \markdownRendererUlItemEnd 
+\markdownRendererUlEnd \markdownRendererInterblockSeparator
+{}
+\markdownRendererSectionEnd \markdownRendererSectionBegin
+\markdownRendererHeadingThree{7.3 Summary}\markdownRendererInterblockSeparator
+{}This dataset provides a controlled and well-documented environment for studying EFT effects in \markdownRendererInlineMath{pp \to t\bar t} at 13 TeV with a non-zero chromomagnetic operator \markdownRendererInlineMath{c_{tG}}, including parton shower and fast detector simulation. It is designed for analyses that emphasize qualitative and semi-quantitative behavior rather than precision phenomenology. Users should account for the approximations and limitations described above when interpreting results.
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd 
+\markdownRendererSectionEnd \markdownRendererDocumentEnd

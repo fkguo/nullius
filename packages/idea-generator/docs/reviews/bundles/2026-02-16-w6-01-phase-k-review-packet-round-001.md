@@ -1,0 +1,107 @@
+# W6-01 Phase K Review Packet (Round-001) — Dispersion-Coupled SOCP Robustness + Full-Interior Enforcement
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## What changed (why this is the “publishable-strength” step)
+
+Phase J (W6-06) introduced the key idea:
+- couple analyticity + GTB positivity more tightly by reconstructing ${\rm Re}A(s)$ via a PV dispersion relation and enforcing the **full modulus cone**
+  $$({\rm Re}A)^2+({\rm Im}A)^2 \le c_{\rm fac}(s)\,\rho(s).$$
+
+The Phase J dual review flagged blockers (solver reliability, PV discretization, subset-enforcement bias, reproducibility gates).
+
+Phase K addresses those blockers with **auditable robustness work** and produces a materially stronger numerical bound.
+
+## Key engineering hardening (auditable)
+
+1) **Solver diagnostics recorded in results**  
+`idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl`
+- `results.json` now records per-objective diagnostics (`min_diag` / `max_diag`) and feasibility diagnostics (`feasibility_diag`) using solver-agnostic MOI attributes when available.
+
+2) **Full interior enforcement (removes under-enforcement bias for Phase K runs)**  
+Same file:
+- When `dispersion_reF.enabled=true` and `n_enforce >= n_available` (interior points after skipping endpoints), the solver enforces PV+modulus on **all interior $s$-grid points** (avoids rounding/duplicate artifacts from evenly-spaced selection).
+
+3) **Failure closure for solver backends that do not converge**  
+Recorded as a structured negative result:
+- `idea-runs/projects/.../evidence/neg_results/2026-02-16-v16-cosmo-scs-iteration-limit.txt`
+- appended to `idea-runs/projects/.../artifacts/ideas/failed_approach_v1.jsonl` (failure_mode=`numerics_solver_nonconvergence`)
+- island progress event appended (FAILURE_RECORDED) and dashboards rerendered.
+
+## Key numerical result (load-bearing)
+
+We compare 4 conic runs (all with the same physics assumptions as Phase J: pion-only, no coupled-channel; sum rules + K0 positivity + elastic-window sign + pQCD tail + SVZ/IR constraints; see configs below).
+
+Summary table (computed in):
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-k-robustness-summary-v3.txt`
+
+Key deltas (contiguous positivity window on scanned grid; $Q^*$ is the last scanned point with $A_{\min}(-Q^2)>0$ for all smaller scanned $Q^2$):
+
+- Baseline v14 (Im-only SOCP, grid120):
+  - $A_{\min}(-10m_\pi^2)=0.06653$
+  - $Q^*=13.899\,m_\pi^2$, $A_{\min}(-Q^*)=0.00995$
+- Phase J best v15b (PV+modulus on 60 points, grid120):
+  - $A_{\min}(-10m_\pi^2)=0.07244$
+  - $Q^*=15.438\,m_\pi^2$, $A_{\min}(-Q^*)=9.13\times 10^{-4}$
+- Phase K v16 (PV+modulus full interior, grid160):
+  - $A_{\min}(-10m_\pi^2)=0.08043$
+  - $Q^*=15.438\,m_\pi^2$, $A_{\min}(-Q^*)=0.00713$
+- Phase K v17 (PV+modulus full interior, grid200):
+  - $A_{\min}(-10m_\pi^2)=0.08065$
+  - $Q^*=15.438\,m_\pi^2$, $A_{\min}(-Q^*)=0.00728$
+
+Interpretation: PV+full-modulus coupling + full interior enforcement makes the positive-lower-bound feature **much more robust** (edge lifted by ~8× vs v15b) while keeping the same $Q^*$ on the current scan grid.
+
+## Robustness evidence (addresses the W6-06 review blockers)
+
+1) **Grid-density convergence (PV discretization sanity check)**  
+We ran full-grid v16 (grid160) and v17 (grid200); the key numbers are stable at the few-1e-4–1e-3 level.
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-k-v16-full-grid160-enf160-summary-v1.txt`
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-k-v17-full-grid200-enf200-summary-v1.txt`
+
+2) **Cross-solver validation (Clarabel vs ECOS)**  
+Mini-Q2 audit at $Q^2=\{10,15.438,17.147\}$ shows agreement at ~1e-3:
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-01-phase-k-v16-cross-solver-clarabel-vs-ecos-v1.txt`
+
+3) **Subset enforcement bias**  
+Phase K runs use the “full interior” mode (`n_disp_indices=152` for grid160, `192` for grid200), removing the main under-enforcement concern for these headline numbers.
+
+## Repro commands (from project root)
+
+Mainline:
+```bash
+julia --project=compute/julia compute/julia/bochner_k0_socp_dispersion_bounds.jl \
+  --config compute/a_bochner_k0_socp_config_v2e_dispersion_grid160_enf160_full.json
+
+julia --project=compute/julia compute/julia/bochner_k0_socp_dispersion_bounds.jl \
+  --config compute/a_bochner_k0_socp_config_v2f_dispersion_grid200_enf200_full.json
+```
+
+Cross-solver audit:
+```bash
+julia --project=compute/julia compute/julia/bochner_k0_socp_dispersion_bounds.jl \
+  --config compute/a_bochner_k0_socp_config_v2e_dispersion_grid160_enf160_full_ecos_smoke.json
+```
+
+## Report update (NOT_FOR_CITATION)
+
+The manuscript-style draft now includes Phase I/J/K narrative and the tightened bound table:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+
+## Gates / bookkeeping (Phase K preflight)
+
+- Board sync preflight snapshot: `docs/reviews/bundles/2026-02-16-w6-01-phase-k-board-sync-preflight-v2.txt`
+- Gates:
+  - `docs/reviews/bundles/2026-02-16-w6-01-phase-k-idea-generator-validate-v1.txt`
+  - `docs/reviews/bundles/2026-02-16-w6-01-phase-k-idea-runs-validate-v1.txt`
+  - `docs/reviews/bundles/2026-02-16-w6-01-phase-k-idea-runs-validate-project-v3.txt`
+- Failure library hook (post-Phase K updates):
+  - `docs/reviews/bundles/2026-02-16-w6-01-phase-k-failure-library-index-build-v2.txt`
+  - `docs/reviews/bundles/2026-02-16-w6-01-phase-k-failure-library-query-run-v2.txt`
+
+## Reviewer questions (what we need from you)
+
+1) Is the Phase K evidence now sufficient for `VERDICT: READY` under the “tightened convex bound under explicit assumptions” claim boundary?
+2) Any remaining *load-bearing* robustness gaps before we sync the board card body and proceed to the next tightening idea (e.g., Gram PSD or kernel optimization)?
+3) Any editorial suggestions for how to phrase “transverse-density positivity vs GTB PSD” differences without overclaiming?
+

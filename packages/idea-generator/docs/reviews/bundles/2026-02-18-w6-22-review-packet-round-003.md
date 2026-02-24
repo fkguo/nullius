@@ -1,0 +1,148 @@
+# W6-22 Review Packet (Round-003) — **soft ASR (UV) band** + **expanded scans** + **tail-split audit**
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## What changed since Round-001/002 (addresses Opus blockers)
+
+1) **Explicit ASR tail subtraction audit split** in `results.json` residuals:
+   - `asr_grid_integral_over_pi`
+   - `asr_tail_integral_over_pi`
+   - `asr_total_integral_over_pi`
+   - `asr_eq_over_pi`, `asr_within_band`
+
+2) **Expanded implied-$f_1$ vs ${\rm tol}_{\rm ASR}$ scan** (monotonicity + more points):  
+   tol ${\rm tol}_{\rm ASR}\in\\{55,58,60,61,62,64,66,70\\}$ (runs v68–v75).
+
+3) **Expanded $A^\\pi(-Q^*)$ bounds vs ${\rm tol}_{\rm ASR}$ scan** with slope input:  
+   tol ${\rm tol}_{\rm ASR}\in\\{62,70,80,100,150,200\\}$ (runs v76–v81) + Clarabel cross-check at tol=62 (run v82).
+
+Canonical scan table note (instance repo):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/evidence/2026-02-18-w6-22-asrband-scan-summary-v1.md`
+
+## Purpose (same)
+
+W6-21 identified ASR (the asymptotic sum rule / superconvergence) as a dominant “UV knob” controlling both:
+- the upper envelope $A_{\\max}(-Q^2)$, and
+- the implied low-energy slope floor $f_1^{\\min}$.
+
+W6-22 replaces the binary ASR on/off switch with a **generalized, auditable UV-band constraint**:
+$$
+\\left|\\frac{1}{\\pi}\\int ds\\,{\\rm Im}A(s)-{\\rm asr\\_target}\\right|\\le {\\rm tol}_{\\rm ASR},
+$$
+implemented as linear inequalities (SOCP-compatible).
+
+Goals:
+1) confirm the **units/semantics** of the generalized ASR implementation (esp. $\\pi$ conventions and tail accounting),
+2) validate the **implied-$f_1$ threshold scan** vs ${\\rm tol}_{\\rm ASR}$,
+3) validate the **tightening claim** for $A^\\pi(-Q^*)$ when combining (soft ASR band) + (low-energy slope input),
+4) assess whether the required ${\\rm tol}_{\\rm ASR}$ scale is physically interpretable or should be treated as a placeholder until anchored to a real UV/OPE estimate.
+
+## Key artifacts / reproduction
+
+Implementation (instance repo):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl`
+  - W6-22: support `constraints.sum_rules.asr_target` and `constraints.sum_rules.asr_absolute_tolerance`.
+  - W6-22 (audit7): residual audit includes `asr_*_over_pi` split and `asr_within_band`.
+
+Negative result (band too tight still infeasible with slope input):
+- config (ECOS): `.../compute/a_bochner_k0_socp_config_v4bh_dispersion_grid200_enf200_qstar_audit7_ecos_asrband_slope_tmd_asrtol2p0.json`
+- run v58: `.../runs/2026-02-18-a-bochner-k0-socp-v58-.../results.json` (feasibility `INFEASIBLE`)
+
+## Expanded scan results (post-audit7; explicit ASR split in residuals)
+
+### Implied $f_1$ threshold scan (ECOS; no slope constraint)
+
+Definition: $f_1=(1/\\pi)\\int ds\\,\\mathrm{Im}A(s)/s^2$ with the fixed UV tail included as in the kernel.
+
+| ${\\rm tol}_{\\rm ASR}$ | run | $f_1^{\\min}$ | $f_1^{\\max}$ | ASR total $(1/\\pi)\\int ds\\,\\mathrm{Im}A$ (feasibility point) | grid part | tail part |
+|---:|---|---:|---:|---:|---:|---:|
+| 55 | v68 | 0.0129185 | 0.338534 | -33.3247 | -17.7875 | -15.5372 |
+| 58 | v69 | 0.0123177 | 0.338426 | -21.5709 | -6.03372 | -15.5372 |
+| 60 | v70 | 0.012044 | 0.340881 | -24.049 | -8.51181 | -15.5372 |
+| 61 | v71 | 0.011945 | 0.338595 | -35.6572 | -20.12 | -15.5372 |
+| 62 | v72 | 0.0118077 | 0.34137 | -36.7113 | -21.1742 | -15.5372 |
+| 64 | v73 | 0.0115955 | 0.340495 | -21.5446 | -6.00743 | -15.5372 |
+| 66 | v74 | 0.0113853 | 0.340977 | -33.4176 | -17.8804 | -15.5372 |
+| 70 | v75 | 0.0109421 | 0.341263 | -27.5664 | -12.0293 | -15.5372 |
+
+Comparison target (arXiv:2507.05375): $f_1^{\\rm TMD}\\approx 0.01198$.
+
+Observed monotonicity (sanity check): $f_1^{\\min}$ decreases as ${\\rm tol}_{\\rm ASR}$ increases, with a feasibility threshold around tol $\\approx 61$–$62$ for admitting the TMD/ChPT slope target.
+
+### $A^\\pi(-Q^*)$ bounds with slope input (ECOS; $f_1=0.01198\\pm0.001$)
+
+| ${\\rm tol}_{\\rm ASR}$ | run | $A_{\\min}(-Q^*)$ | $A_{\\max}(-Q^*)$ | max-solve ASR residual $(1/\\pi)\\int ds\\,\\mathrm{Im}A-\\mathrm{asr\\_target}$ | within_band |
+|---:|---|---:|---:|---:|---|
+| 62 | v76 | 0.831808156 | 0.847947234 | 62 | True |
+| 70 | v77 | 0.831761248 | 0.856549558 | 70 | True |
+| 80 | v78 | 0.831635607 | 0.865053114 | 80 | True |
+| 100 | v79 | 0.831663431 | 0.880779583 | 100 | True |
+| 150 | v80 | 0.831627185 | 0.911981160 | 143.775 | True |
+| 200 | v81 | 0.831644172 | 0.911525838 | 142.557 | True |
+
+Clarabel cross-check (tol=62):
+
+| ${\\rm tol}_{\\rm ASR}$ | run | $A_{\\min}(-Q^*)$ | $A_{\\max}(-Q^*)$ | max-solve ASR residual $(1/\\pi)\\int ds\\,\\mathrm{Im}A-\\mathrm{asr\\_target}$ | within_band |
+|---:|---|---:|---:|---:|---|
+| 62 | v82 | 0.830684547 | 0.851753713 | 62 | True |
+
+## Tail subtraction / residual audit excerpt (sanity)
+
+Goal: verify the ASR band applies to the **full integral** (grid + fixed UV tail), and that `results.json` exposes the split.
+
+From `.../runs/...v76.../results.json` (ECOS, max solve):
+- `asr_grid_integral_over_pi` $\\approx 77.53717$
+- `asr_tail_integral_over_pi` $\\approx -15.53717$
+- `asr_total_integral_over_pi` $\\approx 62.00000$  (saturates the ASR band)
+
+From `.../runs/...v82.../results.json` (Clarabel, max solve):
+- `asr_grid_integral_over_pi` $\\approx 77.53717$
+- `asr_tail_integral_over_pi` $\\approx -15.53717$
+- `asr_total_integral_over_pi` $\\approx 62.00000$  (saturates the ASR band)
+
+## Solver discrepancy contextualization (v76 ECOS vs v82 Clarabel)
+
+At tol=62, the bounds differ by $\\Delta A_{\\min}\\sim 1.1\\times 10^{-3}$ and $\\Delta A_{\\max}\\sim 3.8\\times 10^{-3}$. Both report `OPTIMAL` and pass internal dual checks.
+
+Representative dual-check signals (read from `results.json`):
+- v76 (ECOS) max solve: `dual_cone_violations=0`, `dual_cone_min_margin~7.6e-15`, `stationarity_inf_norm~3.2e-6`
+- v82 (Clarabel) max solve: `dual_cone_violations=0`, `dual_cone_min_margin~2.7e-15`, `stationarity_inf_norm~1.6e-7`
+
+Interpretation request: is this discrepancy acceptable for “cross-solver agreement” at the current claim level, given that the active constraints saturate the ASR/slope bands and the model is moderately large (v16-scale, laptop)?
+
+## Gates / verification (PASS; design repo evidence)
+
+- `idea-generator make validate`: `docs/reviews/bundles/2026-02-18-w6-22-idea-generator-validate-v1.txt`
+- `idea-runs make validate`: `docs/reviews/bundles/2026-02-18-w6-22-idea-runs-validate-v1.txt`
+- `idea-runs PROJECT=... make validate-project`: `docs/reviews/bundles/2026-02-18-w6-22-idea-runs-validate-project-v1.txt`
+- failure hook:
+  - index build: `docs/reviews/bundles/2026-02-18-w6-22-failure-library-index-build-v1.txt`
+  - query run: `docs/reviews/bundles/2026-02-18-w6-22-failure-library-query-run-v1.txt`
+- dashboards rerender: `docs/reviews/bundles/2026-02-18-w6-22-render-dashboards-v1.txt`
+
+## Claims under review (W6-22)
+
+1) **Correct semantics (units + tail subtraction)**  
+   - `asr_target` and `asr_absolute_tolerance` are defined in “$f$-style” units:
+     $$
+     {\\rm asr\\_target} = (1/\\pi)\\int ds\\,\\mathrm{Im}A(s),\\qquad
+     {\\rm tol}_{\\rm ASR} = \\text{absolute tolerance in the same units.}
+     $$
+   - The enforced band applies to the **full** integral (grid + fixed tail). The audit split is exposed in `results.json`.
+
+2) **Implied-$f_1$ threshold scan is an appropriate feasibility diagnostic**  
+   - The implied-$f_1$ diagnostic under soft ASR predicts feasibility of the slope-constrained runs (threshold near tol $\\approx 61$–$62$ for $f_1^{\\rm TMD}$).
+
+3) **Tightening is real and auditable (conditional)**  
+   - For tol=62 and $f_1=0.01198\\pm0.001$, we obtain a narrow $Q^*$ band with cross-solver agreement at the few $10^{-3}$ level, with the ASR residual saturating the allowed band at the upper-end solve (constraint active).
+
+4) **Interpretability risk (still open)**  
+   - ${\\rm tol}_{\\rm ASR}$ is large (order $10^2$ in this normalization). This likely demands a dedicated UV/OPE anchoring step before interpreting tightened bounds as physics.
+
+## Questions for reviewers
+
+1) Is the ASR band implementation correctly normalized and consistent with the existing $f_0,f_1$ conventions?
+2) Does the audit split convincingly rule out tail double-counting / miscounting?
+3) Do the expanded scans support the “threshold” narrative (tol $\\approx 61$–$62$) and the “ASR saturation at the upper bound” narrative?
+4) Is the ECOS vs Clarabel discrepancy acceptable at this stage, or should we add a stronger numerical gate (e.g., enforce a max allowed cross-solver delta)?
+

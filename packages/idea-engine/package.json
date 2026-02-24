@@ -1,0 +1,15 @@
+{
+  "name": "@autoresearch/idea-engine",
+  "version": "0.0.1",
+  "private": true,
+  "description": "TS idea engine — replaces idea-core (NEW-05a Stage 3)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"no lint yet\"",
+    "clean": "rm -rf dist"
+  }
+}

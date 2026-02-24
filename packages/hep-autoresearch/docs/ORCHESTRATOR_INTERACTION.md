@@ -1,0 +1,103 @@
+# Orchestrator interaction (CLI/Web: pause/resume/status/approve)
+
+Goal: upgrade an “agent = a pile of scripts” into an interactive automation assistant, with a UX close to Codex CLI:
+- always query status (`status`)
+- pause/resume (`pause`/`resume`)
+- force-stop at high-risk points and wait for approval (`approve`)
+- every step is auditable and rollbackable via artifacts
+
+Chinese version (legacy / detailed notes): `docs/ORCHESTRATOR_INTERACTION.zh.md`.
+
+## 1) CLI commands (CLI-first)
+
+Suggested command set (names may evolve):
+- `init`: initialize the current directory as a project root (scaffold missing docs/KB/specs; create `.autopilot/` state + ledger)
+- `run`: start a workflow (W1/W2/W3/W4 + adapter workflows; optional `--sandbox` for high-risk shell backends)
+- `branch`: record branching decisions in the Plan SSOT (list/add/switch; safe backtracking)
+- `status`: show current run state (steps, artifacts, pending approvals, budget usage)
+- `pause`: pause the run (write stop files or update state)
+- `resume`: continue
+- `approve <approval_id>`: approve a pending action (A1–A5)
+- `reject <approval_id>`: reject and require replanning / rebudgeting
+- `logs`: print recent logs and key failure points
+- `export`: export a run bundle (offline review/sharing)
+
+## 2) Approval packet requirements
+
+Gate timing comes from `docs/APPROVAL_GATES.md` / `docs/APPROVAL_GATES.zh.md` (A1–A5) and can be overridden by config (`specs/approval_policy.schema.json`).
+
+When a gate triggers, the Orchestrator must write a **reviewable approval packet** containing at least:
+- category (A1–A5)
+- purpose / expected benefit (1–3 sentences)
+- plan (what will be done; minimal steps)
+- budget (network calls, max runtime, compute/parallelism, data size)
+- risks (what could go wrong / biases / failure modes)
+- artifacts (what will be produced; paths)
+- rollback (how to undo / recover)
+- run-card references:
+  - `artifacts/runs/<run_id>/run_card.json`
+  - `run_card_sha256` (bind approval → run intent; SHA256 of canonical JSON payload, not `sha256sum` of the on-disk bytes)
+- plan references:
+  - `plan_md_path` (deterministic view)
+  - `state.json#/plan` (SSOT pointer)
+  - plan step ID(s) the approval applies to
+
+No execution may continue until human `approve`/`reject`.
+
+## 3) State persistence (must be resumable)
+
+The Orchestrator must persist state so runs can resume after crashes/interrupts:
+- `run_id` / `tag`
+- `workflow_id`
+- current step, completed steps, next step
+- `pending_approval` (approval_id + packet summary)
+- budgets (network calls, runtime)
+- artifact pointers (manifest/summary/analysis, diffs, compile logs, etc.)
+
+Recommended storage:
+- `.autopilot/state.json` (hidden runtime state)
+- `.autopilot/ledger.jsonl` (append-only event log)
+
+State contract: `docs/ORCHESTRATOR_STATE.md` (EN) / `docs/ORCHESTRATOR_STATE.zh.md` (Chinese).
+
+## 4) pause/resume: two mechanisms
+
+Support both:
+1) explicit commands (`pause`/`resume`) that update state
+2) stop files as a universal fallback:
+   - `.pause` pause
+   - `.stop` stop
+
+## 5) Web entry (later)
+
+Web UI should not change the contract, only the presentation:
+- status dashboard (step/logs/artifacts)
+- approve/reject buttons
+- diff / compile log previews
+
+## 6) Acceptance criteria (milestone-ready)
+
+Even without “full-auto success”, require:
+- can start a workflow and create run state
+- can enter `awaiting_approval` and wait for human input
+- can pause/resume and recover after interruption
+- writes key artifacts and `status` can point to them
+
+## 7) Long jobs + async approvals (realistic research)
+
+For jobs expected > 1 hour (or batch-queued):
+- periodic checkpoints (default every 15 min; configurable)
+- async `approve`: human can approve later; approval is queued and consumed at the gate
+- `status` shows last checkpoint and estimated remaining time (if available)
+- if no checkpoint update for > 2× interval: alert and pause subsequent actions
+
+## 8) Handoffs (multi-user collaboration)
+
+Support “handoff without losing reproducibility”:
+- `handoff --to <user>`: write a handoff record (current state, pending approvals, budgets, key artifact pointers, reason)
+
+## 9) Watchdog (avoid silent long-job failures)
+
+Provide a watchdog (script/daemon/cron):
+- monitor `.autopilot/state.json` mtime
+- if status is `running` but stale beyond timeout: alert and trigger pause (or create `.pause`)

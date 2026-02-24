@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_evidence_graph_v1.schema.json",
+  "title": "IdeaEvidenceGraph v1",
+  "description": "SSOT artifact: claim/evidence graph used by grounding audit and downstream traceability.",
+  "$comment": "Stub schema (v0.2): keep deliberately generic; concrete node/edge typing can evolve per DomainPack.",
+  "type": "object",
+  "required": ["campaign_id", "generated_at", "nodes", "edges"],
+  "properties": {
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["claim", "evidence", "idea_node"] },
+          "label": { "type": "string" },
+          "uri": { "type": "string", "format": "uri" },
+          "data": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": false
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "relation"],
+        "properties": {
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 },
+          "relation": { "enum": ["supports", "refutes", "mentions", "derived_from"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence_uris": { "type": "array", "items": { "type": "string", "format": "uri" } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": false
+}

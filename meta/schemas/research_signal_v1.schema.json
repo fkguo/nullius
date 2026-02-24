@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/research_signal_v1.schema.json",
+  "title": "ResearchSignal V1",
+  "description": "A research signal detected by the REP Signal Engine (EVO-18). Signals drive strategy selection for research evolution.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "signal_id",
+    "signal_type",
+    "source_event_ids",
+    "fingerprint",
+    "confidence",
+    "priority",
+    "payload",
+    "detected_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "signal_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique signal identifier (UUID v4)."
+    },
+    "signal_type": {
+      "type": "string",
+      "enum": [
+        "gap_detected",
+        "calculation_divergence",
+        "known_result_match",
+        "integrity_violation",
+        "method_plateau",
+        "parameter_sensitivity",
+        "cross_check_opportunity",
+        "stagnation"
+      ],
+      "description": "Type of research signal detected. Determines which payload schema applies (discriminated union)."
+    },
+    "source_event_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "ResearchEvent IDs that triggered this signal."
+    },
+    "fingerprint": {
+      "type": "string",
+      "description": "Dedup fingerprint: hash of signal_type + distinguishing features. Same fingerprint within dedup_window means duplicate."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence in the signal (0-1)."
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low"],
+      "description": "Signal priority for strategy selection."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Signal-type-specific payload data. Schema is enforced by the signal_type discriminator (see allOf)."
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z timestamp of detection."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Optional expiry timestamp. Signal is ignored after this time."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run in which this signal was detected."
+    },
+    "suppressed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this signal has been suppressed (deduped or manually dismissed)."
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "signal_type": { "const": "gap_detected" } }, "required": ["signal_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/GapDetectedPayload" } } }
+    },
+    {
+      "if": { "properties": { "signal_type": { "const": "calculation_divergence" } }, "required": ["signal_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/CalculationDivergencePayload" } } }
+    },
+    {
+      "if": { "properties": { "signal_type": { "const": "known_result_match" } }, "required": ["signal_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/KnownResultMatchPayload" } } }
+    },
+    {
+      "if": { "properties": { "signal_type": { "const": "integrity_violation" } }, "required": ["signal_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/IntegrityViolationPayload" } } }
+    },
+    {
+      "if": { "properties": { "signal_type": { "const": "method_plateau" } }, "required": ["signal_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/MethodPlateauPayload" } } }
+    },
+    {
+      "if": { "properties": { "signal_type": { "const": "parameter_sensitivity" } }, "required": ["signal_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ParameterSensitivityPayload" } } }
+    },
+    {
+      "if": { "properties": { "signal_type": { "const": "cross_check_opportunity" } }, "required": ["signal_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/CrossCheckOpportunityPayload" } } }
+    },
+    {
+      "if": { "properties": { "signal_type": { "const": "stagnation" } }, "required": ["signal_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/StagnationPayload" } } }
+    }
+  ],
+  "$defs": {
+    "GapDetectedPayload": {
+      "type": "object",
+      "required": ["gap_description", "domain_area"],
+      "properties": {
+        "gap_description": {
+          "type": "string",
+          "description": "Description of the knowledge gap."
+        },
+        "domain_area": {
+          "type": "string",
+          "description": "Area of the domain where gap exists."
+        },
+        "related_literature": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["record_id", "source"],
+            "properties": {
+              "record_id": { "type": "string", "description": "Literature record identifier." },
+              "source": { "type": "string", "description": "Which LiteratureService provided this record (matches LiteratureService.serviceId)." }
+            }
+          },
+          "description": "Literature records (from LiteratureService) of related work that highlights the gap."
+        },
+        "estimated_impact": {
+          "type": "string",
+          "enum": ["high", "medium", "low"],
+          "description": "Estimated impact of filling this gap."
+        }
+      }
+    },
+    "CalculationDivergencePayload": {
+      "type": "object",
+      "required": ["outcome_a_ref", "outcome_b_ref", "divergent_quantities"],
+      "properties": {
+        "outcome_a_ref": { "type": "string", "description": "ID of first outcome." },
+        "outcome_b_ref": { "type": "string", "description": "ID of second outcome." },
+        "divergent_quantities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "value_a", "value_b", "relative_deviation"],
+            "properties": {
+              "name": { "type": "string" },
+              "value_a": { "type": "number" },
+              "value_b": { "type": "number" },
+              "relative_deviation": { "type": "number" }
+            }
+          }
+        },
+        "deviation_report_ref": {
+          "type": "string",
+          "description": "Reference to the DeviationReport if from EVO-07."
+        }
+      }
+    },
+    "KnownResultMatchPayload": {
+      "type": "object",
+      "required": ["outcome_ref", "matching_literature"],
+      "properties": {
+        "outcome_ref": { "type": "string" },
+        "matching_literature": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["record_id", "source", "similarity_score"],
+            "properties": {
+              "record_id": { "type": "string", "description": "Literature record identifier (e.g., INSPIRE recid, CrossRef DOI, OpenAlex work ID)." },
+              "source": { "type": "string", "description": "Which LiteratureService provided this record (matches LiteratureService.serviceId)." },
+              "title": { "type": "string" },
+              "similarity_score": { "type": "number", "minimum": 0, "maximum": 1 },
+              "matched_quantities": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "IntegrityViolationPayload": {
+      "type": "object",
+      "required": ["integrity_report_ref", "failed_checks"],
+      "properties": {
+        "integrity_report_ref": { "type": "string" },
+        "failed_checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["check_id", "severity"],
+            "properties": {
+              "check_id": { "type": "string" },
+              "severity": { "type": "string", "enum": ["blocking", "advisory"] },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "MethodPlateauPayload": {
+      "type": "object",
+      "required": ["current_method", "cycles_without_improvement"],
+      "properties": {
+        "current_method": { "type": "string" },
+        "cycles_without_improvement": { "type": "integer", "minimum": 1 },
+        "best_achieved_metric": { "type": "string" },
+        "suggested_alternatives": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "ParameterSensitivityPayload": {
+      "type": "object",
+      "required": ["parameter_name", "sensitivity_measure"],
+      "properties": {
+        "parameter_name": { "type": "string" },
+        "sensitivity_measure": {
+          "type": "number",
+          "description": "Relative change in result per relative change in parameter (dimensionless)."
+        },
+        "parameter_range_tested": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          }
+        },
+        "affected_quantities": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "CrossCheckOpportunityPayload": {
+      "type": "object",
+      "required": ["new_outcome_ref", "existing_outcome_refs"],
+      "properties": {
+        "new_outcome_ref": { "type": "string" },
+        "existing_outcome_refs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "cross_check_type": {
+          "type": "string",
+          "description": "Type of cross-check enabled by this new result. Domain Pack defines available types (e.g., 'limit_agreement', 'ward_identity', 'gauge_invariance', 'sum_rule' for HEP)."
+        }
+      }
+    },
+    "StagnationPayload": {
+      "type": "object",
+      "required": ["consecutive_empty_cycles", "threshold"],
+      "properties": {
+        "consecutive_empty_cycles": { "type": "integer", "minimum": 1 },
+        "threshold": { "type": "integer" },
+        "current_strategy": { "type": "string" },
+        "last_productive_cycle": { "type": "string", "format": "date-time" },
+        "recommended_action": {
+          "type": "string",
+          "enum": ["switch_strategy", "abandon_direction", "request_guidance"]
+        }
+      }
+    }
+  }
+}

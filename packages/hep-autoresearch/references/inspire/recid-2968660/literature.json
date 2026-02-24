@@ -1,0 +1,2688 @@
+{
+  "created": "2025-09-11T04:16:00.151361+00:00",
+  "id": "2968660",
+  "links": {
+    "bibtex": "https://inspirehep.net/api/literature/2968660?format=bibtex",
+    "citations": "https://inspirehep.net/api/literature/?q=refersto%3Arecid%3A2968660",
+    "cv": "https://inspirehep.net/api/literature/2968660?format=cv",
+    "json": "https://inspirehep.net/api/literature/2968660?format=json",
+    "json-expanded": "https://inspirehep.net/api/literature/2968660?format=json-expanded",
+    "latex-eu": "https://inspirehep.net/api/literature/2968660?format=latex-eu",
+    "latex-us": "https://inspirehep.net/api/literature/2968660?format=latex-us"
+  },
+  "metadata": {
+    "$schema": "https://inspirehep.net/schemas/records/hep.json",
+    "abstracts": [
+      {
+        "source": "arXiv",
+        "value": "The substantial data volumes encountered in modern particle physics and other domains of fundamental physics research allow (and require) the use of increasingly complex data analysis tools and workflows. While the use of machine learning (ML) tools for data analysis has recently proliferated, these tools are typically special-purpose algorithms that rely, for example, on encoded physics knowledge to reach optimal performance. In this work, we investigate a new and orthogonal direction: Using recent progress in large language models (LLMs) to create a team of agents -- instances of LLMs with specific subtasks -- that jointly solve data analysis-based research problems in a way similar to how a human researcher might: by creating code to operate standard tools and libraries (including ML systems) and by building on results of previous iterations. If successful, such agent-based systems could be deployed to automate routine analysis components to counteract the increasing complexity of modern tool chains. To investigate the capabilities of current-generation commercial LLMs, we consider the task of anomaly detection via the publicly available and highly-studied LHC Olympics dataset. Several current models by OpenAI (GPT-4o, o4-mini, GPT-4.1, and GPT-5) are investigated and their stability tested. Overall, we observe the capacity of the agent-based system to solve this data analysis problem. The best agent-created solutions mirror the performance of human state-of-the-art results."
+      }
+    ],
+    "arxiv_eprints": [
+      {
+        "categories": [
+          "hep-ph",
+          "cs.AI",
+          "cs.LG",
+          "hep-ex",
+          "physics.data-an"
+        ],
+        "value": "2509.08535"
+      }
+    ],
+    "authors": [
+      {
+        "affiliations": [
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/902953"
+            },
+            "value": "LBL, Berkeley"
+          }
+        ],
+        "full_name": "Diefenbacher, Sascha",
+        "raw_affiliations": [
+          {
+            "value": "Physics Division, Lawrence Berkeley National Laboratory, Berkeley, USA"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/1871637"
+        },
+        "uuid": "e2fec8f2-9a82-419a-8ff4-cf64489e4b83"
+      },
+      {
+        "affiliations": [
+          {
+            "curated_relation": true,
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/924289"
+            },
+            "value": "U. Hamburg (main)"
+          }
+        ],
+        "curated_relation": true,
+        "full_name": "Hallin, Anna",
+        "raw_affiliations": [
+          {
+            "value": "Institut f\u00fcr Experimentalphysik, Universit\u00e4t Hamburg, Germany"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/1806295"
+        },
+        "uuid": "35b42ced-af1b-4301-a1bd-38d02d68c45e"
+      },
+      {
+        "affiliations": [
+          {
+            "curated_relation": true,
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/924289"
+            },
+            "value": "U. Hamburg (main)"
+          }
+        ],
+        "full_name": "Kasieczka, Gregor",
+        "raw_affiliations": [
+          {
+            "value": "Institut f\u00fcr Experimentalphysik, Universit\u00e4t Hamburg, Germany"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/1064216"
+        },
+        "uuid": "e05ac806-ef1e-43fc-8f4e-6ec6c6491c03"
+      },
+      {
+        "affiliations": [
+          {
+            "curated_relation": true,
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/910724"
+            },
+            "value": "RWTH Aachen U."
+          }
+        ],
+        "full_name": "Kr\u00e4mer, Michael",
+        "raw_affiliations": [
+          {
+            "value": "Institute for Theoretical Particle Physics and Cosmology, RWTH Aachen University, Germany"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/1020722"
+        },
+        "uuid": "90581b13-fc3a-4860-9009-9b01f1b3c620"
+      },
+      {
+        "affiliations": [
+          {
+            "curated_relation": true,
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/924289"
+            },
+            "value": "U. Hamburg (main)"
+          }
+        ],
+        "full_name": "Lauscher, Anne",
+        "raw_affiliations": [
+          {
+            "value": "Data Science Group, Universit\u00e4t Hamburg, Germany"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/2787132"
+        },
+        "uuid": "f030bd57-1f7d-4bbd-a17e-c09f22144fcf"
+      },
+      {
+        "affiliations": [
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/902832"
+            },
+            "value": "Hamburg U."
+          }
+        ],
+        "full_name": "Lukas, Tim",
+        "raw_affiliations": [
+          {
+            "value": "Institut f\u00fcr Experimentalphysik, Universit\u00e4t Hamburg, Germany"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/2968663"
+        },
+        "uuid": "ff7728e3-edbd-4a45-be99-361cf2bae40e"
+      }
+    ],
+    "citation_count": 5,
+    "citation_count_without_self_citations": 4,
+    "citeable": true,
+    "control_number": 2968660,
+    "core": true,
+    "curated": true,
+    "document_type": [
+      "article"
+    ],
+    "figures": [
+      {
+        "caption": "Sketch of the agentic framework. The main agent is the Researcher, which orchestrates the project. It can communicate with the Coder and the Logic reviewer through the use of tools. The Coder has additionally access to a Code reviewer agent. The researcher handles its tasks via a Task manager. All code is run on the user's local machine, and no agent has direct access to the raw data.",
+        "filename": "orchestration.png",
+        "key": "659506d53ef55af87bd1b550bf17b02b",
+        "label": "fig:agent_orchestration",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/659506d53ef55af87bd1b550bf17b02b"
+      },
+      {
+        "caption": "Graph showing the dependencies of the different prompts. Boxes refer to a singular prompt while ellipses refer to a family of prompts, see  Appendix~\\ref{app:prompts} for details.",
+        "filename": "prompt_dependencies.png",
+        "key": "e8c261efc38ed21a170097d2a96e3c33",
+        "label": "fig:prompt-stat:evo",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/e8c261efc38ed21a170097d2a96e3c33"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different high-level behavior metrics: number of calls, response time, completion time, input tokens, output tokens and total cost (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_num_calls.png",
+        "key": "375ca8b46f787041426b6f76eebac904",
+        "label": "fig:results:gen-fun-perf:hlvl-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/375ca8b46f787041426b6f76eebac904"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different high-level behavior metrics: number of calls, response time, completion time, input tokens, output tokens and total cost (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_response_time.png",
+        "key": "961e7600005cff587253b9f8c38eae66",
+        "label": "fig:results:gen-fun-perf:hlvl-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/961e7600005cff587253b9f8c38eae66"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different high-level behavior metrics: number of calls, response time, completion time, input tokens, output tokens and total cost (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_completion_time.png",
+        "key": "250197eb29530d6384941d322cdaf597",
+        "label": "fig:results:gen-fun-perf:hlvl-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/250197eb29530d6384941d322cdaf597"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different high-level behavior metrics: number of calls, response time, completion time, input tokens, output tokens and total cost (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_output_tokens.png",
+        "key": "62b959231c01ec008c50cbc50af1626d",
+        "label": "fig:results:gen-fun-perf:hlvl-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/62b959231c01ec008c50cbc50af1626d"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different high-level behavior metrics: number of calls, response time, completion time, input tokens, output tokens and total cost (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_input_tokens.png",
+        "key": "9ccd33b6a4ff57640acb01d35321bc52",
+        "label": "fig:results:gen-fun-perf:hlvl-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/9ccd33b6a4ff57640acb01d35321bc52"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different high-level behavior metrics: number of calls, response time, completion time, input tokens, output tokens and total cost (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_total_cost.png",
+        "key": "22fd0bb587d539152f404e644751fe3e",
+        "label": "fig:results:gen-fun-perf:hlvl-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/22fd0bb587d539152f404e644751fe3e"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different metrics related to coding: execution time, execute python errors, lint errors, number of different coders used, tool calls handoff to coder and failed reviews (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_execution_time.png",
+        "key": "a11674ee6f76e8a2c63741aea3d91c62",
+        "label": "fig:results:gen-fun-perf:cod-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/a11674ee6f76e8a2c63741aea3d91c62"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different metrics related to coding: execution time, execute python errors, lint errors, number of different coders used, tool calls handoff to coder and failed reviews (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_execute_python_error.png",
+        "key": "3dded4bef0353a89823ff17a392dd95f",
+        "label": "fig:results:gen-fun-perf:cod-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/3dded4bef0353a89823ff17a392dd95f"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different metrics related to coding: execution time, execute python errors, lint errors, number of different coders used, tool calls handoff to coder and failed reviews (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_lint_errors.png",
+        "key": "7a88a7b32107c2e7f281e4873ca55d44",
+        "label": "fig:results:gen-fun-perf:cod-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/7a88a7b32107c2e7f281e4873ca55d44"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different metrics related to coding: execution time, execute python errors, lint errors, number of different coders used, tool calls handoff to coder and failed reviews (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_different_coders.png",
+        "key": "41d9fc6adc40fe11fa7db6b255cc42bf",
+        "label": "fig:results:gen-fun-perf:cod-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/41d9fc6adc40fe11fa7db6b255cc42bf"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different metrics related to coding: execution time, execute python errors, lint errors, number of different coders used, tool calls handoff to coder and failed reviews (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_tool_calls_handoff_to_coder.png",
+        "key": "1b86ad30c996b349fc393f4ca4fb04ae",
+        "label": "fig:results:gen-fun-perf:cod-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/1b86ad30c996b349fc393f4ca4fb04ae"
+      },
+      {
+        "caption": "Comparison of four OpenAI models across different metrics related to coding: execution time, execute python errors, lint errors, number of different coders used, tool calls handoff to coder and failed reviews (see Appendix~\\ref{app:metrics} for the exact definition of these quantities). Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_failed_reviews.png",
+        "key": "1e8810052e94361ceebb7d804fc52f61",
+        "label": "fig:results:gen-fun-perf:cod-behav",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/1e8810052e94361ceebb7d804fc52f61"
+      },
+      {
+        "caption": "Reported values of $m_{res}$, p-value and signal percentage on the LHCO R\\&D dataset, plus the max SIC calculated after the agent submitted its scores and ended its run. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_m_res.png",
+        "key": "0f81e6b868472e99668d3ea4b50472e7",
+        "label": "fig:LHCO_blind_3_questions_performance",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/0f81e6b868472e99668d3ea4b50472e7"
+      },
+      {
+        "caption": "Reported values of $m_{res}$, p-value and signal percentage on the LHCO R\\&D dataset, plus the max SIC calculated after the agent submitted its scores and ended its run. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_p_value.png",
+        "key": "99c3edfe6f15432a5179e3b88ada2bb8",
+        "label": "fig:LHCO_blind_3_questions_performance",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/99c3edfe6f15432a5179e3b88ada2bb8"
+      },
+      {
+        "caption": "Reported values of $m_{res}$, p-value and signal percentage on the LHCO R\\&D dataset, plus the max SIC calculated after the agent submitted its scores and ended its run. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_signal_percentage.png",
+        "key": "77bd1e065c55f610522f38957ae69554",
+        "label": "fig:LHCO_blind_3_questions_performance",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/77bd1e065c55f610522f38957ae69554"
+      },
+      {
+        "caption": "Reported values of $m_{res}$, p-value and signal percentage on the LHCO R\\&D dataset, plus the max SIC calculated after the agent submitted its scores and ended its run. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "vertical_scatter_max_sic.png",
+        "key": "e1e4c24afe75e4b65802c6f695d142db",
+        "label": "fig:LHCO_blind_3_questions_performance",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/e1e4c24afe75e4b65802c6f695d142db"
+      },
+      {
+        "caption": "Comparison of the performances of different prompts on number of calls and max SIC. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w18_vertical_scatter_num_calls.png",
+        "key": "e516ec5f66d9991c4c50ecbe0d8acbf5",
+        "label": "fig:results:nonfbl_prompts",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/e516ec5f66d9991c4c50ecbe0d8acbf5"
+      },
+      {
+        "caption": "Comparison of the performances of different prompts on number of calls and max SIC. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w19_vertical_scatter_max_sic.png",
+        "key": "cc13f78e726ff495c3ddabc58118d3d1",
+        "label": "fig:results:nonfbl_prompts",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/cc13f78e726ff495c3ddabc58118d3d1"
+      },
+      {
+        "caption": "Comparison of the different prompt paraphrasings, showing the number of calls and the maximum SIC. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w20_vertical_scatter_num_calls.png",
+        "key": "0b67ba8db4eb0bc5de274bdd6b242fc6",
+        "label": "fig:results:prompt-stability",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/0b67ba8db4eb0bc5de274bdd6b242fc6"
+      },
+      {
+        "caption": "Comparison of the different prompt paraphrasings, showing the number of calls and the maximum SIC. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w21_vertical_scatter_max_sic.png",
+        "key": "a9e470df3b254e7a647116c66a125cf2",
+        "label": "fig:results:prompt-stability",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/a9e470df3b254e7a647116c66a125cf2"
+      },
+      {
+        "caption": "Comparison of the performance of GPT-4.1 with the ML prompt over the course of several days. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w22_vertical_scatter_max_sic.png",
+        "key": "a26bcf84b1b253c66f7321ebb0d5f7e4",
+        "label": "fig:results:time-stability",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/a26bcf84b1b253c66f7321ebb0d5f7e4"
+      },
+      {
+        "caption": "Comparison of the performance of GPT-4.1 with the ML prompt over the course of several days. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w23_vertical_scatter_completion_time.png",
+        "key": "c3f53f74c2a7f0f77605a4e26e19a3b1",
+        "label": "fig:results:time-stability",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/c3f53f74c2a7f0f77605a4e26e19a3b1"
+      },
+      {
+        "caption": "Comparison of the performance of GPT-4.1 with the ML prompt over the course of several days. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w24_vertical_scatter_response_time.png",
+        "key": "bfcebde7578d1291f73226d4d2a82c8c",
+        "label": "fig:results:time-stability",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/bfcebde7578d1291f73226d4d2a82c8c"
+      },
+      {
+        "caption": "Comparison of the performance of GPT-4.1 with the ML prompt over the course of several days. Only successful runs are shown. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w25_vertical_scatter_num_calls.png",
+        "key": "dcfbe22a03482cd610b617bbaa679d30",
+        "label": "fig:results:time-stability",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/dcfbe22a03482cd610b617bbaa679d30"
+      },
+      {
+        "caption": "The agent is provided with two plots as part of the feedback it receives: a background rejection curve and a SIC curve. The location of the peak of the SIC is relevant: if it peaks at very low signal efficiency (TPR), the following statistical analysis might be plagued by high uncertainties.",
+        "filename": "only_ml_fbl_plus_job_11_1_feedback_r_4_background_rejection_curve.png",
+        "key": "dee074deed47c918a3d3e2f8453285e0",
+        "label": "fig:feedback_plots",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/dee074deed47c918a3d3e2f8453285e0"
+      },
+      {
+        "caption": "The agent is provided with two plots as part of the feedback it receives: a background rejection curve and a SIC curve. The location of the peak of the SIC is relevant: if it peaks at very low signal efficiency (TPR), the following statistical analysis might be plagued by high uncertainties.",
+        "filename": "only_ml_fbl_plus_job_11_1_feedback_r_4_sic_curve.png",
+        "key": "18592b8b652d70cb27ba58174a042371",
+        "label": "fig:feedback_plots",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/18592b8b652d70cb27ba58174a042371"
+      },
+      {
+        "caption": "Comparing the performances of different FBL prompts on number of calls and max SIC. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w28_vertical_scatter_num_calls.png",
+        "key": "e2f22f93b91f7261b7d299d0aee2756c",
+        "label": "fig:results:fbl_prompts",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/e2f22f93b91f7261b7d299d0aee2756c"
+      },
+      {
+        "caption": "Comparing the performances of different FBL prompts on number of calls and max SIC. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w29_vertical_scatter_max_sic.png",
+        "key": "5fdd68369b24c88698528c742f312de1",
+        "label": "fig:results:fbl_prompts",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/5fdd68369b24c88698528c742f312de1"
+      },
+      {
+        "caption": "Comparison of the FBL prompts across  metrics: $m_{res}$, p-value, signal percentage and max SIC. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w30_vertical_scatter_m_res.png",
+        "key": "e507cd0b4f1c42fc0f8b3fe78ee709fb",
+        "label": "fig:results:lhco-pbb",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/e507cd0b4f1c42fc0f8b3fe78ee709fb"
+      },
+      {
+        "caption": "Comparison of the FBL prompts across  metrics: $m_{res}$, p-value, signal percentage and max SIC. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w31_vertical_scatter_p_value.png",
+        "key": "15e21a17b2a7aa0f2f8a41566bbf217b",
+        "label": "fig:results:lhco-pbb",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/15e21a17b2a7aa0f2f8a41566bbf217b"
+      },
+      {
+        "caption": "Comparison of the FBL prompts across  metrics: $m_{res}$, p-value, signal percentage and max SIC. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w32_vertical_scatter_signal_percentage.png",
+        "key": "3497bacf36ae18322a13cbe614d6a760",
+        "label": "fig:results:lhco-pbb",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/3497bacf36ae18322a13cbe614d6a760"
+      },
+      {
+        "caption": "Comparison of the FBL prompts across  metrics: $m_{res}$, p-value, signal percentage and max SIC. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w33_vertical_scatter_max_sic.png",
+        "key": "721098b51f1d60c9a941cf9d5732659b",
+        "label": "fig:results:lhco-pbb",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/721098b51f1d60c9a941cf9d5732659b"
+      },
+      {
+        "caption": "Comparing the single questions prompts with the performance of the ML prompt for the signal range (top) and full range (bottom) dataset. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w34_vertical_scatter_m_res.png",
+        "key": "e2e20e69cadc06a1410d1212ba4b67e8",
+        "label": "fig:results:split",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/e2e20e69cadc06a1410d1212ba4b67e8"
+      },
+      {
+        "caption": "Comparing the single questions prompts with the performance of the ML prompt for the signal range (top) and full range (bottom) dataset. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w35_vertical_scatter_p_value.png",
+        "key": "35bd866af8861ed506914e0e8865a334",
+        "label": "fig:results:split",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/35bd866af8861ed506914e0e8865a334"
+      },
+      {
+        "caption": "Comparing the single questions prompts with the performance of the ML prompt for the signal range (top) and full range (bottom) dataset. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w36_vertical_scatter_signal_percentage.png",
+        "key": "c57e6da41bc969abebd29c300b9a9905",
+        "label": "fig:results:split",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/c57e6da41bc969abebd29c300b9a9905"
+      },
+      {
+        "caption": "Comparing the single questions prompts with the performance of the ML prompt for the signal range (top) and full range (bottom) dataset. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w37_vertical_scatter_m_res.png",
+        "key": "6c99010da5cec378ec677ffbad90691b",
+        "label": "fig:results:split",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/6c99010da5cec378ec677ffbad90691b"
+      },
+      {
+        "caption": "Comparing the single questions prompts with the performance of the ML prompt for the signal range (top) and full range (bottom) dataset. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w38_vertical_scatter_p_value.png",
+        "key": "a492b034149a3329ce50b24d961959f1",
+        "label": "fig:results:split",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/a492b034149a3329ce50b24d961959f1"
+      },
+      {
+        "caption": "Comparing the single questions prompts with the performance of the ML prompt for the signal range (top) and full range (bottom) dataset. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w39_vertical_scatter_signal_percentage.png",
+        "key": "887eb1deb71ff9a018cf666e57eff89b",
+        "label": "fig:results:split",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/887eb1deb71ff9a018cf666e57eff89b"
+      },
+      {
+        "caption": "Comparing max SIC between full mass region and signal region for the ML prompt. The mean is marked with a line and the one standard deviation with a shaded box.",
+        "filename": "w40_vertical_scatter_max_sic.png",
+        "key": "aa4bda0374ec0de5984c02b3966c17af",
+        "label": "fig:results:split:ml-sr-vs-fr",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/aa4bda0374ec0de5984c02b3966c17af"
+      }
+    ],
+    "inspire_categories": [
+      {
+        "source": "arxiv",
+        "term": "Phenomenology-HEP"
+      },
+      {
+        "source": "arxiv",
+        "term": "Computing"
+      },
+      {
+        "source": "arxiv",
+        "term": "Experiment-HEP"
+      },
+      {
+        "source": "arxiv",
+        "term": "Data Analysis and Statistics"
+      }
+    ],
+    "license": [
+      {
+        "license": "CC BY 4.0",
+        "material": "preprint",
+        "url": "http://creativecommons.org/licenses/by/4.0/"
+      }
+    ],
+    "number_of_pages": 48,
+    "preprint_date": "2025-09-10",
+    "references": [
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[1] A. Laverick, K. Surrao, I. Zubeldia, B. Bolliet, M. Cranmer, A. Lewis, B. Sherwin and J. Lesgourgues, Multi-agent system for cosmological parameter analysis (2024), 2412. 00431."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2854800"
+        },
+        "reference": {
+          "arxiv_eprint": "2412.00431",
+          "authors": [
+            {
+              "full_name": "Laverick, A."
+            },
+            {
+              "full_name": "Surrao, K."
+            },
+            {
+              "full_name": "Zubeldia, I."
+            },
+            {
+              "full_name": "Bolliet, B."
+            },
+            {
+              "full_name": "Cranmer, M."
+            },
+            {
+              "full_name": "Lewis, A."
+            },
+            {
+              "full_name": "Sherwin, B."
+            },
+            {
+              "full_name": "Lesgourgues, J."
+            }
+          ],
+          "label": "1",
+          "misc": [
+            "Multi-agent system for cosmological parameter analysis , 2412. 00431"
+          ],
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "Laverick2024CosmoAgents"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[2] A. Moss, The AI cosmologist I: An agentic system for automated data analysis (2025), 2504.03424."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2908082"
+        },
+        "reference": {
+          "arxiv_eprint": "2504.03424",
+          "authors": [
+            {
+              "full_name": "Moss, A."
+            }
+          ],
+          "label": "2",
+          "misc": [
+            "The AI cosmologist I: An agentic system for automated data analysis"
+          ],
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "Moss2025AICosmologist"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[3] A. Saqlain and S. Kartal, Exploring potential of OpenAI o3 as a signal-agnostic model for Signal/Background separation in t \u2192 uZ FCNC Searches at Future Hadron Colliders (2025), 2507.04272."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2942834"
+        },
+        "reference": {
+          "arxiv_eprint": "2507.04272",
+          "authors": [
+            {
+              "full_name": "Saqlain, A."
+            },
+            {
+              "full_name": "Kartal, S."
+            }
+          ],
+          "label": "3",
+          "misc": [
+            "Exploring potential of OpenAI o3 as a signal-agnostic model for Signal/Background separation in t \u2192 uZ FCNC Searches at Future Hadron Colliders"
+          ],
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "Saqlain:2025owc"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[4] S. Eger, Y. Cao, J. D\u2019Souza, A. Geiger, C. Greisinger, S. Gross, Y. Hou, B. Krenn, A. Lauscher, Y. Li, N. S. Moosavi, W. Zhao et al., Transforming science with large language models: A survey on AI-assisted scientific discovery, experimentation, content generation, and evaluation (2025), 2502.05151."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2502.05151",
+          "authors": [
+            {
+              "full_name": "Eger, S."
+            },
+            {
+              "full_name": "Cao, Y."
+            },
+            {
+              "full_name": "D'Souza, J."
+            },
+            {
+              "full_name": "Geiger, A."
+            },
+            {
+              "full_name": "Greisinger, C."
+            },
+            {
+              "full_name": "Gross, S."
+            },
+            {
+              "full_name": "Hou, Y."
+            },
+            {
+              "full_name": "Krenn, B."
+            },
+            {
+              "full_name": "Lauscher, A."
+            },
+            {
+              "full_name": "Li, Y."
+            },
+            {
+              "full_name": "Moosavi, N.S."
+            },
+            {
+              "full_name": "Zhao, W."
+            }
+          ],
+          "label": "4",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "Eger2025Survey",
+          "title": {
+            "title": "Transforming science with large language models: A survey on AI-assisted scientific discovery, experimentation, content generation, and evaluation"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[5] S. Ren, P . Jian, Z. Ren, C. Leng, C. Xie and J. Zhang, Towards scientific intelligence: A survey of LLM-based scientific agents (2025), 2503.24047."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2503.24047",
+          "authors": [
+            {
+              "full_name": "Ren, S."
+            },
+            {
+              "full_name": "Jian, P."
+            },
+            {
+              "full_name": "Ren, Z."
+            },
+            {
+              "full_name": "Leng, C."
+            },
+            {
+              "full_name": "Xie, C."
+            },
+            {
+              "full_name": "Zhang, J."
+            }
+          ],
+          "label": "5",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "Ren2025SciAgentsSurvey",
+          "title": {
+            "title": "Towards scientific intelligence: A survey of LLM-based scientific agents"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[6] Z. Chen, Y. Lin, Z. Zhang, H. Dong, Y. Su, G. Yu, M. Sun and Z. Liu, Towards tool use alignment of large language models, In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing (EMNLP). Association for Computational Linguistics (2024)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Chen, Z."
+            },
+            {
+              "full_name": "Lin, Y."
+            },
+            {
+              "full_name": "Zhang, Z."
+            },
+            {
+              "full_name": "Dong, H."
+            },
+            {
+              "full_name": "Su, Y."
+            },
+            {
+              "full_name": "Yu, G."
+            },
+            {
+              "full_name": "Sun, M."
+            },
+            {
+              "full_name": "Liu, Z."
+            }
+          ],
+          "label": "6",
+          "misc": [
+            "In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing (EMNLP). Association for Computational Linguistics"
+          ],
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "Chen2024ToolAlign",
+          "title": {
+            "title": "Towards tool use alignment of large language models"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[7] W. Su, Y. Tang, Q. Ai, Z. Wu and Y. Liu, DRAGIN: Dynamic retrieval augmented generation based on the information needs of large language models, In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (ACL). Association for Computational Linguistics (2024)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Su, W."
+            },
+            {
+              "full_name": "Tang, Y."
+            },
+            {
+              "full_name": "Ai, Q."
+            },
+            {
+              "full_name": "Wu, Z."
+            },
+            {
+              "full_name": "Liu, Y."
+            }
+          ],
+          "label": "7",
+          "misc": [
+            "In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (ACL). Association for Computational Linguistics"
+          ],
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "Su2024DRAGIN",
+          "title": {
+            "title": "DRAGIN: Dynamic retrieval augmented generation based on the information needs of large language models"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[8] W. Xu, Z. Liang, K. Mei, H. Gao, J. Tan and Y. Zhang, A-MEM: Agentic memory for LLM agents (2025), 2502.12110."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2502.12110",
+          "authors": [
+            {
+              "full_name": "Xu, W."
+            },
+            {
+              "full_name": "Liang, Z."
+            },
+            {
+              "full_name": "Mei, K."
+            },
+            {
+              "full_name": "Gao, H."
+            },
+            {
+              "full_name": "Tan, J."
+            },
+            {
+              "full_name": "Zhang, Y."
+            }
+          ],
+          "label": "8",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "Xu2025AMem",
+          "title": {
+            "title": "A-MEM: Agentic memory for LLM agents"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[9] Gemini Team, Gemini 2.5: Pushing the frontier with advanced reasoning, multimodality, long context, and next-generation agentic capabilities (2025), 2507.06261."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2507.06261",
+          "collaborations": [
+            "Gemini"
+          ],
+          "label": "9",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "Gemini2025",
+          "title": {
+            "title": "Gemini 2.5: Pushing the frontier with advanced reasoning, multimodality, long context, and next-generation agentic capabilities"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[10] A. M. Bran, S. Cox, O. Schilter, C. Baldassari, A. D. White and P . Schwaller, Augmenting large language models with chemistry tools, Nature Machine Intelligence 6(5), 525 (2024), doi:10.1038/s42256-024-00832-8."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Bran, A.M."
+            },
+            {
+              "full_name": "Cox, S."
+            },
+            {
+              "full_name": "Schilter, O."
+            },
+            {
+              "full_name": "Baldassari, C."
+            },
+            {
+              "full_name": "White, A.D."
+            },
+            {
+              "full_name": "Schwaller, P."
+            }
+          ],
+          "dois": [
+            "10.1038/s42256-024-00832-8"
+          ],
+          "label": "10",
+          "publication_info": {
+            "artid": "525",
+            "journal_title": "Nature Mach.Intell.",
+            "journal_volume": "6",
+            "page_start": "525",
+            "year": 2024
+          },
+          "texkey": "Bran2024ChemCrow",
+          "title": {
+            "title": "Augmenting large language models with chemistry tools"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[11] D. A. Boiko, R. MacKnight, B. Kline and G. Gomes, Autonomous chemical research with large language models, Nature 624(7992), 570 (2023), doi:10.1038/s41586-023-06792-0."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Boiko, D.A."
+            },
+            {
+              "full_name": "MacKnight, R."
+            },
+            {
+              "full_name": "Kline, B."
+            },
+            {
+              "full_name": "Gomes, G."
+            }
+          ],
+          "dois": [
+            "10.1038/s41586-023-06792-0"
+          ],
+          "label": "11",
+          "publication_info": {
+            "journal_title": "Nature",
+            "journal_volume": "624",
+            "page_start": "570",
+            "year": 2023
+          },
+          "texkey": "Boiko2023Coscientist",
+          "title": {
+            "title": "Autonomous chemical research with large language models"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[12] Y. Ma, W. Liu, Z. Xu, G. Liu, L. Nie, F. Ji, R. Cao, J. Zhou and J. Ma, Tool-augmented language models for scientific reasoning, In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing (EMNLP). Association for Computational Linguistics (2024)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Ma, Y."
+            },
+            {
+              "full_name": "Liu, W."
+            },
+            {
+              "full_name": "Xu, Z."
+            },
+            {
+              "full_name": "Liu, G."
+            },
+            {
+              "full_name": "Nie, L."
+            },
+            {
+              "full_name": "Ji, F."
+            },
+            {
+              "full_name": "Cao, R."
+            },
+            {
+              "full_name": "Zhou, J."
+            },
+            {
+              "full_name": "Ma, J."
+            }
+          ],
+          "label": "12",
+          "misc": [
+            "In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing (EMNLP). Association for Computational Linguistics"
+          ],
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "Ma2024SciAgent",
+          "title": {
+            "title": "Tool-augmented language models for scientific reasoning"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[13] Y. Lu, S. Yao, J. Park, Y. Chen, Q. V . Le et al., The AI scientist: Towards fully automated open-ended scientific discovery (2024), 2408.06292."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2408.06292",
+          "authors": [
+            {
+              "full_name": "Lu, Y."
+            },
+            {
+              "full_name": "Yao, S."
+            },
+            {
+              "full_name": "Park, J."
+            },
+            {
+              "full_name": "Chen, Y."
+            },
+            {
+              "full_name": "Le, Q.V."
+            }
+          ],
+          "label": "13",
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "Lu2024AIScientist",
+          "title": {
+            "title": "The AI scientist: Towards fully automated open-ended scientific discovery"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[14] Y. Yamada and et al., The AI scientist-v2: Workshop-level automated scientific discovery via agentic tree search (2025), 2504.08066."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2504.08066",
+          "authors": [
+            {
+              "full_name": "Yamada, Y."
+            }
+          ],
+          "label": "14",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "Yamada2025AIScientistV2",
+          "title": {
+            "title": "The AI scientist-v2: Workshop-level automated scientific discovery via agentic tree search"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[15] J. Yang, C. E. Jimenez, A. Wettig, K. Lieret, S. Yao, K. Narasimhan and O. Press, Sweagent: Agent-computer interfaces enable automated software engineering, Advances in Neural Information Processing Systems 37, 50528 (2024)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Yang, J."
+            },
+            {
+              "full_name": "Jimenez, C.E."
+            },
+            {
+              "full_name": "Wettig, A."
+            },
+            {
+              "full_name": "Lieret, K."
+            },
+            {
+              "full_name": "Yao, S."
+            },
+            {
+              "full_name": "Narasimhan, K."
+            },
+            {
+              "full_name": "Press, O."
+            }
+          ],
+          "label": "15",
+          "publication_info": {
+            "artid": "50528",
+            "journal_title": "Adv.Neural Inf.Process.Syst.",
+            "journal_volume": "37",
+            "year": 2024
+          },
+          "texkey": "yang2024swe",
+          "title": {
+            "title": "Sweagent: Agent-computer interfaces enable automated software engineering"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[16] V . Rony, H. Xu, J. Zhou, K. Yang, A. Gupta et al., OpenDevin: An open platform for developing AI software engineers, arXiv preprint arXiv:2407.16741 (2024)."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2407.16741",
+          "authors": [
+            {
+              "full_name": "Rony, V."
+            },
+            {
+              "full_name": "Xu, H."
+            },
+            {
+              "full_name": "Zhou, J."
+            },
+            {
+              "full_name": "Yang, K."
+            },
+            {
+              "full_name": "Gupta, A."
+            }
+          ],
+          "label": "16",
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "OpenDevin2024",
+          "title": {
+            "title": "OpenDevin: An open platform for developing AI software engineers"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[17] X. Liu, H. Yu, H. Zhang, Y. Xu, X. Lei, H. Lai, Y. Gu, H. Ding, K. Men, K. Yang et al., AgentBench: Evaluating LLMs as agents, arXiv preprint arXiv:2308.03688 (2023)."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2308.03688",
+          "authors": [
+            {
+              "full_name": "Liu, X."
+            },
+            {
+              "full_name": "Yu, H."
+            },
+            {
+              "full_name": "Zhang, H."
+            },
+            {
+              "full_name": "Xu, Y."
+            },
+            {
+              "full_name": "Lei, X."
+            },
+            {
+              "full_name": "Lai, H."
+            },
+            {
+              "full_name": "Gu, Y."
+            },
+            {
+              "full_name": "Ding, H."
+            },
+            {
+              "full_name": "Men, K."
+            },
+            {
+              "full_name": "Yang, K."
+            }
+          ],
+          "label": "17",
+          "publication_info": {
+            "year": 2023
+          },
+          "texkey": "liu2023agentbench",
+          "title": {
+            "title": "AgentBench: Evaluating LLMs as agents"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[18] P . Liang, R. Bommasani, T. Lee, D. Tsipras, D. Soylu, M. Yasunaga, Y. Zhang, D. Narayanan, Y. Wu, A. Kumar, B. Newman, B. Yuan et al., Holistic evaluation of language models, Transactions on Machine Learning Research (2023), Featured Certification, Expert Certification."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Liang, P."
+            },
+            {
+              "full_name": "Bommasani, R."
+            },
+            {
+              "full_name": "Lee, T."
+            },
+            {
+              "full_name": "Tsipras, D."
+            },
+            {
+              "full_name": "Soylu, D."
+            },
+            {
+              "full_name": "Yasunaga, M."
+            },
+            {
+              "full_name": "Zhang, Y."
+            },
+            {
+              "full_name": "Narayanan, D."
+            },
+            {
+              "full_name": "Wu, Y."
+            },
+            {
+              "full_name": "Kumar, A."
+            },
+            {
+              "full_name": "Newman, B."
+            },
+            {
+              "full_name": "Yuan, B."
+            }
+          ],
+          "label": "18",
+          "misc": [
+            "Transactions on Machine Learning Research , Featured Certification, Expert Certification"
+          ],
+          "publication_info": {
+            "year": 2023
+          },
+          "texkey": "liang2023holistic",
+          "title": {
+            "title": "Holistic evaluation of language models"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[19] T. Akiba, S. Sano, T. Yanase, T. Ohta and M. Koyama, Optuna: A next-generation hyperparameter optimization framework, In Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining, KDD \u201919, p. 2623\u20132631. Association for Computing Machinery, New York, NY, USA, ISBN 9781450362016, doi:10.1145/3292500.3330701 (2019)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Akiba, T."
+            },
+            {
+              "full_name": "Sano, S."
+            },
+            {
+              "full_name": "Yanase, T."
+            },
+            {
+              "full_name": "Ohta, T."
+            },
+            {
+              "full_name": "Koyama, M."
+            }
+          ],
+          "dois": [
+            "10.1145/3292500.3330701"
+          ],
+          "isbn": "9781450362016",
+          "label": "19",
+          "misc": [
+            "In Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining, KDD \u201919, p. 2623\u20132631. Association for Computing Machinery, New York, NY, USA"
+          ],
+          "publication_info": {
+            "year": 2019
+          },
+          "texkey": "10.1145/3292500.3330701",
+          "title": {
+            "title": "Optuna: A next-generation hyperparameter optimization framework"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[20] K. G. Barman et al., Large Physics Models: Towards a collaborative approach with Large Language Models and Foundation Models (2025), 2501.05382."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2866594"
+        },
+        "reference": {
+          "arxiv_eprint": "2501.05382",
+          "authors": [
+            {
+              "full_name": "Barman, K.G."
+            }
+          ],
+          "label": "20",
+          "misc": [
+            "Large Physics Models: Towards a collaborative approach with Large Language Models and Foundation Models"
+          ],
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "Barman:2025wfb"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[21] J. Kaiser, A. Eichler and A. Lauscher, Large language models for human\u2013machine collaborative particle accelerator tuning through natural language, Science Advances (2025), doi:10.1126/sciadv.adr4173."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Kaiser, J."
+            },
+            {
+              "full_name": "Eichler, A."
+            },
+            {
+              "full_name": "Lauscher, A."
+            }
+          ],
+          "dois": [
+            "10.1126/sciadv.adr4173"
+          ],
+          "label": "21",
+          "publication_info": {
+            "journal_title": "Sci.Adv.",
+            "year": 2025
+          },
+          "texkey": "Kaiser2025SciAdv",
+          "title": {
+            "title": "Large language models for human\u2013machine collaborative particle accelerator tuning through natural language"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[22] D. Kostunin, V . Sotnikov, S. Golovachev and A. Strube, AI agents for ground-based gamma astronomy (2025), 2503.00821."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2503.00821",
+          "authors": [
+            {
+              "full_name": "Kostunin, D."
+            },
+            {
+              "full_name": "Sotnikov, V."
+            },
+            {
+              "full_name": "Golovachev, S."
+            },
+            {
+              "full_name": "Strube, A."
+            }
+          ],
+          "label": "22",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "kostunin2025aiagentsgroundbasedgamma",
+          "title": {
+            "title": "AI agents for ground-based gamma astronomy"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[23] G. Kasieczka et al., The LHC Olympics 2020 a community challenge for anomaly detection in high energy physics, Rept. Prog. Phys. 84(12), 124201 (2021), doi:10.1088/13616633/ac36b9, 2101.08320."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1842125"
+        },
+        "reference": {
+          "arxiv_eprint": "2101.08320",
+          "authors": [
+            {
+              "full_name": "Kasieczka, G."
+            }
+          ],
+          "dois": [
+            "10.1088/13616633/ac36b9",
+            "10.1088/1361-6633/ac36b9"
+          ],
+          "label": "23",
+          "misc": [
+            "The LHC Olympics 2020 a community challenge for anomaly detection in high energy physics"
+          ],
+          "publication_info": {
+            "artid": "124201",
+            "journal_title": "Rept.Prog.Phys.",
+            "journal_volume": "84",
+            "year": 2021
+          },
+          "texkey": "Kasieczka:2021xcg"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[24] G. Kasieczka, B. Nachman and D. Shih, R&D Dataset for LHC Olympics 2020 Anomaly Detection Challenge , doi:10.5281/zenodo.6466204 (2019)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Kasieczka, G."
+            },
+            {
+              "full_name": "Nachman, B."
+            },
+            {
+              "full_name": "Shih, D."
+            }
+          ],
+          "dois": [
+            "10.5281/zenodo.6466204"
+          ],
+          "label": "24",
+          "publication_info": {
+            "year": 2019
+          },
+          "texkey": "gregor_kasieczka_2019_6466204",
+          "title": {
+            "title": "R&D Dataset for LHC Olympics 2020 Anomaly Detection Challenge"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[25] G. Karagiorgi, G. Kasieczka, S. Kravitz, B. Nachman and D. Shih, Machine learning in the search for new fundamental physics, Nature Rev. Phys. 4(6), 399 (2022), doi:10.1038/s42254-022-00455-1."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2095752"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Karagiorgi, G."
+            },
+            {
+              "full_name": "Kasieczka, G."
+            },
+            {
+              "full_name": "Kravitz, S."
+            },
+            {
+              "full_name": "Nachman, B."
+            },
+            {
+              "full_name": "Shih, D."
+            }
+          ],
+          "dois": [
+            "10.1038/s42254-022-00455-1"
+          ],
+          "label": "25",
+          "misc": [
+            "Machine learning in the search for new fundamental physics"
+          ],
+          "publication_info": {
+            "artid": "399",
+            "journal_title": "Nature Rev.Phys.",
+            "journal_volume": "4",
+            "page_start": "399",
+            "year": 2022
+          },
+          "texkey": "Karagiorgi:2022qnh"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[26] V . Belis, P . Odagiu and T. K. Aarrestad, Machine learning for anomaly detection in particle physics, Rev. Phys. 12, 100091 (2024), doi:10.1016/j.revip.2024.100091, 2312.14190."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2740326"
+        },
+        "reference": {
+          "arxiv_eprint": "2312.14190",
+          "authors": [
+            {
+              "full_name": "Belis, V."
+            },
+            {
+              "full_name": "Odagiu, P."
+            },
+            {
+              "full_name": "Aarrestad, T.K."
+            }
+          ],
+          "dois": [
+            "10.1016/j.revip.2024.100091"
+          ],
+          "label": "26",
+          "misc": [
+            "Machine learning for anomaly detection in particle physics"
+          ],
+          "publication_info": {
+            "artid": "100091",
+            "journal_title": "Rev.Phys.",
+            "journal_volume": "12",
+            "year": 2024
+          },
+          "texkey": "Belis:2023mqs"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[27] HEP ML Community, A Living Review of Machine Learning for Particle Physics, https://iml-wg.github.io/HEPML-LivingReview/."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "HEP ML Community"
+            }
+          ],
+          "label": "27",
+          "texkey": "hepmllivingreview",
+          "title": {
+            "title": "A Living Review of Machine Learning for Particle Physics"
+          },
+          "urls": [
+            {
+              "value": "https://iml-wg.github.io/HEPML-LivingReview/"
+            }
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[28] A. Hallin, J. Isaacson, G. Kasieczka, C. Krause, B. Nachman, T. Quadfasel, M. Schlaffer, D. Shih and M. Sommerhalder, Classifying anomalies through outer density estimation, Phys. Rev. D 106(5), 055006 (2022), doi:10.1103/PhysRevD.106.055006, 2109.00546."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1915354"
+        },
+        "reference": {
+          "arxiv_eprint": "2109.00546",
+          "authors": [
+            {
+              "full_name": "Hallin, A."
+            },
+            {
+              "full_name": "Isaacson, J."
+            },
+            {
+              "full_name": "Kasieczka, G."
+            },
+            {
+              "full_name": "Krause, C."
+            },
+            {
+              "full_name": "Nachman, B."
+            },
+            {
+              "full_name": "Quadfasel, T."
+            },
+            {
+              "full_name": "Schlaffer, M."
+            },
+            {
+              "full_name": "Shih, D."
+            },
+            {
+              "full_name": "Sommerhalder, M."
+            }
+          ],
+          "dois": [
+            "10.1103/PhysRevD.106.055006"
+          ],
+          "label": "28",
+          "misc": [
+            "Classifying anomalies through outer density estimation"
+          ],
+          "publication_info": {
+            "artid": "055006",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "106",
+            "year": 2022
+          },
+          "texkey": "Hallin:2021wme"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[29] A. Madaan, N. Tandon, P . Gupta, S. Hallinan, L. Gao, S. Wiegreffe, U. Alon, N. Dziri, S. Prabhumoye, Y. Yang, S. Gupta, B. P . Majumder et al., SELF-REFINE: iterative refinement with self-feedback, In Proceedings of the 37th International Conference on Neural Information Processing Systems, NIPS \u201923. Curran Associates Inc., Red Hook, NY, USA (2023)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Madaan, A."
+            },
+            {
+              "full_name": "Tandon, N."
+            },
+            {
+              "full_name": "Gupta, P."
+            },
+            {
+              "full_name": "Hallinan, S."
+            },
+            {
+              "full_name": "Gao, L."
+            },
+            {
+              "full_name": "Wiegreffe, S."
+            },
+            {
+              "full_name": "Alon, U."
+            },
+            {
+              "full_name": "Dziri, N."
+            },
+            {
+              "full_name": "Prabhumoye, S."
+            },
+            {
+              "full_name": "Yang, Y."
+            },
+            {
+              "full_name": "Gupta, S."
+            },
+            {
+              "full_name": "Majumder, B.P."
+            }
+          ],
+          "label": "29",
+          "misc": [
+            "In Proceedings of the 37th International Conference on Neural Information Processing Systems, NIPS \u201923. Curran Associates Inc., Red Hook, NY, USA"
+          ],
+          "publication_info": {
+            "year": 2023
+          },
+          "texkey": "10.5555/3666122.3668141",
+          "title": {
+            "title": "SELF-REFINE: iterative refinement with self-feedback"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[30] S. Purkayastha, N. Dycke, A. Lauscher and I. Gurevych, Decision-making with deliberation: Meta-reviewing as a document-grounded dialogue (2025), 2508.05283."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2508.05283",
+          "authors": [
+            {
+              "full_name": "Purkayastha, S."
+            },
+            {
+              "full_name": "Dycke, N."
+            },
+            {
+              "full_name": "Lauscher, A."
+            },
+            {
+              "full_name": "Gurevych, I."
+            }
+          ],
+          "label": "30",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "purkayastha2025",
+          "title": {
+            "title": "Decision-making with deliberation: Meta-reviewing as a document-grounded dialogue"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[31] P . Chen, Z. Guo, B. Haddow and K. Heafield, Iterative translation refinement with large language models, In C. Scarton, C. Prescott, C. Bayliss, C. Oakley, J. Wright, S. Wrigley, X. Song, E. Gow-Smith, R. Bawden, V . M. S\u00e1nchez-Cartagena, P . Cadwell, E. LapshinovaKoltunski et al., eds., Proceedings of the 25th Annual Conference of the European Association for Machine Translation (Volume 1), pp. 181\u2013190. European Association for Machine Translation (EAMT), Sheffield, UK (2024)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Chen, P."
+            },
+            {
+              "full_name": "Guo, Z."
+            },
+            {
+              "full_name": "Haddow, B."
+            },
+            {
+              "full_name": "Heafield, K."
+            }
+          ],
+          "label": "31",
+          "misc": [
+            "In C. Scarton, C. Prescott, C. Bayliss, C. Oakley, J. Wright, S. Wrigley, X. Song, E. Gow-Smith, R. Bawden, V . M. S\u00e1nchez-Cartagena, P . Cadwell, E. LapshinovaKoltunski et al., eds., Proceedings of the 25th Annual Conference of the European Association for Machine Translation (Volume 1), pp. 181\u2013190. European Association for Machine Translation (EAMT), Sheffield, UK"
+          ],
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "chen-etal-2024-iterative",
+          "title": {
+            "title": "Iterative translation refinement with large language models"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[32] OpenAI, Hello GPT-4o, https://openai.com/index/hello-gpt-4o/, Accessed: 2025-08-25 (2024)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "OpenAI"
+            }
+          ],
+          "label": "32",
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "openaihelloGPT-4o",
+          "title": {
+            "title": "Hello GPT-4o"
+          },
+          "urls": [
+            {
+              "value": "https://openai.com/index/hello-gpt-4o/"
+            }
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[33] OpenAI, A. Hurst, A. Lerer, A. P . Goucher, A. Perelman, A. Ramesh, A. Clark, A. Ostrow, A. Welihinda, A. Hayes, A. Radford, A. M \u02db adry et al., GPT-4o system card (2024), 2410.21276."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2410.21276",
+          "authors": [
+            {
+              "full_name": "OpenAI"
+            },
+            {
+              "full_name": "Hurst, A."
+            },
+            {
+              "full_name": "Lerer, A."
+            },
+            {
+              "full_name": "Goucher, A.P."
+            },
+            {
+              "full_name": "Perelman, A."
+            },
+            {
+              "full_name": "Ramesh, A."
+            },
+            {
+              "full_name": "Clark, A."
+            },
+            {
+              "full_name": "Ostrow, A."
+            },
+            {
+              "full_name": "Welihinda, A."
+            },
+            {
+              "full_name": "Hayes, A."
+            },
+            {
+              "full_name": "A. Radford, A.M"
+            }
+          ],
+          "label": "33",
+          "publication_info": {
+            "year": 2024
+          },
+          "texkey": "openai2024gpt4ocard",
+          "title": {
+            "title": "GPT-4o system card"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[34] OpenAI, Introducing GPT-4.1 in the API, https://openai.com/index/gpt-4-1/, Accessed: 2025-08-25 (2025)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "OpenAI"
+            }
+          ],
+          "label": "34",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "openaiintroducingGPT-41",
+          "title": {
+            "title": "Introducing GPT-4.1 in the API"
+          },
+          "urls": [
+            {
+              "value": "https://openai.com/index/gpt-4-1/"
+            }
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[35] OpenAI, Introducing OpenAI o3 and o4-mini, https://openai.com/index/introducing-o3-and-o4-mini/, Accessed: 2025-08-25 (2025)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "OpenAI"
+            }
+          ],
+          "label": "35",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "openaiintroducingopenaio3ando4-mini",
+          "title": {
+            "title": "Introducing OpenAI o3 and o4-mini"
+          },
+          "urls": [
+            {
+              "value": "https://openai.com/index/introducing-o3-and-o4-mini/"
+            }
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[36] OpenAI, OpenAI o3 and o4-mini system card, https://openai.com/index/o3-o4-mini-system-card/, Accessed: 2025-08-25 (2025)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "OpenAI"
+            }
+          ],
+          "label": "36",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "openaio3ando4-minicard",
+          "title": {
+            "title": "OpenAI o3 and o4-mini system card"
+          },
+          "urls": [
+            {
+              "value": "https://openai.com/index/o3-o4-mini-system-card/"
+            }
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[37] Open AI, Introducing GPT-5, https://openai.com/index/introducing-gpt-5/, Accessed: 2025-08-25 (2025)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Open AI"
+            }
+          ],
+          "label": "37",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "openaiintroducinggpt-5",
+          "title": {
+            "title": "Introducing GPT-5"
+          },
+          "urls": [
+            {
+              "value": "https://openai.com/index/introducing-gpt-5/"
+            }
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[38] OpenAI, GPT-5 system card, https://openai.com/index/gpt-5-system-card/, Accessed: 2025-08-25 (2025)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "OpenAI"
+            }
+          ],
+          "label": "38",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "openaigpt-5systemcard",
+          "title": {
+            "title": "GPT-5 system card"
+          },
+          "urls": [
+            {
+              "value": "https://openai.com/index/gpt-5-system-card/"
+            }
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[39] M. Sclar, Y. Choi, Y. Tsvetkov and A. Suhr, Quantifying language models\u2019 sensitivity to spurious features in prompt design or: How i learned to start worrying about prompt formatting, In The Twelfth International Conference on Learning Representations."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Sclar, M."
+            },
+            {
+              "full_name": "Choi, Y."
+            },
+            {
+              "full_name": "Tsvetkov, Y."
+            },
+            {
+              "full_name": "Suhr, A."
+            }
+          ],
+          "label": "39",
+          "misc": [
+            "In The Twelfth International Conference on Learning Representations"
+          ],
+          "texkey": "sclarquantifying",
+          "title": {
+            "title": "Quantifying language models\u2019 sensitivity to spurious features in prompt design or: How i learned to start worrying about prompt formatting"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[40] C. Holtermann, P . R\u00f6ttger and A. Lauscher, Around the world in 24 hours: Probing LLM knowledge of time and place, In W. Che, J. Nabende, E. Shutova and M. T. Pilehvar, eds., Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pp. 22875\u201322897. Association for Computational Linguistics, Vienna, Austria, ISBN 979-8-89176-251-0, doi:10.18653/v1/2025.acl-long.1115 (2025)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Holtermann, C."
+            },
+            {
+              "full_name": "R\u00f6ttger, P."
+            },
+            {
+              "full_name": "Lauscher, A."
+            }
+          ],
+          "dois": [
+            "10.18653/v1/2025.acl-long.1115"
+          ],
+          "isbn": "9798891762510",
+          "label": "40",
+          "misc": [
+            "Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pp. 22875\u201322897. Association for Computational Linguistics, Vienna, Austria"
+          ],
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "holtermann-etal-2025-around",
+          "title": {
+            "title": "Around the world in 24 hours: Probing LLM knowledge of time and place"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[41] M. D. Bui, K. V . D. Wense and A. Lauscher, Multi3 Hate: Multimodal, multilingual, and multicultural hate speech detection with vision\u2013language models, In L. Chiruzzo, A. Ritter and L. Wang, eds., Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers), pp. 9714\u20139731. Association for Computational Linguistics, Albuquerque, New Mexico, ISBN 979-8-89176-189-6, doi:10.18653/v1/2025.naacl-long.490 (2025)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Bui, M.D."
+            },
+            {
+              "full_name": "Wense, K.V.D."
+            },
+            {
+              "full_name": "Lauscher, A."
+            }
+          ],
+          "dois": [
+            "10.18653/v1/2025.naacl-long.490"
+          ],
+          "isbn": "9798891761896",
+          "label": "41",
+          "misc": [
+            "Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers), pp. 9714\u20139731. Association for Computational Linguistics, Albuquerque, New Mexico"
+          ],
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "bui-etal-2025-multi3hate",
+          "title": {
+            "title": "Multi3 Hate: Multimodal, multilingual, and multicultural hate speech detection with vision\u2013language models"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[42] OpenAI, Compare models, https://platform.openai.com/docs/models/compare, Accessed: 2025-08-26 (2025)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "OpenAI"
+            }
+          ],
+          "label": "42",
+          "publication_info": {
+            "year": 2025
+          },
+          "texkey": "openaiprices",
+          "title": {
+            "title": "Compare models"
+          },
+          "urls": [
+            {
+              "value": "https://platform.openai.com/docs/models/compare"
+            }
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[43] E. M. Metodiev, B. Nachman and J. Thaler, Classification without labels: Learning from mixed samples in high energy physics, JHEP 10, 174 (2017), doi:10.1007/JHEP10(2017)174, 1708.02949."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1615464"
+        },
+        "reference": {
+          "arxiv_eprint": "1708.02949",
+          "authors": [
+            {
+              "full_name": "Metodiev, E.M."
+            },
+            {
+              "full_name": "Nachman, B."
+            },
+            {
+              "full_name": "Thaler, J."
+            }
+          ],
+          "dois": [
+            "10.1007/JHEP10(2017)174"
+          ],
+          "label": "43",
+          "misc": [
+            "Classification without labels: Learning from mixed samples in high energy physics"
+          ],
+          "publication_info": {
+            "artid": "174",
+            "journal_title": "JHEP",
+            "journal_volume": "10",
+            "page_start": "174",
+            "year": 2017
+          },
+          "texkey": "Metodiev:2017vrx"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[44] J. H. Collins, K. Howe and B. Nachman, Anomaly Detection for Resonant New Physics with Machine Learning, Phys. Rev. Lett. 121(24), 241803 (2018), doi:10.1103/PhysRevLett.121.241803, 1805.02664."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1672143"
+        },
+        "reference": {
+          "arxiv_eprint": "1805.02664",
+          "authors": [
+            {
+              "full_name": "Collins, J.H."
+            },
+            {
+              "full_name": "Howe, K."
+            },
+            {
+              "full_name": "Nachman, B."
+            }
+          ],
+          "dois": [
+            "10.1103/PhysRevLett.121.241803"
+          ],
+          "label": "44",
+          "misc": [
+            "Anomaly Detection for Resonant New Physics with Machine Learning"
+          ],
+          "publication_info": {
+            "artid": "241803",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "121",
+            "year": 2018
+          },
+          "texkey": "Collins:2018epr"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[45] J. H. Collins, K. Howe and B. Nachman, Extending the search for new resonances with machine learning, Phys. Rev. D 99(1), 014038 (2019), doi:10.1103/PhysRevD.99.014038, 1902.02634."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1718003"
+        },
+        "reference": {
+          "arxiv_eprint": "1902.02634",
+          "authors": [
+            {
+              "full_name": "Collins, J.H."
+            },
+            {
+              "full_name": "Howe, K."
+            },
+            {
+              "full_name": "Nachman, B."
+            }
+          ],
+          "dois": [
+            "10.1103/PhysRevD.99.014038"
+          ],
+          "label": "45",
+          "misc": [
+            "Extending the search for new resonances with machine learning"
+          ],
+          "publication_info": {
+            "artid": "014038",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "99",
+            "year": 2019
+          },
+          "texkey": "Collins:2019jip"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[46] V . Chekhovsky et al., Model-agnostic search for dijet resonances with anomalous jet substructure in proton\u2013proton collisions at p s = 13 TeV, Rept. Prog. Phys. 88(6), 067802 (2025), doi:10.1088/1361-6633/add762, 2412.03747."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2856408"
+        },
+        "reference": {
+          "arxiv_eprint": "2412.03747",
+          "authors": [
+            {
+              "full_name": "Chekhovsky, V."
+            }
+          ],
+          "dois": [
+            "10.1088/1361-6633/add762"
+          ],
+          "label": "46",
+          "misc": [
+            "Model-agnostic search for dijet resonances with anomalous jet substructure in proton-proton collisions at p s = 13 TeV"
+          ],
+          "publication_info": {
+            "artid": "067802",
+            "journal_title": "Rept.Prog.Phys.",
+            "journal_volume": "88",
+            "year": 2025
+          },
+          "texkey": "CMS:2024nsz"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[47] ATLAS Collaboration, Weak supervision to search for new physics in dijet events with the ATLAS detector, JHEP 12, 178 (2021), doi:10.1007/JHEP12(2021)178, 2109.02701."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1865816"
+        },
+        "reference": {
+          "arxiv_eprint": "2109.02701",
+          "collaborations": [
+            "ATLAS Collaboration"
+          ],
+          "dois": [
+            "10.1007/JHEP12(2021)178"
+          ],
+          "label": "47",
+          "misc": [
+            "Weak supervision to search for new physics in dijet events with the ATLAS detector"
+          ],
+          "publication_info": {
+            "artid": "178",
+            "journal_title": "JHEP",
+            "journal_volume": "12",
+            "page_start": "178",
+            "year": 2021
+          },
+          "texkey": "ATLAS:2021weak"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[48] K. Benkendorfer, L. L. Pottier and B. Nachman, Simulation-assisted decorrelation for resonant anomaly detection, Phys. Rev. D 104(3), 035003 (2021), doi:10.1103/PhysRevD.104.035003, 2009.02205."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1815227"
+        },
+        "reference": {
+          "arxiv_eprint": "2009.02205",
+          "authors": [
+            {
+              "full_name": "Benkendorfer, K."
+            },
+            {
+              "full_name": "Pottier, L.L."
+            },
+            {
+              "full_name": "Nachman, B."
+            }
+          ],
+          "dois": [
+            "10.1103/PhysRevD.104.035003"
+          ],
+          "label": "48",
+          "misc": [
+            "Simulation-assisted decorrelation for resonant anomaly detection"
+          ],
+          "publication_info": {
+            "artid": "035003",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "104",
+            "year": 2021
+          },
+          "texkey": "Benkendorfer:2020gek"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[49] A. Hallin, G. Kasieczka, T. Quadfasel, D. Shih and M. Sommerhalder, Resonant anomaly detection without background sculpting, Phys. Rev. D 107(11), 114012 (2023), doi:10.1103/PhysRevD.107.114012, 2210.14924."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2172074"
+        },
+        "reference": {
+          "arxiv_eprint": "2210.14924",
+          "authors": [
+            {
+              "full_name": "Hallin, A."
+            },
+            {
+              "full_name": "Kasieczka, G."
+            },
+            {
+              "full_name": "Quadfasel, T."
+            },
+            {
+              "full_name": "Shih, D."
+            },
+            {
+              "full_name": "Sommerhalder, M."
+            }
+          ],
+          "dois": [
+            "10.1103/PhysRevD.107.114012"
+          ],
+          "label": "49",
+          "misc": [
+            "Resonant anomaly detection without background sculpting"
+          ],
+          "publication_info": {
+            "artid": "114012",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "107",
+            "year": 2023
+          },
+          "texkey": "Hallin:2022eoq"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[50] B. Nachman and D. Shih, Anomaly Detection with Density Estimation, Phys. Rev. D 101, 075042 (2020), doi:10.1103/PhysRevD.101.075042, 2001.04990."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1775739"
+        },
+        "reference": {
+          "arxiv_eprint": "2001.04990",
+          "authors": [
+            {
+              "full_name": "Nachman, B."
+            },
+            {
+              "full_name": "Shih, D."
+            }
+          ],
+          "dois": [
+            "10.1103/PhysRevD.101.075042"
+          ],
+          "label": "50",
+          "misc": [
+            "Anomaly Detection with Density Estimation"
+          ],
+          "publication_info": {
+            "artid": "075042",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "101",
+            "year": 2020
+          },
+          "texkey": "Nachman:2020lpy"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[51] J. A. Raine, S. Klein, D. Sengupta and T. Golling, CURTAINs for your sliding window: Constructing unobserved regions by transforming adjacent intervals, Front. Big Data 6, 899345 (2023), doi:10.3389/fdata.2023.899345, 2203.09470."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2054235"
+        },
+        "reference": {
+          "arxiv_eprint": "2203.09470",
+          "authors": [
+            {
+              "full_name": "Raine, J.A."
+            },
+            {
+              "full_name": "Klein, S."
+            },
+            {
+              "full_name": "Sengupta, D."
+            },
+            {
+              "full_name": "Golling, T."
+            }
+          ],
+          "dois": [
+            "10.3389/fdata.2023.899345"
+          ],
+          "label": "51",
+          "misc": [
+            "CURTAINs for your sliding window: Constructing unobserved regions by transforming adjacent intervals"
+          ],
+          "publication_info": {
+            "artid": "899345",
+            "journal_title": "Front.Big Data",
+            "journal_volume": "6",
+            "year": 2023
+          },
+          "texkey": "Raine:2022hht"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[52] T. Golling, S. Klein, R. Mastandrea and B. Nachman, Flow-enhanced transportation for anomaly detection, Phys. Rev. D 107(9), 096025 (2023), doi:10.1103/PhysRevD.107.096025, 2212.11285."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2617394"
+        },
+        "reference": {
+          "arxiv_eprint": "2212.11285",
+          "authors": [
+            {
+              "full_name": "Golling, T."
+            },
+            {
+              "full_name": "Klein, S."
+            },
+            {
+              "full_name": "Mastandrea, R."
+            },
+            {
+              "full_name": "Nachman, B."
+            }
+          ],
+          "dois": [
+            "10.1103/PhysRevD.107.096025"
+          ],
+          "label": "52",
+          "misc": [
+            "Flow-enhanced transportation for anomaly detection"
+          ],
+          "publication_info": {
+            "artid": "096025",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "107",
+            "year": 2023
+          },
+          "texkey": "Golling:2022nkl"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[53] L. Grinsztajn, E. Oyallon and G. Varoquaux, Why do tree-based models still outperform deep learning on tabular data? (2022), 2207.08815."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2207.08815",
+          "authors": [
+            {
+              "full_name": "Grinsztajn, L."
+            },
+            {
+              "full_name": "Oyallon, E."
+            },
+            {
+              "full_name": "Varoquaux, G."
+            }
+          ],
+          "label": "53",
+          "publication_info": {
+            "year": 2022
+          },
+          "texkey": "grinsztajn2022treebasedmodelsoutperformdeep",
+          "title": {
+            "title": "Why do tree-based models still outperform deep learning on tabular data?"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[54] T. Finke, M. Hein, G. Kasieczka, M. Kr\u00e4mer, A. M\u00fcck, P . Prangchaikul, T. Quadfasel, D. Shih and M. Sommerhalder, Tree-based algorithms for weakly supervised anomaly detection, Phys. Rev. D 109(3), 034033 (2024), doi:10.1103/PhysRevD.109.034033, 2309.13111."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2702512"
+        },
+        "reference": {
+          "arxiv_eprint": "2309.13111",
+          "authors": [
+            {
+              "full_name": "Finke, T."
+            },
+            {
+              "full_name": "Hein, M."
+            },
+            {
+              "full_name": "Kasieczka, G."
+            },
+            {
+              "full_name": "Kr\u00e4mer, M."
+            },
+            {
+              "full_name": "M\u00fcck, A."
+            },
+            {
+              "full_name": "Prangchaikul, P."
+            },
+            {
+              "full_name": "Quadfasel, T."
+            },
+            {
+              "full_name": "Shih, D."
+            },
+            {
+              "full_name": "Sommerhalder, M."
+            }
+          ],
+          "dois": [
+            "10.1103/PhysRevD.109.034033"
+          ],
+          "label": "54",
+          "misc": [
+            "Tree-based algorithms for weakly supervised anomaly detection"
+          ],
+          "publication_info": {
+            "artid": "034033",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "109",
+            "year": 2024
+          },
+          "texkey": "Finke:2023ltw"
+        }
+      }
+    ],
+    "texkeys": [
+      "Diefenbacher:2025zzn"
+    ],
+    "titles": [
+      {
+        "source": "arXiv",
+        "title": "Agents of Discovery"
+      }
+    ]
+  },
+  "revision_id": 6,
+  "updated": "2025-10-07T07:53:31.825281+00:00",
+  "uuid": "8291edc1-7217-46e5-beb0-1e99b6a20ccd"
+}

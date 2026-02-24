@@ -1,0 +1,3 @@
+{"event_id":"evt-100","type":"permission_request","permission_id":"perm-100","tool":"shell","path":null}
+{"event_id":"evt-101","type":"execution_summary","summary":"role finished","outputs":["file:///tmp/run/out.json"]}
+{"event_id":"evt-102","type":"tool_event","tool":"mcp","detail":"catalog refreshed"}

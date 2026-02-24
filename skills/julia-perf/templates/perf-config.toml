@@ -1,0 +1,37 @@
+# julia-perf config template
+
+[mode]
+# standalone | ecosystem | auto
+mode = "auto"
+
+[target]
+module = "MyModule"
+functions = ["hotpath1", "hotpath2"]
+
+[benchmark]
+# Path to a Julia file that defines benchmark workload(s).
+suite_file = "bench-suite-example.jl"
+# Optional baseline artifact.
+baseline_file = ""
+# Gate run defaults.
+samples = 100
+seconds = 30
+timeout_seconds = 600
+
+[benchmark.evals]
+# auto: tiered policy from benchmark protocol.
+# fixed: always use fixed_value.
+policy = "auto"
+tier_1_threshold_ns = 1000
+tier_2_threshold_ns = 1000000
+fixed_value = 1
+
+[output]
+out_dir = ".julia-perf/runs/latest"
+write_diagnostics_markdown = true
+
+[integration]
+# Used when mode resolves to ecosystem.
+artifact_root = "artifacts/runs"
+tag = ""
+agent_id = ""

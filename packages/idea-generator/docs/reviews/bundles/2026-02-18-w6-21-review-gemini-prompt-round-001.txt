@@ -1,0 +1,127 @@
+You are reviewer B (gemini-3-pro-preview). Tools are disabled.
+
+STRICT OUTPUT CONTRACT (non-negotiable):
+- Output MUST start immediately with: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT include any planning text, tool intentions, or other preamble.
+- Must contain these exact Markdown headers in this exact order:
+  - ## Blockers
+  - ## Non-blocking
+  - ## Real-research fit
+  - ## Robustness & safety
+  - ## Specific patch suggestions
+- For empty sections, write `- None.`
+- Do not rename or omit headers.
+
+Review ONLY the packet below.
+
+--- BEGIN PACKET ---
+# W6-21 Review Packet (Round-001) — **ASR sensitivity** + **ASR-off slope tightening** + **low-energy value-band hook (tooling)**
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## Purpose
+
+W6-20 established that the baseline dispersion-coupled SOCP implies a slope floor $f_1^{\\min}\\approx 0.021$ at $Q^*$, excluding the arXiv:2507.05375 TMD/ChPT slope target $f_1^{\\rm TMD}\\approx 0.01198$.
+
+W6-21 investigates the *physics reason* for that tension and whether we can obtain **scattering-amplitude-like tightening** by adding **one extra low-energy condition** (the slope), while keeping everything auditable and reproducible.
+
+This packet asks reviewers to validate:
+1) the claim that the high-energy **ASR** constraint is the dominant knob controlling both $A_{\\max}(-Q^2)$ and the implied $f_1$ range,
+2) the claim that **ASR-off + slope input** yields a tight and cross-solver-stable band for $A^\\pi(-Q^*)$,
+3) the safety/auditability of a new tooling hook: `constraints.low_energy_value_bands` (linear band constraints on $A(-Q^2)$) + residual auditing.
+
+## Key artifacts / reproduction
+
+Implementation (instance repo):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl`
+  - W6-21 change: parse `constraints.low_energy_value_bands` as `AbstractDict` (JSON.Object compatible) and audit residuals under `low_energy_value_bands`.
+
+### Paired ASR sensitivity scan (multi-$Q^2$; ECOS)
+
+- ASR **on** (baseline): config `.../compute/a_bochner_k0_socp_config_v4ba_dispersion_grid200_enf200_multiq_audit6_ecos_baseline_scan.json`
+  - run v51: `.../runs/2026-02-18-a-bochner-k0-socp-v51-.../results.json`
+- ASR **off**: config `.../compute/a_bochner_k0_socp_config_v4bb_dispersion_grid200_enf200_multiq_audit6_ecos_noasr_scan.json`
+  - run v52: `.../runs/2026-02-18-a-bochner-k0-socp-v52-.../results.json`
+
+### Implied slope diagnostic (ASR-off; ECOS)
+
+- config `.../compute/a_bochner_k0_socp_config_v4bc_dispersion_grid200_enf200_qstar_audit6_ecos_noasr_implied_f1_range.json`
+  - run v53: `.../runs/2026-02-18-a-bochner-k0-socp-v53-.../results.json`
+
+### Slope-tightened $A^\\pi(-Q^*)$ bounds (ASR-off; cross-solver)
+
+- ECOS (tol=0.001): config `.../compute/a_bochner_k0_socp_config_v4bd_dispersion_grid200_enf200_qstar_audit6_ecos_noasr_slope_tmd.json`
+  - run v54: `.../runs/2026-02-18-a-bochner-k0-socp-v54-.../results.json`
+- Clarabel (tol=0.001): config `.../compute/a_bochner_k0_socp_config_v4be_dispersion_grid200_enf200_qstar_audit6_clarabel_noasr_slope_tmd.json`
+  - run v55: `.../runs/2026-02-18-a-bochner-k0-socp-v55-.../results.json`
+- ECOS (tol=0.00072): config `.../compute/a_bochner_k0_socp_config_v4bf_dispersion_grid200_enf200_qstar_audit6_ecos_noasr_slope_tmd_tol0p00072.json`
+  - run v56: `.../runs/2026-02-18-a-bochner-k0-socp-v56-.../results.json`
+
+### Tooling smoke test: low-energy value-band constraint hook (ASR-off; ECOS)
+
+- config `.../compute/a_bochner_k0_socp_config_v4bg_dispersion_grid200_enf200_qstar_audit6_ecos_noasr_valueband_q2_1.json`
+  - run v57: `.../runs/2026-02-18-a-bochner-k0-socp-v57-.../results.json`
+
+### Human-readable report update (instance repo; NOT_FOR_CITATION)
+
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+  - adds W6-21 bullets under Limitations/known gaps, documenting ASR sensitivity and the slope-tightened (conditional) band.
+
+### Gates / verification (PASS; design repo evidence)
+
+- `idea-generator make validate`: `docs/reviews/bundles/2026-02-18-w6-21-idea-generator-validate-v1.txt`
+- `idea-runs make validate`: `docs/reviews/bundles/2026-02-18-w6-21-idea-runs-validate-v1.txt`
+- `idea-runs PROJECT=... make validate-project`: `docs/reviews/bundles/2026-02-18-w6-21-idea-runs-validate-project-v1.txt`
+- failure hook:
+  - index build: `docs/reviews/bundles/2026-02-18-w6-21-failure-library-index-build-v1.txt`
+  - query run: `docs/reviews/bundles/2026-02-18-w6-21-failure-library-query-run-v1.txt`
+- dashboards rerender: `docs/reviews/bundles/2026-02-18-w6-21-render-dashboards-v2.txt`
+
+## Claims under review (W6-21)
+
+### 1) ASR sensitivity is dominant (high-energy input)
+
+Paired multi-$Q^2$ scan at fixed discretization:
+- ASR on (v51): at $Q^*=15.438\\,m_\\pi^2$, $A^\\pi(-Q^*)\\in[0.0103,\\,0.7545]$.
+- ASR off (v52): at the same $Q^*$, $A^\\pi(-Q^*)\\in[0.0128,\\,0.9171]$.
+
+The same pattern appears across other points (e.g. $Q^2=10\\,m_\\pi^2$).
+
+Interpretation: the strict ASR constraint (2412.00848 assumption under $Q^2 A(Q^2)\\to 0$) is the main physics lever controlling the *upper* bounds and also impacts the implied slope range (below).
+
+### 2) ASR-off implied $f_1$ range includes the TMD/ChPT target
+
+At $Q^*$:
+- ASR off (v53): implied $f_1\\in[0.00691,\\,0.33791]$.
+
+This is qualitatively different from the ASR-on implied $f_1^{\\min}\\approx 0.021$ result from W6-20 (v49).
+
+Interpretation: the W6-20 slope infeasibility is driven primarily by the ASR assumption, not by a units bug in the slope definition.
+
+### 3) ASR-off + slope input yields scattering-amplitude-like tightening at $Q^*$
+
+Impose the low-energy slope as an explicit extra input:
+- v54 (ECOS; $f_1=0.01198\\pm 0.001$): $A^\\pi(-Q^*)\\in[0.8316,\\,0.9117]$.
+- v55 (Clarabel cross-check; same band): $A^\\pi(-Q^*)\\in[0.8309,\\,0.9154]$.
+- v56 (ECOS; $\\pm 0.00072$): $A^\\pi(-Q^*)\\in[0.8348,\\,0.9111]$.
+
+Interpretation: one low-energy condition can produce a very tight band, with cross-solver stability at the few $\\times 10^{-3}$ level.
+
+### 4) Tooling: `low_energy_value_bands` hook works and is auditable
+
+v57 is a tooling smoke test (not a physics input): impose $A(-Q^2{=}1)=0.95\\pm 0.02$ and confirm:
+- feasibility,
+- residual audit shows the band saturations under `min_residuals.low_energy_value_bands` and `max_residuals.low_energy_value_bands`.
+
+## Reviewer questions
+
+1) Are Claims (1–3) evidence-complete and clearly labeled as conditional on assumptions (ASR on/off; slope as external input) for **VERDICT: READY**?
+2) Does the packet motivate the right “next physics step”: replacing binary ASR with a generalized UV/OPE constraint (nonzero RHS or bounded band) so that UV input and slope tightening can coexist?
+3) Is the `low_energy_value_bands` implementation safe and consistent with the repo’s auditability requirements (JSON.Object parsing, residual reporting, no hidden side effects)?
+
+## Required verdict format
+
+First line must be exactly `VERDICT: READY` or `VERDICT: NOT_READY`, with no preamble, and include the strict headers required by the contract checker.
+
+--- END PACKET ---
+

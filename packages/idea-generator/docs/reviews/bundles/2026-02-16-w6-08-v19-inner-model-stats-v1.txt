@@ -1,0 +1,19 @@
+config: /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v2h_dispersion_grid200_enf200_qstar_dualcert_clarabel.json
+solver: clarabel
+inner_num_variables: 420
+inner_constraints: MathOptInterface.VectorOfVariables in MathOptInterface.Nonnegatives -> 65
+inner_constraints: MathOptInterface.VectorAffineFunction{Float64} in MathOptInterface.Zeros -> 202
+inner_constraints: MathOptInterface.VectorAffineFunction{Float64} in MathOptInterface.Nonnegatives -> 75
+inner_constraints: MathOptInterface.VectorAffineFunction{Float64} in MathOptInterface.SecondOrderCone -> 392
+soc_dims_counts: Dict(4 => 192, 3 => 200)
+nonneg_dims_counts: Dict(1 => 140)
+---
+config: /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v2h_dispersion_grid200_enf200_qstar_dualcert_ecos.json
+solver: ecos
+inner_num_variables: 420
+inner_constraints: MathOptInterface.VectorAffineFunction{Float64} in MathOptInterface.Zeros -> 202
+inner_constraints: MathOptInterface.VectorAffineFunction{Float64} in MathOptInterface.Nonnegatives -> 140
+inner_constraints: MathOptInterface.VectorAffineFunction{Float64} in MathOptInterface.SecondOrderCone -> 392
+soc_dims_counts: Dict(4 => 192, 3 => 200)
+nonneg_dims_counts: Dict(1 => 140)
+---

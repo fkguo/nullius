@@ -1,0 +1,32 @@
+Board sync check (pre-flight)
+timestamp_utc: 2026-02-16T02:16:05+00:00
+project_title: Idea Generator Program
+project_id: PVT_kwHOA7u0gc4BPFjm
+
+Raw snapshots:
+- docs/reviews/bundles/2026-02-16-board-project-view-v1.json
+- docs/reviews/bundles/2026-02-16-board-field-list-v1.json
+- docs/reviews/bundles/2026-02-16-board-item-list-v2.json
+- docs/reviews/bundles/2026-02-16-board-item-create-w6-01-v1.json
+- docs/reviews/bundles/2026-02-16-board-item-edit-w6-01-status-inprogress-v1.json
+
+Status field:
+- field_id: PVTSSF_lAHOA7u0gc4BPFjmzg9mWy4
+  - option: Todo (f75ad846)
+  - option: In Progress (47fc9ee4)
+  - option: Done (98236657)
+
+Key items (Status, Title, ItemID):
+- Done	[M5.1] A0.1 charter + A0.2 promotion gate 接入	PVTI_lAHOA7u0gc4BPFjmzgla2TY
+- Todo	[M5.2] clean-room 多评审 + 结构化辩论触发	PVTI_lAHOA7u0gc4BPFjmzgla2U0
+- Todo	[M5.3] 端到端试跑（至少 1 个 C2 handoff）	PVTI_lAHOA7u0gc4BPFjmzgla2Wc
+- Done	[M5.4] 失败库（negative results）结构化复用	PVTI_lAHOA7u0gc4BPFjmzgla2XY
+- Done	[W5-03] test-instance 解耦 + idea-runs + 反污染 gate	PVTI_lAHOA7u0gc4BPFjmzglevTE
+- Done	[W5-04] 通用质量门禁 schema + checklist（无实例内容）	PVTI_lAHOA7u0gc4BPFjmzglevTM
+- Done	[W5-05] control-plane 工程硬化 + 回归测试	PVTI_lAHOA7u0gc4BPFjmzglevTY
+- In Progress	[W6-01] Pion GFF bootstrap campaign (islands+opportunity pool + constraints)	PVTI_lAHOA7u0gc4BPFjmzglgVQg
+
+New card creation:
+- created_item_id: PVTI_lAHOA7u0gc4BPFjmzglgVQg
+- created_title: [W6-01] Pion GFF bootstrap campaign (islands+opportunity pool + constraints)
+- expected_status: In Progress

@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/memory_graph_node_v1.schema.json",
+  "title": "MemoryGraphNode V1",
+  "description": "Node in the Cross-Cycle Memory Graph. Core types support tool evolution; additional domain-specific types are registered at runtime by consuming tracks.",
+  "type": "object",
+  "required": ["id", "node_type", "track", "payload", "created_at", "updated_at", "weight"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^mgn_[0-9a-f-]+$",
+      "description": "Prefixed node ID (ID-01 compliant)"
+    },
+    "node_type": {
+      "$ref": "#/$defs/NodeType"
+    },
+    "track": {
+      "type": "string",
+      "enum": ["a", "b", "shared"],
+      "description": "Which evolution track owns this node"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Type-specific node data (discriminated by node_type via allOf)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "decay_ts": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Last decay weight recalculation timestamp"
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1.0,
+      "description": "Current decay weight: 0.5^(age_days / half_life_days)"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "node_type": { "const": "signal" } }, "required": ["node_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/SignalNodePayload" } } }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "gene" } }, "required": ["node_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/GeneNodePayload" } } }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "capsule" } }, "required": ["node_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/CapsuleNodePayload" } } }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "outcome" } }, "required": ["node_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/OutcomeNodePayload" } } }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "skill" } }, "required": ["node_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/SkillNodePayload" } } }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "module" } }, "required": ["node_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ModuleNodePayload" } } }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "test" } }, "required": ["node_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/TestNodePayload" } } }
+    },
+    {
+      "if": { "properties": { "node_type": { "const": "approval_pattern" } }, "required": ["node_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ApprovalPatternNodePayload" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "node_type": {
+            "not": { "enum": ["signal", "outcome", "gene", "capsule", "skill", "module", "test", "approval_pattern"] }
+          }
+        },
+        "required": ["node_type"]
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "required": ["payload_schema_id"],
+            "properties": {
+              "payload_schema_id": {
+                "type": "string",
+                "description": "Schema ID for runtime validation of extension type payloads. Must reference a registered schema in the NodeTypeRegistry."
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "NodeType": {
+      "type": "string",
+      "description": "Node type identifier. Built-in types: signal, outcome, gene, capsule, skill, module, test, approval_pattern. Additional domain-specific types are registered at runtime by consuming tracks and validated via the NodeTypeRegistry (see EVO-20 §2.3). Non-built-in types must include a payload_schema_id in their payload for runtime validation.",
+      "examples": ["signal", "outcome", "gene", "capsule", "skill", "module", "test", "approval_pattern"]
+    },
+    "SignalNodePayload": {
+      "type": "object",
+      "required": ["signal_key", "signals"],
+      "properties": {
+        "signal_key": {
+          "type": "string",
+          "description": "FNV-1a hash of normalized+sorted signal set"
+        },
+        "signals": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "first_seen": { "type": "string", "format": "date-time" },
+        "occurrence_count": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "GeneNodePayload": {
+      "type": "object",
+      "required": ["gene_id", "signals_match"],
+      "properties": {
+        "gene_id": {
+          "type": "string",
+          "description": "Unique gene identifier"
+        },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "signals_match": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Signal patterns this gene matches"
+        },
+        "target_scope": {
+          "type": "string",
+          "description": "Target scope (file type, module, etc.)"
+        },
+        "mutation_type": {
+          "type": "string",
+          "enum": ["repair", "optimize", "innovate"]
+        },
+        "validation": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Validation commands to run after applying gene"
+        },
+        "epigenetic_marks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EpigeneticMark" },
+          "description": "Environment-specific expression modifiers"
+        },
+        "origin": {
+          "type": "string",
+          "enum": ["manual", "auto_gene", "capsule_generalization", "external"],
+          "description": "How this gene was created"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CapsuleNodePayload": {
+      "type": "object",
+      "required": ["capsule_id", "gene_id", "trigger"],
+      "properties": {
+        "capsule_id": { "type": "string" },
+        "gene_id": { "type": "string" },
+        "trigger": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Trigger signals that activated this capsule"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "blast_radius": {
+          "type": "object",
+          "properties": {
+            "files_changed": { "type": "integer", "minimum": 0 },
+            "lines_added": { "type": "integer", "minimum": 0 },
+            "lines_removed": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "artifact_uri": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "H-18 ArtifactRef URI to capsule content. Full object resolved via artifact store."
+        }
+      },
+      "additionalProperties": false
+    },
+    "OutcomeNodePayload": {
+      "type": "object",
+      "required": ["success"],
+      "properties": {
+        "success": { "type": "boolean" },
+        "quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "error_delta": { "type": "integer" },
+        "validation_passed": { "type": "boolean" },
+        "gate_level": {
+          "type": "string",
+          "description": "Gate level applied (A0, A1, A2, etc.)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EpigeneticMark": {
+      "type": "object",
+      "required": ["env_key", "modifier"],
+      "properties": {
+        "env_key": {
+          "type": "string",
+          "description": "Environment context key (platform, arch, node_version, etc.)"
+        },
+        "modifier": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1,
+          "description": "Expression modifier (+0.05 on success, -0.1 on failure)"
+        },
+        "ttl_days": {
+          "type": "integer",
+          "default": 90,
+          "description": "Time-to-live in days"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "SkillNodePayload": {
+      "type": "object",
+      "required": ["skill_id", "name"],
+      "properties": {
+        "skill_id": { "type": "string", "description": "Unique skill identifier" },
+        "name": { "type": "string", "description": "Skill name" },
+        "trigger_description": { "type": "string" },
+        "gate_level": { "type": "string", "enum": ["A0", "A1", "A2"] },
+        "origin_gene_id": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "ModuleNodePayload": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "description": "Module file path relative to repo root" },
+        "component": { "type": "string", "description": "Package/component name" }
+      },
+      "additionalProperties": false
+    },
+    "TestNodePayload": {
+      "type": "object",
+      "required": ["test_id", "path"],
+      "properties": {
+        "test_id": { "type": "string" },
+        "path": { "type": "string", "description": "Test file path" },
+        "test_type": { "type": "string", "enum": ["unit", "integration", "e2e"] }
+      },
+      "additionalProperties": false
+    },
+    "ApprovalPatternNodePayload": {
+      "type": "object",
+      "required": ["pattern_key"],
+      "properties": {
+        "pattern_key": { "type": "string", "description": "Approval pattern identifier" },
+        "auto_approve": { "type": "boolean", "default": false },
+        "min_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

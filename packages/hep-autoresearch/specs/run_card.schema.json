@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Run Card",
+  "type": "object",
+  "required": ["schema_version", "run_id", "workflow_id", "backend"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "workflow_id": { "type": "string", "minLength": 1 },
+    "artifact_step": { "type": "string" },
+    "step_id": { "type": "string" },
+    "adapter_id": { "type": "string" },
+    "required_gates": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "gate_resolution_mode": {
+      "type": "string",
+      "enum": ["union", "policy_only", "run_card_only"]
+    },
+    "gate_resolution_trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["gate_id", "triggered_by", "reason", "timestamp_utc"],
+        "properties": {
+          "gate_id": { "type": "string", "minLength": 1 },
+          "triggered_by": {
+            "type": "string",
+            "enum": ["policy", "run_card", "both", "workflow_default", "cli_override"]
+          },
+          "reason": { "type": "string", "minLength": 1 },
+          "timestamp_utc": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "budgets": { "type": "object" },
+    "prompt": {
+      "type": "object",
+      "required": ["system", "user"],
+      "properties": {
+        "system": { "type": "string" },
+        "user": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "tools": { "type": "array", "items": { "type": "string" } },
+    "evidence_bundle": { "type": "object" },
+    "backend": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "argv": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "cwd": { "type": "string" },
+        "env": { "type": "object" },
+        "sandbox": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "type": "string", "enum": ["auto", "local_copy", "docker"], "default": "auto" },
+            "network": { "type": "string", "enum": ["disabled", "none", "host"] },
+            "repo_read_only": { "type": "boolean" },
+            "docker_image": { "type": "string" },
+            "forward_env_keys": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "orchestrator_command": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "params": { "type": "object" },
+    "versions": { "type": "object" },
+    "git": { "type": "object" },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,96 @@
+project_id: my-research-project
+repos:
+  - /abs/path/to/repo-a
+  - /abs/path/to/repo-b
+
+tracker:
+  path: /abs/path/to/tracker.json
+  format: json
+  parse:
+    tasks_key: tasks
+    id_field: id
+    status_field: status
+    milestone_field: milestone
+    description_field: description
+
+board:
+  platform: file
+  project_id: board-local-001
+  path: /abs/path/to/board.json
+  format: json
+  status_field: status
+  status_map:
+    todo: todo
+    in_progress: in_progress
+    done: done
+    blocked: blocked
+
+queue:
+  order: [task-1, task-2, task-3]
+  dependencies:
+    task-2: [task-1]
+    task-3: [task-2]
+  tasks:
+    - id: task-1
+      depends_on: []
+      execute:
+        - "python -m pytest -q"
+    - id: task-2
+      depends_on: [task-1]
+      execute:
+        - "python scripts/build_docs.py"
+    - id: task-3
+      depends_on: [task-2]
+      execute:
+        - "python scripts/release_check.py"
+
+gates:
+  verify_commands:
+    - "python -m pytest -q"
+  command_retries:
+    execute_max_retries: 1
+    verify_max_retries: 1
+    backoff_seconds: 0.5
+  review:
+    required: true
+    strategy: stub
+  model_constraints:
+    - gpt-5.3-codex
+    - gemini-3-pro-preview
+
+model_routing:
+  default: gpt-5.3-codex
+  rules:
+    - task_ids: [M5.1, M5.2, M5.3, M5.4]
+      model: gpt-5.2-xhigh
+    - milestone_pattern: "^M6$"
+      model: gpt-5.3-codex
+
+push_policy:
+  env_inject:
+    HTTPS_PROXY: http://127.0.0.1:7890
+  session_launcher:
+    mode: command
+    command: "codex --model {model} --cd {cwd} --prompt-file {prompt_file}"
+  prompt_template: templates/next_prompt.md.j2
+
+stop_conditions:
+  blocker_statuses: [blocked]
+  max_failures: 1
+  require_human_on: [permission_denied, verification_failed, command_failed]
+
+output_contract:
+  strict: false
+  required_fields: [task_id, phase, status, timestamp]
+
+permissions:
+  allow_commands:
+    - "^python"
+    - "^pytest"
+    - "^codex"
+  deny_commands:
+    - "rm -rf"
+    - "git reset --hard"
+  allow_paths:
+    - /abs/path/to
+  deny_paths: []

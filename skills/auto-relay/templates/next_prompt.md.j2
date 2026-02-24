@@ -1,0 +1,20 @@
+# Auto Relay Handoff
+
+Project: {{ project_id }}
+Generated At: {{ generated_at }}
+Mode: {{ mode }}
+
+Current Task: {{ current_task_id }}
+Next Task: {{ next_task_id }}
+Next Milestone: {{ next_task_milestone }}
+Task Description: {{ next_task_description }}
+Selected Model: {{ selected_model }}
+Model Selection Reason: {{ selected_model_reason }}
+
+Pending Tasks: {{ pending_tasks }}
+
+## Instructions For Next Session
+1. Load profile at `{{ profile_path }}`.
+2. Resume relay with state directory `{{ state_dir }}`.
+3. Execute only allowed operations from profile permissions.
+4. If blocked, write `blocker_report.json` and request minimal human decision.

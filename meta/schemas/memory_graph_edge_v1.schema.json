@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/memory_graph_edge_v1.schema.json",
+  "title": "MemoryGraphEdge V1",
+  "description": "Edge in the Cross-Cycle Memory Graph. Connects nodes with typed, weighted, decay-aware relationships.",
+  "type": "object",
+  "required": ["id", "edge_type", "source_id", "target_id", "payload", "created_at", "weight"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^mge_[0-9a-f-]+$",
+      "description": "Prefixed edge ID (ID-01 compliant)"
+    },
+    "edge_type": {
+      "$ref": "#/$defs/EdgeType"
+    },
+    "source_id": {
+      "type": "string",
+      "pattern": "^mgn_[0-9a-f-]+$",
+      "description": "Source node ID"
+    },
+    "target_id": {
+      "type": "string",
+      "pattern": "^mgn_[0-9a-f-]+$",
+      "description": "Target node ID"
+    },
+    "payload": {
+      "type": "object",
+      "default": {},
+      "description": "Edge-type-specific metadata (discriminated by edge_type via allOf)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1.0,
+      "description": "Edge weight [0,1]. For co_change: min(co_occurrence_count * 0.1, 1.0) * decay. For confidence: laplace_p * decay. For others: decay only."
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "edge_type": { "const": "confidence" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ConfidencePayload" } } }
+    },
+    {
+      "if": { "properties": { "edge_type": { "const": "co_change" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/CoChangePayload" } } }
+    },
+    {
+      "if": { "properties": { "edge_type": { "const": "resolved_by" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ResolutionPayload" } } }
+    },
+    {
+      "if": { "properties": { "edge_type": { "const": "triggered_by" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/EmptyPayload" } } }
+    },
+    {
+      "if": { "properties": { "edge_type": { "const": "produced" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/EmptyPayload" } } }
+    },
+    {
+      "if": { "properties": { "edge_type": { "const": "supersedes" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/EmptyPayload" } } }
+    },
+    {
+      "if": { "properties": { "edge_type": { "const": "generalizes" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/EmptyPayload" } } }
+    },
+    {
+      "if": { "properties": { "edge_type": { "const": "spawned_skill" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/SpawnedSkillPayload" } } }
+    },
+    {
+      "if": { "properties": { "edge_type": { "const": "failure_in" } }, "required": ["edge_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/EmptyPayload" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "edge_type": {
+            "not": { "enum": ["triggered_by", "confidence", "resolved_by", "produced", "supersedes", "generalizes", "spawned_skill", "co_change", "failure_in"] }
+          }
+        },
+        "required": ["edge_type"]
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "required": ["payload_schema_id"],
+            "properties": {
+              "payload_schema_id": {
+                "type": "string",
+                "description": "Schema ID for runtime validation of extension type payloads. Must reference a registered schema in the EdgeTypeRegistry."
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "EdgeType": {
+      "type": "string",
+      "description": "Edge type identifier. Built-in types: triggered_by, confidence, resolved_by, produced, supersedes, generalizes, spawned_skill, co_change, failure_in. Additional domain-specific types are registered at runtime by consuming tracks and validated via the EdgeTypeRegistry (see EVO-20 §3.3).",
+      "examples": ["triggered_by", "confidence", "resolved_by", "produced", "supersedes", "generalizes", "spawned_skill", "co_change", "failure_in"]
+    },
+    "ConfidencePayload": {
+      "type": "object",
+      "description": "Payload for 'confidence' edge type (signal → gene/skill pair statistics)",
+      "required": ["success_count", "fail_count", "total", "laplace_p", "last_outcome_ts"],
+      "properties": {
+        "success_count": { "type": "integer", "minimum": 0 },
+        "fail_count": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 },
+        "laplace_p": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "(success+1)/(total+2)"
+        },
+        "last_outcome_ts": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CoChangePayload": {
+      "type": "object",
+      "description": "Payload for 'co_change' edge type (module → module co-modification tracking). Edge weight = min(co_occurrence_count * 0.1, 1.0) * decay_factor.",
+      "required": ["co_occurrence_count", "last_co_change_ts"],
+      "properties": {
+        "co_occurrence_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Raw unbounded count of co-modifications. Edge weight is computed as min(count * 0.1, 1.0) * decay."
+        },
+        "last_co_change_ts": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ResolutionPayload": {
+      "type": "object",
+      "description": "Payload for 'resolved_by' edge type",
+      "required": ["resolution_count", "avg_quality", "last_resolution_ts"],
+      "properties": {
+        "resolution_count": { "type": "integer", "minimum": 1 },
+        "avg_quality": { "type": "number", "minimum": 0, "maximum": 1 },
+        "last_resolution_ts": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SpawnedSkillPayload": {
+      "type": "object",
+      "required": ["proposal_id", "confidence"],
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "description": "Skill proposal ID (from EVO-12a)"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Generalization confidence at time of skill creation"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EmptyPayload": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  }
+}

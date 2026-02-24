@@ -1,0 +1,2675 @@
+{
+  "created": "2026-01-30T04:16:29.106965+00:00",
+  "id": "3112995",
+  "links": {
+    "bibtex": "https://inspirehep.net/api/literature/3112995?format=bibtex",
+    "citations": "https://inspirehep.net/api/literature/?q=refersto%3Arecid%3A3112995",
+    "cv": "https://inspirehep.net/api/literature/3112995?format=cv",
+    "json": "https://inspirehep.net/api/literature/3112995?format=json",
+    "json-expanded": "https://inspirehep.net/api/literature/3112995?format=json-expanded",
+    "latex-eu": "https://inspirehep.net/api/literature/3112995?format=latex-eu",
+    "latex-us": "https://inspirehep.net/api/literature/3112995?format=latex-us"
+  },
+  "metadata": {
+    "$schema": "https://inspirehep.net/schemas/records/hep.json",
+    "abstracts": [
+      {
+        "source": "arXiv",
+        "value": "We uncover an effective and communicative set of agents working with MadGraph. Agentic installation, learning-by-doing training, and user support provide easy access to state-of-the-art simulations and accelerate LHC research. We show in detail how MadAgents interact with inexperienced and advanced users, support a range of simulation tasks, and analyze results. In a second step, we illustrate how MadAgents automatize event generation and run an autonomous simulation campaign, starting from a pdf file of a paper."
+      }
+    ],
+    "arxiv_eprints": [
+      {
+        "categories": [
+          "hep-ph"
+        ],
+        "value": "2601.21015"
+      }
+    ],
+    "authors": [
+      {
+        "affiliations": [
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/1209215"
+            },
+            "value": "U. Heidelberg, ITP"
+          },
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/902842"
+            },
+            "value": "Heidelberg U."
+          }
+        ],
+        "full_name": "Plehn, Tilman",
+        "raw_affiliations": [
+          {
+            "value": "Institut f\u00fcr Theoretische Physik, Universit\u00e4t Heidelberg, Germany"
+          },
+          {
+            "value": "Interdisciplinary Center for Scientific Computing (IWR), Universit\u00e4t Heidelberg, Germany"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/993181"
+        },
+        "uuid": "11080960-7455-42cc-8a72-e7c73dd2f766"
+      },
+      {
+        "affiliations": [
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/1209215"
+            },
+            "value": "U. Heidelberg, ITP"
+          }
+        ],
+        "full_name": "Schiller, Daniel",
+        "raw_affiliations": [
+          {
+            "value": "Institut f\u00fcr Theoretische Physik, Universit\u00e4t Heidelberg, Germany"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/2920611"
+        },
+        "uuid": "566fa85a-0be1-4988-99d8-2b4729edee72"
+      },
+      {
+        "affiliations": [
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/1209215"
+            },
+            "value": "U. Heidelberg, ITP"
+          }
+        ],
+        "full_name": "Schmal, Nikita",
+        "raw_affiliations": [
+          {
+            "value": "Institut f\u00fcr Theoretische Physik, Universit\u00e4t Heidelberg, Germany"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/2561451"
+        },
+        "uuid": "14999980-c4f3-43d2-8c7a-c1d527bd7a8a"
+      }
+    ],
+    "citation_count": 0,
+    "citation_count_without_self_citations": 0,
+    "citeable": true,
+    "control_number": 3112995,
+    "core": true,
+    "curated": true,
+    "document_type": [
+      "article"
+    ],
+    "figures": [
+      {
+        "caption": "Comparison of the $m_{t\\bar{t}}$ and $p_{T}^{t\\bar{t}}$ distributions for precision simulations of the production process, figure generated autonomously by \\ma.",
+        "filename": "compare_ttbar_50k_pT_ttbar_hist_shape.png",
+        "key": "bb0581e7fa15ab7a4e3b18b847d7a406",
+        "label": "fig:ttbar_comp",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/bb0581e7fa15ab7a4e3b18b847d7a406"
+      },
+      {
+        "caption": "Comparison of the $m_{t\\bar{t}}$ and $p_{T}^{t\\bar{t}}$ distributions for precision simulations of the production process, figure generated autonomously by \\ma.",
+        "filename": "compare_ttbar_50k_M_ttbar_hist_shape.png",
+        "key": "a5eb4c21b9e980de7ad8cf81e2a438d2",
+        "label": "fig:ttbar_comp",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/a5eb4c21b9e980de7ad8cf81e2a438d2"
+      },
+      {
+        "caption": "Reconstructed minimum leptoquark mass for $m_{S1} \\in [1, 1.5, 2]$ TeV, figure generated autonomously by \\ma.",
+        "filename": "heptapod_mLQmin_comparison.png",
+        "key": "1e0a7043400bc2bc380a23b80ff040b8",
+        "label": "fig:HEPTAPOD_comp",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/1e0a7043400bc2bc380a23b80ff040b8"
+      }
+    ],
+    "inspire_categories": [
+      {
+        "source": "arxiv",
+        "term": "Phenomenology-HEP"
+      }
+    ],
+    "license": [
+      {
+        "license": "arXiv nonexclusive-distrib 1.0",
+        "material": "preprint",
+        "url": "http://arxiv.org/licenses/nonexclusive-distrib/1.0/"
+      }
+    ],
+    "number_of_pages": 67,
+    "preprint_date": "2026-01-28",
+    "public_notes": [
+      {
+        "source": "arXiv",
+        "value": "67 pages, 3 figures, 1 table"
+      }
+    ],
+    "references": [
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[1] T. Sj\u00f6strand, S. Ask, J. R. Christiansen, R. Corke, N. Desai, P . Ilten, S. Mrenna, S. Prestel, C. O. Rasmussen, and P . Z. Skands, An introduction to PYTHIA 8.2, Comput. Phys. Commun. 191 (2015) 159, arXiv:1410.3012 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1321709"
+        },
+        "reference": {
+          "arxiv_eprint": "1410.3012",
+          "authors": [
+            {
+              "full_name": "Sj\u00f6strand, T."
+            },
+            {
+              "full_name": "Ask, S."
+            },
+            {
+              "full_name": "Christiansen, J.R."
+            },
+            {
+              "full_name": "Corke, R."
+            },
+            {
+              "full_name": "Desai, N."
+            },
+            {
+              "full_name": "Ilten, P."
+            },
+            {
+              "full_name": "Mrenna, S."
+            },
+            {
+              "full_name": "Prestel, S."
+            },
+            {
+              "full_name": "Rasmussen, C.O."
+            },
+            {
+              "full_name": "Skands, P.Z."
+            }
+          ],
+          "dois": [
+            "10.1016/j.cpc.2015.01.024"
+          ],
+          "label": "1",
+          "misc": [
+            "An introduction to PYTHIA 8.2"
+          ],
+          "publication_info": {
+            "artid": "159",
+            "journal_title": "Comput.Phys.Commun.",
+            "journal_volume": "191",
+            "page_start": "159",
+            "year": 2015
+          },
+          "texkey": "Sjostrand:2014zea"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[2] F. Maltoni and T. Stelzer, MadEvent: Automatic event generation with MadGraph, JHEP 02 (2003) 027, arXiv:hep-ph/0208156."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/593054"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/0208156",
+          "authors": [
+            {
+              "full_name": "Maltoni, F."
+            },
+            {
+              "full_name": "Stelzer, T."
+            }
+          ],
+          "dois": [
+            "10.1088/1126-6708/2003/02/027"
+          ],
+          "label": "2",
+          "misc": [
+            "MadEvent: Automatic event generation with MadGraph",
+            "arXiv:"
+          ],
+          "publication_info": {
+            "artid": "027",
+            "journal_title": "JHEP",
+            "journal_volume": "02",
+            "page_start": "027",
+            "year": 2003
+          },
+          "texkey": "Maltoni:2002qb"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[3] J. Alwall, P . Demin, S. de Visscher, R. Frederix, M. Herquet, F. Maltoni, T. Plehn, D. L. Rainwater, and T. Stelzer, MadGraph/MadEvent v4: The New Web Generation, JHEP 09 (2007) 028, arXiv:0706.2334 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/753279"
+        },
+        "reference": {
+          "arxiv_eprint": "0706.2334",
+          "authors": [
+            {
+              "full_name": "Alwall, J."
+            },
+            {
+              "full_name": "Demin, P."
+            },
+            {
+              "full_name": "de Visscher, S."
+            },
+            {
+              "full_name": "Frederix, R."
+            },
+            {
+              "full_name": "Herquet, M."
+            },
+            {
+              "full_name": "Maltoni, F."
+            },
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Rainwater, D.L."
+            },
+            {
+              "full_name": "Stelzer, T."
+            }
+          ],
+          "dois": [
+            "10.1088/1126-6708/2007/09/028"
+          ],
+          "label": "3",
+          "misc": [
+            "MadGraph/MadEvent v4: The New Web Generation"
+          ],
+          "publication_info": {
+            "artid": "028",
+            "journal_title": "JHEP",
+            "journal_volume": "09",
+            "page_start": "028",
+            "year": 2007
+          },
+          "texkey": "Alwall:2007st"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[4] J. Alwall, M. Herquet, F. Maltoni, O. Mattelaer, and T. Stelzer, MadGraph 5 : Going Beyond, JHEP 06 (2011) 128, arXiv:1106.0522 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/912611"
+        },
+        "reference": {
+          "arxiv_eprint": "1106.0522",
+          "authors": [
+            {
+              "full_name": "Alwall, J."
+            },
+            {
+              "full_name": "Herquet, M."
+            },
+            {
+              "full_name": "Maltoni, F."
+            },
+            {
+              "full_name": "Mattelaer, O."
+            },
+            {
+              "full_name": "Stelzer, T."
+            }
+          ],
+          "dois": [
+            "10.1007/JHEP06(2011)128"
+          ],
+          "label": "4",
+          "misc": [
+            "MadGraph 5 : Going Beyond"
+          ],
+          "publication_info": {
+            "artid": "128",
+            "journal_title": "JHEP",
+            "journal_volume": "06",
+            "page_start": "128",
+            "year": 2011
+          },
+          "texkey": "Alwall:2011uj"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[5] J. Alwall, R. Frederix, S. Frixione, V . Hirschi, F. Maltoni, O. Mattelaer, H. S. Shao, T. Stelzer, P . Torrielli, and M. Zaro, The automated computation of tree-level and next-to-leading order differential cross sections, and their matching to parton shower simulations, JHEP 07 (2014) 079, arXiv:1405.0301 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1293923"
+        },
+        "reference": {
+          "arxiv_eprint": "1405.0301",
+          "authors": [
+            {
+              "full_name": "Alwall, J."
+            },
+            {
+              "full_name": "Frederix, R."
+            },
+            {
+              "full_name": "Frixione, S."
+            },
+            {
+              "full_name": "Hirschi, V."
+            },
+            {
+              "full_name": "Maltoni, F."
+            },
+            {
+              "full_name": "Mattelaer, O."
+            },
+            {
+              "full_name": "Shao, H.S."
+            },
+            {
+              "full_name": "Stelzer, T."
+            },
+            {
+              "full_name": "Torrielli, P."
+            },
+            {
+              "full_name": "Zaro, M."
+            }
+          ],
+          "dois": [
+            "10.1007/JHEP07(2014)079"
+          ],
+          "label": "5",
+          "misc": [
+            "The automated computation of tree-level and next-to-leading order differential cross sections, and their matching to parton shower simulations"
+          ],
+          "publication_info": {
+            "artid": "079",
+            "journal_title": "JHEP",
+            "journal_volume": "07",
+            "page_start": "079",
+            "year": 2014
+          },
+          "texkey": "Alwall:2014hca"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[6] Sherpa, E. Bothmann et al., Event Generation with Sherpa 2.2, SciPost Phys. 7 (2019) 3, 034, arXiv:1905.09127 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1736301"
+        },
+        "reference": {
+          "arxiv_eprint": "1905.09127",
+          "authors": [
+            {
+              "full_name": "Sherpa, E."
+            }
+          ],
+          "dois": [
+            "10.21468/SciPostPhys.7.3.034"
+          ],
+          "label": "6",
+          "misc": [
+            "Bothmann et al",
+            "Event Generation with Sherpa 2.2",
+            "034"
+          ],
+          "publication_info": {
+            "artid": "3",
+            "journal_title": "SciPost Phys.",
+            "journal_volume": "7",
+            "page_start": "3",
+            "year": 2019
+          },
+          "texkey": "Sherpa:2019gpd"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[7] G. Bewick et al., Herwig 7.3 release note, Eur. Phys. J. C 84 (2024) 10, 1053, arXiv:2312.05175 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2734123"
+        },
+        "reference": {
+          "arxiv_eprint": "2312.05175",
+          "authors": [
+            {
+              "full_name": "Bewick, G."
+            }
+          ],
+          "dois": [
+            "10.1140/epjc/s10052-024-13211-9"
+          ],
+          "label": "7",
+          "misc": [
+            "Herwig 7.3 release note",
+            "1053"
+          ],
+          "publication_info": {
+            "artid": "10",
+            "journal_title": "Eur.Phys.J.C",
+            "journal_volume": "84",
+            "page_start": "10",
+            "year": 2024
+          },
+          "texkey": "Bewick:2023tfi"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[8] S. Badger et al., Machine learning and LHC event generation, SciPost Phys. 14 (2023) 4, 079, arXiv:2203.07460 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2052497"
+        },
+        "reference": {
+          "arxiv_eprint": "2203.07460",
+          "authors": [
+            {
+              "full_name": "Badger, S."
+            }
+          ],
+          "dois": [
+            "10.21468/SciPostPhys.14.4.079"
+          ],
+          "label": "8",
+          "misc": [
+            "Machine learning and LHC event generation",
+            "079"
+          ],
+          "publication_info": {
+            "artid": "4",
+            "journal_title": "SciPost Phys.",
+            "journal_volume": "14",
+            "page_start": "4",
+            "year": 2023
+          },
+          "texkey": "Butter:2022rso"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[9] T. Plehn, A. Butter, B. Dillon, T. Heimel, C. Krause, and R. Winterhalder, Modern Machine Learning for LHC Physicists, arXiv:2211.01421 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2175955"
+        },
+        "reference": {
+          "arxiv_eprint": "2211.01421",
+          "authors": [
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Butter, A."
+            },
+            {
+              "full_name": "Dillon, B."
+            },
+            {
+              "full_name": "Heimel, T."
+            },
+            {
+              "full_name": "Krause, C."
+            },
+            {
+              "full_name": "Winterhalder, R."
+            }
+          ],
+          "label": "9",
+          "misc": [
+            "Modern Machine Learning for LHC Physicists"
+          ],
+          "texkey": "Plehn:2022ftl"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[10] T. Heimel, R. Winterhalder, A. Butter, J. Isaacson, C. Krause, F. Maltoni, O. Mattelaer, and T. Plehn, MadNIS - Neural multi-channel importance sampling, SciPost Phys. 15 (2023) 4, 141, arXiv:2212.06172 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2613846"
+        },
+        "reference": {
+          "arxiv_eprint": "2212.06172",
+          "authors": [
+            {
+              "full_name": "Heimel, T."
+            },
+            {
+              "full_name": "Winterhalder, R."
+            },
+            {
+              "full_name": "Butter, A."
+            },
+            {
+              "full_name": "Isaacson, J."
+            },
+            {
+              "full_name": "Krause, C."
+            },
+            {
+              "full_name": "Maltoni, F."
+            },
+            {
+              "full_name": "Mattelaer, O."
+            },
+            {
+              "full_name": "Plehn, T."
+            }
+          ],
+          "dois": [
+            "10.21468/SciPostPhys.15.4.141"
+          ],
+          "label": "10",
+          "misc": [
+            "MadNIS - Neural multi-channel importance sampling",
+            "141"
+          ],
+          "publication_info": {
+            "artid": "4",
+            "journal_title": "SciPost Phys.",
+            "journal_volume": "15",
+            "page_start": "4",
+            "year": 2023
+          },
+          "texkey": "Heimel:2022wyj"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[11] T. Heimel, N. Huetsch, F. Maltoni, O. Mattelaer, T. Plehn, and R. Winterhalder, The MadNIS reloaded, SciPost Phys. 17 (2024) 1, 023, arXiv:2311.01548 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2718812"
+        },
+        "reference": {
+          "arxiv_eprint": "2311.01548",
+          "authors": [
+            {
+              "full_name": "Heimel, T."
+            },
+            {
+              "full_name": "Huetsch, N."
+            },
+            {
+              "full_name": "Maltoni, F."
+            },
+            {
+              "full_name": "Mattelaer, O."
+            },
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Winterhalder, R."
+            }
+          ],
+          "dois": [
+            "10.21468/SciPostPhys.17.1.023"
+          ],
+          "label": "11",
+          "misc": [
+            "The MadNIS reloaded",
+            "023"
+          ],
+          "publication_info": {
+            "artid": "1",
+            "journal_title": "SciPost Phys.",
+            "journal_volume": "17",
+            "page_start": "1",
+            "year": 2024
+          },
+          "texkey": "Heimel:2023ngj"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[12] T. Heimel, O. Mattelaer, T. Plehn, and R. Winterhalder, Differentiable MadNIS-Lite, SciPost Phys. 18 (2025) 1, 017, arXiv:2408.01486 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2814426"
+        },
+        "reference": {
+          "arxiv_eprint": "2408.01486",
+          "authors": [
+            {
+              "full_name": "Heimel, T."
+            },
+            {
+              "full_name": "Mattelaer, O."
+            },
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Winterhalder, R."
+            }
+          ],
+          "dois": [
+            "10.21468/SciPostPhys.18.1.017"
+          ],
+          "label": "12",
+          "misc": [
+            "Differentiable MadNIS-Lite",
+            "017"
+          ],
+          "publication_info": {
+            "artid": "1",
+            "journal_title": "SciPost Phys.",
+            "journal_volume": "18",
+            "page_start": "1",
+            "year": 2025
+          },
+          "texkey": "Heimel:2024wph"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[13] H. Bahl, N. Elmer, L. Favaro, M. Hau\u00dfmann, T. Plehn, and R. Winterhalder, Accurate Surrogate Amplitudes with Calibrated Uncertainties, SciPost Phys. Core 8 (2025) 073, arXiv:2412.12069 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2860406"
+        },
+        "reference": {
+          "arxiv_eprint": "2412.12069",
+          "authors": [
+            {
+              "full_name": "Bahl, H."
+            },
+            {
+              "full_name": "Elmer, N."
+            },
+            {
+              "full_name": "Favaro, L."
+            },
+            {
+              "full_name": "Hau\u00dfmann, M."
+            },
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Winterhalder, R."
+            }
+          ],
+          "dois": [
+            "10.21468/SciPostPhysCore.8.4.073"
+          ],
+          "label": "13",
+          "misc": [
+            "Accurate Surrogate Amplitudes with Calibrated Uncertainties, S"
+          ],
+          "publication_info": {
+            "artid": "073",
+            "journal_title": "SciPost Phys.Core",
+            "journal_volume": "8",
+            "page_start": "073",
+            "year": 2025
+          },
+          "texkey": "Bahl:2024gyt"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[14] H. Bahl, N. Elmer, T. Plehn, and R. Winterhalder, Amplitude Uncertainties Everywhere All at Once, arXiv:2509.00155 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2965790"
+        },
+        "reference": {
+          "arxiv_eprint": "2509.00155",
+          "authors": [
+            {
+              "full_name": "Bahl, H."
+            },
+            {
+              "full_name": "Elmer, N."
+            },
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Winterhalder, R."
+            }
+          ],
+          "label": "14",
+          "misc": [
+            "Amplitude Uncertainties Everywhere All at Once"
+          ],
+          "texkey": "Bahl:2025xvx"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[15] H. Bahl, J. Braun, G. Heinrich, T. Plehn, and R. Revelli, How to Trust Learned Loop Amplitudes, arXiv:2601.00950 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/3097829"
+        },
+        "reference": {
+          "arxiv_eprint": "2601.00950",
+          "authors": [
+            {
+              "full_name": "Bahl, H."
+            },
+            {
+              "full_name": "Braun, J."
+            },
+            {
+              "full_name": "Heinrich, G."
+            },
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Revelli, R."
+            }
+          ],
+          "label": "15",
+          "misc": [
+            "How to Trust Learned Loop Amplitudes"
+          ],
+          "texkey": "Bahl:2026qaf"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[16] T. Jan\u00dfen, R. Poncelet, and S. Schumann, Sampling NNLO QCD phase space with normalizing flows, JHEP 09 (2025) 194, arXiv:2505.13608 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2922853"
+        },
+        "reference": {
+          "arxiv_eprint": "2505.13608",
+          "authors": [
+            {
+              "full_name": "Jan\u00dfen, T."
+            },
+            {
+              "full_name": "Poncelet, R."
+            },
+            {
+              "full_name": "Schumann, S."
+            }
+          ],
+          "dois": [
+            "10.1007/JHEP09(2025)194"
+          ],
+          "label": "16",
+          "misc": [
+            "Sampling NNLO QCD phase space with normalizing flows, J"
+          ],
+          "publication_info": {
+            "artid": "194",
+            "journal_title": "JHEP",
+            "journal_volume": "09",
+            "page_start": "194",
+            "year": 2025
+          },
+          "texkey": "janssen:2025zke"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[17] T. Herrmann, T. Jan\u00dfen, M. Schenker, S. Schumann, and F. Siegert, Accelerating multijet-merged event generation with neural network matrix element surrogates, arXiv:2506.06203 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2931460"
+        },
+        "reference": {
+          "arxiv_eprint": "2506.06203",
+          "authors": [
+            {
+              "full_name": "Herrmann, T."
+            },
+            {
+              "full_name": "Jan\u00dfen, T."
+            },
+            {
+              "full_name": "Schenker, M."
+            },
+            {
+              "full_name": "Schumann, S."
+            },
+            {
+              "full_name": "Siegert, F."
+            }
+          ],
+          "label": "17",
+          "misc": [
+            "Accelerating multijet-merged event generation with neural network matrix element surrogates"
+          ],
+          "texkey": "Herrmann:2025nnz"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[18] A. Butter et al., Iterative HOMER with uncertainties, arXiv:2509.03592 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2966597"
+        },
+        "reference": {
+          "arxiv_eprint": "2509.03592",
+          "authors": [
+            {
+              "full_name": "Butter, A."
+            }
+          ],
+          "label": "18",
+          "misc": [
+            "Iterative HOMER with uncertainties"
+          ],
+          "texkey": "Butter:2025wxn"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[19] J. Chan, X. Ju, A. Kania, B. Nachman, V . Sangli, and A. Siodmok, Integrating particle flavor into deep learning models for hadronization, Phys. Rev. D 111 (2025) 11, 116015, arXiv:2312.08453 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2737038"
+        },
+        "reference": {
+          "arxiv_eprint": "2312.08453",
+          "authors": [
+            {
+              "full_name": "Chan, J."
+            },
+            {
+              "full_name": "Ju, X."
+            },
+            {
+              "full_name": "Kania, A."
+            },
+            {
+              "full_name": "Nachman, B."
+            },
+            {
+              "full_name": "Sangli, V."
+            },
+            {
+              "full_name": "Siodmok, A."
+            }
+          ],
+          "dois": [
+            "10.1103/hgbg-k7js"
+          ],
+          "label": "19",
+          "misc": [
+            "Integrating particle flavor into deep learning models for hadronization",
+            "116015"
+          ],
+          "publication_info": {
+            "artid": "11",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "111",
+            "page_start": "11",
+            "year": 2025
+          },
+          "texkey": "Chan:2023icm"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[20] S. Diefenbacher, A. Hallin, G. Kasieczka, M. Kr\u00e4mer, A. Lauscher, and T. Lukas, Agents of Discovery, arXiv:2509.08535 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2968660"
+        },
+        "reference": {
+          "arxiv_eprint": "2509.08535",
+          "authors": [
+            {
+              "full_name": "Diefenbacher, S."
+            },
+            {
+              "full_name": "Hallin, A."
+            },
+            {
+              "full_name": "Kasieczka, G."
+            },
+            {
+              "full_name": "Kr\u00e4mer, M."
+            },
+            {
+              "full_name": "Lauscher, A."
+            },
+            {
+              "full_name": "Lukas, T."
+            }
+          ],
+          "label": "20",
+          "misc": [
+            "Agents of Discovery"
+          ],
+          "texkey": "Diefenbacher:2025zzn"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[21] M. D. Schwartz, Resummation of the C-Parameter Sudakov Shoulder Using Effective Field Theory, arXiv:2601.02484 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/3097508"
+        },
+        "reference": {
+          "arxiv_eprint": "2601.02484",
+          "authors": [
+            {
+              "full_name": "Schwartz, M.D."
+            }
+          ],
+          "label": "21",
+          "misc": [
+            "Resummation of the C-Parameter Sudakov",
+            "Shoulder Using Effective Field Theory"
+          ],
+          "texkey": "Schwartz:2026ekw"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[22] W. X. Zhao, K. Zhou, J. Li, T. Tang, X. Wang, Y. Hou, Y. Min, B. Zhang, J. Zhang, Z. Dong, et al., A survey of large language models, arXiv:2303.18223 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2303.18223",
+          "authors": [
+            {
+              "full_name": "Zhao, W.X."
+            },
+            {
+              "full_name": "Zhou, K."
+            },
+            {
+              "full_name": "Li, J."
+            },
+            {
+              "full_name": "Tang, T."
+            },
+            {
+              "full_name": "Wang, X."
+            },
+            {
+              "full_name": "Hou, Y."
+            },
+            {
+              "full_name": "Min, Y."
+            },
+            {
+              "full_name": "Zhang, B."
+            },
+            {
+              "full_name": "Zhang, J."
+            },
+            {
+              "full_name": "Dong, Z."
+            }
+          ],
+          "label": "22",
+          "misc": [
+            "A survey of large language models"
+          ],
+          "texkey": "zhao2023survey"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[23] S. Yin, C. Fu, S. Zhao, K. Li, X. Sun, T. Xu, and E. Chen, A survey on multimodal large language models, National Science Review 11 (2024) 12, nwae403, arXiv:2306.13549 [cs.CV]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2306.13549",
+          "authors": [
+            {
+              "full_name": "Yin, S."
+            },
+            {
+              "full_name": "Fu, C."
+            },
+            {
+              "full_name": "Zhao, S."
+            },
+            {
+              "full_name": "Li, K."
+            },
+            {
+              "full_name": "Sun, X."
+            },
+            {
+              "full_name": "Xu, T."
+            },
+            {
+              "full_name": "Chen, E."
+            }
+          ],
+          "label": "23",
+          "misc": [
+            "A survey on multimodal large language models",
+            "nwae403"
+          ],
+          "publication_info": {
+            "artid": "12",
+            "journal_title": "Natl.Sci.Rev.",
+            "journal_volume": "11",
+            "page_start": "12",
+            "year": 2024
+          },
+          "texkey": "yin2024survey"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[24] A. Parisi, Y. Zhao, and N. Fiedel, Talm: Tool augmented language models, arXiv:2205.12255 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2205.12255",
+          "authors": [
+            {
+              "full_name": "Parisi, A."
+            },
+            {
+              "full_name": "Zhao, Y."
+            },
+            {
+              "full_name": "Fiedel, N."
+            }
+          ],
+          "label": "24",
+          "misc": [
+            "Talm: Tool augmented language models"
+          ],
+          "texkey": "parisi2022talm"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[25] T. Schick, J. Dwivedi-Yu, R. Dess\u00ec, R. Raileanu, M. Lomeli, E. Hambro, L. Zettlemoyer, N. Cancedda, and T. Scialom, Toolformer: Language models can teach themselves to use tools, Advances in Neural Information Processing Systems 36 (2023) 68539, arXiv:2302.04761 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2302.04761",
+          "authors": [
+            {
+              "full_name": "Schick, T."
+            },
+            {
+              "full_name": "Dwivedi-Yu, J."
+            },
+            {
+              "full_name": "Dess, R."
+            },
+            {
+              "full_name": "Raileanu, R."
+            },
+            {
+              "full_name": "Lomeli, M."
+            },
+            {
+              "full_name": "Hambro, E."
+            },
+            {
+              "full_name": "Zettlemoyer, L."
+            },
+            {
+              "full_name": "Cancedda, N."
+            },
+            {
+              "full_name": "Scialom, T."
+            }
+          ],
+          "label": "25",
+          "misc": [
+            "Toolformer: Language models can teach themselves to use tools"
+          ],
+          "publication_info": {
+            "artid": "68539",
+            "journal_title": "Adv.Neural Inf.Process.Syst.",
+            "journal_volume": "36",
+            "year": 2023
+          },
+          "texkey": "schick2023toolformer"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[26] S. Yao, J. Zhao, D. Yu, N. Du, I. Shafran, K. R. Narasimhan, and Y. Cao, React: Synergizing reasoning and acting in language models, arXiv:2210.03629 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2210.03629",
+          "authors": [
+            {
+              "full_name": "Yao, S."
+            },
+            {
+              "full_name": "Zhao, J."
+            },
+            {
+              "full_name": "Yu, D."
+            },
+            {
+              "full_name": "Du, N."
+            },
+            {
+              "full_name": "Shafran, I."
+            },
+            {
+              "full_name": "Narasimhan, K.R."
+            },
+            {
+              "full_name": "Cao, Y."
+            }
+          ],
+          "label": "26",
+          "misc": [
+            "React: Synergizing reasoning and acting in language models"
+          ],
+          "texkey": "yao2022react"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[27] X. Chen, M. Lin, N. Sch\u00e4rli, and D. Zhou, Teaching large language models to self-debug, arXiv:2304.05128 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2304.05128",
+          "authors": [
+            {
+              "full_name": "Chen, X."
+            },
+            {
+              "full_name": "Lin, M."
+            },
+            {
+              "full_name": "Sch\u00e4rli, N."
+            },
+            {
+              "full_name": "Zhou, D."
+            }
+          ],
+          "label": "27",
+          "misc": [
+            "Teaching large language models to self-debug"
+          ],
+          "texkey": "chen2023teaching"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[28] G. Wang, Y. Xie, Y. Jiang, A. Mandlekar, C. Xiao, Y. Zhu, L. Fan, and A. Anandkumar, Voyager: An open-ended embodied agent with large language models, arXiv:2305.16291 [cs.AI]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2305.16291",
+          "authors": [
+            {
+              "full_name": "Wang, G."
+            },
+            {
+              "full_name": "Xie, Y."
+            },
+            {
+              "full_name": "Jiang, Y."
+            },
+            {
+              "full_name": "Mandlekar, A."
+            },
+            {
+              "full_name": "Xiao, C."
+            },
+            {
+              "full_name": "Zhu, Y."
+            },
+            {
+              "full_name": "Fan, L."
+            },
+            {
+              "full_name": "Anandkumar, A."
+            }
+          ],
+          "label": "28",
+          "misc": [
+            "Voyager: An open-ended embodied agent with large language models"
+          ],
+          "texkey": "wang2023voyager"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[29] T. Cai, X. Wang, T. Ma, X. Chen, and D. Zhou, Large language models as tool makers, arXiv:2305.17126 [cs.LG]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2305.17126",
+          "authors": [
+            {
+              "full_name": "Cai, T."
+            },
+            {
+              "full_name": "Wang, X."
+            },
+            {
+              "full_name": "Ma, T."
+            },
+            {
+              "full_name": "Chen, X."
+            },
+            {
+              "full_name": "Zhou, D."
+            }
+          ],
+          "label": "29",
+          "misc": [
+            "Large language models as tool makers"
+          ],
+          "texkey": "cai2023large"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[30] J. Yang, C. E. Jimenez, A. Wettig, K. Lieret, S. Yao, K. Narasimhan, and O. Press, Swe-agent: Agent-computer interfaces enable automated software engineering, Advances in Neural Information Processing Systems 37 (2024) 50528, arXiv:2405.15793 [cs.SE]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2405.15793",
+          "authors": [
+            {
+              "full_name": "Yang, J."
+            },
+            {
+              "full_name": "Jimenez, C.E."
+            },
+            {
+              "full_name": "Wettig, A."
+            },
+            {
+              "full_name": "Lieret, K."
+            },
+            {
+              "full_name": "Yao, S."
+            },
+            {
+              "full_name": "Narasimhan, K."
+            },
+            {
+              "full_name": "Press, O."
+            }
+          ],
+          "label": "30",
+          "misc": [
+            "Swe-agent: Agent-computer interfaces enable automated software engineering"
+          ],
+          "publication_info": {
+            "artid": "50528",
+            "journal_title": "Adv.Neural Inf.Process.Syst.",
+            "journal_volume": "37",
+            "year": 2024
+          },
+          "texkey": "yang2024swe"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[31] J. Wei, X. Wang, D. Schuurmans, M. Bosma, F. Xia, E. Chi, Q. V . Le, D. Zhou, et al., Chain-of-thought prompting elicits reasoning in large language models, Advances in neural information processing systems 35 (2022) 24824, arXiv:2201.11903 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2201.11903",
+          "authors": [
+            {
+              "full_name": "Wei, J."
+            },
+            {
+              "full_name": "Wang, X."
+            },
+            {
+              "full_name": "Schuurmans, D."
+            },
+            {
+              "full_name": "Bosma, M."
+            },
+            {
+              "full_name": "Xia, F."
+            },
+            {
+              "full_name": "Chi, E."
+            },
+            {
+              "full_name": "Le, Q.V."
+            },
+            {
+              "full_name": "Zhou, D."
+            }
+          ],
+          "label": "31",
+          "misc": [
+            "Chain-of-thought prompting elicits reasoning in large language models"
+          ],
+          "publication_info": {
+            "artid": "24824",
+            "journal_title": "Adv.Neural Inf.Process.Syst.",
+            "journal_volume": "35",
+            "year": 2022
+          },
+          "texkey": "wei2022chain"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[32] Y. Du, S. Li, A. Torralba, J. B. Tenenbaum, and I. Mordatch, Improving factuality and reasoning in language models through multiagent debate, arXiv:2305.14325 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2305.14325",
+          "authors": [
+            {
+              "full_name": "Du, Y."
+            },
+            {
+              "full_name": "Li, S."
+            },
+            {
+              "full_name": "Torralba, A."
+            },
+            {
+              "full_name": "Tenenbaum, J.B."
+            },
+            {
+              "full_name": "Mordatch, I."
+            }
+          ],
+          "label": "32",
+          "misc": [
+            "Improving factuality and reasoning in language models through multiagent debate"
+          ],
+          "texkey": "du2023improving"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[33] Z. Liu, Y. Zhang, P . Li, Y. Liu, and D. Yang, Dynamic llm-agent network: An llm-agent collaboration framework with agent team optimization, arXiv:2310.02170 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2310.02170",
+          "authors": [
+            {
+              "full_name": "Liu, Z."
+            },
+            {
+              "full_name": "Zhang, Y."
+            },
+            {
+              "full_name": "Li, P."
+            },
+            {
+              "full_name": "Liu, Y."
+            },
+            {
+              "full_name": "Yang, D."
+            }
+          ],
+          "label": "33",
+          "misc": [
+            "Dynamic llm-agent network: An llm-agent collaboration framework with agent team optimization"
+          ],
+          "texkey": "liu2023dynamic"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[34] L. Wang, C. Ma, X. Feng, Z. Zhang, H. Yang, J. Zhang, Z. Chen, J. Tang, X. Chen, Y. Lin, et al., A survey on large language model based autonomous agents, Frontiers of Computer Science 18 (2024) 6, 186345, arXiv:2308.11432 [cs.AI]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2308.11432",
+          "authors": [
+            {
+              "full_name": "Wang, L."
+            },
+            {
+              "full_name": "Ma, C."
+            },
+            {
+              "full_name": "Feng, X."
+            },
+            {
+              "full_name": "Zhang, Z."
+            },
+            {
+              "full_name": "Yang, H."
+            },
+            {
+              "full_name": "Zhang, J."
+            },
+            {
+              "full_name": "Chen, Z."
+            },
+            {
+              "full_name": "Tang, J."
+            },
+            {
+              "full_name": "Chen, X."
+            },
+            {
+              "full_name": "Lin, Y."
+            }
+          ],
+          "label": "34",
+          "misc": [
+            "A survey on large language model based autonomous agents",
+            "186345"
+          ],
+          "publication_info": {
+            "artid": "6",
+            "journal_title": "Front.Comput.Sci.",
+            "journal_volume": "18",
+            "page_start": "6",
+            "year": 2024
+          },
+          "texkey": "wang2024survey"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[35] S. Hong, M. Zhuge, J. Chen, X. Zheng, Y. Cheng, J. Wang, C. Zhang, Z. Wang, S. K. S. Yau, Z. Lin, et al., Metagpt: Meta programming for a multi-agent collaborative framework, arXiv:2308.00352 [cs.AI]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2308.00352",
+          "authors": [
+            {
+              "full_name": "Hong, S."
+            },
+            {
+              "full_name": "Zhuge, M."
+            },
+            {
+              "full_name": "Chen, J."
+            },
+            {
+              "full_name": "Zheng, X."
+            },
+            {
+              "full_name": "Cheng, Y."
+            },
+            {
+              "full_name": "Wang, J."
+            },
+            {
+              "full_name": "Zhang, C."
+            },
+            {
+              "full_name": "Wang, Z."
+            },
+            {
+              "full_name": "Yau, S.K.S."
+            },
+            {
+              "full_name": "Lin, Z."
+            }
+          ],
+          "label": "35",
+          "misc": [
+            "Metagpt: Meta programming for a multi-agent collaborative framework"
+          ],
+          "texkey": "hong2023metagpt"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[36] S. Chen, Y. Liu, W. Han, W. Zhang, and T. Liu, A survey on llm-based multi-agent system: Recent advances and new frontiers in application, arXiv:2412.17481 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2412.17481",
+          "authors": [
+            {
+              "full_name": "Chen, S."
+            },
+            {
+              "full_name": "Liu, Y."
+            },
+            {
+              "full_name": "Han, W."
+            },
+            {
+              "full_name": "Zhang, W."
+            },
+            {
+              "full_name": "Liu, T."
+            }
+          ],
+          "label": "36",
+          "misc": [
+            "A survey on llm-based multi-agent system: Recent advances and new frontiers in application"
+          ],
+          "texkey": "chen2024survey"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[37] F. Grezes, S. Blanco-Cuaresma, A. Accomazzi, M. J. Kurtz, G. Shapurian, E. Henneken, C. S. Grant, D. M. Thompson, R. Chyla, S. McDonald, T. W. Hostetler, M. R. Templeton, K. E. Lockhart, N. Martinovic, S. Chen, C. Tanner, and P . Protopapas, Building astrobert, a language model for astronomy & astrophysics, arXiv:2112.00590 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2112.00590",
+          "authors": [
+            {
+              "full_name": "Grezes, F."
+            },
+            {
+              "full_name": "Blanco-Cuaresma, S."
+            },
+            {
+              "full_name": "Accomazzi, A."
+            },
+            {
+              "full_name": "Kurtz, M.J."
+            },
+            {
+              "full_name": "Shapurian, G."
+            },
+            {
+              "full_name": "Henneken, E."
+            },
+            {
+              "full_name": "Grant, C.S."
+            },
+            {
+              "full_name": "Thompson, D.M."
+            },
+            {
+              "full_name": "Chyla, R."
+            },
+            {
+              "full_name": "McDonald, S."
+            },
+            {
+              "full_name": "Hostetler, T.W."
+            },
+            {
+              "full_name": "Templeton, M.R."
+            },
+            {
+              "full_name": "Lockhart, K.E."
+            },
+            {
+              "full_name": "Martinovic, N."
+            },
+            {
+              "full_name": "Chen, S."
+            },
+            {
+              "full_name": "Tanner, C."
+            },
+            {
+              "full_name": "Protopapas, P."
+            }
+          ],
+          "label": "37",
+          "misc": [
+            "Building astrobert, a language model for astronomy & astrophysics"
+          ],
+          "texkey": "grezes2021buildingastrobertlanguagemodel"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[38] T. D. Nguyen et al., AstroLLaMA: Towards Specialized Foundation Models in Astronomy, arXiv:2309.06126 [astro-ph.IM]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2696860"
+        },
+        "reference": {
+          "arxiv_eprint": "2309.06126",
+          "authors": [
+            {
+              "full_name": "Nguyen, T.D."
+            }
+          ],
+          "label": "38",
+          "misc": [
+            "AstroLLaMA: Towards Specialized Foundation Models in Astronomy"
+          ],
+          "texkey": "Nguyen:2023nhp"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[39] UniverseTBD, E. Perkowski et al., AstroLLaMA-Chat: Scaling AstroLLaMA with Conversational and Diverse Datasets, Res. Notes AAS 8 (2024) 1, 7, arXiv:2401.01916 [astro-ph.IM]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2743338"
+        },
+        "reference": {
+          "arxiv_eprint": "2401.01916",
+          "authors": [
+            {
+              "full_name": "UniverseTBD, E."
+            }
+          ],
+          "dois": [
+            "10.3847/2515-5172/ad1abe"
+          ],
+          "label": "39",
+          "misc": [
+            "Perkowski et al",
+            "AstroLLaMA-Chat: Scaling AstroLLaMA with Conversational and Diverse Datasets",
+            "7"
+          ],
+          "publication_info": {
+            "artid": "1",
+            "journal_title": "Res.Notes AAS",
+            "journal_volume": "8",
+            "page_start": "1",
+            "year": 2024
+          },
+          "texkey": "UniverseTBD:2024pmh"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[40] Y.-S. Ting, T. D. Nguyen, T. Ghosal, R. Pan, H. Arora, Z. Sun, T. de Haan, N. Ramachandra, A. Wells, S. Madireddy, and A. Accomazzi, Astromlab 1: Who wins astronomy jeopardy!?, arXiv:2407.11194 [astro-ph.IM]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2808471"
+        },
+        "reference": {
+          "arxiv_eprint": "2407.11194",
+          "authors": [
+            {
+              "full_name": "Ting, Y.-S."
+            },
+            {
+              "full_name": "Nguyen, T.D."
+            },
+            {
+              "full_name": "Ghosal, T."
+            },
+            {
+              "full_name": "Pan, R."
+            },
+            {
+              "full_name": "Arora, H."
+            },
+            {
+              "full_name": "Sun, Z."
+            },
+            {
+              "full_name": "de Haan, T."
+            },
+            {
+              "full_name": "Ramachandra, N."
+            },
+            {
+              "full_name": "Wells, A."
+            },
+            {
+              "full_name": "Madireddy, S."
+            },
+            {
+              "full_name": "Accomazzi, A."
+            }
+          ],
+          "label": "40",
+          "misc": [
+            "Astromlab 1: Who wins astronomy jeopardy!?"
+          ],
+          "texkey": "ting2024astromlab1winsastronomy"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[41] T. de Haan, cosmosage: A natural-language assistant for cosmology, Astron. Comput. 51 (2025) 100934, arXiv:2407.04420 [astro-ph.IM]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2805059"
+        },
+        "reference": {
+          "arxiv_eprint": "2407.04420",
+          "authors": [
+            {
+              "full_name": "de Haan, T."
+            }
+          ],
+          "dois": [
+            "10.1016/j.ascom.2025.100934"
+          ],
+          "label": "41",
+          "misc": [
+            "cosmosage: A natural-language assistant for cosmology"
+          ],
+          "publication_info": {
+            "artid": "100934",
+            "journal_title": "Astron.Comput.",
+            "journal_volume": "51",
+            "year": 2025
+          },
+          "texkey": "deHaan:2024ybs"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[42] P . Richmond, P . Agarwal, B. Chowdhury, V . Niarchos, and C. Papageorgakis, FeynTune: Large Language Models for High-Energy Theory, arXiv:2508.03716 [cs.CL]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2957931"
+        },
+        "reference": {
+          "arxiv_eprint": "2508.03716",
+          "authors": [
+            {
+              "full_name": "Richmond, P."
+            },
+            {
+              "full_name": "Agarwal, P."
+            },
+            {
+              "full_name": "Chowdhury, B."
+            },
+            {
+              "full_name": "Niarchos, V."
+            },
+            {
+              "full_name": "Papageorgakis, C."
+            }
+          ],
+          "label": "42",
+          "misc": [
+            "FeynTune: Large Language Models for High-Energy Theory"
+          ],
+          "texkey": "Richmond:2025lzg"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[43] Z. Sun, Y.-S. Ting, Y. Liang, N. Duan, S. Huang, and Z. Cai, Interpreting multi-band galaxy observations with large language model-based agents, arXiv:2409.14807 [astro-ph.IM]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2409.14807",
+          "authors": [
+            {
+              "full_name": "Sun, Z."
+            },
+            {
+              "full_name": "Ting, Y.-S."
+            },
+            {
+              "full_name": "Liang, Y."
+            },
+            {
+              "full_name": "Duan, N."
+            },
+            {
+              "full_name": "Huang, S."
+            },
+            {
+              "full_name": "Cai, Z."
+            }
+          ],
+          "label": "43",
+          "misc": [
+            "Interpreting multi-band galaxy observations with large language model-based agents"
+          ],
+          "texkey": "sun2025interpretingmultibandgalaxyobservations"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[44] A. Laverick, K. Surrao, I. Zubeldia, B. Bolliet, M. Cranmer, A. Lewis, B. Sherwin, and J. Lesgourgues, Multi-Agent System for Cosmological Parameter Analysis, arXiv:2412.00431 [astro-ph.IM]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2854800"
+        },
+        "reference": {
+          "arxiv_eprint": "2412.00431",
+          "authors": [
+            {
+              "full_name": "Laverick, A."
+            },
+            {
+              "full_name": "Surrao, K."
+            },
+            {
+              "full_name": "Zubeldia, I."
+            },
+            {
+              "full_name": "Bolliet, B."
+            },
+            {
+              "full_name": "Cranmer, M."
+            },
+            {
+              "full_name": "Lewis, A."
+            },
+            {
+              "full_name": "Sherwin, B."
+            },
+            {
+              "full_name": "Lesgourgues, J."
+            }
+          ],
+          "label": "44",
+          "misc": [
+            "Multi-Agent System for Cosmological Parameter Analysis"
+          ],
+          "texkey": "Laverick:2024fyh"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[45] A. Moss, The AI Cosmologist I: An Agentic System for Automated Data Analysis, arXiv:2504.03424 [astro-ph.IM]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2908082"
+        },
+        "reference": {
+          "arxiv_eprint": "2504.03424",
+          "authors": [
+            {
+              "full_name": "Moss, A."
+            }
+          ],
+          "label": "45",
+          "misc": [
+            "The AI Cosmologist I",
+            ": An Agentic System for Automated Data Analysis"
+          ],
+          "texkey": "Moss:2025ynt"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[46] X. Zhang, Z. Bi, P . Lachance, X. Wang, T. Di Matteo, and R. A. C. Croft, Bridging Literature and the Universe Via A Multi-Agent Large Language Model System, arXiv:2507.08958 [astro-ph.IM]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2950798"
+        },
+        "reference": {
+          "arxiv_eprint": "2507.08958",
+          "authors": [
+            {
+              "full_name": "Zhang, X."
+            },
+            {
+              "full_name": "Bi, Z."
+            },
+            {
+              "full_name": "Lachance, P."
+            },
+            {
+              "full_name": "Wang, X."
+            },
+            {
+              "full_name": "Di Matteo, T."
+            },
+            {
+              "full_name": "Croft, R.A.C."
+            }
+          ],
+          "label": "46",
+          "misc": [
+            "Bridging Literature and the Universe Via A Multi-Agent",
+            "Large Language Model System"
+          ],
+          "texkey": "Zhang:2025uoo"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[47] C. Heneka, F. Nieser, A. Ore, T. Plehn, and D. Schiller, Large Language Models \u2013 the Future of Fundamental Physics?, arXiv:2506.14757 [astro-ph.CO]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2935642"
+        },
+        "reference": {
+          "arxiv_eprint": "2506.14757",
+          "authors": [
+            {
+              "full_name": "Heneka, C."
+            },
+            {
+              "full_name": "Nieser, F."
+            },
+            {
+              "full_name": "Ore, A."
+            },
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Schiller, D."
+            }
+          ],
+          "label": "47",
+          "misc": [
+            "Large Language Models - the Future of Fundamental Physics?"
+          ],
+          "texkey": "Heneka:2025fpe"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[48] S. D. Bakshi et al., ArgoLOOM: agentic AI for fundamental physics from quarks to cosmos, arXiv:2510.02426 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/3062816"
+        },
+        "reference": {
+          "arxiv_eprint": "2510.02426",
+          "authors": [
+            {
+              "full_name": "Bakshi, S.D."
+            }
+          ],
+          "label": "48",
+          "misc": [
+            "ArgoLOOM: agentic AI for fundamental physics from quarks to cosmos"
+          ],
+          "texkey": "Bakshi:2025fgx"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[49] E. Gendreau-Distler, J. Ho, D. Kim, L. T. Le Pottier, H. Wang, and C. Yang, Automating High Energy Physics Data Analysis with LLM-Powered Agents, arXiv:2512.07785 [physics.data-an]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/3090360"
+        },
+        "reference": {
+          "arxiv_eprint": "2512.07785",
+          "authors": [
+            {
+              "full_name": "Gendreau-Distler, E."
+            },
+            {
+              "full_name": "Ho, J."
+            },
+            {
+              "full_name": "Kim, D."
+            },
+            {
+              "full_name": "Le Pottier, L.T."
+            },
+            {
+              "full_name": "Wang, H."
+            },
+            {
+              "full_name": "Yang, C."
+            }
+          ],
+          "label": "49",
+          "misc": [
+            "Automating High Energy Physics Data Analysis with LLM-Powered Agents"
+          ],
+          "texkey": "Gendreau-Distler:2025fsj"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[50] T. Menzo, A. Roman, S. Gleyzer, K. Matchev, G. T. Fleming, S. H\u00f6che, S. Mrenna, and P . Shyamsundar, HEPTAPOD: Orchestrating High Energy Physics Workflows Towards Autonomous Agency, arXiv:2512.15867 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/3093880"
+        },
+        "reference": {
+          "arxiv_eprint": "2512.15867",
+          "authors": [
+            {
+              "full_name": "Menzo, T."
+            },
+            {
+              "full_name": "Roman, A."
+            },
+            {
+              "full_name": "Gleyzer, S."
+            },
+            {
+              "full_name": "Matchev, K."
+            },
+            {
+              "full_name": "Fleming, G.T."
+            },
+            {
+              "full_name": "H\u00f6che, S."
+            },
+            {
+              "full_name": "Mrenna, S."
+            },
+            {
+              "full_name": "Shyamsundar, P."
+            }
+          ],
+          "label": "50",
+          "misc": [
+            "HEPTAPOD: Orchestrating High Energy Physics Workflows Towards Autonomous Agency"
+          ],
+          "texkey": "Menzo:2025cim"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[51] N. Elmer, M. Madigan, T. Plehn, and N. Schmal, Staying on Top of SMEFT-Likelihood Analyses, SciPost Phys. 18 (2025) 108, arXiv:2312.12502 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2739406"
+        },
+        "reference": {
+          "arxiv_eprint": "2312.12502",
+          "authors": [
+            {
+              "full_name": "Elmer, N."
+            },
+            {
+              "full_name": "Madigan, M."
+            },
+            {
+              "full_name": "Plehn, T."
+            },
+            {
+              "full_name": "Schmal, N."
+            }
+          ],
+          "dois": [
+            "10.21468/SciPostPhys.18.3.108"
+          ],
+          "label": "51",
+          "misc": [
+            "Staying on Top of SMEFT-Likelihood Analyses"
+          ],
+          "publication_info": {
+            "artid": "108",
+            "journal_title": "SciPost Phys.",
+            "journal_volume": "18",
+            "page_start": "108",
+            "year": 2025
+          },
+          "texkey": "Elmer:2023wtr"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[52] P . Artoisenet, R. Frederix, O. Mattelaer, and R. Rietkerk, Automatic spin-entangled decays of heavy resonances in Monte Carlo simulations, JHEP 03 (2013) 015, arXiv:1212.3460 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1207464"
+        },
+        "reference": {
+          "arxiv_eprint": "1212.3460",
+          "authors": [
+            {
+              "full_name": "Artoisenet, P."
+            },
+            {
+              "full_name": "Frederix, R."
+            },
+            {
+              "full_name": "Mattelaer, O."
+            },
+            {
+              "full_name": "Rietkerk, R."
+            }
+          ],
+          "dois": [
+            "10.1007/JHEP03(2013)015"
+          ],
+          "label": "52",
+          "misc": [
+            "Automatic spin-entangled decays of heavy resonances in Monte Carlo simulations"
+          ],
+          "publication_info": {
+            "artid": "015",
+            "journal_title": "JHEP",
+            "journal_volume": "03",
+            "page_start": "015",
+            "year": 2013
+          },
+          "texkey": "Artoisenet:2012st"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[53] A. Alloul, N. D. Christensen, C. Degrande, C. Duhr, and B. Fuks, Feynrules 2.0 - a complete toolbox for tree-level phenomenology, Comput. Phys. Commun. 185 (2014) 2250, arXiv:1310.1921 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1257621"
+        },
+        "reference": {
+          "arxiv_eprint": "1310.1921",
+          "authors": [
+            {
+              "full_name": "Alloul, A."
+            },
+            {
+              "full_name": "Christensen, N.D."
+            },
+            {
+              "full_name": "Degrande, C."
+            },
+            {
+              "full_name": "Duhr, C."
+            },
+            {
+              "full_name": "Fuks, B."
+            }
+          ],
+          "label": "53",
+          "misc": [
+            "Feynrules 2.0 - a complete toolbox for tree-level phenomenology"
+          ],
+          "publication_info": {
+            "artid": "2250",
+            "journal_title": "Comput.Phys.Commun.",
+            "journal_volume": "185",
+            "page_start": "2250",
+            "year": 2014
+          },
+          "texkey": "Alloul:2013bka"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[54] A. Buckley, J. Ferrando, S. Lloyd, K. Nordstr\u00f6m, B. Page, M. R\u00fcfenacht, M. Sch\u00f6nherr, and G. Watt, LHAPDF6: parton density access in the LHC precision era, Eur. Phys. J. C 75 (2015) 132, arXiv:1412.7420 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1335438"
+        },
+        "reference": {
+          "arxiv_eprint": "1412.7420",
+          "authors": [
+            {
+              "full_name": "Buckley, A."
+            },
+            {
+              "full_name": "Ferrando, J."
+            },
+            {
+              "full_name": "Lloyd, S."
+            },
+            {
+              "full_name": "Nordstr\u00f6m, K."
+            },
+            {
+              "full_name": "Page, B."
+            },
+            {
+              "full_name": "R\u00fcfenacht, M."
+            },
+            {
+              "full_name": "Sch\u00f6nherr, M."
+            },
+            {
+              "full_name": "Watt, G."
+            }
+          ],
+          "dois": [
+            "10.1140/epjc/s10052-015-3318-8"
+          ],
+          "label": "54",
+          "misc": [
+            "LHAPDF6: parton density access in the LHC precision era"
+          ],
+          "publication_info": {
+            "artid": "132",
+            "journal_title": "Eur.Phys.J.C",
+            "journal_volume": "75",
+            "page_start": "132",
+            "year": 2015
+          },
+          "texkey": "Buckley:2014ana"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[55] R. D. Ball et al., Parton distributions from high-precision collider data, Eur. Phys. J. C 77 (2017) 663, arXiv:1706.00428 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1602475"
+        },
+        "reference": {
+          "arxiv_eprint": "1706.00428",
+          "authors": [
+            {
+              "full_name": "Ball, R.D."
+            }
+          ],
+          "label": "55",
+          "misc": [
+            "Parton distributions from high-precision collider data"
+          ],
+          "publication_info": {
+            "artid": "663",
+            "journal_title": "Eur.Phys.J.C",
+            "journal_volume": "77",
+            "page_start": "663",
+            "year": 2017
+          },
+          "texkey": "Ball:2017nwa"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[56] M. Dobbs and J. B. Hansen, The hepmc c++ monte carlo event record for high energy physics, Comput. Phys. Commun. 134 (2001) 41, arXiv:hep-ph/0011365 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/537588"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/0011365",
+          "authors": [
+            {
+              "full_name": "Dobbs, M."
+            },
+            {
+              "full_name": "Hansen, J.B."
+            }
+          ],
+          "label": "56",
+          "misc": [
+            "The hepmc c++ monte carlo event record for high energy physics",
+            "arXiv:",
+            "[hep-ph]"
+          ],
+          "publication_info": {
+            "artid": "41",
+            "journal_title": "Comput.Phys.Commun.",
+            "journal_volume": "134",
+            "page_start": "41",
+            "year": 2001
+          },
+          "texkey": "Dobbs:2001ck"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[57] M. Cacciari, G. P . Salam, and G. Soyez, The anti-kt jet clustering algorithm, JHEP 04 (2008) 063, arXiv:0802.1189 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/779080"
+        },
+        "reference": {
+          "arxiv_eprint": "0802.1189",
+          "authors": [
+            {
+              "full_name": "Cacciari, M."
+            },
+            {
+              "full_name": "Salam, G.P."
+            },
+            {
+              "full_name": "Soyez, G."
+            }
+          ],
+          "label": "57",
+          "misc": [
+            "The anti-kt jet clustering algorithm"
+          ],
+          "publication_info": {
+            "artid": "063",
+            "journal_title": "JHEP",
+            "journal_volume": "04",
+            "page_start": "063",
+            "year": 2008
+          },
+          "texkey": "Cacciari:2008gp"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[58] M. Cacciari, G. P . Salam, and G. Soyez, Fastjet user manual, Eur. Phys. J. C 72 (2012) 1896, arXiv:1111.6097 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/955176"
+        },
+        "reference": {
+          "arxiv_eprint": "1111.6097",
+          "authors": [
+            {
+              "full_name": "Cacciari, M."
+            },
+            {
+              "full_name": "Salam, G.P."
+            },
+            {
+              "full_name": "Soyez, G."
+            }
+          ],
+          "label": "58",
+          "misc": [
+            "Fastjet user manual"
+          ],
+          "publication_info": {
+            "artid": "1896",
+            "journal_title": "Eur.Phys.J.C",
+            "journal_volume": "72",
+            "page_start": "1896",
+            "year": 2012
+          },
+          "texkey": "Cacciari:2011ma"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[59] I. Dorsner, A. Greljo, J. F. Kamenik, and N. Kosnik, Physics of leptoquarks in precision experiments and at particle colliders, Phys. Rept. 641 (2016) 1, arXiv:1603.04993 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1428667"
+        },
+        "reference": {
+          "arxiv_eprint": "1603.04993",
+          "authors": [
+            {
+              "full_name": "Dorsner, I."
+            },
+            {
+              "full_name": "Greljo, A."
+            },
+            {
+              "full_name": "Kamenik, J.F."
+            },
+            {
+              "full_name": "Kosnik, N."
+            }
+          ],
+          "label": "59",
+          "misc": [
+            "Physics of leptoquarks in precision experiments and at particle colliders"
+          ],
+          "publication_info": {
+            "artid": "1",
+            "journal_title": "Phys.Rept.",
+            "journal_volume": "641",
+            "page_start": "1",
+            "year": 2016
+          },
+          "texkey": "Dorsner:2016wpm"
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[60] S. Geng, M. Josifoski, M. Peyrard, and R. West, Grammar-constrained decoding for structured nlp tasks without finetuning, arXiv:2305.13971 [cs.CL]."
+          }
+        ],
+        "reference": {
+          "arxiv_eprint": "2305.13971",
+          "authors": [
+            {
+              "full_name": "Geng, S."
+            },
+            {
+              "full_name": "Josifoski, M."
+            },
+            {
+              "full_name": "Peyrard, M."
+            },
+            {
+              "full_name": "West, R."
+            }
+          ],
+          "label": "60",
+          "misc": [
+            "Grammar-constrained decoding for structured nlp tasks without finetuning"
+          ],
+          "texkey": "geng2023grammar"
+        }
+      }
+    ],
+    "texkeys": [
+      "Plehn:2026gxv"
+    ],
+    "titles": [
+      {
+        "source": "arXiv",
+        "title": "MadAgents"
+      }
+    ]
+  },
+  "revision_id": 3,
+  "updated": "2026-01-31T04:08:03.988263+00:00",
+  "uuid": "e7243f8d-4c10-4659-a185-dda3c7db4f51"
+}

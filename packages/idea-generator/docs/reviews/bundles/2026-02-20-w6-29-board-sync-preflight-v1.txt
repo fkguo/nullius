@@ -1,0 +1,14 @@
+Board sync preflight (W6-29 pQCD UV anchor tightening, 2026-02-20)
+timestamp_utc: 2026-02-20T10:32:57.810964+00:00
+project_snapshot: docs/reviews/bundles/2026-02-20-w6-29-board-project-view-v1.json
+field_snapshot: docs/reviews/bundles/2026-02-20-w6-29-board-field-list-v1.json
+item_snapshot: docs/reviews/bundles/2026-02-20-w6-29-board-item-list-v1.json
+draft_issue_snapshot: docs/reviews/bundles/2026-02-20-w6-29-board-draft-issue-v1.json
+project_title: Idea Generator Program
+project_id: PVT_kwHOA7u0gc4BPFjm
+W6-01 item_id: PVTI_lAHOA7u0gc4BPFjmzglgVQg
+W6-01 draft_issue_id: DI_lAHOA7u0gc4BPFjmzgKK9dA
+W6-01 status: In Progress
+body_contains_w6_29: False
+body_contains_w6_29_commit_c22cd88: False
+

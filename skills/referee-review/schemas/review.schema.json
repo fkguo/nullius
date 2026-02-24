@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RefereeReview",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile",
+    "verdict",
+    "major_issues",
+    "minor_issues",
+    "required_actions",
+    "grounding_risks",
+    "compile_risks",
+    "artifact_pointers_used",
+    "missing_artifact_pointers",
+    "evidence_requests"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "profile": {
+      "type": "string",
+      "enum": [
+        "generic"
+      ]
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "READY",
+        "NOT_READY"
+      ]
+    },
+    "major_issues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/issue"
+      }
+    },
+    "minor_issues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/issue"
+      }
+    },
+    "required_actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "grounding_risks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/risk"
+      }
+    },
+    "compile_risks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/risk"
+      }
+    },
+    "artifact_pointers_used": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "missing_artifact_pointers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence_requests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence_request"
+      }
+    }
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "action",
+        "acceptance_criteria",
+        "blocking"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptance_criteria": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blocking": {
+          "type": "boolean"
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "risk",
+        "needs",
+        "blocking"
+      ],
+      "properties": {
+        "risk": {
+          "type": "string",
+          "minLength": 1
+        },
+        "needs": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blocking": {
+          "type": "boolean"
+        }
+      }
+    },
+    "evidence_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "query",
+        "purpose",
+        "expected_return",
+        "blocking"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "inspire",
+            "arxiv",
+            "doi",
+            "other"
+          ]
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_return": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blocking": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

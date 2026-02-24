@@ -1,0 +1,105 @@
+{
+   "sources" : [
+      {
+         "usage" : "toplevel",
+         "filename" : "orchestrating_HEP.tex"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/019BE4F9BFB90E831B56A0DC38F535D8.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/059DDC9E3150D34271859F42E3A8C017.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/088F3F9B20AD34997C654EE70295CE7E.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/09E029069123D3474AFDE9DAB1968874.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/0A993128C48D62BAE658CA1BCB35B9A8.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/1654CCC0B94931AFE9334A67FDABDE9C.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/4B54CCCF75756F6EBBF6BA9B478226A4.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/4C0D93F29A3A802458ED60DF306C414F.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/4E03D91D7FE75EE9E887C5667A10D31A.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/6D73E2D93254861FF5D4C9FA4CE714A0.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/79320A9051CF08156264FC977E018FBF.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/9CAB1402C5C2B16D51748073E8B1321F.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/A123DD8938F5C4B3D7329D4E847463BD.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/A9995E57A455C55B2654BFF6B5CBD932.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/AF8C46130BAFBF328FBA88FD84E60A3E.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/B4EE9013333BDF569387F7EC7B2CC455.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/BCA9B65D8F898EB25845B066D3AD89C0.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/C5517594C36A9C6107A60C45A72C9377.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/D010517C32E282D859CD22E20F59E79B.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/D99BABC5C016ACC30A727399D46AC902.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/F620E014C494AC9278986FD575B00C44.highlight.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/_78E6221F6393D1356681DB398F14CE6D.index.minted"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "_minted/vs.style.minted"
+      }
+   ],
+   "spec_version" : 1,
+   "texlive_version" : "2025",
+   "process" : {
+      "compiler" : "pdflatex"
+   }
+}

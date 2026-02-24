@@ -1,0 +1,123 @@
+\begin{table}[H]
+
+\scriptsize
+\renewcommand\cellalign{lt}
+\setcellgapes{3pt}\makegapedcells
+\caption{Prompts used for the Webshop experiments in Section \ref{sec:webshop}. We use the prompt on the left for \act{}, and use the prompt on the right (add reasoning) for \model{}.}
+\label{prompts:webshop}
+\begin{tabular}{l|l} \toprule
+\multicolumn{2}{l}{
+\textbf{Instruction}: \textcolor{blue}{i would like a 3 ounce bottle of bright citrus deodorant for sensitive skin, and price lower than 50.00 dollars } 
+}\\
+\multicolumn{1}{c}{\act{}} & \multicolumn{1}{c}{\model{}} \\
+\makecell{    
+\textbf{Action}: \textbf{search}\big[\textcolor{violet}{3 ounce bright citrus deodorant sensitive skin}\big] \\
+\textbf{Observation:} \\
+\textcolor{red}{\big[ Back to Search \big]} \\
+\textcolor{olive} {Page 1 (Total results: 50)} \\
+\textcolor{red}{\big[Next\big]} \\
+\\
+\textcolor{purple}{\big[B078GWRC1J\big]} \\
+\textcolor{teal}{Bright Citrus Deodorant by Earth Mama | Natural and Safe for }\\
+\textcolor{teal}{  Sensitive Skin, Pregnancy and Breastfeeding, Contains Organic }\\
+\textcolor{teal}{  Calendula 3-Ounce }\\
+\textcolor{teal}{\$10.99}\\
+\textcolor{purple}{\big[B078GTKVXY\big]} \\
+\textcolor{teal}{Ginger Fresh Deodorant by Earth Mama | Natural and Safe for }\\
+\textcolor{teal}{  Sensitive Skin, Pregnancy and Breastfeeding, Contains Organic }\\
+\textcolor{teal}{  Calendula 3-Ounce }\\
+\textcolor{teal}{\$10.99 }\\
+\textcolor{purple}{\big[B08KBVJ4XN\big]} \\
+\textcolor{teal}{Barrel and Oak - Aluminum-Free Deodorant, Deodorant for Men}\\
+\textcolor{teal}{, Essential Oil-Based Scent, 24-Hour Odor Protection, Cedar}\\
+\textcolor{teal}{\& Patchouli Blend, Gentle on Sensitive Skin (Mountain Sage,}\\
+\textcolor{teal}{2.7 oz, 2-Pack) }\\
+\textcolor{teal}{\$15.95}\\
+\\
+\textbf{Action}: \textbf{click}\textcolor{purple}{\big[B078GWRC1J\big]}\\
+\textbf{Observation}:\\
+\textcolor{red}{\big[Back to Search\big]} \\
+\textcolor{red}{\big[Prev\big]} \\
+\textcolor{teal}{scent [assorted scents][bright citrus][calming lavender][ginger}\\ \textcolor{teal}{[fresh] simply non-scents]}\\
+\textcolor{teal}{size [travel set (4-pack)][3 ounce (pack of 1)][3-ounce (2}\\ \textcolor{teal}{-pack)]}\\
+\textcolor{teal}{Bright Citrus Deodorant by Earth Mama | Natural and Safe for }\\
+\textcolor{teal}{  Sensitive Skin, Pregnancy and Breastfeeding, Contains Organic }\\
+\textcolor{teal}{  Calendula 3-Ounce }\\
+\textcolor{teal}{Price: \$10.99}\\
+\textcolor{teal}{Rating: N.A.}\\
+\textcolor{teal}{[Description]}\\
+\textcolor{teal}{[Features]}\\
+\textcolor{teal}{[Reviews]}\\
+\textcolor{red}{[Buy Now]}\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{teal}{bright citrus}]\\
+\textbf{Observation}: You have clicked bright citrus.\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{teal}{3 ounce (pack of 1)}]\\
+\textbf{Observation}: You have clicked 3 ounce (pack of 1).\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{red}{Buy Now}]\\
+}
+
+&
+
+\makecell{    
+\textbf{Action}: \textbf{search}\big[\textcolor{violet}{3 ounce bright citrus deodorant sensitive skin} \\
+\textbf{Observation:} \\
+\textcolor{red}{\big[ Back to Search \big]} \\
+\textcolor{olive} {Page 1 (Total results: 50)} \\
+\textcolor{red}{\big[Next\big]} \\
+\\
+\textcolor{purple}{\big[B078GWRC1J\big]} \\
+\textcolor{teal}{Bright Citrus Deodorant by Earth Mama | Natural and Safe for }\\
+\textcolor{teal}{  Sensitive Skin, Pregnancy and Breastfeeding, Contains Organic }\\
+\textcolor{teal}{  Calendula 3-Ounce }\\
+\textcolor{teal}{\$10.99}\\
+\textcolor{purple}{\big[B078GTKVXY\big]} \\
+\textcolor{teal}{Ginger Fresh Deodorant by Earth Mama | Natural and Safe for }\\
+\textcolor{teal}{  Sensitive Skin, Pregnancy and Breastfeeding, Contains Organic }\\
+\textcolor{teal}{  Calendula 3-Ounce }\\
+\textcolor{teal}{\$10.99 }\\
+\textcolor{purple}{\big[B08KBVJ4XN\big]} \\
+\textcolor{teal}{Barrel and Oak - Aluminum-Free Deodorant, Deodorant for Men}\\
+\textcolor{teal}{, Essential Oil-Based Scent, 24-Hour Odor Protection, Cedar}\\
+\textcolor{teal}{\& Patchouli Blend, Gentle on Sensitive Skin (Mountain Sage,}\\
+\textcolor{teal}{2.7 oz, 2-Pack) }\\
+\textcolor{teal}{\$15.95}\\
+\\
+\textbf{Action}: \textbf{think}[\textcolor{olive}{B078GWRC1J and B078GTKVXY are bright citrus}\\ \textcolor{olive}{deodorant less then 50 dollars. I can check B078GWRC1J first.}\\ 
+\textbf{Observation}: OK.\\
+\\
+\textbf{Action}: \textbf{click}\textcolor{purple}{\big[B078GWRC1J\big]}\\
+\textbf{Observation}:\\
+\textcolor{red}{\big[Back to Search\big]} \\
+\textcolor{red}{\big[Prev\big]} \\
+\textcolor{teal}{scent [assorted scents][bright citrus][calming lavender][ginger}\\ \textcolor{teal}{[fresh] simply non-scents]}\\
+\textcolor{teal}{size [travel set (4-pack)][3 ounce (pack of 1)][3-ounce (2}\\ \textcolor{teal}{-pack)]}\\
+\textcolor{teal}{Bright Citrus Deodorant by Earth Mama | Natural and Safe for }\\
+\textcolor{teal}{  Sensitive Skin, Pregnancy and Breastfeeding, Contains Organic }\\
+\textcolor{teal}{  Calendula 3-Ounce }\\
+\textcolor{teal}{Price: \$10.99}\\
+\textcolor{teal}{Rating: N.A.}\\
+\textcolor{teal}{[Description]}\\
+\textcolor{teal}{[Features]}\\
+\textcolor{teal}{[Reviews]}\\
+\textcolor{red}{[Buy Now]}\\
+\\
+\textbf{Action}: \textbf{think}[\textcolor{olive}{For 3 ounce bottle of bright citrus deodorant}\\ \textcolor{olive}{for sensitive skin, the item has options 'bright citrus'}\\ \textcolor{olive}{and '3 ounce (pack of 1)' and seems good to buy.}]\\
+\textbf{Observation}: OK.\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{teal}{bright citrus}]\\
+\textbf{Observation}: You have clicked bright citrus.\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{teal}{3 ounce (pack of 1)}]\\
+\textbf{Observation}: You have clicked 3 ounce (pack of 1).\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{red}{Buy Now}]\\
+} \\ 
+
+\bottomrule
+\end{tabular}
+\end{table}
+
+

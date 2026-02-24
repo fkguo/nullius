@@ -1,0 +1,60 @@
+name: validate-market
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate JSON metadata
+        run: python3 scripts/validate_market.py
+
+      - name: Verify installer scripts parse
+        run: |
+          bash -n scripts/install_codex.sh
+          bash -n scripts/install_opencode.sh
+          bash -n scripts/install_claude_code.sh
+          bash -n scripts/install_symlink_skills.sh
+          bash -n scripts/install_symlink_codex.sh
+          bash -n scripts/install_symlink_claude_code.sh
+          bash -n scripts/install_symlink_opencode.sh
+          python3 scripts/install_skill.py --help >/dev/null
+
+      - name: Smoke test installer scripts (isolated HOME)
+        run: |
+          TMP_HOME="$(mktemp -d)"
+          HOME="$TMP_HOME" bash scripts/install_codex.sh "$(pwd)"
+          HOME="$TMP_HOME" bash scripts/install_opencode.sh "$(pwd)"
+          HOME="$TMP_HOME" bash scripts/install_claude_code.sh "$(pwd)"
+          test -L "$TMP_HOME/.codex/skills/autoresearch-market"
+          test -L "$TMP_HOME/.config/opencode/skills/autoresearch-market"
+          test -L "$TMP_HOME/.claude/skills/autoresearch-market"
+
+      - name: Smoke test symlink installers (isolated fixtures)
+        run: |
+          TMP_HOME="$(mktemp -d)"
+          TMP_MARKET="$(mktemp -d)"
+          TMP_SKILLS="$(mktemp -d)"
+          mkdir -p "$TMP_MARKET/packages" "$TMP_SKILLS/sample-skill"
+          cat >"$TMP_MARKET/packages/sample-skill.json" <<'JSON'
+          {"package_type":"skill-pack"}
+          JSON
+          cat >"$TMP_SKILLS/sample-skill/SKILL.md" <<'MD'
+          # sample
+          MD
+          HOME="$TMP_HOME" bash scripts/install_symlink_codex.sh \
+            --skills-root "$TMP_SKILLS" \
+            --market-root "$TMP_MARKET" \
+            --target-root "$TMP_HOME/.codex/skills"
+          test -L "$TMP_HOME/.codex/skills/sample-skill"

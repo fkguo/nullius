@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "profile": "curated",
+  "paths": [
+    "knowledge_base/priors/research_automation_principles.md",
+    "knowledge_base/methodology_traces/2026-02-01_autopilot_scope.md",
+    "knowledge_base/literature/recid-3112995-madagants.md",
+    "knowledge_base/literature/arxiv-2512.19799-physmaster.md",
+    "knowledge_base/literature/recid-2968660-agents-of-discovery.md",
+    "knowledge_base/literature/recid-3062816-argoloom.md"
+  ],
+  "notes": "curated profile: small, high-signal seed set (one per layer + key prior work)."
+}
+

@@ -1,0 +1,292 @@
+{
+  "version": 1,
+  "mode": "theory_numerics",
+  "profile": "<PROFILE>",
+  "project_stage": "development",
+  "_project_stage_options": ["exploration", "development", "publication"],
+  "_note_project_stage": "Stage controls strictness of some contracts. In exploration, the Capsule gate supports a minimal mode (see capsule.exploration_minimal) and selected preflight gates are downgraded to warn-only with debt recorded under team/runs/<tag>/<tag>_exploration_debt.md. Development remains fail-fast.",
+  "scaffold_variant": "full",
+  "_scaffold_variant_options": ["full", "minimal"],
+  "_note_scaffold_variant": "Project scaffold size policy: full creates optional wrappers/prompts/scaffolds; minimal creates only core docs+config+2-member review prompts and can be expanded later by re-running scaffold without --minimal.",
+  "review_access_mode": "full_access",
+  "_review_access_mode_options": ["full_access", "packet_only"],
+  "_note_review_access_mode": "full_access allows members to request file reads/command runs/network fetches via the leader proxy with auditable evidence logs; packet_only restricts members to the team packet only (offline/portable review).",
+  "isolation_strategy": "separate_worktrees",
+  "_isolation_strategy_options": ["separate_worktrees", "sequential_with_acl"],
+  "_note_isolation_strategy": "Isolation is best-effort and enforced via the access proxy + evidence gates. separate_worktrees prefers isolated git worktrees when available; sequential_with_acl runs sequentially and denies reading the other member outputs.",
+  "_profile_options": [
+    "theory_only",
+    "numerics_only",
+    "mixed",
+    "exploratory",
+    "literature_review",
+    "methodology_dev",
+    "toolkit_extraction",
+    "custom"
+  ],
+  "_note_profile": "Set profile to \"\" to derive from mode; otherwise overrides mode-derived profile.",
+  "_mode_options": [
+    "theory_numerics",
+    "generic",
+    "python_project",
+    "julia_project",
+    "theory_only",
+    "numerics_only",
+    "exploratory",
+    "literature_review",
+    "methodology_dev",
+    "spectral_multi_root"
+  ],
+  "_note_features": "Leave features empty to use mode defaults. Set any key here to override a mode default.",
+  "features": {
+    "research_plan_gate": true,
+    "project_charter_gate": true,
+    "project_map_gate": true,
+    "hep_workspace_gate": true,
+    "agents_anchor_gate": true,
+    "milestone_dod_gate": true,
+    "packet_completeness_gate": true,
+    "notebook_integrity_gate": true,
+    "literature_trace_gate": false,
+    "markdown_math_hygiene_gate": true,
+    "markdown_math_portability_gate": true,
+    "double_backslash_math_gate": true,
+    "markdown_link_hygiene_gate": true,
+    "latex_macro_hygiene_gate": true,
+    "problem_framing_snapshot_gate": true,
+    "evidence_schema_gate": true,
+    "clean_room_gate": true,
+    "logic_isolation_gate": true,
+    "independent_reproduction_gate": true,
+    "convention_mapping_gate": true
+  },
+  "_optional_claim_dag_gates": "Claim DAG / Evidence gates (default off): claim_graph_gate, evidence_manifest_gate, claim_trajectory_link_gate.",
+  "claim_graph": {
+    "_note": "Claim DAG / Evidence base directory relative to the project root.",
+    "base_dir": "knowledge_graph"
+  },
+  "knowledge_layers": {
+    "_note": "Knowledge base (cross-domain): literature / methodology_traces / priors.",
+    "base_dir": "knowledge_base",
+    "require_min_methodology_traces": 1,
+    "require_min_literature": 1,
+    "require_min_priors": 1,
+    "_note_require_min": "Minimum counts apply after removing '- none' unless allow_none is false.",
+    "allow_none": false
+  },
+  "references": {
+    "_note": "References-gate external link allowlist: keep stable by default; extend per project if needed.",
+    "_note2": "Default allowed hosts include INSPIRE/arXiv/DOI/GitHub plus common software/docs (SciPy/NumPy/Julia/PyPI/Zenodo).",
+    "allowed_external_hosts_extra": []
+  },
+  "logic_isolation": {
+    "_note": "Independent reproduction scripts may import only these local project roots (default: shared_utils/toolkit).",
+    "allowed_local_import_roots": ["shared_utils", "toolkit"]
+  },
+  "convention_mapping": {
+    "_note": "Set required=true when a run depends on cross-paper/module normalization mappings; convention_mapping_gate enforces evidence.json fields when triggered.",
+    "required": false
+  },
+  "markdown_math_hygiene": {
+    "_note": "Deterministic scan targets for Markdown math hygiene gate (paths/globs relative to project root).",
+    "targets": [
+      "Draft_Derivation.md",
+      "PREWORK.md",
+      "RESEARCH_PLAN.md",
+      "PROJECT_CHARTER.md",
+      "PROJECT_MAP.md",
+      "knowledge_base/**/*.md"
+    ],
+    "exclude_globs": []
+  },
+  "markdown_math_portability": {
+    "_note": "Warn (default) on renderer-fragile math patterns in Markdown (domain-neutral).",
+    "_note2": "Table policy: avoid literal '|' inside $...$ in Markdown tables; use \\\\lvert/\\\\rvert or \\\\lVert/\\\\rVert. Macro policy: prefer avoiding \\\\slashed in Markdown; use \\\\not\\\\! fallback if needed.",
+    "targets": [
+      "Draft_Derivation.md",
+      "PREWORK.md",
+      "RESEARCH_PLAN.md",
+      "PROJECT_CHARTER.md",
+      "PROJECT_MAP.md",
+      "knowledge_base/**/*.md"
+    ],
+    "exclude_globs": [],
+    "enforce_table_math_pipes": false,
+    "enforce_slashed": false
+  },
+  "markdown_link_hygiene": {
+    "_note": "Deterministic scan targets for Markdown link hygiene gate (paths/globs relative to project root).",
+    "targets": [
+      "Draft_Derivation.md",
+      "PREWORK.md",
+      "RESEARCH_PLAN.md",
+      "PROJECT_CHARTER.md",
+      "PROJECT_MAP.md",
+      "knowledge_base/**/*.md"
+    ],
+    "exclude_globs": []
+  },
+  "latex_macro_hygiene": {
+    "_note": "Disallow project-specific LaTeX macros in Markdown (rendering-safety). Prefer explicit forms like \\mathcal{R}.",
+    "targets": [
+      "Draft_Derivation.md",
+      "PREWORK.md",
+      "RESEARCH_PLAN.md",
+      "PROJECT_CHARTER.md",
+      "PROJECT_MAP.md",
+      "knowledge_base/**/*.md"
+    ],
+    "exclude_globs": [],
+    "_note_forbidden_macros": "Macro names without leading backslash. Gate flags occurrences like \\Rc and suggests expansions.",
+    "forbidden_macros": [
+      "Rc",
+      "Mc",
+      "Cc",
+      "cK",
+      "re",
+      "im"
+    ],
+    "_note_expansions": "Deterministic macro expansions used by fix_markdown_latex_macros.py.",
+    "expansions": {
+      "Rc": "{\\\\mathcal{R}}",
+      "Mc": "{\\\\mathcal{M}}",
+      "Cc": "{\\\\mathcal{C}}",
+      "cK": "{\\\\mathcal{K}}",
+      "re": "{\\\\operatorname{Re}}",
+      "im": "{\\\\operatorname{Im}}"
+    }
+  },
+  "capsule": {
+    "_note": "Capsule constraints.",
+    "min_headline_numbers": 3,
+    "min_nontrivial_headlines": 1,
+    "_note_nontrivial": "Require at least N Tier-T2/T3 headline(s) in Capsule section E (nontrivial diagnostics/proxies; avoids purely trivial arithmetic cross-checks). Set 0 only if truly N/A for a milestone.",
+    "nontrivial_tiers": ["T2", "T3"],
+    "exploration_minimal": {
+      "_note": "When project_stage=exploration: relax the Capsule gate to avoid blocking early research. This is still deterministic and requires a non-empty reproduction command and at least one declared output path.",
+      "enabled": true,
+      "min_headline_numbers": 0,
+      "min_nontrivial_headlines": 0,
+      "min_outputs": 1,
+      "_note_require_outputs_exist": "If true: listed outputs must exist on disk (encourages running the command once). If false: missing outputs become warnings (useful for purely conceptual runs).",
+      "require_outputs_exist": true,
+      "require_data_artifact": false,
+      "require_figure_artifact": false,
+      "require_figure_embed": false,
+      "_note_relax_env_and_sources": "If true: missing hash/Manifest/numpy constraints in section F become warnings (still recommended).",
+      "relax_env_and_sources": true
+    }
+  },
+  "prework": {
+    "_note": "Prework is enforced via knowledge_layers_gate and the minimum requirements above.",
+    "required": true,
+    "notes_path": "PREWORK.md"
+  },
+  "automation": {
+    "_note": "Auto-fill and auto-run controls for the autopilot loop.",
+    "enable_autofill": true,
+    "auto_run": true,
+    "kickoff_prompt": {
+      "_note": "Generate a user-reviewable PROJECT_START_PROMPT.md before auto-run; optionally require approval.",
+      "enabled": true,
+      "path": "PROJECT_START_PROMPT.md",
+      "_note_require_approval": "If false: generate the prompt but do not block execution (useful for batch runs).",
+      "require_approval": true,
+      "approved_marker": "Status: APPROVED"
+    },
+    "max_rounds": 10,
+    "max_retries_per_task": 3,
+    "no_progress_rounds": 2,
+    "stop_files": [".stop", ".pause", "STOP"],
+    "require_executor": false,
+    "pause_on_manual": true,
+    "warn_if_no_executor": true,
+    "initial_instruction_paths": ["INITIAL_INSTRUCTION.md", "项目开始指令.md", "README.md"]
+  },
+  "plan_tracking": {
+    "_note": "Plan progress tracking and enforcement.",
+    "enabled": true,
+    "require_task_board": true,
+    "require_progress_log": true,
+    "log_on_fail": true
+  },
+  "sidecar_review": {
+    "_note": "Optional third reviewer for numerics-only audit (non-blocking).",
+    "enabled": true,
+    "runner": "claude",
+    "model": "",
+    "system_prompt": "prompts/_system_member_c_numerics.txt",
+    "output_format": "text",
+    "tag_suffix": "member_c",
+    "_note_timeout_secs": "If >0: after convergence accounting is recorded, wait at most this long for sidecar; then terminate it (warn-only).",
+    "timeout_secs": 180
+  },
+  "member_b": {
+    "_note": "Member B runner selection (used by run_team_cycle.sh).",
+    "runner_kind": "gemini",
+    "_runner_kind_options": ["gemini", "claude", "auto"],
+    "_note_runner_kind": "auto tries gemini first and falls back to claude when gemini is unavailable.",
+    "_note_claude_system_prompt": "Optional alternate system prompt file for Claude runner (relative to project root). If empty, Member B uses --member-b-system.",
+    "claude_system_prompt": ""
+  },
+  "_note_sidecar_reviews": "Optional: run multiple non-blocking sidecar reviews (a small reviewer swarm). When sidecar_reviews is non-empty, it is used instead of sidecar_review. Each entry uses the same schema as sidecar_review.",
+  "_note_sidecar_reviews2": "Optional per-entry keys: kinds_exclude (list of milestone kinds to skip; defaults to [\"theory\"]).",
+  "sidecar_reviews": [],
+  "draft_review": {
+    "_note": "Controls for TeX-source-first draft review packets (used by run_draft_cycle.sh).",
+    "_note_convergence": "If true: run_draft_cycle.sh enforces a mandatory 3-party convergence gate (A/B/Leader) and exits non-zero when any report is not ready or has correctness-blocking issues.",
+    "require_convergence": true,
+    "_note_leader_system_prompt": "Default Team Leader Draft Audit system prompt (Member C). run_draft_cycle.sh uses this when --member-c-system is omitted.",
+    "leader_system_prompt": "prompts/_system_draft_member_c_leader.txt",
+    "_note_focus_sections": "Selectors (heuristic; not exact title matching): methods/results/physics. Use [\"auto\"] to use the default trio.",
+    "focus_sections": ["methods", "results", "physics"],
+    "_note_focus_envs": "Env allowlist for key extraction. [\"auto\"] expands to: math (equation, equation*, align, align*, gather, gather*, multline, multline*), algorithm/code (algorithm, algorithm*, algorithm2e, algorithmic, lstlisting, minted), theorem/proof (theorem, lemma, proposition, corollary, definition, proof).",
+    "focus_envs": ["auto"],
+    "max_sections": 6,
+    "max_section_chars": 12000,
+    "max_env_blocks": 25
+  },
+  "claim_gate_auto_enable": {
+    "_note": "Auto-enable Claim DAG gates after first convergence once knowledge_graph has minimal content.",
+    "enabled": true,
+    "dry_run": false,
+    "require_converged": true,
+    "min_claims": 1,
+    "min_edges": 0,
+    "min_evidence": 1,
+    "enable_trajectory_gate": false
+  },
+  "claim_graph_render": {
+    "_note": "Render Claim DAG after convergence if graphviz is available.",
+    "enabled": true,
+    "format": "png",
+    "_note2": "workflow_forward=true renders requires/supersedes edges prerequisite->dependent; max_label controls label truncation (0 disables); wrap_width wraps node labels; colorize enables status-based node colors and edge styling; legend=auto embeds a legend for small graphs and writes a separate legend file for larger ones.",
+    "workflow_forward": true,
+    "max_label": 80,
+    "wrap_width": 34,
+    "colorize": true,
+    "legend": "auto",
+    "legend_threshold": 30
+  },
+  "pointer_lint": {
+    "_strategy_options": ["python_import", "file_symbol_grep", "disabled"],
+    "_note": "Set strategy to \"\" to use mode default. Otherwise overrides mode.",
+    "strategy": "",
+    "allow_skip_unimportable": true,
+    "env_import_cmd_var": "RESEARCH_TEAM_IMPORT_CMD"
+  },
+  "scan_dependency": {
+    "_note": "If true: when a scan is detected but no rules file is found, gate fails (equivalent to --require-rules).",
+    "require_rules_file_when_scan_detected": false
+  },
+  "branch_semantics": {
+    "_note": "If false: multi-root branch contract issues become warnings (non-blocking) even when branch_semantics_gate is enabled.",
+    "require_when_declared": true
+  },
+  "language": {
+    "pass_tokens": ["pass", "ok", "success", "通过", "合格"],
+    "fail_tokens": ["fail", "failed", "error", "失败", "不合格"],
+    "ready_tokens": ["ready for next milestone", "ready for review cycle", "ready", "准备好", "就绪", "可推进", "可以推进"],
+    "needs_revision_tokens": ["needs revision", "not ready", "需要修改", "需修改", "未通过", "不通过", "需要修订", "需修订"]
+  }
+}

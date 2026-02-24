@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "campaign_init_result_v1.schema.json",
+  "title": "CampaignInitResult v1",
+  "description": "Result of campaign.init.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "status",
+    "created_at",
+    "budget_snapshot",
+    "island_states",
+    "idempotency"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "status": {
+      "const": "running",
+      "description": "Initial campaign status. Always 'running' on successful init."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "budget_snapshot": {
+      "$ref": "./budget_snapshot_v1.schema.json"
+    },
+    "island_states": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "./island_state_v1.schema.json"
+      }
+    },
+    "distributor_policy_config_ref": {
+      "type": "string",
+      "format": "uri",
+      "description": "Artifact ref to the immutable distributor_policy_config_v1.json for this campaign (if Distributor is enabled)."
+    },
+    "idempotency": {
+      "$ref": "./idempotency_meta_v1.schema.json"
+    }
+  },
+  "additionalProperties": false
+}

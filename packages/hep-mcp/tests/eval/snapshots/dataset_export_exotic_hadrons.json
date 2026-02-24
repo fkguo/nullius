@@ -1,0 +1,18 @@
+{
+  "query": "t:exotic hadrons date:2023->2026",
+  "sort": "mostcited",
+  "page_size": 2,
+  "max_results": 3,
+  "total": 3,
+  "exported": 3,
+  "pages_fetched": 2,
+  "has_more": false,
+  "warnings": [],
+  "control_numbers": [
+    101,
+    102,
+    103
+  ],
+  "export_artifact_name": "inspire_search_export_a4e160faa46b0fcc.jsonl",
+  "meta_artifact_name": "inspire_search_export_a4e160faa46b0fcc_meta.json"
+}

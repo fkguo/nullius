@@ -1,0 +1,4 @@
+cd /output/dataset
+python3 documentation/scripts/plot_distributions.py \
+    --npz output/dataset/ufo_ttbar_reweighted.npz \
+    --max-events 5000

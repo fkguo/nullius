@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scope_classification_v1.schema.json",
+  "title": "ScopeClassification v1",
+  "description": "Scope grading and non-citation policy for run/report outputs.",
+  "type": "object",
+  "required": [
+    "scope",
+    "non_citation_required",
+    "required_report_markers",
+    "allowed_claim_level"
+  ],
+  "properties": {
+    "scope": {
+      "enum": [
+        "ecosystem_validation",
+        "preliminary_physics",
+        "publication_ready"
+      ]
+    },
+    "non_citation_required": {
+      "type": "boolean"
+    },
+    "required_report_markers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "non_citation_marker": {
+      "type": "string",
+      "default": "NOT_FOR_CITATION"
+    },
+    "allowed_claim_level": {
+      "enum": [
+        "workflow_only",
+        "preliminary_constraints",
+        "publication_claims"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "publication_ready"
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": false
+          },
+          "allowed_claim_level": {
+            "const": "publication_claims"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "ecosystem_validation"
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": true
+          },
+          "allowed_claim_level": {
+            "const": "workflow_only"
+          },
+          "required_report_markers": {
+            "contains": {
+              "const": "NOT_FOR_CITATION"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "preliminary_physics"
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": true
+          },
+          "allowed_claim_level": {
+            "const": "preliminary_constraints"
+          },
+          "required_report_markers": {
+            "contains": {
+              "const": "NOT_FOR_CITATION"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

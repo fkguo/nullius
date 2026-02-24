@@ -1,0 +1,152 @@
+You are reviewer B (gemini-3-pro-preview). Tools are disabled.
+
+STRICT OUTPUT CONTRACT (non-negotiable):
+- Output MUST start immediately with: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT include any planning text, tool intentions, or other preamble.
+- Must contain these exact Markdown headers in this exact order:
+  - ## Blockers
+  - ## Non-blocking
+  - ## Real-research fit
+  - ## Robustness & safety
+  - ## Specific patch suggestions
+- For empty sections, write `- None.`
+- Do not rename or omit headers.
+
+Review ONLY the packet below.
+
+--- BEGIN PACKET ---
+# W6-30 Review Packet (Round-001) — UV anchor budget: derived + gate binding (pQCD $A^\pi(-Q^2)$ @ $10\\,\\mathrm{GeV}^2$)
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## What is new in W6-30 (vs W6-29)?
+
+W6-29 tightened the $Q^2\\in[0,2]\,\\mathrm{GeV}^2$ band by adding a high-$Q^2$ **value-band UV anchor** on $A^\\pi(-Q^2)$ at $Q^2=10\\,\\mathrm{GeV}^2$, using LO pQCD (arXiv:2412.00848 Eq. `Qem`) and an explicit but ad hoc **$\\pm 50\\%$** tolerance proxy.
+
+W6-30 upgrades that “$\\pm 50\\%$ knob” into an **auditable uncertainty budget artifact** that can be **gate-enforced** and **config-bound**:
+
+- New schema: `idea-runs/schemas/uv_anchor_budget_v1.schema.json`
+- New builder: `idea-runs/scripts/build_uv_anchor_budget_v1.py`
+- New gate enforcement (in `idea-runs/scripts/validate_project_artifacts.py`):
+  - If any compute config uses `constraints.low_energy_value_bands`, project must contain `artifacts/assumptions/uv_anchor_budget_v1.json` (schema-validated).
+  - If any compute config sets `constraints.uv_anchor_budget_binding=true`, then:
+    - budget must be `budget_mode=derived`;
+    - for each anchor, `absolute_tolerance == \\sum_i (budget_components[i].abs_contribution)`;
+    - and the compute config’s `(Q2_mpi2, A_target, absolute_tolerance)` must match the budget **exactly** (no silent drift / no “pretend physics”).
+
+Goal: keep the physics input explicit (still a proxy, but now budgeted), while preventing silent hand-tuning of UV tolerances.
+
+Scope remains pion-only; no coupled-channel.
+
+## New artifact + binding configs + runs
+
+### (A) Derived UV anchor budget artifact
+
+Budget artifact (generated from the binding config):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/assumptions/uv_anchor_budget_v1.json`
+
+For the sole anchor at $Q^2=10\\,\\mathrm{GeV}^2$ ($Q^2/m_\\pi^2\\simeq 513.352691$), the derived budget currently records:
+- $A_{\\rm target}=0.0344513181$
+- absolute tolerance $=0.0172574270$ (relative tol $\\simeq 0.500922$)
+- component breakdown: scale-variation proxy + DA/matching proxy + higher-twist proxy (NLO proxy coefficient set to 0 in this snapshot; see artifact).
+
+This is numerically close to the earlier “$\\pm 50\\%$” but now machine-checkable and gate-bound.
+
+Provenance/arithmetic note (explicit; not calibrated to $\\pm 50\\%$):
+- scale-variation proxy at $Q^2=10\\,\\mathrm{GeV}^2$: rel $\\simeq 0.150922$ (from $\\mu/Q\\in[1/\\sqrt2,\\sqrt2]$ in the LO log).
+- DA/matching proxy: rel $=0.30$ (fixed conservative envelope).
+- higher-twist proxy: rel $=0.05$ (fixed conservative envelope).
+- NLO proxy: rel $=0.0$ in this snapshot (builder flag `--nlo-rel-coeff 0.0` to avoid double counting while no dedicated NLO/OPE budget is in place).
+
+So $\\Delta A/A=0.150922+0.30+0.05+0.0=0.500922$ and $\\Delta A\\simeq 0.0172574$ (matches `uv_anchor_budget_v1.json`).
+
+DA/matching proxy sensitivity scan (Clarabel endpoint @ $Q^2=2\\,\\mathrm{GeV}^2$; all else fixed, NLO proxy coeff still 0 in this snapshot):
+
+| DA proxy (rel) | run | $A_{\\min}$ | $A_{\\max}$ | width |
+|---:|---|---:|---:|---:|
+| 0.15 | v120 | -0.013748 | 0.282848 | 0.296596 |
+| 0.20 | v121 | -0.017318 | 0.286526 | 0.303844 |
+| 0.30 | v122 | -0.023449 | 0.293797 | 0.317246 |
+| 0.40 | v123 | -0.029402 | 0.301184 | 0.330586 |
+
+Repro artifacts:
+- budgets: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/assumptions/sensitivity/uv_anchor_budget_v1_da0p{15,20,30,40}.json`
+- configs: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/sensitivity/a_bochner_k0_socp_config_da_scan_q2_2gev_clarabel_da0p{15,20,30,40}.json`
+- runs: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-a-bochner-k0-socp-v12{0,1,2,3}-*/results.json`
+
+Interpretation: the band responds smoothly/monotonically to the DA proxy; the SSOT choice 0.30 is treated explicitly as a conservative proxy input (not a derived pQCD/OPE error bar).
+
+Gate float-matching semantics (addressing “exact match” fragility):
+- `idea-runs/scripts/validate_project_artifacts.py` now documents and centralizes comparisons as tight epsilon checks:
+  - `_BINDING_FLOAT_ABS_TOL = 1e-12` for matching `A_target` and `absolute_tolerance` between config and budget,
+  - `_BINDING_SUM_ABS_TOL = 1e-9` for `absolute_tolerance == sum(budget_components)`.
+This is effectively “exact” for our numeric scale while avoiding false CI failures from harmless JSON float round-trips.
+
+### (B) Clarabel multi-$Q^2$ run (ASR binding + derived UV budget binding)
+
+Config:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v4ccq_dispersion_grid200_enf200_multiq0to2gev_audit12_clarabel_asrbinding_uvbudget_derived_impliedf1_pqcdA10gev_anchorbudget_derived_bind.json`
+
+Key additions:
+- `constraints.low_energy_value_bands` includes the $Q^2=10\\,\\mathrm{GeV}^2$ UV anchor.
+- `constraints.uv_anchor_budget_binding=true` (forces anchor to be justified by `uv_anchor_budget_v1.json`).
+
+Run:
+- Clarabel v118: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-a-bochner-k0-socp-v118-dispersion-grid200-enf200-multiq0to2gev-audit12-clarabel-asrbinding-uvbudget-derived-impliedf1-pqcdA10gev-anchorbudget-derived-bind/results.json`
+  - Plot (includes the anchor point; $Q^2\\le 2\\,\\mathrm{GeV}^2$ is the left subset):  
+    `.../A_band_Q2_GeV2_0to10.png`
+
+Endpoint numbers at $Q^2=2\\,\\mathrm{GeV}^2$ ($Q^2/m_\\pi^2\\simeq 102.670538$):
+
+| solver | $A_{\\min}$ | $A_{\\max}$ | status |
+|---|---:|---:|---|
+| Clarabel (v118) | -0.0234494241 | 0.2937972303 | OPTIMAL/OPTIMAL |
+
+Anchor enforcement check at $Q^2=10\\,\\mathrm{GeV}^2$:
+- $A^\\pi(-Q^2)\\in[0.017194,\\ 0.051709]$ (saturates the derived target$\\pm$tolerance window).
+
+### (C) ECOS endpoint cross-check @ $Q^2=2\\,\\mathrm{GeV}^2$
+
+Config:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v4ccr_dispersion_grid200_enf200_q2_2gev_audit12_ecos_asrbinding_uvbudget_derived_impliedf1_pqcdA10gev_anchorbudget_derived_bind.json`
+
+Run:
+- ECOS v119: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-a-bochner-k0-socp-v119-dispersion-grid200-enf200-q2-2gev-audit12-ecos-asrbinding-uvbudget-derived-impliedf1-pqcdA10gev-anchorbudget-derived-bind/results.json`
+
+ECOS (v119) at $Q^2=2\\,\\mathrm{GeV}^2$:
+- $A^\\pi(-Q^2)\\in[-0.0162002592,\\ 0.2890388552]$
+
+Cross-solver spread check at $Q^2=2\\,\\mathrm{GeV}^2$ (Clarabel bandwidth as reference):
+- Clarabel bandwidth $\\approx 0.317247$.
+- $|\\Delta A_{\\min}|\\approx 0.007249$ ($\\approx 2.29\\%$ of bandwidth).
+- $|\\Delta A_{\\max}|\\approx 0.004758$ ($\\approx 1.50\\%$ of bandwidth).
+- Both solvers report `termination_status=OPTIMAL` for min/max at this point (see `results.solver_status` entries in each run’s `results.json`).
+
+## Evidence note + manuscript update
+
+Evidence note (repro commands + gate-binding rationale):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/evidence/2026-02-20-w6-30-uv-anchor-budget-derived-binding-v1.md`
+
+Manuscript updated:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+
+Dashboards refreshed:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/islands/islands_dashboard_v1.md`
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/opportunities/opportunities_dashboard_v1.md`
+
+## Gates executed (PASS)
+
+- `docs/reviews/bundles/2026-02-20-w6-30-idea-generator-validate-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-30-idea-runs-validate-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-30-idea-runs-validate-project-v2.txt`
+- `docs/reviews/bundles/2026-02-20-w6-30-render-dashboards-v2.txt`
+- `docs/reviews/bundles/2026-02-20-w6-30-failure-library-index-build-v2.txt`
+- `docs/reviews/bundles/2026-02-20-w6-30-failure-library-query-run-v2.txt`
+
+## Questions for reviewers
+
+1) Is the “derived UV anchor budget + binding gate” presented honestly as a **proxy budget** (not a full pQCD/OPE error analysis), and is the next-step gap clearly articulated?
+2) Are the schema + binding rules adequate to prevent misrepresentation (e.g., silent tol drift), without being overly restrictive for future use cases?
+3) Any red flags on numerical conditioning / scaling introduced by gate-binding a high-$Q^2$ anchor?
+4) What is the most valuable next tightening input (still pion-only, no coupled-channel): a second UV anchor, moment constraints, or a low-energy slope/normalization constraint—given that solver spread is already small?
+--- END PACKET ---

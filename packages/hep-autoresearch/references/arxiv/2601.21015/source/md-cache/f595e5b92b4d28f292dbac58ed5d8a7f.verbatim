@@ -1,0 +1,6 @@
+sudo mkdir -p /output
+sudo chown "$USER":"$USER" /output
+
+cd /output
+tar -xzf /path/to/ufo_ttbar_dataset_project.tar.gz
+# Result: /output/dataset with run.sh, scripts/, output/, documentation/, etc.

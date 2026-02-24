@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KB index (knowledge_base index export)",
+  "type": "object",
+  "required": ["schema_version", "roots", "entries", "stats"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "roots": {
+      "type": "object",
+      "required": ["literature", "methodology_traces", "priors"],
+      "properties": {
+        "literature": { "type": "string", "minLength": 1 },
+        "methodology_traces": { "type": "string", "minLength": 1 },
+        "priors": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    },
+    "stats": {
+      "type": "object",
+      "required": ["total_entries", "by_kind", "by_lang", "refkeys_total", "refkeys_missing"],
+      "properties": {
+        "total_entries": { "type": "integer", "minimum": 0 },
+        "by_kind": { "type": "object" },
+        "by_lang": { "type": "object" },
+        "refkeys_total": { "type": "integer", "minimum": 0 },
+        "refkeys_missing": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["path", "kind", "lang", "sha256", "bytes"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["literature", "methodology_traces", "priors"]
+        },
+        "lang": { "type": "string", "enum": ["en", "zh"] },
+        "title": { "type": "string" },
+        "refkey": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "sha256": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "bytes": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

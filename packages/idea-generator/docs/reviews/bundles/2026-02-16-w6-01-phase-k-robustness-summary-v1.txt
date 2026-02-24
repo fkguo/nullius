@@ -1,0 +1,4 @@
+Phase K robustness summary (dispersion-coupled SOCP: full interior enforcement)
+project: pion-gff-bootstrap-positivity-pilot-2026-02-15
+
+label	slug	grid_n	n_disp	solver	Amin@10	Q2*_contig	Amin@Q2*	min(Amin)	neg_ct

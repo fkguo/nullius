@@ -1,0 +1,9 @@
+Board sync postupdate (W6-37 full-PSD SDP robustness, 2026-02-21)
+timestamp_utc: 2026-02-21T11:36:13.002800+00:00
+item_snapshot_postupdate: docs/reviews/bundles/2026-02-21-w6-37-board-item-list-postupdate-v1.json
+draft_issue_snapshot_postupdate: docs/reviews/bundles/2026-02-21-w6-37-board-draft-issue-postupdate-v1.json
+item_edit_response: docs/reviews/bundles/2026-02-21-w6-37-board-item-edit-v1.out.json
+W6-01 status: In Progress
+body_contains_w6_37: True
+body_contains_w6_37_commit_idea_runs_7fda08b: True
+body_contains_w6_37_commit_idea_generator_0901c0d: True

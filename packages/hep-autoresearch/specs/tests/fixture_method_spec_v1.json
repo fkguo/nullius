@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "project": {
+    "project_id": "demo_spec",
+    "title": "spec_v1 demo",
+    "description": "materialized from a method_spec bundle",
+    "required_references": [],
+    "eval_cases": []
+  },
+  "run_card_path": "run_cards/main.json",
+  "files": [
+    {
+      "path": "scripts/write_ok.py",
+      "content": "from __future__ import annotations\n\nimport json\nfrom pathlib import Path\n\nPath('results').mkdir(parents=True, exist_ok=True)\nPath('results/ok.json').write_text(json.dumps({'ok': True}) + '\\n', encoding='utf-8')\n"
+    }
+  ],
+  "run_card": {
+    "schema_version": 2,
+    "run_id": "IGNORED",
+    "workflow_id": "W_compute",
+    "title": "spec_v1 run",
+    "phases": [
+      {
+        "phase_id": "p1",
+        "backend": {
+          "kind": "shell",
+          "argv": ["python3", "scripts/write_ok.py"],
+          "cwd": ".",
+          "timeout_seconds": 30
+        },
+        "outputs": ["results/ok.json"]
+      }
+    ]
+  }
+}
+

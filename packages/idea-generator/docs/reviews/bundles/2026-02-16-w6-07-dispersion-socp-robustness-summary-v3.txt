@@ -1,0 +1,20 @@
+W6-07 robustness summary (dispersion-coupled SOCP; residual audit + cross-solver)
+timestamp_utc: 2026-02-16T21:38:35Z
+project: pion-gff-bootstrap-positivity-pilot-2026-02-15
+
+## A) Key bound deltas (contiguous positivity window)
+- v14 (Im-only SOCP): A_min(-10)=0.06652663; Q2_end_pos=13.899453; A_min@Q2_end=0.00994876
+- v15b (dispersion n60): A_min(-10)=0.07243725; Q2_end_pos=15.438084; A_min@Q2_end=0.00091335
+- v17 (dispersion full interior grid200): A_min(-10)=0.08064635; Q2_end_pos=15.438084; A_min@Q2_end=0.00728476
+- v18 (dispersion full interior grid200; resaudit): A_min(-10)=0.08064635; Q2_end_pos=15.438084; A_min@Q2_end=0.00728476
+
+## B) Cross-solver check at shared Q2 points (Clarabel v18 vs ECOS v18-smoke-v2)
+Q2	Amin_cl	Amin_ec	dAmin	Amax_cl	Amax_ec	dAmax	|norm_eq|_cl	|norm_eq|_ec	K0_min_cl	K0_min_ec	SOC_min_cl	SOC_min_ec	MOD_min_cl	MOD_min_ec
+10.000000	0.0806463451	0.0840559643	+3.410e-03	0.8331086262	0.8254748804	-7.634e-03	3.047e-08	2.075e-07	-1.276e-07	-1.270e-06	-5.738e-09	1.119e-10	1.799e-09	-1.203e-09
+15.438084	0.0072847569	0.0181038490	+1.082e-02	0.7612883583	0.7518004551	-9.488e-03	2.332e-08	1.196e-07	1.712e-10	1.660e-10	-1.961e-10	1.155e-10	7.321e-09	2.331e-09
+17.147038	-0.0051432555	-0.0021352079	+3.008e-03	0.7407895331	0.7315597825	-9.230e-03	2.921e-08	8.885e-09	-4.027e-08	-8.765e-07	-2.816e-08	1.348e-10	6.805e-09	8.876e-11
+
+Notes:
+- v18 adds explicit residual auditing; see results.json solver_status[*].min_residuals/max_residuals.
+- ECOS strict tol attempt (eps=1e-10) was terminated after long runtime; see 2026-02-16-w6-07-v18-ecos-smoke-run-v1.txt (partial).
+- SCS smoke attempt for v17 hit ITERATION_LIMIT in feasibility check; see 2026-02-16-w6-07-v17-scs-smoke-run-v1.txt.

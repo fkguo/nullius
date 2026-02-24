@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reduction_report_v1.schema.json",
+  "title": "ReductionReport v1",
+  "description": "Structured report produced by ProblemReduction/TechniqueTransplant operators: abstract problem mapping, assumptions/limits, known solutions, transfer plan, and minimal toy check.",
+  "type": "object",
+  "required": [
+    "abstract_problem",
+    "reduction_map",
+    "assumptions_and_limits",
+    "known_solutions",
+    "transfer_plan",
+    "minimal_toy_check",
+    "kill_criteria",
+    "compatibility_checks"
+  ],
+  "properties": {
+    "abstract_problem": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Abstract problem type (must be registered in the DomainPack abstract_problem_registry at runtime)."
+    },
+    "reduction_map": {
+      "type": "array",
+      "minItems": 8,
+      "description": "Target-domain → abstract-domain mapping table (variables/objectives/constraints/symmetries/invariants).",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "mapping"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Target-domain element."
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Abstract-domain element."
+          },
+          "mapping": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Explanation of the correspondence."
+          },
+          "invariant": {
+            "type": "string",
+            "description": "Optional invariant that must hold under the mapping."
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "assumptions_and_limits": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Assumptions and validity limits required for the reduction/transfer to hold.",
+      "items": {
+        "type": "object",
+        "required": [
+          "assumption_id",
+          "statement"
+        ],
+        "properties": {
+          "assumption_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verification_plan": {
+            "type": "string"
+          },
+          "verification_status": {
+            "enum": [
+              "pending",
+              "satisfied",
+              "violated"
+            ],
+            "default": "pending"
+          },
+          "evidence_uris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "known_solutions": {
+      "type": "array",
+      "minItems": 2,
+      "description": "Mature solution candidates from math/CS/other domains (each must include at least one primary reference).",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "prerequisites",
+          "failure_modes",
+          "reference_uris"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "one_liner": {
+            "type": "string"
+          },
+          "prerequisites": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "failure_modes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "reference_uris": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "complexity_notes": {
+            "type": "string"
+          },
+          "cost_notes": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "transfer_plan": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Minimal steps to apply the abstract-domain method back to the target domain (must be executable/auditable).",
+      "items": {
+        "type": "object",
+        "required": [
+          "step",
+          "expected_output",
+          "acceptance"
+        ],
+        "properties": {
+          "step": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_output": {
+            "type": "string",
+            "minLength": 1
+          },
+          "acceptance": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tool_hint": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "compatibility_checks": {
+      "type": "array",
+      "description": "Target-domain consistency checks that must pass (dimensions/symmetries/limits/reproducibility).",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "minimal_toy_check": {
+      "type": "object",
+      "required": [
+        "setup",
+        "expected_result",
+        "pass_fail_criteria"
+      ],
+      "properties": {
+        "setup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_result": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pass_fail_criteria": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code_sketch_ref": {
+          "type": "string",
+          "format": "uri"
+        },
+        "data_ref": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "additionalProperties": false
+    },
+    "kill_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reference_uris": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Operator/DomainPack specific extensions.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

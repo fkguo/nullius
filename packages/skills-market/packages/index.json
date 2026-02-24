@@ -1,0 +1,25 @@
+{
+  "index_version": "1.0.0",
+  "updated_at": "2026-02-15T13:02:15Z",
+  "packages": [
+    "auto-relay.json",
+    "claude-cli-runner.json",
+    "codex-cli-runner.json",
+    "gemini-cli-runner.json",
+    "hep-autoresearch.json",
+    "hep-calc.json",
+    "hep-research-mcp.json",
+    "hepar.json",
+    "idea-core.json",
+    "idea-generator.json",
+    "julia-perf.json",
+    "opencode-cli-runner.json",
+    "paper-reviser.json",
+    "pdg-lookup.json",
+    "referee-review.json",
+    "research-team.json",
+    "research-writer.json",
+    "skills-market.json",
+    "zotero-import.json"
+  ]
+}

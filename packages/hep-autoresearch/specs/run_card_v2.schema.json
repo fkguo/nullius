@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "run_card_v2.schema.json",
+  "title": "Run Card v2",
+  "description": "Declarative run card for the W_compute workflow engine. Strict mode: unknown fields are errors. Schema version must be exactly 2.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "workflow_id", "title", "phases"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2,
+      "description": "Schema version. Must be exactly 2."
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "Unique run identifier. CLI --run-id overrides this value if provided."
+    },
+    "workflow_id": {
+      "type": "string",
+      "const": "W_compute",
+      "description": "Workflow engine identifier. Must be W_compute for run_card v2."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable title for this run."
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional longer description of the run."
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Typed parameter definitions. Keys are parameter names referenced in phase argv via ${name} syntax.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/parameter_definition"
+      }
+    },
+    "on_failure": {
+      "type": "string",
+      "enum": ["fail-fast", "continue"],
+      "default": "fail-fast",
+      "description": "DAG failure strategy. fail-fast: abort on first phase failure. continue: skip dependent phases, execute independent ones."
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/phase"
+      },
+      "description": "Ordered list of execution phases forming a DAG."
+    },
+    "headline_numbers": {
+      "$ref": "#/$defs/headline_numbers",
+      "description": "Extraction of key numeric results from phase outputs."
+    },
+    "acceptance": {
+      "$ref": "#/$defs/acceptance",
+      "description": "Acceptance criteria for automated validation."
+    }
+  },
+
+  "$defs": {
+    "parameter_definition": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["integer", "number", "string", "boolean"],
+          "description": "Parameter type. Used for CLI parsing and validation."
+        },
+        "default": {
+          "description": "Default value when not provided via CLI --param. Must match the declared type."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this parameter."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "integer" } }, "required": ["default"] },
+          "then": { "properties": { "default": { "type": "integer" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "number" } }, "required": ["default"] },
+          "then": { "properties": { "default": { "type": "number" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "string" } }, "required": ["default"] },
+          "then": { "properties": { "default": { "type": "string" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "boolean" } }, "required": ["default"] },
+          "then": { "properties": { "default": { "type": "boolean" } } }
+        }
+      ]
+    },
+
+    "phase": {
+      "type": "object",
+      "required": ["phase_id", "backend", "outputs"],
+      "additionalProperties": false,
+      "properties": {
+        "phase_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "minLength": 1,
+          "description": "Unique identifier for this phase within the run card. Lowercase alphanumeric and underscores."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what this phase does."
+        },
+        "inputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [],
+          "description": "Input file paths. Paths referencing upstream outputs use phases/<upstream_id>/<path> relative to ${WORKSPACE}. Initial phase inputs (no depends_on) are relative to ${PROJECT_DIR}."
+        },
+        "backend": {
+          "$ref": "#/$defs/backend"
+        },
+        "outputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "description": "Output file paths relative to phase working directory. Copied to ${WORKSPACE}/phases/<phase_id>/ on success."
+        },
+        "gates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [],
+          "description": "Approval gates required before this phase executes (e.g. A3)."
+        },
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "minLength": 1
+          },
+          "default": [],
+          "description": "Phase IDs that must all succeed before this phase can execute. All referenced IDs must exist in the phases array."
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Number of retry attempts on failure (0 = no retries)."
+        }
+      }
+    },
+
+    "backend": {
+      "type": "object",
+      "required": ["kind", "argv"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "shell",
+          "description": "Backend type. Currently only shell is supported."
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "description": "Command and arguments. Script paths are relative to ${PROJECT_DIR}. Parameter references use ${param_name} syntax."
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1,
+          "default": ".",
+          "description": "Working directory relative to ${PROJECT_DIR}. Must resolve within ${PROJECT_DIR} (containment enforced by engine)."
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum execution time in seconds. Engine applies a default if omitted."
+        }
+      }
+    },
+
+    "headline_numbers": {
+      "type": "object",
+      "required": ["source", "extract"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the source JSON file, relative to ${WORKSPACE}."
+        },
+        "extract": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/headline_extract"
+          },
+          "description": "List of values to extract from the source file."
+        }
+      }
+    },
+
+    "headline_extract": {
+      "type": "object",
+      "required": ["pointer", "label", "tier"],
+      "additionalProperties": false,
+      "properties": {
+        "pointer": {
+          "type": "string",
+          "pattern": "^#(/([^~/]|~[01])+)+$",
+          "description": "RFC 6901 JSON Pointer in URI fragment form (e.g. #/sigma_nlo_pb). Tilde escapes: ~0 for ~, ~1 for /."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable label for this headline number."
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["T1", "T2", "T3"],
+          "description": "Importance tier. T1: primary result, T2: secondary, T3: diagnostic."
+        }
+      }
+    },
+
+    "acceptance": {
+      "type": "object",
+      "required": ["json_numeric_checks"],
+      "additionalProperties": false,
+      "properties": {
+        "json_numeric_checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/json_numeric_check"
+          },
+          "description": "Numeric range checks on JSON output files."
+        }
+      }
+    },
+
+    "json_numeric_check": {
+      "type": "object",
+      "required": ["path", "pointer"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the JSON file, relative to ${WORKSPACE}."
+        },
+        "pointer": {
+          "type": "string",
+          "pattern": "^#(/([^~/]|~[01])+)+$",
+          "description": "RFC 6901 JSON Pointer in URI fragment form to the numeric value. Tilde escapes: ~0 for ~, ~1 for /."
+        },
+        "min": {
+          "type": "number",
+          "description": "Minimum acceptable value (inclusive)."
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum acceptable value (inclusive)."
+        }
+      },
+      "anyOf": [
+        { "required": ["min"] },
+        { "required": ["max"] }
+      ]
+    }
+  }
+}

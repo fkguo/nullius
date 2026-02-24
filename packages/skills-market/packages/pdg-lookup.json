@@ -1,0 +1,64 @@
+{
+  "package_id": "pdg-lookup",
+  "package_type": "skill-pack",
+  "repo": "autoresearch-lab/skills-market",
+  "channel": "beta",
+  "version": "0.1.0",
+  "summary": "PDG local database lookup workflow skill.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "~/.codex/skills/pdg-lookup/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "depends_on": {
+    "hep-research-mcp": ">=0.3.0 <0.4.0"
+  },
+  "source": {
+    "repo": "autoresearch-lab/skills",
+    "ref": "main",
+    "subpath": "skills/pdg-lookup",
+    "include": [
+      "SKILL.md",
+      "SKILL.zh.md",
+      "README.md",
+      "RUNBOOK.md",
+      "ROADMAP.md",
+      "PROJECT_MAP.md",
+      "scripts/**",
+      "assets/**",
+      "references/**",
+      "templates/**",
+      "schemas/**",
+      "agents/**",
+      ".gitignore"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/docs/reviews/**",
+      "**/reviews/**",
+      "**/agent-team-output/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store",
+      "scripts/dev/*",
+      "scripts/dev/**/*",
+      "team/*",
+      "team/**/*",
+      "process/*",
+      "process/**/*",
+      "skilldev/*",
+      "skilldev/**/*",
+      ".tmp*/*",
+      ".tmp*/**/*"
+    ]
+  }
+}

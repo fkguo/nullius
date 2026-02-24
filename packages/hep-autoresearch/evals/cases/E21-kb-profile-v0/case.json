@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "case_id": "E21-kb-profile-v0",
+  "workflow": "custom",
+  "description": "KB profile v0: curated/minimal/user selection driven by KB index, with deterministic export and eval constraints on benefit-vs-noise proxies.",
+  "inputs": {},
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_kb_profile.py",
+      "specs/kb_profile.schema.json",
+      "src/hep_autoresearch/toolkit/kb_profile.py",
+      "knowledge_base/_index/kb_profiles/curated.json",
+      "knowledge_base/_index/kb_profiles/minimal.json",
+      "artifacts/runs/M37-t34-r1/kb_profile/manifest.json",
+      "artifacts/runs/M37-t34-r1/kb_profile/summary.json",
+      "artifacts/runs/M37-t34-r1/kb_profile/analysis.json",
+      "artifacts/runs/M37-t34-r1/kb_profile/kb_profile.json",
+      "artifacts/runs/M37-t34-r1/kb_profile/report.md",
+      "artifacts/runs/M37-t34-r1/kb_profile/artifact_report.md"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M37-t34-r1/kb_profile/summary.json",
+        "pointer": "#/stats/missing_paths",
+        "min": 0,
+        "max": 0
+      },
+      {
+        "path": "artifacts/runs/M37-t34-r1/kb_profile/summary.json",
+        "pointer": "#/stats/curated_total_entries",
+        "min": 4,
+        "max": 12
+      },
+      {
+        "path": "artifacts/runs/M37-t34-r1/kb_profile/summary.json",
+        "pointer": "#/stats/minimal_total_entries",
+        "min": 2,
+        "max": 3
+      },
+      {
+        "path": "artifacts/runs/M37-t34-r1/kb_profile/summary.json",
+        "pointer": "#/stats/delta_entries_curated_minus_minimal",
+        "min": 2
+      },
+      {
+        "path": "artifacts/runs/M37-t34-r1/kb_profile/kb_profile.json",
+        "pointer": "#/stats/by_kind/priors",
+        "min": 1
+      },
+      {
+        "path": "artifacts/runs/M37-t34-r1/kb_profile/kb_profile.json",
+        "pointer": "#/stats/by_kind/methodology_traces",
+        "min": 1
+      },
+      {
+        "path": "artifacts/runs/M37-t34-r1/kb_profile/kb_profile.json",
+        "pointer": "#/stats/by_kind/literature",
+        "min": 3
+      }
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M37-t34-r1/kb_profile/kb_profile.json",
+        "pointer": "#/profile",
+        "type": "string",
+        "expected": "curated"
+      }
+    ]
+  },
+  "notes": "Anchored to tag M37-t34-r1; validates curated profile export and benefit-vs-noise proxies against minimal."
+}
+

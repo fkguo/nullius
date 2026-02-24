@@ -1,0 +1,18 @@
+{
+  "arxiv": {
+    "id": "2512.07785",
+    "primary_class": "physics.data-an"
+  },
+  "authors_short": "Gendreau-Distler et al.",
+  "citekey": "Gendreau-Distler:2025fsj",
+  "inspire_recid": "3090360",
+  "links": {
+    "arxiv": "https://arxiv.org/abs/2512.07785",
+    "inspire": "https://inspirehep.net/literature/3090360",
+    "inspire_api": "https://inspirehep.net/api/literature/3090360"
+  },
+  "publication": "arXiv:2512.07785 [physics.data-an]",
+  "refkey": "recid-3090360-llm-powered-hep-agents",
+  "title": "Automating High Energy Physics Data Analysis with LLM-Powered Agents",
+  "year": "2025"
+}

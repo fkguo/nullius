@@ -1,0 +1,185 @@
+{
+   "sources" : [
+      {
+         "usage" : "toplevel",
+         "filename" : "main.tex"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "SciPost_bibstyle.bst"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/event_weight.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/event_weight.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/jet_multiplicity.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/jet_multiplicity.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/leading_jet_pt.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/leading_jet_pt.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/lepton_multiplicity.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/lepton_multiplicity.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/met.pdf"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "figs/plots_documentation/met.png"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "main.bbl"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "markdown_files/documentation.md"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "markdown_files/final_summary.md"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "markdown_files/sbi_reproduction_step1.md"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "markdown_files/summary.md"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "markdown_files/tutorial_example.md"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/02abdd2f7ef8c1803c3d398d95608907.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/04400b27c65acf890a4a26671c76977b.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/0ad8e0659520892f22193f55ae3bfd4f.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/1dbd1ac22555b841207230c2614f25b9.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/25a79e3fc90f9deb811acf121cc8d6e5.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/53dcfe158ec104d7de5690155fb56fd9.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/5a9603164a587e7211959776206a7e6c.md.tex"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/5d14fff1cb3a7d9cee15077388a55fe4.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/677abe65004984e5c30e9d7949063fc2.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/6fccacc06c208ad96d8219a2ff4edae6.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/72c938850fda7e7ce7830a750c5bc8a8.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/869ccfa807b3fad882069ce7cb49027b.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/9711108e3f93677c19f07c08ae17be69.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/9b75a80ea0d821fdecca71e638cb1618.md.tex"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/a68a4fb01ec26ea2f7ecb45197df4705.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/b9966ada17fbb7d2128a66f463428d54.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/c3809ef778c446be0586395eb30d72d1.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/de809f1c5716e9d8304a034f33267dc5.md.tex"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/ece3c75a369b29c0c88194769bc65e3b.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/f23201a06176d946913930a115144941.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/f595e5b92b4d28f292dbac58ed5d8a7f.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/f8d235d4a5f770647e69c22b5e24897c.verbatim"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "md-cache/frozenCache.tex"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "refs.bib"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "tepml.bst"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "tilman.bib"
+      }
+   ],
+   "spec_version" : 1,
+   "texlive_version" : "2025",
+   "process" : {
+      "compiler" : "pdflatex"
+   }
+}

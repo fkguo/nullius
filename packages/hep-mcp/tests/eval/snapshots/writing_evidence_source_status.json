@@ -1,0 +1,29 @@
+{
+  "summary": {
+    "total": 2,
+    "succeeded": 1,
+    "failed": 1,
+    "skipped": 0,
+    "fallback_count": 0
+  },
+  "sources": [
+    {
+      "source_kind": "latex",
+      "identifier": "paper_good",
+      "status": "success",
+      "error_code": null
+    },
+    {
+      "source_kind": "latex",
+      "identifier": "paper_missing",
+      "status": "failed",
+      "error_code": "UNKNOWN"
+    }
+  ],
+  "tool_summary": {
+    "latex_items": 1,
+    "pdf_included": false,
+    "embedding_dim": 64,
+    "warnings_total": 0
+  }
+}

@@ -1,0 +1,10 @@
+Board sync postupdate (W6-32 trace Theta_hat PV-modulus unblocking, 2026-02-20)
+timestamp_utc: 2026-02-20T16:10:49.016110+00:00
+item_snapshot_postupdate: docs/reviews/bundles/2026-02-20-w6-32-board-item-list-postupdate-v1.json
+draft_issue_snapshot_postupdate: docs/reviews/bundles/2026-02-20-w6-32-board-draft-issue-postupdate-v1.json
+item_edit_response: docs/reviews/bundles/2026-02-20-w6-32-board-item-edit-v1.out.json
+W6-01 status: In Progress
+body_contains_w6_32: True
+body_contains_w6_32_commit_d75b5fc: True
+body_contains_w6_32_commit_36ea013: True
+

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "case_id": "E17-orchestrator-run-card-protocol-v0",
+  "workflow": "custom",
+  "description": "Run-card protocol v0: a per-run run_card.json exists, approval packets reference it (path+sha256), and step manifests bind to it via inputs.run_card_path/run_card_sha256 (regression anchor).",
+  "inputs": {},
+  "acceptance": {
+    "required_paths_exist": [
+      "artifacts/runs/M33-t32-r1-plan/approvals/A3-0001/packet.md",
+      "specs/run_card.schema.json",
+      "src/hep_autoresearch/toolkit/run_card.py",
+      "docs/ORCHESTRATOR_STATE.md",
+      "docs/ORCHESTRATOR_INTERACTION.md",
+      "artifacts/runs/M33-t32-r1/orchestrator_regression/manifest.json",
+      "artifacts/runs/M33-t32-r1/orchestrator_regression/summary.json",
+      "artifacts/runs/M33-t32-r1/orchestrator_regression/analysis.json",
+      "artifacts/runs/M33-t32-r1-plan/run_card.json",
+      "artifacts/runs/M33-t32-r1-plan/reproduce/manifest.json"
+    ],
+    "reading_note_required_fields": ["Run-card:", "Run-card SHA256 (canonical JSON):", "Plan step(s):"],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M33-t32-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/plan/approval_packet_has_run_card_refs",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M33-t32-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/plan/run_card_exists",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M33-t32-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/plan/reproduce_manifest_has_run_card",
+        "type": "boolean",
+        "equals": true
+      }
+    ]
+  },
+  "notes": "This case is anchored on orchestrator_regression run tag M33-t32-r1 and checks run-card + approval/manifest bindings."
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KB profile (resolved selection) — SSOT",
+  "type": "object",
+  "required": ["schema_version", "profile", "kb_index_path", "kb_index_sha256", "source", "selected", "stats", "issues"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "profile": { "type": "string", "enum": ["minimal", "curated", "user"] },
+    "kb_index_path": { "type": "string", "minLength": 1 },
+    "kb_index_sha256": { "type": "string", "minLength": 64 },
+    "source": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+    "selected": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+    "stats": { "$ref": "#/$defs/stats" },
+    "issues": { "$ref": "#/$defs/issues" }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["path", "kind", "lang", "sha256", "bytes", "title", "refkey"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["literature", "methodology_traces", "priors"] },
+        "lang": { "type": "string", "enum": ["en", "zh"] },
+        "sha256": { "type": "string", "minLength": 64 },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "title": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "refkey": { "oneOf": [{ "type": "string" }, { "type": "null" }] }
+      },
+      "additionalProperties": false
+    },
+    "stats": {
+      "type": "object",
+      "required": ["total_entries", "total_bytes", "by_kind", "by_lang"],
+      "properties": {
+        "total_entries": { "type": "integer", "minimum": 0 },
+        "total_bytes": { "type": "integer", "minimum": 0 },
+        "by_kind": { "type": "object" },
+        "by_lang": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "issues": {
+      "type": "object",
+      "required": ["missing_paths", "warnings"],
+      "properties": {
+        "missing_paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "warnings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

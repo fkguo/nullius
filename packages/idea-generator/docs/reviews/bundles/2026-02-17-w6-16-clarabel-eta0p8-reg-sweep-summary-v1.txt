@@ -1,0 +1,76 @@
+W6-16 Clarabel eta_floor=0.8 solver-attribute sweep @ Q* (audit3 single-point) — 2026-02-17
+
+Goal: eliminate Clarabel feasibility NUMERICAL_ERROR at eta_floor=0.8 with minimal objective bias.
+
+== Clarabel baseline (eta=0.6; no reg; v21) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v21-dispersion-grid200-enf200-qstar-audit3-clarabel/results.json
+eta_floor: 0.6
+termination_feasibility: OPTIMAL
+raw_status: SOLVED
+solve_time_sec: 0.425152209
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): 0.007013836765751423
+A_max(-Q*): 0.7602459701025972
+min_diag.termination_status: OPTIMAL
+min_stationarity_inf_norm: 8.999253363963008e-08
+min_dual_obj_recomputed: 0.018320018652862195
+
+== Clarabel probe (eta=0.8; no reg; v29) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-17-a-bochner-k0-socp-v29-dispersion-grid200-enf200-qstar-audit3-eta0p8-clarabel/results.json
+eta_floor: 0.8
+termination_feasibility: NUMERICAL_ERROR
+raw_status: NUMERICAL_ERROR
+solve_time_sec: 0.37277216700000004
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): None
+A_max(-Q*): None
+
+== Clarabel reg1e-8 dyn-off (eta=0.8; v31) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-17-a-bochner-k0-socp-v31-dispersion-grid200-enf200-qstar-audit3-eta0p8-clarabel-reg1e-8/results.json
+eta_floor: 0.8
+termination_feasibility: NUMERICAL_ERROR
+raw_status: NUMERICAL_ERROR
+solve_time_sec: 0.386876959
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): None
+A_max(-Q*): None
+
+== Clarabel reg1e-8 dyn-on (eta=0.8; v34) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-17-a-bochner-k0-socp-v34-dispersion-grid200-enf200-qstar-audit3-eta0p8-clarabel-reg1e-8-dyn/results.json
+eta_floor: 0.8
+termination_feasibility: NUMERICAL_ERROR
+raw_status: NUMERICAL_ERROR
+solve_time_sec: 0.47412645800000003
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): None
+A_max(-Q*): None
+
+== Clarabel reg1e-7 dyn-off (eta=0.8; v32) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-17-a-bochner-k0-socp-v32-dispersion-grid200-enf200-qstar-audit3-eta0p8-clarabel-reg1e-7/results.json
+eta_floor: 0.8
+termination_feasibility: OPTIMAL
+raw_status: SOLVED
+solve_time_sec: 0.375659833
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): 0.011762087231963998
+A_max(-Q*): 0.7541869309592933
+min_diag.termination_status: OPTIMAL
+min_stationarity_inf_norm: 1.313170245392222e-06
+min_dual_obj_recomputed: 0.023068259938916456
+
+== Clarabel reg1e-7 dyn-off (eta=0.6 baseline; v33) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-17-a-bochner-k0-socp-v33-dispersion-grid200-enf200-qstar-audit3-eta0p6-clarabel-reg1e-7/results.json
+eta_floor: 0.6
+termination_feasibility: OPTIMAL
+raw_status: SOLVED
+solve_time_sec: 0.37531383300000004
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): 0.011417765779138094
+A_max(-Q*): 0.7500457444713546
+min_diag.termination_status: OPTIMAL
+min_stationarity_inf_norm: 6.870681150750151e-07
+min_dual_obj_recomputed: 0.022723950119365708
+
+Notes (conservative):
+- static_regularization_constant=1e-8 (dyn off/on) still yields feasibility NUMERICAL_ERROR at eta_floor=0.8.
+- static_regularization_constant=1e-7 (dyn off) restores feasibility at eta_floor=0.8, but the same setting shifts the eta_floor=0.6 baseline objective materially; treat reg-tuned objectives as diagnostic until a smaller-regularization ladder recovers baseline within tolerance.

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "research-team knowledge_base index (kb_index.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "kb_root", "entries"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kb_root": { "type": "string", "const": "knowledge_base" },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inspire", "arxiv", "doi", "other"],
+      "properties": {
+        "inspire": { "type": "array", "items": { "type": "string" } },
+        "arxiv": { "type": "array", "items": { "type": "string" } },
+        "doi": { "type": "array", "items": { "type": "string" } },
+        "other": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "layer",
+        "refkey",
+        "title",
+        "path",
+        "links",
+        "evidence_paths",
+        "mtime_ns",
+        "sha256"
+      ],
+      "properties": {
+        "layer": { "type": "string", "enum": ["Library", "Methodology", "Priors"] },
+        "refkey": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "links": { "$ref": "#/$defs/links" },
+        "evidence_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "mtime_ns": { "type": "integer", "minimum": 0 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

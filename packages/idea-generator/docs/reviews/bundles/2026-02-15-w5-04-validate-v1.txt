@@ -1,0 +1,8 @@
+# W5-04 Validate Evidence (idea-generator)
+Date: 2026-02-15T12:49:43Z
+
+## Command: make validate
+python3 scripts/check_no_test_instance_pollution.py
+OK: no test-instance pollution paths detected.
+python3 scripts/validate_w5_quality_schemas.py
+OK: W5 quality-gate schemas and examples validated

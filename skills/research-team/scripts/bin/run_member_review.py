@@ -1,0 +1,722 @@
+#!/usr/bin/env python3
+"""
+Run one research-team member review with optional full-access request/execute loop.
+
+This script is used by run_team_cycle.sh to implement:
+  - packet_only: one-shot member report
+  - full_access: requests stage -> leader proxy executes requests (with evidence logging) -> final report stage
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+from member_evidence import (  # type: ignore
+    finalize_member_evidence,
+    load_evidence,
+    log_command_run,
+    log_convention_mapping,
+    log_fetched_source,
+    log_file_read,
+    log_network_query,
+    log_output_produced,
+    new_member_evidence,
+    save_evidence,
+    sha256_bytes,
+    sha256_file,
+    validate_member_evidence_schema,
+)
+
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--member-id", required=True, help="Canonical member id (e.g. member_a, member_b).")
+    p.add_argument("--mode", choices=["full_access", "packet_only"], required=True)
+    p.add_argument("--tag", required=True, help="Resolved tag for this run (e.g. M2-r3).")
+    p.add_argument("--project-root", type=Path, required=True, help="Project root (for path resolution + env snapshot).")
+    p.add_argument("--workspace-root", type=Path, required=True, help="Workspace root to run commands in (may be a worktree).")
+    p.add_argument("--packet", type=Path, required=True, help="Team packet path.")
+    p.add_argument("--system", type=Path, required=True, help="System prompt file.")
+    p.add_argument("--runner", type=Path, required=True, help="Runner script path (bash).")
+    p.add_argument("--runner-kind", choices=["claude", "gemini"], required=True)
+    p.add_argument("--model", default="", help="Optional model override.")
+    p.add_argument("--tools", default="", help='Claude tools string (e.g. "" or "default"). Only used for claude runner.')
+    p.add_argument("--output-format", default="text", help="Gemini output format (default: text).")
+    p.add_argument("--run-dir", type=Path, required=True, help="Run directory for logs.")
+    p.add_argument("--out-report", type=Path, required=True, help="Member report output path.")
+    p.add_argument("--out-evidence", type=Path, required=True, help="Evidence JSON output path.")
+    p.add_argument("--max-files", type=int, default=8, help="Max file reads to execute in full_access.")
+    p.add_argument("--max-commands", type=int, default=6, help="Max commands to execute in full_access.")
+    p.add_argument("--max-network", type=int, default=4, help="Max network fetches to execute in full_access.")
+    p.add_argument("--max-file-chars", type=int, default=20000, help="Max chars to include per file read in response.")
+    p.add_argument("--max-cmd-output-chars", type=int, default=12000, help="Max chars to include per command output in response.")
+    p.add_argument("--request-timeout-secs", type=int, default=900, help="Default timeout for requested commands.")
+    return p.parse_args()
+
+
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def _safe_relpath(path: Path, root: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(root.resolve()))
+    except Exception:
+        return str(path.resolve())
+
+
+def _extract_json_anywhere(text: str) -> Any:
+    raw = text.strip()
+    # Strip fenced blocks if present.
+    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, flags=re.DOTALL | re.IGNORECASE)
+    if m:
+        raw = m.group(1).strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        pass
+    # Fallback: attempt to locate the first JSON object in the text.
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        cand = raw[start : end + 1]
+        return json.loads(cand)
+    raise ValueError("no JSON object found")
+
+
+def _resolve_under(root: Path, path_s: str) -> Path:
+    p = Path(path_s)
+    if p.is_absolute():
+        resolved = p.resolve()
+    else:
+        resolved = (root / p).resolve()
+    root_r = root.resolve()
+    try:
+        resolved.relative_to(root_r)
+    except Exception as e:
+        raise ValueError(f"path escapes workspace root: {path_s} -> {resolved}") from e
+    return resolved
+
+
+def _is_forbidden_path(member_id: str, safe_tag: str, relpath: str) -> bool:
+    # Best-effort clean-room protection: prevent reading the other member's current-run workspace/artifacts.
+    other = "member_b" if member_id == "member_a" else "member_a"
+    bad_prefixes = [
+        f"team/runs/{safe_tag}/{other}",
+        f"team/runs/{safe_tag}/{other}_evidence.json",
+        f"team/runs/{safe_tag}/{safe_tag}_{other}",
+        f"artifacts/{safe_tag}/{other}",
+    ]
+    rp = relpath.replace("\\", "/").lstrip("./")
+    return any(rp.startswith(x) for x in bad_prefixes)
+
+
+def _curl_download(url: str, out_path: Path, timeout: int = 120) -> tuple[int, str]:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["curl", "-L", "--fail", "--silent", "--show-error", "--max-time", str(timeout), "-o", str(out_path), url]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+    return proc.returncode, proc.stdout.decode("utf-8", errors="replace")
+
+
+def _allowed_command(command: str) -> tuple[bool, str]:
+    # Safety: execute a broad-but-not-unlimited allowlist of common research commands.
+    # (This is a proxy executing model-provided strings; be conservative.)
+    banned = ("sudo", "rm", "mkfs", "mount", "umount", "shutdown", "reboot")
+    lowered = command.strip().lower()
+    if any(re.search(rf"(^|\\s){re.escape(x)}(\\s|$)", lowered) for x in banned):
+        return False, "contains banned executable (sudo/rm/mkfs/mount/umount/shutdown/reboot)"
+    try:
+        parts = shlex.split(command, posix=True)
+    except Exception:
+        # If we cannot parse, refuse to run.
+        return False, "command is not parseable via shlex"
+    if not parts:
+        return False, "empty command"
+    exe = parts[0]
+    allow = {
+        "python3",
+        "python",
+        "julia",
+        "bash",
+        "sh",
+        "make",
+        "latexmk",
+        "pdflatex",
+        "xelatex",
+        "lualatex",
+        "bibtex",
+        "biber",
+        "rg",
+        "grep",
+        "sed",
+        "awk",
+        "cat",
+        "head",
+        "tail",
+        "ls",
+        "find",
+        "git",
+        "curl",
+        "wget",
+        "tar",
+        "unzip",
+        "gzip",
+        "gunzip",
+        "mkdir",
+        "touch",
+    }
+    if exe.startswith("./"):
+        return True, ""
+    if exe not in allow:
+        return False, f"executable not in allowlist: {exe!r}"
+    return True, ""
+
+
+def _run_shell(command: str, cwd: Path, timeout: int) -> tuple[int, bytes]:
+    proc = subprocess.run(
+        ["bash", "-lc", command],
+        cwd=str(cwd),
+        timeout=timeout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        env=dict(os.environ),
+    )
+    return proc.returncode, proc.stdout
+
+
+def _run_runner(
+    runner_kind: str,
+    runner: Path,
+    system: Path,
+    prompt: Path,
+    out: Path,
+    model: str,
+    tools: str,
+    output_format: str,
+    *,
+    runner_max_retries: int | None = None,
+    runner_sleep_secs: int | None = None,
+) -> int:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    cmd: list[str] = ["bash", str(runner)]
+    supports_retry_flags = False
+    if runner_kind == "claude" and (runner_max_retries is not None or runner_sleep_secs is not None):
+        try:
+            supports_retry_flags = "--max-retries" in runner.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            supports_retry_flags = False
+    if supports_retry_flags:
+        if runner_max_retries is not None:
+            cmd += ["--max-retries", str(int(runner_max_retries))]
+        if runner_sleep_secs is not None:
+            cmd += ["--sleep-secs", str(int(runner_sleep_secs))]
+    if runner_kind == "claude":
+        if model.strip():
+            cmd += ["--model", model.strip()]
+        cmd += ["--tools", tools if tools != "" else '""']
+        cmd += ["--system-prompt-file", str(system), "--prompt-file", str(prompt), "--out", str(out)]
+    else:
+        if model.strip():
+            cmd += ["--model", model.strip()]
+        cmd += ["--output-format", output_format.strip() or "text"]
+        cmd += ["--prompt-file", str(prompt), "--out", str(out)]
+    proc = subprocess.run(cmd, check=False)
+    return proc.returncode
+
+
+def _candidate_models_for_runner(runner_kind: str, model: str) -> list[str]:
+    m = (model or "").strip()
+    if not m:
+        return [""]
+    # Gemini runner already implements a model fallback internally; avoid double-running here.
+    if runner_kind == "gemini":
+        return [m]
+    out: list[str] = [m]
+    for base in ("opus", "sonnet", "haiku"):
+        if base in m and m != base:
+            out.append(base)
+    if "-" in m:
+        prefix = m.split("-", 1)[0].strip()
+        if prefix in ("opus", "sonnet", "haiku"):
+            out.append(prefix)
+    out.append("")  # runner default model
+    dedup: list[str] = []
+    for x in out:
+        if x not in dedup:
+            dedup.append(x)
+    return dedup
+
+
+def _run_runner_with_model_fallback(
+    runner_kind: str,
+    runner: Path,
+    system: Path,
+    prompt: Path,
+    out: Path,
+    model: str,
+    tools: str,
+    output_format: str,
+    *,
+    fast_retry_max: int = 2,
+    fast_retry_sleep: int = 1,
+) -> tuple[int, str]:
+    """
+    Run the runner with deterministic fallback for common model-alias issues.
+
+    Primary motivation: Claude model aliases can differ between local CLI versions.
+    For explicit Claude model attempts, prefer a fail-fast retry policy so invalid aliases
+    do not burn long exponential backoff sleeps.
+    """
+    candidates = _candidate_models_for_runner(runner_kind, model)
+    last_code = 2
+    for cand in candidates:
+        use_fast = runner_kind == "claude" and bool(cand.strip())
+        last_code = _run_runner(
+            runner_kind=runner_kind,
+            runner=runner,
+            system=system,
+            prompt=prompt,
+            out=out,
+            model=cand,
+            tools=tools,
+            output_format=output_format,
+            runner_max_retries=(fast_retry_max if use_fast else None),
+            runner_sleep_secs=(fast_retry_sleep if use_fast else None),
+        )
+        if last_code == 0:
+            return 0, cand.strip()
+    return last_code, (candidates[-1].strip() if candidates else "")
+
+
+def _build_prompt_for_runner(runner_kind: str, system: Path, user_prompt: str, out_path: Path) -> None:
+    if runner_kind == "claude":
+        _write_text(out_path, user_prompt)
+        return
+    # Gemini runner is prompt-only; prepend system prompt deterministically.
+    sys_txt = _read_text(system)
+    combined = sys_txt.rstrip() + "\n\n" + user_prompt.lstrip()
+    _write_text(out_path, combined)
+
+
+def _format_snippet(text: str, limit: int) -> str:
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "\n\n...(truncated)...\n"
+
+
+def _parse_requests(obj: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    if not isinstance(obj, dict):
+        raise ValueError("requests JSON must be an object")
+    req = obj.get("requests", obj)
+    if not isinstance(req, dict):
+        raise ValueError("requests JSON must be an object (or contain 'requests' object)")
+    files = req.get("files_read", [])
+    cmds = req.get("commands_run", [])
+    net = req.get("network_queries", [])
+    if files is None:
+        files = []
+    if cmds is None:
+        cmds = []
+    if net is None:
+        net = []
+    if not isinstance(files, list) or not all(isinstance(x, dict) for x in files):
+        raise ValueError("files_read must be a list of objects")
+    if not isinstance(cmds, list) or not all(isinstance(x, dict) for x in cmds):
+        raise ValueError("commands_run must be a list of objects")
+    if not isinstance(net, list) or not all(isinstance(x, dict) for x in net):
+        raise ValueError("network_queries must be a list of objects")
+    return files, cmds, net
+
+
+def _extract_convention_mappings(report_text: str) -> list[dict[str, Any]]:
+    # Optional: allow a fenced JSON block to populate evidence.convention_mappings.
+    # Expected forms:
+    # ```json
+    # {"convention_mappings":[...]}
+    # ```
+    m = re.search(r"```json\s*(\{.*?\})\s*```", report_text, flags=re.DOTALL | re.IGNORECASE)
+    if not m:
+        return []
+    try:
+        obj = json.loads(m.group(1))
+    except Exception:
+        return []
+    if isinstance(obj, dict) and isinstance(obj.get("convention_mappings"), list):
+        out = [x for x in obj["convention_mappings"] if isinstance(x, dict)]
+        return out
+    return []
+
+
+def main() -> int:
+    args = _parse_args()
+
+    member_id = str(args.member_id).strip()
+    tag = str(args.tag).strip()
+    mode = str(args.mode).strip()
+    safe_tag = re.sub(r"[^A-Za-z0-9._-]+", "_", tag)
+
+    project_root = args.project_root.resolve()
+    workspace_root = args.workspace_root.resolve()
+    packet = args.packet.resolve()
+    system = args.system.resolve()
+    runner = args.runner.resolve()
+    run_dir = args.run_dir.resolve()
+    member_run_dir = (run_dir / member_id).resolve()
+    out_report = args.out_report.resolve()
+    out_evidence = args.out_evidence.resolve()
+
+    if not packet.is_file():
+        print(f"ERROR: packet not found: {packet}", file=sys.stderr)
+        return 2
+    if not system.is_file():
+        print(f"ERROR: system prompt not found: {system}", file=sys.stderr)
+        return 2
+    if not runner.is_file():
+        print(f"ERROR: runner not found: {runner}", file=sys.stderr)
+        return 2
+    if not workspace_root.is_dir():
+        print(f"ERROR: workspace root not found: {workspace_root}", file=sys.stderr)
+        return 2
+
+    evidence = new_member_evidence(member_id=member_id, mode=mode, project_root=project_root)
+    env = evidence.get("environment")
+    if isinstance(env, dict):
+        env["runner_kind"] = args.runner_kind
+        env["requested_model"] = str(args.model or "").strip()
+
+    # packet_only: one-shot report (no extra evidence).
+    if mode == "packet_only":
+        prompt_path = member_run_dir / f"{safe_tag}_prompt.txt"
+        _build_prompt_for_runner(args.runner_kind, system, _read_text(packet), prompt_path)
+        code, model_used = _run_runner_with_model_fallback(
+            runner_kind=args.runner_kind,
+            runner=runner,
+            system=system,
+            prompt=prompt_path,
+            out=out_report,
+            model=args.model,
+            tools=args.tools,
+            output_format=args.output_format,
+        )
+        if code != 0:
+            print(f"ERROR: runner failed (exit {code})", file=sys.stderr)
+            return 2
+        if isinstance(env, dict):
+            env["model_used"] = model_used or "(runner default)"
+        if out_report.is_file():
+            log_output_produced(evidence, _safe_relpath(out_report, project_root), sha256_file(out_report), "member report")
+        finalize_member_evidence(evidence)
+        save_evidence(out_evidence, evidence)
+        # Validate schema (should pass deterministically).
+        issues = validate_member_evidence_schema(load_evidence(out_evidence))
+        if any(x.level == "ERROR" for x in issues):
+            print("ERROR: wrote invalid evidence.json (packet_only)", file=sys.stderr)
+            for it in issues:
+                print(f"{it.level}: {it.message}", file=sys.stderr)
+            return 2
+        return 0
+
+    # full_access: requests -> execute -> final report.
+    packet_txt = _read_text(packet)
+    req_user_prompt = (
+        "MODE: REQUESTS_ONLY\n"
+        f"Member: {member_id}\n"
+        f"Tag: {tag}\n"
+        "\n"
+        "You are in full_access mode, but you do NOT have direct tools. Instead, you must output a SINGLE JSON object\n"
+        "describing what you want the leader proxy to do. The proxy will execute it, log evidence, and return results.\n"
+        "\n"
+        "Output contract (STRICT): output JSON only, no prose, no Markdown.\n"
+        "JSON schema (minimal):\n"
+        "{\n"
+        '  "files_read": [{"path": "...", "anchor_or_line": "...", "purpose": "..."}],\n'
+        '  "commands_run": [{"command": "...", "cwd": ".", "purpose": "...", "timeout_secs": 600, "expected_outputs": ["..."]}],\n'
+        '  "network_queries": [{"query_or_url": "https://...", "justification": "...", "downloaded_to": "references/..."}]\n'
+        "}\n"
+        "\n"
+        f"Limits: files_read<=%d, commands_run<=%d, network_queries<=%d.\n"
+        "Important constraints:\n"
+        "- Do not request anything from the other member's workspace/artifacts for this run.\n"
+        f"- Prefer producing an independent reproduction script under artifacts/{safe_tag}/{member_id}/independent/ and at least one output file,\n"
+        "  and list those output paths in expected_outputs.\n"
+        "\n"
+        "Team packet follows.\n"
+        "----\n"
+        % (args.max_files, args.max_commands, args.max_network)
+    ) + packet_txt
+
+    req_prompt_path = member_run_dir / f"{safe_tag}_requests_prompt.txt"
+    _build_prompt_for_runner(args.runner_kind, system, req_user_prompt, req_prompt_path)
+    req_out_path = member_run_dir / f"{safe_tag}_requests_out.txt"
+
+    code, model_used = _run_runner_with_model_fallback(
+        runner_kind=args.runner_kind,
+        runner=runner,
+        system=system,
+        prompt=req_prompt_path,
+        out=req_out_path,
+        model=args.model,
+        tools=args.tools,
+        output_format=args.output_format,
+    )
+    if code != 0:
+        print(f"ERROR: runner failed in requests stage (exit {code})", file=sys.stderr)
+        return 2
+    if isinstance(env, dict):
+        env["model_used"] = model_used or "(runner default)"
+
+    # Parse requests.
+    try:
+        req_obj = _extract_json_anywhere(_read_text(req_out_path))
+        files_req, cmds_req, net_req = _parse_requests(req_obj)
+    except Exception as e:
+        print("ERROR: failed to parse member requests JSON", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        return 2
+
+    files_req = files_req[: args.max_files]
+    cmds_req = cmds_req[: args.max_commands]
+    net_req = net_req[: args.max_network]
+
+    response_lines: list[str] = []
+    response_lines.append(f"# Full-access proxy results — {member_id}")
+    response_lines.append("")
+    response_lines.append(f"- Tag: `{tag}`")
+    response_lines.append(f"- Workspace: `{workspace_root}`")
+    response_lines.append("")
+
+    # Execute file reads.
+    if files_req:
+        response_lines.append("## Files Read")
+        for i, fr in enumerate(files_req):
+            path_s = str(fr.get("path", "")).strip()
+            anchor = str(fr.get("anchor_or_line", "")).strip()
+            purpose = str(fr.get("purpose", "")).strip()
+            if not path_s:
+                response_lines.append(f"- files_read[{i}]: (skipped) missing path")
+                continue
+            try:
+                resolved = _resolve_under(workspace_root, path_s)
+                rel = _safe_relpath(resolved, project_root)
+                if _is_forbidden_path(member_id, safe_tag, rel):
+                    response_lines.append(f"- files_read[{i}]: (denied) forbidden path: `{rel}`")
+                    continue
+                txt = _read_text(resolved)
+                log_file_read(evidence, rel, anchor, purpose)
+                snippet = _format_snippet(txt, args.max_file_chars)
+                response_lines.append(f"### files_read[{i}] `{rel}`")
+                if purpose:
+                    response_lines.append(f"- Purpose: {purpose}")
+                if anchor:
+                    response_lines.append(f"- Anchor: {anchor}")
+                response_lines.append("")
+                response_lines.append("```text")
+                response_lines.append(snippet.rstrip())
+                response_lines.append("```")
+                response_lines.append("")
+            except Exception as e:
+                response_lines.append(f"- files_read[{i}]: (error) {path_s!r}: {e}")
+        response_lines.append("")
+
+    # Execute network queries (URL fetch only).
+    if net_req:
+        response_lines.append("## Network Queries / Fetches")
+        for i, nq in enumerate(net_req):
+            url = str(nq.get("query_or_url", nq.get("url", ""))).strip()
+            justification = str(nq.get("justification", "")).strip()
+            downloaded_to = str(nq.get("downloaded_to", "")).strip()
+            if not url:
+                response_lines.append(f"- network_queries[{i}]: (skipped) missing query_or_url")
+                continue
+            dl_rel = ""
+            dl_abs: Path | None = None
+            if downloaded_to:
+                try:
+                    dl_abs = _resolve_under(workspace_root, downloaded_to)
+                    dl_rel = _safe_relpath(dl_abs, project_root)
+                    # Require downloads to land under references/ for auditability.
+                    if not dl_rel.replace("\\", "/").startswith("references/"):
+                        response_lines.append(f"- network_queries[{i}]: (denied) downloaded_to must be under references/: `{dl_rel}`")
+                        dl_abs = None
+                        dl_rel = ""
+                except Exception as e:
+                    response_lines.append(f"- network_queries[{i}]: (error) invalid downloaded_to: {downloaded_to!r}: {e}")
+                    dl_abs = None
+                    dl_rel = ""
+            log_network_query(evidence, url, justification, dl_rel)
+            if dl_abs is None:
+                response_lines.append(f"- network_queries[{i}]: logged only (no download): {url}")
+                continue
+            code_dl, out_dl = _curl_download(url, dl_abs)
+            if code_dl != 0:
+                response_lines.append(f"- network_queries[{i}]: (download failed) {url} -> `{dl_rel}`")
+                response_lines.append("```text")
+                response_lines.append(_format_snippet(out_dl, 2000).rstrip())
+                response_lines.append("```")
+                continue
+            try:
+                h = sha256_file(dl_abs)
+                size = dl_abs.stat().st_size
+                log_fetched_source(evidence, url, dl_rel, h, size)
+                response_lines.append(f"- network_queries[{i}]: downloaded {url} -> `{dl_rel}` (sha256={h}, bytes={size})")
+            except Exception as e:
+                response_lines.append(f"- network_queries[{i}]: downloaded, but failed to hash/stat: {e}")
+        response_lines.append("")
+
+    # Execute commands.
+    if cmds_req:
+        response_lines.append("## Commands Run")
+        for i, cr in enumerate(cmds_req):
+            cmd = str(cr.get("command", "")).strip()
+            cwd_s = str(cr.get("cwd", ".")).strip() or "."
+            purpose = str(cr.get("purpose", "")).strip()
+            timeout = cr.get("timeout_secs", args.request_timeout_secs)
+            try:
+                timeout_i = int(timeout)
+            except Exception:
+                timeout_i = args.request_timeout_secs
+            expected = cr.get("expected_outputs", [])
+            if expected is None:
+                expected = []
+            if not isinstance(expected, list) or not all(isinstance(x, str) for x in expected):
+                expected = []
+            if not cmd:
+                response_lines.append(f"- commands_run[{i}]: (skipped) missing command")
+                continue
+            ok, why = _allowed_command(cmd)
+            if not ok:
+                response_lines.append(f"- commands_run[{i}]: (denied) {why}: `{cmd}`")
+                continue
+            try:
+                cwd_abs = _resolve_under(workspace_root, cwd_s)
+            except Exception as e:
+                response_lines.append(f"- commands_run[{i}]: (error) invalid cwd {cwd_s!r}: {e}")
+                continue
+
+            out_log = member_run_dir / f"cmd_{i}.log"
+            try:
+                exit_code, out_bytes = _run_shell(cmd, cwd=cwd_abs, timeout=timeout_i)
+            except subprocess.TimeoutExpired:
+                exit_code = 124
+                out_bytes = b"TIMEOUT\n"
+            _write_text(out_log, out_bytes.decode("utf-8", errors="replace"))
+            out_hash = sha256_file(out_log)
+            log_command_run(
+                evidence,
+                cmd,
+                _safe_relpath(cwd_abs, workspace_root),
+                exit_code,
+                out_hash,
+                _safe_relpath(out_log, project_root),
+            )
+
+            response_lines.append(f"### commands_run[{i}] exit={exit_code}")
+            if purpose:
+                response_lines.append(f"- Purpose: {purpose}")
+            response_lines.append(f"- Command: `{cmd}`")
+            response_lines.append(f"- CWD: `{_safe_relpath(cwd_abs, workspace_root)}`")
+            response_lines.append(f"- Output log: `{_safe_relpath(out_log, project_root)}` (sha256={out_hash})")
+            response_lines.append("")
+            response_lines.append("```text")
+            response_lines.append(_format_snippet(out_bytes.decode('utf-8', errors='replace'), args.max_cmd_output_chars).rstrip())
+            response_lines.append("```")
+            if expected:
+                response_lines.append("")
+                response_lines.append("Expected outputs:")
+                for p_s in expected:
+                    try:
+                        p_abs = _resolve_under(workspace_root, p_s)
+                        rel = _safe_relpath(p_abs, project_root)
+                        if not p_abs.exists():
+                            response_lines.append(f"- (missing) `{rel}`")
+                            continue
+                        h = sha256_file(p_abs)
+                        log_output_produced(evidence, rel, h, "expected output from requested command")
+                        response_lines.append(f"- `{rel}` (sha256={h})")
+                    except Exception as e:
+                        response_lines.append(f"- (error) {p_s!r}: {e}")
+            response_lines.append("")
+        response_lines.append("")
+
+    response_path = member_run_dir / "full_access_results.md"
+    _write_text(response_path, "\n".join(response_lines).rstrip() + "\n")
+    log_output_produced(evidence, _safe_relpath(response_path, project_root), sha256_file(response_path), "full-access proxy results")
+
+    # Final report prompt.
+    final_user_prompt = (
+        "MODE: FINAL_REPORT\n"
+        f"Member: {member_id}\n"
+        f"Tag: {tag}\n"
+        "\n"
+        "You must write your final report using the standard member report format.\n"
+        "You may ONLY rely on: (a) the team packet, (b) the proxy results below.\n"
+        "Do not claim to have executed tools directly; instead cite evidence by referencing the proxy items\n"
+        "as files_read[i], commands_run[i], network_queries[i], outputs_produced[i].\n"
+        "\n"
+        "If you performed cross-paper / cross-module convention mapping, include a JSON block:\n"
+        "```json\n"
+        "{\"convention_mappings\": [ {\"source_anchors\": [\"path:line\"], \"explicit_relation\": \"...\", \"sanity_check\": \"...\"} ]}\n"
+        "```\n"
+        "\n"
+        "Team packet follows.\n"
+        "----\n"
+    ) + packet_txt + "\n\n----\n\nProxy results:\n\n" + _read_text(response_path)
+
+    final_prompt_path = member_run_dir / f"{safe_tag}_final_prompt.txt"
+    _build_prompt_for_runner(args.runner_kind, system, final_user_prompt, final_prompt_path)
+    code = _run_runner(
+        runner_kind=args.runner_kind,
+        runner=runner,
+        system=system,
+        prompt=final_prompt_path,
+        out=out_report,
+        model=args.model,
+        tools=args.tools,
+        output_format=args.output_format,
+    )
+    if code != 0:
+        print(f"ERROR: runner failed in final stage (exit {code})", file=sys.stderr)
+        return 2
+
+    if out_report.is_file():
+        log_output_produced(evidence, _safe_relpath(out_report, project_root), sha256_file(out_report), "member report")
+        # Convention mappings are optional; attach if present.
+        for m in _extract_convention_mappings(_read_text(out_report)):
+            log_convention_mapping(evidence, m)
+
+    finalize_member_evidence(evidence)
+    save_evidence(out_evidence, evidence)
+
+    issues = validate_member_evidence_schema(load_evidence(out_evidence))
+    if any(x.level == "ERROR" for x in issues):
+        print("ERROR: wrote invalid evidence.json (full_access)", file=sys.stderr)
+        for it in issues:
+            print(f"{it.level}: {it.message}", file=sys.stderr)
+        return 2
+
+    # Also hash the evidence file itself for provenance.
+    _ = sha256_file(out_evidence)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

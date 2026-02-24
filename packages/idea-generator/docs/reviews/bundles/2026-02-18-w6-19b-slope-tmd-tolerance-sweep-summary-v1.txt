@@ -1,0 +1,21 @@
+W6-19b diagnostic: slope(TMD) constraint feasibility vs f1 tolerance (π-scaled enforcement; ECOS; Q*=15.438084455604 m_pi^2)
+date_utc: 2026-02-18
+NOT_FOR_CITATION
+
+Semantics (post-fix):
+- Config uses f1 := dA/ds|_{s=0}.
+- sum_rules.f1_absolute_tolerance is in f1 units.
+- Conic enforcement is on the integral side: | ∑_i w_i ImA(s_i)/s_i^2 - (π f1 - I_slope_tail) | <= π * f1_absolute_tolerance.
+
+Sweep results (Q* single-point; grid200/full interior PV+modulus enforcement):
+- tol_f1=0.0003761207943301422 (m_f2 band): feasibility=INFEASIBLE; slope_eq_f1_abs=0.001612277512588476; tol_integral=0.0011816183243299322; I_slope_tail=-9.7556860354779e-05; A_min=None; A_max=None; run=v43 (baseline)
+- tol_f1=0.0003761207943301422 (m_f2 band; moml2): feasibility=INFEASIBLE; slope_eq_f1_abs=0.0016594800174777069; tol_integral=0.0011816183243299322; A_min=None; A_max=None; run=v44 (moml2)
+- tol_f1=0.006: feasibility=INFEASIBLE; slope_eq_f1_abs=0.006040769260036153; tol_integral=0.01884955592153876; A_min=None; A_max=None; run=v45
+- tol_f1=0.0061: feasibility=INFEASIBLE; slope_eq_f1_abs=0.006137984381502465; tol_integral=0.01916371518789874; A_min=None; A_max=None; run=v48
+- tol_f1=0.01: feasibility=OPTIMAL; slope_eq_f1_abs=0.009999999339260556; A_min=0.738053259792144; A_max=0.7564774596190805; run=v46
+- tol_f1=0.02: feasibility=OPTIMAL; slope_eq_f1_abs=0.019999950462278107; A_min=0.6537635136336984; A_max=0.7567697225050296; run=v47
+
+Takeaway:
+- Infeasibility persists at strict (≈3%) and even ±50% f1 bands; feasibility is recovered only for very wide bands (>=O(0.01)).
+- When feasible, the slope input yields a dramatic tightening of the lower bound A^pi(-Q*).
+

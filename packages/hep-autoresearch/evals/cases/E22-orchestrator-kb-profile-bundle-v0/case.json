@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "case_id": "E22-orchestrator-kb-profile-bundle-v0",
+  "workflow": "custom",
+  "description": "T35 regression: context pack renders kb-profile selection + selected KB files; export can bundle allowlisted KB files referenced by kb_profile.json and the zip contains them.",
+  "inputs": {
+    "tag": "M41-t35-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_kb_profile.py",
+      "src/hep_autoresearch/toolkit/context_pack.py",
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "src/hep_autoresearch/toolkit/evals.py",
+      "artifacts/runs/M41-t35-r1/kb_profile/kb_profile.json",
+      "artifacts/runs/M41-t35-r1/context/context.md",
+      "artifacts/runs/M41-t35-r1/context/context.json",
+      "artifacts/runs/M41-t35-r1/export/bundle.zip"
+    ],
+    "text_contains_checks": [
+      {
+        "path": "artifacts/runs/M41-t35-r1/context/context.md",
+        "contains": [
+          "## KB profile",
+          "- profile: curated",
+          "knowledge_base/priors/research_automation_principles.md"
+        ]
+      }
+    ],
+    "zip_contains_checks": [
+      {
+        "path": "artifacts/runs/M41-t35-r1/export/bundle.zip",
+        "required_entries": [
+          "knowledge_base/_index/kb_index.json",
+          "knowledge_base/_index/kb_profiles/curated.json",
+          "knowledge_base/priors/research_automation_principles.md"
+        ]
+      }
+    ]
+  },
+  "notes": "Anchored to tag M41-t35-r1; validates kb-profile→context-pack and kb-profile allowlisted bundling in export."
+}

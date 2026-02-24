@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Artifact Analysis",
+  "type": "object",
+  "required": ["schema_version", "created_at", "inputs", "results"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "inputs": { "type": "object" },
+    "results": { "type": "object" },
+    "uncertainty": { "type": "object" },
+    "comparisons": { "type": "object" }
+  },
+  "additionalProperties": true
+}
+

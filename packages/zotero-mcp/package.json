@@ -1,0 +1,48 @@
+{
+  "name": "@autoresearch/zotero-mcp",
+  "version": "0.3.0",
+  "description": "Zotero (Local API) MCP server for local library management and integration",
+  "author": "Feng-Kun Guo",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./tooling": {
+      "import": "./dist/tooling.js",
+      "types": "./dist/tooling.d.ts"
+    },
+    "./shared/zotero": {
+      "import": "./dist/shared/zotero/index.js",
+      "types": "./dist/shared/zotero/index.d.ts"
+    }
+  },
+  "bin": {
+    "zotero-mcp": "./bin/zotero-mcp.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:eval": "echo \"(zotero-mcp) no eval suite\"",
+    "test:eval:update": "echo \"(zotero-mcp) no eval snapshots\"",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@autoresearch/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.16"
+  }
+}

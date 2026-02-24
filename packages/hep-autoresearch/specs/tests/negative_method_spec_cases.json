@@ -1,0 +1,54 @@
+[
+  {
+    "name": "schema_version_wrong",
+    "data": {
+      "schema_version": 2,
+      "project": { "project_id": "demo_spec", "title": "x" },
+      "run_card": { "schema_version": 2, "run_id": "x", "workflow_id": "W_compute", "title": "x", "phases": [{"phase_id": "p1", "backend": {"kind": "shell", "argv": ["echo", "ok"], "cwd": ".", "timeout_seconds": 1}, "outputs": ["results/x.txt"]}] }
+    }
+  },
+  {
+    "name": "project_missing_project_id",
+    "data": {
+      "schema_version": 1,
+      "project": { "title": "x" },
+      "run_card": { "schema_version": 2, "run_id": "x", "workflow_id": "W_compute", "title": "x", "phases": [{"phase_id": "p1", "backend": {"kind": "shell", "argv": ["echo", "ok"], "cwd": ".", "timeout_seconds": 1}, "outputs": ["results/x.txt"]}] }
+    }
+  },
+  {
+    "name": "run_card_wrong_workflow_id",
+    "data": {
+      "schema_version": 1,
+      "project": { "project_id": "demo_spec", "title": "x" },
+      "run_card": { "schema_version": 2, "run_id": "x", "workflow_id": "W_other", "title": "x", "phases": [{"phase_id": "p1", "backend": {"kind": "shell", "argv": ["echo", "ok"], "cwd": ".", "timeout_seconds": 1}, "outputs": ["results/x.txt"]}] }
+    }
+  },
+  {
+    "name": "file_path_traversal",
+    "data": {
+      "schema_version": 1,
+      "project": { "project_id": "demo_spec", "title": "x" },
+      "files": [{ "path": "../escape.txt", "content": "x" }],
+      "run_card": { "schema_version": 2, "run_id": "x", "workflow_id": "W_compute", "title": "x", "phases": [{"phase_id": "p1", "backend": {"kind": "shell", "argv": ["echo", "ok"], "cwd": ".", "timeout_seconds": 1}, "outputs": ["results/x.txt"]}] }
+    }
+  },
+  {
+    "name": "run_card_path_absolute",
+    "data": {
+      "schema_version": 1,
+      "project": { "project_id": "demo_spec", "title": "x" },
+      "run_card_path": "/run_cards/main.json",
+      "run_card": { "schema_version": 2, "run_id": "x", "workflow_id": "W_compute", "title": "x", "phases": [{"phase_id": "p1", "backend": {"kind": "shell", "argv": ["echo", "ok"], "cwd": ".", "timeout_seconds": 1}, "outputs": ["results/x.txt"]}] }
+    }
+  },
+  {
+    "name": "unexpected_top_level_field",
+    "data": {
+      "schema_version": 1,
+      "project": { "project_id": "demo_spec", "title": "x" },
+      "run_card": { "schema_version": 2, "run_id": "x", "workflow_id": "W_compute", "title": "x", "phases": [{"phase_id": "p1", "backend": {"kind": "shell", "argv": ["echo", "ok"], "cwd": ".", "timeout_seconds": 1}, "outputs": ["results/x.txt"]}] },
+      "extra": 123
+    }
+  }
+]
+

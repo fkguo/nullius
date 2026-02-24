@@ -1,0 +1,105 @@
+You are reviewer B (gemini-3-pro-preview). Tools are disabled.
+
+STRICT OUTPUT CONTRACT (non-negotiable):
+- Output MUST start immediately with: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT include any planning text, tool intentions, or other preamble.
+- Must contain these exact Markdown headers in this exact order:
+  - ## Blockers
+  - ## Non-blocking
+  - ## Real-research fit
+  - ## Robustness & safety
+  - ## Specific patch suggestions
+- For empty sections, write `- None.`
+- Do not rename or omit headers.
+
+Review ONLY the packet below.
+
+--- BEGIN PACKET ---
+# W6-38 Review Packet (Round-001) — digitized $\eta(s)$ (2410.23333) + full-PSD rerun (trace $\hat\Theta^\pi$, S0) (NOT_FOR_CITATION)
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## Purpose
+
+Close a key “拍脑袋 band” gap in the tightening island:
+
+1) Replace the internal S-matrix constraint placeholder ($|S|\le \eta$ with ad-hoc radii) by a **physics-driven** envelope digitized from arXiv:2410.23333 (big-dip scenario), bound to the exact compute $s$-grid as a schema-validated artifact.
+2) Rerun the trace-channel full-$3\times 3$ PSD SDP pipeline using that bound (still **pion-only**, **no coupled-channel**, and **output only GFF bounds**).
+3) Ensure the rerun is robust against isolated `ITERATION_LIMIT` holes by using an explicit (auditable) retry policy that can relax eps on late attempts while still failing closed if no OPTIMAL-like status is reached.
+
+This increment is a **physics-input + robustness** step, not yet the full He/Su crossing-style tightening (disk-only envelope remains conservative; no halfspaces/regions digitized yet).
+
+## Changes in this increment (W6-38)
+
+### 1) Digitize S0 inelasticity envelope $\eta(s)$ from arXiv:2410.23333
+
+New script (project-local; fully offline):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/digitize_2410_s0_inelasticity.py`
+
+Method:
+- `pdftotext -bbox` extracts numeric tick labels (page coordinates).
+- `pdftocairo -svg` extracts the black curve vector path.
+- Fit linear maps page$(x,y)\mapsto (s,\eta)$ and write a new `s_matrix_constraints_v1` artifact by copying a template grid and replacing `disk_radius`.
+- We impose digitized $\eta(s)$ only up to $s\le 100\,m_\pi^2$ and set $\eta(s)=1$ above (unitarity only).
+
+Artifacts (schema: `idea-runs/schemas/s_matrix_constraints_v1.schema.json`):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/assumptions/s_matrix_constraints_s0_grid80_eta2410_big_dip_v1.json`
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/assumptions/s_matrix_constraints_s0_grid200_eta2410_big_dip_v1.json`
+- Audit points:
+  - `.../artifacts/assumptions/audit/eta2410_big_dip_grid200_points_v1.json`
+
+Important semantics change (vs placeholder):
+- Placeholder enforced a constant $\eta$ floor ($0.6$) out to $s_0$.
+- Digitized profile is turned off above $s=100\,m_\pi^2$ ($\eta=1$ for $s>100$), matching the 2410 plot’s scope; this can be **less constraining** at high $s$ but is more defensible.
+
+### 2) Full-PSD rerun (trace $\hat\Theta^\pi$) + derived $D^\pi$
+
+New configs:
+- Smoke (grid80, q2grid2):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/theta_trace_s0_sdp_fullpsd_config_smoke_grid80_enf6_q2grid2_audit15_cosmo_eps1e-4_pqcdTh_anchorbudget_derived_bind_smatrix_eta2410_big_dip.json`
+- Full run (grid200, q2grid9) with explicit eps-relax retry policy:
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/theta_trace_s0_sdp_fullpsd_config_v1d_dispersion_grid200_enf30_q2grid9_audit5_cosmo_pqcdTh_anchorbudget_derived_bind_smatrix_eta2410_big_dip_retryeps.json`
+
+Primary run output (full):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-21-theta-trace-s0-sdp-fullpsd-v1d-dispersion-grid200-enf30-q2grid9-audit5-cosmo-pqcdTh-anchorbudget-derived-bind-smatrix-eta2410-big-dip-retryeps/Theta_hat_band_Q2_GeV2_0to2_zoom.png`
+
+Derived $D^\pi(-Q^2)$ (outer envelope from A+Theta bands):
+- Config:
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/d_band_from_a_theta_hat_config_v1c_a_v118_theta_fullpsd_v1d_eta2410.json`
+- Output:
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-21-d-band-v1-from-a-v118-theta-fullpsd-v1d-eta2410-big-dip/D_band_Q2_GeV2_0to2_zoom.png`
+
+Endpoint numbers at $Q^2=2\,\mathrm{GeV}^2$:
+- $\hat\Theta^\pi(-Q^2)\in[-15.57,\ 12.55]$
+- Derived outer-envelope $D^\pi(-Q^2)\in[-0.203,\ 0.0896]$
+
+### 3) Documentation updates
+
+- Evidence note:
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/evidence/2026-02-21-w6-38-eta2410-digitize-and-fullpsd-rerun-v1.md`
+- Draft report update (W6-38 bullet; also fixes the common “double backslash in math” pitfall):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+
+### 4) Failure library addendum (reusable pitfall)
+
+- Added a failure record for the isolated `ITERATION_LIMIT` $\rightarrow$ NaN-hole issue and the mitigation via `eps_multipliers` late-attempt relaxation:
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/ideas/failed_approach_v1.jsonl` (approach_id `ec5fc5c2-f0f1-4a23-a17d-5fb740ef3aa9`)
+
+## Verification receipts (gates/hooks)
+
+- `docs/reviews/bundles/2026-02-21-w6-38-idea-generator-validate-v1.txt`
+- `docs/reviews/bundles/2026-02-21-w6-38-idea-runs-validate-v1.txt`
+- `docs/reviews/bundles/2026-02-21-w6-38-idea-runs-validate-project-v1.txt`
+- `docs/reviews/bundles/2026-02-21-w6-38-failure-library-index-build-v1.txt`
+- `docs/reviews/bundles/2026-02-21-w6-38-failure-library-query-run-v1.txt`
+
+## Reviewer questions (Round-001)
+
+1) Digitization: Is the method (bbox tick mapping + svg path extraction + baseline renorm) acceptable as evidence-first plumbing? Any obvious brittleness that must be hardened before treating the artifact as a serious physics input?
+2) Physics semantics: Is the “impose $\eta(s)$ up to $s\le 100\,m_\pi^2$, set $\eta=1$ above” binding a reasonable interpretation of the 2410 figure scope, or should we instead keep a conservative continuation beyond $s=100$?
+3) Robustness: Is the `retry_policy` with late-attempt eps relaxation acceptable for the *production* band, given we still fail closed when no OPTIMAL-like status is reached? Any minimal additional checks needed (e.g. residual thresholds / dual-certificate gating)?
+4) Derived $D$ band: Is the conservative envelope rule (Theta\_min with A\_max, Theta\_max with A\_min) correctly applied and clearly labeled as an outer bound?
+5) Next tightening: Given the digitized envelope is disk-only, what would you prioritize as the next non-ad-hoc tightening step (halfspaces/regions from He/Su figures, or a better-motivated UV/OPE error budget)?
+
+--- END PACKET ---
+

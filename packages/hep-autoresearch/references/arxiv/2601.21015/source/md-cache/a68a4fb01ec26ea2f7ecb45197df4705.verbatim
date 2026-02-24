@@ -1,0 +1,6 @@
+MG5_aMC > import model MODEL_NAME
+MG5_aMC > define p = g u c d s u~ c~ d~ s~
+MG5_aMC > define l+ = e+ mu+
+MG5_aMC > define l- = e- mu-
+MG5_aMC > generate p p > l+ l-
+MG5_aMC > output EFT_DY_ll

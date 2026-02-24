@@ -1,0 +1,2444 @@
+{
+  "created": "2026-01-22T04:46:06.990689+00:00",
+  "id": "3109742",
+  "links": {
+    "bibtex": "https://inspirehep.net/api/literature/3109742?format=bibtex",
+    "citations": "https://inspirehep.net/api/literature/?q=refersto%3Arecid%3A3109742",
+    "cv": "https://inspirehep.net/api/literature/3109742?format=cv",
+    "json": "https://inspirehep.net/api/literature/3109742?format=json",
+    "json-expanded": "https://inspirehep.net/api/literature/3109742?format=json-expanded",
+    "latex-eu": "https://inspirehep.net/api/literature/3109742?format=latex-eu",
+    "latex-us": "https://inspirehep.net/api/literature/3109742?format=latex-us"
+  },
+  "metadata": {
+    "$schema": "https://inspirehep.net/schemas/records/hep.json",
+    "abstracts": [
+      {
+        "source": "arXiv",
+        "value": "We constrain the $S$-wave baryon-baryon interaction using SU(6) symmetry within a nonrelativistic effective field theory. The most general leading-order Lagrangian contains two independent parameters, which we determine using physical $NN$ and lattice QCD $\u03a9\u03a9$ scattering lengths. This framework allows for parameter-free predictions in the strangeness $S=-2$ sector relevant to the $H$ dibaryon. Solving the coupled-channel scattering problem, we identify two bound states below the $\u039b\u039b$ threshold, one deeply bound and one shallow, along with resonances near the $\u03a3\u03a3$ and $\u03a3^*\u03a3^*$ thresholds. We demonstrate that these poles result in distinct enhancements in $\u039b\u039b$ invariant mass distributions, suggesting that the $H$ dibaryon exists as a multichannel bound state and providing clear signatures for experimental verification."
+      }
+    ],
+    "arxiv_eprints": [
+      {
+        "categories": [
+          "nucl-th",
+          "hep-ex",
+          "hep-lat",
+          "hep-ph",
+          "nucl-ex"
+        ],
+        "value": "2601.14922"
+      }
+    ],
+    "authors": [
+      {
+        "affiliations": [
+          {
+            "curated_relation": true,
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/2694363"
+            },
+            "value": "UCAS, Beijing"
+          },
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/903895"
+            },
+            "value": "Beijing, Inst. Theor. Phys."
+          }
+        ],
+        "curated_relation": true,
+        "full_name": "Hu, Tao-Ran",
+        "raw_affiliations": [
+          {
+            "value": "School of Physical Sciences, University of Chinese Academy of Sciences, Beijing 100049, China"
+          },
+          {
+            "value": "Institute of Theoretical Physics, Chinese Academy of Sciences, Beijing 100190, China"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/2730529"
+        },
+        "uuid": "0f18f552-a2e5-42b9-bde1-e73a9910b9cf"
+      },
+      {
+        "affiliations": [
+          {
+            "curated_relation": true,
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/2694363"
+            },
+            "value": "UCAS, Beijing"
+          },
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/903895"
+            },
+            "value": "Beijing, Inst. Theor. Phys."
+          },
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/2739073"
+            },
+            "value": "Hui Zhou, Inst. Modern Phys."
+          }
+        ],
+        "full_name": "Guo, Feng-Kun",
+        "raw_affiliations": [
+          {
+            "value": "School of Physical Sciences, University of Chinese Academy of Sciences, Beijing 100049, China"
+          },
+          {
+            "value": "Institute of Theoretical Physics, Chinese Academy of Sciences, Beijing 100190, China"
+          },
+          {
+            "value": "Southern Center for Nuclear-Science Theory (SCNT), Institute of Modern Physics, Chinese Academy of Sciences, Huizhou 516000, China"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/1027513"
+        },
+        "uuid": "6e23bec9-8ebd-47e6-9648-680246291bb7"
+      }
+    ],
+    "citation_count": 0,
+    "citation_count_without_self_citations": 0,
+    "citeable": true,
+    "control_number": 3109742,
+    "core": true,
+    "curated": true,
+    "document_type": [
+      "article"
+    ],
+    "figures": [
+      {
+        "caption": "Cutoff dependence of the $\\Lambda\\Lambda$ scattering length $a_{\\Lambda\\Lambda}$ in strategy~2 with $a_{NN}$ in $^3S_1$ as input. The dot marks the $a_{\\Lambda\\Lambda} = 1.1$~fm at cutoff $\\Lambda = 1.0$~GeV. At $\\Lambda = 0.72$~GeV, $a_{\\Lambda\\Lambda}$ reaches the unitarity limit.",
+        "filename": "cutoff.png",
+        "key": "c15c7fa35d8314517c6049348c9e9cd3",
+        "label": "fig:cutoff",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/c15c7fa35d8314517c6049348c9e9cd3"
+      },
+      {
+        "caption": "Trajectories of the four dominant poles in strategy~2 with $a_{NN}$ in $^3S_1$ as input, with arrows indicating decreasing the cutoff $\\Lambda$ from 2.0~GeV to 0.5~GeV. Highlighted points mark the values at $\\Lambda = 1.0$~GeV. On RS $(+,+,+,+)$, the deeper bound state is shifted slightly downward to avoid overlap with the shallower one.",
+        "filename": "I.png",
+        "key": "f29bfbca10ce0859a43ee748773e5f81",
+        "label": "fig:trajectory",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/f29bfbca10ce0859a43ee748773e5f81"
+      },
+      {
+        "caption": "Trajectories of the four dominant poles in strategy~2 with $a_{NN}$ in $^3S_1$ as input, with arrows indicating decreasing the cutoff $\\Lambda$ from 2.0~GeV to 0.5~GeV. Highlighted points mark the values at $\\Lambda = 1.0$~GeV. On RS $(+,+,+,+)$, the deeper bound state is shifted slightly downward to avoid overlap with the shallower one.",
+        "filename": "II.png",
+        "key": "e1e0acd107781eaebae6eaba93102a88",
+        "label": "fig:trajectory",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/e1e0acd107781eaebae6eaba93102a88"
+      },
+      {
+        "caption": "Trajectories of the four dominant poles in strategy~2 with $a_{NN}$ in $^3S_1$ as input, with arrows indicating decreasing the cutoff $\\Lambda$ from 2.0~GeV to 0.5~GeV. Highlighted points mark the values at $\\Lambda = 1.0$~GeV. On RS $(+,+,+,+)$, the deeper bound state is shifted slightly downward to avoid overlap with the shallower one.",
+        "filename": "III.png",
+        "key": "57c1ecfcc97515f03eddff15a1e28605",
+        "label": "fig:trajectory",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/57c1ecfcc97515f03eddff15a1e28605"
+      },
+      {
+        "caption": "Trajectories of the four dominant poles in strategy~2 with $a_{NN}$ in $^3S_1$ as input, with arrows indicating decreasing the cutoff $\\Lambda$ from 2.0~GeV to 0.5~GeV. Highlighted points mark the values at $\\Lambda = 1.0$~GeV. On RS $(+,+,+,+)$, the deeper bound state is shifted slightly downward to avoid overlap with the shallower one.",
+        "filename": "IV.png",
+        "key": "296a1964f12d753ff3e16e26944141ba",
+        "label": "fig:trajectory",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/296a1964f12d753ff3e16e26944141ba"
+      },
+      {
+        "caption": "Invariant mass distributions for the processes $\\Lambda\\Lambda$, $N\\Xi$, $\\Sigma\\Sigma$, and $\\Sigma^{*}\\Sigma^{*}\\to\\Lambda\\Lambda$ in strategy~2 with $a_{NN}$ in $^3S_1$, evaluated at cutoff $\\Lambda = 1.0$~GeV. The vertical dashed lines indicate the four thresholds.",
+        "filename": "lineshape.png",
+        "key": "eb1e9689be8dc7b8fcb77aae698d4db4",
+        "label": "fig:ls",
+        "material": "preprint",
+        "source": "arxiv",
+        "url": "https://inspirehep.net/files/eb1e9689be8dc7b8fcb77aae698d4db4"
+      }
+    ],
+    "inspire_categories": [
+      {
+        "source": "arxiv",
+        "term": "Theory-Nucl"
+      },
+      {
+        "source": "arxiv",
+        "term": "Experiment-HEP"
+      },
+      {
+        "source": "arxiv",
+        "term": "Lattice"
+      },
+      {
+        "source": "arxiv",
+        "term": "Phenomenology-HEP"
+      },
+      {
+        "source": "arxiv",
+        "term": "Experiment-Nucl"
+      }
+    ],
+    "license": [
+      {
+        "license": "arXiv nonexclusive-distrib 1.0",
+        "material": "preprint",
+        "url": "http://arxiv.org/licenses/nonexclusive-distrib/1.0/"
+      }
+    ],
+    "number_of_pages": 7,
+    "preprint_date": "2026-01-21",
+    "public_notes": [
+      {
+        "source": "arXiv",
+        "value": "7 pages, 3 figures, 3 tables"
+      }
+    ],
+    "references": [
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[1] F. Dyson and N. H. Xuong, Y = 2 States in Su(6) Theory, Phys. Rev. Lett. 13, 815 (1964)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1335019"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Dyson, F."
+            },
+            {
+              "full_name": "Xuong, N.H."
+            }
+          ],
+          "label": "1",
+          "misc": [
+            "Y = 2 States in Su(6) Theory"
+          ],
+          "publication_info": {
+            "artid": "815",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "13",
+            "page_start": "815",
+            "year": 1964
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[2] M. P. Locher, M. E. Sainio, and A. Svarc, DIBARYON RESONANCES, Adv. Nucl. Phys. 17, 47 (1986)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/218606"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Locher, M.P."
+            },
+            {
+              "full_name": "Sainio, M.E."
+            },
+            {
+              "full_name": "Svarc, A."
+            }
+          ],
+          "label": "2",
+          "misc": [
+            "DIBARYON RESONANCES"
+          ],
+          "publication_info": {
+            "artid": "47",
+            "journal_title": "Adv.Nucl.Phys.",
+            "journal_volume": "17",
+            "page_start": "47",
+            "year": 1986
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[3] E. Epelbaum, H.-W. Hammer, and U.-G. Mei\u00dfner, Modern theory of nuclear forces, Rev. Mod. Phys. 81, 1773 (2009), arXiv:0811.1338 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/801933"
+        },
+        "reference": {
+          "arxiv_eprint": "0811.1338",
+          "authors": [
+            {
+              "full_name": "Epelbaum, E."
+            },
+            {
+              "full_name": "Hammer, H.-W."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.-G."
+            }
+          ],
+          "label": "3",
+          "misc": [
+            "Modern theory of nuclear forces, R"
+          ],
+          "publication_info": {
+            "artid": "1773",
+            "journal_title": "Rev.Mod.Phys.",
+            "journal_volume": "81",
+            "page_start": "1773",
+            "year": 2009
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[4] H. Clement, On the History of Dibaryons and their Final Observation, Prog. Part. Nucl. Phys. 93, 195 (2017), arXiv:1610.05591 [nucl-ex]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1492539"
+        },
+        "reference": {
+          "arxiv_eprint": "1610.05591",
+          "authors": [
+            {
+              "full_name": "Clement, H."
+            }
+          ],
+          "label": "4",
+          "misc": [
+            "On the History of Dibaryons and their Final Observation"
+          ],
+          "publication_info": {
+            "artid": "195",
+            "journal_title": "Prog.Part.Nucl.Phys.",
+            "journal_volume": "93",
+            "page_start": "195",
+            "year": 2017
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[5] A. Gal, E. Hungerford, and D. Millener, Strangeness in nuclear physics, Rev. Mod. Phys. 88, 035004 (2016), arXiv:1605.00557 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1454280"
+        },
+        "reference": {
+          "arxiv_eprint": "1605.00557",
+          "authors": [
+            {
+              "full_name": "Gal, A."
+            },
+            {
+              "full_name": "Hungerford, E."
+            },
+            {
+              "full_name": "Millener, D."
+            }
+          ],
+          "label": "5",
+          "misc": [
+            "Strangeness in nuclear physics"
+          ],
+          "publication_info": {
+            "artid": "035004",
+            "journal_title": "Rev.Mod.Phys.",
+            "journal_volume": "88",
+            "year": 2016
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[6] R. L. Jaffe, Perhaps a Stable Dihyperon, Phys. Rev. Lett. 38, 195 (1977), [Erratum: Phys.Rev.Lett. 38, 617 (1977)]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/110056"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Jaffe, R.L."
+            }
+          ],
+          "label": "6",
+          "misc": [
+            "Perhaps a Stable Dihyperon"
+          ],
+          "publication_info": {
+            "artid": "195",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "38",
+            "page_start": "195",
+            "year": 1977
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[6] R. L. Jaffe, Perhaps a Stable Dihyperon, Phys. Rev. Lett. 38, 195 (1977), [Erratum: Phys.Rev.Lett. 38, 617 (1977)]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/110056"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Jaffe, R.L."
+            }
+          ],
+          "label": "6",
+          "misc": [
+            "[Erratum:"
+          ],
+          "publication_info": {
+            "artid": "617",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "38",
+            "page_start": "617",
+            "year": 1977
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[7] A. P. Balachandran, F. Lizzi, V. G. J. Rodgers, and A. Stern, Dibaryons as Chiral Solitons, Nucl. Phys. B 256, 525 (1985)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/213004"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Balachandran, A.P."
+            },
+            {
+              "full_name": "Lizzi, F."
+            },
+            {
+              "full_name": "Rodgers, V.G.J."
+            },
+            {
+              "full_name": "Stern, A."
+            }
+          ],
+          "label": "7",
+          "misc": [
+            "Dibaryons as Chiral Solitons"
+          ],
+          "publication_info": {
+            "artid": "525",
+            "journal_title": "Nucl.Phys.B",
+            "journal_volume": "256",
+            "page_start": "525",
+            "year": 1985
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[8] S. A. Yost and C. R. Nappi, The Mass of the H Dibaryon in a Chiral Model, Phys. Rev. D 32, 816 (1985)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/213280"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Yost, S.A."
+            },
+            {
+              "full_name": "Nappi, C.R."
+            }
+          ],
+          "label": "8",
+          "misc": [
+            "The Mass of the H Dibaryon",
+            "in a Chiral Model"
+          ],
+          "publication_info": {
+            "artid": "816",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "32",
+            "page_start": "816",
+            "year": 1985
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[9] U. Straub, Z.-Y. Zhang, K. Brauer, A. Faessler, and S. B. Khadkikar, Binding Energy of the Dihyperon in the Quark Cluster Model, Phys. Lett. B 200, 241 (1988). TABLE III. Four dominant poles and their coupling strengths to the scattering channels obtained using strategy 2. Here the RSs (+, +, +, +), (\u2212, +, +, +), (\u2212, \u2212, +, +), and (\u2212, \u2212, \u2212, +) are denoted as RS I, II, III, and IV, respectively. Pole energies and coupling strengths are in units of GeV and GeV\u22121/2 , respectively. The uncertainties include contributions from the \u2126\u2126 scattering length and from the cutoff dependence, estimated by scanning the cutoff \u039b from 2.0 to 0.5 GeV around the central value \u039b = 1.0 GeV; the former is found to be numerically negligible compared to the latter. The cutoff dependence of the pole positions is also illustrated in Fig. 2. Notably, the second pole in the RS I moves to the RS II as \u039b decreases; see its trajectory in Fig. 2. Strategy 2 with aNN in 3 S1 with aNN in 1 S0 E (1) I 2.13 +0.07 \u22120.11"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/264208"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Straub, U."
+            },
+            {
+              "full_name": "Zhang, Z.-Y."
+            },
+            {
+              "full_name": "Brauer, K."
+            },
+            {
+              "full_name": "Faessler, A."
+            },
+            {
+              "full_name": "Khadkikar, S.B."
+            }
+          ],
+          "label": "9",
+          "misc": [
+            "Binding Energy of the Dihyperon in the Quark Cluster Model",
+            "TABLE III. Four dominant poles and their coupling strengths to the scattering channels obtained using strategy 2. Here the RSs (+, +, +, +), (-, +, +, +), (-, -, +, +), and (-, -, -, +) are denoted as RS I, II, III, and IV, respectively. Pole energies and coupling strengths are in units of GeV and GeV-1/2, respectively. The uncertainties include contributions from the \u2126\u2126 scattering length and from the cutoff dependence, estimated by scanning the cutoff \u039b from 2.0 to 0.5 GeV around the central value \u039b = 1.0 GeV"
+          ],
+          "publication_info": {
+            "artid": "241",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "200",
+            "page_start": "241",
+            "year": 1988
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[9] U. Straub, Z.-Y. Zhang, K. Brauer, A. Faessler, and S. B. Khadkikar, Binding Energy of the Dihyperon in the Quark Cluster Model, Phys. Lett. B 200, 241 (1988). TABLE III. Four dominant poles and their coupling strengths to the scattering channels obtained using strategy 2. Here the RSs (+, +, +, +), (\u2212, +, +, +), (\u2212, \u2212, +, +), and (\u2212, \u2212, \u2212, +) are denoted as RS I, II, III, and IV, respectively. Pole energies and coupling strengths are in units of GeV and GeV\u22121/2 , respectively. The uncertainties include contributions from the \u2126\u2126 scattering length and from the cutoff dependence, estimated by scanning the cutoff \u039b from 2.0 to 0.5 GeV around the central value \u039b = 1.0 GeV; the former is found to be numerically negligible compared to the latter. The cutoff dependence of the pole positions is also illustrated in Fig. 2. Notably, the second pole in the RS I moves to the RS II as \u039b decreases; see its trajectory in Fig. 2. Strategy 2 with aNN in 3 S1 with aNN in 1 S0 E (1) I 2.13 +0.07 \u22120.11"
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Straub, U."
+            },
+            {
+              "full_name": "Zhang, Z.-Y."
+            },
+            {
+              "full_name": "Brauer, K."
+            },
+            {
+              "full_name": "Faessler, A."
+            },
+            {
+              "full_name": "Khadkikar, S.B."
+            }
+          ],
+          "label": "9",
+          "misc": [
+            "the former is found to be numerically negligible compared to the latter. The cutoff dependence of the pole positions is also illustrated in Fig. 2. Notably, the second pole in the RS I moves to the RS II as \u039b decreases; see its trajectory in Fig. 2. Strategy 2 with aNN in 3 S1 with aNN in 1 S0 E (1) I 2.13 +0.07 -0.11"
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[10] N. Kodama, M. Oka, and T. Hatsuda, H dibaryon in the QCD sum rule, Nucl. Phys. A 580, 445 (1994), arXiv:hep-ph/9404221."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/372594"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9404221",
+          "authors": [
+            {
+              "full_name": "Kodama, N."
+            },
+            {
+              "full_name": "Oka, M."
+            },
+            {
+              "full_name": "Hatsuda, T."
+            }
+          ],
+          "label": "10",
+          "misc": [
+            "H dibaryon in the QCD sum rule",
+            "arXiv:"
+          ],
+          "publication_info": {
+            "artid": "445",
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "580",
+            "page_start": "445",
+            "year": 1994
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[11] C. Nakamoto, Y. Suzuki, and Y. Fujiwara, Central force of baryon baryon interactions with S = \u22122 in the SU(6) quark model, Prog. Theor. Phys. 97, 761 (1997)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/441664"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Nakamoto, C."
+            },
+            {
+              "full_name": "Suzuki, Y."
+            },
+            {
+              "full_name": "Fujiwara, Y."
+            }
+          ],
+          "label": "11",
+          "misc": [
+            "Central force of baryon baryon interactions with S = -2 in the SU(6) quark model"
+          ],
+          "publication_info": {
+            "artid": "761",
+            "journal_title": "Prog.Theor.Phys.",
+            "journal_volume": "97",
+            "page_start": "761",
+            "year": 1997
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[12] P.-N. Shen, Z.-Y. Zhang, Y.-W. Yu, X.-Q. Yuan, and S. Yang, Structure of H-Dihyperon, Chin. Phys. Lett. 17, 7 (2000)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/528133"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Shen, P.-N."
+            },
+            {
+              "full_name": "Zhang, Z.-Y."
+            },
+            {
+              "full_name": "Yu, Y.-W."
+            },
+            {
+              "full_name": "Yuan, X.-Q."
+            },
+            {
+              "full_name": "Yang, S."
+            }
+          ],
+          "label": "12",
+          "misc": [
+            "Structure of H-Dihyperon"
+          ],
+          "publication_info": {
+            "artid": "7",
+            "journal_title": "Chin.Phys.Lett.",
+            "journal_volume": "17",
+            "page_start": "7",
+            "year": 2000
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[13] S. R. Beane et al. (NPLQCD), Evidence for a Bound H dibaryon from Lattice QCD, Phys. Rev. Lett. 106, 162001 (2011), arXiv:1012.3812 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/881989"
+        },
+        "reference": {
+          "arxiv_eprint": "1012.3812",
+          "authors": [
+            {
+              "full_name": "Beane, S.R."
+            }
+          ],
+          "label": "13",
+          "misc": [
+            "(NPLQCD), Evidence for a Bound H",
+            "dibaryon from Lattice QCD"
+          ],
+          "publication_info": {
+            "artid": "162001",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "106",
+            "year": 2011
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[14] T. Inoue, N. Ishii, S. Aoki, T. Doi, T. Hatsuda, Y. Ikeda, K. Murano, H. Nemura, and K. Sasaki (HAL QCD), Bound H dibaryon in Flavor SU(3) Limit of Lattice QCD, Phys. Rev. Lett. 106, 162002 (2011), arXiv:1012.5928 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/882971"
+        },
+        "reference": {
+          "arxiv_eprint": "1012.5928",
+          "authors": [
+            {
+              "full_name": "Inoue, T."
+            },
+            {
+              "full_name": "Ishii, N."
+            },
+            {
+              "full_name": "Aoki, S."
+            },
+            {
+              "full_name": "Doi, T."
+            },
+            {
+              "full_name": "Hatsuda, T."
+            },
+            {
+              "full_name": "Ikeda, Y."
+            },
+            {
+              "full_name": "Murano, K."
+            },
+            {
+              "full_name": "Nemura, H."
+            },
+            {
+              "full_name": "Sasaki, K."
+            }
+          ],
+          "label": "14",
+          "misc": [
+            "(HAL QCD), Bound H",
+            "dibaryon in Flavor SU(3) Limit of Lattice QCD"
+          ],
+          "publication_info": {
+            "artid": "162002",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "106",
+            "year": 2011
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[15] S. R. Beane et al., Present Constraints on the H-dibaryon at the Physical Point from Lattice QCD, Mod. Phys. Lett. A 26, 2587 (2011), arXiv:1103.2821 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/892735"
+        },
+        "reference": {
+          "arxiv_eprint": "1103.2821",
+          "authors": [
+            {
+              "full_name": "Beane, S.R."
+            }
+          ],
+          "label": "15",
+          "misc": [
+            "Present Constraints on the H-dibaryon at the Physical Point from Lattice QCD"
+          ],
+          "publication_info": {
+            "artid": "2587",
+            "journal_title": "Mod.Phys.Lett.A",
+            "journal_volume": "26",
+            "page_start": "2587",
+            "year": 2011
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[16] S. R. Beane, E. Chang, W. Detmold, H. W. Lin, T. C. Luu, K. Orginos, A. Parreno, M. J. Savage, A. Torok, and A. Walker-Loud (NPLQCD), The Deuteron and Exotic Two-Body Bound States from Lattice QCD, Phys. Rev. D 85, 054511 (2012), arXiv:1109.2889 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/927200"
+        },
+        "reference": {
+          "arxiv_eprint": "1109.2889",
+          "authors": [
+            {
+              "full_name": "Beane, S.R."
+            },
+            {
+              "full_name": "Chang, E."
+            },
+            {
+              "full_name": "Detmold, W."
+            },
+            {
+              "full_name": "Lin, H.W."
+            },
+            {
+              "full_name": "Luu, T.C."
+            },
+            {
+              "full_name": "Orginos, K."
+            },
+            {
+              "full_name": "Parreno, A."
+            },
+            {
+              "full_name": "Savage, M.J."
+            },
+            {
+              "full_name": "Torok, A."
+            },
+            {
+              "full_name": "Walker-Loud, A."
+            }
+          ],
+          "label": "16",
+          "misc": [
+            "(NPLQCD), The Deuteron and Exotic Two-Body Bound States from Lattice QCD"
+          ],
+          "publication_info": {
+            "artid": "054511",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "85",
+            "year": 2012
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[17] J. Haidenbauer and U.-G. Mei\u00dfner, To bind or not to bind: The H-dibaryon in light of chiral effective field theory, Phys. Lett. B 706, 100 (2011), arXiv:1109.3590 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/927676"
+        },
+        "reference": {
+          "arxiv_eprint": "1109.3590",
+          "authors": [
+            {
+              "full_name": "Haidenbauer, J."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.-G."
+            }
+          ],
+          "label": "17",
+          "misc": [
+            "To bind or not to bind: The H-dibaryon in light of chiral effective field theory, P"
+          ],
+          "publication_info": {
+            "artid": "100",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "706",
+            "page_start": "100",
+            "year": 2011
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[18] J. Haidenbauer and U. G. Mei\u00dfner, Exotic bound states of two baryons in light of chiral effective field theory, Nucl. Phys. A 881, 44 (2012), arXiv:1111.4069 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/946476"
+        },
+        "reference": {
+          "arxiv_eprint": "1111.4069",
+          "authors": [
+            {
+              "full_name": "Haidenbauer, J."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.G."
+            }
+          ],
+          "label": "18",
+          "misc": [
+            "Exotic bound states of two baryons in light of chiral effective field theory, N"
+          ],
+          "publication_info": {
+            "artid": "44",
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "881",
+            "page_start": "44",
+            "year": 2012
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[19] T. Inoue, S. Aoki, T. Doi, T. Hatsuda, Y. Ikeda, N. Ishii, K. Murano, H. Nemura, and K. Sasaki (HAL QCD), Two-Baryon Potentials and H-Dibaryon from 3-flavor Lattice QCD Simulations, Nucl. Phys. A 881, 28 (2012), arXiv:1112.5926 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1082941"
+        },
+        "reference": {
+          "arxiv_eprint": "1112.5926",
+          "authors": [
+            {
+              "full_name": "Inoue, T."
+            },
+            {
+              "full_name": "Aoki, S."
+            },
+            {
+              "full_name": "Doi, T."
+            },
+            {
+              "full_name": "Hatsuda, T."
+            },
+            {
+              "full_name": "Ikeda, Y."
+            },
+            {
+              "full_name": "Ishii, N."
+            },
+            {
+              "full_name": "Murano, K."
+            },
+            {
+              "full_name": "Nemura, H."
+            },
+            {
+              "full_name": "Sasaki, K."
+            }
+          ],
+          "label": "19",
+          "misc": [
+            "(HAL QCD), Two-Baryon Potentials and H-Dibaryon from 3-flavor Lattice QCD Simulations"
+          ],
+          "publication_info": {
+            "artid": "28",
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "881",
+            "page_start": "28",
+            "year": 2012
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[20] A. Francis, J. R. Green, P. M. Junnarkar, C. Miao, T. D. Rae, and H. Wittig, Lattice QCD study of the H dibaryon using hexaquark and two-baryon interpolators, Phys. Rev. D 99, 074505 (2019), arXiv:1805.03966 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1672452"
+        },
+        "reference": {
+          "arxiv_eprint": "1805.03966",
+          "authors": [
+            {
+              "full_name": "Francis, A."
+            },
+            {
+              "full_name": "Green, J.R."
+            },
+            {
+              "full_name": "Junnarkar, P.M."
+            },
+            {
+              "full_name": "Miao, C."
+            },
+            {
+              "full_name": "Rae, T.D."
+            },
+            {
+              "full_name": "Wittig, H."
+            }
+          ],
+          "label": "20",
+          "misc": [
+            "Lattice QCD study of the H dibaryon using hexaquark and two-baryon interpolators"
+          ],
+          "publication_info": {
+            "artid": "074505",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "99",
+            "year": 2019
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[21] J. R. Green, A. D. Hanlon, P. M. Junnarkar, and H. Wittig, Weakly bound H dibaryon from SU(3)-flavorsymmetric QCD, Phys. Rev. Lett. 127, 242003 (2021), arXiv:2103.01054 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1849491"
+        },
+        "reference": {
+          "arxiv_eprint": "2103.01054",
+          "authors": [
+            {
+              "full_name": "Green, J.R."
+            },
+            {
+              "full_name": "Hanlon, A.D."
+            },
+            {
+              "full_name": "Junnarkar, P.M."
+            },
+            {
+              "full_name": "Wittig, H."
+            }
+          ],
+          "label": "21",
+          "misc": [
+            "Weakly bound H dibaryon from SU(3)-flavorsymmetric QCD"
+          ],
+          "publication_info": {
+            "artid": "242003",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "127",
+            "year": 2021
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[22] M. Oka, K. Shimizu, and K. Yazaki, The Dihyperon State in the Quark Cluster Model, Phys. Lett. B 130, 365 (1983)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/13633"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Oka, M."
+            },
+            {
+              "full_name": "Shimizu, K."
+            },
+            {
+              "full_name": "Yazaki, K."
+            }
+          ],
+          "label": "22",
+          "misc": [
+            "The Dihyperon State in the Quark Cluster Model"
+          ],
+          "publication_info": {
+            "artid": "365",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "130",
+            "page_start": "365",
+            "year": 1983
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[23] P. E. Shanahan, A. W. Thomas, and R. D. Young, Mass of the H dibaryon, Phys. Rev. Lett. 107, 092004 (2011), arXiv:1106.2851 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/913756"
+        },
+        "reference": {
+          "arxiv_eprint": "1106.2851",
+          "authors": [
+            {
+              "full_name": "Shanahan, P.E."
+            },
+            {
+              "full_name": "Thomas, A.W."
+            },
+            {
+              "full_name": "Young, R.D."
+            }
+          ],
+          "label": "23",
+          "misc": [
+            "Mass of the H dibaryon"
+          ],
+          "publication_info": {
+            "artid": "092004",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "107",
+            "year": 2011
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[24] J. Haidenbauer, U.-G. Mei\u00dfner, and S. Petschauer, Strangeness S = \u22122 baryon\u2013baryon interaction at nextto-leading order in chiral effective field theory, Nucl. Phys. A 954, 273 (2016), arXiv:1511.05859 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1405336"
+        },
+        "reference": {
+          "arxiv_eprint": "1511.05859",
+          "authors": [
+            {
+              "full_name": "Haidenbauer, J."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.-G."
+            },
+            {
+              "full_name": "Petschauer, S."
+            }
+          ],
+          "label": "24",
+          "misc": [
+            "Strangeness S",
+            "= -2 baryon-baryon interaction at nextto-leading order in chiral effective field theory, N"
+          ],
+          "publication_info": {
+            "artid": "273",
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "954",
+            "page_start": "273",
+            "year": 2016
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[25] Y. Yamaguchi and T. Hyodo, Quark-mass dependence of the H dibaryon in \u039b\u039b scattering, Phys. Rev. C 94, 065207 (2016), arXiv:1607.04053 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1475695"
+        },
+        "reference": {
+          "arxiv_eprint": "1607.04053",
+          "authors": [
+            {
+              "full_name": "Yamaguchi, Y."
+            },
+            {
+              "full_name": "Hyodo, T."
+            }
+          ],
+          "label": "25",
+          "misc": [
+            "Quark-mass dependence of the H dibaryon in \u039b\u039b scattering"
+          ],
+          "publication_info": {
+            "artid": "065207",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "94",
+            "year": 2016
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[26] K. Sasaki et al. (HAL QCD), \u039b\u039b and N\u039e interactions from lattice QCD near the physical point, Nucl. Phys. A 998, 121737 (2020), arXiv:1912.08630 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1771619"
+        },
+        "reference": {
+          "arxiv_eprint": "1912.08630",
+          "authors": [
+            {
+              "full_name": "Sasaki, K."
+            }
+          ],
+          "label": "26",
+          "misc": [
+            "(HAL QCD), \u039b\u039b and N\u039e interactions from lattice QCD near the physical point"
+          ],
+          "publication_info": {
+            "artid": "121737",
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "998",
+            "year": 2020
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[27] T. Iijima et al., (K\u2212 , K+ ) reaction on nuclear targets at PK\u2212 = 1.65 GeV/c, Nucl. Phys. A 546, 588 (1992)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/333571"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Iijima, T."
+            }
+          ],
+          "label": "27",
+          "misc": [
+            "(K-, K+ ) reaction on nuclear targets at PK- = 1.65 GeV/c"
+          ],
+          "publication_info": {
+            "artid": "588",
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "546",
+            "page_start": "588",
+            "year": 1992
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[28] R. W. Stotzer et al. (BNL E836), Search for H-dibaryon in 3 He(K\u2212 , K+ )Hn, Phys. Rev. Lett. 78, 3646 (1997)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/439484"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Stotzer, R.W."
+            }
+          ],
+          "label": "28",
+          "misc": [
+            "(BNL E836), Search for H-dibaryon in 3 He(K-, K+ )Hn"
+          ],
+          "publication_info": {
+            "artid": "3646",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "78",
+            "page_start": "3646",
+            "year": 1997
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[29] K. Yamamoto et al. (E885), Search for double-\u039b hypernuclei and the H-dibaryon in the (K\u2212 , K+ ) reaction on 12 C, Phys. Lett. B 478, 401 (2000)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/528779"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Yamamoto, K."
+            }
+          ],
+          "label": "29",
+          "misc": [
+            "(E885), Search for double-\u039b hypernuclei and the H-dibaryon in the (K-, K+ ) reaction on 12 C"
+          ],
+          "publication_info": {
+            "artid": "401",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "478",
+            "page_start": "401",
+            "year": 2000
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[30] H. Takahashi et al., Observation of a 6 \u039b\u039bHe double hypernucleus, Phys. Rev. Lett. 87, 212502 (2001)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/568463"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Takahashi, H."
+            }
+          ],
+          "label": "30",
+          "misc": [
+            "Observation of a 6 \u039b\u039bHe double hypernucleus"
+          ],
+          "publication_info": {
+            "artid": "212502",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "87",
+            "year": 2001
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[31] C. J. Yoon et al., Search for the H-dibaryon resonance in 12 C K\u2212 , K+ \u039b\u039bX \u0001 , Phys. Rev. C 75, 022201 (2007)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/744411"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Yoon, C.J."
+            }
+          ],
+          "label": "31",
+          "misc": [
+            "Search for the H-dibaryon resonance in 12 C K-, K+ \u039b\u039bX"
+          ],
+          "publication_info": {
+            "artid": "022201",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "75",
+            "year": 2007
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[32] B. H. Kim et al. (Belle), Search for an H-dibaryon with mass near 2m\u039b in \u03a5(1S) and \u03a5(2S) decays, Phys. Rev. Lett. 110, 222002 (2013), arXiv:1302.4028 [hep-ex]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1219953"
+        },
+        "reference": {
+          "arxiv_eprint": "1302.4028",
+          "authors": [
+            {
+              "full_name": "Kim, B.H."
+            }
+          ],
+          "label": "32",
+          "misc": [
+            "(Belle), Search for an H-dibaryon with mass near 2m\u039b in \u03a5(1S) and \u03a5(2S) decays"
+          ],
+          "publication_info": {
+            "artid": "222002",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "110",
+            "year": 2013
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[33] A possibility of finding the H dibaryon in radiative capture reaction \u039b\u039b \u2192 \u03b3H was proposed in Ref. [62]."
+          }
+        ],
+        "reference": {
+          "label": "33",
+          "misc": [
+            "A possibility of finding the H dibaryon in radiative capture reaction \u039b\u039b \u2192 \u03b3H was proposed in Ref. [62]"
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[34] A. Gal, Hypernuclear constraints on the existence and lifetime of a deeply bound H dibaryon, Phys. Lett. B 857, 138973 (2024), arXiv:2404.12801 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2779199"
+        },
+        "reference": {
+          "arxiv_eprint": "2404.12801",
+          "authors": [
+            {
+              "full_name": "Gal, A."
+            }
+          ],
+          "label": "34",
+          "misc": [
+            "Hypernuclear constraints on the existence and lifetime of a deeply bound H dibaryon"
+          ],
+          "publication_info": {
+            "artid": "138973",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "857",
+            "year": 2024
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[35] E. Hiyama, Weakly bound states in light hypernuclei, Few Body Syst. 34, 79 (2004)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/671252"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Hiyama, E."
+            }
+          ],
+          "label": "35",
+          "misc": [
+            "Weakly bound states in light hypernuclei"
+          ],
+          "publication_info": {
+            "artid": "79",
+            "journal_title": "Few Body Syst.",
+            "journal_volume": "34",
+            "page_start": "79",
+            "year": 2004
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[36] L. Contessi, N. Barnea, and A. Gal, Resolving the \u039b Hypernuclear Overbinding Problem in Pionless Effective Field Theory, Phys. Rev. Lett. 121, 102502 (2018), arXiv:1805.04302 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1672813"
+        },
+        "reference": {
+          "arxiv_eprint": "1805.04302",
+          "authors": [
+            {
+              "full_name": "Contessi, L."
+            },
+            {
+              "full_name": "Barnea, N."
+            },
+            {
+              "full_name": "Gal, A."
+            }
+          ],
+          "label": "36",
+          "misc": [
+            "Resolving the \u039b Hypernuclear Overbinding",
+            "Problem in Pionless Effective Field Theory"
+          ],
+          "publication_info": {
+            "artid": "102502",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "121",
+            "year": 2018
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[37] E. Hiyama and K. Nakazawa, Structure of S = \u22122 Hypernuclei and Hyperon\u2013Hyperon Interactions, Ann. Rev. Nucl. Part. Sci. 68, 131 (2018)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1701112"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Hiyama, E."
+            },
+            {
+              "full_name": "Nakazawa, K."
+            }
+          ],
+          "label": "37",
+          "misc": [
+            "Structure of S = -2 Hypernuclei and Hyperon-Hyperon Interactions"
+          ],
+          "publication_info": {
+            "artid": "131",
+            "journal_title": "Ann.Rev.Nucl.Part.Sci.",
+            "journal_volume": "68",
+            "page_start": "131",
+            "year": 2018
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[38] L. Contessi, M. Scha\u0308fer, N. Barnea, A. Gal, and J. Mares\u030c, The onset of \u039b\u039b hypernuclear binding, Phys. Lett. B 797, 134893 (2019), arXiv:1905.06775 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1735215"
+        },
+        "reference": {
+          "arxiv_eprint": "1905.06775",
+          "authors": [
+            {
+              "full_name": "Contessi, L."
+            }
+          ],
+          "label": "38",
+          "misc": [
+            "M. Scha\u0308fer, N. Barnea, A. Gal",
+            "and J. Mares\u030c, The onset of \u039b\u039b hypernuclear binding"
+          ],
+          "publication_info": {
+            "artid": "134893",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "797",
+            "year": 2019
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[39] H. Le, J. Haidenbauer, U.-G. Mei\u00dfner, and A. Nogga, S-shell \u039b\u039b hypernuclei based on chiral interactions, Eur. Phys. J. A 57, 217 (2021), arXiv:2103.08395 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1851658"
+        },
+        "reference": {
+          "arxiv_eprint": "2103.08395",
+          "authors": [
+            {
+              "full_name": "Le, H."
+            },
+            {
+              "full_name": "Haidenbauer, J."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.-G."
+            },
+            {
+              "full_name": "Nogga, A."
+            }
+          ],
+          "label": "39",
+          "misc": [
+            "S-shell \u039b\u039b hypernuclei based on chiral interactions, E"
+          ],
+          "publication_info": {
+            "artid": "217",
+            "journal_title": "Eur.Phys.J.A",
+            "journal_volume": "57",
+            "page_start": "217",
+            "year": 2021
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[40] H. Le, J. Haidenbauer, U.-G. Mei\u00dfner, and A. Nogga, A = 4\u22127\u039e hypernuclei based on interactions from chiral effective field theory, Eur. Phys. J. A 57, 339 (2021), arXiv:2109.06648 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1921520"
+        },
+        "reference": {
+          "arxiv_eprint": "2109.06648",
+          "authors": [
+            {
+              "full_name": "Le, H."
+            },
+            {
+              "full_name": "Haidenbauer, J."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.-G."
+            },
+            {
+              "full_name": "Nogga, A."
+            }
+          ],
+          "label": "40",
+          "misc": [
+            "A = 4-7\u039e hypernuclei based on interactions from chiral effective field theory, E"
+          ],
+          "publication_info": {
+            "artid": "339",
+            "journal_title": "Eur.Phys.J.A",
+            "journal_volume": "57",
+            "page_start": "339",
+            "year": 2021
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[41] K. Miwa, K. Nakazawa, H. Tamura, E. Hiyama, and T. Takahashi, Nuclear systems with strangeness and baryon\u2013baryon interactions, Eur. Phys. J. A 61, 128 (2025)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2929589"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Miwa, K."
+            },
+            {
+              "full_name": "Nakazawa, K."
+            },
+            {
+              "full_name": "Tamura, H."
+            },
+            {
+              "full_name": "Hiyama, E."
+            },
+            {
+              "full_name": "Takahashi, T."
+            }
+          ],
+          "label": "41",
+          "misc": [
+            "Nuclear systems with strangeness and baryon-baryon interactions"
+          ],
+          "publication_info": {
+            "artid": "128",
+            "journal_title": "Eur.Phys.J.A",
+            "journal_volume": "61",
+            "page_start": "128",
+            "year": 2025
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[42] D. B. Kaplan and M. J. Savage, The Spin flavor dependence of nuclear forces from large n QCD, Phys. Lett. B 365, 244 (1996), arXiv:hep-ph/9509371."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/399783"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9509371",
+          "authors": [
+            {
+              "full_name": "Kaplan, D.B."
+            },
+            {
+              "full_name": "Savage, M.J."
+            }
+          ],
+          "label": "42",
+          "misc": [
+            "The Spin flavor dependence of nuclear forces from large n QCD",
+            "arXiv:"
+          ],
+          "publication_info": {
+            "artid": "244",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "365",
+            "page_start": "244",
+            "year": 1996
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[43] M. Oka, Spin-Flavor SU(6) Symmetry for Baryon-Baryon Interactions, (2023), arXiv:2301.06026 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2623757"
+        },
+        "reference": {
+          "arxiv_eprint": "2301.06026",
+          "authors": [
+            {
+              "full_name": "Oka, M."
+            }
+          ],
+          "label": "43",
+          "misc": [
+            "Spin-Flavor SU(6) Symmetry for Baryon-Baryon Interactions"
+          ],
+          "publication_info": {
+            "year": 2023
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[44] T. R. Richardson, M. R. Schindler, and R. P. Springer, The role of intermediate \u2206\u2206 states in nucleon\u2013nucleon scattering in the large-Nc and unitary limits, and \u2206\u2206 and \u2126\u2126 scattering, J. Phys. G 52, 085101 (2025), arXiv:2411.01715 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2845259"
+        },
+        "reference": {
+          "arxiv_eprint": "2411.01715",
+          "authors": [
+            {
+              "full_name": "Richardson, T.R."
+            },
+            {
+              "full_name": "Schindler, M.R."
+            }
+          ],
+          "imprint": {
+            "publisher": "Springer"
+          },
+          "label": "44",
+          "misc": [
+            "and R. P",
+            "The role of intermediate \u2206\u2206 states in nucleon-nucleon scattering in the large-Nc and unitary limits, and \u2206\u2206 and \u2126\u2126 scattering"
+          ],
+          "publication_info": {
+            "artid": "085101",
+            "journal_title": "J.Phys.G",
+            "journal_volume": "52",
+            "year": 2025
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[45] T. Vonk and U.-G. Mei\u00dfner, The baryon\u2013baryon interaction in the large-Nc limit, Eur. Phys. J. A 61, 135 (2025), arXiv:2412.13677 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2860863"
+        },
+        "reference": {
+          "arxiv_eprint": "2412.13677",
+          "authors": [
+            {
+              "full_name": "Vonk, T."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.-G."
+            }
+          ],
+          "label": "45",
+          "misc": [
+            "The baryon-baryon interaction in the large-Nc limit, E"
+          ],
+          "publication_info": {
+            "artid": "135",
+            "journal_title": "Eur.Phys.J.A",
+            "journal_volume": "61",
+            "page_start": "135",
+            "year": 2025
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[46] C. Bubpatate, D. F. Vaso, and D. Samart, The 1/Nc Operator Analysis of the Combined Octet and Decuplet Baryons Contact Interactions in SU(3) Chiral Effective Field Theory, (2025), arXiv:2507.22830 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2955463"
+        },
+        "reference": {
+          "arxiv_eprint": "2507.22830",
+          "authors": [
+            {
+              "full_name": "Bubpatate, C."
+            },
+            {
+              "full_name": "Vaso, D.F."
+            },
+            {
+              "full_name": "Samart, D."
+            }
+          ],
+          "label": "46",
+          "misc": [
+            "The 1/Nc Operator Analysis of the Combined Octet and Decuplet Baryons Contact Interactions in SU(3) Chiral Effective Field Theory"
+          ],
+          "publication_info": {
+            "year": 2025
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[47] D. B. Kaplan, M. J. Savage, and M. B. Wise, A New expansion for nucleon-nucleon interactions, Phys. Lett. B 424, 390 (1998), arXiv:nucl-th/9801034."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/466387"
+        },
+        "reference": {
+          "arxiv_eprint": "nucl-th/9801034",
+          "authors": [
+            {
+              "full_name": "Kaplan, D.B."
+            },
+            {
+              "full_name": "Savage, M.J."
+            },
+            {
+              "full_name": "Wise, M.B."
+            }
+          ],
+          "label": "47",
+          "misc": [
+            "A New",
+            "expansion for nucleon-nucleon interactions",
+            "arXiv:"
+          ],
+          "publication_info": {
+            "artid": "390",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "424",
+            "page_start": "390",
+            "year": 1998
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[48] D. B. Kaplan, M. J. Savage, and M. B. Wise, Two nucleon systems from effective field theory, Nucl. Phys. B 534, 329 (1998), arXiv:nucl-th/9802075."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/467508"
+        },
+        "reference": {
+          "arxiv_eprint": "nucl-th/9802075",
+          "authors": [
+            {
+              "full_name": "Kaplan, D.B."
+            },
+            {
+              "full_name": "Savage, M.J."
+            },
+            {
+              "full_name": "Wise, M.B."
+            }
+          ],
+          "label": "48",
+          "misc": [
+            "Two nucleon systems from effective field theory",
+            "arXiv:"
+          ],
+          "publication_info": {
+            "artid": "329",
+            "journal_title": "Nucl.Phys.B",
+            "journal_volume": "534",
+            "page_start": "329",
+            "year": 1998
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[49] R. W. Hackenburg, Neutron-proton effective range parameters and zero-energy shape dependence, Phys. Rev. C 73, 044002 (2006)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/719295"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Hackenburg, R.W."
+            }
+          ],
+          "label": "49",
+          "misc": [
+            "Neutron-proton effective range parameters and zero-energy shape dependence"
+          ],
+          "publication_info": {
+            "artid": "044002",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "73",
+            "year": 2006
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[50] S. Gongyo et al., Most Strange Dibaryon from Lattice QCD, Phys. Rev. Lett. 120, 212001 (2018), arXiv:1709.00654 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1621457"
+        },
+        "reference": {
+          "arxiv_eprint": "1709.00654",
+          "authors": [
+            {
+              "full_name": "Gongyo, S."
+            }
+          ],
+          "label": "50",
+          "misc": [
+            "Most Strange Dibaryon from Lattice QCD"
+          ],
+          "publication_info": {
+            "artid": "212001",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "120",
+            "year": 2018
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[51] In Ref. [50], the \u2126 mass is 1712 MeV, about 2% higher than the physical value of 1672 MeV."
+          }
+        ],
+        "reference": {
+          "label": "51",
+          "misc": [
+            "In Ref. [50], the \u2126 mass is 1712 MeV, about 2% higher than the physical value of 1672 MeV"
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[52] In the strict SU(6) limit with all masses degenerate everywhere, there would be no \u039b dependence in the T-matrix."
+          }
+        ],
+        "reference": {
+          "label": "52",
+          "misc": [
+            "In the strict SU(6) limit with all masses degenerate everywhere, there would be no \u039b dependence in the T-matrix"
+          ]
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[53] M. L. Wagman, F. Winter, E. Chang, Z. Davoudi, W. Detmold, K. Orginos, M. J. Savage, and P. E. Shanahan, Baryon-Baryon Interactions and Spin-Flavor Symmetry from Lattice Quantum Chromodynamics, Phys. Rev. D 96, 114510 (2017), arXiv:1706.06550 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1606087"
+        },
+        "reference": {
+          "arxiv_eprint": "1706.06550",
+          "authors": [
+            {
+              "full_name": "Wagman, M.L."
+            },
+            {
+              "full_name": "Winter, F."
+            },
+            {
+              "full_name": "Chang, E."
+            },
+            {
+              "full_name": "Davoudi, Z."
+            },
+            {
+              "full_name": "Detmold, W."
+            },
+            {
+              "full_name": "Orginos, K."
+            },
+            {
+              "full_name": "Savage, M.J."
+            },
+            {
+              "full_name": "Shanahan, P.E."
+            }
+          ],
+          "label": "53",
+          "misc": [
+            "Baryon-Baryon Interactions and Spin-Flavor Symmetry from Lattice Quantum Chromodynamics"
+          ],
+          "publication_info": {
+            "artid": "114510",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "96",
+            "year": 2017
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[54] M. Illa et al. (NPLQCD), Low-energy scattering and effective interactions of two baryons at m\u03c0 \u223c 450 MeV from lattice quantum chromodynamics, Phys. Rev. D 103, 054508 (2021), arXiv:2009.12357 [hep-lat]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1819271"
+        },
+        "reference": {
+          "arxiv_eprint": "2009.12357",
+          "authors": [
+            {
+              "full_name": "Illa, M."
+            }
+          ],
+          "label": "54",
+          "misc": [
+            "(NPLQCD), Low-energy scattering and effective interactions of two baryons at m\u03c0 \u223c 450 MeV from lattice quantum chromodynamics"
+          ],
+          "publication_info": {
+            "artid": "054508",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "103",
+            "year": 2021
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[55] S. R. Beane, D. B. Kaplan, N. Klco, and M. J. Savage, Entanglement Suppression and Emergent Symmetries of Strong Interactions, Phys. Rev. Lett. 122, 102001 (2019), arXiv:1812.03138 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1707607"
+        },
+        "reference": {
+          "arxiv_eprint": "1812.03138",
+          "authors": [
+            {
+              "full_name": "Beane, S.R."
+            },
+            {
+              "full_name": "Kaplan, D.B."
+            },
+            {
+              "full_name": "Klco, N."
+            },
+            {
+              "full_name": "Savage, M.J."
+            }
+          ],
+          "label": "55",
+          "misc": [
+            "Entanglement Suppression and Emergent Symmetries of Strong Interactions"
+          ],
+          "publication_info": {
+            "artid": "102001",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "122",
+            "year": 2019
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[56] Q. Liu, I. Low, and T. Mehen, Minimal entanglement and emergent symmetries in low-energy QCD, Phys. Rev. C 107, 025204 (2023), arXiv:2210.12085 [quant-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2169094"
+        },
+        "reference": {
+          "arxiv_eprint": "2210.12085",
+          "authors": [
+            {
+              "full_name": "Liu, Q."
+            },
+            {
+              "full_name": "Low, I."
+            },
+            {
+              "full_name": "Mehen, T."
+            }
+          ],
+          "label": "56",
+          "misc": [
+            "Minimal entanglement and emergent symmetries in low-energy QCD"
+          ],
+          "publication_info": {
+            "artid": "025204",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "107",
+            "year": 2023
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[57] T.-R. Hu, K. Sone, F.-K. Guo, T. Hyodo, and I. Low, Entanglement suppression, quantum statistics, and symmetries in spin-3/2 baryon scatterings, Phys. Rev. Res. 7, 043306 (2025), arXiv:2506.08960 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2932532"
+        },
+        "reference": {
+          "arxiv_eprint": "2506.08960",
+          "authors": [
+            {
+              "full_name": "Hu, T.-R."
+            },
+            {
+              "full_name": "Sone, K."
+            },
+            {
+              "full_name": "Guo, F.-K."
+            },
+            {
+              "full_name": "Hyodo, T."
+            },
+            {
+              "full_name": "Low, I."
+            }
+          ],
+          "label": "57",
+          "misc": [
+            "Entanglement suppression, quantum statistics, and symmetries in spin-3/2 baryon scatterings"
+          ],
+          "publication_info": {
+            "artid": "043306",
+            "journal_title": "Phys.Rev.Res.",
+            "journal_volume": "7",
+            "year": 2025
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[58] R. J. Eden and J. R. Taylor, Poles and Shadow Poles in the Many-Channel S Matrix, Phys. Rev. 133, B1575 (1964)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/46577"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Eden, R.J."
+            },
+            {
+              "full_name": "Taylor, J.R."
+            }
+          ],
+          "label": "58",
+          "misc": [
+            "Poles and Shadow Poles in the Many-Channel S",
+            "Matrix"
+          ],
+          "publication_info": {
+            "artid": "B1575",
+            "journal_title": "Phys.Rev.",
+            "journal_volume": "133",
+            "page_start": "B1575",
+            "year": 1964
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[59] Z.-H. Zhang and F.-K. Guo, Classification of coupledchannel near-threshold structures, Phys. Lett. B 863, 139387 (2025), arXiv:2407.10620 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2807714"
+        },
+        "reference": {
+          "arxiv_eprint": "2407.10620",
+          "authors": [
+            {
+              "full_name": "Zhang, Z.-H."
+            },
+            {
+              "full_name": "Guo, F.-K."
+            }
+          ],
+          "label": "59",
+          "misc": [
+            "Classification of coupledchannel near-threshold structures"
+          ],
+          "publication_info": {
+            "artid": "139387",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "863",
+            "year": 2025
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[60] J. K. Ahn, Exotic Hadrons with Two Strange Quarks, in International Conference on the Structure of Baryons (Baryons 2025) (Jeju, Korea, 2025) 10\u201314 Nov. 2025."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Ahn, J.K."
+            }
+          ],
+          "label": "60",
+          "misc": [
+            "Exotic Hadrons with Two Strange Quarks, in International Conference on the Structure of Baryons (Baryons) (Jeju, Korea,) 10-14 Nov"
+          ],
+          "publication_info": {
+            "year": 2025
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[61] X.-K. Dong, F.-K. Guo, and B.-S. Zou, Explaining the many threshold structures in the heavy-quark hadron spectrum, Phys. Rev. Lett. 126, 152001 (2021), arXiv:2011.14517 [hep-ph]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1833986"
+        },
+        "reference": {
+          "arxiv_eprint": "2011.14517",
+          "authors": [
+            {
+              "full_name": "Dong, X.-K."
+            },
+            {
+              "full_name": "Guo, F.-K."
+            },
+            {
+              "full_name": "Zou, B.-S."
+            }
+          ],
+          "label": "61",
+          "misc": [
+            "Explaining the many threshold structures in the heavy-quark hadron spectrum"
+          ],
+          "publication_info": {
+            "artid": "152001",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "126",
+            "year": 2021
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[62] E. Hikota, Y. Funaki, E. Hiyama, and M. Oka, The radiative capture reaction rate from \u039b\u039b to H dibaryon in the imaginary time method, Phys. Rev. C 92, 015205 (2015), arXiv:1505.01912 [nucl-th]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1368929"
+        },
+        "reference": {
+          "arxiv_eprint": "1505.01912",
+          "authors": [
+            {
+              "full_name": "Hikota, E."
+            },
+            {
+              "full_name": "Funaki, Y."
+            },
+            {
+              "full_name": "Hiyama, E."
+            },
+            {
+              "full_name": "Oka, M."
+            }
+          ],
+          "label": "62",
+          "misc": [
+            "The radiative capture reaction rate from \u039b\u039b to H dibaryon in the imaginary time method"
+          ],
+          "publication_info": {
+            "artid": "015205",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "92",
+            "year": 2015
+          }
+        }
+      }
+    ],
+    "texkeys": [
+      "Hu:2026pyr"
+    ],
+    "titles": [
+      {
+        "source": "arXiv",
+        "title": "$H$ dibaryon and its cousins from SU(6)-constrained baryon-baryon interaction"
+      }
+    ]
+  },
+  "revision_id": 7,
+  "updated": "2026-01-27T22:54:02.133337+00:00",
+  "uuid": "f823574a-1f78-4f35-a7c1-3b67c09e7a4c"
+}

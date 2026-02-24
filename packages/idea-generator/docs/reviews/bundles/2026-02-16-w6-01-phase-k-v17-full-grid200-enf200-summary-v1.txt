@@ -1,0 +1,12 @@
+v17 dispersion+PV+full-interior-enforcement (grid_n=200) summary
+slug: 2026-02-16-a-bochner-k0-socp-v17-dispersion-grid200-enf200-full
+Amin@Q2=10: 0.08064634508407321
+contiguous_pos_window_from_Q2min: 15.438084455604
+Amin@Q2_star: 0.007284756916312599
+min(Amin): -0.052377819640926304
+count_negative: 33
+n_q2: 84
+n_s_grid: 200
+n_disp_indices: 192
+solver: {'name': 'clarabel'}
+feasibility_diag: {'raw_status': 'SOLVED', 'termination_status': 'OPTIMAL', 'dual_status': 'FEASIBLE_POINT', 'primal_status': 'FEASIBLE_POINT', 'dual_objective_value': -1.8090394014581476e-09, 'objective_value': 0.0, 'solve_time_sec': 0.38587966700000004, 'relative_gap': None}

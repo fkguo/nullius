@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/domain_pack_manifest_v1.schema.json",
+  "title": "DomainPackManifest V1",
+  "description": "Manifest file for a domain pack. Describes the pack's integrity checks, RDI scoring configuration, reproducibility settings, and strategy extensions for a specific research domain.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "pack_id",
+    "name",
+    "version",
+    "domain",
+    "checks"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "pack_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Unique identifier for this domain pack (e.g., 'hep-th-integrity')."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Human-readable name (e.g., 'HEP Theoretical Physics Integrity Pack')."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$",
+      "description": "SemVer version of this pack."
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Research domain this pack applies to (e.g., 'hep-th'). Must match ResearchStrategy.domain and IntegrityReport.domain."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Description of what this pack checks."
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or organization."
+    },
+    "license": {
+      "type": "string",
+      "description": "License identifier (e.g., 'MIT')."
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check_id", "name", "severity_default"],
+        "properties": {
+          "check_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$",
+            "description": "Check identifier, must match IntegrityCheck.check_id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name."
+          },
+          "severity_default": {
+            "type": "string",
+            "enum": ["blocking", "advisory"],
+            "description": "Default severity."
+          },
+          "configurable": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether severity can be overridden."
+          },
+          "entry_point": {
+            "type": "string",
+            "description": "Module path or function name for loading the check implementation."
+          },
+          "sub_checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["sub_check_id", "name", "severity_default"],
+              "properties": {
+                "sub_check_id": {
+                  "type": "string",
+                  "description": "Sub-check suffix (e.g., 'ward_identity' for 'hep_cross_check.ward_identity')."
+                },
+                "name": { "type": "string" },
+                "severity_default": {
+                  "type": "string",
+                  "enum": ["blocking", "advisory"]
+                }
+              }
+            },
+            "description": "Sub-checks within this check (e.g., cross_check has ward_identity, gauge_invariance, etc.)."
+          }
+        }
+      },
+      "minItems": 1,
+      "description": "List of integrity checks provided by this pack."
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MCP tools required by checks in this pack."
+        },
+        "databases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "External databases required."
+        },
+        "computation_packages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Computation software required."
+        },
+        "npm_packages": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "npm package dependencies with version ranges."
+        }
+      },
+      "description": "External dependencies needed by this pack."
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "description"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "array", "object"]
+          },
+          "description": { "type": "string" },
+          "default": {},
+          "required": { "type": "boolean", "default": false }
+        }
+      },
+      "description": "Configuration options for this pack."
+    },
+    "compatibility": {
+      "type": "object",
+      "properties": {
+        "integrity_framework_version": {
+          "type": "string",
+          "description": "Minimum integrity framework version required (SemVer range)."
+        },
+        "rep_sdk_version": {
+          "type": "string",
+          "description": "Minimum REP SDK version required (SemVer range)."
+        }
+      }
+    },
+    "scoring_config": {
+      "type": "object",
+      "description": "RDI scoring configuration: method taxonomy for generality, problem taxonomy for significance, and reference values. If omitted, REP SDK uses built-in defaults (method_class fallback 0.5, significance fallback 0.5).",
+      "properties": {
+        "method_taxonomy": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 },
+          "description": "Maps method approach strings to generality scores (0-1). Example: { 'lattice_qcd': 0.90, 'fixed_order_pqcd': 0.70 }."
+        },
+        "problem_taxonomy": {
+          "type": "object",
+          "properties": {
+            "problem_classes": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "required": ["base_significance"],
+                "properties": {
+                  "base_significance": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "description": { "type": "string" },
+                  "examples": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "description": "Problem significance classification for the significance RDI dimension."
+        },
+        "reference_metric_count": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10,
+          "description": "Normalization denominator for result_breadth in generality scoring."
+        },
+        "reference_assumption_count": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10,
+          "description": "Normalization denominator for assumption_lightness in generality scoring."
+        },
+        "rdi_weight_overrides": {
+          "type": "object",
+          "properties": {
+            "novelty": { "type": "number", "minimum": 0.30, "maximum": 0.55 },
+            "generality": { "type": "number", "minimum": 0.10, "maximum": 0.30 },
+            "significance": { "type": "number", "minimum": 0.10, "maximum": 0.30 },
+            "citation_impact": { "type": "number", "minimum": 0.10, "maximum": 0.30 }
+          },
+          "description": "Optional RDI weight overrides. Must sum to 1.0 (enforced by SDK runtime validator; not expressible in JSON Schema alone). Values outside allowed bounds are rejected at validation time."
+        },
+        "literature_service_id": {
+          "type": "string",
+          "description": "External literature service for novelty scoring. Known values: 'inspire' (HEP), 'crossref' (general academic), 'openalex' (general academic), 'semantic_scholar', 'zbmath' (mathematics). If omitted, novelty uses local corpus only."
+        },
+        "taxonomy_expansion": {
+          "type": "object",
+          "description": "Automatic taxonomy expansion configuration. When enabled, taxonomy_miss diagnostics are accumulated and new entries are proposed (and optionally auto-approved) to grow method_taxonomy and problem_taxonomy over time. Default: disabled.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether automatic taxonomy expansion is active."
+            },
+            "min_miss_count": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3,
+              "description": "Minimum distinct taxonomy_miss events with a common pattern before a proposal is generated."
+            },
+            "auto_approve_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.9,
+              "description": "Confidence threshold at or above which proposals are auto-committed without human review."
+            },
+            "require_human_review": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, all proposals require explicit human approval regardless of confidence score."
+            },
+            "max_pending_proposals": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 50,
+              "description": "Maximum number of pending (unapproved) proposals retained. Oldest proposals are discarded when exceeded."
+            }
+          },
+          "required": ["enabled"]
+        }
+      }
+    },
+    "fingerprint_config": {
+      "type": "object",
+      "description": "Novelty scoring configuration: fingerprint vector construction and literature record extraction adapters. If omitted, REP SDK uses the default 96-dim fingerprint with title-only fallback for external records (see EVO-17 Section 4.3.1).",
+      "properties": {
+        "method_vectors": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "number" }
+          },
+          "description": "Pre-computed method embedding vectors (maps method approach to fixed-length vector)."
+        },
+        "observable_vocabulary": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Vocabulary of observable types for one-hot encoding in fingerprint. Also used by result_breadth to deduplicate metric keys into distinct observable classes."
+        },
+        "literature_record_adapter": {
+          "type": "object",
+          "description": "Adapter specification for extracting fingerprint components from LiteratureRecord.metadata. Maps service-specific metadata fields to the 96-dim fingerprint components.",
+          "properties": {
+            "method_field": {
+              "type": "string",
+              "description": "Metadata field name containing the method/approach (mapped to method_embedding). Example: 'arxiv_categories' for INSPIRE."
+            },
+            "result_type_field": {
+              "type": "string",
+              "description": "Metadata field name containing result type info (mapped to result_type_encoding). Example: 'keywords' for CrossRef."
+            },
+            "param_range_field": {
+              "type": "string",
+              "description": "Metadata field name containing parameter range info. Example: 'custom_metadata.energy_range' for INSPIRE."
+            },
+            "headline_field": {
+              "type": "string",
+              "description": "Metadata field name containing headline results. Example: 'abstract' for CrossRef (text extraction)."
+            }
+          }
+        }
+      }
+    },
+    "reproducibility_config": {
+      "type": "object",
+      "description": "Reproducibility verification configuration: computation backends and verification modes for the domain.",
+      "properties": {
+        "backends": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "version_constraint": { "type": "string" },
+              "verification_mode": {
+                "type": "string",
+                "description": "How to verify reproducibility. Recommended values: 'exact_match', 'statistical', 'formal_proof_check', 'not_applicable'."
+              }
+            }
+          },
+          "description": "Available computation backends for reproducibility verification."
+        }
+      }
+    },
+    "strategy_extensions": {
+      "type": "object",
+      "description": "Domain-specific strategy field constraints. Defines which additional fields the domain expects in ResearchStrategy.method (via additionalProperties) and their validation rules.",
+      "properties": {
+        "method_fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "description": { "type": "string" },
+              "recommended_values": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "required": { "type": "boolean", "default": false }
+            }
+          },
+          "description": "Additional method fields expected by this domain. Example (HEP): { 'order': { type: 'string', recommended_values: ['LO', 'NLO', 'NNLO'] }, 'gauge': { type: 'string' }, 'renormalization_scheme': { type: 'string' } }."
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,61 @@
+{
+  "package_id": "claude-cli-runner",
+  "package_type": "skill-pack",
+  "repo": "autoresearch-lab/skills-market",
+  "channel": "beta",
+  "version": "0.1.0",
+  "summary": "Non-interactive Claude CLI runner skill for file-based prompt execution.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "~/.codex/skills/claude-cli-runner/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "autoresearch-lab/skills",
+    "ref": "main",
+    "subpath": "skills/claude-cli-runner",
+    "include": [
+      "SKILL.md",
+      "SKILL.zh.md",
+      "README.md",
+      "RUNBOOK.md",
+      "ROADMAP.md",
+      "PROJECT_MAP.md",
+      "scripts/**",
+      "assets/**",
+      "references/**",
+      "templates/**",
+      "schemas/**",
+      "agents/**",
+      ".gitignore"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/docs/reviews/**",
+      "**/reviews/**",
+      "**/agent-team-output/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store",
+      "scripts/dev/*",
+      "scripts/dev/**/*",
+      "team/*",
+      "team/**/*",
+      "process/*",
+      "process/**/*",
+      "skilldev/*",
+      "skilldev/**/*",
+      ".tmp*/*",
+      ".tmp*/**/*"
+    ]
+  }
+}

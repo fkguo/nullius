@@ -1,0 +1,1577 @@
+{
+  "created": "2023-01-18T02:41:20.994377+00:00",
+  "id": "2623757",
+  "links": {
+    "bibtex": "https://inspirehep.net/api/literature/2623757?format=bibtex",
+    "citations": "https://inspirehep.net/api/literature/?q=refersto%3Arecid%3A2623757",
+    "cv": "https://inspirehep.net/api/literature/2623757?format=cv",
+    "json": "https://inspirehep.net/api/literature/2623757?format=json",
+    "json-expanded": "https://inspirehep.net/api/literature/2623757?format=json-expanded",
+    "latex-eu": "https://inspirehep.net/api/literature/2623757?format=latex-eu",
+    "latex-us": "https://inspirehep.net/api/literature/2623757?format=latex-us"
+  },
+  "metadata": {
+    "$schema": "https://inspirehep.net/schemas/records/hep.json",
+    "abstracts": [
+      {
+        "source": "arXiv",
+        "value": "Short-range parts of the baryon-baryon ($BB$) interactions are analyzed from the spin-flavor $SU(6)_{sf}\\supset SU(3)_f \\times SU(2)_s$ symmetry viewpoint. Due to the Pauli principle of quarks, the symmetry structure of the wave functions is restricted at short distances. Consequently, the $BB$ states with the same spin-flavor quantum numbers may be reduced into one or a few spin-flavor states. Such reduction causes repulsion and/or suppression of transitions at short distances. We show that the observed suppression of the $\\Xi N \\to \\Lambda\\Lambda$ conversion can be explained following the above argument. It is also applied to the suppression of the $\\Sigma N$ to $\\Lambda N$ conversion in the spin 1 and isospin 1/2 channel. Furthermore, the effects of the color-magnetic interaction (CMI), which prefers flavor antisymmetric states, to the Pauli-allowed states are discussed."
+      }
+    ],
+    "arxiv_eprints": [
+      {
+        "categories": [
+          "nucl-th",
+          "hep-lat",
+          "hep-ph"
+        ],
+        "value": "2301.06026"
+      }
+    ],
+    "authors": [
+      {
+        "affiliations": [
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/902946"
+            },
+            "value": "Kyushu U."
+          },
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/911022"
+            },
+            "value": "Nishina Ctr., RIKEN"
+          }
+        ],
+        "curated_relation": true,
+        "emails": [
+          "makoto.oka@riken.jp"
+        ],
+        "full_name": "Oka, Makoto",
+        "raw_affiliations": [
+          {
+            "value": "Advanced Science Research Center, Japan Atomic Energy Agency, Tokai 319-1195, Japan"
+          },
+          {
+            "value": "Nishina Center for Accelerator-Based Science, RIKEN, Wako 351-0198, Japan"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/995042"
+        },
+        "signature_block": "OCm",
+        "uuid": "378c43bd-2ec2-4235-851f-a99132db18ed"
+      }
+    ],
+    "citation_count": 4,
+    "citation_count_without_self_citations": 3,
+    "citeable": true,
+    "control_number": 2623757,
+    "core": true,
+    "curated": true,
+    "document_type": [
+      "article"
+    ],
+    "inspire_categories": [
+      {
+        "source": "arxiv",
+        "term": "Theory-Nucl"
+      },
+      {
+        "source": "arxiv",
+        "term": "Lattice"
+      },
+      {
+        "source": "arxiv",
+        "term": "Phenomenology-HEP"
+      }
+    ],
+    "keywords": [
+      {
+        "schema": "INSPIRE",
+        "value": "spin: 1"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "interaction: short-range"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "baryon baryon: interaction"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "symmetry: SU(6)"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "isospin: 1/2"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "suppression"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "quantum number"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "Pauli principle"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "flavor"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "wave function"
+      }
+    ],
+    "license": [
+      {
+        "license": "arXiv nonexclusive-distrib 1.0",
+        "material": "preprint",
+        "url": "http://arxiv.org/licenses/nonexclusive-distrib/1.0/"
+      }
+    ],
+    "preprint_date": "2023-01-15",
+    "public_notes": [
+      {
+        "source": "arXiv",
+        "value": "For the memorial of Prof. Akito Arima"
+      }
+    ],
+    "references": [
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[1] M. Oka, K. Shimizu and K. Yazaki, \u201cHyperon - Nucleon and Hyperon-hyperon Interaction in a Quark Model,\u201d Nucl. Phys. A 464, 700-716 (1987)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/233295"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Oka, M."
+            },
+            {
+              "full_name": "Shimizu, K."
+            },
+            {
+              "full_name": "Yazaki, K."
+            }
+          ],
+          "label": "1",
+          "publication_info": {
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "464",
+            "page_end": "716",
+            "page_start": "700",
+            "year": 1987
+          },
+          "title": {
+            "title": "Hyperon - Nucleon and Hyperon-hyperon Interaction in a Quark Model"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[2] T. A. Rijken, M. M. Nagels and Y. Yamamoto, \u201cBaryonBaryon Interactions S = 0, \u22121, \u22122, \u22123, \u22124,\u201d Few Body Syst. 54, 801-806 (2013)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1245812"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Rijken, T.A."
+            },
+            {
+              "full_name": "Nagels, M.M."
+            },
+            {
+              "full_name": "Yamamoto, Y."
+            }
+          ],
+          "label": "2",
+          "publication_info": {
+            "journal_title": "Few Body Syst.",
+            "journal_volume": "54",
+            "page_end": "806",
+            "page_start": "801",
+            "year": 2013
+          },
+          "title": {
+            "title": "BaryonBaryon Interactions S = 0, -1, -2, -3, -4"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[3] A. Gal, E. V. Hungerford and D. J. Millener, \u201cStrangeness in nuclear physics,\u201d Rev. Mod. Phys. 88, 035004 (2016)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1454280"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Gal, A."
+            },
+            {
+              "full_name": "Hungerford, E.V."
+            },
+            {
+              "full_name": "Millener, D.J."
+            }
+          ],
+          "label": "3",
+          "publication_info": {
+            "artid": "035004",
+            "journal_title": "Rev.Mod.Phys.",
+            "journal_volume": "88",
+            "year": 2016
+          },
+          "title": {
+            "title": "Strangeness in nuclear physics"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[4] E. Hiyama and K. Nakazawa, \u201cStructure of S = \u22122 Hypernuclei and Hyperon-Hyperon Interactions,\u201d Ann. Rev. Nucl. Part. Sci. 68, 131-159 (2018)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1701112"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Hiyama, E."
+            },
+            {
+              "full_name": "Nakazawa, K."
+            }
+          ],
+          "label": "4",
+          "publication_info": {
+            "journal_title": "Ann.Rev.Nucl.Part.Sci.",
+            "journal_volume": "68",
+            "page_end": "159",
+            "page_start": "131",
+            "year": 2018
+          },
+          "title": {
+            "title": "Structure of S = -2 Hypernuclei and Hyperon-Hyperon Interactions"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[5] W. Weise, \u201cEquation of state and strangeness in neutron stars - role of hyperon-nuclear three-body forces -,\u201d EPJ Web Conf. 271, 06003 (2022)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2144125"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Weise, W."
+            }
+          ],
+          "label": "5",
+          "publication_info": {
+            "artid": "06003",
+            "journal_title": "EPJ Web Conf.",
+            "journal_volume": "271",
+            "year": 2022
+          },
+          "title": {
+            "title": "Equation of state and strangeness in neutron stars - role of hyperon-nuclear three-body forces -"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[6] J. Haidenbauer, U. G. Mei\u00dfner, \u201cJ\u00a8 ulich hyperon-nucleon model revisited,\u201d Phys. Rev. C 72, 044005 (2005)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/684344"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Haidenbauer, J."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.G."
+            }
+          ],
+          "label": "6",
+          "publication_info": {
+            "artid": "044005",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "72",
+            "year": 2005
+          },
+          "title": {
+            "title": "J\u00fclich hyperon-nucleon model revisited"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[7] T. A. Rijken, M. M. Nagels and Y. Yamamoto, \u201cBaryonbaryon interactions: Nijmegen extended-soft-core models,\u201d Prog. Theor. Phys. Suppl. 185, 14-71 (2010). M. M. Nagels, T. A. Rijken and Y. Yamamoto, \u201cExtended-soft-core baryon-baryon model ESC16. II. Hyperon-nucleon interactions,\u201d Phys. Rev. C 99, 044003 (2019)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/891446"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Rijken, T.A."
+            },
+            {
+              "full_name": "Nagels, M.M."
+            },
+            {
+              "full_name": "Yamamoto, Y."
+            }
+          ],
+          "label": "7",
+          "publication_info": {
+            "journal_title": "Prog.Theor.Phys.Suppl.",
+            "journal_volume": "185",
+            "page_end": "71",
+            "page_start": "14",
+            "year": 2010
+          },
+          "title": {
+            "title": "Baryonbaryon interactions: Nijmegen extended-soft-core models"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[7] T. A. Rijken, M. M. Nagels and Y. Yamamoto, \u201cBaryonbaryon interactions: Nijmegen extended-soft-core models,\u201d Prog. Theor. Phys. Suppl. 185, 14-71 (2010). M. M. Nagels, T. A. Rijken and Y. Yamamoto, \u201cExtended-soft-core baryon-baryon model ESC16. II. Hyperon-nucleon interactions,\u201d Phys. Rev. C 99, 044003 (2019)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1341325"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Nagels, M.M."
+            },
+            {
+              "full_name": "Rijken, T.A."
+            },
+            {
+              "full_name": "Yamamoto, Y."
+            }
+          ],
+          "label": "7",
+          "publication_info": {
+            "artid": "044003",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "99",
+            "year": 2019
+          },
+          "title": {
+            "title": "Extended-soft-core baryon-baryon model ESC16. II. Hyperon-nucleon interactions"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[8] S. Petschauer, J. Haidenbauer, N. Kaiser, U. G. Mei\u00dfner and W. Weise, \u201cHyperon-nuclear interactions from SU(3) chiral effective field theory,\u201d Front. in Phys. 8, 12 (2020)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1778417"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Petschauer, S."
+            },
+            {
+              "full_name": "Haidenbauer, J."
+            },
+            {
+              "full_name": "Kaiser, N."
+            },
+            {
+              "full_name": "Mei\u00dfner, U.G."
+            },
+            {
+              "full_name": "Weise, W."
+            }
+          ],
+          "label": "8",
+          "publication_info": {
+            "artid": "12",
+            "journal_title": "Front.in Phys.",
+            "journal_volume": "8",
+            "page_start": "12",
+            "year": 2020
+          },
+          "title": {
+            "title": "Hyperon-nuclear interactions from SU(3) chiral effective field theory"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[9] N. Ishii, S. Aoki and T. Hatsuda, \u201cThe Nuclear Force from Lattice QCD,\u201d Phys. Rev. Lett. 99, 022001 (2007). T. Inoue et al. [HAL QCD], \u201cBaryon-Baryon Interactions in the Flavor SU(3) Limit from Full QCD Simulations on the Lattice,\u201d Prog. Theor. Phys. 124, 591-603 (2010)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/732883"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Ishii, N."
+            },
+            {
+              "full_name": "Aoki, S."
+            },
+            {
+              "full_name": "Hatsuda, T."
+            }
+          ],
+          "label": "9",
+          "publication_info": {
+            "artid": "022001",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "99",
+            "year": 2007
+          },
+          "title": {
+            "title": "The Nuclear Force from Lattice QCD"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[9] N. Ishii, S. Aoki and T. Hatsuda, \u201cThe Nuclear Force from Lattice QCD,\u201d Phys. Rev. Lett. 99, 022001 (2007). T. Inoue et al. [HAL QCD], \u201cBaryon-Baryon Interactions in the Flavor SU(3) Limit from Full QCD Simulations on the Lattice,\u201d Prog. Theor. Phys. 124, 591-603 (2010)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/862135"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Inoue, T."
+            }
+          ],
+          "label": "9",
+          "misc": [
+            "[HAL QCD]"
+          ],
+          "publication_info": {
+            "journal_title": "Prog.Theor.Phys.",
+            "journal_volume": "124",
+            "page_end": "603",
+            "page_start": "591",
+            "year": 2010
+          },
+          "title": {
+            "title": "Baryon-Baryon Interactions in the Flavor SU(3) Limit from Full QCD Simulations on the Lattice"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[10] S. Gongyo, et al. [HAL QCD], \u201cMost Strange Dibaryon from Lattice QCD,\u201d Phys. Rev. Lett. 120, no.21, 212001 (2018). T. Iritani et al. [HAL QCD], \u201cN\u2126 dibaryon from lattice QCD near the physical point,\u201d Phys. Lett. B 792, 284289 (2019)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1621457"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Gongyo, S."
+            }
+          ],
+          "label": "10",
+          "misc": [
+            "[HAL QCD]"
+          ],
+          "publication_info": {
+            "artid": "212001",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "120",
+            "year": 2018
+          },
+          "title": {
+            "title": "Most Strange Dibaryon from Lattice QCD"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[10] S. Gongyo, et al. [HAL QCD], \u201cMost Strange Dibaryon from Lattice QCD,\u201d Phys. Rev. Lett. 120, no.21, 212001 (2018). T. Iritani et al. [HAL QCD], \u201cN\u2126 dibaryon from lattice QCD near the physical point,\u201d Phys. Lett. B 792, 284289 (2019)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Iritani, T."
+            }
+          ],
+          "label": "10",
+          "misc": [
+            "[HAL QCD]"
+          ],
+          "publication_info": {
+            "artid": "284289",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "792",
+            "year": 2019
+          },
+          "title": {
+            "title": "N\u2126 dibaryon from lattice QCD near the physical point"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[11] K. Miwa, et al. \u201cRecent progress and future prospects of hyperon nucleon scattering experiment,\u201d EPJ Web Conf. 271, 04001 (2022)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2606255"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Miwa, K."
+            }
+          ],
+          "label": "11",
+          "publication_info": {
+            "artid": "04001",
+            "journal_title": "EPJ Web Conf.",
+            "journal_volume": "271",
+            "year": 2022
+          },
+          "title": {
+            "title": "Recent progress and future prospects of hyperon nucleon scattering experiment"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[12] L. Fabbietti, V. Mantovani Sarti and O. Vazquez Doce, \u201cStudy of the Strong Interaction Among Hadrons with Correlations at the LHC,\u201d Ann. Rev. Nucl. Part. Sci. 71, 377-402 (2021)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1837073"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Fabbietti, L."
+            },
+            {
+              "full_name": "Sarti, V. Mantovani"
+            },
+            {
+              "full_name": "Doce, O. Vazquez"
+            }
+          ],
+          "label": "12",
+          "publication_info": {
+            "journal_title": "Ann.Rev.Nucl.Part.Sci.",
+            "journal_volume": "71",
+            "page_end": "402",
+            "page_start": "377",
+            "year": 2021
+          },
+          "title": {
+            "title": "Study of the Strong Interaction Among Hadrons with Correlations at the LHC"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[13] M. Oka and K. Yazaki, \u201cNuclear Force in a Quark Model,\u201d Phys. Lett. B 90, 41-44 (1980). M. Oka, K. Shimizu and K. Yazaki, \u201cQuark cluster model of baryon baryon interaction,\u201d Prog. Theor. Phys. Suppl. 137, 1-20 (2000)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/157336"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Oka, M."
+            },
+            {
+              "full_name": "Yazaki, K."
+            }
+          ],
+          "label": "13",
+          "publication_info": {
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "90",
+            "page_end": "44",
+            "page_start": "41",
+            "year": 1980
+          },
+          "title": {
+            "title": "Nuclear Force in a Quark Model"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[13] M. Oka and K. Yazaki, \u201cNuclear Force in a Quark Model,\u201d Phys. Lett. B 90, 41-44 (1980). M. Oka, K. Shimizu and K. Yazaki, \u201cQuark cluster model of baryon baryon interaction,\u201d Prog. Theor. Phys. Suppl. 137, 1-20 (2000)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/534985"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Oka, M."
+            },
+            {
+              "full_name": "Shimizu, K."
+            },
+            {
+              "full_name": "Yazaki, K."
+            }
+          ],
+          "label": "13",
+          "publication_info": {
+            "journal_title": "Prog.Theor.Phys.Suppl.",
+            "journal_volume": "137",
+            "page_end": "20",
+            "page_start": "1",
+            "year": 2000
+          },
+          "title": {
+            "title": "Quark cluster model of baryon baryon interaction"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[14] S. Ohta, A. Arima, K. Yazaki and M. Oka, \u201cA shell model study of six quark system,\u201d Phys. Lett. B 119, 35-38 (1982) [erratum: Phys. Lett. B 123, 477-477 (1983)]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/184594"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Ohta, S."
+            },
+            {
+              "full_name": "Arima, A."
+            },
+            {
+              "full_name": "Yazaki, K."
+            },
+            {
+              "full_name": "Oka, M."
+            }
+          ],
+          "label": "14",
+          "publication_info": {
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "119",
+            "page_end": "38",
+            "page_start": "35",
+            "year": 1982
+          },
+          "title": {
+            "title": "A shell model study of six quark system"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[14] S. Ohta, A. Arima, K. Yazaki and M. Oka, \u201cA shell model study of six quark system,\u201d Phys. Lett. B 119, 35-38 (1982) [erratum: Phys. Lett. B 123, 477-477 (1983)]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/184594"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Ohta, S."
+            },
+            {
+              "full_name": "Arima, A."
+            },
+            {
+              "full_name": "Yazaki, K."
+            },
+            {
+              "full_name": "Oka, M."
+            }
+          ],
+          "label": "14",
+          "misc": [
+            "[erratum:"
+          ],
+          "publication_info": {
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "123",
+            "page_end": "477",
+            "page_start": "477",
+            "year": 1983
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[15] M. Harvey, \u201cEffective nuclear forces in the quark model with Delta and hidden color channel coupling,\u201d Nucl. Phys. A 352, 326-342 (1981)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/152167"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Harvey, M."
+            }
+          ],
+          "label": "15",
+          "publication_info": {
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "352",
+            "page_end": "342",
+            "page_start": "326",
+            "year": 1981
+          },
+          "title": {
+            "title": "Effective nuclear forces in the quark model with Delta and hidden color channel coupling"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[16] A. Faessler, F. Fernandez, G. Lubeck and K. Shimizu, \u201cThe Quark Model and the Nature of the Repulsive Core of the Nucleon Nucleon Interaction,\u201d Phys. Lett. B 112, 201-205 (1982)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/180377"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Faessler, A."
+            },
+            {
+              "full_name": "Fernandez, F."
+            },
+            {
+              "full_name": "Lubeck, G."
+            },
+            {
+              "full_name": "Shimizu, K."
+            }
+          ],
+          "label": "16",
+          "publication_info": {
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "112",
+            "page_end": "205",
+            "page_start": "201",
+            "year": 1982
+          },
+          "title": {
+            "title": "The Quark Model and the Nature of the Repulsive Core of the Nucleon Nucleon Interaction"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[17] R. L. Jaffe, \u201cPerhaps a Stable Dihyperon,\u201d Phys. Rev. Lett. 38, 195-198 (1977) [erratum: Phys. Rev. Lett. 38, 617 (1977)]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/110056"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Jaffe, R.L."
+            }
+          ],
+          "label": "17",
+          "publication_info": {
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "38",
+            "page_end": "198",
+            "page_start": "195",
+            "year": 1977
+          },
+          "title": {
+            "title": "Perhaps a Stable Dihyperon"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[17] R. L. Jaffe, \u201cPerhaps a Stable Dihyperon,\u201d Phys. Rev. Lett. 38, 195-198 (1977) [erratum: Phys. Rev. Lett. 38, 617 (1977)]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/110056"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Jaffe, R.L."
+            }
+          ],
+          "label": "17",
+          "misc": [
+            "[erratum:"
+          ],
+          "publication_info": {
+            "artid": "617",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "38",
+            "page_start": "617",
+            "year": 1977
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[18] J. K. Ahn [J-PARC E42], \u201cSearch for the H-dibaryon near \u039b\u039b and \u039e\u2212 p thresholds at J-PARC,\u201d PoS Hadron2017, 124 (2018)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1665129"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Ahn, J.K."
+            }
+          ],
+          "label": "18",
+          "misc": [
+            "[J-PARC E42]"
+          ],
+          "publication_info": {
+            "artid": "124",
+            "journal_title": "PoS",
+            "journal_volume": "Hadron2017",
+            "page_start": "124",
+            "year": 2018
+          },
+          "title": {
+            "title": "Search for the H-dibaryon near \u039b\u039b and \u039e- p thresholds at J-PARC"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[19] T. Inoue et al. [HAL QCD], \u201cBound H-dibaryon in Flavor SU(3) Limit of Lattice QCD,\u201d Phys. Rev. Lett. 106, 162002 (2011)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/882971"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Inoue, T."
+            }
+          ],
+          "label": "19",
+          "misc": [
+            "[HAL QCD]"
+          ],
+          "publication_info": {
+            "artid": "162002",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "106",
+            "year": 2011
+          },
+          "title": {
+            "title": "Bound H-dibaryon in Flavor SU(3) Limit of Lattice QCD"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[20] M. Oka, K. Shimizu and K. Yazaki, \u201cThe Dihyperon State in the Quark Cluster Model,\u201d Phys. Lett. B 130, 365-368 (1983). S. Takeuchi and M. Oka, \u201cCan the H particle survive instantons?,\u201d Phys. Rev. Lett. 66, 1271-1274 (1991). T. Sakai, K. Shimizu and K. Yazaki, \u201cH dibaryon,\u201d Prog. Theor. Phys. Suppl. 137, 121-145 (2000)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/13633"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Oka, M."
+            },
+            {
+              "full_name": "Shimizu, K."
+            },
+            {
+              "full_name": "Yazaki, K."
+            }
+          ],
+          "label": "20",
+          "publication_info": {
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "130",
+            "page_end": "368",
+            "page_start": "365",
+            "year": 1983
+          },
+          "title": {
+            "title": "The Dihyperon State in the Quark Cluster Model"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[20] M. Oka, K. Shimizu and K. Yazaki, \u201cThe Dihyperon State in the Quark Cluster Model,\u201d Phys. Lett. B 130, 365-368 (1983). S. Takeuchi and M. Oka, \u201cCan the H particle survive instantons?,\u201d Phys. Rev. Lett. 66, 1271-1274 (1991). T. Sakai, K. Shimizu and K. Yazaki, \u201cH dibaryon,\u201d Prog. Theor. Phys. Suppl. 137, 121-145 (2000)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/299693"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Takeuchi, S."
+            },
+            {
+              "full_name": "Oka, M."
+            }
+          ],
+          "label": "20",
+          "publication_info": {
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "66",
+            "page_end": "1274",
+            "page_start": "1271",
+            "year": 1991
+          },
+          "title": {
+            "title": "Can the H particle survive instantons?"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[20] M. Oka, K. Shimizu and K. Yazaki, \u201cThe Dihyperon State in the Quark Cluster Model,\u201d Phys. Lett. B 130, 365-368 (1983). S. Takeuchi and M. Oka, \u201cCan the H particle survive instantons?,\u201d Phys. Rev. Lett. 66, 1271-1274 (1991). T. Sakai, K. Shimizu and K. Yazaki, \u201cH dibaryon,\u201d Prog. Theor. Phys. Suppl. 137, 121-145 (2000)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/512523"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Sakai, T."
+            },
+            {
+              "full_name": "Shimizu, K."
+            },
+            {
+              "full_name": "Yazaki, K."
+            }
+          ],
+          "label": "20",
+          "publication_info": {
+            "journal_title": "Prog.Theor.Phys.Suppl.",
+            "journal_volume": "137",
+            "page_end": "145",
+            "page_start": "121",
+            "year": 2000
+          },
+          "title": {
+            "title": "H dibaryon"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[21] M. Oka, \u201cFlavor Octet Dibaryons in the Quark Model,\u201d Phys. Rev. D 38, 298 (1988)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/260809"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Oka, M."
+            }
+          ],
+          "label": "21",
+          "publication_info": {
+            "artid": "298",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "38",
+            "page_start": "298",
+            "year": 1988
+          },
+          "title": {
+            "title": "Flavor Octet Dibaryons in the Quark Model"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[22] K. Sasaki et al. [HAL QCD], \u201c\u039b\u039b and N\u039e interactions from lattice QCD near the physical point,\u201d Nucl. Phys. A 998, 121737 (2020). E. Hiyama, K. Sasaki, T. Miyamoto, T. Doi, T. Hatsuda, Y. Yamamoto and T. A. Rijken, \u201cPossible lightest \u039e Hypernucleus with Modern \u039eN Interactions,\u201d Phys. Rev. Lett. 124, no.9, 092501 (2020)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1771619"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Sasaki, K."
+            }
+          ],
+          "label": "22",
+          "misc": [
+            "[HAL QCD]"
+          ],
+          "publication_info": {
+            "artid": "121737",
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "998",
+            "year": 2020
+          },
+          "title": {
+            "title": "\u039b\u039b and N\u039e interactions from lattice QCD near the physical point"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[22] K. Sasaki et al. [HAL QCD], \u201c\u039b\u039b and N\u039e interactions from lattice QCD near the physical point,\u201d Nucl. Phys. A 998, 121737 (2020). E. Hiyama, K. Sasaki, T. Miyamoto, T. Doi, T. Hatsuda, Y. Yamamoto and T. A. Rijken, \u201cPossible lightest \u039e Hypernucleus with Modern \u039eN Interactions,\u201d Phys. Rev. Lett. 124, no.9, 092501 (2020)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1757708"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Hiyama, E."
+            },
+            {
+              "full_name": "Sasaki, K."
+            },
+            {
+              "full_name": "Miyamoto, T."
+            },
+            {
+              "full_name": "Doi, T."
+            },
+            {
+              "full_name": "Hatsuda, T."
+            },
+            {
+              "full_name": "Yamamoto, Y."
+            },
+            {
+              "full_name": "Rijken, T.A."
+            }
+          ],
+          "label": "22",
+          "publication_info": {
+            "artid": "092501",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "124",
+            "year": 2020
+          },
+          "title": {
+            "title": "Possible lightest \u039e Hypernucleus with Modern \u039eN Interactions"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[23] K. Nakazawa, et al. \u201cThe first evidence of a deeply bound state of \u039e \u2212 14 N system,\u201d PTEP 2015, no.3, 033D02 (2015). S. H. Hayakawa et al. [J-PARC E07], \u201cObservation of Coulomb-Assisted Nuclear Bound State of \u039e \u2212 14 N System,\u201d Phys. Rev. Lett. 126, 062501 (2021)."
+          }
+        ],
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Nakazawa, K."
+            }
+          ],
+          "label": "23",
+          "publication_info": {
+            "artid": "033",
+            "journal_title": "PTEP",
+            "journal_volume": "3",
+            "page_start": "033",
+            "year": 2015
+          },
+          "title": {
+            "title": "The first evidence of a deeply bound state of \u039e - 14 N system"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[23] K. Nakazawa, et al. \u201cThe first evidence of a deeply bound state of \u039e \u2212 14 N system,\u201d PTEP 2015, no.3, 033D02 (2015). S. H. Hayakawa et al. [J-PARC E07], \u201cObservation of Coulomb-Assisted Nuclear Bound State of \u039e \u2212 14 N System,\u201d Phys. Rev. Lett. 126, 062501 (2021)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1826412"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Hayakawa, S.H."
+            }
+          ],
+          "label": "23",
+          "misc": [
+            "D02 (2015)",
+            "[J-PARC E07]"
+          ],
+          "publication_info": {
+            "artid": "062501",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "126",
+            "year": 2021
+          },
+          "title": {
+            "title": "Observation of Coulomb-Assisted Nuclear Bound State of \u039e - 14 N System"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[24] T. Inoue [HAL QCD], \u201cStrange Nuclear Physics from QCD on Lattice,\u201d AIP Conf. Proc. 2130, 020002 (2019)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1695274"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Inoue, T."
+            }
+          ],
+          "label": "24",
+          "misc": [
+            "[HAL QCD]"
+          ],
+          "publication_info": {
+            "artid": "020002",
+            "journal_title": "AIP Conf.Proc.",
+            "journal_volume": "2130",
+            "year": 2019
+          },
+          "title": {
+            "title": "Strange Nuclear Physics from QCD on Lattice"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[25] H. Nemura [HALQCD], \u201cHyperon-nucleon interaction from lattice QCD at (m\u03c0, mK ) \u2248 (146, 525) MeV,\u201d AIP Conf. Proc. 2130, 040005 (2019)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/1697485"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Nemura, H."
+            }
+          ],
+          "label": "25",
+          "misc": [
+            "[HALQCD]"
+          ],
+          "publication_info": {
+            "artid": "040005",
+            "journal_title": "AIP Conf.Proc.",
+            "journal_volume": "2130",
+            "year": 2019
+          },
+          "title": {
+            "title": "Hyperon-nucleon interaction from lattice QCD at (m\u03c0, mK ) \u2248 (146, 525) MeV"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[26] T. Nanamura et al. [J-PARC E40], \u201cMeasurement of differential cross sections for \u03a3 + p elastic scattering in the momentum range 0.44\u20130.80 GeV/c,\u201d PTEP 2022, no.9, 093D01 (2022)"
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2803510"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Nanamura, T."
+            }
+          ],
+          "label": "26",
+          "misc": [
+            "[J-PARC E40]",
+            "D01"
+          ],
+          "publication_info": {
+            "artid": "093",
+            "journal_title": "PTEP",
+            "journal_volume": "9",
+            "page_start": "093",
+            "year": 2022
+          },
+          "title": {
+            "title": "Measurement of differential cross sections for \u03a3 + p elastic scattering in the momentum range 0.44-0.80 GeV/c"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[27] E. Friedman and A. Gal, \u201cIn-medium nuclear interactions of low-energy hadrons,\u201d Phys. Rept. 452, 89-153 (2007)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/751570"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Friedman, E."
+            },
+            {
+              "full_name": "Gal, A."
+            }
+          ],
+          "label": "27",
+          "publication_info": {
+            "journal_title": "Phys.Rept.",
+            "journal_volume": "452",
+            "page_end": "153",
+            "page_start": "89",
+            "year": 2007
+          },
+          "title": {
+            "title": "In-medium nuclear interactions of low-energy hadrons"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[28] A. De Rujula, H. Georgi and S. L. Glashow, \u201cHadron Masses in a Gauge Theory,\u201d Phys. Rev. D 12, 147-162 (1975)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/2026"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "De Rujula, A."
+            },
+            {
+              "full_name": "Georgi, H."
+            },
+            {
+              "full_name": "Glashow, S.L."
+            }
+          ],
+          "label": "28",
+          "publication_info": {
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "12",
+            "page_end": "162",
+            "page_start": "147",
+            "year": 1975
+          },
+          "title": {
+            "title": "Hadron Masses in a Gauge Theory"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[29] M. Oka and S. Takeuchi, \u201cInstanton Induced Quark Quark Interactions in Two Baryon Systems,\u201d Phys. Rev. Lett. 63, 1780-1783 (1989), E. V. Shuryak and J. L. Rosner, \u201cInstantons and Baryon Mass Splittings,\u201d Phys. Lett. B 218, 72-74 (1989)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/287098"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Oka, M."
+            },
+            {
+              "full_name": "Takeuchi, S."
+            }
+          ],
+          "label": "29",
+          "publication_info": {
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "63",
+            "page_end": "1783",
+            "page_start": "1780",
+            "year": 1989
+          },
+          "title": {
+            "title": "Instanton Induced Quark Quark Interactions in Two Baryon Systems"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[29] M. Oka and S. Takeuchi, \u201cInstanton Induced Quark Quark Interactions in Two Baryon Systems,\u201d Phys. Rev. Lett. 63, 1780-1783 (1989), E. V. Shuryak and J. L. Rosner, \u201cInstantons and Baryon Mass Splittings,\u201d Phys. Lett. B 218, 72-74 (1989)."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/24812"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "Shuryak, E.V."
+            },
+            {
+              "full_name": "Rosner, J.L."
+            }
+          ],
+          "label": "29",
+          "publication_info": {
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "218",
+            "page_end": "74",
+            "page_start": "72",
+            "year": 1989
+          },
+          "title": {
+            "title": "Instantons and Baryon Mass Splittings"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[30] J. J. de Swart, \u201cThe Octet model and its Clebsch-Gordan coefficients,\u201d Rev. Mod. Phys. 35, 916-939 (1963) [erratum: Rev. Mod. Phys. 37, 326-326 (1965)]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/9140"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "de Swart, J.J."
+            }
+          ],
+          "label": "30",
+          "publication_info": {
+            "journal_title": "Rev.Mod.Phys.",
+            "journal_volume": "35",
+            "page_end": "939",
+            "page_start": "916",
+            "year": 1963
+          },
+          "title": {
+            "title": "The Octet model and its Clebsch-Gordan coefficients"
+          }
+        }
+      },
+      {
+        "raw_refs": [
+          {
+            "schema": "text",
+            "source": "arXiv",
+            "value": "[30] J. J. de Swart, \u201cThe Octet model and its Clebsch-Gordan coefficients,\u201d Rev. Mod. Phys. 35, 916-939 (1963) [erratum: Rev. Mod. Phys. 37, 326-326 (1965)]."
+          }
+        ],
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/9140"
+        },
+        "reference": {
+          "authors": [
+            {
+              "full_name": "de Swart, J.J."
+            }
+          ],
+          "label": "30",
+          "misc": [
+            "[erratum:"
+          ],
+          "publication_info": {
+            "journal_title": "Rev.Mod.Phys.",
+            "journal_volume": "37",
+            "page_end": "326",
+            "page_start": "326",
+            "year": 1965
+          }
+        }
+      }
+    ],
+    "texkeys": [
+      "Oka:2023hdc"
+    ],
+    "titles": [
+      {
+        "source": "arXiv",
+        "title": "Spin-Flavor SU(6) Symmetry for Baryon-Baryon Interactions"
+      }
+    ]
+  },
+  "revision_id": 13,
+  "updated": "2024-09-19T08:27:04.192525+00:00",
+  "uuid": "5ce41f0b-6c65-4f45-be57-e72b9c601400"
+}

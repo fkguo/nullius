@@ -1,0 +1,11 @@
+Board sync postupdate (W6-16 Clarabel eta_floor=0.8 sweep, 2026-02-17)
+timestamp_utc: 2026-02-17T17:00:56Z
+project_snapshot: docs/reviews/bundles/2026-02-17-w6-16-board-project-view-v2.json
+field_snapshot: docs/reviews/bundles/2026-02-17-w6-16-board-field-list-v2.json
+item_snapshot: docs/reviews/bundles/2026-02-17-w6-16-board-item-list-v2.json
+project_title: Idea Generator Program
+project_id: PVT_kwHOA7u0gc4BPFjm
+W6-01 item_id: PVTI_lAHOA7u0gc4BPFjmzglgVQg
+W6-01 draft_issue_id: DI_lAHOA7u0gc4BPFjmzgKK9dA
+W6-01 status: In Progress
+body_contains_w6_16: true

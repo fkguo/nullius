@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/mutation_proposal_v1.schema.json",
+  "title": "MutationProposal V1",
+  "description": "Evolution mutation proposal — repair, optimize, or innovate. Produced by EVO-21 proactive evolution engine.",
+  "type": "object",
+  "required": ["proposal_id", "mutation_type", "gene_id", "signals", "strategy", "gate_level", "status", "created_at"],
+  "properties": {
+    "proposal_id": {
+      "type": "string",
+      "pattern": "^mp_[0-9a-f-]+$",
+      "description": "Unique proposal identifier (ID-01 compliant)"
+    },
+    "mutation_type": {
+      "type": "string",
+      "enum": ["repair", "optimize", "innovate"],
+      "description": "Mutation type determining validation requirements and risk level"
+    },
+    "gene_id": {
+      "type": "string",
+      "description": "Selected gene to execute"
+    },
+    "signals": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Signals that triggered this mutation"
+    },
+    "strategy": {
+      "$ref": "#/$defs/StrategyState"
+    },
+    "strategy_mutations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/StrategyMutation" },
+      "description": "Strategy mutations applied for this run"
+    },
+    "gate_level": {
+      "type": "string",
+      "enum": ["A0", "A1", "A2", "reject"],
+      "description": "Required approval gate level"
+    },
+    "blast_severity": {
+      "type": ["string", "null"],
+      "enum": ["within_limit", "approaching_limit", "exceeded", "critical_overrun", "hard_cap_breach", null],
+      "description": "Blast radius severity (populated after execution)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "approved", "executing", "succeeded", "failed", "rejected", "rolled_back"],
+      "description": "Current proposal status"
+    },
+    "result": {
+      "$ref": "#/$defs/MutationResult"
+    },
+    "run_id": {
+      "type": ["string", "null"],
+      "pattern": "^run_[0-9a-f-]+$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "StrategyState": {
+      "type": "object",
+      "required": ["rigor", "creativity", "verbosity", "risk_tolerance", "obedience"],
+      "properties": {
+        "rigor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Validation thoroughness (0=minimal, 1=exhaustive)"
+        },
+        "creativity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Willingness to try novel approaches"
+        },
+        "verbosity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Output detail level"
+        },
+        "risk_tolerance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Acceptable blast radius tolerance"
+        },
+        "obedience": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Constraint adherence level"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StrategyMutation": {
+      "type": "object",
+      "required": ["param", "delta", "reason"],
+      "properties": {
+        "param": {
+          "type": "string",
+          "enum": ["rigor", "creativity", "verbosity", "risk_tolerance", "obedience"]
+        },
+        "delta": {
+          "type": "number",
+          "minimum": -0.2,
+          "maximum": 0.2,
+          "description": "Change amount (clamped to ±0.2)"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why this mutation was proposed"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MutationResult": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "reason": {
+          "type": "string",
+          "description": "Failure reason if !success"
+        },
+        "capsule_id": {
+          "type": ["string", "null"],
+          "description": "Created capsule ID on success"
+        },
+        "quality_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "blast_radius": {
+          "type": "object",
+          "properties": {
+            "files_changed": { "type": "integer", "minimum": 0 },
+            "lines_added": { "type": "integer", "minimum": 0 },
+            "lines_removed": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "validation_passed": { "type": "boolean" },
+        "contract_passed": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

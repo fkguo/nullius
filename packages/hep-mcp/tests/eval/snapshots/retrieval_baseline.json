@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "generated_at": "2026-01-07T06:38:55.955Z",
+  "fixture": "retrieval_demo_v1",
+  "cases": 3,
+  "recall_at_10": 1,
+  "mrr_at_10": 1
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_tournament_v1.schema.json",
+  "title": "IdeaTournament v1",
+  "description": "SSOT artifact: bounded, deterministic tournament log for Elo-based ranking.",
+  "$comment": "Stub schema (v0.2): tournament pairing and judge rationale can be extended; keep match records auditable.",
+  "type": "object",
+  "required": ["campaign_id", "method", "created_at", "participants", "matches", "final_ratings"],
+  "properties": {
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "method": { "const": "elo" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "elo_config": { "$ref": "./elo_config_v1.schema.json" },
+    "draw_allowed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the tournament judge was permitted to declare draws."
+    },
+    "participants": { "type": "array", "minItems": 2, "items": { "type": "string", "format": "uuid" } },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["round", "a_node_id", "b_node_id", "winner_node_id"],
+        "properties": {
+          "round": { "type": "integer", "minimum": 1 },
+          "a_node_id": { "type": "string", "format": "uuid" },
+          "b_node_id": { "type": "string", "format": "uuid" },
+          "winner_node_id": {
+            "oneOf": [{ "type": "string", "format": "uuid" }, { "type": "null" }],
+            "description": "Winner of the match. null indicates a draw."
+          },
+          "judge_notes": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "final_ratings": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["node_id", "rating", "rank"],
+        "properties": {
+          "node_id": { "type": "string", "format": "uuid" },
+          "rating": { "type": "number" },
+          "rank": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": false
+}

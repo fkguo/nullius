@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "case_id": "E23-literature-survey-polish-v0",
+  "workflow": "custom",
+  "description": "T36 regression: integrate deterministic literature survey export (T30) with research-writer consume as an A4-gated post-processing step, producing artifacts under literature_survey_polish/.",
+  "inputs": {},
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_literature_survey.py",
+      "scripts/run_literature_survey_polish.py",
+      "scripts/run_orchestrator_regression.py",
+      "src/hep_autoresearch/toolkit/literature_survey.py",
+      "src/hep_autoresearch/toolkit/literature_survey_polish.py",
+      "src/hep_autoresearch/toolkit/orchestrator_regression.py",
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "src/hep_autoresearch/toolkit/workflow_context.py",
+      "artifacts/runs/M42-t36-r1/orchestrator_regression/manifest.json",
+      "artifacts/runs/M42-t36-r1/orchestrator_regression/summary.json",
+      "artifacts/runs/M42-t36-r1/orchestrator_regression/analysis.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/approvals/A4-0001/packet.md",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey/manifest.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey/summary.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey/analysis.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey/survey.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey/survey.tex",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey/literature_survey.bib",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey_polish/manifest.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey_polish/summary.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey_polish/analysis.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey_polish/report.md",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey_polish/paper/paper_manifest.json",
+      "artifacts/runs/M42-t36-r1-survey-polish/literature_survey_polish/paper/export_manifest.json"
+    ],
+    "text_contains_checks": [
+      {
+        "path": "artifacts/runs/M42-t36-r1-survey-polish/approvals/A4-0001/packet.md",
+        "contains": ["(A4)", "Plan step(s): W3.SURVEY_POLISH", "W3_literature_survey_polish"]
+      }
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M42-t36-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/survey_polish/gate_exit_code",
+        "min": 3,
+        "max": 3
+      },
+      {
+        "path": "artifacts/runs/M42-t36-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/survey_polish/final_exit_code",
+        "min": 0,
+        "max": 0
+      }
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M42-t36-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/survey_polish/pending_category",
+        "type": "string",
+        "equals": "A4"
+      },
+      {
+        "path": "artifacts/runs/M42-t36-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/survey_polish/expected_outputs/polish_manifest",
+        "type": "string",
+        "contains": "literature_survey_polish/manifest.json"
+      },
+      {
+        "path": "artifacts/runs/M42-t36-r1-survey-polish/literature_survey_polish/analysis.json",
+        "pointer": "#/results/ok",
+        "type": "boolean",
+        "equals": true
+      }
+    ]
+  },
+  "notes": "Anchored to tag M42-t36-r1; validates A4 gate trigger and research-writer polish outputs exist."
+}

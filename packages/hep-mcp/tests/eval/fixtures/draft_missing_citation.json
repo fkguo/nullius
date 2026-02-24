@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "title": "Eval Draft Missing Citation",
+  "sections": [
+    {
+      "version": 1,
+      "title": "Introduction",
+      "paragraphs": [
+        {
+          "sentences": [
+            {
+              "sentence": "This fact sentence intentionally has no citations.",
+              "type": "fact",
+              "is_grounded": true,
+              "recids": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+

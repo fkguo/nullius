@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "campaign_mutation_result_v1.schema.json",
+  "title": "CampaignMutationResult v1",
+  "description": "Result of a side-effecting campaign mutation (e.g., campaign.topup / campaign.pause / campaign.resume / campaign.complete), including idempotency metadata.",
+  "type": "object",
+  "required": ["campaign_status", "idempotency", "mutation", "transition"],
+  "properties": {
+    "campaign_status": { "$ref": "./campaign_status_v1.schema.json" },
+    "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" },
+    "mutation": {
+      "enum": ["topup", "pause", "resume", "complete"],
+      "description": "Which campaign mutation RPC produced this result. Enables machine-checkable transition constraints."
+    },
+    "transition": {
+      "type": "object",
+      "description": "Machine-readable status transition summary for this mutation call (useful for automated adapters). Normative: previous_status/current_status MUST obey the state-machine transitions defined by the called RPC method (campaign.topup/pause/resume/complete).",
+      "required": ["previous_status", "current_status", "changed", "exhausted_dimensions_after"],
+      "properties": {
+        "previous_status": { "enum": ["running", "paused", "early_stopped", "exhausted", "completed"] },
+        "current_status": { "enum": ["running", "paused", "early_stopped", "exhausted", "completed"] },
+        "changed": {
+          "type": "boolean",
+          "description": "True if the campaign status changed during this call; false for no-ops or insufficient topups."
+        },
+        "exhausted_dimensions_after": {
+          "type": "array",
+          "description": "Budget dimensions that are exhausted after applying this mutation (as-of this response snapshot).",
+          "items": { "enum": ["tokens", "cost_usd", "wall_clock_s", "steps", "nodes"] }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "mutation": { "const": "pause" } }, "required": ["mutation"] },
+      "then": {
+        "properties": {
+          "transition": {
+            "properties": {
+              "previous_status": { "enum": ["running", "early_stopped", "exhausted"] },
+              "current_status": { "const": "paused" },
+              "changed": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "mutation": { "const": "resume" } }, "required": ["mutation"] },
+      "then": {
+        "properties": {
+          "transition": {
+            "properties": {
+              "previous_status": { "enum": ["paused", "early_stopped"] },
+              "current_status": { "const": "running" },
+              "changed": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "mutation": { "const": "topup" } }, "required": ["mutation"] },
+      "then": {
+        "properties": {
+          "transition": { "properties": { "previous_status": { "enum": ["running", "paused", "early_stopped", "exhausted"] } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "mutation": { "const": "topup" }, "transition": { "properties": { "previous_status": { "const": "running" } }, "required": ["previous_status"] } },
+        "required": ["mutation", "transition"]
+      },
+      "then": { "properties": { "transition": { "properties": { "current_status": { "const": "running" }, "changed": { "const": false } } } } }
+    },
+    {
+      "if": {
+        "properties": { "mutation": { "const": "topup" }, "transition": { "properties": { "previous_status": { "const": "paused" } }, "required": ["previous_status"] } },
+        "required": ["mutation", "transition"]
+      },
+      "then": { "properties": { "transition": { "properties": { "current_status": { "const": "paused" }, "changed": { "const": false } } } } }
+    },
+    {
+      "if": {
+        "properties": { "mutation": { "const": "topup" }, "transition": { "properties": { "previous_status": { "const": "early_stopped" } }, "required": ["previous_status"] } },
+        "required": ["mutation", "transition"]
+      },
+      "then": { "properties": { "transition": { "properties": { "current_status": { "const": "early_stopped" }, "changed": { "const": false } } } } }
+    },
+    {
+      "if": {
+        "properties": { "mutation": { "const": "topup" }, "transition": { "properties": { "previous_status": { "const": "exhausted" } }, "required": ["previous_status"] } },
+        "required": ["mutation", "transition"]
+      },
+      "then": { "properties": { "transition": { "properties": { "current_status": { "enum": ["running", "exhausted"] } } } } }
+    },
+    {
+      "if": {
+        "properties": { "mutation": { "const": "topup" }, "transition": { "properties": { "previous_status": { "const": "exhausted" }, "current_status": { "const": "exhausted" } }, "required": ["previous_status", "current_status"] } },
+        "required": ["mutation", "transition"]
+      },
+      "then": { "properties": { "transition": { "properties": { "changed": { "const": false } } } } }
+    },
+    {
+      "if": {
+        "properties": { "mutation": { "const": "topup" }, "transition": { "properties": { "previous_status": { "const": "exhausted" }, "current_status": { "const": "running" } }, "required": ["previous_status", "current_status"] } },
+        "required": ["mutation", "transition"]
+      },
+      "then": { "properties": { "transition": { "properties": { "changed": { "const": true } } } } }
+    },
+    {
+      "if": { "properties": { "mutation": { "const": "complete" } }, "required": ["mutation"] },
+      "then": {
+        "properties": {
+          "transition": {
+            "properties": {
+              "previous_status": { "enum": ["running", "paused", "early_stopped", "exhausted", "completed"] },
+              "current_status": { "const": "completed" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "mutation": { "const": "complete" }, "transition": { "properties": { "previous_status": { "const": "completed" } }, "required": ["previous_status"] } },
+        "required": ["mutation", "transition"]
+      },
+      "then": { "properties": { "transition": { "properties": { "changed": { "const": false } } } } }
+    },
+    {
+      "if": {
+        "properties": { "mutation": { "const": "complete" }, "transition": { "properties": { "previous_status": { "enum": ["running", "paused", "early_stopped", "exhausted"] } }, "required": ["previous_status"] } },
+        "required": ["mutation", "transition"]
+      },
+      "then": { "properties": { "transition": { "properties": { "changed": { "const": true } } } } }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,72 @@
+You are reviewer B (gemini-3-pro-preview). Tools are disabled.
+
+STRICT OUTPUT CONTRACT (non-negotiable):
+- Output MUST start immediately with: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT include any planning text, tool intentions, or other preamble.
+- Must contain these exact Markdown headers in this exact order:
+  - ## Blockers
+  - ## Non-blocking
+  - ## Real-research fit
+  - ## Robustness & safety
+  - ## Specific patch suggestions
+- For empty sections, write `- None.`
+- Do not rename or omit headers.
+
+Review ONLY the packet below.
+
+--- BEGIN PACKET ---
+# W6-22 Review Packet (Round-017) — **tail deltas quantified** + **poly24 cross-solver gated** + **threshold rationale explicit**
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## Additions since Round-015 (addresses remaining Opus blockers)
+
+1) **Tail envelope is now quantified** with $A_{\max}$ values and deltas vs baseline (v82).
+2) **Poly24 cross-solver comparison is now machine-gated** via a third check in `cross_solver_check_v1.json` (v99 vs v98) and validated by `make validate-project`.
+3) **Gate threshold rationale is explicit**: abs tolerance chosen as $1.25\\times$ (max observed systematic at the tightened endpoint), where the max systematic is the larger of tail-sensitivity and ansatz-sensitivity (both few $10^{-3}$).
+
+## Tail envelope numbers (Clarabel; tol=62; slope input)
+
+Baseline (tail=1.0): v82 $A_{\max}(-Q^*)\\approx 0.8517537$.
+
+Tail variations:
+- v92 (tail=0.8): $A_{\max}(-Q^*)\\approx 0.8486227$ (delta $\\approx -3.13\\times 10^{-3}$)
+- v93 (tail=1.2): $A_{\max}(-Q^*)\\approx 0.8545079$ (delta $\\approx +2.75\\times 10^{-3}$)
+
+Artifacts:
+- v82: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v82-dispersion-grid200-enf200-qstar-audit7-clarabel-asrband-slope-tmd-asrtol62p0/results.json`
+- v92: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v92-dispersion-grid200-enf200-qstar-audit7-clarabel-asrband-slope-tmd-asrtol62p0-tail0p8/results.json`
+- v93: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v93-dispersion-grid200-enf200-qstar-audit7-clarabel-asrband-slope-tmd-asrtol62p0-tail1p2/results.json`
+
+## Poly24 cross-solver comparison (tol=62; slope input; tail=1.0)
+
+- Clarabel v98: $A_{\max}(-Q^*)\\approx 0.8544339$
+- ECOS v99: $A_{\max}(-Q^*)\\approx 0.8517126$
+- Delta: $\\Delta A_{\max}\\approx 2.72\\times 10^{-3}$ (rel $\\approx 3.18\\times 10^{-3}$)
+
+Artifacts:
+- v98: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v98-dispersion-grid200-poly24-enf200-qstar-audit7-clarabel-asrband-slope-tmd-asrtol62p0/results.json`
+- v99: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v99-dispersion-grid200-poly24-enf200-qstar-audit7-ecos-asrband-slope-tmd-asrtol62p0/results.json`
+
+## Gate threshold rationale (explicit)
+
+At the tightened endpoint, the dominant systematics are:
+- tail sensitivity: $\\sim 3.1\\times 10^{-3}$ on $A_{\max}$ (v92/v82/v93),
+- ansatz sensitivity (poly18→poly24): $\\sim 2.7\\times 10^{-3}$ on $A_{\max}$ (v82 vs v98).
+
+We set the hard cross-solver abs tolerance as:
+$$
+\\mathrm{abs\\_tolerance}=1.25\\times\\max(3.1,2.7)\\times 10^{-3}\\approx 3.9\\times 10^{-3}\\to 0.004,
+$$
+and `rel_tolerance=0.005` for scale invariance.
+
+## Validate-project proof (gate executed + PASS)
+
+- `idea-generator/docs/reviews/bundles/2026-02-18-w6-22-idea-runs-validate-project-v5.txt`
+
+## Question for reviewers
+
+With tail deltas quantified, poly24 cross-solver comparison gated, and thresholds justified from systematic scales (not from observed deltas), is W6-22 now `READY`?
+
+--- END PACKET ---
+

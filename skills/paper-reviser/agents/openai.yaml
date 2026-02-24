@@ -1,0 +1,3 @@
+interface:
+  display_name: "Paper Reviser (LaTeX)"
+  short_description: "Content-first revision for academic LaTeX papers (clean + diff + tracked + audit + codex deep verification)"

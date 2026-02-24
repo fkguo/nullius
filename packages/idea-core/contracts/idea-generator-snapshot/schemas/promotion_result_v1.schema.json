@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "promotion_result_v1.schema.json",
+  "title": "PromotionResult v1",
+  "description": "Success result of promoting an idea to a C2 handoff artifact (after schema + grounding + formalism checks). Failed promotions MUST be surfaced via JSON-RPC errors (schema_validation_failed | grounding_audit_failed | formalism_not_in_registry), not via this success result.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "node_id",
+    "idea_id",
+    "handoff_artifact_ref",
+    "formalism_check",
+    "grounding_audit_summary",
+    "budget_snapshot",
+    "idempotency",
+    "has_reduction_report",
+    "reduction_audit_summary"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "node_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "idea_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "handoff_artifact_ref": {
+      "type": "string",
+      "format": "uri"
+    },
+    "formalism_check": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "const": "pass"
+        },
+        "missing_formalisms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Expected to be empty on success. Non-empty failures must be returned via JSON-RPC error formalism_not_in_registry."
+        }
+      },
+      "additionalProperties": false
+    },
+    "grounding_audit_summary": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "const": "pass"
+        },
+        "folklore_risk_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "failures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Expected to be empty on success. Blocking failures must be returned via JSON-RPC error grounding_audit_failed."
+        }
+      },
+      "additionalProperties": false
+    },
+    "budget_snapshot": {
+      "$ref": "./budget_snapshot_v1.schema.json"
+    },
+    "idempotency": {
+      "$ref": "./idempotency_meta_v1.schema.json"
+    },
+    "reduction_audit_summary": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "abstract_problem",
+            "toy_check_result",
+            "assumption_count",
+            "all_assumptions_satisfied"
+          ],
+          "properties": {
+            "status": {
+              "const": "pass"
+            },
+            "abstract_problem": {
+              "type": "string",
+              "minLength": 1
+            },
+            "toy_check_result": {
+              "enum": [
+                "pass"
+              ]
+            },
+            "assumption_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "all_assumptions_satisfied": {
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Non-null when has_reduction_report is true. Summarizes the passed reduction audit."
+    },
+    "has_reduction_report": {
+      "type": "boolean",
+      "description": "True iff the promoted node has a non-null reduction_report (ProblemReduction/TechniqueTransplant). Used to make the success result machine-auditable without dereferencing handoff_artifact_ref."
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "has_reduction_report": {
+            "const": true
+          }
+        },
+        "required": [
+          "has_reduction_report"
+        ]
+      },
+      "then": {
+        "properties": {
+          "reduction_audit_summary": {
+            "type": "object",
+            "required": [
+              "status",
+              "abstract_problem",
+              "toy_check_result",
+              "assumption_count",
+              "all_assumptions_satisfied"
+            ],
+            "properties": {
+              "status": {
+                "const": "pass"
+              },
+              "abstract_problem": {
+                "type": "string",
+                "minLength": 1
+              },
+              "toy_check_result": {
+                "enum": [
+                  "pass"
+                ]
+              },
+              "assumption_count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "all_assumptions_satisfied": {
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "reduction_audit_summary"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "has_reduction_report": {
+            "const": false
+          }
+        },
+        "required": [
+          "has_reduction_report"
+        ]
+      },
+      "then": {
+        "properties": {
+          "reduction_audit_summary": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "reduction_audit_summary"
+        ]
+      }
+    }
+  ]
+}

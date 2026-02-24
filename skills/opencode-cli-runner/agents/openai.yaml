@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenCode CLI Runner"
+  short_description: "Run opencode CLI headless with prompt files."
+  default_prompt: "Run opencode non-interactively for this prompt packet and save the final text output to a file."

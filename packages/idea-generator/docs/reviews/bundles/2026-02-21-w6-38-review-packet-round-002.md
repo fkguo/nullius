@@ -1,0 +1,88 @@
+# W6-38 Review Packet (Round-002) — digitized $\eta(s)$ (2410.23333) + strict-gated full-PSD rerun (trace $\hat\Theta^\pi$, S0) (NOT_FOR_CITATION)
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## Purpose
+
+Close the “拍脑袋 band” gap in the tightening island **with an evidence-closed loop**:
+
+1) Replace the internal S-matrix constraint placeholder ($|S|\le \eta$ with ad-hoc radii) by a **physics-driven** inelasticity envelope $\eta(s)$ digitized from arXiv:2410.23333 (“big-dip” scenario), bound to the exact compute $s$-grid as a schema-validated artifact.
+2) Rerun the trace-channel full-$3\times 3$ PSD SDP pipeline using that bound (still **pion-only**, **no coupled-channel**, and **output only GFF bounds**).
+3) Ensure the resulting multi-$Q^2$ band is **solver-quality gated** (manual primal-dual relative gap + SOC/PSD margins + residual checks), and eliminate the two low-$Q^2$ gate failures observed in the first gated pass.
+
+This increment is a **physics-input + numerics-quality** step, not yet the full He/Su crossing-style tightening (disk-only envelope remains conservative; no halfspaces/regions digitized yet).
+
+## What changed since Round-001
+
+Round-001 reviews flagged three blockers (digitization validation artifacts; cutoff semantics sensitivity; post-solver residual/gap gating). Those have been addressed:
+
+- Digitization now has human-checkable audit overlays + landmark tables committed under `artifacts/assumptions/audit/`.
+- The SDP solver path is guarded by an explicit solver-quality gate (manual gap `<=0.02`, SOC/PSD margin checks, etc.).
+- The full multi-$Q^2$ band is rerun under strict gates using a retry ladder that **tightens** eps on later attempts (`eps_multipliers=[1,0.5,0.25,0.25]`) to reduce manual gap at the two problematic low-$Q^2$ points.
+
+## Changes in this increment (W6-38)
+
+### 1) Digitize S0 inelasticity envelope $\eta(s)$ from arXiv:2410.23333
+
+Script (project-local; fully offline):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/digitize_2410_s0_inelasticity.py`
+
+Method (evidence-first; no web services):
+- `pdftotext -bbox` extracts numeric tick-label positions (page coordinates).
+- `pdftocairo -svg` extracts the black curve vector path.
+- Fit linear maps page$(x,y)\mapsto (s,\eta)$ and write a new `s_matrix_constraints_v1` artifact by copying a template grid and replacing per-point `disk_radius`.
+
+Binding:
+- Impose digitized $\eta(s)$ only up to $s\le 100\,m_\pi^2$.
+- For $s>100\,m_\pi^2$, set $\eta(s)=1$ (unitarity-only); `--eta-above` is explicitly supported as a sensitivity knob.
+
+Artifacts (schema: `idea-runs/schemas/s_matrix_constraints_v1.schema.json`):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/assumptions/s_matrix_constraints_s0_grid80_eta2410_big_dip_v1.json`
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/assumptions/s_matrix_constraints_s0_grid200_eta2410_big_dip_v1.json`
+
+Audit artifacts (human-checkable):
+- `.../artifacts/assumptions/audit/eta2410_big_dip_overlay_grid200_v1.png`
+- `.../artifacts/assumptions/audit/eta2410_big_dip_landmarks_grid200_v1.json`
+- `.../artifacts/assumptions/audit/eta2410_big_dip_grid200_points_v2.json`
+
+### 2) Full-PSD rerun (trace $\hat\Theta^\pi$) + derived $D^\pi$ (outer envelope)
+
+Full band run (grid200, q2grid9) **with strict gates + tightened-eps retry**:
+- Config:
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/theta_trace_s0_sdp_fullpsd_config_v1i_dispersion_grid200_enf30_q2grid9_audit22_cosmo_eps1e-6_pqcdTh_anchorbudget_bind_smatrix_eta2410_big_dip_gated_tighteneps.json`
+- Primary plot (zoom):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-21-theta-trace-s0-sdp-fullpsd-v1i-dispersion-grid200-enf30-q2grid9-audit22-cosmo-eps1e-6-pqcdTh-anchorbudget-bind-smatrix-eta2410-big-dip-gated-tighteneps/Theta_hat_band_Q2_GeV2_0to2_zoom.png`
+
+Derived $D^\pi(-Q^2)$ envelope (outer bound; independent A+Theta extremizers):
+- Config:
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/d_band_from_a_theta_hat_config_v1e_a_v118_theta_fullpsd_v1i_eta2410_big_dip_gated_tighteneps_zoom2gev.json`
+- Plot (zoom):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-22-d-band-v1e-from-a-v118-theta-fullpsd-v1i-eta2410-big-dip-gated-tighteneps/D_band_Q2_GeV2_0to2_zoom.png`
+
+Endpoint numbers at $Q^2=2\,\mathrm{GeV}^2$:
+- $\hat\Theta^\pi(-Q^2)\in[-15.43,\ 12.43]$
+- Derived outer-envelope $D^\pi(-Q^2)\in[-0.202,\ 0.0888]$
+
+### 3) Documentation updates
+
+- Evidence note (updated to v1i + audit overlays):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/evidence/2026-02-21-w6-38-eta2410-digitize-and-fullpsd-rerun-v1.md`
+- Draft report updated (W6-38 bullet):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+
+## Verification receipts (gates/hooks; PASS)
+
+- `docs/reviews/bundles/2026-02-21-w6-38-idea-generator-validate-v2.txt`
+- `docs/reviews/bundles/2026-02-21-w6-38-idea-runs-validate-v2.txt`
+- `docs/reviews/bundles/2026-02-21-w6-38-idea-runs-validate-project-v2.txt`
+- `docs/reviews/bundles/2026-02-21-w6-38-failure-library-index-build-v2.txt`
+- `docs/reviews/bundles/2026-02-21-w6-38-failure-library-query-run-v2.txt`
+
+## Reviewer questions (Round-002)
+
+1) Digitization audit: Are the overlay/landmark artifacts sufficient to treat the digitized $\eta(s)$ as a credible physics input at NOT_FOR_CITATION stage?
+2) Cutoff semantics: Is “impose up to $s\le 100\,m_\pi^2$, $\eta=1$ above” acceptable as a first defensible binding, given this is disk-only and not a coupled-channel analysis?
+3) Numerics gate: Is the strict solver-quality gate + tightened-eps retry ladder an acceptable production-quality mitigation on laptop budget, without drifting into solver-driven artifacts?
+4) D-envelope logic: Is the outer-envelope combination rule for $D$ correctly applied and clearly labeled as conservative?
+5) Next tightening priority: what would you do next to get materially tighter GFF bounds *without* outputting phase shifts/amplitudes (e.g. digitize He/Su halfspaces/regions; multi-point Gram/Bochner PSD with internal variables; UV/OPE budget tightening)?
+

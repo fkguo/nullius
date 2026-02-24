@@ -1,0 +1,41 @@
+schema_version: 1
+name: demo-auto-qft-qed-bhabha
+description: >
+  Demo: FeynArts-only (built-in QED model) one-loop, unrenormalized amplitude + diagrams.
+  Process: e+ e- -> e+ e- (Bhabha scattering, QED).
+
+# Compute-only: no LaTeX targets required.
+latex:
+  targets: []
+
+numeric:
+  enable: false
+
+auto_qft:
+  # FeynArts-only mode: skip FeynRules export and use a built-in FeynArts model.
+  # (Available here: ~/Library/Wolfram/Applications/FeynArts/Models/QED.mod + QED.gen)
+  feynarts_model: QED
+  feynarts_generic_model: QED
+
+  # In FeynArts-only mode, use explicit FeynArts fields.
+  # QED.mod defines leptons as F[1,{Generation}] with Generation=1 (electron).
+  process:
+    in_fa:  ["-F[1,{1}]", "F[1,{1}]"]
+    out_fa: ["-F[1,{1}]", "F[1,{1}]"]
+
+  feynarts:
+    loop_order: 1
+    insertion_level: Particles
+    exclude_topologies: [Tadpoles]
+    counterterms: false
+
+  formcalc:
+    # Keep FormCalc disabled for the demo (raw FeynArts amplitude only).
+    enable: false
+    pave_reduce: LoopTools
+
+  export:
+    diagrams: true
+    amplitude_md: true
+    amplitude_tex: false
+    per_diagram: false

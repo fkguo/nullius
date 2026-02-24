@@ -1,0 +1,17 @@
+Phase K robustness summary (dispersion-coupled SOCP: full interior enforcement)
+project: pion-gff-bootstrap-positivity-pilot-2026-02-15
+
+label	slug	grid_n	n_disp	solver	Amin@10	Q2*_contig	Amin@Q2*	min(Amin)	neg_ct
+v14 Im-only	2026-02-16-a-bochner-k0-socp-v14-eta-v4-abs6e-06	120	0	clarabel	0.06652663348	13.89945322	0.009948764909	-0.05993202112	34
+v15b disp n60	2026-02-16-a-bochner-k0-socp-v15b-dispersion-reF-n60	120	60	clarabel	0.07243724982	15.43808446	0.0009133499912	-0.05630220282	33
+v16 disp grid160 full	2026-02-16-a-bochner-k0-socp-v16-dispersion-grid160-enf160-full	160	152	clarabel	0.08043043561	15.43808446	0.007130848721	-0.05223905439	32
+v17 disp grid200 full	2026-02-16-a-bochner-k0-socp-v17-dispersion-grid200-enf200-full	200	192	clarabel	0.08064634508	15.43808446	0.007284756916	-0.05237781964	33
+
+Cross-solver check (v16 Clarabel vs ECOS; Q2 mini-set):
+Q2	Amin_cl	Amin_ec	dAmin	Amax_cl	Amax_ec	dAmax
+10	0.08043043561	0.08121838895	0.000788	0.8326799711	0.8299631136	-0.00272
+15.4381	0.007130848721	0.006960185102	-0.000171	0.7607673984	0.7601939876	-0.000573
+17.147	-0.004163503396	-0.005183124974	-0.00102	0.7402864849	0.7399886022	-0.000298
+
+Solver failures observed:
+- COSMO/SCS feasibility check can hit ITERATION_LIMIT for v16-scale models (tooling limitation; keep Clarabel/ECOS as primary validation pair).

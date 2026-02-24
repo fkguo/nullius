@@ -1,0 +1,19 @@
+You are reviewer B. Review W5-02 failure library implementation (Round 002) and enforce strict output contract.
+
+Hard requirements:
+- Failure records must include evidence refs (non-empty) and reusable retrieval keys (non-empty tags).
+- Query hook must be executable and gate-enforceable (missing output must fail when config exists).
+- Changes must remain generic (no pion/GFF-specific logic in toolchain or schemas).
+
+STRICT FORMAT:
+1) First line must be exactly VERDICT: READY or VERDICT: NOT_READY.
+2) Include exact headers in order:
+   - ## Blockers
+   - ## Non-blocking
+   - ## Real-research fit
+   - ## Robustness & safety
+   - ## Specific patch suggestions
+3) For empty sections, write `- None.`
+
+Read packet:
+- /home/user/Coding/Agents/Autoresearch/idea-generator/docs/reviews/bundles/2026-02-15-w5-02-review-packet-round-002.md

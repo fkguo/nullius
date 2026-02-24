@@ -1,0 +1,80 @@
+
+
+\section{Experimental results}\label{subsec:results}
+
+Next, we present the results for each task, showing that, whereas the unconstrained LLaMA and Vicuna models perform poorly, the grammar-constrained versions perform significantly better.
+We also show input-dependent grammars to be crucial for performance, as they allow the models to adapt to the input and generate more accurate outputs.
+Out of the tested few-shot-prompted models, LLaMA-33B with input-dependent grammars achieves the best performance on all tasks, even rivaling finetuned models on cIE and ED.
+
+\input{tables/ie_main_results.tex}
+
+\subsection{Closed information extraction (cIE)}\label{subsubsec:closed-information-extraction-cie}
+
+Results for cIE are reported in~\Tabref{tab:InformationExtractionResults}.
+Unconstrained LLaMA, even with few-shot demonstrations, performs poorly on cIE.
+This is not surprising, since the cIE task requires generating valid entity and relation names from a knowledge base (Wikidata in our case).
+Although LLMs have been exposed to Wikidata to a certain extent during pretraining, they still struggle with generating accurate entity and relation names contained in the KB.
+This can be seen as a special case of the hallucination problem, where the model generates entities and relations not present in the KB.
+% schema.
+
+\input{tables/ed_main_results.tex}
+
+We see a significant improvement when constraining the generation to only produce valid entities and relations.
+Notably, LLaMA-33B beats Gen\-IE T5-base~\cite{josifoski-etal-2022-genie}, a state-of-the-art autoregressive model specifically trained for the cIE task on supervised data from the REBEL dataset~\cite{huguet-cabot-navigli-2021-rebel-relation}.
+In the table, we refer to GenIE as weakly supervised because it was not trained on the train split of SynthIE-text, but on REBEL.
+% We do not compare against the GenIE model trained on SynthIE-text~\cite{josifoski2023exploiting} because it is not what we aim to beat.
+We observe that the grammar\hyp constrained LLaMA models balance precision \vs\ recall better than GenIE, achieving a higher F1-score.
+While GenIE exhibits higher precision, its recall is lower, implying that it misses many entities and relations.
+This may be because GenIE was optimized for the REBEL dataset and may have memorized the entities and relations in the dataset.
+%
+As domain-specific training data is often scarce \cite{dunn2022structured_UCB}, this result highlights the potential for LLMs to excel on cIE without finetuning.
+%
+
+
+\subsection{Entity disambiguation (ED)}
+
+Results for ED are reported in~\Tabref{tab:EntityDisambiguationResults}.
+Whereas unconstrained LLaMA models perform poorly, GCD (either input-dependent [IDG] or input-independent [IIG]) significantly improves the performance of LLaMA.
+%
+Although there is still a gap with respect to the state-of-the-art model, GENRE \cite{decao2021autoregressive}, grammar-constrained LLaMA-33B performs better than a version of GENRE trained only on the AIDA dataset (without pretraining on Wikipedia).
+Considering that many domain-specific information extraction tasks have limited data available~\cite{dunn2022structured_UCB}, the constrained LLaMA models can thus be a good choice for low-resource settings.
+%
+Among the GCD-powered LLaMA models, we observe that IDG performs better than IIG, highlighting the benefits of using an input\hyp dependent grammar.
+The latter allows the model to leverage an input\hyp specific candidate set, whereas an input\hyp independent grammar can only use the entire knowledge base as the candidate set.
+% The direct comparison between IDG and IIG seems not really fair because the IDG has leveraged the candidate set while the IIG has only used the entire KB as the candidate set.
+% But it is worth noting that the flexibility of the IDG allows it to use the candidate set as part of the grammar, which is not possible for the IIG.
+We believe this flexibility is crucial for GCD to achieve good performance on various tasks.
+
+
+
+\subsection{Constituency parsing (CP)}\label{subsec:constituency-parsing}
+
+\input{tables/cp_main_results}
+
+Results for CP are reported in Table~\ref{tab:ConstituencyParsingResults}.
+In contrast to the previous two tasks, the performance of LLMs---with or without GCD---on constituency parsing is much worse when compared to bespoke methods.
+This is not surprising, as constituency parsing requires syntactic understanding of the input, as opposed to the other two tasks, which only required semantic understanding.
+Through error inspection, we found that, although the LLMs are able to generate seemingly reasonable output, their outputs are often syntactically incorrect.
+(For examples, see \Appref{app_sec:error_examples_CP}.)
+
+While overall, LLaMA models perform poorly on CP, the GCD-powered LLaMA models still significantly outperform the unconstrained LLaMA models.
+Importantly, with an input\hyp dependent grammar, GCD guarantees that the generated output is a \textit{valid} constituency parse tree, which is not the case with an input-independent grammar.
+%
+%Finally, we conclude that the GCD is able to largely improve the performance of LLMs on the constituency parsing task, though the performance is still far from satisfactory as the supervised methods can achieve 95\%+ \textit{F1} score.
+
+In conclusion, GCD substantially improves the performance of LLMs on constituency parsing, but performance still falls short of the F1-scores achieved by supervised methods (95\% and above).
+We do not, however, rule out the possibility that GCD might produce better results once the underlying LLMs become more powerful.
+
+\subsection{Latency}{\label{subsec:latency}}
+
+\input{tables/latency}
+
+Incremental parsing imposes an additional overhead on top of pure vanilla decoding.
+To quantify this overhead, we report the latency of pure decoding and compare it to the added latency due to enforcing grammar constraints
+% While giving a thorough analysis of the latency of GCD is out of the scope of this work, we provide some preliminary results
+in Table~\ref{tab:latency}.
+Note that GCD operates entirely on the CPU, not on the GPU, so GCD latency is measured on a consumer CPU.
+%
+As shown in Table~\ref{tab:latency}, the added latency from GCD is negligible for the ED and CP tasks.
+For cIE, GCD adds a modest additional latency comparable or inferior to the latency of pure decoding, depending on the model used (\cf\ \Appref{app_sec:latency} for more details).
+

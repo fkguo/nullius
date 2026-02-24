@@ -1,0 +1,111 @@
+\begin{table}[H]
+\scriptsize
+\renewcommand\cellalign{lt}
+\setcellgapes{3pt}\makegapedcells
+\caption{Example trajectories for Webshop predicted by \act{} and \model{}. Compared to \act{}, \model{} uses reasoning to find products that satisfy all target attributes.}
+\label{trajectories:webshop}
+\begin{tabular}{l|l} \toprule
+\multicolumn{2}{l}{
+\textbf{Instruction}: \textcolor{blue}{get me a sixteen pack of apple cinnamon freeze dried banana chips, and price lower than 50.00 dollars} 
+}\\
+\multicolumn{1}{c}{\act{}} & \multicolumn{1}{c}{\model{}} \\
+\makecell{    
+\textbf{Action}: \textbf{search}\big[\textcolor{violet}{sixteen pack apple cinnamon freeze dried banana} \\\textcolor{violet}{chips}\big] \\
+\textbf{Observation:} \\
+\textcolor{red}{\big[ Back to Search \big]} \\
+\textcolor{olive} {Page 1 (Total results: 50)} \\
+\textcolor{red}{\big[Next\big]} \\
+\\
+\textcolor{purple}{\big[B0061IVFZE\big]} \\
+\textcolor{teal}{Brothers-ALL-Natural Fruit Crisps, Strawberry Banana, 0.42 -}\\
+\textcolor{teal}{  Ounce (Pack of 100)}\\
+\textcolor{teal}{\$85.0}\\
+\textcolor{purple}{\big[B096H2P6G2\big]} \\
+\textcolor{teal}{Moon Fruit Freeze Dried Fruit Snacks. Fruit Snacks for Kids -}\\ 
+\textcolor{teal}{(Variety Pack)}\\
+\textcolor{teal}{\$18.99 }\\
+\textcolor{purple}{\big[B092JLLYK6\big]} \\
+\textcolor{teal}{Nature’s Turn Freeze-Dried Fruit Snacks - Banana Crisps - Perfect}\\\textcolor{teal}{For School Lunches or an On-The-Go Snack - No Sugar Added,} \\ \textcolor{teal}{Non GMO, Gluten Free, Nothing Artificial (0.53oz) 6-Pack}\\
+\textcolor{teal}{\$12.99}\\
+\\
+\textbf{Action}: \textbf{click}\textcolor{purple}{\big[B0061IVFZE\big]}\\
+\textbf{Observation}:\\
+\textcolor{red}{\big[Back to Search\big]} \\
+\textcolor{red}{\big[Prev\big]} \\
+\textcolor{teal}{
+flavor name [asian pear][banana][fuji apple \& cinnamon][strawberry}\\ \textcolor{teal}{banana]
+Brothers-ALL-Natural Fruit Crisps, Strawberry Banana,}\\ \textcolor{teal}{0.42 Ounce (Pack of 100)}\\ 
+\textcolor{teal}{Price: \$85.0}\\
+\textcolor{teal}{Rating: N.A.}\\
+\textcolor{teal}{[Description]}\\
+\textcolor{teal}{[Features]}\\
+\textcolor{teal}{[Reviews]}\\
+\textcolor{red}{[Buy Now]}\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{red}{Buy Now}]\\
+\\
+\\
+}
+
+&
+
+\makecell{
+\textbf{Action}: \textbf{search}\big[\textcolor{violet}{sixteen pack apple cinnamon freeze dried banana} \\\textcolor{violet}{chips}\big] \\
+\textbf{Observation:} \\
+\textcolor{red}{\big[ Back to Search \big]} \\
+\textcolor{olive} {Page 1 (Total results: 50)} \\
+\textcolor{red}{\big[Next\big]} \\
+\\
+\textcolor{purple}{\big[B0061IVFZE\big]} \\
+\textcolor{teal}{Brothers-ALL-Natural Fruit Crisps, Strawberry Banana, 0.42 -}\\
+\textcolor{teal}{  Ounce (Pack of 100)}\\
+\textcolor{teal}{\$85.0}\\
+\textcolor{purple}{\big[B096H2P6G2\big]} \\
+\textcolor{teal}{Moon Fruit Freeze Dried Fruit Snacks. Fruit Snacks for Kids -}\\ 
+\textcolor{teal}{(Variety Pack)}\\
+\textcolor{teal}{\$18.99 }\\
+\textcolor{purple}{\big[B092JLLYK6\big]} \\
+\textcolor{teal}{Nature’s Turn Freeze-Dried Fruit Snacks - Banana Crisps - Perfect}\\\textcolor{teal}{For School Lunches or an On-The-Go Snack - No Sugar Added,} \\ \textcolor{teal}{Non GMO, Gluten Free, Nothing Artificial (0.53oz) 6-Pack}\\
+\textcolor{teal}{\$12.99}\\
+\\
+\textbf{Action}: \textbf{think}[\textcolor{olive}{B0061IVFZE is strawberry banana, not apple cinnamon.}\\ \textcolor{olive}{B096H2P6G2 is fruit snacks, not freeze dried banana chips.}\\ \textcolor{olive}{B092JLLYK6 is banana crisps, not apple cinnamon. I can check}\\ \textcolor{olive}{B092JLLYK6 first.}\\
+\textbf{Observation}: OK.\\
+\\
+\textbf{Action}: \textbf{click}\textcolor{purple}{\big[B092JLLYK6\big]}\\
+\textbf{Observation}:\\
+\textcolor{red}{\big[Back to Search\big]} \\
+\textcolor{red}{\big[Prev\big]} \\
+\textcolor{teal}{
+flavor name [apple][apple cinnamon][banana][cantaloupe][peach][pear]}\\ \textcolor{teal}{[strawberry][strawberry banana][sampler variety pack][mega variety}\\ \textcolor{teal}{pack][orchard variety pack]
+}\\
+\textcolor{teal}{
+size [0.53 ounce (pack of 6)][0.53 ounce (pack of 8)][0.53 ounce (pack}\\  \textcolor{teal}{of 16)]
+}\\
+\textcolor{teal}{
+Nature’s Turn Freeze-Dried Fruit Snacks - Banana Crisps - Perfect}\\ \textcolor{teal}{For School Lunches or an On-The-Go Snack - No Sugar Added, Non}\\ \textcolor{teal}{ GMO, Gluten Free, Nothing Artificial (0.53oz) 6-Pack 
+}\\
+\textcolor{teal}{Price: \$12.99}\\
+\textcolor{teal}{Rating: N.A.}\\
+\textcolor{teal}{[Description]}\\
+\textcolor{teal}{[Features]}\\
+\textcolor{teal}{[Reviews]}\\
+\textcolor{red}{[Buy Now]}\\
+\\
+\textbf{Action}: \textbf{think}[\textcolor{olive}{For sixteen pack of apple cinnamon freeze dried banana}\\ \textcolor{olive}{chips, the item has options 'apple cinnamon' and '0.53 ounce (pack of}\\ \textcolor{olive}{16)' and seems good to buy.}]\\
+\textbf{Observation}: OK.\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{teal}{apple cinnamon}]\\
+\textbf{Observation}: You have clicked apple cinnamon.\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{teal}{0.53 ounce (pack of 16)}]\\
+\textbf{Observation}: You have clicked 0.53 ounce (pack of 16).\\
+\\
+\textbf{Action}: \textbf{click}[\textcolor{red}{Buy Now}]\\
+} \\ \\ \hline
+
+\textbf{Score}: 0.125 & \textbf{Score}: 1.0\\
+\bottomrule
+
+\end{tabular}
+
+\end{table}

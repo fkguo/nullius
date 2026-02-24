@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sources": {
+    "source_status_artifact": "writing_evidence_source_status.json",
+    "attempted": 1,
+    "succeeded": 1,
+    "failed": 0,
+    "fallback_count": 0,
+    "success_rate": "100.0%"
+  },
+  "dataset": {
+    "meta_artifact": null,
+    "has_more": null,
+    "max_results": null
+  },
+  "evidence": {
+    "latex_total_items": 1,
+    "pdf_included": false,
+    "max_evidence_items_hit": false
+  },
+  "citations": {
+    "verification_artifact": "rendered_latex_verification.json",
+    "pass": true,
+    "total_citations": 0,
+    "orphan_count": 0,
+    "unauthorized_count": 0,
+    "missing_count": 0,
+    "issues_total": 0
+  },
+  "human_summary": "Dataset unknown; Evidence 1/1 sources (100.0%); Verifier pass."
+}

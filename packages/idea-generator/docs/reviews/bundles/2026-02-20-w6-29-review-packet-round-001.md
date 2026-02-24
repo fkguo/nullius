@@ -1,0 +1,98 @@
+# W6-29 Review Packet (Round-001) — add pQCD high-$Q^2$ anchor $\rightarrow$ tighten binding band
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## What is new in W6-29 (vs W6-28)?
+
+W6-28 established **derived UV/ASR budget binding** (tol$_{\rm ASR}$ bound to `uv_asr_budget_v1.json`) and reran the $Q^2\in[0,2]\,\mathrm{GeV}^2$ band, finding it much wider than the prior “tol$_{\rm ASR}=62$ tightened stack”.
+
+W6-29 adds one additional, explicitly-auditable **UV anchor constraint**:
+
+- a **linear value-band constraint** on the space-like form factor $A^\pi(-Q^2)$ at a high momentum point ($Q^2=10\,\mathrm{GeV}^2$),
+  using the LO pQCD asymptotic formula quoted in arXiv:2412.00848 (Eq. `Qem`) as the target, with a conservative $\pm 50\%$ tolerance (proxy for DA/matching/higher-order uncertainty).
+
+Goal: tighten the low-$Q^2$ band via an additional physics/UV input, without changing solver choice/tolerances or reintroducing coupled-channel structure.
+
+Scope remains pion-only; no coupled-channel.
+
+## New configs + new runs
+
+### (A) Clarabel multi-$Q^2$ run (binding + pQCD anchor)
+
+Config:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v4cco_dispersion_grid200_enf200_multiq0to2gev_audit11_clarabel_asrbinding_uvbudget_derived_impliedf1_pqcdA10gev_rel0p5.json`
+
+Key addition (new constraint):
+- `constraints.low_energy_value_bands` contains one entry anchoring $A^\pi(-Q^2)$ at $Q^2=10\,\mathrm{GeV}^2$ to the LO pQCD target with $\pm 50\%$ tolerance.
+
+Run:
+- Clarabel v116: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-a-bochner-k0-socp-v116-dispersion-grid200-enf200-multiq0to2gev-audit11-clarabel-asrbinding-uvbudget-derived-impliedf1-pqcdA10gev-rel0p5/results.json`
+  - Plot (includes the anchor point; $Q^2\le 2\,\mathrm{GeV}^2$ is the left subset):  
+    `.../A_band_Q2_GeV2_0to10.png`
+
+Selected endpoint numbers at $Q^2=2\,\mathrm{GeV}^2$ ($Q^2/m_\pi^2\simeq 102.670538$):
+
+| solver | $A_{\min}$ | $A_{\max}$ | status |
+|---|---:|---:|---|
+| Clarabel (v116) | -0.0233811454 | 0.2938175354 | OPTIMAL/OPTIMAL |
+
+### Before/after tightening check (W6-28 vs W6-29)
+
+Below is a like-for-like comparison at matched $Q^2$ points (Clarabel vs Clarabel), using:
+- W6-28 binding baseline: v114 (no UV anchor)
+- W6-29 binding + UV anchor: v116 (adds $Q^2=10\,\mathrm{GeV}^2$ value band)
+
+| $Q^2$ ($\mathrm{GeV}^2$) | $Q^2/m_\pi^2$ | W6-28 v114 $A_{\min}$ | $A_{\max}$ | width | W6-29 v116 $A_{\min}$ | $A_{\max}$ | width | $\Delta$width |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0.5 | 25.668 | -0.037491 | 0.691510 | 0.729002 | -0.031289 | 0.661055 | 0.692344 | -0.036657 |
+| 1.0 | 51.335 | -0.050522 | 0.518348 | 0.568870 | -0.045609 | 0.479374 | 0.524983 | -0.043887 |
+| 2.0 | 102.671 | -0.064720 | 0.334147 | 0.398867 | -0.023381 | 0.293818 | 0.317199 | -0.081668 |
+
+So the UV anchor tightens the band at all three representative points, with the largest tightening at $Q^2=2\,\mathrm{GeV}^2$ in this snapshot.
+
+Anchor enforcement check at $Q^2=10\,\mathrm{GeV}^2$ ($Q^2/m_\pi^2\simeq 513.352691$):
+- $A^\pi(-Q^2)\in[0.0172257,\ 0.0516770]$ (saturates the imposed target$\pm$tolerance window).
+
+### (B) ECOS endpoint cross-check @ $Q^2=2\,\mathrm{GeV}^2$
+
+Config:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v4ccp_dispersion_grid200_enf200_q2_2gev_audit11_ecos_asrbinding_uvbudget_derived_impliedf1_pqcdA10gev_rel0p5.json`
+
+Run:
+- ECOS v117: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-a-bochner-k0-socp-v117-dispersion-grid200-enf200-q2-2gev-audit11-ecos-asrbinding-uvbudget-derived-impliedf1-pqcdA10gev-rel0p5/results.json`
+
+ECOS (v117) at $Q^2=2\,\mathrm{GeV}^2$:
+- $A^\pi(-Q^2)\in[-0.0172004554,\ 0.2873778644]$
+
+Cross-solver acceptance check at $Q^2=2\,\mathrm{GeV}^2$ (use Clarabel v116 bandwidth as reference):
+- bandwidth $\approx 0.317199$
+- $|A_{\min}^{\rm Clarabel}-A_{\min}^{\rm ECOS}| \approx 0.006181$ (≈1.95% of bandwidth)
+- $|A_{\max}^{\rm Clarabel}-A_{\max}^{\rm ECOS}| \approx 0.006440$ (≈2.03% of bandwidth)
+
+This is consistent with a “cross-check tolerance” criterion like $\le 5\%$ of bandwidth.
+
+## Evidence note + manuscript update
+
+Evidence note (repro commands + comparison to W6-28):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/evidence/2026-02-20-w6-29-pqcd-anchor-a10gev-tighten-band-v1.md`
+
+Manuscript updated (adds W6-29 bullet in limitations list):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+
+Opportunity pool updated (machine-checkable idea capture):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/opportunities/bootstrap_opportunity_pool_v1.jsonl`
+
+## Gates executed (PASS)
+
+- `docs/reviews/bundles/2026-02-20-w6-29-idea-generator-validate-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-29-idea-runs-validate-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-29-idea-runs-validate-project-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-29-render-dashboards-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-29-failure-library-index-build-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-29-failure-library-query-run-v1.txt`
+
+## Questions for reviewers
+
+1) Is adding a **pQCD high-$Q^2$ anchor** (as a linear value band) a reasonable next step toward “He/Su-like tightening”, given we are not bootstrapping $\pi\pi$ amplitudes directly?
+2) Is the current $\pm 50\%$ tolerance presented honestly as a **proxy**, and is the next-step requirement (derive an auditable pQCD/OPE error budget for the anchor and bind it) sufficiently explicit?
+3) Any red flags on numerical conditioning (large $Q^2/m_\pi^2$ anchor) or on how the constraint is encoded (`constraints.low_energy_value_bands`)?

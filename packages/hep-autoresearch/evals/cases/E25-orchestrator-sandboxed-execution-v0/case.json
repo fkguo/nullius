@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "case_id": "E25-orchestrator-sandboxed-execution-v0",
+  "workflow": "custom",
+  "description": "T40 regression: sandboxed execution v0 for shell adapters. Sandbox prevents writes outside allowlisted dirs (repo read-only; artifacts writable) and records sandbox settings in run-card/provenance.",
+  "inputs": {
+    "tag": "M45-t40-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "specs/run_card.schema.json",
+      "docs/ADAPTERS.zh.md",
+      "scripts/run_orchestrator_regression.py",
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "src/hep_autoresearch/toolkit/adapters/shell.py",
+      "src/hep_autoresearch/toolkit/orchestrator_regression.py",
+      "artifacts/runs/M45-t40-r1/orchestrator_regression/manifest.json",
+      "artifacts/runs/M45-t40-r1/orchestrator_regression/summary.json",
+      "artifacts/runs/M45-t40-r1/orchestrator_regression/analysis.json",
+      "artifacts/runs/M45-t40-r1/orchestrator_regression/.autopilot/state.json",
+      "artifacts/runs/M45-t40-r1/orchestrator_regression/.autopilot/ledger.jsonl",
+      "artifacts/runs/M45-t40-r1/orchestrator_regression/.autopilot/plan.md",
+      "artifacts/runs/M45-t40-r1/approvals/A3-0001/packet.md",
+      "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/manifest.json",
+      "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/summary.json",
+      "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/analysis.json",
+      "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/run_card.json",
+      "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/report.md",
+      "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/logs/stdout.txt",
+      "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/logs/stderr.txt",
+      "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/sandbox_ok.txt"
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M45-t40-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/sandbox/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M45-t40-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/sandbox/forbidden_exists_after_run",
+        "type": "boolean",
+        "equals": false
+      },
+      {
+        "path": "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/analysis.json",
+        "pointer": "#/results/status",
+        "type": "string",
+        "equals": "completed"
+      },
+      {
+        "path": "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/analysis.json",
+        "pointer": "#/results/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/manifest.json",
+        "pointer": "#/provenance/sandbox/enabled",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/run_card.json",
+        "pointer": "#/backend/sandbox/enabled",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/run_card.json",
+        "pointer": "#/backend/sandbox/provider",
+        "type": "string",
+        "equals": "local_copy"
+      },
+      {
+        "path": "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/run_card.json",
+        "pointer": "#/backend/sandbox/network",
+        "type": "string",
+        "equals": "disabled"
+      },
+      {
+        "path": "artifacts/runs/M45-t40-r1/adapter_shell_sandbox/run_card.json",
+        "pointer": "#/backend/sandbox/repo_read_only",
+        "type": "boolean",
+        "equals": true
+      }
+    ]
+  },
+  "notes": "Run first: python3 scripts/run_orchestrator_regression.py --tag M45-t40-r1 --scenarios sandbox (offline; uses local_copy sandbox by default; best-effort, not a security boundary). Then: python3 scripts/run_evals.py --case-id E25-orchestrator-sandboxed-execution-v0 --tag M45-t40-eval-r1."
+}

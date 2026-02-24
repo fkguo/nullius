@@ -1,0 +1,43 @@
+{
+  "name": "@autoresearch/hep-mcp",
+  "version": "0.3.0",
+  "description": "INSPIRE-HEP MCP server for high energy physics literature research",
+  "author": "Feng-Kun Guo",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "hep-research-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:eval": "vitest run tests/eval",
+    "test:eval:update": "EVAL_UPDATE_SNAPSHOTS=1 vitest run tests/eval",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@autoresearch/pdg-mcp": "workspace:*",
+    "@autoresearch/shared": "workspace:*",
+    "@autoresearch/zotero-mcp": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@napi-rs/canvas": "^0.1.80",
+    "fflate": "^0.8.2",
+    "latex-utensils": "^6.2.0",
+    "p-limit": "^7.2.0",
+    "pdfjs-dist": "^5.4.296",
+    "tar": "^7.5.2",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "pdf-lib": "^1.17.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.16"
+  }
+}

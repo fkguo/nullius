@@ -1,0 +1,10 @@
+W6-19 diagnostic: slope(TMD) constraint feasibility vs tolerance (ECOS; Q*=15.438084455604 m_pi^2)
+date_utc: 2026-02-18
+
+- tol=0.0003761207943301422 (m_f2 band): feasibility=INFEASIBLE; slope_eq_abs=0.0033830121761889084; slope_abs_tol=0.0003761207943301422; I_slope_tail=-9.7556860354779e-05; A_min=None; A_max=None; raw_status=Found certificate of primal infeasibility
+- tol=0.0003761207943301422 (m_f2 band; moml2): feasibility=INFEASIBLE; slope_eq_abs=0.0032424180985185305; slope_abs_tol=0.0003761207943301422; I_slope_tail=-9.7556860354779e-05; A_min=None; A_max=None; raw_status=Found certificate of primal infeasibility
+- tol=0.01: feasibility=INFEASIBLE; slope_eq_abs=0.012721031503301783; slope_abs_tol=0.01; I_slope_tail=-9.7556860354779e-05; A_min=None; A_max=None; raw_status=Found certificate of primal infeasibility
+- tol=0.06: feasibility=OPTIMAL; slope_eq_abs=0.05999909711284609; slope_abs_tol=0.06; I_slope_tail=-9.7556860354779e-05; A_min=0.660765550110458; A_max=0.7529102073641456; raw_status=Problem solved to optimality
+- tol=0.12: feasibility=OPTIMAL; slope_eq_abs=0.1199985121140931; slope_abs_tol=0.12; I_slope_tail=-9.7556860354779e-05; A_min=0.533223623840675; A_max=0.7561397615057373; raw_status=Problem solved to optimality
+- tol=0.24: feasibility=OPTIMAL; slope_eq_abs=0.2399944408852432; slope_abs_tol=0.24; I_slope_tail=-9.7556860354779e-05; A_min=0.33735365978102255; A_max=0.7560587510028439; raw_status=Problem solved to optimality
+- tol=0.36: feasibility=OPTIMAL; slope_eq_abs=0.3599966013025512; slope_abs_tol=0.36; I_slope_tail=-9.7556860354779e-05; A_min=0.20419475691906028; A_max=0.7546973104501784; raw_status=Problem solved to optimality

@@ -1,0 +1,20 @@
+\begin{table}[t]
+\scriptsize
+\begin{minipage}{1.0\linewidth}
+    \centering
+\begin{tabular}{l|clll}
+\toprule
+    & Type & Definition & \model & \reason \\
+\midrule
+\multirow{2}{*}{Success} & True positive & Correct reasoning trace and facts & 94\% & 86\% \\ & False positive & Hallucinated reasoning trace or facts & 6\% & 14\%\\
+    \hline
+    \multirow{4}{*}{Failure} & Reasoning error & Wrong reasoning trace (including failing to recover from repetitive steps) & 47\% & 16\% \\ & Search result error & Search return empty or does not contain useful information & 23\% & - \\ & Hallucination & Hallucinated reasoning trace or facts & 0\% & 56\% \\ & Label ambiguity & Right prediction but did not match the label precisely & 29\% & 28\%\\
+\bottomrule
+\end{tabular}
+\caption{
+Types of success and failure modes of \model{} and \reason{} on HotpotQA, as well as their percentages in randomly selected examples studied by human. %
+}
+\label{table:human_study_categories}
+\end{minipage}%
+\vspace{-10pt}
+\end{table}

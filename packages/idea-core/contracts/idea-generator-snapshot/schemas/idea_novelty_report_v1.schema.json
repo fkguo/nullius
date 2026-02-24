@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_novelty_report_v1.schema.json",
+  "title": "IdeaNoveltyReport v1",
+  "description": "SSOT artifact: novelty pipeline outputs (closest priors + overlap metrics + folklore risk).",
+  "$comment": "Stub schema (v0.2): scoring ranges and retrieval signals may evolve; keep stable identifiers and URIs.",
+  "type": "object",
+  "required": ["campaign_id", "generated_at", "entries"],
+  "properties": {
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["node_id", "folklore_risk_score", "closest_prior_uris", "verdict"],
+        "properties": {
+          "node_id": { "type": "string", "format": "uuid" },
+          "novelty_score": { "type": "number", "minimum": 0 },
+          "folklore_risk_score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "closest_prior_uris": { "type": "array", "minItems": 1, "items": { "type": "string", "format": "uri" } },
+          "similarity_metrics": { "type": "object", "additionalProperties": { "type": "number" } },
+          "verdict": { "enum": ["pass", "needs_review", "fail"] },
+          "notes": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "market-package.schema.json",
+  "title": "MarketPackage v1",
+  "type": "object",
+  "required": [
+    "package_id",
+    "package_type",
+    "repo",
+    "channel",
+    "version",
+    "summary",
+    "platforms"
+  ],
+  "properties": {
+    "package_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "package_type": { "enum": ["skill-pack", "tool-pack", "engine-pack", "workflow-pack", "contract-pack", "skill-pack-index"] },
+    "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "channel": { "enum": ["stable", "beta", "dev"] },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(v?[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.]+)?|schemas-v[0-9]+\\.[0-9]+\\.[0-9]+)$"
+    },
+    "summary": { "type": "string" },
+    "openrpc": { "type": "string", "minLength": 1 },
+    "source_path": { "type": "string", "minLength": 1 },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "enum": ["claude_code", "codex", "opencode"] }
+    },
+    "install": {
+      "type": "object",
+      "properties": {
+        "claude_code": { "type": "string" },
+        "codex": { "type": "string" },
+        "opencode": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "depends_on": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^>=?[0-9]+\\.[0-9]+\\.[0-9]+(?:\\s+<[=]?[0-9]+\\.[0-9]+\\.[0-9]+)?$"
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["repo", "ref", "subpath", "include"],
+      "properties": {
+        "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[A-Za-z0-9._/-]+$"
+        },
+        "subpath": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[A-Za-z0-9._/-]+$"
+        },
+        "include": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)(?!.*\\\\).+$"
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)(?!.*\\\\).+$"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "package_type": { "const": "skill-pack" } },
+        "required": ["package_type"]
+      },
+      "then": {
+        "required": ["source_path", "source"],
+        "properties": {
+          "source": {
+            "type": "object",
+            "properties": {
+              "include": {
+                "type": "array",
+                "contains": { "const": "SKILL.md" }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

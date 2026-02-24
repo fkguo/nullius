@@ -1,0 +1,132 @@
+
+\documentclass{article} %
+\usepackage{iclr2023_conference,times}
+
+\input{math_commands.tex}
+
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage[utf8]{inputenc} %
+\usepackage[T1]{fontenc}    %
+\usepackage{hyperref}       %
+\usepackage{url}            %
+\usepackage{booktabs}       %
+\usepackage{amsfonts}       %
+\usepackage{nicefrac}       %
+\usepackage{microtype}      %
+\usepackage{xcolor}         %
+\usepackage{colortbl}
+\usepackage{soul}
+\usepackage{booktabs}       %
+\usepackage{amsfonts}       %
+\usepackage{nicefrac}       %
+\usepackage{microtype}      %
+\usepackage{xcolor}         %
+\usepackage{paralist}       %
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{diagbox}
+\usepackage{bbding}
+\usepackage{booktabs}
+\usepackage{pifont}
+\usepackage{wrapfig}
+\usepackage{lipsum}
+\usepackage{capt-of}    %
+\usepackage{tabularx}   %
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{bbm}
+\usepackage{pdfpages}
+\usepackage{array, makecell} %
+\usepackage{xcolor}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{authblk}
+\renewcommand\Authands{, } %
+
+
+\title{\model: Synergizing Reasoning and Acting in Language Models}
+
+
+
+
+\author[*,1]{{Shunyu Yao}\thanks{Work during Google internship. Projet page with code: \url{https://react-lm.github.io/}.
+}}
+\author[2]{{Jeffrey Zhao}}
+\author[2]{{Dian Yu}}
+\author[2]{{Nan Du}}
+\author[2]{{Izhak Shafran}}
+\author[1]{{Karthik Narasimhan}}
+\author[2]{{Yuan Cao}}
+\affil[1]{Department of Computer Science, Princeton University}
+\affil[2]{Google Research, Brain team}
+\affil[1]{\texttt{\{shunyuy,karthikn\}@princeton.edu}}
+\affil[2]{\texttt {\{jeffreyzhao,dianyu,dunan,izhak,yuancao\}@google.com}}
+
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+\newcommand{\model}{\texttt{ReAct}}
+\newcommand{\reason}{\texttt{CoT}}
+\newcommand{\reasons}{\texttt{CoT-SC}}
+\newcommand{\act}{\texttt{Act}}
+\newcommand{\modelim}{\texttt{ReAct-IM}}
+\newcommand{\palm}{\texttt{Standard}}
+
+
+\newcommand{\myparagraph}[1]{\paragraph{#1}}
+
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}} 
+\newcommand{\sy}[1]{\textcolor{blue}{[Shunyu: #1]}}
+\newcommand{\yc}[1]{\textcolor{teal}{[Yuan: #1]}}
+\newcommand{\nd}[1]{\textcolor{violet}{[Nan: #1]}}
+\newcommand{\kn}[1]{\textcolor{purple}{[Karthik: #1]}}
+\newcommand{\dy}[1]{\textcolor{brown}{[Dian: #1]}}
+\newcommand{\jz}[1]{\textcolor{orange}{[Jeff: #1]}}
+
+\iclrfinalcopy %
+\begin{document}
+
+
+\maketitle
+
+\input{iclr2023/text/abstract}
+\input{iclr2023/text/intro}
+\input{iclr2023/text/method}
+\input{iclr2023/text/experiments_language}
+\input{iclr2023/text/experiments_rl}
+\input{iclr2023/text/related}
+\input{iclr2023/text/discussion}
+
+
+\subsubsection*{Acknowledgments}
+We thank the support and feedback of many people from Google Brain team and Princeton NLP Group.
+This work was supported in part by the National Science Foundation under Grant No. 2107048. Any opinions, findings, and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the National Science Foundation.
+
+{
+\subsubsection*{Reproducibility Statement}
+Our main experiments are done on PaLM~\citep{chowdhery2022palm}, which is not an openly accessible model yet. To increase reproducibility, we have included all used prompts in Appendix~\ref{sec:prompts}, additional experiments using GPT-3~\citep{brown2020language} in Appendix~\ref{sec:gpt3}, and associated GPT-3 \model{} prompting code at \url{https://anonymous.4open.science/r/ReAct-2268/}. 
+\subsubsection*{Ethics Statement}
+\model{} prompts large language models to generate more human interpretable, diagnosable, and controllable task-solving trajectories than previous methods. 
+However, hooking up a large language model with an action space to interact with external environments (e.g.\,the web, physical environments) has potential dangers, e.g.\, looking up inappropriate or private information, or taking harmful actions in an environment. 
+Our experiments minimize such risks by limiting the interactions to specific websites (Wikipedia or WebShop) that are free of private information, without any dangerous actions in the action space design
+(i.e.\,models cannot really buy products on WebShop the research benchmark, or edit Wikipedia).
+We believe researchers should be aware of such risks before designing more extensive experiments in the future.
+}
+
+
+
+
+\bibliography{iclr2023_conference}
+\bibliographystyle{iclr2023_conference}
+
+\newpage
+
+\appendix
+\input{iclr2023/text/appendix}
+
+\end{document}

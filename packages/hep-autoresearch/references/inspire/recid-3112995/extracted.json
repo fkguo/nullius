@@ -1,0 +1,18 @@
+{
+  "arxiv": {
+    "id": "2601.21015",
+    "primary_class": "hep-ph"
+  },
+  "authors_short": "Plehn, Schiller, Schmal",
+  "citekey": "Plehn:2026gxv",
+  "inspire_recid": "3112995",
+  "links": {
+    "arxiv": "https://arxiv.org/abs/2601.21015",
+    "inspire": "https://inspirehep.net/literature/3112995",
+    "inspire_api": "https://inspirehep.net/api/literature/3112995"
+  },
+  "publication": "arXiv:2601.21015 [hep-ph]",
+  "refkey": "recid-3112995-madagants",
+  "title": "MadAgents",
+  "year": "2026"
+}

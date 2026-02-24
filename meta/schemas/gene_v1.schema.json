@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/gene_v1.schema.json",
+  "title": "Gene V1",
+  "description": "Reusable repair/optimization/innovation strategy template. Ported from Evolver GEP Gene model (MIT, AutoGame Limited).",
+  "type": "object",
+  "required": ["gene_id", "name", "signals_match", "target_scope", "mutation_type", "validation", "origin", "created_at"],
+  "properties": {
+    "gene_id": {
+      "type": "string",
+      "pattern": "^gene_(auto_|gen_|manual_)?[0-9a-f-]+$",
+      "description": "Unique gene identifier"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Human-readable gene name"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Detailed description of what this gene does"
+    },
+    "signals_match": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Signal patterns this gene matches. Supports exact, prefix (*), suffix (*), and contains (*...*) matching."
+    },
+    "target_scope": {
+      "type": "string",
+      "description": "File/module scope this gene targets (e.g., '*.ts', 'packages/shared/**')"
+    },
+    "mutation_type": {
+      "type": "string",
+      "enum": ["repair", "optimize", "innovate"],
+      "description": "Mutation type: repair (fix errors), optimize (improve quality), innovate (architectural change)"
+    },
+    "validation": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Validation commands to run after applying gene. Only node/npm/npx allowed. At least one command required."
+    },
+    "origin": {
+      "type": "string",
+      "enum": ["manual", "auto_gene", "capsule_generalization", "external"],
+      "description": "How this gene was created"
+    },
+    "max_files": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10,
+      "description": "Maximum files this gene is allowed to modify"
+    },
+    "constraint_policy": {
+      "$ref": "#/$defs/ConstraintPolicy"
+    },
+    "epigenetic_marks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EpigeneticMark" },
+      "maxItems": 10,
+      "default": [],
+      "description": "Environment-specific expression modifiers"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "description": "Current confidence score (Laplace-smoothed success rate)"
+    },
+    "total_uses": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "success_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "last_used": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "node_id": {
+      "type": ["string", "null"],
+      "pattern": "^mgn_[0-9a-f-]+$",
+      "description": "Corresponding Memory Graph node ID (EVO-20)"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ConstraintPolicy": {
+      "type": "object",
+      "properties": {
+        "max_files": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10
+        },
+        "include_prefixes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["packages/", "src/"]
+        },
+        "exclude_prefixes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["node_modules/", ".git/", "dist/"]
+        },
+        "include_extensions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [".ts", ".js", ".py", ".json"]
+        },
+        "forbidden_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths that must not be modified"
+        },
+        "critical_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths requiring elevated review"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EpigeneticMark": {
+      "type": "object",
+      "required": ["env_key", "modifier", "ttl_days", "created_at"],
+      "properties": {
+        "env_key": {
+          "type": "string",
+          "description": "Environment context (platform_arch_nodeVersion)"
+        },
+        "modifier": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1,
+          "description": "+0.05 on success, -0.1 on failure"
+        },
+        "ttl_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 90
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

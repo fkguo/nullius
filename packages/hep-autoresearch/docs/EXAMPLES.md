@@ -1,0 +1,79 @@
+# Examples / project plugins
+
+Chinese version: [docs/EXAMPLES.zh.md](EXAMPLES.zh.md).
+
+This repo intentionally keeps the platform **domain-agnostic**. Any physics/domain logic should live in a **project plugin** (a self-contained directory), usually under [examples/](../examples/).
+
+W_compute runs a project plugin by executing its declared `run_card v2` phases.
+
+## Recommended layout
+
+Minimal structure:
+
+```
+examples/<project_id>/
+  project.json
+  run_cards/
+    <card>.json
+  scripts/
+    <phase_script>.py   # or .sh
+```
+
+Optional structure (common in real projects):
+
+```
+examples/<project_id>/
+  project.json
+  run_cards/
+  scripts/
+  data/                 # optional: small public fixtures
+  results/              # optional: checked-in goldens (keep small)
+  notes/                # optional: project-specific notes
+```
+
+## project.json
+
+`project.json` is a lightweight descriptor used for discovery and guardrails (project id, title, run-card registry, etc.).
+
+Reference example:
+- [examples/schrodinger_ho/project.json](../examples/schrodinger_ho/project.json)
+
+## Writing a run_card v2
+
+Use `run_card v2` to declare:
+- typed parameters
+- phases (DAG via `depends_on`)
+- backend (usually shell commands calling your scripts)
+- inputs/outputs, plus optional acceptance/headline extraction
+
+Start from:
+- schema: [specs/run_card_v2.schema.json](../specs/run_card_v2.schema.json)
+- workflow overview: [workflows/W_compute.md](../workflows/W_compute.md)
+
+Validate before running:
+
+```bash
+python3 scripts/orchestrator.py run-card validate \
+  --run-card examples/<project_id>/run_cards/<card>.json
+```
+
+## Running a plugin with W_compute
+
+```bash
+python3 scripts/orchestrator.py run \
+  --run-id M0-my-plugin-r1 \
+  --workflow-id W_compute \
+  --run-card examples/<project_id>/run_cards/<card>.json \
+  --trust-project
+```
+
+Artifacts land under:
+- `artifacts/runs/<RUN_ID>/w_compute/` (see [docs/ARTIFACT_CONTRACT.md](ARTIFACT_CONTRACT.md))
+
+## Best practices
+
+- Deterministic scripts: prefer fixed seeds, explicit tolerances, and stable output formats (JSON).
+- Strict I/O: write outputs only to declared output paths; avoid hidden side effects.
+- Keep domain code out of `src/`: platform core should not depend on project plugins.
+- Evidence-first: write machine-readable `analysis.json` headline numbers to support downstream evals/writing.
+

@@ -1,0 +1,60 @@
+\section{\model{}: Synergizing \texttt{Re}asoning + \texttt{Act}ing}
+\label{sec:react}
+
+
+
+
+
+
+
+
+Consider a general setup of an agent interacting with an environment for task solving. At time step $t$, an agent receives an observation $o_t \in \mathcal{O}$ from the environment and takes an action $a_t \in \mathcal{A}$ following some policy $\pi(a_t | c_t)$, where $c_t = (o_1, a_1, \cdots, o_{t-1}, a_{t-1}, o_t)$ is the \textit{context} to the agent. Learning a policy is challenging when the mapping $c_t \mapsto a_t$ is highly implicit and requires extensive computation. 
+For example, the agent shown in Figure~\ref{fig:teaser}(1c) is unable to generate the correct final action (Act 4) to finish the QA task as it requires complex reasoning over the trajectory context (Question, Act 1-3, Obs 1-3).
+Similarly, the agent shown in Figure~\ref{fig:teaser}(2a) fails to comprehend from the context that sinkbasin 1 does not contain peppershaker 1, thus keep producing hallucinating actions.
+
+
+The idea of \model{} is simple: we augment the agent's action space to $\mathcal{\hat{A}} = \mathcal{A} \cup \mathcal{L}$, where $\mathcal{L}$ is the space of language. An action $\hat{a}_t \in \mathcal{L}$ in the language space, which we will refer to as a \textit{thought} or a \textit{reasoning trace}, does not affect the external environment, thus leading to no observation feedback. Instead, a thought $\hat{a}_t$ aims to compose useful information by reasoning over the current context $c_t$, and update the context $c_{t+1} = (c_t, \hat{a}_t)$ to support future reasoning or acting. 
+As shown in Figure~\ref{fig:teaser}, there could be various types of useful thoughts, e.g.\,decomposing task goals and create action plans (2b, Act 1; 1d, Thought 1), injecting commonsense knowledge relevant to task solving (2b, Act 1), extracting important parts from observations (1d, Thought2, 4), track progress and transit action plans (2b, Act 8), handle exceptions and adjust action plans (1d, Thought 3), and so on. 
+
+
+However, as the language space $\mathcal{L}$ is unlimited, learning in this augmented action space is difficult and requires strong language priors. In this paper, we mainly focus on 
+the setup where a frozen large language model, PaLM-540B~\citep{chowdhery2022palm}\footnote{We show some GPT-3~\citep{brown2020language} results in Appendix~\ref{sec:gpt3}, which outperforms PaLM-540B. }, is prompted with few-shot in-context examples to generate both domain-specific actions and free-form language thoughts for task solving (Figure~\ref{fig:teaser} (1d), (2b)). Each in-context example is a human trajectory of actions, thoughts, and environment observations to solve a task instance (see Appendix~\ref{sec:prompts}). 
+For the tasks where reasoning is of primary importance (Figure~\ref{fig:teaser}(1)), we alternate the generation of thoughts and actions so that the task-solving trajectory consists of multiple thought-action-observation steps.
+In contrast, for  decision making tasks that potentially involve a large number of actions (Figure~\ref{fig:teaser}(2)), thoughts only need to appear sparsely in the most relevant positions of a trajectory, so we let the language model decide the asynchronous occurrence of thoughts and actions for itself.
+
+Since decision making and reasoning capabilities are integrated into a large language model, \model{} enjoys several unique features:
+    \textbf{A) Intuitive and easy to design}: Designing \model{} prompts is straightforward as human annotators just type down their thoughts in language on top of their actions taken. No ad-hoc format choice, thought design, or example selection is used in this paper. We detail prompt design for each task in Sections~\ref{sec:knowledge} and \ref{decision_making_tasks}.
+    \textbf{B) General and flexible}: Due to the flexible thought space and thought-action occurrence format, \model{} works for diverse tasks with distinct action spaces and reasoning needs, including but not limited to QA, fact verification, text game, and web navigation.
+    \textbf{C) Performant and robust}: \model{} shows strong generalization to new task instances while learning solely from one to six in-context examples, consistently outperforming baselines with only reasoning or acting across different domains. We also show in Section~\ref{sec:knowledge} additional benefits when finetuning is enabled, and in Section~\ref{decision_making_tasks} how \model{} performance is robust to prompt selections.
+    \textbf{D) Human aligned and controllable}: \model{} promises an interpretable sequential decision making and reasoning process where humans can easily inspect reasoning and factual correctness. Moreover, humans can also control or correct the agent behavior on the go by thought editing, as shown in Figure~\ref{fig:edit} in Section~\ref{decision_making_tasks}.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

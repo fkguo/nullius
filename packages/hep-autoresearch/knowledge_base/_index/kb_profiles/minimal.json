@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "profile": "minimal",
+  "paths": [
+    "knowledge_base/priors/research_automation_principles.md",
+    "knowledge_base/methodology_traces/2026-02-01_autopilot_scope.md"
+  ],
+  "notes": "minimal profile: minimum viable project priors + methodology trace."
+}
+

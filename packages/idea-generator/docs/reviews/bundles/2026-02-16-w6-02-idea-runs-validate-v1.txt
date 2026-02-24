@@ -1,0 +1,3 @@
+python3 scripts/validate_manifest_lock.py
+OK: validated 4 manifest.lock.json files
+EXIT:0

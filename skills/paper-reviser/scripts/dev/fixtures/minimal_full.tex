@@ -1,0 +1,27 @@
+% Minimal full-document fixture for paper-reviser smoke tests.
+\documentclass{article}
+\usepackage{amsmath}
+
+\begin{document}
+
+\section{Introduction}
+\label{sec:intro}
+
+We study a simple example. As shown in Eq.~\eqref{eq:one}, $1+1=2$.
+
+\begin{equation}
+1+1=2
+\label{eq:one}
+\end{equation}
+
+% The following environments are treated as verbatim-like and must not be edited.
+\begin{verbatim}
+This is verbatim.
+% \begin{minted}{python}  (commented; should not be detected)
+\end{verbatim}
+
+\begin{minted}[fontsize=\small]{python}
+print("hello")  # the string contains \\end{minted} but must not close the env
+\end{minted}
+
+\end{document}

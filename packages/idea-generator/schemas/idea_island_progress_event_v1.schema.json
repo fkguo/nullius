@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_island_progress_event_v1.schema.json",
+  "title": "IdeaIslandProgressEvent v1",
+  "description": "One append-only island progress event (one line in idea_island_progress_v1.jsonl).",
+  "type": "object",
+  "required": ["version", "ts_utc", "island_id", "event_type", "summary", "evidence_uris", "tags"],
+  "properties": {
+    "version": { "const": 1 },
+    "event_id": { "type": "string", "format": "uuid" },
+    "ts_utc": { "type": "string", "format": "date-time" },
+    "island_id": { "type": "string", "minLength": 1 },
+    "event_type": { "enum": ["NOTE", "STATUS_CHANGE", "ARTIFACT_ADDED", "FAILURE_RECORDED"] },
+    "summary": { "type": "string", "minLength": 1 },
+    "artifact_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "evidence_uris": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "format": "uri" }
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "additionalProperties": false
+}

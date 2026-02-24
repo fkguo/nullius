@@ -1,0 +1,320 @@
+[
+  {
+    "name": "unknown_top_level_field",
+    "description": "Top-level unknown field must be rejected (strict mode)",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}],
+      "extra_field": "should fail"
+    }
+  },
+  {
+    "name": "wrong_schema_version",
+    "description": "schema_version must be exactly 2",
+    "data": {
+      "schema_version": 1,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "wrong_workflow_id",
+    "description": "workflow_id must be W_compute",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W2_reproduce",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "missing_phases",
+    "description": "phases is required",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card"
+    }
+  },
+  {
+    "name": "empty_phases",
+    "description": "phases must have at least 1 item",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": []
+    }
+  },
+  {
+    "name": "unknown_phase_field",
+    "description": "Unknown field in phase must be rejected (strict mode)",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"], "priority": 1}]
+    }
+  },
+  {
+    "name": "unknown_backend_field",
+    "description": "Unknown field in backend must be rejected",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"], "docker_image": "foo"}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "invalid_phase_id_uppercase",
+    "description": "phase_id must be lowercase alphanumeric + underscore",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "RunPhase", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "invalid_phase_id_hyphen",
+    "description": "phase_id must not contain hyphens",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run-phase", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "empty_outputs",
+    "description": "Phase outputs must have at least 1 item",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": []}]
+    }
+  },
+  {
+    "name": "invalid_parameter_type",
+    "description": "Parameter type must be integer/number/string/boolean",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "parameters": {"x": {"type": "float"}},
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "unknown_parameter_field",
+    "description": "Unknown field in parameter definition must be rejected",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "parameters": {"x": {"type": "integer", "required": true}},
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "invalid_pointer_format",
+    "description": "Pointer must use RFC 6901 URI fragment form (#/key)",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}],
+      "headline_numbers": {
+        "source": "x.json",
+        "extract": [{"pointer": "/sigma", "label": "sigma", "tier": "T1"}]
+      }
+    }
+  },
+  {
+    "name": "invalid_pointer_bare_hash",
+    "description": "Pointer #/ alone (empty token) is invalid",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}],
+      "headline_numbers": {
+        "source": "x.json",
+        "extract": [{"pointer": "#/", "label": "sigma", "tier": "T1"}]
+      }
+    }
+  },
+  {
+    "name": "invalid_on_failure",
+    "description": "on_failure must be fail-fast or continue",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "on_failure": "ignore",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "acceptance_missing_min_max",
+    "description": "json_numeric_check must have at least min or max",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}],
+      "acceptance": {
+        "json_numeric_checks": [
+          {"path": "x.json", "pointer": "#/val"}
+        ]
+      }
+    }
+  },
+  {
+    "name": "invalid_tier",
+    "description": "tier must be T1, T2, or T3",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}],
+      "headline_numbers": {
+        "source": "x.json",
+        "extract": [{"pointer": "#/val", "label": "val", "tier": "T4"}]
+      }
+    }
+  },
+  {
+    "name": "negative_retries",
+    "description": "retries must be >= 0",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"], "retries": -1}]
+    }
+  },
+  {
+    "name": "parameter_name_uppercase",
+    "description": "Parameter names must be lowercase (propertyNames constraint)",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "parameters": {"MyParam": {"type": "integer"}},
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "parameter_name_with_space",
+    "description": "Parameter names must not contain spaces",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "parameters": {"my param": {"type": "integer"}},
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "default_type_mismatch_string_for_integer",
+    "description": "Default value must match declared type (string given for integer)",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "parameters": {"n": {"type": "integer", "default": "not_a_number"}},
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "default_type_mismatch_float_for_integer",
+    "description": "Default value must match declared type (float given for integer)",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "parameters": {"n": {"type": "integer", "default": 5.5}},
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "default_type_mismatch_int_for_boolean",
+    "description": "Default value must match declared type (integer given for boolean)",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "parameters": {"flag": {"type": "boolean", "default": 1}},
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "invalid_tilde_escape_in_pointer",
+    "description": "Pointer with invalid tilde escape (~2) must be rejected",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]}],
+      "headline_numbers": {
+        "source": "x.json",
+        "extract": [{"pointer": "#/a~2b", "label": "val", "tier": "T1"}]
+      }
+    }
+  },
+  {
+    "name": "empty_cwd",
+    "description": "backend.cwd must not be empty string",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [{"phase_id": "run", "backend": {"kind": "shell", "argv": ["echo"], "cwd": ""}, "outputs": ["x.txt"]}]
+    }
+  },
+  {
+    "name": "duplicate_depends_on",
+    "description": "depends_on must have unique items",
+    "data": {
+      "schema_version": 2,
+      "run_id": "bad-r1",
+      "workflow_id": "W_compute",
+      "title": "Bad card",
+      "phases": [
+        {"phase_id": "a", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"]},
+        {"phase_id": "b", "backend": {"kind": "shell", "argv": ["echo"]}, "outputs": ["x.txt"], "depends_on": ["a", "a"]}
+      ]
+    }
+  }
+]

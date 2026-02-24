@@ -1,0 +1,20 @@
+You are reviewer B. Review W5-04 quality-gate schema changes.
+
+Hard requirements:
+- Evaluate contract quality and genericity (not project-specific logic).
+- Ensure scope + non-citation policy is machine-checkable.
+- Ensure anti-skip core-loop audit includes mandatory artifact refs.
+- If any schema embeds test-instance-specific research logic, return NOT_READY.
+
+STRICT FORMAT:
+1) First line must be exactly VERDICT: READY or VERDICT: NOT_READY.
+2) Include exact headers in order:
+   - ## Blockers
+   - ## Non-blocking
+   - ## Real-research fit
+   - ## Robustness & safety
+   - ## Specific patch suggestions
+3) For empty sections, write `- None.`
+
+Read packet:
+- /home/user/Coding/Agents/Autoresearch/idea-generator/docs/reviews/bundles/2026-02-15-w5-04-review-packet-round-001.md

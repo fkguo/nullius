@@ -1,0 +1,23 @@
+You are extracting **general physics discussion logic** from exemplar scientific papers.
+
+Goal: produce reusable argument/diagnostic patterns that help write better physics papers. This is **not** about superficial PRL formatting.
+
+Hard constraints:
+- Do NOT copy phrases verbatim except for short technical terms. Do NOT include long quotes.
+- Do NOT invent missing content: use only what is in the provided excerpts.
+- When you make a generalized claim, tie it to evidence by pointing to the excerpt section name (e.g., "Abstract", "Introduction opening", "Conclusions") rather than line numbers.
+
+Output format (must follow exactly):
+
+## Argument Map (Mermaid)
+Provide exactly one `flowchart TD` Mermaid graph capturing the paper's reasoning flow.
+
+## Moves (Bullets)
+8–12 bullets, each: `MOVE: <what it does> | Evidence: <excerpt section>`
+
+## Diagnostics & Uncertainties
+5–8 bullets focusing on how the paper diagnoses systematics/uncertainties/robustness and structures comparisons.
+
+## Reusable General Lessons
+5–10 bullets of journal-agnostic lessons (generalizable discussion logic), no domain-specific details.
+

@@ -1,0 +1,172 @@
+Research Team Packet
+
+Tag: <TAG>
+Date: <YYYY-MM-DD>
+Repo/Root: <PROJECT_ROOT>
+Primary notebook: <NOTEBOOK_PATH>
+Preferred reply language (optional): <LANGUAGE>  # e.g. "English" / leave blank to inherit
+Innovation log (optional): <INNOVATION_LOG_PATH>  # e.g. INNOVATION_LOG.md
+
+## Team Contract (Member A + Member B both do both)
+
+You are acting as a research-team member doing an independent cross-check. Please:
+1) Independently re-derive the key steps (from stated starting equations to final claim).
+2) Independently reproduce (or at least re-check) the key computations from the provided artifacts.
+3) List missing steps, unclear assumptions, sign/normalization ambiguities, circular definitions, or hidden fit parameters.
+4) Provide a minimal fix list (what to add/change, and where).
+5) Suggest 2–4 falsifiable “breakthrough leads” (discriminant + minimal test + kill criterion).
+6) Check sweep semantics / parameter dependence (mandatory).
+7) If applicable: check branch semantics / multi-root contract (mandatory).
+8) Skepticism rule: do NOT accept a claim because “a paper/book says so”. If a key step depends on an external statement, require an independent check (derivation/limit/artifact-based diagnostic) or flag it as a Major Gap.
+
+Tool policy:
+- If `review_access_mode=packet_only`: do NOT call external tools (network fetch/search, shell commands, running code) or claim to have executed code; use only the packet content.
+- If `review_access_mode=full_access`: you still do NOT have direct tools. When prompted, output a JSON request for the leader proxy (file reads / commands / network fetches). Only rely on packet + proxy results and cite evidence items in your report.
+
+Output format:
+## Derivation Replication
+Starting from:
+Key intermediate steps (>=3):
+- Step 1:
+- Step 2:
+- Step 3:
+My final expression:
+Comparison: {match / mismatch} — notes
+
+## Computation Replication
+Target quantity:
+Formula:
+Inputs:
+My calculation:
+Reported value:
+Comparison: {match / mismatch within tolerance} — notes
+Code pointer(s):
+Artifact(s) checked:
+
+## Major Gaps
+- ...
+
+## Minor Issues
+- ...
+
+## Novelty & Breakthrough Leads
+- Lead 1:
+  - Baseline it must beat:
+  - Discriminant:
+  - Minimal test:
+  - Kill criterion:
+- Lead 2:
+  - Baseline it must beat:
+  - Discriminant:
+  - Minimal test:
+  - Kill criterion:
+
+## Reproduction Summary
+| Check | Status | Notes |
+|---|---|---|
+| Derivation replication | pass/fail | ... |
+| Computation replication | pass/fail | ... |
+
+## Minimal Fix List
+1. ...
+2. ...
+
+## Verdict
+- {ready for next milestone / needs revision}
+- Blocking issues: [list or "none"]
+
+## 0) Round & convergence gate
+
+- Round/tag: (fill; e.g. M2-r1, M2-r2)
+- Previous team reports: (fill paths)
+- Adjudication/response note: (fill; required if you rejected/modified any member suggestion)
+- Resolved items since last round: (fill; reference prior Minimal Fix List items)
+- Open disagreements: (fill; must be classified as SCOPE/MATCHING and accepted by both members)
+- Gate rule: if any mismatch/fail/needs revision, do not advance; apply fixes and re-run until convergence.
+
+## 1) What changed since last round?
+
+- Notes updated:
+  - <paths>
+- Code updated:
+  - <paths>
+- New data/artifacts:
+  - <paths>
+- New figures/tables:
+  - <paths>
+
+## 2) Definition-hardened quantities (exact operational definitions)
+
+For each quantity: definition + code pointer + artifact pointer + uncertainty method.
+
+- Q1:
+- Q2:
+
+## 2.5) Innovation delta (maximize novelty, keep falsifiable)
+
+- New falsifiable claim/diagnostic since last round:
+- What baseline does it discriminate against?
+- What would falsify it / kill criterion?
+- Idea portfolio updates (advance/revise/kill): <IDs from INNOVATION_LOG.md>
+
+## 2.75) Sweep semantics / parameter dependence (must be answered)
+
+- Scanned variables: (copy from capsule)
+- Dependent recomputations: (copy from capsule; include formula/code pointers)
+- Held-fixed constants: (copy from capsule; include scheme/scale)
+
+## 2.85) Method selection (key choices or non-standard methods)
+
+- Candidate methods/algorithms:
+- Chosen approach and rationale:
+- If skipped, rationale:
+
+## 2.9) Audit slices / quick checks (required for complex computations)
+
+- Key algorithm steps to cross-check (list functions/steps):
+  - <step or function>:
+- Proxy headline numbers (audit quantities; fast to verify by hand/estimate):
+  - Q1: formula = ...; inputs = ...; expected = ...; artifact = <path>
+  - Q2: formula = ...; inputs = ...; expected = ...; artifact = <path>
+- Boundary or consistency checks (e.g., limits, symmetry, conservation):
+  - <check>: expected = ...; artifact = <path>
+- Trivial operations not rechecked (standard library, IO, plotting):
+  - <item>: reason
+- Audit slice artifacts (logs/tables):
+  - <path>
+
+## 3) Evidence bundle
+
+- Figures (paths + 1-line description):
+  - <fig>
+- Tables/CSV:
+  - <table>
+- Provenance checks (commands + outputs):
+  - <cmd>
+- Reproducibility Capsule:
+  - (must be present in the notebook; auto-extracted by build_team_packet.py)
+
+## 3.1 Self-consistency checks (fill with numbers)
+
+- Check A: headline formula re-evaluation:
+  - Inputs:
+  - Computed:
+  - Reported:
+  - Diff:
+- Check B: definition identity check:
+  - Inputs:
+  - Computed:
+  - Reported:
+  - Diff:
+
+## 4) Questions to stress-test (3–5)
+
+- Q1:
+- Q2:
+- Q3:
+
+## 5) Excerpt to review (keep it short)
+
+--- Notes excerpt (Markdown) ---
+<paste here>
+--- End excerpt ---

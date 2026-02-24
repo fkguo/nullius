@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/reproducibility_report_v1.schema.json",
+  "title": "ReproducibilityReport V1 (DeviationReport)",
+  "description": "Report comparing an original computation result with an independent re-computation. Used by EVO-07 reproducibility verification pipeline. Content-addressed via SHA-256 of RFC 8785 (JCS) canonical JSON. Scope: numerical/computational verification only. For formal verification methods (formal_proof_check, mechanized_verification), outcomes use reproducibility_status='not_applicable' in the ResearchOutcome schema; proof artifacts are tracked by the Domain Pack, not this report.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "original_ref",
+    "rerun_ref",
+    "rerun_method",
+    "quantities",
+    "overall_agreement",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding report_id itself."
+    },
+    "original_ref": {
+      "type": "object",
+      "required": ["uri", "sha256"],
+      "properties": {
+        "uri": { "type": "string" },
+        "kind": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "produced_by": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "description": "ArtifactRef V1 of the original computation result."
+    },
+    "rerun_ref": {
+      "type": "object",
+      "required": ["uri", "sha256"],
+      "properties": {
+        "uri": { "type": "string" },
+        "kind": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "produced_by": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "description": "ArtifactRef V1 of the re-computation result."
+    },
+    "rerun_method": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Type of independent verification method. Domain Pack defines available types. Computational examples: 'different_tool', 'different_approach', 'different_precision'. Note: formal methods (formal_proof_check, mechanized_verification) do NOT produce ReproducibilityReports; outcomes from formal methods use reproducibility_status='not_applicable' in the ResearchOutcome schema instead."
+        }
+      },
+      "additionalProperties": true,
+      "description": "Description of the independent method used for re-computation. Only 'type' is required; Domain Packs define additional fields (e.g., HEP: package, approach, precision, gauge)."
+    },
+    "quantities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/QuantityComparison" },
+      "description": "Per-quantity comparison results. Must contain at least one entry unless overall_agreement is 'unknown' (re-computation could not complete)."
+    },
+    "overall_agreement": {
+      "type": "string",
+      "enum": ["agree", "disagree", "partial", "unknown"],
+      "description": "'agree' if all quantities within tolerance. 'disagree' if any quantity outside tolerance with deviation_source 'potential_error'. 'partial' if some agree and some disagree. 'unknown' if re-computation could not complete or results are not comparable."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run in which this verification was performed."
+    },
+    "trace_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z timestamp."
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total time for re-computation + comparison in milliseconds."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes about the verification."
+    }
+  },
+  "additionalProperties": false,
+  "if": {
+    "not": { "properties": { "overall_agreement": { "const": "unknown" } } }
+  },
+  "then": {
+    "properties": { "quantities": { "minItems": 1 } }
+  },
+  "$defs": {
+    "QuantityComparison": {
+      "type": "object",
+      "required": [
+        "quantity_name",
+        "original_value",
+        "rerun_value",
+        "absolute_deviation",
+        "relative_deviation",
+        "within_tolerance",
+        "tolerance_used"
+      ],
+      "properties": {
+        "quantity_name": {
+          "type": "string",
+          "description": "Name of the compared quantity (e.g., 'sigma_total', 'Gamma_H_bb')."
+        },
+        "original_value": { "$ref": "#/$defs/NumericValue" },
+        "rerun_value": { "$ref": "#/$defs/NumericValue" },
+        "absolute_deviation": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Absolute difference |original - rerun|."
+        },
+        "relative_deviation": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Relative difference |original - rerun| / |original|. Zero if original is zero."
+        },
+        "within_tolerance": {
+          "type": "boolean",
+          "description": "Whether the deviation is within the specified tolerance."
+        },
+        "tolerance_used": { "$ref": "#/$defs/ToleranceSpec" },
+        "deviation_source": {
+          "type": "string",
+          "enum": [
+            "numerical_precision",
+            "method_difference",
+            "potential_error",
+            "unknown"
+          ],
+          "description": "Classified source of the deviation. 'numerical_precision' for expected machine-level differences. 'method_difference' for expected differences from different approaches. 'potential_error' for unexplained large deviations."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Explanation of deviation or additional context."
+        }
+      },
+      "additionalProperties": false
+    },
+    "NumericValue": {
+      "type": "object",
+      "required": ["central"],
+      "properties": {
+        "central": {
+          "type": "number",
+          "description": "Central/best value."
+        },
+        "uncertainty": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Statistical or numerical uncertainty."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measurement. Omit for dimensionless quantities. Interpretation of units is domain-pack-defined."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ToleranceSpec": {
+      "type": "object",
+      "properties": {
+        "absolute": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum allowed absolute deviation."
+        },
+        "relative": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum allowed relative deviation."
+        },
+        "method": {
+          "type": "string",
+          "enum": ["stricter_of", "either"],
+          "default": "stricter_of",
+          "description": "'stricter_of' means both absolute and relative must be satisfied. 'either' means satisfying one is enough."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

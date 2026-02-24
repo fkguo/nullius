@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Artifact Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "created_at",
+    "command",
+    "cwd",
+    "params",
+    "versions",
+    "outputs"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "command": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cwd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "params": {
+      "type": "object"
+    },
+    "versions": {
+      "type": "object"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "outputs": {
+      "oneOf": [
+        { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        { "type": "object" }
+      ]
+    },
+    "git": {
+      "type": "object",
+      "properties": {
+        "repo": { "type": "string" },
+        "commit": { "type": "string", "minLength": 7 },
+        "dirty": { "type": "boolean" }
+      },
+      "required": ["commit"],
+      "additionalProperties": true
+    },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": true
+}
+

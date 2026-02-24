@@ -1,0 +1,120 @@
+You are reviewer B. Enforce strict output contract.
+
+Review focus:
+- Evaluate the packet against stage DoD, verification evidence, and auditability.
+- If hard requirements are unmet, verdict MUST be NOT_READY.
+
+STRICT FORMAT (must be exact):
+1) First line MUST be exactly:
+   - VERDICT: READY
+   - or VERDICT: NOT_READY
+2) Must contain these exact headers in this order:
+   - ## Blockers
+   - ## Non-blocking
+   - ## Real-research fit
+   - ## Robustness & safety
+   - ## Specific patch suggestions
+3) For empty sections, write `- None.`
+4) Do not rename or omit headers.
+
+Output skeleton:
+VERDICT: READY or VERDICT: NOT_READY
+
+## Blockers
+- ...
+
+## Non-blocking
+- ...
+
+## Real-research fit
+- ...
+
+## Robustness & safety
+- ...
+
+## Specific patch suggestions
+- `path/to/file`: exact change
+
+---
+
+# W6-06 Review Packet (Round-001) — Dispersion-Coupled SOCP Tightening + Numerics Defect
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## What changed (candidate publishable innovation)
+
+We tightened the pion momentum GFF $A^\pi(-Q^2)$ lower bounds by moving beyond:
+- envelope-LP relaxations (pointwise maximize $|A(s)|$ independently), and
+- Im-only conic coupling ($\rho(s)\ge ({\rm Im}A(s))^2/c_{\rm fac}(s)$),
+
+to a **dispersion-coupled modulus formulation**:
+
+1) Use a PV dispersion relation to reconstruct the *real part* on the cut from ${\rm Im}A$:
+   $$ {\rm Re}A(s_i)= (1-f_0)+\frac{1}{\pi}\,{\rm PV}\!\int dx\,{\rm Im}A(x)\left(\frac{1}{x-s_i}-\frac{1}{x}\right), $$
+   discretized on the same $s$-grid (plus an explicit UV tail contribution).
+
+2) Enforce the **full modulus cone** on a subset of grid points:
+   $$ ({\rm Re}A(s_i))^2+({\rm Im}A(s_i))^2 \le c_{\rm fac}(s_i)\,\rho(s_i). $$
+
+This couples analyticity + GTB positivity more tightly than earlier relaxations.
+
+## Key files / reproducibility
+
+- Julia kernel:
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl`
+  - Repro command:
+    - `julia --project=projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl --config <config.json>`
+- Configs (dispersion-coupled variants):
+  - `idea-runs/.../compute/a_bochner_k0_socp_config_v2_dispersion.json` (n_enforce=30)
+  - `idea-runs/.../compute/a_bochner_k0_socp_config_v2b_dispersion_n60.json` (n_enforce=60; best Q2 window so far)
+  - `idea-runs/.../compute/a_bochner_k0_socp_config_v2c_dispersion_n90.json` (n_enforce=90)
+- Run outputs:
+  - Baseline Im-only SOCP: `idea-runs/.../runs/2026-02-16-a-bochner-k0-socp-v14-eta-v4-abs6e-06/results.json`
+  - Dispersion-coupled: `.../runs/2026-02-16-a-bochner-k0-socp-v15*-dispersion-*/results.json`
+
+## Key numerical deltas (load-bearing)
+
+From `results.json`:
+
+- Baseline (Im-only SOCP, v14):
+  - $A_{\min}(-10m_\pi^2)=0.06653$
+  - max $Q^2$ with $A_{\min}(-Q^2)>0$: $Q^2=13.8995\,m_\pi^2$
+
+- Dispersion-coupled modulus on 60 indices (v15b):
+  - $A_{\min}(-10m_\pi^2)=0.07244$
+  - max $Q^2$ with $A_{\min}(-Q^2)>0$: $Q^2=15.4381\,m_\pi^2$
+  - at edge $Q^2=15.4381$: $A_{\min}=9.13\\times 10^{-4}>0$
+
+Interpretation: analyticity + modulus coupling measurably extends the positive-lower-bound window while staying laptop-feasible.
+
+## Assumptions / constraints in the conic model
+
+- Pion-only; no coupled-channel step.
+- GTB PSD projected to the conservative inequality $|\\mathcal{F}(s)|^2\\le \\frac{1+\\eta(s)}{2}\\rho(s)$ (no explicit $S(s)$ variable).
+- $\eta(s)$ envelope: piecewise-constant floor after $s_{\rm inel}$ (current: $\\eta=1$ below 16, then floor 0.6).
+- 2412 transverse-density positivity: enforced via discretized $K_0$ constraints (Bochner-style) and the elastic-window sign input ${\\rm Im}A(s)\\ge 0$ up to $4m_K^2$.
+- Two sum rules (2412): $\\int {\rm Im}A(s)/s = \\pi f_0$ and $\\int {\rm Im}A(s)=0$; plus explicit UV tail model (2412 Eq. imF pattern).
+- IR spectral density shape constraints (2505): $\chi$PT-inspired pointwise constraints on $\\rho(s)$ near threshold + SVZ moments as normalized moment bands.
+
+## Critical numerics issue discovered (must be acknowledged)
+
+SciPy/HiGHS LP can return “OPTIMAL” but wrong solutions for the near-threshold D0 spectral LP objective due to extreme ill-conditioning. This affects envelope-LP based bounds (potential non-conservatism).
+
+Evidence:
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-06-highs-lp-wrong-optimum-repro-v1.txt`
+- `idea-runs/projects/.../evidence/neg_results/2026-02-16-highs-lp-wrong-optimum-repro.txt`
+- failure-library entry appended in `idea-runs/projects/.../artifacts/ideas/failed_approach_v1.jsonl`
+
+## Reviewer questions (what we need from you)
+
+1) Novelty vs seeds:
+   - Is “PV(ReA) + modulus cone tightening” already standard in 2403/2505 GTB numerics, or is this a meaningful extension for pion EMT/GFF bounds (especially when combined with 2412 $A(b)\\ge 0$ constraints)?
+2) Claim boundaries:
+   - What can we safely claim now (tightened convex bound under explicit assumptions), and what must be deferred (e.g. “rigorous QCD bound” language)?
+3) Robustness risks:
+   - Are there missing error-bars (PV discretization error, subset enforcement bias, solver tolerances) that should be quantified before a “publishable” claim?
+4) Next tightening ideas:
+   - Suggest **new positivity constraints** or mathematical theorems to leverage (still pion-only; no coupled-channel preferred), beyond what we already use (sum rules + K0 positivity + GTB rho–F inequality + PV dispersion).
+5) Tooling/process:
+   - Given the HiGHS defect, what minimal changes should be enforced in gates (e.g., cross-solver checks, s_min_eps rules, Julia-first pipeline) to keep “evidence closed-loop” credible?
+

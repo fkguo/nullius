@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/memory_graph_event_v1.schema.json",
+  "title": "MemoryGraphEvent V1",
+  "description": "Append-only event in the Cross-Cycle Memory Graph. Ported from Evolver memoryGraph.js (MIT, AutoGame Limited).",
+  "type": "object",
+  "required": ["event_type", "payload", "created_at"],
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Auto-incremented event ID"
+    },
+    "event_type": {
+      "$ref": "#/$defs/EventType"
+    },
+    "run_id": {
+      "type": ["string", "null"],
+      "pattern": "^run_[0-9a-f-]+$",
+      "description": "Run ID (null for cross-run context events)"
+    },
+    "trace_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Trace ID from H-02 observability"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-type-specific payload (discriminated by event_type via allOf)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "event_type": { "const": "signal" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/SignalPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "hypothesis" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/HypothesisPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "attempt" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/AttemptPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "outcome" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/OutcomePayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "confidence_edge" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ConfidenceEdgePayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "confidence_gene_outcome" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ConfidenceGeneOutcomePayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "external_candidate" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ExternalCandidatePayload" } } }
+    }
+  ],
+  "$defs": {
+    "EventType": {
+      "type": "string",
+      "enum": [
+        "signal",
+        "hypothesis",
+        "attempt",
+        "outcome",
+        "confidence_edge",
+        "confidence_gene_outcome",
+        "external_candidate"
+      ],
+      "description": "Event type enumeration (ported from Evolver)"
+    },
+    "SignalPayload": {
+      "type": "object",
+      "required": ["type", "signals", "signal_key"],
+      "properties": {
+        "type": { "const": "signal" },
+        "signals": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of observed signals"
+        },
+        "signal_key": {
+          "type": "string",
+          "description": "FNV-1a hash of normalized+sorted signal set"
+        }
+      },
+      "additionalProperties": false
+    },
+    "HypothesisPayload": {
+      "type": "object",
+      "required": ["type", "gene_id", "signals", "signal_key"],
+      "properties": {
+        "type": { "const": "hypothesis" },
+        "gene_id": { "type": "string" },
+        "signals": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "signal_key": { "type": "string" },
+        "selection_reason": {
+          "type": "string",
+          "description": "Why this gene was selected (memory_preferred, signal_match, drift, auto_gene)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AttemptPayload": {
+      "type": "object",
+      "required": ["type", "gene_id"],
+      "properties": {
+        "type": { "const": "attempt" },
+        "gene_id": { "type": "string" },
+        "mutation_type": {
+          "type": "string",
+          "enum": ["repair", "optimize", "innovate"],
+          "description": "Mutation type (EVO-21 extension)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "OutcomePayload": {
+      "type": "object",
+      "required": ["type", "gene_id", "signal_key", "success"],
+      "properties": {
+        "type": { "const": "outcome" },
+        "gene_id": {
+          "type": "string",
+          "description": "Gene ID that was selected for execution. In EVO-21 bandit mode, this equals selected_arm_id (the bandit's choice). Use executed_gene_id if the actually-executed gene differs due to fallback."
+        },
+        "signal_key": { "type": "string" },
+        "success": { "type": "boolean" },
+        "reason": {
+          "type": "string",
+          "description": "Failure reason (e.g., hard_cap_breach, contract_violation, validation_failed, canary_failed)"
+        },
+        "mutation_type": {
+          "type": "string",
+          "enum": ["repair", "optimize", "innovate"],
+          "description": "Mutation type that produced this outcome (EVO-21)"
+        },
+        "selected_arm_id": {
+          "type": "string",
+          "description": "Bandit arm that was selected (EVO-21/EVO-11 binding). When present, executed_gene_id must also be present."
+        },
+        "executed_gene_id": {
+          "type": "string",
+          "description": "Gene that actually executed (may differ from selected_arm_id if fallback occurred within the gene family)"
+        },
+        "quality_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Quality metric (0-1) for the outcome"
+        },
+        "blast_radius": {
+          "$ref": "#/$defs/BlastRadiusSummary"
+        },
+        "files_modified": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of files modified (for co-change tracking)"
+        },
+        "error_delta": {
+          "type": "integer",
+          "description": "Change in error count (negative = improvement)"
+        },
+        "details_artifact_uri": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "H-18 ArtifactRef URI (e.g., hep://runs/{run_id}/artifact/{name}) pointing to detailed outcome data (violations, validation steps, full blast radius). The full ArtifactRef object (uri, sha256, size_bytes) is resolved via the artifact store. Keeps events lightweight while preserving full traceability."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "required": ["selected_arm_id"] },
+          "then": { "required": ["executed_gene_id"] }
+        },
+        {
+          "if": { "required": ["executed_gene_id"] },
+          "then": { "required": ["selected_arm_id"] }
+        }
+      ]
+    },
+    "ConfidenceEdgePayload": {
+      "type": "object",
+      "required": ["type", "signal_key", "gene_id", "success"],
+      "properties": {
+        "type": { "const": "confidence_edge" },
+        "signal_key": { "type": "string" },
+        "gene_id": { "type": "string" },
+        "success": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "ConfidenceGeneOutcomePayload": {
+      "type": "object",
+      "required": ["type", "gene_id", "outcome_score"],
+      "properties": {
+        "type": { "const": "confidence_gene_outcome" },
+        "gene_id": { "type": "string" },
+        "outcome_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExternalCandidatePayload": {
+      "type": "object",
+      "required": ["type", "source", "candidate"],
+      "properties": {
+        "type": { "const": "external_candidate" },
+        "source": {
+          "type": "string",
+          "description": "Source of external candidate (e.g., hub, manual)"
+        },
+        "candidate": {
+          "type": "object",
+          "description": "External gene/capsule candidate data"
+        }
+      },
+      "additionalProperties": false
+    },
+    "BlastRadiusSummary": {
+      "type": "object",
+      "properties": {
+        "files_changed": { "type": "integer", "minimum": 0 },
+        "lines_added": { "type": "integer", "minimum": 0 },
+        "lines_removed": { "type": "integer", "minimum": 0 },
+        "severity": {
+          "type": "string",
+          "enum": ["within_limit", "approaching_limit", "exceeded", "critical_overrun", "hard_cap_breach"]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

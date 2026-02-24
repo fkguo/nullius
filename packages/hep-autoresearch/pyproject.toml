@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hep-autoresearch"
+version = "0.0.1"
+description = "Evidence-first HEP research workflow automation (orchestrator + deterministic toolkit)"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "fkg" }]
+dependencies = []
+
+[project.optional-dependencies]
+web = ["fastapi>=0.110", "uvicorn>=0.27"]
+
+[project.scripts]
+hep-autoresearch = "hep_autoresearch.cli:main"
+hep-autopilot = "hep_autoresearch.cli:main"
+hepar = "hep_autoresearch.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hep_autoresearch = ["specs/*.json"]

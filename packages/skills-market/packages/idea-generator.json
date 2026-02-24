@@ -1,0 +1,15 @@
+{
+  "package_id": "idea-generator",
+  "package_type": "contract-pack",
+  "repo": "autoresearch-lab/idea-generator",
+  "channel": "beta",
+  "version": "schemas-v1.9.7",
+  "summary": "Contract/spec SSOT for idea-core (schemas/OpenRPC/design).",
+  "openrpc": "schemas/idea_core_rpc_v1.openrpc.json",
+  "platforms": ["claude_code", "codex", "opencode"],
+  "install": {
+    "claude_code": "Consume schema/OpenRPC artifacts from repository.",
+    "codex": "Consume schema/OpenRPC artifacts from repository.",
+    "opencode": "Consume schema/OpenRPC artifacts from repository."
+  }
+}

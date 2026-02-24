@@ -1,0 +1,8 @@
+Board sync postupdate (W6-26 add dual-review + commit hash, 2026-02-19)
+timestamp_utc: 2026-02-19T15:58:24.481690+00:00
+item_snapshot_postupdate: docs/reviews/bundles/2026-02-19-w6-26-board-item-list-postupdate-v2.json
+draft_issue_snapshot_postupdate: docs/reviews/bundles/2026-02-19-w6-26-board-draft-issue-postupdate-v2.json
+item_edit_response: docs/reviews/bundles/2026-02-19-w6-26-board-item-edit-v2.out.json
+W6-01 status: In Progress
+body_contains_w6_26: True
+body_contains_w6_26_review_convergence: True

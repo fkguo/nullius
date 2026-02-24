@@ -1,0 +1,58 @@
+W6-19b audit: slope sum rule normalization + tolerance semantics (pion A^pi)
+date_utc: 2026-02-18
+NOT_FOR_CITATION
+
+1) Identity and units (campaign conventions)
+
+Assuming A(t) is analytic with a cut for t>4m_pi^2 and falls fast enough for an unsubtracted dispersion:
+
+  A(t) = (1/pi) ∫_{4m_pi^2}^{∞} dt' ImA(t') / (t' - t).
+
+Then:
+  A'(0) = (1/pi) ∫_{4m_pi^2}^{∞} dt' ImA(t') / t'^2 .
+
+In the campaign code we use s := t'/m_pi^2 (threshold s=4) and define:
+
+  f1 := dA/ds|_{s=0} = (1/pi) ∫_{4}^{∞} ds ImA(s) / s^2 .
+
+Therefore the implemented linear constraint is:
+
+  ∫ ds ImA(s)/s^2 = pi * f1
+
+with explicit subtraction of the fixed UV tail contribution beyond s0:
+
+  sum_i w_i ImA(s_i)/s_i^2  ==  (pi*f1 - I_slope_tail).
+
+2) Low-energy slope input used (TMD estimate from arXiv:2507.05375)
+
+From arXiv:2507.05375 (their TMD estimate):
+  A^pi(t) = m_f2^2/(m_f2^2 - t) = 1 + t/m_f2^2 + ...
+so:
+  dA/dt|0 = 1/m_f2^2
+and thus:
+  f1 = dA/ds|0 = m_pi^2/m_f2^2 .
+
+Numerical values used in configs (m_pi=0.13957 GeV, m_f2=1.275±0.020 GeV):
+  f1_target = 0.011982951111111114
+  f1_abs_tol (from m_f2 band only) = 0.0003761207943301422
+
+3) Tolerance semantics (bugfix)
+
+sum_rules.f1_absolute_tolerance is defined in f1 units.
+Since the enforced constraint is on the integral side (∫ImA/s^2 = π f1), the corresponding conic tolerance is:
+
+  tol_integral = pi * f1_absolute_tolerance .
+
+Post-fix runs expose both tolerances in results.json:
+- meta.sum_rules.slope_absolute_tolerance (f1 units)
+- meta.sum_rules.slope_integral_absolute_tolerance (integral units)
+- feasibility_residuals.slope_eq_f1_abs (residual in f1 units)
+- feasibility_residuals.slope_eq_abs (residual in integral units)
+
+4) Tail subtraction magnitude/sign (representative)
+
+From run v43 results.json:
+  I_slope_tail = -9.7556860354779e-05
+
+This is numerically tiny compared to the required relaxation to restore feasibility (O(1e-3)–O(1e-2) in f1 units).
+

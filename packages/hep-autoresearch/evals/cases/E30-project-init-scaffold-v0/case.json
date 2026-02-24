@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "case_id": "E30-project-init-scaffold-v0",
+  "workflow": "custom",
+  "description": "Regression: hep-autoresearch init scaffolds a real research project root (docs+KB+specs) and root discovery works from subdirs; a run can reach the A3 gate without schema/KB failures.",
+  "inputs": {
+    "tag": "M54-project-init-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "src/hep_autoresearch/toolkit/project_scaffold.py",
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "src/hep_autoresearch/toolkit/orchestrator_regression.py",
+      "scripts/run_orchestrator_regression.py",
+      "specs/plan.schema.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/manifest.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/summary.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/.autopilot/state.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/.autopilot/approval_policy.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/.autopilot/plan.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/specs/plan.schema.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/knowledge_base/_index/kb_index.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/knowledge_base/_index/kb_profiles/minimal.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/knowledge_base/_index/kb_profiles/curated.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-w2/approvals/A3-0001/packet.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-w2/kb_profile/kb_profile.json"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/project_init/init_exit_code",
+        "min": 0,
+        "max": 0
+      },
+      {
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/project_init/status_subdir_exit_code",
+        "min": 0,
+        "max": 0
+      },
+      {
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/project_init/nested_init_exit_code",
+        "min": 2,
+        "max": 2
+      },
+      {
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/project_init/nested_init_allow_exit_code",
+        "min": 0,
+        "max": 0
+      },
+      {
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/project_init/gate_exit_code",
+        "min": 3,
+        "max": 3
+      }
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/project_init/status_subdir_state_path_ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/project_init/pending_category",
+        "type": "string",
+        "equals": "A3"
+      },
+      {
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/project_init/nested_state_json_exists",
+        "type": "boolean",
+        "equals": true
+      }
+    ]
+  },
+  "notes": "Run first: python3 scripts/run_orchestrator_regression.py --tag M54-project-init-r1 --scenarios project_init."
+}

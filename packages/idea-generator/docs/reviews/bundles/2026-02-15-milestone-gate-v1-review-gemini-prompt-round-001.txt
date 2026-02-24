@@ -1,0 +1,31 @@
+You are reviewer B. Review milestone gate schema consumability updates.
+
+Use this output contract:
+- First line exactly: VERDICT: READY or VERDICT: NOT_READY
+- If NOT_READY, list blockers with severity + exact file + exact missing/incorrect constraint + minimal fix.
+- If READY, give a brief risk note if any.
+
+Review packet:
+
+# Milestone Gate v1 Review Packet (Round 001)
+
+## Scope
+Review only the milestone gate consumability changes in `idea-generator`.
+
+## Changed files
+- `schemas/milestone_gate_v1.schema.json`
+- `docs/plans/examples/2026-02-15-w5-04-gates/milestone_gate_v1.example.json`
+- `scripts/validate_w5_quality_schemas.py`
+- `docs/plans/2026-02-15-w5-04-quality-gates-checklist-v1.md`
+- `docs/plans/2026-02-12-implementation-plan-tracker.md`
+
+## Required checks
+1) Consumption wiring is present in validator script + example map.
+2) Dual-review lock and fallback-mode ask are machine-checkable.
+3) Scope/non-citation lock is machine-checkable.
+4) Core-loop anti-skip + failed_approach_count>=1 are machine-checkable.
+5) Checklist and tracker updates are present.
+6) `make validate` passes.
+
+## Required verdict format
+First line exactly `VERDICT: READY` or `VERDICT: NOT_READY`.

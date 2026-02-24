@@ -1,0 +1,7 @@
+# Local-only outputs under the example project dir (W_compute copies outputs into repo-level artifacts/).
+artifacts/
+out/
+results/
+__pycache__/
+*.pyc
+

@@ -1,0 +1,118 @@
+# W6-07 Review Packet (Round-002) — Residual-Audited Dispersion-Coupled SOCP + Quantified Cross-Solver Envelope
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## Delta vs Round-001 (addresses NOT_READY blockers)
+
+This round adds:
+- an explicit **worst-case residual** summary for the full-grid v18 run, and
+- an explicit **Clarabel vs ECOS** side-by-side table (bounds + residual margins) at the Q2 mini-set including $Q^*$.
+
+## What changed (load-bearing)
+
+We hardened the dispersion-coupled SOCP mainline by making feasibility differences **auditable**:
+
+1) **Residual auditing added (new instrumentation)**  
+   Julia kernel now records per-solve residuals/margins in `results.json`:
+   - sum-rule equality residuals (`csr/asr`),
+   - min margin for K0 positivity constraints,
+   - min margin for SOC coupling (`rho - z^2`),
+   - min margin for modulus cone on enforced indices.
+
+2) **Clarified the implemented PV formula for ${\rm Re}A(s)$**  
+   Using CSR, the once-subtracted kernel’s constant cancels, so the implemented reconstruction is:
+   $$
+   {\rm Re}A(s_i)=\frac{1}{\pi}\,{\rm PV}\int dx\,\frac{{\rm Im}A(x)}{x-s_i},
+   $$
+   plus an explicit UV tail beyond $s_{\max}$.
+
+3) **Rerun mainline with audit output**  
+   New run `v18` matches the best `v17` central bounds (same physics/config; audit added) and adds an ECOS cross-solver smoke run.
+
+## Key artifacts / reproduction
+
+- Kernel (updated):  
+  `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/bochner_k0_socp_dispersion_bounds.jl`
+
+- Mainline run (v18, Clarabel; full Q2 grid):  
+  `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v18-dispersion-grid200-enf200-full-resaudit/`
+
+- ECOS smoke (v18; Q2 mini-set):  
+  `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v18-dispersion-grid200-enf200-full-resaudit-ecos-smoke-v2/`
+
+Repro (from project root):
+```bash
+julia --project=compute/julia compute/julia/bochner_k0_socp_dispersion_bounds.jl \
+  --config compute/a_bochner_k0_socp_config_v2g_dispersion_grid200_enf200_full_resaudit.json
+```
+
+## Key numbers (central bounds)
+
+From `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-dispersion-socp-robustness-summary-v3.txt`:
+
+- Baseline Im-only SOCP (v14): $A_{\min}(-10)=0.06653$, contiguous positivity endpoint $Q^*=13.899$.
+- Dispersion+modulus full-interior (v17/v18): $A_{\min}(-10)=0.08065$, contiguous positivity endpoint $Q^*=15.438$, and $A_{\min}(-Q^*)=0.00728$.
+
+### Definition of $Q^*$ (auditable)
+
+Let the run’s Q2 probe grid be the sorted `results.Q2_mpi2` array.
+Define $Q^*$ as the **largest contiguous grid point** such that $A_{\min}(-Q^2)>0$ for **all** earlier probed $Q^2$ in the same grid.
+No interpolation is used.
+
+## Residual auditing (worst-case, full grid)
+
+Worst-case residuals/margins across *all* probed Q2 points and both min/max solves in v18:
+
+- `norm_eq_abs` max: **7.623e-07** (at Q2≈82.818, max objective)
+- `asr_eq_abs` max: **8.309e-08** (same point)
+- `k0_min_margin` min: **-3.665e-06** (at Q2=50.0, min objective)
+- `soc_min_margin` min: **-6.571e-08** (at Q2≈1.1187, min objective)
+- `modulus_min_margin` min: **-2.359e-08** (at Q2≈1.3800, min objective)
+
+Evidence:
+- `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-v18-residual-worstcase-v1.txt`
+
+Interpretation: violations are at the ~1e-6 level or smaller, consistent with solver feasibility tolerances; the bound is conservative if we take the smaller minimum across solvers.
+
+## Cross-solver envelope (Clarabel vs ECOS; Q2 mini-set)
+
+Mini-set Q2 values (chosen to include $Q^*$ and just beyond): **10.0, 15.438084, 17.147038**.
+
+Side-by-side bounds + residuals (Amin/Amax and min-solve residual margins):
+
+From `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-dispersion-socp-robustness-summary-v3.txt`:
+
+```
+Q2      Amin_cl      Amin_ec      dAmin     Amax_cl      Amax_ec      dAmax     |norm_eq|_cl  |norm_eq|_ec  K0_min_cl    K0_min_ec    SOC_min_cl   SOC_min_ec   MOD_min_cl   MOD_min_ec
+10.0000 0.0806463451 0.0840559643 +3.41e-3  0.8331086262 0.8254748804 -7.63e-3  3.05e-08     2.08e-07     -1.28e-07    -1.27e-06    -5.74e-09    1.12e-10     1.80e-09     -1.20e-09
+15.4381 0.0072847569 0.0181038490 +1.08e-2  0.7612883583 0.7518004551 -9.49e-3  2.33e-08     1.20e-07      1.71e-10     1.66e-10    -1.96e-10     1.16e-10     7.32e-09      2.33e-09
+17.1470 -0.0051432555 -0.0021352079 +3.01e-3 0.7407895331 0.7315597825 -9.23e-3 2.92e-08     8.89e-09     -4.03e-08    -8.77e-07    -2.82e-08     1.35e-10     6.81e-09      8.88e-11
+```
+
+Takeaway: ECOS produces a higher minimum at $Q^*$, while both solvers show small feasibility-margin violations; we can conservatively report the Clarabel minimum and treat the spread as a systematic numerical envelope.
+
+## Negative results / solver limitations (recorded)
+
+- SCS feasibility can hit `ITERATION_LIMIT` on the grid200 full-interior model (smoke):  
+  `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-v17-scs-smoke-run-v1.txt`
+- ECOS with extremely strict tolerances (`eps=1e-10`) can cause laptop runtime blowup (terminated):  
+  `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-v18-ecos-smoke-run-v1.txt`  
+  (also appended to `idea-runs/.../artifacts/ideas/failed_approach_v1.jsonl`)
+
+## Gates / hygiene evidence (W6-07)
+
+- Board sync preflight: `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-board-sync-preflight-v1.txt`
+- `idea-generator make validate`: `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-idea-generator-validate-v1.txt`
+- `idea-runs make validate`: `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-idea-runs-validate-v1.txt`
+- `validate-project`: `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-idea-runs-validate-project-v1.txt`
+- Board item edit + postupdate snapshot:
+  - `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-board-item-edit-v1.json`
+  - `idea-generator/docs/reviews/bundles/2026-02-16-w6-07-board-sync-postupdate-v1.txt`
+
+## Reviewer questions (what we need)
+
+1) **Readiness**: With explicit residual numbers + cross-solver table now included, can Phase L be marked `VERDICT: READY`?
+2) **Claim boundary**: Is “conservative min across solvers + residual envelope as systematic” the right publishable framing?
+3) **Robustness gates**: What residual thresholds should become mandatory (if any) before promoting stronger claims?
+4) **Next tightening ideas** (still pion-only; no coupled-channel): prioritize Gram PSD / other positivity theorems vs normalization-map completion?
+

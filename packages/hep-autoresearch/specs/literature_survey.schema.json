@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Literature survey export (KB → survey) — SSOT",
+  "type": "object",
+  "required": ["schema_version", "selected_refkeys", "entries", "refkey_to_citekey", "citekey_to_refkeys", "issues", "stats"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "topic": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+    "selected_refkeys": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "entries": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+    "refkey_to_citekey": { "type": "object" },
+    "citekey_to_refkeys": { "type": "object" },
+    "issues": { "$ref": "#/$defs/issues" },
+    "stats": { "$ref": "#/$defs/stats" }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["refkey", "kb_path", "title", "citekey", "citekey_source"],
+      "properties": {
+        "refkey": { "type": "string", "minLength": 1 },
+        "kb_path": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "citekey": { "type": "string", "minLength": 1 },
+        "citekey_source": {
+          "type": "string",
+          "enum": ["inspire_snapshot", "kb_note", "refkey_fallback"]
+        },
+        "inspire_recid": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "arxiv_id": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "doi": { "oneOf": [{ "type": "string" }, { "type": "null" }] }
+      },
+      "additionalProperties": true
+    },
+    "issues": {
+      "type": "object",
+      "required": ["missing_kb_notes", "missing_inspire_citekeys", "missing_bib_entries", "warnings"],
+      "properties": {
+        "missing_kb_notes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "missing_inspire_citekeys": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "missing_bib_entries": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "warnings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
+    "stats": {
+      "type": "object",
+      "required": ["total_entries", "unique_citekeys"],
+      "properties": {
+        "total_entries": { "type": "integer", "minimum": 0 },
+        "unique_citekeys": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

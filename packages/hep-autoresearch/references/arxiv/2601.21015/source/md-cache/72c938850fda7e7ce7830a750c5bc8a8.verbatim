@@ -1,0 +1,18 @@
+cd /opt
+sudo mkdir -p MG5_aMC
+sudo chown "$USER":"$USER" /opt/MG5_aMC
+
+cd /opt
+# Download the official MG5_aMC v3.7.0 tarball from the MG5_aMC website
+wget <MG5_aMC_3.7.0_tarball_url> -O MG5_aMC_v3_7_0.tar.gz
+tar -xzf MG5_aMC_v3_7_0.tar.gz
+mv MG5_aMC_v3_7_0/* MG5_aMC/
+rm -rf MG5_aMC_v3_7_0 MG5_aMC_v3_7_0.tar.gz
+
+cd /opt/MG5_aMC
+./bin/mg5_aMC << 'EOF'
+install lhapdf6
+install pythia8
+install Delphes
+install mg5amc_py8_interface
+EOF

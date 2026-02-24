@@ -1,0 +1,148 @@
+% This must be in the first 5 lines to tell arXiv to use pdfLaTeX, which is strongly recommended.
+\pdfoutput=1
+% In particular, the hyperref package requires pdfLaTeX in order to break URLs across lines.
+
+\documentclass[11pt]{article}
+
+% Remove the "review" option to generate the final version.
+\usepackage{EMNLP2023}
+
+% Standard package includes
+\usepackage{times}
+\usepackage{latexsym}
+
+
+
+% For Vietnamese characters
+% \usepackage[T5]{fontenc}
+% See https://www.latex-project.org/help/documentation/encguide.pdf for other character sets
+
+
+% This is not strictly necessary, and may be commented out.
+% However, it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+% This is also not strictly necessary, and may be commented out.
+% However, it will improve the aesthetics of text in
+% the typewriter font.
+\usepackage{inconsolata}
+\usepackage{natbib}
+\usepackage{listings}
+\usepackage{tikz}
+\usepackage{amssymb}
+\usepackage{subcaption}
+\usepackage[many]{tcolorbox}
+\input{dlab_macros}
+
+\NewTColorBox{TwoColColorBox}{ s O{!htbp} }{%
+  floatplacement={#2},
+  IfBooleanTF={#1}{float*,width=\textwidth}{float},
+  colframe=blue!50!black,colback=blue!10!white,% any tcolorbox options here
+  }
+
+\newcommand{\EOS}{\texttt{\$}}
+
+\usepackage{wasysym}
+\usepackage{import}
+
+\setlength{\abovecaptionskip}{5pt} % Reduce space above the caption
+\setlength{\belowcaptionskip}{5pt} % Reduce space below the caption
+\setlength{\intextsep}{5pt} % Reduce vertical space between text and float
+\setlength{\textfloatsep}{5pt} % Reduce vertical space between float and text
+
+% If the title and author information does not fit in the area allocated, uncomment the following
+%
+%\setlength\titlebox{<dim>}
+%
+% and set <dim> to something 5cm or larger.
+
+\title{Grammar-Constrained Decoding for Structured NLP Tasks\\without Finetuning}
+
+
+% Define the institution shortcuts
+\DeclareSymbolFont{extraup}{U}{zavm}{m}{n}
+\DeclareMathSymbol{\microsoft}{\mathalpha}{extraup}{81}
+% \DeclareMathSymbol{\microsoft}{\mathalpha}{extraup}{84}
+\DeclareMathSymbol{\epfl}{\mathalpha}{extraup}{83}
+\DeclareMathSymbol{\psl}{\mathalpha}{extraup}{84}
+
+
+\author{
+Saibo Geng,$^{\epfl}$
+Martin Josifoski,$^{\epfl}$
+Maxime Peyrard,\thanks{~~Work done while at EPFL.}~
+$^{\psl}$
+Robert West$^{\epfl}$ \\
+$^{\epfl}$EPFL
+$^{\psl}$Universit\'e Grenoble Alpes, CNRS, Grenoble INP, LIG \\
+{\{saibo.geng, martin.josifoski, robert.west\}@epfl.ch},
+{maxime.peyrard@univ-grenoble-alpes.fr}
+}
+
+% version 0
+% \author{Saibo Geng, Martin Josifoski, Maxime Peyrard, Robert West \\
+%         École Polytechnique Fédérale de Lausanne (EPFL) \\
+%         \texttt{\{saibo.geng, martin.josifoski, maxime.peyrard, robert.west\}@epfl.ch} \\}
+
+
+\begin{document}
+
+\maketitle
+
+\input{sections/macros}
+
+
+\begin{abstract}
+\input{sections/00_abstract}
+\end{abstract}
+
+\input{sections/01_intro}
+\input{sections/03_method}
+\input{sections/04_experiments}
+\input{sections/05_results}
+\input{sections/07_likelihood_misalignment}
+\input{sections/02_related_work}
+%\input{/Users/saibo/Research/Writing/GCD-overleaf/trash/08_compare_against_SOTA}
+\input{sections/07_conclusion}
+%\input{sections/08_future_work}
+\input{sections/09_limitations}
+\input{sections/10_acknowledge}
+
+
+% Entries for the entire Anthology, followed by custom entries
+\bibliography{acl2023}
+\bibliographystyle{acl_natbib}
+
+\clearpage
+
+\appendix
+
+% Not referenced in the main text
+%\input{appendix_sections/02_formal_grammar}
+
+
+\input{appendix_sections/00_finetuning_vs_gcd}
+\input{appendix_sections/03_overview_gf}
+
+
+\input{appendix_sections/04_experiment_settings_IE}
+
+
+\input{appendix_sections/05_experiment_settings_ED}
+
+
+\input{appendix_sections/06_prompt_details}
+
+\input{appendix_sections/07_01_decoding}
+
+
+% TODO, not referenced in the main text
+\input{appendix_sections/08_additional_experimental_results}
+
+
+\input{appendix_sections/09_latency}
+
+\input{appendix_sections/10_error_examples_CP}
+
+\end{document}

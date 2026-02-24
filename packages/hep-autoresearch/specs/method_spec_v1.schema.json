@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "method_spec_v1.schema.json",
+  "title": "Method Spec v1",
+  "description": "Structured method-design bundle for hepar method-design --template spec_v1. Strict mode: unknown fields are errors. Schema version must be exactly 1. Note: runtime still validates run_card v2 and enforces path safety more strictly than regexes can express.",
+  "type": "object",
+  "required": ["schema_version", "project", "run_card"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Must be exactly 1."
+    },
+    "project": {
+      "type": "object",
+      "required": ["project_id", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "description": "Plugin project id (lowercase, underscores)."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable project title."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional longer project description."
+        },
+        "required_references": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": [],
+          "description": "RefKeys required for this project (best-effort; validated elsewhere)."
+        },
+        "eval_cases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": [],
+          "description": "Eval case identifiers expected to validate this project."
+        }
+      }
+    },
+    "run_card_path": {
+      "type": "string",
+      "minLength": 1,
+      "default": "run_cards/main.json",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+      "description": "Relative path (POSIX style) where the run_card v2 is written inside the generated project."
+    },
+    "run_card": {
+      "$ref": "run_card_v2.schema.json"
+    },
+    "files": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["path", "content"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+            "description": "Project-relative file path to write (POSIX style)."
+          },
+          "content": {
+            "type": "string",
+            "description": "File content (UTF-8)."
+          },
+          "executable": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, best-effort set u+x on the file."
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "default": "",
+      "description": "Optional free-form notes."
+    }
+  }
+}
+

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "project_id": "schrodinger_ho",
+  "title": "Schrodinger equation validation: harmonic oscillator ground state (toy)",
+  "description": "Declarative W_compute project to validate run_card v2 without baryon-specific assumptions.",
+  "run_cards": {
+    "ho_groundstate": "run_cards/ho_groundstate.json"
+  },
+  "required_references": [],
+  "eval_cases": [
+    "evals/E31-schrodinger-ho-params",
+    "evals/E32-schrodinger-ho-wavefunction"
+  ]
+}
+

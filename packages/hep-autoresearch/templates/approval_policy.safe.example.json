@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "mode": "safe",
+  "require_approval_for": {
+    "mass_search": true,
+    "code_changes": true,
+    "compute_runs": true,
+    "paper_edits": true,
+    "final_conclusions": true
+  },
+  "budgets": {
+    "max_network_calls": 200,
+    "max_runtime_minutes": 60
+  },
+  "timeouts": {
+    "mass_search": { "timeout_seconds": 86400, "on_timeout": "block" },
+    "code_changes": { "timeout_seconds": 172800, "on_timeout": "block" },
+    "compute_runs": { "timeout_seconds": 172800, "on_timeout": "block" },
+    "paper_edits": { "timeout_seconds": 604800, "on_timeout": "block" },
+    "final_conclusions": { "timeout_seconds": 604800, "on_timeout": "block" }
+  },
+  "notes": "Default: human-in-the-loop at high-risk steps. Increase budgets or relax approvals only with explicit user consent."
+}

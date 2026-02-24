@@ -1,0 +1,25 @@
+W6-06 robustness summary (dispersion-coupled SOCP)
+timestamp_utc: 2026-02-16T19:28:49Z
+project: pion-gff-bootstrap-positivity-pilot-2026-02-15
+
+## A) n_enforce sweep (full Q2 grids)
+slug	n_enforce	Amin@10	Q2max_pos	Amin@Q2max
+2026-02-16-a-bochner-k0-socp-v14-eta-v4-abs6e-06	0	0.0665266	13.8995	0.00994876
+2026-02-16-a-bochner-k0-socp-v15-dispersion-reF-eta-v4-abs6e-06	30	0.0698011	13.8995	0.0128914
+2026-02-16-a-bochner-k0-socp-v15b-dispersion-reF-n60	60	0.0724372	15.4381	0.00091335
+2026-02-16-a-bochner-k0-socp-v15d-dispersion-reF-n75	75	0.073382	15.4381	0.00138542
+2026-02-16-a-bochner-k0-socp-v15c-dispersion-reF-n90	90	0.0719071	15.4381	0.000575151
+
+## B) Grid-density study (Q2 mini-set; Clarabel)
+slug	grid_n	n_enforce	Amin@10	Amin@15.4381
+2026-02-16-a-bochner-k0-socp-v15b-dispersion-grid80-enf40	80	40	0.0719959	0.000131542
+2026-02-16-a-bochner-k0-socp-v15b-dispersion-grid120-enf60-q2mini	120	60	0.0724372	0.000916851
+2026-02-16-a-bochner-k0-socp-v15b-dispersion-grid160-enf60	160	60	0.0758999	0.00338661
+2026-02-16-a-bochner-k0-socp-v15b-dispersion-grid160-enf80	160	80	0.0785581	0.00546058
+
+## C) Cross-solver check (Clarabel vs ECOS; Q2 mini-set)
+clarabel_slug: 2026-02-16-a-bochner-k0-socp-v15b-dispersion-reF-n60
+ecos_slug: 2026-02-16-a-bochner-k0-socp-v15b-dispersion-reF-n60-ecos-smoke
+Q2	Amin_cl	Amin_ec	dAmin	Amax_cl	Amax_ec	dAmax
+10	0.07243724982	0.07325678813	0.00082	0.8396732295	0.8404103531	0.000737
+15.4381	0.0009133499912	0.003093007606	0.00218	0.770027924	0.7696406878	-0.000387

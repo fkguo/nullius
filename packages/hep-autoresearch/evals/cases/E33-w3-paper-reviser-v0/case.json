@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "case_id": "E33-w3-paper-reviser-v0",
+  "workflow": "W3_paper_reviser",
+  "description": "Regression anchor: W3_paper_reviser workflow wiring exists (CLI + toolkit + docs + offline tests). This eval is offline and only checks repo-local artifacts/strings.",
+  "inputs": {
+    "tag": "M-eval-w3-paper-reviser-v0"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "src/hep_autoresearch/toolkit/w3_paper_reviser.py",
+      "src/hep_autoresearch/toolkit/w3_paper_reviser_evidence.py",
+      "src/hep_autoresearch/toolkit/w3_paper_reviser_utils.py",
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "src/hep_autoresearch/toolkit/workflow_context.py",
+      "workflows/W3_paper_reviser.md",
+      "workflows/W3_paper_reviser.zh.md",
+      "tests/test_w3_paper_reviser_workflow.py"
+    ],
+    "text_contains_checks": [
+      {
+        "path": "src/hep_autoresearch/orchestrator_cli.py",
+        "contains": [
+          "W3_paper_reviser",
+          "--writer-backend",
+          "--auditor-backend",
+          "--evidence-synth-backend",
+          "--manual-evidence",
+          "--apply-to-draft"
+        ]
+      },
+      {
+        "path": "workflows/W3_paper_reviser.md",
+        "contains": [
+          "MVP scope",
+          "Extension roadmap"
+        ]
+      },
+      {
+        "path": "workflows/W3_paper_reviser.zh.md",
+        "contains": [
+          "MVP",
+          "路线图"
+        ]
+      }
+    ]
+  },
+  "notes": "This does not execute the workflow; it verifies that wiring + docs + offline regression tests are present."
+}
+

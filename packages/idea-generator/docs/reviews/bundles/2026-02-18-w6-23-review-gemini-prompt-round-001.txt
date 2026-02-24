@@ -1,0 +1,75 @@
+You are reviewer B (gemini-3-pro-preview). Tools are disabled.
+
+STRICT OUTPUT CONTRACT (non-negotiable):
+- Output MUST start immediately with: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT include any planning text, tool intentions, or other preamble.
+- Must contain these exact Markdown headers in this exact order:
+  - ## Blockers
+  - ## Non-blocking
+  - ## Real-research fit
+  - ## Robustness & safety
+  - ## Specific patch suggestions
+- For empty sections, write `- None.`
+- Do not rename or omit headers.
+
+Review ONLY the packet below.
+
+--- BEGIN PACKET ---
+# W6-23 Review Packet (Round-001) — multi-$Q^2$ propagation under soft-ASR band + slope input
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## What changed (vs W6-22)
+
+W6-22 established that **softening ASR** to a band (`asr_absolute_tolerance=62`) and adding **one low-energy condition** (slope input $f_1=0.01198\pm 0.001$) yields a very tight band at the tightened endpoint $Q^*$ (Clarabel primary).
+
+W6-23 tests whether this tightening is *localized* at $Q^*$ or whether it **propagates across spacelike $Q^2$** under the *same* assumption stack:
+
+- New multi-$Q^2$ Clarabel scan: v100 (50-point plot grid from $Q^2=1$ to $Q^*=15.438\,m_\pi^2$).
+- New short evidence note summarizing key points.
+- Manuscript updated with a W6-23 bullet (no new physics assumptions).
+
+## Constraint stack (unchanged from W6-22 tightened endpoint)
+
+- soft ASR band: `asr_target=0`, `asr_absolute_tolerance=62` in $(1/\pi)\int ds\,{\rm Im}A$ normalization
+- slope input: $f_1=0.01198\pm 0.001$ (arXiv:2507.05375; treated as an explicit low-energy input)
+- dispersion-coupled modulus SOCP + transverse-density positivity + elastic-window ${\rm Im}A(s)\ge 0$
+- fixed pQCD tail model for ${\rm Im}A(s)$ (arXiv:2412.00848 Eq. `imF`), `tail.scale_factor=1.0`
+
+Scope remains pion-only; no coupled-channel.
+
+## Key results (Clarabel v100)
+
+Selected points extracted from v100 `results.json` (all in $m_\pi^2$ units):
+
+| $Q^2$ | $A_{\min}(-Q^2)$ | $A_{\max}(-Q^2)$ | width |
+|---:|---:|---:|---:|
+| 1.0 | 0.987173 | 0.988922 | 0.001750 |
+| 5.0 | 0.938747 | 0.947009 | 0.008261 |
+| 10.0 | 0.884002 | 0.899128 | 0.015126 |
+| $Q^*=15.438$ | 0.830685 | 0.851754 | 0.021069 |
+
+Observation: under this assumption stack, the band is **tight throughout** the scanned range (widens with $Q^2$, as expected).
+
+## Artifacts
+
+- Config: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v4cay_dispersion_grid200_enf200_multiq_audit8_clarabel_asrband_slope_tmd_asrtol62p0.json`
+- Run: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v100-dispersion-grid200-enf200-multiq-audit8-clarabel-asrband-slope-tmd-asrtol62p0/results.json`
+- Evidence note: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/evidence/2026-02-18-w6-23-multiq-asrband-slope-summary-v1.md`
+- Manuscript update: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+
+## Gates executed (PASS)
+
+- `idea-generator/docs/reviews/bundles/2026-02-18-w6-23-v100-multiq-clarabel-asrband-slope-run-v1.txt`
+- `idea-generator/docs/reviews/bundles/2026-02-18-w6-23-idea-runs-validate-v1.txt`
+- `idea-generator/docs/reviews/bundles/2026-02-18-w6-23-render-dashboards-v1.txt`
+- `idea-generator/docs/reviews/bundles/2026-02-18-w6-23-idea-runs-validate-project-v1.txt`
+
+## Question for reviewers
+
+Given the above artifacts and that W6-23 introduces no new physics assumptions beyond W6-22, is this increment `READY` as a research deliverable?
+
+If not READY, please specify the smallest missing evidence you need (e.g., an ECOS cross-check at a subset of $Q^2$ points, or a tail/ansatz systematic propagated across $Q^2$ rather than only quoted at $Q^*$).
+
+--- END PACKET ---
+

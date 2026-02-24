@@ -1,0 +1,18 @@
+( S
+    ( NP-SBJ
+        ( DT The )
+        ( NN dollar )
+    )
+    ( VP
+        ( VBD weakened )
+        ( PP
+            ( IN against )
+            ( NP
+                ( RBS most )
+                ( JJ other )
+                ( JJ major )
+                ( NNS currencies )
+            )
+        )
+    )
+)

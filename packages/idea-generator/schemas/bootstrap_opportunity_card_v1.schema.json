@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bootstrap_opportunity_card_v1.schema.json",
+  "title": "BootstrapOpportunityCard v1",
+  "description": "One bootstrap opportunity (in-scope or out-of-scope) card. Intended for append-only JSONL pools.",
+  "type": "object",
+  "required": [
+    "version",
+    "opportunity_id",
+    "title",
+    "summary",
+    "scope",
+    "bootstrap_mechanism_tags",
+    "verification_plan",
+    "risks",
+    "evidence_uris",
+    "tags",
+    "created_at_utc"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "opportunity_id": { "type": "string", "format": "uuid" },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "scope": { "enum": ["IN_SCOPE", "OUT_OF_SCOPE"] },
+    "scope_notes": { "type": "string", "minLength": 1 },
+    "bootstrap_mechanism_tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "related_island_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "expected_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "description"],
+        "properties": {
+          "kind": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "path_hint": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "verification_plan": { "type": "string", "minLength": 1 },
+    "risks": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "evidence_uris": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "format": "uri" }
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:bootstrap\", \"topic:gff\")."
+    },
+    "created_at_utc": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "scope": { "const": "OUT_OF_SCOPE" } } },
+      "then": { "required": ["scope_notes"] }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,13 @@
+Board sync preflight (W6-34 full-PSD tightening island kickoff, 2026-02-21)
+timestamp_utc: 2026-02-21T06:36:56.237966Z
+project_snapshot: docs/reviews/bundles/2026-02-21-w6-34-board-project-view-v1.json
+field_snapshot: docs/reviews/bundles/2026-02-21-w6-34-board-field-list-v1.json
+item_snapshot: docs/reviews/bundles/2026-02-21-w6-34-board-item-list-v1.json
+draft_issue_snapshot: docs/reviews/bundles/2026-02-21-w6-34-board-draft-issue-v1.json
+project_title: Idea Generator Program
+project_id: PVT_kwHOA7u0gc4BPFjm
+W6-01 item_id: PVTI_lAHOA7u0gc4BPFjmzglgVQg
+W6-01 draft_issue_id: DI_lAHOA7u0gc4BPFjmzgKK9dA
+W6-01 status: In Progress
+body_contains_w6_34: False
+

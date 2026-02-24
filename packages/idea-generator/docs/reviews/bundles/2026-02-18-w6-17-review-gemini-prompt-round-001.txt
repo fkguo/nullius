@@ -1,0 +1,94 @@
+You are reviewer B (gemini-3-pro-preview). Tools are disabled.
+
+STRICT OUTPUT CONTRACT (non-negotiable):
+- Output MUST start immediately with: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT include any planning text, tool intentions, or other preamble.
+- Must contain these exact Markdown headers in this exact order:
+  - ## Blockers
+  - ## Non-blocking
+  - ## Real-research fit
+  - ## Robustness & safety
+  - ## Specific patch suggestions
+- For empty sections, write `- None.`
+- Do not rename or omit headers.
+
+Review ONLY the packet below.
+
+--- BEGIN PACKET ---
+# W6-17 Review Packet (Round-001) — Gram-matrix PSD (Bochner) SDP tightening @ $Q^*$: solver termination + “no material tightening” diagnostic
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## Purpose
+
+Follow-up to W6-15/W6-16 (solver robustness at fixed $Q^*$) but now focused on a **physics/maths tightening attempt**:
+
+- Add **Gram-matrix PSD** constraints (Bochner positive-definite) motivated by arXiv:2412.00848 as an SDP tightening beyond the pointwise $K_0$ $b$-grid inequalities.
+- Quantify whether a minimal Gram set (cross5) at $Q^*$ (and a 2-anchor variant) materially shrinks the LP bounds interval at $Q^*$.
+- Record solver termination behavior (COSMO max-side ITERATION_LIMIT under strict eps) in an auditable way and decide whether to move on to more impactful constraint ideas.
+
+## Key artifacts / reproduction
+
+Neg-result / diagnostic writeup (instance repo):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/evidence/neg_results/2026-02-18-gram-psd-qstar-diagnostic-v1.txt`
+
+Configs (instance repo):
+- v14 (cross5@Q*, strict eps=1e-6; max ITERATION_LIMIT):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_julia_sdp_config_v14_gram_psd_qstar_test.json`
+- v14b (cross5@Q*, eps=1e-5; OPTIMAL min+max):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_julia_sdp_config_v14b_gram_psd_qstar_test_eps1e-5.json`
+- v15 (multi-anchor Gram PSD: cross5@10 and cross5@Q*, eps=1e-5; OPTIMAL):
+  - `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_julia_sdp_config_v15_gram_psd_multi_q10_qstar_eps1e-5.json`
+
+Runs (instance repo):
+- v14: `idea-runs/.../runs/2026-02-17-a-bochner-k0-sdp-v14-gram-psd-cross5-q2a15p4381-qstar-test/`
+- v14b: `idea-runs/.../runs/2026-02-18-a-bochner-k0-sdp-v14b-gram-psd-cross5-q2a15p4381-qstar-eps1e-5/`
+- v15: `idea-runs/.../runs/2026-02-18-a-bochner-k0-sdp-v15-gram-psd-multi-cross5-q2a10-q2a15p4381-qstar-eps1e-5/`
+
+Code changes (instance repo):
+- `idea-runs/.../compute/julia/bochner_k0_bounds.jl`:
+  - adds optional COSMO solver knobs via config (`solver.max_iter`, `solver.eps_abs`, `solver.eps_rel`)
+  - supports `constraints.gram_psd.sets` for multiple Gram PSD blocks
+  - fixes a Julia parse error uncovered during logging of solver attrs
+
+Report update (human-readable; NOT_FOR_CITATION):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/reports/draft.md`
+  - adds subsection: “Diagnostic: Gram-matrix PSD (Bochner) SDP tightening at $Q^*$ does not shrink the interval”
+
+Dashboards (human-readable):
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/islands/islands_dashboard_v1.md`
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/opportunities/opportunities_dashboard_v1.md`
+
+Verification commands (PASS):
+- `idea-generator make validate`: `docs/reviews/bundles/2026-02-18-w6-17-idea-generator-validate-v1.txt`
+- `idea-runs make validate`: `docs/reviews/bundles/2026-02-18-w6-17-idea-runs-validate-v1.txt`
+- `idea-runs PROJECT=... make validate-project`: `docs/reviews/bundles/2026-02-18-w6-17-idea-runs-validate-project-v1.txt`
+- failure hook:
+  - index build: `docs/reviews/bundles/2026-02-18-w6-17-failure-library-index-build-v1.txt`
+  - query run: `docs/reviews/bundles/2026-02-18-w6-17-failure-library-query-run-v1.txt`
+
+## Claim under review (W6-17)
+
+1) **Termination behavior:** In this SDP family (JuMP+COSMO), strict eps=1e-6 can hit max-side `ITERATION_LIMIT` at $Q^*$, while eps=1e-5 yields `OPTIMAL` min+max.
+
+2) **Constraint-strength finding:** With the minimal cross5 Gram PSD set (and a 2-anchor variant), the $Q^*$ interval is essentially unchanged compared to the LP baseline (v10); therefore Gram-PSD(cross5) is not an effective tightening knob by itself under the current LP-level model.
+
+3) **Next step (proposal):** record this as a structured negative-result and move to more impactful tightening mechanisms (physics/maths), e.g.:
+   - tighter UV/moment inputs (OPE/trace-anomaly style moments),
+   - larger / richer Gram PSD sets (if still pursued),
+   - integrate Gram PSD with the dispersion-coupled SOCP mainline rather than the LP-level formulation,
+   - add 1–2 explicit low-energy constraints (if justified).
+
+## Reviewer questions
+
+1) Is it acceptable to record Gram-PSD(cross5) as “no material tightening” and move on, rather than spending more time tuning solver eps/max_iter?
+2) If we keep Gram-PSD tightening, what’s the minimal next enrichment you recommend (q-point set design, acceptance tests, cross-solver checks)?
+3) What physics/maths inputs are most promising to shrink the $Q^*$ interval substantially (analogy: why ππ amplitude bootstrap bounds can be much tighter)?
+4) VERDICT: READY to proceed to a new tightening island (UV/OPE moment inputs and/or low-energy-point constraints)?
+
+## Required verdict format
+
+First line must be exactly `VERDICT: READY` or `VERDICT: NOT_READY`, with no preamble, and include the strict headers required by the contract checker.
+
+--- END PACKET ---
+

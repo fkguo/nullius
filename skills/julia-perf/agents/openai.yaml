@@ -1,0 +1,4 @@
+interface:
+  display_name: "Julia Perf"
+  short_description: "Always-on performance guardrails for Julia numerical/scientific coding, with optional reproducible gate mode for claims"
+  default_prompt: "Use when writing Julia numerical/scientific code; apply performance tips by default and escalate to evidence gate mode for speedup/regression claims"

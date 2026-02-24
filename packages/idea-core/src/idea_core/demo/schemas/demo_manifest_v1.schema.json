@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "demo_manifest_v1.schema.json",
+  "title": "M2.12 Demo Manifest v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "milestone",
+    "generated_at",
+    "run_tag",
+    "run_dir",
+    "store_dir",
+    "script_entry",
+    "campaign_id",
+    "fixed_inputs",
+    "call_order",
+    "idempotency_keys",
+    "calls",
+    "key_results",
+    "artifact_refs",
+    "validations",
+    "manifest_ref",
+    "canonical_manifest_ref"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "milestone": { "const": "M2.12" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "run_tag": { "type": "string", "minLength": 1 },
+    "run_dir": { "type": "string", "minLength": 1 },
+    "store_dir": { "type": "string", "minLength": 1 },
+    "script_entry": { "type": "string", "minLength": 1 },
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "fixed_inputs": {
+      "type": "object",
+      "required": ["charter", "seed_pack", "budget"],
+      "properties": {
+        "charter": { "type": "object" },
+        "seed_pack": { "type": "object" },
+        "budget": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "call_order": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "idempotency_keys": {
+      "type": "object",
+      "required": [
+        "campaign.init",
+        "search.step",
+        "eval.run",
+        "rank.compute",
+        "node.promote"
+      ],
+      "properties": {
+        "campaign.init": { "type": "string", "minLength": 1 },
+        "search.step": { "type": "string", "minLength": 1 },
+        "eval.run": { "type": "string", "minLength": 1 },
+        "rank.compute": { "type": "string", "minLength": 1 },
+        "node.promote": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "calls": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["method", "idempotency_key", "request_summary", "result_summary"],
+        "properties": {
+          "method": { "type": "string", "minLength": 1 },
+          "idempotency_key": { "type": "string", "minLength": 1 },
+          "request_summary": { "type": "object" },
+          "result_summary": { "type": "object" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "key_results": {
+      "type": "object",
+      "required": ["search_step", "eval_run", "rank_compute", "node_promote"],
+      "properties": {
+        "search_step": { "type": "object" },
+        "eval_run": { "type": "object" },
+        "rank_compute": { "type": "object" },
+        "node_promote": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "artifact_refs": {
+      "type": "object",
+      "required": [
+        "new_nodes_artifact_ref",
+        "scorecards_artifact_ref",
+        "ranking_artifact_ref",
+        "handoff_artifact_ref",
+        "nodes_latest_ref",
+        "nodes_log_ref"
+      ],
+      "properties": {
+        "new_nodes_artifact_ref": { "type": "string", "format": "uri" },
+        "scorecards_artifact_ref": { "type": "string", "format": "uri" },
+        "ranking_artifact_ref": { "type": "string", "format": "uri" },
+        "handoff_artifact_ref": { "type": "string", "format": "uri" },
+        "nodes_latest_ref": { "type": "string", "format": "uri" },
+        "nodes_log_ref": { "type": "string", "format": "uri" }
+      },
+      "additionalProperties": false
+    },
+    "validations": {
+      "type": "object",
+      "required": [
+        "search_replay_is_replay",
+        "search_replay_step_counter_unchanged",
+        "search_replay_node_counter_unchanged",
+        "search_replay_same_result",
+        "required_artifacts_exist",
+        "status"
+      ],
+      "properties": {
+        "search_replay_is_replay": { "type": "boolean" },
+        "search_replay_step_counter_unchanged": { "type": "boolean" },
+        "search_replay_node_counter_unchanged": { "type": "boolean" },
+        "search_replay_same_result": { "type": "boolean" },
+        "required_artifacts_exist": { "type": "boolean" },
+        "status": { "enum": ["pass", "fail"] }
+      },
+      "additionalProperties": false
+    },
+    "manifest_ref": { "type": "string", "format": "uri" },
+    "canonical_manifest_ref": { "type": "string", "format": "uri" }
+  },
+  "additionalProperties": false
+}
+

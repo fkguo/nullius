@@ -1,0 +1,22 @@
+{
+  "arxiv_id": "2303.11366",
+  "authors": [
+    "Noah Shinn",
+    "Federico Cassano",
+    "Edward Berman",
+    "Ashwin Gopinath",
+    "Karthik Narasimhan",
+    "Shunyu Yao"
+  ],
+  "entry_id": "http://arxiv.org/abs/2303.11366v4",
+  "links": [
+    "https://arxiv.org/abs/2303.11366v4",
+    "https://arxiv.org/pdf/2303.11366v4"
+  ],
+  "primary_category": "cs.AI",
+  "published": "2023-03-20T18:08:50Z",
+  "source_url": "https://export.arxiv.org/api/query?id_list=2303.11366",
+  "summary": "Large language models (LLMs) have been increasingly used to interact with external environments (e.g., games, compilers, APIs) as goal-driven agents. However, it remains challenging for these language agents to quickly and efficiently learn from trial-and-error as traditional reinforcement learning methods require extensive training samples and expensive model fine-tuning. We propose Reflexion, a novel framework to reinforce language agents not by updating weights, but instead through linguistic feedback. Concretely, Reflexion agents verbally reflect on task feedback signals, then maintain their own reflective text in an episodic memory buffer to induce better decision-making in subsequent trials. Reflexion is flexible enough to incorporate various types (scalar values or free-form language) and sources (external or internally simulated) of feedback signals, and obtains significant improvements over a baseline agent across diverse tasks (sequential decision-making, coding, language reasoning). For example, Reflexion achieves a 91% pass@1 accuracy on the HumanEval coding benchmark, surpassing the previous state-of-the-art GPT-4 that achieves 80%. We also conduct ablation and analysis studies using different feedback signals, feedback incorporation methods, and agent types, and provide insights into how they affect performance.",
+  "title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
+  "updated": "2023-10-10T05:21:45Z"
+}

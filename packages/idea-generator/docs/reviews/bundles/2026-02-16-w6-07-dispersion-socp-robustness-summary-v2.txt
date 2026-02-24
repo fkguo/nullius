@@ -1,0 +1,19 @@
+W6-07 robustness summary (dispersion-coupled SOCP; v17 cross-solver)
+timestamp_utc: 2026-02-16T21:07:35Z
+project: pion-gff-bootstrap-positivity-pilot-2026-02-15
+
+## A) Key bound deltas (contiguous positivity window)
+- v14 (Im-only SOCP, grid120): A_min(-10 m_pi^2)=0.06652663; Q2_end_pos=13.899453; A_min@Q2_end=0.00994876
+- v15b (dispersion+modulus, n60 grid120): A_min(-10 m_pi^2)=0.07243725; Q2_end_pos=15.438084; A_min@Q2_end=0.00091335
+- v16 (dispersion+modulus, full interior, grid160): A_min(-10 m_pi^2)=0.08043044; Q2_end_pos=15.438084; A_min@Q2_end=0.00713085
+- v17 (dispersion+modulus, full interior, grid200): A_min(-10 m_pi^2)=0.08064635; Q2_end_pos=15.438084; A_min@Q2_end=0.00728476
+
+## B) Cross-solver check (Clarabel vs ECOS; Q2 mini-set)
+Q2	Amin_cl	Amin_ec	dAmin	Amax_cl	Amax_ec	dAmax
+10.000000	0.0806463451	0.0840559643	+3.410e-03	0.8331086262	0.8254748804	-7.634e-03
+15.438084	0.0072847569	0.0181038490	+1.082e-02	0.7612883583	0.7518004551	-9.488e-03
+17.147038	-0.0051432555	-0.0021352079	+3.008e-03	0.7407895331	0.7315597825	-9.230e-03
+
+Notes:
+- ECOS smoke run: /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v17-dispersion-grid200-enf200-full-ecos-smoke
+- SCS smoke attempt hit ITERATION_LIMIT in feasibility check (see review bundle 2026-02-16-w6-07-v17-scs-smoke-run-v1.txt).

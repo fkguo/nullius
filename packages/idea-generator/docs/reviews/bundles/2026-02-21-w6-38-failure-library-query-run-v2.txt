@@ -1,0 +1,2 @@
+python3 scripts/run_failure_library_query.py --project "projects/pion-gff-bootstrap-positivity-pilot-2026-02-15"
+OK: wrote 31 failure-library hits -> /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/failure_library/failure_library_hits_v1.json

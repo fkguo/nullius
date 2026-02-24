@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Eval Case",
+  "type": "object",
+  "required": ["schema_version", "case_id", "workflow", "inputs", "acceptance"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "case_id": { "type": "string", "minLength": 1 },
+    "workflow": {
+      "type": "string",
+      "enum": [
+        "W1_ingest",
+        "W2_reproduce",
+        "W2_v1_phase1_lec_solve",
+        "W2_v1_phase2_scattering_lengths",
+        "W2v1_poles",
+        "W3_revision",
+        "W3_paper_reviser",
+        "W4_derivation_check",
+        "W4_potential_matrix",
+        "custom"
+      ]
+    },
+    "description": { "type": "string" },
+    "inputs": { "type": "object" },
+    "acceptance": { "type": "object" },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": true
+}

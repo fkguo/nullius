@@ -1,0 +1,69 @@
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+package-lock.json
+
+# Local agent control files
+.pause
+.stop
+
+# Orchestrator runtime state (derived)
+.autopilot/
+
+# Autopilot runtime state (derived)
+team/autopilot_state.json
+team/autopilot_state.json.bak
+
+# Backups
+*.bak
+
+# LaTeX build outputs (when paper/ exists)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+_minted*
+
+# Editors
+.vscode/
+.idea/
+
+# Local LLM tooling (never commit)
+.claude/
+.mcp.json
+
+# Local MCP data dir (downloads/artifacts; never commit)
+.hep-research-mcp/
+
+# Ad-hoc consultation scratchpads (not part of the reproducible artifact contract)
+artifacts/consultations/
+
+# Research-team scaffold/runtime files (not required for hepar core development)
+Draft_Derivation.md
+INITIAL_INSTRUCTION.md
+INITIAL_INSTRUCTION.zh.md
+INNOVATION_LOG.md
+PREWORK.md
+PREWORK.zh.md
+PROJECT_CHARTER.md
+PROJECT_CHARTER.zh.md
+PROJECT_MAP.md
+RESEARCH_PLAN.md
+RESEARCH_PLAN.zh.md
+RESEARCH_PLAN.md.bak
+research_team_config.json
+team/
+artifacts/runs/

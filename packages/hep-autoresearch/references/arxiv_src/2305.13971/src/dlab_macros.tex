@@ -1,0 +1,379 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Introduction
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Include this file in all LaTeX papers that you write at dlab by adding a line
+% "\input{dlab_macros}" right after the "\documentclass" command.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Some standard packages
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyphenat}
+\usepackage{xspace}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{multirow}
+%\usepackage{subfig}
+\usepackage{makecell}
+\usepackage{caption}
+\usepackage{minibox}
+\usepackage{bbm}
+\usepackage{graphicx}
+\usepackage{balance}
+\usepackage{mathtools}
+\usepackage{color}
+\usepackage{marvosym}
+\usepackage{ifthen}
+\usepackage{textcomp}
+\usepackage{enumitem}
+\usepackage{verbatim}
+\usepackage{algorithm}
+% \usepackage{algorithmic}
+\usepackage{numprint}
+\usepackage{balance}
+
+\usepackage{amsthm}
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{example}[theorem]{Example}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% How to include TODOs and notes
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Adapted from the widely circulating chato-notes.sty -- thanks, ChaTo!
+
+\newcommand{\chatoDisplayMode}[1]{#1}
+
+% If you quickly want to hide all notes, e.g., to check how long your paper
+% would be without them, add the following line to your preamble or uncomment
+% it here.
+% \renewcommand{\chatoDisplayMode}[1]{}
+
+% Usage:
+% \todo[Your name]{What needs to be done}
+% \note[Your name]{A note to include in a box}
+% \inote{An inline note}
+% \citemissing{} (if you want to indicate a missing citation)
+
+\definecolor{MyRed}{rgb}{0.6,0.0,0.0} 
+\definecolor{MyBlack}{rgb}{0.1,0.1,0.1} 
+\newcommand{\inred}[1]{{\color{MyRed}\sf\textbf{\textsc{#1}}}}
+\newcommand{\frameit}[2]{
+  \begin{center}
+  {\color{MyRed}
+  \framebox[.9\columnwidth][l]{
+    \begin{minipage}{.85\columnwidth}
+    \inred{#1}: {\sf\color{MyBlack}#2}
+    \end{minipage}
+  }\\
+  }
+  \end{center}
+}
+
+\newcommand{\note}[2][]{\chatoDisplayMode{\def\@tmpsig{#1}\frameit{{\Pointinghand} Note}{#2\ifx \@tmpsig \@empty \else \mbox{ --\em #1}\fi}}}
+\newcommand{\todo}[2][]{\chatoDisplayMode{\def\@tmpsig{#1}\frameit{{\Writinghand} To-do}{#2\ifx \@tmpsig \@empty \else \mbox{ --\em #1}\fi}}}
+\newcommand{\inote}[1]{\chatoDisplayMode{\inred{$\lceil${{\Pointinghand} }} {\sf #1} \inred{$\rfloor$}}}
+\newcommand{\citemissing}[0]{\chatoDisplayMode{\inred{[citation]}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% How to make your edits conspicuous
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% In the final stages of editing, it is often useful to mark edits in color, so
+% everyone can easily see what was changed. To do so, define a command that has
+% the same name as you and use your favorite color.
+\newcommand{\bob}[1]{\textcolor{red}{#1}}
+\newcommand{\yourname}[1]{\textcolor{blue}{#1}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Latin abbreviations
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Don't use plain text for Latin abbreviations such as "e.g.", "i.e.", etc.
+% Use these macros instead. Advantage: you can consistently change their style,
+% e.g., if you want to typeset them in italics at some point.
+
+% Latin abbreviations in normal font.
+\newcommand{\abbrevStyle}[1]{#1}
+% Latin abbreviations in italics.
+% \newcommand{\abbrevStyle}[1]{\textit{#1}}
+
+\newcommand{\ie}{\abbrevStyle{i.e.}\xspace}
+\newcommand{\eg}{\abbrevStyle{e.g.}\xspace}
+\newcommand{\cf}{\abbrevStyle{cf.}\xspace}
+\newcommand{\etal}{\abbrevStyle{et al.}\xspace}
+\newcommand{\vs}{\abbrevStyle{vs.}\xspace}
+\newcommand{\etc}{\abbrevStyle{etc.}\xspace}
+\newcommand{\viz}{\abbrevStyle{viz.}\xspace}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Referring to sections, figures, tables, etc.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% To refer to sections, figures, tables, etc., use the following macros.
+% Don't type "Section~1", "Fig.~1", etc., manually. This way, you can easily
+% and consistently switch between styles, e.g., if you want to use "Sec."
+% instead of "Section" at some point.
+
+\newcommand{\Secref}[1]{Sec.~\ref{#1}}
+\newcommand{\Eqnref}[1]{Eq.~\ref{#1}}
+\newcommand{\Dashsecref}[2]{Sec.~\ref{#1}--\ref{#2}}
+\newcommand{\Dblsecref}[2]{Sec.~\ref{#1} and \ref{#2}}
+\newcommand{\Tabref}[1]{Table~\ref{#1}}
+\newcommand{\Figref}[1]{Fig.~\ref{#1}}
+\newcommand{\Dashfigref}[2]{Fig.~\ref{#1}--\ref{#2}}
+\newcommand{\Appref}[1]{Appendix~\ref{#1}}
+\newcommand{\Thmref}[1]{Thm.~\ref{#1}}
+\newcommand{\Lemmaref}[1]{Lemma~\ref{#1}}
+\newcommand{\Defref}[1]{Def.~\ref{#1}}
+
+\newcommand{\Listingref}[1]{Listing~\ref{#1}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Paragraph headings
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Academic text is often much more legible if you give important paragraphs a
+% concise name that describes what the paragraph is about. Use the \xhdr
+% command for this.
+\newcommand{\xhdr}[1]{\vspace{1.7mm}\noindent{{\bf #1.}}}
+
+% Same as \xhdr, but without a period after the heading. Use this version if
+% the heading is directly integrated into the first sentence of the paragraph;
+% e.g., "\xhdrNoPeriod{Results} are shown in \Figref{fig}."
+\newcommand{\xhdrNoPeriod}[1]{\vspace{1.7mm}\noindent{{\bf #1}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% More compact lists
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% In some styles, list items are widely spaced. To condense them and save some
+% space, you may use this command.
+\newcommand{\denselist}{ \itemsep -2pt\topsep-10pt\partopsep-10pt }
+
+% Same, but with slightly different spacing.
+\newcommand{\denselistRefs}{ \itemsep -2pt\topsep-5pt\partopsep-7pt }
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Miscellaneous useful macros
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Some bibliography styles make it hard to typeset references like
+% "Einstein et al. (1905)". This command provides a convenient way to do so.
+\newcommand{\textcite}[1]{\citeauthor{#1} \shortcite{#1}}
+
+% When you frequently refer to Wikipedia articles, Wikidata entities, etc., it
+% may be useful to typeset those in a particular font. Use the \cpt (for
+% "concept") command for this purpose.
+\newcommand{\cpt}[1]{\textsc{\MakeLowercase{#1}}}
+
+% To exclude a large portion of text from the PDF, wrap it in \hide.
+\newcommand{\hide}[1]{}
+
+% Wrap matrix variables in \mtx. Don't make them bold etc. manually. By using
+% a macro, you can consistently change the rendering style at any point.
+\newcommand{\mtx}[1]{\mathbf{#1}}
+
+% Transpose of a matrix, e.g., $A\trans{}$.
+\newcommand{\trans}{^\top}
+
+% \argmin and \argmax.
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Hyphenation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Some words are ill-hyphenated by default. Here you can define the correct
+% hyphenation once, and it is then used consistently.
+
+\hyphenation{
+Wi-ki-pe-dia
+Wi-ki-me-dia
+Wi-ki-da-ta
+De-ter-mine
+Page-Rank
+web-page
+web-pages
+da-ta-set
+Grish-man
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Avoid widows!
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% The term "widow" refers to the first line of a paragraph if it is the last
+% line on a page, or to the last line of a paragraph if it is the first line on
+% a page. Widows are considered a cardinal typesetting sin, so avoid them at
+% all cost, via the following commands.
+
+\widowpenalty=10000
+\clubpenalty=10000
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Enable section numbering in the AAAI style (e.g., used by ICWSM)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% In the AAAI style, this enables section numbering.
+\setcounter{secnumdepth}{2}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Listing authors in a space-economic way in the ACM style
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% By default, using "\documentclass[sigconf]{acmart}" will list authors in rows
+% of 2, which can take up a lot of space. To get more authors in one row, use
+% something like this:
+% \author{
+%   \authorbox{Author 1}{Affiliation 1}{Email 1}
+%   \authorbox{Author 2}{Affiliation 2}{Email 2}
+%   ...
+% }
+
+% If you use \authorbox, you will also have to suppress the standard reference
+% block, by pasting the following row somewhere before "\begin{document}" ...
+% \settopmatter{printacmref=false, printfolios=false}
+
+% ... and add the reference block manually after abstract and \maketitle (also
+% if you use asterisks and daggers after author names without necessarily using
+% \authorbox), like this:
+% {\fontsize{8pt}{8pt} \selectfont
+% \textbf{ACM Reference Format:}\\
+% Roland Aydin, Lars Klein, Arnaud Miribel, and Robert West.
+% 2020.
+% Broccoli: Sprinkling Lightweight Vocabulary Learning into Everyday Information Diets.
+% In \textit{Proceedings of The Web Conference 2020 (WWW '20), April 20--24, 2020, Taipei, Taiwan.}
+% ACM, New York, NY, USA, 11 pages. \url{https://doi.org/10.1145/3366423.3380209}}
+
+\newcommand{\affilSize}{9pt}
+\newcommand{\authorbox}[3]{
+  \minibox[c]{
+    #1\\
+    {\fontsize{\affilSize}{\affilSize}\selectfont{}#2}\\
+    {\fontsize{\affilSize}{\affilSize}\selectfont{}#3}
+  }
+}
+
+% If you add an asterisk or dagger after an author name, add the corresponding
+% footnote using the \blfootnote{} command.
+\newcommand\blfootnote[1]{%
+  \begingroup
+  \renewcommand\thefootnote{}\footnote{#1}%
+  \addtocounter{footnote}{-1}%
+  \endgroup
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Some tricks to make papers that use the Times font nicer.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\makeatletter
+\newcommand{\iffont}[2]{\ifthenelse{\equal{\f@family}{#1}}{#2}{}}
+\makeatother
+
+% If the paper font is Times (e.g., in the AAAI style) ...
+% \iffont{ptm}{
+  % ... we also want to typeset math in Times ...
+  \usepackage{mathptmx}
+
+  % ... and use a nicer Greek font, since the default is ugly.
+  \DeclareSymbolFont{greek}{OML}{cmm}{m}{n}
+  \DeclareMathSymbol{\alpha}{\mathalpha}{greek}{"0B}
+  \DeclareMathSymbol{\beta}{\mathalpha}{greek}{"0C}
+  \DeclareMathSymbol{\gamma}{\mathalpha}{greek}{"0D}
+  \DeclareMathSymbol{\delta}{\mathalpha}{greek}{"0E}
+  \DeclareMathSymbol{\epsilon}{\mathalpha}{greek}{"0F}
+  \DeclareMathSymbol{\zeta}{\mathalpha}{greek}{"10}
+  \DeclareMathSymbol{\eta}{\mathalpha}{greek}{"11}
+  \DeclareMathSymbol{\theta}{\mathalpha}{greek}{"12}
+  \DeclareMathSymbol{\iota}{\mathalpha}{greek}{"13}
+  \DeclareMathSymbol{\kappa}{\mathalpha}{greek}{"14}
+  \DeclareMathSymbol{\lambda}{\mathalpha}{greek}{"15}
+  \DeclareMathSymbol{\mu}{\mathalpha}{greek}{"16}
+  \DeclareMathSymbol{\nu}{\mathalpha}{greek}{"17}
+  \DeclareMathSymbol{\xi}{\mathalpha}{greek}{"18}
+  \DeclareMathSymbol{\pi}{\mathalpha}{greek}{"19}
+  \DeclareMathSymbol{\rho}{\mathalpha}{greek}{"1A}
+  \DeclareMathSymbol{\sigma}{\mathalpha}{greek}{"1B}
+  \DeclareMathSymbol{\tau}{\mathalpha}{greek}{"1C}
+  \DeclareMathSymbol{\upsilon}{\mathalpha}{greek}{"1D}
+  \DeclareMathSymbol{\phi}{\mathalpha}{greek}{"1E}
+  \DeclareMathSymbol{\chi}{\mathalpha}{greek}{"1F}
+  \DeclareMathSymbol{\psi}{\mathalpha}{greek}{"20}
+  \DeclareMathSymbol{\omega}{\mathalpha}{greek}{"21}
+  \DeclareMathSymbol{\varepsilon}{\mathalpha}{greek}{"22}
+  \DeclareMathSymbol{\vartheta}{\mathalpha}{greek}{"23}
+  \DeclareMathSymbol{\varpi}{\mathalpha}{greek}{"24}
+  \DeclareMathSymbol{\varrho}{\mathalpha}{greek}{"25}
+  \DeclareMathSymbol{\varsigma}{\mathalpha}{greek}{"26}
+  \DeclareMathSymbol{\varphi}{\mathalpha}{greek}{"27}
+  \DeclareSymbolFont{otone}{OT1}{cmr}{m}{n}
+  \DeclareMathSymbol{\Gamma}{\mathalpha}{otone}{0}
+  \DeclareMathSymbol{\Delta}{\mathalpha}{otone}{1}
+  \DeclareMathSymbol{\Theta}{\mathalpha}{otone}{2}
+  \DeclareMathSymbol{\Lambda}{\mathalpha}{otone}{3}
+  \DeclareMathSymbol{\Xi}{\mathalpha}{otone}{4}
+  \DeclareMathSymbol{\Pi}{\mathalpha}{otone}{5}
+  \DeclareMathSymbol{\Sigma}{\mathalpha}{otone}{6}
+  \DeclareMathSymbol{\Upsilon}{\mathalpha}{otone}{7}
+  \DeclareMathSymbol{\Phi}{\mathalpha}{otone}{8}
+  \DeclareMathSymbol{\Psi}{\mathalpha}{otone}{9}
+  \DeclareMathSymbol{\Omega}{\mathalpha}{otone}{10}
+  \DeclareSymbolFont{syms}{OML}{cmm}{m}{it}
+  \DeclareMathSymbol{\partial}{\mathord}{syms}{"40}
+  \DeclareMathAlphabet{\mathbold}{OML}{cmm}{b}{it}
+  \DeclareSymbolFont{largesymbols}{OMX}{cmex}{m}{n}
+
+  % If you want to use a less curly \mathcal font than the default one used
+  % with Times, uncomment this line.
+  %\DeclareMathAlphabet{\mathcal}{OMS}{cmsy}{m}{n}
+% }
+
+
+
+
+\colorlet{punct}{red!60!black}
+\definecolor{background}{HTML}{EEEEEE}
+\definecolor{delim}{RGB}{20,105,176}
+\colorlet{numb}{magenta!60!black}
+
+\lstdefinelanguage{json}{
+    basicstyle=\normalfont\ttfamily,
+    numbers=left,
+    numberstyle=\scriptsize,
+    stepnumber=1,
+    numbersep=8pt,
+    showstringspaces=false,
+    breaklines=true,
+    frame=lines,
+    backgroundcolor=\color{background},
+    literate=
+     *{0}{{{\color{numb}0}}}{1}
+      {1}{{{\color{numb}1}}}{1}
+      {2}{{{\color{numb}2}}}{1}
+      {3}{{{\color{numb}3}}}{1}
+      {4}{{{\color{numb}4}}}{1}
+      {5}{{{\color{numb}5}}}{1}
+      {6}{{{\color{numb}6}}}{1}
+      {7}{{{\color{numb}7}}}{1}
+      {8}{{{\color{numb}8}}}{1}
+      {9}{{{\color{numb}9}}}{1}
+      {:}{{{\color{punct}{:}}}}{1}
+      {,}{{{\color{punct}{,}}}}{1}
+      {\{}{{{\color{delim}{\{}}}}{1}
+      {\}}{{{\color{delim}{\}}}}}{1}
+      {[}{{{\color{delim}{[}}}}{1}
+      {]}{{{\color{delim}{]}}}}{1},
+}

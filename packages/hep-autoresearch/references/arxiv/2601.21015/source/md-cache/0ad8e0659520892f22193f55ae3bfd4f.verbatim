@@ -1,0 +1,4 @@
+python3 -B scripts/delphes_to_npz.py \
+  --in-root /output/dataset/output/dataset/ufo_ttbar_reweighted_delphes.root \
+  --out-npz /output/dataset/output/dataset/ufo_ttbar_reweighted.npz \
+  --max-jets 10 --max-ele 4 --max-mu 4

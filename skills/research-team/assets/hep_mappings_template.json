@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "1.0",
+  "_note": "Append-only mapping log. Add new entries; do not edit/delete old ones. To supersede an entry, add a new one that references it via supersedes[].",
+  "_conflict_policy": "fail_fast",
+  "entries": []
+}

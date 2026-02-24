@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "case_id": "E20-literature-survey-export-v0",
+  "workflow": "custom",
+  "description": "T30: deterministic KB → literature survey export (survey.json SSOT + report.md + survey.tex + literature_survey.bib + refkey↔citekey mapping).",
+  "inputs": {},
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_literature_survey.py",
+      "src/hep_autoresearch/toolkit/literature_survey.py",
+      "specs/literature_survey.schema.json",
+      "artifacts/runs/M36-t30-r1/literature_survey/manifest.json",
+      "artifacts/runs/M36-t30-r1/literature_survey/summary.json",
+      "artifacts/runs/M36-t30-r1/literature_survey/analysis.json",
+      "artifacts/runs/M36-t30-r1/literature_survey/survey.json",
+      "artifacts/runs/M36-t30-r1/literature_survey/report.md",
+      "artifacts/runs/M36-t30-r1/literature_survey/survey.tex",
+      "artifacts/runs/M36-t30-r1/literature_survey/literature_survey.bib",
+      "artifacts/runs/M36-t30-r1/literature_survey/refkey_to_citekey.json",
+      "artifacts/runs/M36-t30-r1/literature_survey/citekey_to_refkeys.json"
+    ],
+    "reading_note_required_fields": ["recid-3112995-madagants", "arxiv-2512.19799-physmaster", "## Index"],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M36-t30-r1/literature_survey/survey.json",
+        "pointer": "#/stats/total_entries",
+        "min": 2,
+        "max": 2
+      }
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M36-t30-r1/literature_survey/analysis.json",
+        "pointer": "#/results/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M36-t30-r1/literature_survey/refkey_to_citekey.json",
+        "pointer": "#/recid-3112995-madagants",
+        "type": "string",
+        "equals": "Plehn:2026gxv"
+      },
+      {
+        "path": "artifacts/runs/M36-t30-r1/literature_survey/refkey_to_citekey.json",
+        "pointer": "#/arxiv-2512.19799-physmaster",
+        "type": "string",
+        "equals": "arxiv-2512.19799-physmaster"
+      },
+      {
+        "path": "artifacts/runs/M36-t30-r1/literature_survey/citekey_to_refkeys.json",
+        "pointer": "#/Plehn:2026gxv/0",
+        "type": "string",
+        "equals": "recid-3112995-madagants"
+      }
+    ]
+  },
+  "notes": "Anchored to tag M36-t30-r1; validates SSOT + derived views + citation mapping."
+}
+

@@ -1,0 +1,127 @@
+You are reviewer B (gemini-3-pro-preview). Tools are disabled.
+
+STRICT OUTPUT CONTRACT (non-negotiable):
+- Output MUST start immediately with: VERDICT: READY  OR  VERDICT: NOT_READY
+- Do NOT include any planning text, tool intentions, or other preamble.
+- Must contain these exact Markdown headers in this exact order:
+  - ## Blockers
+  - ## Non-blocking
+  - ## Real-research fit
+  - ## Robustness & safety
+  - ## Specific patch suggestions
+- For empty sections, write `- None.`
+- Do not rename or omit headers.
+
+Review ONLY the packet below.
+
+--- BEGIN PACKET ---
+# W6-31 Review Packet (Round-001) — $\hat\Theta^\pi(-Q^2)$ band + derived $D^\pi(-Q^2)$ band
+
+NOT_FOR_CITATION. Tools disabled for reviewers.
+
+## Purpose
+
+Add a second independent pion GFF target beyond $A^\pi(-Q^2)$, in a way that stays:
+- pion-only,
+- no coupled-channel,
+- laptop-feasible,
+- evidence-closed-loop.
+
+Deliverables under review:
+1) a trace/Theta band for $\hat\Theta^\pi(-Q^2)\equiv \Theta^\pi(-Q^2)/m_\pi^2$ in the scalar ($S0$) channel, and  
+2) a derived conservative band for the $D$-term $D^\pi(-Q^2)$ using the exact algebraic relation among $(A,\Theta,D)$.
+
+## What changed (vs W6-30)
+
+- New Julia kernel (instance repo): `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/julia/theta_trace_s0_socp_dispersion_bounds.jl`
+  - bounds $\hat\Theta^\pi(-Q^2)$ via an $S0$-channel GTB-style modulus cone (pion-only; no $\Theta(b)$ positivity).
+  - includes a pQCD tail for ${\rm Im}\,\Theta$ from arXiv:2412.00848 Eq. `imTh` (fixed tail beyond $s_0$).
+- New compute configs:
+  - PV-tightened attempt (fails numerically): `compute/theta_trace_s0_socp_config_v1_dispersion_grid200_enf200_multiq0to2gev_audit1_clarabel_pqcdTh.json`
+  - Im-only fallback (mainline): `compute/theta_trace_s0_socp_config_v1b_imonly_grid200_multiq0to2gev_audit1_clarabel_pqcdTh.json`
+- Plot helper generalized to support non-$A$ bands:
+  - `compute/plot_socp_band.py` now accepts `--ymin-key/--ymax-key/--ylabel/--out-prefix`.
+- New derived-band tool for $D^\pi(-Q^2)$:
+  - script: `compute/derive_d_band_from_a_theta_hat.py`
+  - config: `compute/d_band_from_a_theta_hat_config_v1.json`
+  - derived run directory written under `runs/` (immutable).
+- Evidence + report:
+  - evidence note: `evidence/2026-02-20-w6-31-theta-trace-and-d-band-v1.md`
+  - manuscript bullet added to `reports/draft.md`
+- Failure library: appended a structured negative result for the PV-tightened Clarabel `NUMERICAL_ERROR` termination:
+  - `artifacts/ideas/failed_approach_v1.jsonl` (new entry at end)
+
+## Constraint stack (trace band)
+
+Scope: pion-only; no coupled-channel.
+
+Trace/Theta_hat run used for the claimed deliverable (Clarabel; Im-only cone):
+- Run: `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-theta-trace-s0-socp-v1b-imonly-grid200-multiq0to2gev-audit1-clarabel-pqcdTh/`
+
+Inputs/assumptions encoded in the config:
+- Mass sum rule: $\hat\Theta^\pi(0)=2$ (arXiv:2412.00848 Eq. `thsr`), enforced exactly as $(1/\pi)\int ds\,{\rm Im}\hat\Theta(s)/s=2$ (grid+tail split).
+- No ASR: per arXiv:2412.00848 discussion (Im$\Theta$ decays too slowly for an ASR); therefore we do **not** impose any $\int ds\,{\rm Im}\Theta(s)=0$ constraint.
+- UV tail model: pQCD time-like ${\rm Im}\,\Theta(s)$ (arXiv:2412.00848 Eq. `imTh`) used as a fixed tail contribution beyond $s_{\max}=s_0$.
+- GTB-style inequality: pointwise modulus cone (Im-only), $\rho(s_i)\ge ({\rm Im}\,\hat\Theta(s_i))^2/c_{\rm fac}(s_i)$ with
+  $$c_{\rm fac}(s)=\frac{1+\eta(s)}{2}\frac{1}{\mathrm{scale}_{S0}(s)^2}.$$
+  Here `scale_S0(s)` uses arXiv:2403.10772 Eq. (FFS0scale), and $\eta(s)$ is a piecewise-constant envelope (`eta_floor_0p6`).
+
+Negative result (numerics):
+- PV dispersion tightening + full modulus cone (`dispersion_reF.enabled=true`) in v1 terminates Clarabel feasibility with `NUMERICAL_ERROR`:
+  - `runs/2026-02-20-theta-trace-s0-socp-v1-dispersion-grid200-enf200-multiq0to2gev-audit1-clarabel-pqcdTh/`
+  - Recorded as a failure-library entry and not used for the claimed deliverable.
+
+## Derived $D^\pi(-Q^2)$ band (exact algebra; conservative envelope)
+
+Exact identity used:
+$$
+D^\pi(-Q^2)=\frac{2\hat\Theta^\pi(-Q^2)-(4+q^2)\,A^\pi(-Q^2)}{3q^2},\qquad q^2\equiv Q^2/m_\pi^2,\ q^2>0.
+$$
+
+Envelope rule:
+- $D_{\min}$ uses $\hat\Theta_{\min}$ and $A_{\max}$.
+- $D_{\max}$ uses $\hat\Theta_{\max}$ and $A_{\min}$.
+
+This is explicitly an **outer bound** (no correlation assumed between the independent bands).
+
+Derived run:
+- `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-d-band-v1-from-a-v118-theta-v1b/`
+
+Inputs:
+- $A^\pi(-Q^2)$ band: Clarabel v118 (binding UV/ASR budget + derived UV anchor budget):
+  - `runs/2026-02-20-a-bochner-k0-socp-v118-dispersion-grid200-enf200-multiq0to2gev-audit12-clarabel-asrbinding-uvbudget-derived-impliedf1-pqcdA10gev-anchorbudget-derived-bind/`
+- $\hat\Theta^\pi(-Q^2)$ band: Clarabel v1b:
+  - `runs/2026-02-20-theta-trace-s0-socp-v1b-imonly-grid200-multiq0to2gev-audit1-clarabel-pqcdTh/`
+
+## Key results (spot-check numbers)
+
+At $Q^2=2\,\mathrm{GeV}^2$ ($q^2\simeq 102.6705$):
+- $A^\pi(-Q^2)\in[-0.02345,\ 0.29380]$ (v118)
+- $\hat\Theta^\pi(-Q^2)\in[-65.97,\ 66.41]$ (v1b)
+- $D^\pi(-Q^2)\in[-0.530,\ 0.439]$ (derived band)
+
+## Artifacts (plots)
+
+- $\hat\Theta$ plot:  
+  `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-theta-trace-s0-socp-v1b-imonly-grid200-multiq0to2gev-audit1-clarabel-pqcdTh/Theta_hat_band_Q2_GeV2_0to2.png`
+- $D$ plot:  
+  `idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-20-d-band-v1-from-a-v118-theta-v1b/D_band_Q2_GeV2_0.015625to2.png`
+
+## Gates executed (PASS)
+
+- `docs/reviews/bundles/2026-02-20-w6-31-idea-runs-validate-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-31-idea-runs-validate-project-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-31-failure-library-index-build-v1.txt`
+- `docs/reviews/bundles/2026-02-20-w6-31-failure-library-query-run-v1.txt`
+
+## Reviewer questions
+
+1) Trace band: is the constraint stack stated conservatively and correctly, especially:
+   - mass sum rule for $\hat\Theta$ (2412 Eq. `thsr`) enforcement on the grid+tail split,
+   - correct use of the 2412 pQCD ${\rm Im}\,\Theta$ tail (Eq. `imTh`, no extra $1/s$),
+   - absence of ASR for $\Theta$ (per 2412 discussion)?
+2) D derivation: is the algebra correct and is the “independent outer bound” envelope rule labeled clearly enough to avoid overclaiming?
+3) Numerics: is recording the PV-tightened `NUMERICAL_ERROR` run as a failure-library entry sufficient, and is using the Im-only band as the current deliverable `READY`?
+
+--- END PACKET ---
+

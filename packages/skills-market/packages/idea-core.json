@@ -1,0 +1,17 @@
+{
+  "package_id": "idea-core",
+  "package_type": "engine-pack",
+  "repo": "autoresearch-lab/idea-core",
+  "channel": "beta",
+  "version": "0.1.0",
+  "summary": "Standalone stdio JSON-RPC idea engine.",
+  "platforms": ["claude_code", "codex", "opencode"],
+  "depends_on": {
+    "idea-generator": ">=1.9.7 <2.0.0"
+  },
+  "install": {
+    "claude_code": "Install Python package and run server via stdio.",
+    "codex": "Install Python package and run server via stdio.",
+    "opencode": "Install Python package and run server via stdio."
+  }
+}

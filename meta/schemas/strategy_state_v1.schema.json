@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/strategy_state_v1.schema.json",
+  "title": "StrategyState V1",
+  "description": "Strategy parameter state for the proactive evolution engine. Ported from Evolver personality.js PersonalityState (MIT, AutoGame Limited).",
+  "type": "object",
+  "required": ["rigor", "creativity", "verbosity", "risk_tolerance", "obedience"],
+  "properties": {
+    "rigor": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.7,
+      "description": "Validation thoroughness. Higher = more exhaustive testing. Increases on errors, decreases on repeated success."
+    },
+    "creativity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.35,
+      "description": "Willingness to try novel approaches. Higher = more experimental. Increases on opportunity signals and stagnation."
+    },
+    "verbosity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.25,
+      "description": "Detail level in generated outputs. Lower values preferred for automated operations."
+    },
+    "risk_tolerance": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.4,
+      "description": "Acceptable blast radius tolerance. Decreases on errors, increases on opportunity signals."
+    },
+    "obedience": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.85,
+      "description": "Constraint adherence. Higher = stricter enforcement of Contract rules. Rarely mutated."
+    }
+  },
+  "additionalProperties": false
+}

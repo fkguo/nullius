@@ -1,0 +1,12 @@
+{
+  "name": "client_path_minimal",
+  "mode": "write",
+  "identifiers": ["inspire:627760"],
+  "options": {
+    "llm_mode": "client",
+    "topic": "X(3872)",
+    "title": "Synthetic client path fixture",
+    "target_length": "short"
+  }
+}
+

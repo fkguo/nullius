@@ -1,0 +1,64 @@
+% RevTeX4-2 (12pt, onecolumn) skeleton — research-writer
+\documentclass[aps,prd,preprint,12pt]{revtex4-2}
+
+\usepackage{amsmath,amssymb}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+% Keep macros minimal and explicit (portable across engines).
+\newcommand{\md}{\mathrm{d}}
+
+\begin{document}
+
+\title{TITLE (placeholder)}
+\author{AUTHOR(S) (placeholder)}
+% \date{\today}  % reproducibility: set a fixed date if you care about byte-identical builds
+\date{}
+
+\begin{abstract}
+% Write a mechanism-first abstract:
+% context → method/constraints → headline quantitative results → interpretation/limitations.
+\textbf{[TODO: abstract | source: \texttt{Draft\_Derivation.md} Sec.(fill)]}
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+\textbf{[TODO: introduction | source: \texttt{Draft\_Derivation.md} Sec.(fill)]}
+
+\section{Theory / Formalism}
+% Do not invent derivations. Point to the notebook sections that contain them.
+\textbf{[TODO: formalism + key equations | source: \texttt{Draft\_Derivation.md} Sec.(fill)]}
+% __DERIVATION_EXCERPT__
+
+\section{Results}
+% Quote numbers only with provenance pointers:
+%   artifact: <path>, key: <json/csv key>
+% __RESULTS_SECTION_BODY__
+
+\section{Discussion and outlook}
+% Suggested flow: bottom line → mechanism → diagnostics → comparison → limitations/outlook.
+\textbf{[TODO: discussion | source: \texttt{Draft\_Derivation.md} Sec.(fill)]}
+
+\appendix
+
+\section{Results provenance}
+% Minimal, arXiv-safe provenance table (paths are internal to the project bundle).
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.22\linewidth} p{0.60\linewidth}}
+\hline
+Quantity & Provenance (artifact path + key) \\
+\hline
+% __PROVENANCE_ROWS__
+\hline
+\end{tabular}
+\caption{Results provenance (auto-generated; fill/extend as needed).}
+\end{table}
+
+\bibliographystyle{apsrev4-2}
+\bibliography{references}
+
+\end{document}

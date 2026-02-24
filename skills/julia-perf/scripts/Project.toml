@@ -1,0 +1,6 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+
+[compat]
+julia = "1.10"

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "case_id": "E31-schrodinger-ho-params",
+  "workflow": "custom",
+  "description": "W_compute schrodinger_ho: derive_params writes params.json with E0=omega/2 for omega=1 (default).",
+  "inputs": {
+    "tag": "M65-a5-schrodinger-ho-r2"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "examples/schrodinger_ho/run_cards/ho_groundstate.json",
+      "examples/schrodinger_ho/scripts/derive_params.py",
+      "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/analysis.json",
+      "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/derive_params/results/params.json"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/derive_params/results/params.json",
+        "pointer": "#/results/omega",
+        "min": 1.0,
+        "max": 1.0
+      },
+      {
+        "path": "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/derive_params/results/params.json",
+        "pointer": "#/results/E0",
+        "min": 0.5,
+        "max": 0.5
+      }
+    ]
+  },
+  "notes": "This eval is intentionally simple and deterministic; it validates run_card v2 phase outputs are materialized under workspace/phases/..."
+}
+

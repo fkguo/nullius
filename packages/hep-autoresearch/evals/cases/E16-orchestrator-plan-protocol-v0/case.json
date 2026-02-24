@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "case_id": "E16-orchestrator-plan-protocol-v0",
+  "workflow": "custom",
+  "description": "Structured plan protocol v0: plan is persisted in state.json, plan.md is derived deterministically, approvals reference plan step IDs, and pause/resume preserves consistency (regression anchor).",
+  "inputs": {},
+  "acceptance": {
+    "required_paths_exist": [
+      "artifacts/runs/M31-t29-r1-plan/approvals/A3-0001/packet.md",
+      "specs/plan.schema.json",
+      "docs/ORCHESTRATOR_STATE.md",
+      "docs/ORCHESTRATOR_INTERACTION.md",
+      "src/hep_autoresearch/toolkit/orchestrator_state.py",
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "scripts/run_orchestrator_regression.py",
+      "src/hep_autoresearch/toolkit/orchestrator_regression.py",
+      "artifacts/runs/M31-t29-r1/orchestrator_regression/manifest.json",
+      "artifacts/runs/M31-t29-r1/orchestrator_regression/summary.json",
+      "artifacts/runs/M31-t29-r1/orchestrator_regression/analysis.json",
+      "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+      "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/plan.md",
+      "artifacts/runs/M31-t29-r1-plan/reproduce/manifest.json"
+    ],
+    "reading_note_required_fields": ["Plan view:", "Plan SSOT:", "Plan step(s):", "W2.S1"],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/orchestrator_init_exit_code",
+        "max_abs": 0
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/plan/gate_exit_code",
+        "min": 3,
+        "max": 3
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/plan/final_exit_code",
+        "max_abs": 0
+      }
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/plan/approval_packet_has_plan_refs",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/plan/plan_md_exists",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "pointer": "#/plan",
+        "type": "object"
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "pointer": "#/plan/schema_version",
+        "type": "integer",
+        "equals": 1
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "pointer": "#/current_step/step_id",
+        "type": "string",
+        "equals": "W2.S1"
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "pointer": "#/plan/current_step_id",
+        "type": "string",
+        "equals": "W2.S1"
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "pointer": "#/plan/steps/0/step_id",
+        "type": "string",
+        "equals": "W2.S1"
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "pointer": "#/plan/steps/0/status",
+        "type": "string",
+        "equals": "completed"
+      },
+      {
+        "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autopilot/state.json",
+        "pointer": "#/plan/steps/0/expected_approvals/0",
+        "type": "string",
+        "equals": "A3"
+      }
+    ]
+  },
+  "notes": "This case is anchored on a local orchestrator_regression run (M31-t29-r1) and ensures plan/state/approval coherence."
+}

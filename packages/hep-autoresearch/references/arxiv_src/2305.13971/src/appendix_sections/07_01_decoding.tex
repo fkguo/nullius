@@ -1,0 +1,7 @@
+\section{Decoding Settings}\label{appendix:decoding_settings}
+We employ constrained beam search during our experiments, with a beam size of 2 and length penalty of 1.0. Our choice of a small beam size is based on our observation that larger beam sizes do not yield significant improvement and may even result in decreased performance. In contrast, a beam size of 2 proves to be sufficient for achieving good results while also being computationally efficient.
+%
+When evaluating the generated outputs,
+% we do not consider the top-1 generation since it typically corresponds to an empty string ("</s>").
+% Instead,
+we select the most probable non-empty generation as the output.

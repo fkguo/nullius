@@ -1,0 +1,2 @@
+python3 documentation/scripts/inspect_npz.py \
+    --npz output/dataset/ufo_ttbar_reweighted.npz

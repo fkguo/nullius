@@ -1,0 +1,12 @@
+Board sync preflight (W6-30 UV-anchor budget binding + Theta_pi kickoff, 2026-02-20)
+timestamp_utc: 2026-02-20T11:19:33Z
+project_snapshot: docs/reviews/bundles/2026-02-20-w6-30-board-project-view-v2.json
+field_snapshot: docs/reviews/bundles/2026-02-20-w6-30-board-field-list-v2.json
+item_snapshot: docs/reviews/bundles/2026-02-20-w6-30-board-item-list-v2.json
+draft_issue_snapshot: docs/reviews/bundles/2026-02-20-w6-30-board-draft-issue-v2.json
+project_title: Idea Generator Program
+project_id: PVT_kwHOA7u0gc4BPFjm
+W6-01 item_id: PVTI_lAHOA7u0gc4BPFjmzglgVQg
+W6-01 draft_issue_id: DI_lAHOA7u0gc4BPFjmzgKK9dA
+W6-01 status: In Progress
+body_contains_w6_30: False

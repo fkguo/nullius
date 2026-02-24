@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "case_id": "E11-context-pack",
+  "workflow": "custom",
+  "description": "Context pack: every run should have a human-readable context.md and machine context.json that anchors work to the project charter/plan/gates/contracts.",
+  "inputs": {
+    "tag": "M14-contextpack-devcheck-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/build_context_pack.py",
+      "src/hep_autoresearch/toolkit/context_pack.py",
+      "src/hep_autoresearch/toolkit/workflow_context.py",
+      "PROJECT_CHARTER.md",
+      "PROJECT_MAP.md",
+      "RESEARCH_PLAN.md",
+      "PREWORK.md",
+      "Draft_Derivation.md",
+      "docs/APPROVAL_GATES.md",
+      "docs/ARTIFACT_CONTRACT.md",
+      "docs/EVAL_GATE_CONTRACT.md",
+      "artifacts/runs/M14-contextpack-devcheck-r1/context/context.md",
+      "artifacts/runs/M14-contextpack-devcheck-r1/context/context.json"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M14-contextpack-devcheck-r1/context/context.json",
+        "pointer": "#/project/missing_required_files_count",
+        "min": 0,
+        "max": 0
+      },
+      {
+        "path": "artifacts/runs/M14-contextpack-devcheck-r1/context/context.json",
+        "pointer": "#/project/required_context_ok",
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "notes": "This eval is intentionally deterministic and does not run external LLMs."
+}
+

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "budget_topup_v1.schema.json",
+  "title": "BudgetTopUp v1",
+  "description": "Monotonic budget top-up request for an existing campaign. At least one field must be provided. All fields must be non-negative. Note: If a dimension was originally unbounded (e.g., omitted in the effective envelope or treated as infinite by an implementation), applying a top-up to that dimension is undefined; implementations SHOULD treat it as a no-op or reject with schema_validation_failed to avoid silent semantic changes.",
+  "type": "object",
+  "minProperties": 1,
+  "properties": {
+    "add_tokens": { "type": "integer", "minimum": 1 },
+    "add_cost_usd": { "type": "number", "exclusiveMinimum": 0 },
+    "add_wall_clock_s": { "type": "number", "exclusiveMinimum": 0 },
+    "add_steps": { "type": "integer", "minimum": 1 },
+    "add_nodes": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

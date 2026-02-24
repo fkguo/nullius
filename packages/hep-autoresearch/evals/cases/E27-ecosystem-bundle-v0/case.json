@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "case_id": "E27-ecosystem-bundle-v0",
+  "workflow": "custom",
+  "description": "T37 regression: ecosystem bundle v0 (core bundle zip + bundle_manifest + secret-scan bootstrap). Smoke checks assert bootstrap passes on clean bundle and fails-fast when secrets-like files are injected.",
+  "inputs": {
+    "tag": "M48-t37-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "docs/ECOSYSTEM_BUNDLE.md",
+      "docs/ECOSYSTEM_BUNDLE.zh.md",
+      "docs/INDEX.md",
+      "scripts/run_ecosystem_bundle.py",
+      "src/hep_autoresearch/toolkit/ecosystem_bundle.py",
+      "artifacts/runs/M48-t37-r1/ecosystem_bundle/manifest.json",
+      "artifacts/runs/M48-t37-r1/ecosystem_bundle/summary.json",
+      "artifacts/runs/M48-t37-r1/ecosystem_bundle/analysis.json",
+      "artifacts/runs/M48-t37-r1/ecosystem_bundle/report.md",
+      "artifacts/runs/M48-t37-r1/ecosystem_bundle/bundle_manifest.json",
+      "artifacts/runs/M48-t37-r1/ecosystem_bundle/core_bundle.zip"
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M48-t37-r1/ecosystem_bundle/analysis.json",
+        "pointer": "#/results/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M48-t37-r1/ecosystem_bundle/analysis.json",
+        "pointer": "#/results/secret_scan/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M48-t37-r1/ecosystem_bundle/analysis.json",
+        "pointer": "#/results/secret_scan_demo/ok",
+        "type": "boolean",
+        "equals": false
+      },
+      {
+        "path": "artifacts/runs/M48-t37-r1/ecosystem_bundle/analysis.json",
+        "pointer": "#/results/bootstrap_smoke/ok_rc",
+        "type": "integer",
+        "equals": 0
+      },
+      {
+        "path": "artifacts/runs/M48-t37-r1/ecosystem_bundle/analysis.json",
+        "pointer": "#/results/bootstrap_smoke/bad_expected_nonzero",
+        "type": "boolean",
+        "equals": true
+      }
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M48-t37-r1/ecosystem_bundle/analysis.json",
+        "pointer": "#/results/bundle/bytes",
+        "min": 1024
+      }
+    ],
+    "zip_contains_checks": [
+      {
+        "path": "artifacts/runs/M48-t37-r1/ecosystem_bundle/core_bundle.zip",
+        "required_entries": [
+          "hep-autoresearch-ecosystem-bundle-v0/README.md",
+          "hep-autoresearch-ecosystem-bundle-v0/bootstrap.py",
+          "hep-autoresearch-ecosystem-bundle-v0/bootstrap.sh",
+          "hep-autoresearch-ecosystem-bundle-v0/bundle_manifest.json",
+          "hep-autoresearch-ecosystem-bundle-v0/components/hep-autoresearch/pyproject.toml",
+          "hep-autoresearch-ecosystem-bundle-v0/components/hep-research-mcp/packages/hep-research-mcp/dist/index.js",
+          "hep-autoresearch-ecosystem-bundle-v0/components/skills/review-swarm/SKILL.md"
+        ]
+      }
+    ]
+  },
+  "notes": "Run first: python3 scripts/run_ecosystem_bundle.py --tag M48-t37-r1. Then: python3 scripts/run_evals.py --case-id E27-ecosystem-bundle-v0 --tag M48-t37-eval-r1."
+}
+

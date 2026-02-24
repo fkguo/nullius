@@ -1,0 +1,460 @@
+You are reviewer B (gemini-3-pro-preview). Follow the exact output contract.
+
+# Milestone Gate v1 Review Packet (Round 002)
+
+## Scope
+Review only milestone_gate_v1 consumability wiring in idea-generator.
+
+## Changed files
+- `schemas/milestone_gate_v1.schema.json`
+- `docs/plans/examples/2026-02-15-w5-04-gates/milestone_gate_v1.example.json`
+- `scripts/validate_w5_quality_schemas.py`
+- `docs/plans/2026-02-15-w5-04-quality-gates-checklist-v1.md`
+- `docs/plans/2026-02-12-implementation-plan-tracker.md`
+
+## Required checks
+1. `milestone_gate_v1` is consumed by validator (`SCHEMA_FILES` + `EXAMPLE_MAP`).
+2. Gate semantics are machine-checkable (dual-review lock + fallback ask + scope/non-citation + anti-skip core-loop refs).
+3. Checklist includes milestone gate schema and example.
+4. Tracker update is append-only.
+5. `make validate` passes.
+
+## Unified diff (tracked files)
+```diff
+diff --git a/docs/plans/2026-02-12-implementation-plan-tracker.md b/docs/plans/2026-02-12-implementation-plan-tracker.md
+index 47cb3a4..8787748 100644
+--- a/docs/plans/2026-02-12-implementation-plan-tracker.md
++++ b/docs/plans/2026-02-12-implementation-plan-tracker.md
+@@ -335,3 +335,4 @@
+ - W5-05 双评审收敛：round-001 达成 `Opus=READY` + `gemini-3-pro-preview=READY`（`fallback_reason=null`）。证据：`/home/user/Coding/Agents/Autoresearch/idea-core/docs/reviews/bundles/2026-02-15-w5-05-review-convergence-v1.txt` + `/home/user/Coding/Agents/Autoresearch/idea-core/docs/reviews/agent-team-output/2026-02-15-w5-05-v1/round-001/meta.json`。
+ - W5-05 提交与看板收口：`idea-core` 提交 `42710e5`（`W5-05: verify control-plane hardening with tests and dual review`）；GitHub Project 已同步为 `W5-03=Done`、`W5-04=Done`、`W5-05=Done`。证据：`docs/reviews/bundles/2026-02-15-w5-05-board-sync-complete-v1.txt`。
+ - W5-05 代码硬化补齐并复验：`idea-core` 提交 `c3f8006`（`W5-05: harden path/atomic/retry/permission/replay controls with regression tests`），覆盖 `safe_resolve_under`、原子写、timeout/backoff、SSE 反应式权限处理、ledger dedup 索引、replay 并发锁与 `env_whitelist` 执行一致性；复验证据：`/home/user/Coding/Agents/Autoresearch/idea-core/docs/reviews/bundles/2026-02-15-w5-05-validate-and-pytest-v2.txt`（`105 passed`）。
++- `milestone_gate_v1` 工程化接线：将 `schemas/milestone_gate_v1.schema.json` 升级为可消费门禁契约（双评审锁定、`fallback_mode=ask`、`scope/NOT_FOR_CITATION`、core-loop 防跳步产物引用、`failed_approach_count>=1`），新增 example `docs/plans/examples/2026-02-15-w5-04-gates/milestone_gate_v1.example.json`，并接入 `scripts/validate_w5_quality_schemas.py` 与 W5-04 checklist，`make validate` 通过。
+diff --git a/docs/plans/2026-02-15-w5-04-quality-gates-checklist-v1.md b/docs/plans/2026-02-15-w5-04-quality-gates-checklist-v1.md
+index 897d65e..dd37449 100644
+--- a/docs/plans/2026-02-15-w5-04-quality-gates-checklist-v1.md
++++ b/docs/plans/2026-02-15-w5-04-quality-gates-checklist-v1.md
+@@ -11,6 +11,7 @@ This checklist defines generic (domain-agnostic) quality-gate contracts. It must
+ - `schemas/portability_report_v1.schema.json`
+ - `schemas/scope_classification_v1.schema.json`
+ - `schemas/core_loop_execution_audit_v1.schema.json`
++- `schemas/milestone_gate_v1.schema.json`
+ 
+ ## Mandatory Gate Checks
+ - Method fidelity:
+@@ -41,6 +42,10 @@ This checklist defines generic (domain-agnostic) quality-gate contracts. It must
+     - `ranking_result_v1.json`
+     - `idea_selection_v1.json`
+     - `failed_approach_v1.jsonl` (count >= 1)
++- Milestone completion gate:
++  - Must include dual review lock: `reviewer_a.model=opus`, `reviewer_b.requested/resolved=gemini-3-pro-preview`, `fallback_mode=ask`, `both_ready=true`.
++  - Must include scope policy mirror: `scope=ecosystem_validation|preliminary_physics` => `NOT_FOR_CITATION` required.
++  - Must include core-loop artifact refs and `failed_approach_count>=1` to prevent skip-step completion claims.
+ 
+ ## Example Artifacts (minimal)
+ - `docs/plans/examples/2026-02-15-w5-04-gates/scope_classification_v1.ecosystem_validation.example.json`
+@@ -51,6 +56,7 @@ This checklist defines generic (domain-agnostic) quality-gate contracts. It must
+ - `docs/plans/examples/2026-02-15-w5-04-gates/numerics_validation_report_v1.example.json`
+ - `docs/plans/examples/2026-02-15-w5-04-gates/portability_report_v1.example.json`
+ - `docs/plans/examples/2026-02-15-w5-04-gates/core_loop_execution_audit_v1.example.json`
++- `docs/plans/examples/2026-02-15-w5-04-gates/milestone_gate_v1.example.json`
+ 
+ ## Validation Commands
+ - `python3 scripts/validate_w5_quality_schemas.py`
+diff --git a/scripts/validate_w5_quality_schemas.py b/scripts/validate_w5_quality_schemas.py
+index 1a426ae..dc3b9ef 100755
+--- a/scripts/validate_w5_quality_schemas.py
++++ b/scripts/validate_w5_quality_schemas.py
+@@ -22,6 +22,7 @@ SCHEMA_FILES = [
+     "numerics_validation_report_v1.schema.json",
+     "portability_report_v1.schema.json",
+     "core_loop_execution_audit_v1.schema.json",
++    "milestone_gate_v1.schema.json",
+ ]
+ 
+ EXAMPLE_MAP = {
+@@ -47,6 +48,9 @@ EXAMPLE_MAP = {
+     "core_loop_execution_audit_v1.schema.json": [
+         "core_loop_execution_audit_v1.example.json",
+     ],
++    "milestone_gate_v1.schema.json": [
++        "milestone_gate_v1.example.json",
++    ],
+ }
+ 
+ 
+```
+
+## New file content: schemas/milestone_gate_v1.schema.json
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "milestone_gate_v1.schema.json",
+  "title": "MilestoneGate v1",
+  "description": "Machine-checkable milestone completion gate for idea-core control-plane workflow.",
+  "type": "object",
+  "required": [
+    "milestone_id",
+    "generated_at",
+    "review",
+    "scope",
+    "literature",
+    "novelty",
+    "core_loop",
+    "gate_status"
+  ],
+  "properties": {
+    "milestone_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "review": {
+      "type": "object",
+      "required": [
+        "reviewer_a",
+        "reviewer_b",
+        "both_ready",
+        "round",
+        "fallback_mode"
+      ],
+      "properties": {
+        "reviewer_a": {
+          "type": "object",
+          "required": [
+            "model",
+            "verdict",
+            "timestamp"
+          ],
+          "properties": {
+            "model": { "const": "opus" },
+            "verdict": { "enum": ["READY", "NOT_READY"] },
+            "timestamp": { "type": "string", "format": "date-time" }
+          },
+          "additionalProperties": false
+        },
+        "reviewer_b": {
+          "type": "object",
+          "required": [
+            "requested_model",
+            "resolved_model",
+            "fallback_reason",
+            "verdict",
+            "timestamp"
+          ],
+          "properties": {
+            "requested_model": { "const": "gemini-3-pro-preview" },
+            "resolved_model": { "const": "gemini-3-pro-preview" },
+            "fallback_reason": { "type": "null" },
+            "verdict": { "enum": ["READY", "NOT_READY"] },
+            "timestamp": { "type": "string", "format": "date-time" }
+          },
+          "additionalProperties": false
+        },
+        "both_ready": { "const": true },
+        "round": { "type": "integer", "minimum": 1 },
+        "fallback_mode": { "const": "ask" }
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "scope",
+        "non_citation_required",
+        "non_citation_marker"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": [
+            "ecosystem_validation",
+            "preliminary_physics",
+            "publication_ready"
+          ]
+        },
+        "non_citation_required": { "type": "boolean" },
+        "non_citation_marker": { "const": "NOT_FOR_CITATION" },
+        "notes": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "enum": ["ecosystem_validation", "preliminary_physics"]
+              }
+            },
+            "required": ["scope"]
+          },
+          "then": {
+            "properties": {
+              "non_citation_required": { "const": true }
+            },
+            "required": ["non_citation_required"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": { "const": "publication_ready" }
+            },
+            "required": ["scope"]
+          },
+          "then": {
+            "properties": {
+              "non_citation_required": { "const": false }
+            },
+            "required": ["non_citation_required"]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "literature": {
+      "type": "object",
+      "required": [
+        "new_retrieval_count",
+        "evidence_artifact_ref"
+      ],
+      "properties": {
+        "new_retrieval_count": { "type": "integer", "minimum": 5 },
+        "evidence_artifact_ref": {
+          "type": "string",
+          "pattern": "^(artifacts/|file://).+\\.json$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "novelty": {
+      "type": "object",
+      "required": [
+        "all_review_candidates_novel",
+        "artifact_paths",
+        "rejected_count"
+      ],
+      "properties": {
+        "all_review_candidates_novel": { "const": true },
+        "artifact_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^(artifacts/ideas/[^/]+/novelty_delta[^/]*\\.json|file://.+novelty_delta[^/]*\\.json)$"
+          }
+        },
+        "rejected_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "core_loop": {
+      "type": "object",
+      "required": [
+        "steps_executed",
+        "artifact_refs",
+        "failed_approach_count",
+        "execution_complete"
+      ],
+      "properties": {
+        "steps_executed": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "artifact_refs": {
+          "type": "object",
+          "required": [
+            "idea_candidates_artifact_ref",
+            "idea_scorecards_artifact_ref",
+            "ranking_result_artifact_ref",
+            "idea_selection_artifact_ref",
+            "failed_approach_artifact_ref"
+          ],
+          "properties": {
+            "idea_candidates_artifact_ref": {
+              "type": "string",
+              "pattern": "^(artifacts/|file://).+\\.jsonl?$"
+            },
+            "idea_scorecards_artifact_ref": {
+              "type": "string",
+              "pattern": "^(artifacts/|file://).+\\.json$"
+            },
+            "ranking_result_artifact_ref": {
+              "type": "string",
+              "pattern": "^(artifacts/|file://).+\\.json$"
+            },
+            "idea_selection_artifact_ref": {
+              "type": "string",
+              "pattern": "^(artifacts/|file://).+\\.json$"
+            },
+            "failed_approach_artifact_ref": {
+              "type": "string",
+              "pattern": "^(artifacts/|file://).+\\.jsonl?$"
+            },
+            "idea_handoff_c2_artifact_ref": {
+              "type": "string",
+              "pattern": "^(artifacts/|file://).+\\.json$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "failed_approach_count": { "type": "integer", "minimum": 1 },
+        "execution_complete": { "const": true }
+      },
+      "allOf": [
+        {
+          "properties": {
+            "steps_executed": {
+              "contains": { "const": "search.step" }
+            }
+          }
+        },
+        {
+          "properties": {
+            "steps_executed": {
+              "contains": { "const": "eval.run" }
+            }
+          }
+        },
+        {
+          "properties": {
+            "steps_executed": {
+              "contains": { "const": "rank.compute" }
+            }
+          }
+        },
+        {
+          "properties": {
+            "steps_executed": {
+              "contains": { "const": "node.promote" }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "gate_status": { "const": "pass" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "review": {
+            "properties": {
+              "reviewer_a": {
+                "properties": {
+                  "verdict": { "const": "READY" }
+                }
+              },
+              "reviewer_b": {
+                "properties": {
+                  "verdict": { "const": "READY" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "review": {
+            "properties": {
+              "both_ready": { "const": true }
+            },
+            "required": ["both_ready"]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}
+
+```
+
+## New file content: docs/plans/examples/2026-02-15-w5-04-gates/milestone_gate_v1.example.json
+```json
+{
+  "milestone_id": "W5-01-round-001",
+  "generated_at": "2026-02-15T22:00:00Z",
+  "campaign_id": "123e4567-e89b-42d3-a456-426614174000",
+  "review": {
+    "reviewer_a": {
+      "model": "opus",
+      "verdict": "READY",
+      "timestamp": "2026-02-15T22:01:00Z"
+    },
+    "reviewer_b": {
+      "requested_model": "gemini-3-pro-preview",
+      "resolved_model": "gemini-3-pro-preview",
+      "fallback_reason": null,
+      "verdict": "READY",
+      "timestamp": "2026-02-15T22:01:30Z"
+    },
+    "both_ready": true,
+    "round": 1,
+    "fallback_mode": "ask"
+  },
+  "scope": {
+    "scope": "ecosystem_validation",
+    "non_citation_required": true,
+    "non_citation_marker": "NOT_FOR_CITATION",
+    "notes": "Milestone gating for ecosystem workflow validation only."
+  },
+  "literature": {
+    "new_retrieval_count": 5,
+    "evidence_artifact_ref": "artifacts/literature/literature_search_evidence_v2.json"
+  },
+  "novelty": {
+    "all_review_candidates_novel": true,
+    "artifact_paths": [
+      "artifacts/ideas/w5-01/novelty_delta_milestone.json"
+    ],
+    "rejected_count": 1
+  },
+  "core_loop": {
+    "steps_executed": [
+      "search.step",
+      "eval.run",
+      "rank.compute",
+      "node.promote"
+    ],
+    "artifact_refs": {
+      "idea_candidates_artifact_ref": "artifacts/ideas/w5-01/idea_candidates_v1.jsonl",
+      "idea_scorecards_artifact_ref": "artifacts/ideas/w5-01/idea_scorecards_v1.json",
+      "ranking_result_artifact_ref": "artifacts/ideas/w5-01/ranking_result_v1.json",
+      "idea_selection_artifact_ref": "artifacts/ideas/w5-01/idea_selection_v1.json",
+      "failed_approach_artifact_ref": "artifacts/ideas/w5-01/failed_approach_v1.jsonl",
+      "idea_handoff_c2_artifact_ref": "artifacts/ideas/w5-01/idea_handoff_c2_v1.json"
+    },
+    "failed_approach_count": 1,
+    "execution_complete": true
+  },
+  "gate_status": "pass"
+}
+
+```
+
+## Validation evidence
+```text
+# Milestone Gate v1 Validate Evidence
+
+$ make validate
+python3 scripts/check_no_test_instance_pollution.py
+OK: no test-instance pollution paths detected.
+python3 scripts/validate_w5_quality_schemas.py
+OK: W5 quality-gate schemas and examples validated
+```
+
+## Required verdict format
+First line must be exactly `VERDICT: READY` or `VERDICT: NOT_READY`.
+Must include headers: `## Blockers`, `## Non-blocking`, `## Real-research fit`, `## Robustness & safety`, `## Specific patch suggestions`.

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "case_id": "E32-schrodinger-ho-wavefunction",
+  "workflow": "custom",
+  "description": "W_compute schrodinger_ho: RK4 numeric solution matches analytic psi(x)=exp(-omega x^2/2) on [0,x_max] within tight tolerances.",
+  "inputs": {
+    "tag": "M65-a5-schrodinger-ho-r2"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "examples/schrodinger_ho/run_cards/ho_groundstate.json",
+      "examples/schrodinger_ho/scripts/solve_numerics.py",
+      "examples/schrodinger_ho/scripts/validate.py",
+      "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/solve_numerics/results/wavefunction.json",
+      "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/solve_numerics/results/numerics_report.json",
+      "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/validate/results/validation_report.json"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/solve_numerics/results/numerics_report.json",
+        "pointer": "#/results/stable",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "path": "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/validate/results/validation_report.json",
+        "pointer": "#/rmse",
+        "max": 1e-8
+      },
+      {
+        "path": "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/validate/results/validation_report.json",
+        "pointer": "#/max_abs_diff",
+        "max": 1e-8
+      },
+      {
+        "path": "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/validate/results/validation_report.json",
+        "pointer": "#/psi0_abs_err",
+        "max": 1e-12
+      }
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M65-a5-schrodinger-ho-r2/w_compute/phases/solve_numerics/results/wavefunction.json",
+        "pointer": "#/psi",
+        "type": "array",
+        "min_length": 2001
+      }
+    ]
+  },
+  "notes": "This checks both numeric accuracy and basic output-shape invariants."
+}
+

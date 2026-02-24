@@ -1,0 +1,63 @@
+W6-15 eta_floor monotonicity ladder @ Q* (audit3 single-point) — 2026-02-17
+
+Goal: probe whether the eta_floor scan behaves monotonically and whether Clarabel remains numerically stable.
+Scope: pion-only; no coupled-channel. NOT_FOR_CITATION.
+
+== Clarabel baseline (eta_floor=0.6; v21 audit3) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v21-dispersion-grid200-enf200-qstar-audit3-clarabel/results.json
+eta_floor: 0.6
+termination_feasibility: OPTIMAL
+raw_status: SOLVED
+solve_time_sec: 0.425152209
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): 0.007013836765751423
+A_max(-Q*): 0.7602459701025972
+
+== ECOS baseline (eta_floor=0.6; v21 audit3) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v21-dispersion-grid200-enf200-qstar-audit3-ecos/results.json
+eta_floor: 0.6
+termination_feasibility: OPTIMAL
+raw_status: Problem solved to optimality
+solve_time_sec: 1.4716978330000001
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): 0.018061227487672096
+A_max(-Q*): 0.753846502977175
+
+== ECOS probe (eta_floor=0.8; v28) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-17-a-bochner-k0-socp-v28-dispersion-grid200-enf200-qstar-audit3-eta0p8-ecos/results.json
+eta_floor: 0.8
+termination_feasibility: OPTIMAL
+raw_status: Problem solved to optimality
+solve_time_sec: 1.670457582
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): 0.00858645751881228
+A_max(-Q*): 0.7592975532071581
+
+== Clarabel probe (eta_floor=0.8; v29) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-17-a-bochner-k0-socp-v29-dispersion-grid200-enf200-qstar-audit3-eta0p8-clarabel/results.json
+eta_floor: 0.8
+termination_feasibility: NUMERICAL_ERROR
+raw_status: NUMERICAL_ERROR
+solve_time_sec: 0.37277216700000004
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): None
+A_max(-Q*): None
+
+== Clarabel reg diag (eta_floor=0.6; static_reg=1e-6; v30) ==
+results.json: ../idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-17-a-bochner-k0-socp-v30-dispersion-grid200-enf200-qstar-audit3-eta0p6-clarabel-reg1e-6/results.json
+eta_floor: 0.6
+termination_feasibility: OPTIMAL
+raw_status: SOLVED
+solve_time_sec: 0.49978316700000003
+Q2_mpi2: [15.438084455604]
+A_min(-Q*): 0.026527050521024803
+A_max(-Q*): 0.7331290431599651
+
+Notes (conservative interpretation):
+- ECOS shows the expected monotone weakening of A_min as eta_floor increases (0.6 -> 0.8 -> 1.0 in prior W6-13 evidence).
+- Clarabel fails feasibility at eta_floor=0.8 with NUMERICAL_ERROR (v29); treat as solver instability, not evidence of physical infeasibility.
+- Clarabel static regularization at 1e-6 (v30) returns a materially different A_min on the eta_floor=0.6 baseline; treat this setting as diagnostic-only until a small-regularization ladder reproduces baseline values.
+
+Negative-result notes (instance repo):
+- idea-runs/.../evidence/neg_results/2026-02-17-v29-eta0p8-clarabel-feasibility-numerical-error-v1.txt
+- idea-runs/.../evidence/neg_results/2026-02-17-v30-eta0p6-clarabel-static-reg-1e-6-objective-shift-v1.txt

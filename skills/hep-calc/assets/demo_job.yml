@@ -1,0 +1,22 @@
+schema_version: 1
+name: demo-looptools-b0
+description: "Tiny demo job: Mathematica emits a LoopTools call; Julia evaluates; TeX compare checks the printed number."
+
+mathematica:
+  entry: demo_symbolic.wls
+
+numeric:
+  enable: true
+  engine: julia
+
+latex:
+  tex_paths:
+    - demo_paper.tex
+  targets:
+    - id: demo_b0
+      label: eq:demo_b0
+
+tolerance:
+  rel: 1.0e-4
+  abs: 1.0e-12
+

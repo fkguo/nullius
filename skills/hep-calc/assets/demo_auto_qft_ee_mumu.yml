@@ -1,0 +1,35 @@
+schema_version: 1
+name: demo-auto-qft-ee-mumu
+description: >
+  Demo: automatic FeynRules→FeynArts→FormCalc pipeline.
+  Process: e- e+ -> mu- mu+ (one-loop, unrenormalized).
+
+# Compute-only: no LaTeX targets required.
+latex:
+  targets: []
+
+numeric:
+  enable: false
+
+auto_qft:
+  # FeynRules root can be omitted (defaults to $FEYNRULES_PATH or ~/Library/Wolfram/Applications/FeynRules).
+  model_files:
+    - ~/Library/Wolfram/Applications/FeynRules/Models/SM/SM.fr
+  lagrangian_symbol: LSM
+  process:
+    in: ["e-", "e+"]
+    out: ["mu-", "mu+"]
+  feynarts:
+    loop_order: 1
+    insertion_level: Particles
+    exclude_topologies: [Tadpoles]
+    counterterms: false
+  formcalc:
+    # Keep FormCalc disabled for the demo (raw FeynArts amplitude only).
+    # If you enable this, FormCalc may require external binaries (FORM/ReadForm) to be installed/compiled.
+    enable: false
+    pave_reduce: LoopTools
+  export:
+    diagrams: true
+    amplitude_tex: false
+    per_diagram: false

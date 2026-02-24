@@ -1,0 +1,57 @@
+schema_version: 1
+name: demo-auto-qft-model-build-sm-identity
+description: >
+  Demo: auto_qft + model_build plumbing.
+  We provide an inline LaTeX snippet (selected as a "Lagrangian-like" block),
+  then use an agent-style rewrite_wls stub that ignores TeX and reuses the
+  Standard Model LSM from SM.fr, exporting it under a separate symbol.
+
+# Compute-only: no LaTeX targets required.
+latex:
+  targets: []
+
+numeric:
+  enable: false
+
+auto_qft:
+  # Export under a separate symbol so the base SM model remains unchanged.
+  lagrangian_symbol: LFromTeX
+
+  process:
+    in: ["e-", "e+"]
+    out: ["mu-", "mu+"]
+
+  model_build:
+    enable: true
+    inline_tex: '\\mathcal{L} = LSM'
+
+    # Load the Standard Model field/parameter declarations first.
+    base_model_files:
+      - ~/Library/Wolfram/Applications/FeynRules/Models/SM/SM.fr
+
+    # Agent-provided rewrite hook (demo stub).
+    rewrite_wls: model_build/rewrite_sm_identity.wls
+
+    selection:
+      mode: lagrangian_like
+      include_patterns:
+        - '\\mathcal\{L\}'
+
+    parse_policy: best_effort
+
+  feynarts:
+    loop_order: 1
+    insertion_level: Particles
+    exclude_topologies: [Tadpoles]
+    counterterms: false
+
+  formcalc:
+    enable: false
+    pave_reduce: LoopTools
+
+  export:
+    diagrams: true
+    amplitude_md: true
+    amplitude_tex: false
+    per_diagram: false
+

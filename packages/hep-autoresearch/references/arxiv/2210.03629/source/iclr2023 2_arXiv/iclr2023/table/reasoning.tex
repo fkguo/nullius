@@ -1,0 +1,49 @@
+\begin{table}[t]
+\begin{minipage}{.42\linewidth}
+    \centering
+
+
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{l|c|c}
+\toprule
+    \multirow{2}{*}{\textbf{Prompt Method\footnote{\tiny HotpotQA EM is 27.1, 28.9, 33.8 for \palm{}, \reason{}, \reasons{} in \cite{wang2022rationale}.}}} & \textbf{HotpotQA} & \textbf{Fever}  \\
+    & (EM) & (Acc) \\ 
+\midrule
+    \palm{}  & 28.7 & 57.1 \\
+    \reason{}{\scriptsize~\citep{wei2022chain}} & 29.4 & 56.3 \\ 
+    \reasons{}{\scriptsize~\citep{wang2022self-consistency}} & 33.4 & 60.4 \\
+    \midrule
+    \act  & 25.7 & 58.9 \\ 
+    \model   & 27.4 & {60.9} \\
+    \reasons{} $\to$ \model   & 34.2 & \textbf{64.6} \\
+    \model $\to$ \reasons{} & \textbf{35.1} & 62.0 \\ \midrule \midrule
+    \textbf{Supervised SoTA\footnote{\tiny\citep{zhu2021adaptive,lewis2020retrieval}}} & 67.5 & 89.5 \\
+
+    
+\bottomrule
+\end{tabular}%
+}
+\caption{
+PaLM-540B prompting results on HotpotQA and Fever. 
+}
+\label{table:reasoning}
+
+
+\end{minipage}%
+\hspace{5pt}
+\begin{minipage}{.57\linewidth}
+    \centering
+    
+    \includegraphics[width=.49\textwidth]{iclr2023/figure/cots_scale.pdf}
+    \includegraphics[width=.49\textwidth]{iclr2023/figure/fever_cots_scale.pdf}
+    \captionof{figure}{PaLM-540B prompting results with respect to number of \reasons{} samples used.}
+    \label{fig:cots_to_react}
+    
+    
+
+
+\end{minipage}%
+\vspace{-10pt}
+\end{table}
+
+

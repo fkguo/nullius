@@ -1,0 +1,29 @@
+{
+  "run": "runs/2026-02-17-a-bochner-k0-socp-v15b-dispersion-reF-n60-scs-q2a10-ximf-eps1e-2-v1",
+  "solver": {
+    "name": "scs",
+    "max_iter": 800000,
+    "eps_rel": 0.01,
+    "eps_abs": 0.01,
+    "formulation": "x_imF_cone_scaled"
+  },
+  "term_feas": "OPTIMAL",
+  "min_res": {
+    "norm_eq_abs": 0.000263891518057946,
+    "modulus_min_margin": -1.306970179162214,
+    "asr_eq_abs": 0.0000026571542193210007,
+    "asr_eq": 0.0000026571542193210007,
+    "norm_eq": 0.000263891518057946,
+    "soc_min_margin": -1.4337152885892774,
+    "k0_min_margin": 1.65060694938548E-10
+  },
+  "max_res": {
+    "norm_eq_abs": 0.0014410323674609593,
+    "modulus_min_margin": -1.1431480258697633,
+    "asr_eq_abs": 0.0015349667091939523,
+    "asr_eq": 0.0015349667091939523,
+    "norm_eq": -0.0014410323674609593,
+    "soc_min_margin": -3.5095555918385593,
+    "k0_min_margin": -0.0006353472278012605
+  }
+}

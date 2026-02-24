@@ -1,0 +1,21 @@
+You are reviewer B. Review W5-01 decoupled pilot + A0 gating integration.
+
+Hard requirements:
+- Confirm the pilot is truly decoupled (no test-instance content in tool repos).
+- Confirm A0.1 charter and A0.2 promotion contract smoke are machine-checkable (schema-validated).
+- Confirm scope discipline is enforced: ecosystem_validation => NOT_FOR_CITATION markers in the single human report.
+- Confirm toolchain pin (manifest.lock.json) is present and checksum method is documented.
+- If any artifact could be misread as a real physics result without NOT_FOR_CITATION, verdict MUST be NOT_READY.
+
+STRICT FORMAT:
+1) First line must be exactly VERDICT: READY or VERDICT: NOT_READY.
+2) Include exact headers in order:
+   - ## Blockers
+   - ## Non-blocking
+   - ## Real-research fit
+   - ## Robustness & safety
+   - ## Specific patch suggestions
+3) For empty sections, write `- None.`
+
+Read packet:
+- /home/user/Coding/Agents/Autoresearch/idea-generator/docs/reviews/bundles/2026-02-15-w5-01-review-packet-round-001.md

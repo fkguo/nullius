@@ -1,0 +1,713 @@
+{
+  "created": "1995-09-25T00:00:00+00:00",
+  "id": "399783",
+  "links": {
+    "bibtex": "https://inspirehep.net/api/literature/399783?format=bibtex",
+    "citations": "https://inspirehep.net/api/literature/?q=refersto%3Arecid%3A399783",
+    "cv": "https://inspirehep.net/api/literature/399783?format=cv",
+    "json": "https://inspirehep.net/api/literature/399783?format=json",
+    "json-expanded": "https://inspirehep.net/api/literature/399783?format=json-expanded",
+    "latex-eu": "https://inspirehep.net/api/literature/399783?format=latex-eu",
+    "latex-us": "https://inspirehep.net/api/literature/399783?format=latex-us"
+  },
+  "metadata": {
+    "$schema": "https://inspirehep.net/schemas/records/hep.json",
+    "abstracts": [
+      {
+        "source": "Elsevier",
+        "value": "We show that nuclear interactions are SU (4) symmetric at leading order in chiral perturbation theory in the large- N limit of QCD. The nucleons and delta resonances form a 20-dimensional representation of SU (4) and we show how Wigner's supermultiplet symmetry SU (4) sm , under which the nucleons transform as a 4-dimensional representation, follows as an accidental low energy symmetry. Exploiting SU (4) symmetry allows one to express the 18 independent leading N , \u0394 interaction operators invariant under SU (2) I \u00d7 SU (2) J in terms of only two couplings. The three flavor analogue allows one to express the 28 leading octet, decuplet interactions in terms of only two couplings, which has implications for hypernuclei and strangeness in \u201cneutron\u201d stars."
+      },
+      {
+        "source": "arXiv",
+        "value": "We show that nuclear interactions are SU(4) symmetric at leading order in chiral perturbation theory in the large-N limit of QCD. The nucleons and delta resonances form a 20-dimensional representation of SU(4) and we show how Wigner's supermultiplet symmetry SU(4)_{sm}, under which the nucleons transform as a 4-dimensional representation, follows as an accidental low energy symmetry. Exploiting SU(4) symmetry allows one to express the 18 independent leading nucleon, delta interaction operators invariant under spin and isospin symmetries in terms of only two couplings. The three flavor analogue allows one to express the 28 leading octet, decuplet interactions also in terms of only two couplings, which has implications for hypernuclei and strangeness in ``neutron'' stars."
+      }
+    ],
+    "arxiv_eprints": [
+      {
+        "categories": [
+          "hep-ph",
+          "nucl-th"
+        ],
+        "value": "hep-ph/9509371"
+      }
+    ],
+    "authors": [
+      {
+        "affiliations": [
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/903338"
+            },
+            "value": "Washington U., Seattle"
+          }
+        ],
+        "curated_relation": true,
+        "full_name": "Kaplan, David B.",
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/1003694"
+        },
+        "signature_block": "CAPLANd",
+        "uuid": "03a73063-083d-4e61-b17d-6be4466d8a05"
+      },
+      {
+        "affiliations": [
+          {
+            "record": {
+              "$ref": "https://inspirehep.net/api/institutions/902719"
+            },
+            "value": "Carnegie Mellon U."
+          }
+        ],
+        "curated_relation": true,
+        "full_name": "Savage, Martin J.",
+        "record": {
+          "$ref": "https://inspirehep.net/api/authors/990160"
+        },
+        "signature_block": "SAVAGm",
+        "uuid": "b122bd48-f47a-4c39-92d0-2578d95ad768"
+      }
+    ],
+    "citation_count": 162,
+    "citation_count_without_self_citations": 135,
+    "citeable": true,
+    "control_number": 399783,
+    "copyright": [
+      {
+        "statement": "Copyright @ unknown. Published by Elsevier B.V."
+      }
+    ],
+    "core": true,
+    "curated": true,
+    "document_type": [
+      "article"
+    ],
+    "dois": [
+      {
+        "value": "10.1016/0370-2693(95)01277-X"
+      },
+      {
+        "material": "publication",
+        "source": "arXiv",
+        "value": "10.1016/0370-2693(95)01277-X"
+      }
+    ],
+    "external_system_identifiers": [
+      {
+        "schema": "ADS",
+        "value": "1996PhLB..365..244K"
+      },
+      {
+        "schema": "SPIRES",
+        "value": "SPIRES-3219437"
+      },
+      {
+        "schema": "NSR",
+        "value": "1996KA04"
+      }
+    ],
+    "inspire_categories": [
+      {
+        "term": "Phenomenology-HEP"
+      }
+    ],
+    "keywords": [
+      {
+        "schema": "INSPIRE",
+        "value": "nuclear force"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "spin: flavor"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "flavor: spin"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "quantum chromodynamics"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "expansion 1/N"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "perturbation theory: chiral"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "symmetry: SU(4)"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "group theory: representation"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "effective Lagrangian: operator"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "energy levels"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "nucleus: semileptonic decay"
+      },
+      {
+        "schema": "INSPIRE",
+        "value": "semileptonic decay: nucleus"
+      }
+    ],
+    "legacy_creation_date": "1995-09-25",
+    "legacy_version": "20190820011121.0",
+    "number_of_pages": 15,
+    "preprint_date": "1995-09",
+    "public_notes": [
+      {
+        "source": "arXiv",
+        "value": "Discussion of the form of the Savage-Wise coefficients corrected;\n  reference added"
+      }
+    ],
+    "publication_info": [
+      {
+        "journal_title": "Phys.Lett.B",
+        "journal_volume": "365",
+        "material": "publication",
+        "page_end": "251",
+        "page_start": "244",
+        "pubinfo_freetext": "Phys.Lett.B365:244-251,1996",
+        "year": 1996
+      }
+    ],
+    "refereed": true,
+    "references": [
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/28641"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "288",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "251",
+            "page_start": "288"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/29549"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "3",
+            "journal_title": "Nucl.Phys.B",
+            "journal_volume": "363",
+            "page_start": "3"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/33169"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9209257",
+          "publication_info": {
+            "artid": "114",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "295",
+            "page_start": "114"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/334404"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "459",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "291",
+            "page_start": "459"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/36794"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "1982",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "72",
+            "page_start": "1982"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/383846"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "2932",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "49",
+            "page_start": "2932"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/397143"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9507288",
+          "publication_info": {
+            "artid": "349",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "53",
+            "page_start": "349"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/44520"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "106",
+            "journal_title": "Phys.Rev.",
+            "journal_volume": "51",
+            "page_start": "106"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/47278"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "947",
+            "journal_title": "Phys.Rev.",
+            "journal_volume": "51",
+            "page_start": "947"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/47616"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "519",
+            "journal_title": "Phys.Rev.",
+            "journal_volume": "56",
+            "page_start": "519"
+          }
+        }
+      },
+      {
+        "reference": {
+          "publication_info": {
+            "artid": "209",
+            "journal_title": "Annals Phys.",
+            "journal_volume": "60",
+            "page_start": "209"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/239836"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "3148",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "57",
+            "page_start": "3148"
+          }
+        }
+      },
+      {
+        "reference": {
+          "publication_info": {
+            "artid": "1",
+            "journal_title": "Nucl.Phys.A",
+            "journal_volume": "475",
+            "page_start": "1"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/198717"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "2833",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "27",
+            "page_start": "2833"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/253017"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "607",
+            "journal_title": "Rept.Prog.Phys.",
+            "journal_volume": "50",
+            "page_start": "607"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/80491"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "461",
+            "journal_title": "Nucl.Phys.B",
+            "journal_volume": "72",
+            "page_start": "461"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/89056"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "461",
+            "journal_title": "Nucl.Phys.B",
+            "journal_volume": "75",
+            "page_start": "461"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/140391"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "57",
+            "journal_title": "Nucl.Phys.B",
+            "journal_volume": "160",
+            "page_start": "57"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/193594"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "87",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "52",
+            "page_start": "87"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/356137"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9307241",
+          "publication_info": {
+            "artid": "425",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "315",
+            "page_start": "425"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/356126"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9307244",
+          "publication_info": {
+            "artid": "441",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "315",
+            "page_start": "441"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/373789"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9405431",
+          "publication_info": {
+            "artid": "452",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "335",
+            "page_start": "452"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/359606"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9310379",
+          "publication_info": {
+            "artid": "4713",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "49",
+            "page_start": "4713"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/379569"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9411234",
+          "publication_info": {
+            "artid": "3697",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "51",
+            "page_start": "3697"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/359517"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9310365",
+          "publication_info": {
+            "artid": "227",
+            "journal_title": "Phys.Lett.B",
+            "journal_volume": "322",
+            "page_start": "227"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/373895"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9406227",
+          "publication_info": {
+            "artid": "5793",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "50",
+            "page_start": "5793"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/359958"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9310369",
+          "publication_info": {
+            "artid": "71",
+            "journal_title": "Nucl.Phys.B",
+            "journal_volume": "426",
+            "page_start": "71"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/264405"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "1344",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "61",
+            "page_start": "1344"
+          }
+        }
+      },
+      {
+        "reference": {
+          "publication_info": {
+            "artid": "3727",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "39",
+            "page_start": "3727"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/374409"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9406406",
+          "publication_info": {
+            "artid": "1211",
+            "journal_title": "Phys.Rev.Lett.",
+            "journal_volume": "73",
+            "page_start": "1211"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/381875"
+        },
+        "reference": {
+          "arxiv_eprint": "hep-ph/9412373",
+          "publication_info": {
+            "artid": "2891",
+            "journal_title": "Phys.Rev.D",
+            "journal_volume": "52",
+            "page_start": "2891"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/384250"
+        },
+        "reference": {
+          "publication_info": {
+            "artid": "1731",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "50",
+            "page_start": "1731"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/396529"
+        },
+        "reference": {
+          "arxiv_eprint": "nucl-th/9506016",
+          "publication_info": {
+            "artid": "3470",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "52",
+            "page_start": "3470"
+          }
+        }
+      },
+      {
+        "curated_relation": false,
+        "record": {
+          "$ref": "https://inspirehep.net/api/literature/396301"
+        },
+        "reference": {
+          "arxiv_eprint": "nucl-th/9506011",
+          "publication_info": {
+            "artid": "1416",
+            "journal_title": "Phys.Rev.C",
+            "journal_volume": "53",
+            "page_start": "1416"
+          }
+        }
+      },
+      {
+        "reference": {
+          "publication_info": {
+            "artid": "322",
+            "journal_title": "Phys.Lett.",
+            "journal_volume": "12",
+            "page_start": "322"
+          }
+        }
+      }
+    ],
+    "report_numbers": [
+      {
+        "value": "DOE-ER-40561-230"
+      },
+      {
+        "value": "INT-95-00-104"
+      },
+      {
+        "value": "UW-PT-95-14"
+      },
+      {
+        "value": "DOE-ER-40682-102"
+      },
+      {
+        "source": "arXiv",
+        "value": "DOE/ER/40561-230-INT95-00-104"
+      },
+      {
+        "source": "arXiv",
+        "value": "CMU-HEP95-13"
+      }
+    ],
+    "texkeys": [
+      "Kaplan:1995yg"
+    ],
+    "titles": [
+      {
+        "title": "The Spin flavor dependence of nuclear forces from large n QCD"
+      },
+      {
+        "source": "arXiv",
+        "title": "The Spin-Flavor Dependence of Nuclear Forces from Large-N QCD"
+      }
+    ]
+  },
+  "revision_id": 104,
+  "updated": "2024-05-07T09:08:44.063818+00:00",
+  "uuid": "fec0440d-bfcd-4f54-8337-2e615c0fbcf5"
+}

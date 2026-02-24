@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "case_id": "E24-orchestrator-branching-decisions-v0",
+  "workflow": "custom",
+  "description": "T39 regression: Plan branching decisions v0 (branch candidates, per-decision cap=5 with explicit override, one active branch at a time, ledger records switches).",
+  "inputs": {
+    "tag": "M44-t39-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "specs/plan.schema.json",
+      "docs/ORCHESTRATOR_STATE.md",
+      "scripts/run_orchestrator_regression.py",
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "src/hep_autoresearch/toolkit/orchestrator_regression.py",
+      "src/hep_autoresearch/toolkit/orchestrator_state.py",
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/manifest.json",
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/summary.json",
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/analysis.json",
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autopilot/state.json",
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autopilot/ledger.jsonl",
+      "artifacts/runs/M44-t39-r1/orchestrator_regression/.autopilot/plan.md"
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M44-t39-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/branching/ok",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "artifacts/runs/M44-t39-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/branching/active_branch_id",
+        "type": "string",
+        "equals": "W2.S1:b3"
+      }
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M44-t39-r1/orchestrator_regression/analysis.json",
+        "pointer": "#/results/branching/branches_total",
+        "min": 6,
+        "max": 6
+      }
+    ],
+    "text_contains_checks": [
+      {
+        "path": "artifacts/runs/M44-t39-r1/orchestrator_regression/.autopilot/plan.md",
+        "contains": ["## Branching", "active_branch_id: W2.S1:b3", "cap_override: 6", "active_branch_id: b3"]
+      }
+    ]
+  },
+  "notes": "Anchored to tag M44-t39-r1; validates branching Plan SSOT fields + derived plan.md + ledger-backed switching."
+}
+

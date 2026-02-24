@@ -1,0 +1,6 @@
+# W5-03 Validate Evidence (idea-generator)
+Date: 2026-02-15T12:32:51Z
+
+## Command: make validate
+python3 scripts/check_no_test_instance_pollution.py
+OK: no test-instance pollution paths detected.

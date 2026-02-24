@@ -1,0 +1,17 @@
+{
+  "package_id": "hep-autoresearch",
+  "package_type": "workflow-pack",
+  "repo": "autoresearch-lab/hep-autoresearch",
+  "channel": "beta",
+  "version": "0.0.1",
+  "summary": "Control plane CLI orchestrator (hepar).",
+  "platforms": ["claude_code", "codex", "opencode"],
+  "depends_on": {
+    "hep-research-mcp": ">=0.3.0 <0.4.0"
+  },
+  "install": {
+    "claude_code": "See ecosystem-meta compatibility matrix and local toolchain bootstrap.",
+    "codex": "Install CLI and ensure hepar on PATH.",
+    "opencode": "Install CLI and ensure hepar on PATH."
+  }
+}

@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\begin{tabular}{lr}
+\toprule
+Model/task & Latency(ms/token) \\
+\midrule
+LLaMA-7B\phantom{1} Forward & 54 \\
+LLaMA-33B Forward & 87 \\
+LLaMA-65B Forward & 136 \\
+\hline
+GCD overhead: cIE & $69 $ \\
+GCD overhead: ED & $1 $ \\
+GCD overhead: CP & $4 $ \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Per-token decoding latency}
+(in milliseconds)
+for unconstrained decoding (top 3 rows, measured on A100 GPU), compared to overhead due to grammar-constrained decoding (bottom 3 rows, measured on consumer CPU).
+}
+\label{tab:latency}
+\end{table}

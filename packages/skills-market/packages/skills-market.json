@@ -1,0 +1,14 @@
+{
+  "package_id": "skills-market",
+  "package_type": "skill-pack-index",
+  "repo": "autoresearch-lab/skills-market",
+  "channel": "beta",
+  "version": "0.1.0",
+  "summary": "Marketplace index and installer scripts for cross-platform skill distribution.",
+  "platforms": ["claude_code", "codex", "opencode"],
+  "install": {
+    "claude_code": "Use local symlink fallback under ~/.claude/skills when needed.",
+    "codex": "Use scripts/install_codex.sh to link into ~/.codex/skills.",
+    "opencode": "Use scripts/install_opencode.sh to link into ~/.config/opencode/skills."
+  }
+}

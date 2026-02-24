@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "case_id": "E19-kb-index-v0",
+  "workflow": "custom",
+  "description": "KB index v0: deterministic JSON export for knowledge_base/{literature,methodology_traces,priors}, referenced in context packs for reviewer/LLM retrieval.",
+  "inputs": {},
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_kb_index.py",
+      "specs/kb_index.schema.json",
+      "src/hep_autoresearch/toolkit/kb_index.py",
+      "src/hep_autoresearch/toolkit/context_pack.py",
+      "knowledge_base/_index/kb_index.json",
+      "artifacts/runs/M35-t33-r1/kb_index/manifest.json",
+      "artifacts/runs/M35-t33-r1/kb_index/summary.json",
+      "artifacts/runs/M35-t33-r1/kb_index/analysis.json",
+      "artifacts/runs/M35-t33-r1/context/context.md",
+      "artifacts/runs/M35-t33-r1/context/context.json"
+    ],
+    "reading_note_required_fields": ["KB index:"],
+    "json_numeric_checks": [
+      {
+        "path": "knowledge_base/_index/kb_index.json",
+        "pointer": "#/stats/total_entries",
+        "min": 1
+      },
+      {
+        "path": "knowledge_base/_index/kb_index.json",
+        "pointer": "#/stats/by_kind/literature",
+        "min": 1
+      },
+      {
+        "path": "knowledge_base/_index/kb_index.json",
+        "pointer": "#/stats/by_kind/methodology_traces",
+        "min": 1
+      },
+      {
+        "path": "knowledge_base/_index/kb_index.json",
+        "pointer": "#/stats/by_kind/priors",
+        "min": 1
+      },
+      {
+        "path": "artifacts/runs/M35-t33-r1/context/context.json",
+        "pointer": "#/project/missing_required_files_count",
+        "min": 0,
+        "max": 0
+      },
+      {
+        "path": "artifacts/runs/M35-t33-r1/context/context.json",
+        "pointer": "#/project/required_context_ok",
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "notes": "Anchored to tag M35-t33-r1; validates kb_index.json and context pack linkage."
+}
+

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Approval Policy",
+  "type": "object",
+  "required": ["schema_version", "mode", "require_approval_for"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "mode": {
+      "type": "string",
+      "enum": ["safe", "interactive", "full_auto"],
+      "description": "High-level approval mode. Enforcement is implemented by the Orchestrator."
+    },
+    "require_approval_for": {
+      "type": "object",
+      "required": ["mass_search", "code_changes", "compute_runs", "paper_edits", "final_conclusions"],
+      "properties": {
+        "mass_search": { "type": "boolean" },
+        "code_changes": { "type": "boolean" },
+        "compute_runs": { "type": "boolean" },
+        "paper_edits": { "type": "boolean" },
+        "final_conclusions": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "budgets": {
+      "type": "object",
+      "properties": {
+        "max_network_calls": { "type": "integer", "minimum": 0 },
+        "max_runtime_minutes": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "timeouts": {
+      "type": "object",
+      "description": "Per-category approval timeout policy. Silence must never auto-approve.",
+      "properties": {
+        "mass_search": { "$ref": "#/$defs/timeout_policy" },
+        "code_changes": { "$ref": "#/$defs/timeout_policy" },
+        "compute_runs": { "$ref": "#/$defs/timeout_policy" },
+        "paper_edits": { "$ref": "#/$defs/timeout_policy" },
+        "final_conclusions": { "$ref": "#/$defs/timeout_policy" }
+      },
+      "additionalProperties": false
+    },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "timeout_policy": {
+      "type": "object",
+      "required": ["timeout_seconds", "on_timeout"],
+      "properties": {
+        "timeout_seconds": { "type": "integer", "minimum": 0 },
+        "on_timeout": { "type": "string", "enum": ["block", "reject", "escalate"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}

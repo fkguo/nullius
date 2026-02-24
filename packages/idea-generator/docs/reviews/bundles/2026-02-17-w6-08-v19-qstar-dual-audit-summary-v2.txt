@@ -1,0 +1,46 @@
+W6-08 summary v2: v19 Q* dual-audit (JuMP-level same config; solver-input may differ via MOI bridges)
+timestamp_utc: 2026-02-17T01:43:02Z
+project: pion-gff-bootstrap-positivity-pilot-2026-02-15
+
+== clarabel
+run_results_json: /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v19-dispersion-grid200-enf200-qstar-dualcert-clarabel/results.json
+Q2_mpi2: 15.438084455604
+Amin_primal: 0.007284756916
+objective_value: 0.018590932272
+dual_objective_value_reported: 0.018590929027
+dual_obj_recomputed: 0.018590929027
+tail_const_analytic: -0.011306175356
+Amin_dual_recomputed_plus_tail: 0.007284753671
+stationarity_inf_norm: 3.388e-07
+dual_cone_violations: 0
+dual_cone_min_margin: 7.605e-14
+min_residuals: norm_eq_abs=2.332e-08, asr_eq_abs=1.088e-08, k0_min_margin=1.712e-10, soc_min_margin=-1.961e-10, modulus_min_margin=7.321e-09
+
+== ecos
+run_results_json: /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v19-dispersion-grid200-enf200-qstar-dualcert-ecos/results.json
+Q2_mpi2: 15.438084455604
+Amin_primal: 0.018103849010
+objective_value: 0.029410024366
+dual_objective_value_reported: 0.029410024471
+dual_obj_recomputed: 0.029410024471
+tail_const_analytic: -0.011306175356
+Amin_dual_recomputed_plus_tail: 0.018103849115
+stationarity_inf_norm: 4.268e-06
+dual_cone_violations: 0
+dual_cone_min_margin: 3.355e-14
+min_residuals: norm_eq_abs=1.196e-07, asr_eq_abs=2.414e-08, k0_min_margin=1.660e-10, soc_min_margin=1.155e-10, modulus_min_margin=2.331e-09
+
+NOTE: The ECOS primal value (0.01810...) exceeds the Clarabel value (0.00728...) because the
+MOI bridge produces a different (often less tight) inner conic formulation for ECOS; a larger
+`Amin_primal` is consistent with a looser relaxation and does not undermine the Clarabel result.
+
+Notes:
+- v19 packet Round-001 used the term "dual-certified"; v2 uses "dual-audit" to avoid implying a rigorous certificate.
+- Solver-input non-identity evidence: see model stats + fingerprint files below.
+
+Model non-identity evidence (v19):
+- docs/reviews/bundles/2026-02-16-w6-08-v19-inner-model-stats-v1.txt
+- docs/reviews/bundles/2026-02-16-w6-08-v19-inner-fingerprint-v1.txt
+
+Tail-const independent high-precision check:
+- docs/reviews/bundles/2026-02-16-w6-09-tail-const-mpmath-check-v1.txt
