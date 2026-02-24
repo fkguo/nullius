@@ -2,7 +2,11 @@
 """
 check_review_output_contract.py
 
-Validate the strict reviewer output contract used by dual-review convergence loops:
+Validate the strict reviewer output contract used by dual-review convergence loops.
+
+Contract auto-detects output format:
+
+Markdown format:
 - First line exactly: "VERDICT: READY" or "VERDICT: NOT_READY"
 - Required Markdown headers (exact):
   - "## Blockers"
@@ -10,6 +14,12 @@ Validate the strict reviewer output contract used by dual-review convergence loo
   - "## Real-research fit"
   - "## Robustness & safety"
   - "## Specific patch suggestions"
+
+JSON format:
+- Valid JSON object with required fields: "blocking_issues", "verdict", "summary"
+- "verdict" must be "PASS" or "FAIL"
+- "blocking_issues" must be an array
+- JSON wrapped in markdown code fences (```json ... ```) is automatically unwrapped
 
 Exit codes:
   0  all files conform

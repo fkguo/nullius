@@ -135,50 +135,17 @@ python3 scripts/bin/run_multi_task.py \
   --convergence-threshold 0.8
 ```
 
-## Project config
-
-Place `meta/review-swarm.json` in the git root to set project-wide defaults.
-Auto-discovered from CWD (walks up to git root, checks `meta/review-swarm.json`).
-
-```json
-{
-  "models": "codex/gpt-5.3-codex,gemini/gemini-3.1-pro-preview",
-  "fallback_mode": "auto",
-  "fallback_order": "codex,claude",
-  "check_review_contract": true,
-  "backend_system": { "gemini": "none" }
-}
-```
-
-- CLI args always override config values.
-- Use `--config /path/to/file.json` for an explicit config path.
-- Set `REVIEW_SWARM_NO_AUTO_CONFIG=1` to disable auto-discovery.
-
-Supported config keys: `models`, `model`, `agents`, `output_prefix`, `fallback_mode`,
-`fallback_order`, `fallback_target_backends`, `fallback_codex_model`, `fallback_claude_model`,
-`check_review_contract`, `check_convergence`, `convergence_threshold`, `max_prompt_bytes`,
-`max_prompt_chars`, `max_prompt_overflow`, `gemini_cli_home`, `backend_system`,
-`backend_prompt`, `backend_output`.
-
-## Tool access policy
-
-All review backends run with **read-only tool access** — reviewers can inspect the codebase
-but cannot modify files:
-
-| Backend | Mechanism | Tool access |
-|---------|-----------|-------------|
-| Codex | `--sandbox read-only --full-auto` | Shell (read-only fs), file reads |
-| Claude | `--tools 'Read,Glob,Grep,Bash'` | Read, Glob, Grep, Bash (no Edit/Write) |
-| Gemini | `--approval-mode plan` | Read-only agentic mode |
-
-This is configured in each runner script (`run_codex.sh`, `run_claude.sh`, `run_gemini.sh`).
-Override via `--sandbox`, `--tools`, or `--approval-mode` flags on the runner if needed.
-
 ## Standalone contract checker
 
 ```bash
 python3 scripts/bin/check_review_output_contract.py /tmp/dual_review/claude_output.md
 ```
+
+Contract auto-detects output format:
+- **Markdown**: `VERDICT: READY/NOT_READY` first line + required headers (`## Blockers`, etc.)
+- **JSON**: Valid JSON object with `blocking_issues` (array), `verdict` (`PASS`/`FAIL`), `summary`
+
+JSON outputs wrapped in markdown code fences (`` ```json ... ``` ``) are automatically unwrapped.
 
 ## Outputs
 
