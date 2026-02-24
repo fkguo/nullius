@@ -2,6 +2,9 @@
 
 > 本 prompt 用于新开 Claude Code 对话，继续 REDESIGN_PLAN.md Phase 0 实施。
 > 工作目录: `/home/user/Coding/Agents/autoresearch-lab/`（monorepo）
+>
+> **Serena 项目**: `autoresearch-lab`（已配置 `.serena/project.yml`，含 TS + Python，onboarding 记忆已就绪）
+> **CLAUDE.md**: monorepo 根目录 `CLAUDE.md` + `packages/hep-mcp/CLAUDE.md`
 
 ---
 
@@ -11,6 +14,7 @@
 - **NEW-R13** 包重命名 @hep-research/* → @autoresearch/*, hep-research-mcp → hep-mcp ✅ (2026-02-24)
 
 Monorepo 位于 `/home/user/Coding/Agents/autoresearch-lab/`。696 tests pass, 8 TS packages build OK。
+Git commit: `ee65e5f` (latest, includes `.serena/project.yml`)。
 
 ## 待执行 (11 项)
 
@@ -41,10 +45,11 @@ NEW-05a Phase 0 交付仅限 Stage 1：最小 TS 编排器骨架（StateManager,
 
 ## 第一步: 读取上下文
 
-1. 读取 `meta/REDESIGN_PLAN.md` 中 Phase 0 各项的详细规格
-2. 读取 `meta/remediation_tracker_v1.json` 确认当前状态
-3. 检查 serena memory: `architecture-decisions`
-4. 读取 `packages/hep-mcp/CLAUDE.md`（TS 约束）
+1. 激活 Serena 项目 `autoresearch-lab`（`serena:activate_project`，路径 `/home/user/Coding/Agents/autoresearch-lab`）
+2. 读取 serena memory: `architecture-decisions`、`monorepo-migration-lessons`
+3. 读取 `meta/REDESIGN_PLAN.md` 中 Phase 0 各项的详细规格
+4. 读取 `meta/remediation_tracker_v1.json` 确认当前状态
+5. 读取 `packages/hep-mcp/CLAUDE.md`（TS 约束）
 
 ## 第二步: 执行策略
 
