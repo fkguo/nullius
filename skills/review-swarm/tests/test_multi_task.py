@@ -612,5 +612,181 @@ TXT
             self.assertEqual(meta["success_count"], 1)
 
 
+class ProjectConfigTests(unittest.TestCase):
+    """Tests for meta/review-swarm.json project config support."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_run_multi_task_module()
+
+    def test_explicit_config_applies_models(self):
+        """--config path injects models when CLI doesn't specify --models."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            cfg = td_path / "review-swarm.json"
+            cfg.write_text(json.dumps({
+                "models": "codex/test-model,gemini/test-gemini",
+            }), encoding="utf-8")
+
+            out_dir = td_path / "out"
+            sys_prompt = td_path / "system.md"
+            user_prompt = td_path / "prompt.md"
+            sys_prompt.write_text("system", encoding="utf-8")
+            user_prompt.write_text("prompt", encoding="utf-8")
+
+            fake_codex_home = td_path / "codex_home"
+            for runner_name in ("run_codex.sh", "run_gemini.sh"):
+                skill_dir = fake_codex_home / "skills"
+                if "codex" in runner_name:
+                    runner_path = skill_dir / "codex-cli-runner" / "scripts" / runner_name
+                else:
+                    runner_path = skill_dir / "gemini-cli-runner" / "scripts" / runner_name
+                runner_path.parent.mkdir(parents=True, exist_ok=True)
+                _write_stub_runner(runner_path)
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir", str(out_dir),
+                "--system", str(sys_prompt),
+                "--prompt", str(user_prompt),
+                "--config", str(cfg),
+                "--no-parallel",
+            ]
+            with _temp_env(CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
+                code = _run_main_with_argv(self.mod, argv)
+
+            self.assertEqual(code, 0)
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["n_agents"], 2)
+            self.assertIn("codex/test-model", meta["models"])
+            self.assertIn("gemini/test-gemini", meta["models"])
+
+    def test_cli_models_override_config(self):
+        """CLI --models wins over config file models."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            cfg = td_path / "review-swarm.json"
+            cfg.write_text(json.dumps({
+                "models": "codex/config-model,gemini/config-gemini",
+            }), encoding="utf-8")
+
+            out_dir = td_path / "out"
+            sys_prompt = td_path / "system.md"
+            user_prompt = td_path / "prompt.md"
+            sys_prompt.write_text("system", encoding="utf-8")
+            user_prompt.write_text("prompt", encoding="utf-8")
+
+            fake_codex_home = td_path / "codex_home"
+            runner_path = fake_codex_home / "skills" / "codex-cli-runner" / "scripts" / "run_codex.sh"
+            runner_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_stub_runner(runner_path)
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir", str(out_dir),
+                "--system", str(sys_prompt),
+                "--prompt", str(user_prompt),
+                "--config", str(cfg),
+                "--models", "codex/cli-override",
+                "--no-parallel",
+            ]
+            with _temp_env(CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
+                code = _run_main_with_argv(self.mod, argv)
+
+            self.assertEqual(code, 0)
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["n_agents"], 1)
+            self.assertIn("codex/cli-override", meta["models"])
+
+    def test_config_backend_system_applies(self):
+        """Config backend_system dict injects --backend-system entries."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            cfg = td_path / "review-swarm.json"
+            cfg.write_text(json.dumps({
+                "backend_system": {"gemini": "none"},
+            }), encoding="utf-8")
+
+            out_dir = td_path / "out"
+            sys_prompt = td_path / "system.md"
+            user_prompt = td_path / "prompt.md"
+            sys_prompt.write_text("system", encoding="utf-8")
+            user_prompt.write_text("prompt", encoding="utf-8")
+
+            fake_codex_home = td_path / "codex_home"
+            for name in ("run_codex.sh", "run_gemini.sh"):
+                if "codex" in name:
+                    rp = fake_codex_home / "skills" / "codex-cli-runner" / "scripts" / name
+                else:
+                    rp = fake_codex_home / "skills" / "gemini-cli-runner" / "scripts" / name
+                rp.parent.mkdir(parents=True, exist_ok=True)
+                _write_stub_runner(rp)
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir", str(out_dir),
+                "--system", str(sys_prompt),
+                "--prompt", str(user_prompt),
+                "--config", str(cfg),
+                "--models", "codex/default,gemini/default",
+                "--no-parallel",
+            ]
+            with _temp_env(CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
+                code = _run_main_with_argv(self.mod, argv)
+
+            self.assertEqual(code, 0)
+            trace = _read_trace_events(out_dir / "trace.jsonl")
+            config_evt = next(e for e in trace if e.get("event") == "config")
+            self.assertIsNone(config_evt["backend_system_overrides"]["gemini"])
+
+    def test_auto_discovery_finds_autoresearch_dir(self):
+        """Auto-discovery finds .autoresearch/review-swarm.json at git root."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            # Fake git root
+            (td_path / ".git").mkdir()
+            cfg_dir = td_path / ".autoresearch"
+            cfg_dir.mkdir()
+            cfg = cfg_dir / "review-swarm.json"
+            cfg.write_text(json.dumps({"models": "codex/test"}), encoding="utf-8")
+
+            with _temp_env(REVIEW_SWARM_NO_AUTO_CONFIG=""):
+                os.environ.pop("REVIEW_SWARM_NO_AUTO_CONFIG", None)
+                result = self.mod._find_project_config(start=td_path)
+
+            self.assertIsNotNone(result)
+            self.assertEqual(result.resolve(), cfg.resolve())
+
+    def test_auto_discovery_prefers_meta_over_autoresearch(self):
+        """When both meta/ and .autoresearch/ have config, meta/ wins."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            (td_path / ".git").mkdir()
+            for subdir in ("meta", ".autoresearch"):
+                d = td_path / subdir
+                d.mkdir()
+                (d / "review-swarm.json").write_text(
+                    json.dumps({"models": f"from-{subdir}"}), encoding="utf-8"
+                )
+
+            with _temp_env(REVIEW_SWARM_NO_AUTO_CONFIG=""):
+                os.environ.pop("REVIEW_SWARM_NO_AUTO_CONFIG", None)
+                result = self.mod._find_project_config(start=td_path)
+
+            self.assertIsNotNone(result)
+            self.assertIn("meta", str(result))
+
+    def test_auto_discovery_disabled_by_env(self):
+        """REVIEW_SWARM_NO_AUTO_CONFIG=1 disables auto-discovery."""
+        with _temp_env(REVIEW_SWARM_NO_AUTO_CONFIG="1"):
+            result = self.mod._find_project_config()
+        self.assertIsNone(result)
+
+    def test_missing_explicit_config_raises(self):
+        """--config to non-existent file raises FileNotFoundError."""
+        with self.assertRaises(FileNotFoundError):
+            self.mod._load_project_config("/tmp/nonexistent_review_swarm_config_12345.json")
+
+
 if __name__ == "__main__":
     unittest.main()

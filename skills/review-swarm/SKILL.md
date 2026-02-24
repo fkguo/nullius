@@ -135,6 +135,31 @@ python3 scripts/bin/run_multi_task.py \
   --convergence-threshold 0.8
 ```
 
+## Project config
+
+Place `meta/review-swarm.json` in the git root to set project-wide defaults.
+Auto-discovered from CWD (walks up to git root, checks `meta/review-swarm.json`).
+
+```json
+{
+  "models": "codex/gpt-5.3-codex,gemini/gemini-3.1-pro-preview",
+  "fallback_mode": "auto",
+  "fallback_order": "codex,claude",
+  "check_review_contract": true,
+  "backend_system": { "gemini": "none" }
+}
+```
+
+- CLI args always override config values.
+- Use `--config /path/to/file.json` for an explicit config path.
+- Set `REVIEW_SWARM_NO_AUTO_CONFIG=1` to disable auto-discovery.
+
+Supported config keys: `models`, `model`, `agents`, `output_prefix`, `fallback_mode`,
+`fallback_order`, `fallback_target_backends`, `fallback_codex_model`, `fallback_claude_model`,
+`check_review_contract`, `check_convergence`, `convergence_threshold`, `max_prompt_bytes`,
+`max_prompt_chars`, `max_prompt_overflow`, `gemini_cli_home`, `backend_system`,
+`backend_prompt`, `backend_output`.
+
 ## Standalone contract checker
 
 ```bash

@@ -1,0 +1,9 @@
+{
+  "models": "codex/gpt-5.3-codex,gemini/gemini-3.1-pro-preview",
+  "fallback_mode": "auto",
+  "fallback_order": "codex,claude",
+  "check_review_contract": true,
+  "backend_system": {
+    "gemini": "none"
+  }
+}

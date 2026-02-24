@@ -800,9 +800,126 @@ def _dual_review_summary(results: list[dict[str, Any]]) -> Optional[dict[str, An
     }
 
 
+
+_CONFIG_FILENAME = "review-swarm.json"
+
+# Keys in the project config that map to simple CLI args (string/bool/number).
+# list/dict-valued keys (backend_system, backend_prompt, backend_output) need special handling.
+_CONFIG_SIMPLE_KEYS: dict[str, str] = {
+    "models": "models",
+    "model": "model",
+    "agents": "agents",
+    "output_prefix": "output_prefix",
+    "fallback_mode": "fallback_mode",
+    "fallback_order": "fallback_order",
+    "fallback_target_backends": "fallback_target_backends",
+    "fallback_codex_model": "fallback_codex_model",
+    "fallback_claude_model": "fallback_claude_model",
+    "check_review_contract": "check_review_contract",
+    "check_convergence": "check_convergence",
+    "convergence_threshold": "convergence_threshold",
+    "max_prompt_bytes": "max_prompt_bytes",
+    "max_prompt_chars": "max_prompt_chars",
+    "max_prompt_overflow": "max_prompt_overflow",
+    "gemini_cli_home": "gemini_cli_home",
+}
+
+
+def _find_project_config(start: Path | None = None) -> Path | None:
+    """Find review-swarm.json by walking up from *start* (default: CWD)
+    to find the git root, then checking:
+      1. meta/review-swarm.json  (development context — autoresearch-lab itself)
+      2. .autoresearch/review-swarm.json  (research project managed by autoresearch-lab)
+    Disabled when REVIEW_SWARM_NO_AUTO_CONFIG=1 (e.g. in tests)."""
+    if os.environ.get("REVIEW_SWARM_NO_AUTO_CONFIG"):
+        return None
+    cur = (start or Path.cwd()).resolve()
+    while True:
+        if (cur / ".git").exists():
+            for subdir in ("meta", ".autoresearch"):
+                candidate = cur / subdir / _CONFIG_FILENAME
+                if candidate.is_file():
+                    return candidate
+            return None
+        parent = cur.parent
+        if parent == cur:
+            break
+        cur = parent
+    return None
+
+
+def _load_project_config(explicit_path: str | None) -> dict[str, Any]:
+    """Load project config from explicit path or auto-discovered file.
+    Returns empty dict if nothing found."""
+    if explicit_path:
+        p = Path(explicit_path).expanduser().resolve()
+        if not p.is_file():
+            raise FileNotFoundError(f"--config file not found: {p}")
+        cfg = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(cfg, dict):
+            raise ValueError(f"--config must be a JSON object, got {type(cfg).__name__}")
+        print(f"review-swarm: loaded config from {p}", file=sys.stderr)
+        return cfg
+    auto = _find_project_config()
+    if auto:
+        cfg = json.loads(auto.read_text(encoding="utf-8"))
+        if not isinstance(cfg, dict):
+            raise ValueError(f"{auto}: expected JSON object, got {type(cfg).__name__}")
+        print(f"review-swarm: loaded project config from {auto}", file=sys.stderr)
+        return cfg
+    return {}
+
+
+def _apply_config_defaults(args: argparse.Namespace, cfg: dict[str, Any]) -> None:
+    """Merge project config into args where CLI didn't explicitly set a value.
+    CLI args always win over config file values."""
+    if not cfg:
+        return
+    for cfg_key, attr in _CONFIG_SIMPLE_KEYS.items():
+        if cfg_key not in cfg:
+            continue
+        val = cfg[cfg_key]
+        current = getattr(args, attr, None)
+        # Detect "unset" CLI values: empty string, None, or argparse default False for store_true.
+        if isinstance(current, str) and current == "":
+            setattr(args, attr, str(val))
+        elif current is None:
+            setattr(args, attr, val)
+        elif isinstance(current, bool) and not current and isinstance(val, bool) and val:
+            setattr(args, attr, True)
+    # Dict-valued: backend_system, backend_prompt, backend_output
+    for dict_key, attr in [
+        ("backend_system", "backend_system"),
+        ("backend_prompt", "backend_prompt"),
+        ("backend_output", "backend_output"),
+    ]:
+        if dict_key not in cfg:
+            continue
+        mapping = cfg[dict_key]
+        if not isinstance(mapping, dict):
+            continue
+        existing = getattr(args, attr, []) or []
+        # Only inject config entries that aren't already set by CLI.
+        existing_backends = set()
+        for entry in existing:
+            if "=" in entry:
+                existing_backends.add(entry.split("=", 1)[0].strip().lower())
+        for backend, value in mapping.items():
+            if backend.lower() not in existing_backends:
+                existing.append(f"{backend}={value}")
+        setattr(args, attr, existing)
+
 def _parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out-dir", required=True, type=Path, help="Output directory for outputs + trace.")
+    ap.add_argument(
+        "--config",
+        default=None,
+        help=(
+            "Path to project config JSON file. "
+            "If omitted, auto-discovers meta/review-swarm.json from git root."
+        ),
+    )
     ap.add_argument(
         "--opencode-runner",
         default=None,
@@ -969,7 +1086,13 @@ def _parse_args() -> argparse.Namespace:
         help="Run agents sequentially.",
     )
 
-    return ap.parse_args()
+    args = ap.parse_args()
+
+    # Load project config and apply as defaults (CLI args always win).
+    cfg = _load_project_config(args.config)
+    _apply_config_defaults(args, cfg)
+
+    return args
 
 
 def main() -> int:
