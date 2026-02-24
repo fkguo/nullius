@@ -1560,3 +1560,676 @@ describe('Ledger detail parity (Stage 3b regression)', () => {
     expect(fs.existsSync(path.join(tmpDir, '.pause'))).toBe(false);
   });
 });
+
+// ─── Stage 3c: Plan validation + plan.md derivation ───
+
+/** Minimal valid plan for tests. */
+function basePlan(overrides?: Record<string, unknown>): Record<string, unknown> {
+  return {
+    schema_version: 1,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    run_id: 'test-run',
+    workflow_id: 'test-workflow',
+    steps: [
+      {
+        step_id: 'step_1',
+        description: 'First step',
+        status: 'pending',
+        expected_approvals: ['A1'],
+        expected_outputs: ['output1.json'],
+        recovery_notes: 'retry',
+      },
+    ],
+    ...overrides,
+  };
+}
+
+/** Plan with branching for testing. */
+function planWithBranching(overrides?: Record<string, unknown>): Record<string, unknown> {
+  return basePlan({
+    steps: [
+      {
+        step_id: 'step_1',
+        description: 'First step',
+        status: 'pending',
+        expected_approvals: [],
+        expected_outputs: [],
+        recovery_notes: '',
+      },
+      {
+        step_id: 'step_2',
+        description: 'Second step',
+        status: 'pending',
+        expected_approvals: [],
+        expected_outputs: [],
+        recovery_notes: '',
+      },
+    ],
+    branching: {
+      schema_version: 1,
+      active_branch_id: 'dec1:branch_a',
+      max_branches_per_decision: 5,
+      decisions: [
+        {
+          decision_id: 'dec1',
+          title: 'Pick approach',
+          step_id: 'step_1',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+          max_branches: 3,
+          active_branch_id: 'branch_a',
+          branches: [
+            {
+              branch_id: 'branch_a',
+              label: 'Approach A',
+              description: 'Do A',
+              status: 'active',
+              expected_approvals: [],
+              expected_outputs: [],
+              recovery_notes: '',
+            },
+            {
+              branch_id: 'branch_b',
+              label: 'Approach B',
+              description: 'Do B',
+              status: 'candidate',
+              expected_approvals: [],
+              expected_outputs: [],
+              recovery_notes: '',
+            },
+          ],
+          notes: '',
+        },
+      ],
+      notes: '',
+    },
+    ...overrides,
+  });
+}
+
+describe('Stage 3c: validatePlan', () => {
+  let tmpDir: string;
+  let sm: StateManager;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    sm = new StateManager(tmpDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('accepts a valid plan without branching', () => {
+    expect(() => sm.validatePlan(basePlan())).not.toThrow();
+  });
+
+  it('accepts a valid plan with branching', () => {
+    expect(() => sm.validatePlan(planWithBranching())).not.toThrow();
+  });
+
+  it('rejects plan with invalid schema_version', () => {
+    expect(() => sm.validatePlan(basePlan({ schema_version: 0 }))).toThrow(/schema_version/);
+    expect(() => sm.validatePlan(basePlan({ schema_version: 'x' }))).toThrow(/schema_version/);
+  });
+
+  it('rejects plan with missing created_at', () => {
+    // Empty string is valid per schema (type: string, no minLength) — matches Python behavior
+    // But non-string is rejected
+    expect(() => sm.validatePlan(basePlan({ created_at: 123 }))).toThrow(/created_at/);
+  });
+
+  it('rejects plan with missing updated_at', () => {
+    // Non-string is rejected
+    expect(() => sm.validatePlan(basePlan({ updated_at: 123 }))).toThrow(/updated_at/);
+  });
+
+  it('rejects plan with non-array steps', () => {
+    expect(() => sm.validatePlan(basePlan({ steps: 'oops' }))).toThrow(/schema validation failed/);
+  });
+
+  it('rejects step with missing step_id', () => {
+    const plan = basePlan({
+      steps: [{ step_id: '', description: 'x', status: 'pending', expected_approvals: [], expected_outputs: [], recovery_notes: '' }],
+    });
+    expect(() => sm.validatePlan(plan)).toThrow(/step_id/);
+  });
+
+  it('rejects step with invalid status', () => {
+    const plan = basePlan({
+      steps: [{ step_id: 's1', description: 'x', status: 'INVALID', expected_approvals: [], expected_outputs: [], recovery_notes: '' }],
+    });
+    expect(() => sm.validatePlan(plan)).toThrow(/status/);
+  });
+
+  it('rejects step with non-array expected_approvals', () => {
+    const plan = basePlan({
+      steps: [{ step_id: 's1', description: 'x', status: 'pending', expected_approvals: 'A1', expected_outputs: [], recovery_notes: '' }],
+    });
+    expect(() => sm.validatePlan(plan)).toThrow(/expected_approvals/);
+  });
+
+  // ─── New schema coverage tests (additionalProperties, enum, nested required) ───
+
+  it('rejects plan with unexpected top-level properties', () => {
+    const plan = basePlan({ extraField: 'bad' });
+    expect(() => sm.validatePlan(plan)).toThrow(/unexpected properties.*extraField/);
+  });
+
+  it('rejects step with invalid approval category (enum)', () => {
+    const plan = basePlan({
+      steps: [{ step_id: 's1', description: 'x', status: 'pending', expected_approvals: ['A6'], expected_outputs: [], recovery_notes: '' }],
+    });
+    expect(() => sm.validatePlan(plan)).toThrow(/not in enum/);
+  });
+
+  it('rejects step with unexpected properties (additionalProperties)', () => {
+    const plan = basePlan({
+      steps: [{ step_id: 's1', description: 'x', status: 'pending', expected_approvals: [], expected_outputs: [], recovery_notes: '', bonus: true }],
+    });
+    expect(() => sm.validatePlan(plan)).toThrow(/unexpected properties.*bonus/);
+  });
+
+  it('rejects branching with missing required fields', () => {
+    const plan = basePlan({
+      branching: { schema_version: 1 },
+    });
+    expect(() => sm.validatePlan(plan)).toThrow(/schema validation failed/);
+  });
+
+  it('rejects branch with invalid status enum', () => {
+    const plan = planWithBranching();
+    const br = plan.branching as Record<string, unknown>;
+    const decisions = br.decisions as Record<string, unknown>[];
+    const branches = decisions[0].branches as Record<string, unknown>[];
+    branches[0].status = 'invalid_status';
+    br.active_branch_id = null;
+    decisions[0].active_branch_id = null;
+    expect(() => sm.validatePlan(plan)).toThrow(/not in enum/);
+  });
+
+  // ─── Branching invariants ───
+
+  it('rejects duplicate decision_id', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    const dec = (branching.decisions as Record<string, unknown>[])[0];
+    branching.decisions = [dec, { ...dec }];
+    branching.active_branch_id = null;
+    expect(() => sm.validatePlan(plan)).toThrow(/duplicate branch_decision decision_id/);
+  });
+
+  it('rejects decision.step_id not in plan.steps', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    const decs = branching.decisions as Record<string, unknown>[];
+    decs[0].step_id = 'nonexistent_step';
+    expect(() => sm.validatePlan(plan)).toThrow(/not found in plan\.steps/);
+  });
+
+  it('rejects duplicate branch_id within decision', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    const dec = (branching.decisions as Record<string, unknown>[])[0];
+    const br = (dec.branches as Record<string, unknown>[])[0];
+    dec.branches = [br, { ...br, status: 'candidate' }];
+    expect(() => sm.validatePlan(plan)).toThrow(/duplicate branch_id/);
+  });
+
+  it('rejects active_branch_id pointing to non-existent branch', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    const dec = (branching.decisions as Record<string, unknown>[])[0];
+    dec.active_branch_id = 'ghost';
+    branching.active_branch_id = null;
+    expect(() => sm.validatePlan(plan)).toThrow(/not found in branches/);
+  });
+
+  it('rejects active_branch_id pointing to non-active branch', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    const dec = (branching.decisions as Record<string, unknown>[])[0];
+    dec.active_branch_id = 'branch_b';
+    (dec.branches as Record<string, unknown>[])[0].status = 'candidate';
+    branching.active_branch_id = null;
+    expect(() => sm.validatePlan(plan)).toThrow(/must have status 'active'/);
+  });
+
+  it('rejects multiple active branches in one decision', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    const dec = (branching.decisions as Record<string, unknown>[])[0];
+    (dec.branches as Record<string, unknown>[])[1].status = 'active';
+    expect(() => sm.validatePlan(plan)).toThrow(/multiple active branches/);
+  });
+
+  it('rejects inconsistency between active branch and decision.active_branch_id', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    const dec = (branching.decisions as Record<string, unknown>[])[0];
+    dec.active_branch_id = null;
+    branching.active_branch_id = null;
+    expect(() => sm.validatePlan(plan)).toThrow(/marked active but decision\.active_branch_id/);
+  });
+
+  it('rejects global active_branch_id with wrong format', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    branching.active_branch_id = 'no-colon-here';
+    expect(() => sm.validatePlan(plan)).toThrow(/composite/);
+  });
+
+  it('rejects global active_branch_id when no active pairs', () => {
+    const plan = basePlan({
+      branching: {
+        schema_version: 1,
+        active_branch_id: 'dec1:branch_a',
+        max_branches_per_decision: 5,
+        decisions: [],
+        notes: '',
+      },
+    });
+    expect(() => sm.validatePlan(plan)).toThrow(/no branch candidate has status 'active'/);
+  });
+
+  it('rejects global active_branch_id pointing to wrong pair', () => {
+    const plan = planWithBranching();
+    const branching = plan.branching as Record<string, unknown>;
+    branching.active_branch_id = 'dec1:branch_b';
+    expect(() => sm.validatePlan(plan)).toThrow(/not active in its decision/);
+  });
+
+  it('accepts plan with branching=null', () => {
+    const plan = basePlan({ branching: null });
+    expect(() => sm.validatePlan(plan)).not.toThrow();
+  });
+});
+
+describe('Stage 3c: renderPlanMd', () => {
+  let tmpDir: string;
+  let sm: StateManager;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    sm = new StateManager(tmpDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('renders plan without branching', () => {
+    const md = sm.renderPlanMd(basePlan());
+    expect(md).toContain('# Plan (derived view)');
+    expect(md).toContain('- Run: test-run');
+    expect(md).toContain('- Workflow: test-workflow');
+    expect(md).toContain('SSOT: `.autoresearch/state.json#/plan`');
+    expect(md).toContain('## Steps');
+    expect(md).toContain('1. [pending] step_1 — First step');
+    expect(md).toContain('   - expected_approvals: A1');
+    expect(md).toContain('     - output1.json');
+    expect(md).toContain('   - recovery_notes: retry');
+    expect(md).not.toContain('## Branching');
+  });
+
+  it('renders plan with branching', () => {
+    const md = sm.renderPlanMd(planWithBranching());
+    expect(md).toContain('## Branching');
+    expect(md).toContain('- active_branch_id: dec1:branch_a');
+    expect(md).toContain('- max_branches_per_decision: 5');
+    expect(md).toContain('### Decisions');
+    expect(md).toContain('1. dec1 — Pick approach');
+    expect(md).toContain('   - active_branch_id: branch_a');
+    expect(md).toContain('     - [active] branch_a — Approach A: Do A');
+    expect(md).toContain('     - [candidate] branch_b — Approach B: Do B');
+  });
+
+  it('uses (unknown) for missing run_id and workflow_id', () => {
+    const plan = basePlan({ run_id: undefined, workflow_id: undefined });
+    delete plan.run_id;
+    delete plan.workflow_id;
+    const md = sm.renderPlanMd(plan);
+    expect(md).toContain('- Run: (unknown)');
+    expect(md).toContain('- Workflow: (unknown)');
+  });
+
+  it('uses (unknown) for empty-string run_id and workflow_id (Python or semantics)', () => {
+    const plan = basePlan({ run_id: '', workflow_id: '' });
+    const md = sm.renderPlanMd(plan);
+    expect(md).toContain('- Run: (unknown)');
+    expect(md).toContain('- Workflow: (unknown)');
+  });
+
+  it('omits Updated line when updated_at is missing', () => {
+    const plan = basePlan();
+    delete plan.updated_at;
+    const md = sm.renderPlanMd(plan);
+    expect(md).not.toContain('- Updated:');
+  });
+});
+
+describe('Stage 3c: writePlanMd', () => {
+  let tmpDir: string;
+  let sm: StateManager;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    sm = new StateManager(tmpDir);
+    sm.ensureDirs();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('writes plan.md atomically and returns relative path', () => {
+    const relPath = sm.writePlanMd(basePlan());
+    expect(relPath).toBe(path.join('.autoresearch', 'plan.md'));
+    const content = fs.readFileSync(path.join(tmpDir, '.autoresearch', 'plan.md'), 'utf-8');
+    expect(content).toContain('# Plan (derived view)');
+    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md.tmp'))).toBe(false);
+  });
+
+  it('throws on invalid plan (validation runs before write)', () => {
+    expect(() => sm.writePlanMd({ schema_version: 0, steps: [] } as Record<string, unknown>)).toThrow(/schema_version/);
+    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md'))).toBe(false);
+  });
+});
+
+describe('Stage 3c: saveState with plan', () => {
+  let tmpDir: string;
+  let sm: StateManager;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    sm = new StateManager(tmpDir);
+    sm.ensureDirs();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('validates plan, sets plan_md_path, and derives plan.md on saveState', () => {
+    const state = baseState({ plan: basePlan() });
+    sm.saveState(state);
+    expect(state.plan_md_path).toBe(path.join('.autoresearch', 'plan.md'));
+    const stateJson = JSON.parse(fs.readFileSync(path.join(tmpDir, '.autoresearch', 'state.json'), 'utf-8'));
+    expect(stateJson.plan_md_path).toBe(path.join('.autoresearch', 'plan.md'));
+    const md = fs.readFileSync(path.join(tmpDir, '.autoresearch', 'plan.md'), 'utf-8');
+    expect(md).toContain('# Plan (derived view)');
+  });
+
+  it('skips plan validation when plan is null', () => {
+    const state = baseState({ plan: null });
+    expect(() => sm.saveState(state)).not.toThrow();
+    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md'))).toBe(false);
+  });
+
+  it('throws on invalid plan in saveState', () => {
+    const state = baseState({ plan: { schema_version: -1, steps: [] } });
+    expect(() => sm.saveState(state)).toThrow(/schema_version/);
+  });
+
+  it('derives correct plan_md_path when HEP_AUTORESEARCH_DIR is overridden', () => {
+    const customDir = path.join(tmpDir, 'custom_state_dir');
+    const origEnv = process.env['HEP_AUTORESEARCH_DIR'];
+    try {
+      process.env['HEP_AUTORESEARCH_DIR'] = customDir;
+      const customSm = new StateManager(tmpDir);
+      customSm.ensureDirs();
+      const state = baseState({ plan: basePlan() });
+      customSm.saveState(state);
+      // plan_md_path should be relative to repoRoot (custom_state_dir/plan.md)
+      expect(state.plan_md_path).toBe(path.relative(tmpDir, path.join(customDir, 'plan.md')));
+      expect(fs.existsSync(path.join(customDir, 'plan.md'))).toBe(true);
+    } finally {
+      if (origEnv === undefined) delete process.env['HEP_AUTORESEARCH_DIR'];
+      else process.env['HEP_AUTORESEARCH_DIR'] = origEnv;
+      fs.rmSync(customDir, { recursive: true, force: true });
+    }
+  });
+
+  it('skips plan validation when plan is an array (matching Python isinstance(plan, dict) guard)', () => {
+    // In JS, typeof [] === 'object', so we need the Array.isArray guard
+    const state = baseState({ plan: [] as unknown as Record<string, unknown> });
+    expect(() => sm.saveState(state)).not.toThrow();
+    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md'))).toBe(false);
+  });
+});
+
+describe('Stage 3c: saveStateWithLedger with plan', () => {
+  let tmpDir: string;
+  let sm: StateManager;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    sm = new StateManager(tmpDir);
+    sm.ensureDirs();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('validates plan and derives plan.md during saveStateWithLedger', () => {
+    const state = baseState({ plan: basePlan(), run_status: 'running', run_id: 'r1' });
+    sm.saveStateWithLedger(state, 'checkpoint', { details: {} });
+    expect(state.plan_md_path).toBe(path.join('.autoresearch', 'plan.md'));
+    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md'))).toBe(true);
+  });
+
+  it('throws on invalid plan in saveStateWithLedger', () => {
+    const state = baseState({ plan: { schema_version: 0, steps: [] } });
+    expect(() => sm.saveStateWithLedger(state, 'checkpoint')).toThrow(/schema_version/);
+  });
+});
+
+describe('Stage 3c: syncPlanCurrentStep', () => {
+  let tmpDir: string;
+  let sm: StateManager;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    sm = new StateManager(tmpDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('sets matching step to in_progress and auto-completes other in_progress steps', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: 'Step 1', status: 'in_progress', expected_approvals: [], expected_outputs: [], recovery_notes: '', started_at: '2026-01-01T00:00:00Z', completed_at: null },
+        { step_id: 's2', description: 'Step 2', status: 'pending', expected_approvals: [], expected_outputs: [], recovery_notes: '', started_at: null, completed_at: null },
+      ],
+    });
+    const state = baseState({ plan });
+    sm.syncPlanCurrentStep(state, 's2', 'Step 2 title');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].status).toBe('completed');
+    expect(steps[0].completed_at).toBeTruthy();
+    expect(steps[1].status).toBe('in_progress');
+    expect(steps[1].started_at).toBeTruthy();
+    expect(steps[1].completed_at).toBeNull();
+    expect((state.plan as Record<string, unknown>).current_step_id).toBe('s2');
+  });
+
+  it('appends new step if step_id not found', () => {
+    const plan = basePlan({ steps: [] });
+    const state = baseState({ plan });
+    sm.syncPlanCurrentStep(state, 'new_step', 'New Step');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps).toHaveLength(1);
+    expect(steps[0].step_id).toBe('new_step');
+    expect(steps[0].status).toBe('in_progress');
+    expect(steps[0].description).toBe('New Step');
+  });
+
+  it('does nothing when plan is null', () => {
+    const state = baseState({ plan: null });
+    sm.syncPlanCurrentStep(state, 's1', 'title');
+    expect(state.plan).toBeNull();
+  });
+
+  it('sets description from title when step description is empty', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: '', status: 'pending', expected_approvals: [], expected_outputs: [], recovery_notes: '' },
+      ],
+    });
+    const state = baseState({ plan });
+    sm.syncPlanCurrentStep(state, 's1', 'Title from caller');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].description).toBe('Title from caller');
+  });
+
+  it('does not overwrite existing started_at', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: 'x', status: 'completed', expected_approvals: [], expected_outputs: [], recovery_notes: '', started_at: '2025-01-01T00:00:00Z', completed_at: '2025-06-01T00:00:00Z' },
+      ],
+    });
+    const state = baseState({ plan });
+    sm.syncPlanCurrentStep(state, 's1', '');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].started_at).toBe('2025-01-01T00:00:00Z');
+    expect(steps[0].status).toBe('in_progress');
+  });
+
+  it('initializes steps array when plan.steps is missing', () => {
+    const plan = basePlan();
+    delete (plan as Record<string, unknown>).steps;
+    const state = baseState({ plan });
+    sm.syncPlanCurrentStep(state, 's1', 'New');
+    const steps = (state.plan as Record<string, unknown>).steps as unknown[];
+    expect(steps).toHaveLength(1);
+  });
+});
+
+describe('Stage 3c: syncPlanTerminal', () => {
+  let tmpDir: string;
+  let sm: StateManager;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    sm = new StateManager(tmpDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('sets step to completed with completed_at', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: 'Step 1', status: 'in_progress', expected_approvals: [], expected_outputs: [], recovery_notes: '', started_at: '2026-01-01T00:00:00Z', completed_at: null },
+      ],
+    });
+    const state = baseState({ plan });
+    sm.syncPlanTerminal(state, 's1', '', 'completed');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].status).toBe('completed');
+    expect(steps[0].completed_at).toBeTruthy();
+  });
+
+  it('sets step to failed with completed_at', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: 'Step 1', status: 'in_progress', expected_approvals: [], expected_outputs: [], recovery_notes: '' },
+      ],
+    });
+    const state = baseState({ plan });
+    sm.syncPlanTerminal(state, 's1', '', 'failed');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].status).toBe('failed');
+    expect(steps[0].completed_at).toBeTruthy();
+  });
+
+  it('sets step to skipped without completed_at', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: 'Step 1', status: 'pending', expected_approvals: [], expected_outputs: [], recovery_notes: '' },
+      ],
+    });
+    const state = baseState({ plan });
+    sm.syncPlanTerminal(state, 's1', '', 'skipped');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].status).toBe('skipped');
+    expect(steps[0].completed_at).toBeFalsy();
+  });
+
+  it('appends new step if not found', () => {
+    const plan = basePlan({ steps: [] });
+    const state = baseState({ plan });
+    sm.syncPlanTerminal(state, 'new_s', 'New Step', 'completed');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps).toHaveLength(1);
+    expect(steps[0].step_id).toBe('new_s');
+    expect(steps[0].status).toBe('completed');
+    expect(steps[0].completed_at).toBeTruthy();
+    expect(steps[0].started_at).toBeNull();
+  });
+
+  it('does nothing when plan is null', () => {
+    const state = baseState({ plan: null });
+    sm.syncPlanTerminal(state, 's1', 'title', 'completed');
+    expect(state.plan).toBeNull();
+  });
+
+  it('does not overwrite existing completed_at', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: 'x', status: 'in_progress', expected_approvals: [], expected_outputs: [], recovery_notes: '', completed_at: '2025-06-01T00:00:00Z' },
+      ],
+    });
+    const state = baseState({ plan });
+    sm.syncPlanTerminal(state, 's1', '', 'completed');
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].completed_at).toBe('2025-06-01T00:00:00Z');
+  });
+});
+
+describe('Stage 3c: checkpoint with plan step sync', () => {
+  let tmpDir: string;
+  let sm: StateManager;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    sm = new StateManager(tmpDir);
+    sm.ensureDirs();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('syncs plan step when step_id is provided in checkpoint', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: 'Step 1', status: 'pending', expected_approvals: [], expected_outputs: [], recovery_notes: '' },
+      ],
+    });
+    const state = baseState({ plan, run_status: 'running', run_id: 'r1' });
+    writeState(tmpDir, state);
+    sm.checkpoint(state, { step_id: 's1', step_title: 'Step 1' });
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].status).toBe('in_progress');
+    expect((state.plan as Record<string, unknown>).current_step_id).toBe('s1');
+  });
+
+  it('does not sync plan when step_id is not provided', () => {
+    const plan = basePlan({
+      steps: [
+        { step_id: 's1', description: 'Step 1', status: 'pending', expected_approvals: [], expected_outputs: [], recovery_notes: '' },
+      ],
+    });
+    const state = baseState({ plan, run_status: 'running', run_id: 'r1' });
+    writeState(tmpDir, state);
+    sm.checkpoint(state, { note: 'heartbeat only' });
+    const steps = (state.plan as Record<string, unknown>).steps as Record<string, unknown>[];
+    expect(steps[0].status).toBe('pending');
+  });
+});

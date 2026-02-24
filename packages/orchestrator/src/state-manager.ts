@@ -1,5 +1,5 @@
-// @autoresearch/orchestrator — StateManager (NEW-05a Stage 3b)
-// Read + write + enforcement + sentinel operations. Compatible with Python orchestrator_state.py.
+// @autoresearch/orchestrator — StateManager (NEW-05a Stage 3c)
+// Read + write + enforcement + sentinel + plan validation operations. Compatible with Python orchestrator_state.py.
 // Atomic writes: .tmp → rename (H-07 pre-requisite).
 
 import * as fs from 'node:fs';
@@ -11,6 +11,227 @@ const AUTORESEARCH_DIRNAME = '.autoresearch';
 const STATE_FILENAME = 'state.json';
 const LEDGER_FILENAME = 'ledger.jsonl';
 const APPROVAL_POLICY_FILENAME = 'approval_policy.json';
+const PLAN_MD_FILENAME = 'plan.md';
+
+/** Valid plan step statuses (matching Python plan.schema.json). */
+
+/** Check if value is a plain object (not null, not array). Matches Python isinstance(x, dict). */
+function isDict(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+// ─── Embedded plan schema + recursive validator (matching Python _schema_validate) ───
+
+/** Embedded plan.schema.json (SSOT: packages/hep-autoresearch/specs/plan.schema.json).
+ *  Embedded to avoid cross-package file dependency. Must be kept in sync. */
+const PLAN_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  required: ['schema_version', 'created_at', 'updated_at', 'steps'],
+  properties: {
+    schema_version: { type: 'integer', minimum: 1 },
+    created_at: { type: 'string' },
+    updated_at: { type: 'string' },
+    plan_id: { type: 'string' },
+    run_id: { type: 'string' },
+    workflow_id: { type: 'string' },
+    current_step_id: { type: 'string' },
+    branching: { oneOf: [{ $ref: '#/$defs/plan_branching' }, { type: 'null' }] },
+    steps: { type: 'array', items: { $ref: '#/$defs/plan_step' } },
+    notes: { type: 'string' },
+  },
+  additionalProperties: false,
+  $defs: {
+    approval_category: { type: 'string', enum: ['A1', 'A2', 'A3', 'A4', 'A5'] },
+    branch_status: { type: 'string', enum: ['candidate', 'active', 'abandoned', 'failed', 'completed'] },
+    branch_candidate: {
+      type: 'object',
+      required: ['branch_id', 'label', 'description', 'status', 'expected_approvals', 'expected_outputs', 'recovery_notes'],
+      properties: {
+        branch_id: { type: 'string', minLength: 1 },
+        label: { type: 'string', minLength: 1 },
+        description: { type: 'string', minLength: 1 },
+        status: { $ref: '#/$defs/branch_status' },
+        expected_approvals: { type: 'array', items: { $ref: '#/$defs/approval_category' } },
+        expected_outputs: { type: 'array', items: { type: 'string', minLength: 1 } },
+        recovery_notes: { type: 'string' },
+        created_at: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+        updated_at: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      },
+      additionalProperties: false,
+    },
+    branch_decision: {
+      type: 'object',
+      required: ['decision_id', 'title', 'step_id', 'created_at', 'updated_at', 'max_branches', 'active_branch_id', 'branches', 'notes'],
+      properties: {
+        decision_id: { type: 'string', minLength: 1 },
+        title: { type: 'string', minLength: 1 },
+        step_id: { type: 'string', minLength: 1 },
+        created_at: { type: 'string' },
+        updated_at: { type: 'string' },
+        max_branches: { type: 'integer', minimum: 1 },
+        cap_override: { oneOf: [{ type: 'integer', minimum: 1 }, { type: 'null' }] },
+        active_branch_id: { oneOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] },
+        branches: { type: 'array', items: { $ref: '#/$defs/branch_candidate' } },
+        notes: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+    plan_branching: {
+      type: 'object',
+      required: ['schema_version', 'active_branch_id', 'max_branches_per_decision', 'decisions', 'notes'],
+      properties: {
+        schema_version: { type: 'integer', minimum: 1 },
+        active_branch_id: { oneOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] },
+        max_branches_per_decision: { type: 'integer', minimum: 1 },
+        decisions: { type: 'array', items: { $ref: '#/$defs/branch_decision' } },
+        notes: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+    plan_step: {
+      type: 'object',
+      required: ['step_id', 'description', 'status', 'expected_approvals', 'expected_outputs', 'recovery_notes'],
+      properties: {
+        step_id: { type: 'string', minLength: 1 },
+        description: { type: 'string', minLength: 1 },
+        status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'blocked', 'failed', 'skipped'] },
+        expected_approvals: { type: 'array', items: { $ref: '#/$defs/approval_category' } },
+        expected_outputs: { type: 'array', items: { type: 'string', minLength: 1 } },
+        recovery_notes: { type: 'string' },
+        started_at: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+        completed_at: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      },
+      additionalProperties: false,
+    },
+  },
+};
+
+/** Resolve a $ref pointer (e.g. "#/$defs/plan_step") against the root schema. */
+function schemaResolveRef(rootSchema: Record<string, unknown>, ref: string): Record<string, unknown> | null {
+  if (!ref.startsWith('#/')) return null;
+  const tokens = ref.slice(2).split('/');
+  let cur: unknown = rootSchema;
+  for (const t of tokens) {
+    if (!isDict(cur) || !(t in cur)) return null;
+    cur = (cur as Record<string, unknown>)[t];
+  }
+  return isDict(cur) ? cur : null;
+}
+
+/** Check if payload matches a JSON Schema type string. Matches Python _schema_type_ok. */
+function schemaTypeOk(payload: unknown, t: string): boolean {
+  if (t === 'object') return isDict(payload);
+  if (t === 'array') return Array.isArray(payload);
+  if (t === 'string') return typeof payload === 'string';
+  if (t === 'integer') return typeof payload === 'number' && Number.isInteger(payload);
+  if (t === 'number') return typeof payload === 'number';
+  if (t === 'boolean') return typeof payload === 'boolean';
+  if (t === 'null') return payload === null;
+  return true;
+}
+
+/** Minimal recursive JSON Schema subset validator.
+ *  Matches Python _schema_validate (orchestrator_state.py L181-267).
+ *  Supports: type, required, properties, items, enum, minimum, minLength, oneOf, $ref, additionalProperties. */
+function schemaValidate(
+  payload: unknown,
+  schema: Record<string, unknown>,
+  pathStr: string,
+  rootSchema: Record<string, unknown>,
+): string[] {
+  const errors: string[] = [];
+  if (!isDict(schema)) return errors;
+
+  // $ref
+  if ('$ref' in schema) {
+    const ref = schema.$ref;
+    if (typeof ref !== 'string') return [`${pathStr}: $ref must be a string`];
+    const target = schemaResolveRef(rootSchema, ref);
+    if (!target) return [`${pathStr}: could not resolve $ref '${ref}'`];
+    return schemaValidate(payload, target, pathStr, rootSchema);
+  }
+
+  // oneOf
+  if ('oneOf' in schema) {
+    const opts = schema.oneOf;
+    if (!Array.isArray(opts) || opts.length === 0) return [`${pathStr}: schema.oneOf must be a non-empty list`];
+    let bestErrs: string[] | null = null;
+    for (const opt of opts) {
+      if (!isDict(opt)) continue;
+      const subErrs = schemaValidate(payload, opt, pathStr, rootSchema);
+      if (subErrs.length === 0) return [];
+      if (bestErrs === null || subErrs.length < bestErrs.length) bestErrs = subErrs;
+    }
+    errors.push(`${pathStr}: does not satisfy any schema in oneOf`);
+    if (bestErrs) errors.push(...bestErrs.slice(0, 5));
+    return errors;
+  }
+
+  const schemaType = schema.type;
+  if (typeof schemaType === 'string' && !schemaTypeOk(payload, schemaType)) {
+    return [`${pathStr}: expected type ${schemaType}, got ${typeof payload}`];
+  }
+
+  // enum
+  if ('enum' in schema && Array.isArray(schema.enum)) {
+    if (!schema.enum.includes(payload)) {
+      errors.push(`${pathStr}: value '${payload}' not in enum`);
+    }
+  }
+
+  // minimum
+  if (typeof schemaType === 'string' && (schemaType === 'integer' || schemaType === 'number') && 'minimum' in schema) {
+    if (typeof payload === 'number' && typeof schema.minimum === 'number' && payload < schema.minimum) {
+      errors.push(`${pathStr}: value ${payload} < minimum ${schema.minimum}`);
+    }
+  }
+
+  // minLength
+  if (typeof schemaType === 'string' && schemaType === 'string' && 'minLength' in schema) {
+    if (typeof payload === 'string' && typeof schema.minLength === 'number' && payload.length < schema.minLength) {
+      errors.push(`${pathStr}: string shorter than minLength ${schema.minLength}`);
+    }
+  }
+
+  // object: required, properties, additionalProperties
+  if (typeof schemaType === 'string' && schemaType === 'object') {
+    const required = Array.isArray(schema.required) ? schema.required : [];
+    for (const k of required) {
+      if (typeof k !== 'string') continue;
+      if (!isDict(payload) || !(k in payload)) {
+        errors.push(`${pathStr}: missing required field ${k}`);
+      }
+    }
+    const props = isDict(schema.properties) ? schema.properties as Record<string, unknown> : {};
+    if (isDict(payload)) {
+      for (const [k, subschema] of Object.entries(props)) {
+        if (!(k in payload)) continue;
+        if (isDict(subschema)) {
+          errors.push(...schemaValidate(payload[k], subschema, `${pathStr}.${k}`, rootSchema));
+        }
+      }
+      if (schema.additionalProperties === false) {
+        const allowed = new Set(Object.keys(props));
+        const extra = Object.keys(payload).filter((k) => !allowed.has(k));
+        if (extra.length > 0) {
+          errors.push(`${pathStr}: unexpected properties ${extra.sort().join(', ')}`);
+        }
+      }
+    }
+  }
+
+  // array: items
+  if (typeof schemaType === 'string' && schemaType === 'array' && 'items' in schema) {
+    const items = schema.items;
+    if (isDict(items) && Array.isArray(payload)) {
+      for (let i = 0; i < Math.min(payload.length, 200); i++) {
+        errors.push(...schemaValidate(payload[i], items, `${pathStr}[${i}]`, rootSchema));
+      }
+    }
+  }
+
+  return errors;
+}
 
 /** Maps approval category (A1–A5) to policy timeout key.
  *  Must match Python APPROVAL_CATEGORY_TO_POLICY_KEY in orchestrator_state.py. */
@@ -190,9 +411,18 @@ export class StateManager {
   }
 
   /** Atomic write of state.json. Matches Python save_state().
-   *  Does NOT handle plan validation/plan.md derivation (Python remains plan SSOT). */
+   *  Validates plan and derives plan.md when plan is present. */
   saveState(state: RunState): void {
+    const plan = state.plan;
+    if (isDict(plan)) {
+      this.validatePlan(plan);
+      state.plan_md_path = this.planMdRelativePath;
+    }
     writeJsonAtomic(this.statePath, state as unknown as Record<string, unknown>);
+    if (isDict(plan)) {
+      // SSOT-first: state.json already persisted, now derive plan.md
+      this.writePlanMd(plan);
+    }
   }
 
   /** Append a ledger event. */
@@ -217,7 +447,8 @@ export class StateManager {
   }
 
   /** Atomically save state + append ledger event.
-   *  Matches Python persist_state_with_ledger_event (staged .next → ledger → replace). */
+   *  Matches Python persist_state_with_ledger_event (staged .next → ledger → replace).
+   *  Validates plan and derives plan.md when plan is present. */
   saveStateWithLedger(
     state: RunState,
     eventType: string,
@@ -227,6 +458,13 @@ export class StateManager {
     },
   ): void {
     this.ensureDirs();
+
+    // 0. Plan validation + plan_md_path (Stage 3c)
+    const plan = state.plan;
+    if (isDict(plan)) {
+      this.validatePlan(plan);
+      state.plan_md_path = this.planMdRelativePath;
+    }
 
     // 1. Stage state to .next
     const staged = this.statePath + '.next';
@@ -255,6 +493,11 @@ export class StateManager {
       throw new Error(
         `failed to commit state after ledger write; staged=${staged}; error=${e}`,
       );
+    }
+
+    // 4. Derive plan.md (after state is safely persisted — SSOT-first)
+    if (isDict(plan)) {
+      this.writePlanMd(plan);
     }
   }
 
@@ -638,7 +881,7 @@ export class StateManager {
 
   /** Full checkpoint command.
    *  Matches Python cmd_checkpoint (orchestrator_cli.py L783-815).
-   *  Note: _sync_plan_current_step is not ported (→ Stage 3c: plan validation). */
+   *  Includes _sync_plan_current_step integration (Stage 3c). */
   checkpoint(
     state: RunState,
     opts?: {
@@ -674,6 +917,11 @@ export class StateManager {
       state.current_step = { step_id: stepId, title, started_at: utcNowIso() };
     }
 
+    // Plan step sync (matching Python _sync_plan_current_step)
+    if (opts?.step_id && state.plan && isDict(state.plan)) {
+      this.syncPlanCurrentStep(state, opts.step_id, opts.step_title ?? '');
+    }
+
     // Timestamp
     state.checkpoints.last_checkpoint_at = utcNowIso();
 
@@ -685,4 +933,419 @@ export class StateManager {
 
     return {};
   }
+
+  // ─── Plan validation + derivation (Stage 3c) ───
+
+  /** Path to plan.md within .autoresearch dir. */
+  get planMdPath(): string {
+    return path.join(this.dir, PLAN_MD_FILENAME);
+  }
+
+  /** Relative path to plan.md from repoRoot (matching Python plan_md_path().relative_to(repo_root)).
+   *  Falls back to absolute path if plan.md is outside repoRoot (e.g. HEP_AUTORESEARCH_DIR override). */
+  get planMdRelativePath(): string {
+    const p = this.planMdPath;
+    const rel = path.relative(this.repoRoot, p);
+    // If relative path escapes repo root, return absolute
+    if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return p;
+    return rel;
+  }
+
+  /** Validate plan structure and branching cross-field invariants.
+   *  Matches Python validate_plan (orchestrator_state.py L270-371).
+   *  Throws on invalid. */
+  validatePlan(plan: Record<string, unknown>): void {
+    // §1a — Schema validation (matching Python _schema_validate recursive coverage)
+    const schemaErrors = schemaValidate(plan, PLAN_SCHEMA, 'plan', PLAN_SCHEMA);
+    if (schemaErrors.length > 0) {
+      throw new Error('plan schema validation failed:\n' + schemaErrors.slice(0, 15).join('\n'));
+    }
+
+    // §1b — Branching cross-field invariants (matching Python L281-371)
+    const branching = plan.branching;
+    if (branching === undefined || branching === null) return;
+    if (typeof branching !== 'object' || Array.isArray(branching)) {
+      throw new Error('plan.branching must be an object or null');
+    }
+    const br = branching as Record<string, unknown>;
+
+    // Collect step_ids
+    const stepIds = new Set<string>();
+    if (Array.isArray(plan.steps)) {
+      for (const s of plan.steps) {
+        if (!s || typeof s !== 'object' || Array.isArray(s)) continue;
+        const sid = String((s as Record<string, unknown>).step_id ?? '').trim();
+        if (sid) stepIds.add(sid);
+      }
+    }
+
+    const decisions = br.decisions;
+    if (!Array.isArray(decisions)) return;
+
+    const activePairs: Array<[string, string]> = [];
+    const seenDecisionIds = new Set<string>();
+
+    for (const dec of decisions) {
+      if (!dec || typeof dec !== 'object' || Array.isArray(dec)) continue;
+      const d = dec as Record<string, unknown>;
+
+      // 1. decision_id uniqueness
+      const decisionId = String(d.decision_id ?? '').trim();
+      if (decisionId) {
+        if (seenDecisionIds.has(decisionId)) {
+          throw new Error(`duplicate branch_decision decision_id: ${decisionId}`);
+        }
+        seenDecisionIds.add(decisionId);
+      }
+
+      // 2. decision.step_id reference integrity
+      const decisionStepId = String(d.step_id ?? '').trim();
+      if (decisionStepId && !stepIds.has(decisionStepId)) {
+        throw new Error(
+          `branch_decision ${decisionId}: step_id '${decisionStepId}' not found in plan.steps`,
+        );
+      }
+
+      // 3. branch_id uniqueness within decision
+      const branches = Array.isArray(d.branches) ? d.branches : [];
+      const branchesDicts = branches.filter(
+        (b): b is Record<string, unknown> => !!b && typeof b === 'object' && !Array.isArray(b),
+      );
+      const seenBranchIds = new Set<string>();
+      for (const branch of branchesDicts) {
+        const bid = String(branch.branch_id ?? '').trim();
+        if (!bid) continue;
+        if (seenBranchIds.has(bid)) {
+          throw new Error(`branch_decision ${decisionId}: duplicate branch_id: ${bid}`);
+        }
+        seenBranchIds.add(bid);
+      }
+
+      // 4. decision.active_branch_id → must point to existing active branch
+      const activeDec = d.active_branch_id;
+      if (activeDec !== undefined && activeDec !== null) {
+        const s = String(activeDec).trim();
+        if (!s) {
+          throw new Error(
+            `branch_decision ${decisionId || '(missing)'}: active_branch_id must be non-empty or null`,
+          );
+        }
+        let target: Record<string, unknown> | null = null;
+        for (const branch of branchesDicts) {
+          if (String(branch.branch_id ?? '').trim() === s) {
+            target = branch;
+            break;
+          }
+        }
+        if (!target) {
+          throw new Error(
+            `branch_decision ${decisionId}: active_branch_id '${s}' not found in branches`,
+          );
+        }
+        if (String(target.status ?? '').trim() !== 'active') {
+          throw new Error(
+            `branch_decision ${decisionId}: active_branch_id '${s}' must have status 'active'`,
+          );
+        }
+      }
+
+      // 5. Single active branch constraint
+      const activeInDec = branchesDicts
+        .filter((b) => String(b.status ?? '').trim() === 'active')
+        .map((b) => String(b.branch_id ?? '').trim())
+        .filter((x) => x);
+
+      if (activeInDec.length > 1) {
+        throw new Error(
+          `branch_decision ${decisionId}: multiple active branches: ${[...activeInDec].sort().join(', ')}`,
+        );
+      }
+
+      // 6. Active branch ↔ decision.active_branch_id consistency
+      if (activeInDec.length === 1) {
+        const bid = activeInDec[0];
+        if (String(d.active_branch_id ?? '').trim() !== bid) {
+          throw new Error(
+            `branch_decision ${decisionId}: branch '${bid}' marked active but decision.active_branch_id is '${d.active_branch_id ?? ''}'`,
+          );
+        }
+        activePairs.push([decisionId, bid]);
+      }
+    }
+
+    // 7. Global branching.active_branch_id
+    const activeGlobal = br.active_branch_id;
+    if (activeGlobal !== undefined && activeGlobal !== null) {
+      const s = String(activeGlobal).trim();
+      if (!s) {
+        throw new Error('plan.branching.active_branch_id must be non-empty or null');
+      }
+      if ((s.match(/:/g) ?? []).length !== 1) {
+        throw new Error(
+          "plan.branching.active_branch_id must be a composite '<decision_id>:<branch_id>'",
+        );
+      }
+      const [did, bid] = s.split(':', 2).map((p) => p.trim());
+      if (!did || !bid) {
+        throw new Error(
+          "plan.branching.active_branch_id must be a composite '<decision_id>:<branch_id>'",
+        );
+      }
+      if (activePairs.length === 0) {
+        throw new Error(
+          "plan.branching.active_branch_id is set but no branch candidate has status 'active' (decision.active_branch_id mismatch)",
+        );
+      }
+      if (!activePairs.some(([d, b]) => d === did && b === bid)) {
+        throw new Error(
+          `plan.branching.active_branch_id '${s}' points to a branch that is not active in its decision`,
+        );
+      }
+    }
+  }
+
+  /** Render plan to Markdown string.
+   *  Matches Python render_plan_md (orchestrator_state.py L390-475). */
+  renderPlanMd(plan: Record<string, unknown>): string {
+    let steps = plan.steps;
+    if (!Array.isArray(steps)) steps = [];
+
+    const branching = (typeof plan.branching === 'object' && plan.branching !== null && !Array.isArray(plan.branching))
+      ? plan.branching as Record<string, unknown>
+      : null;
+
+    const runId = plan.run_id ?? null;
+    const workflowId = plan.workflow_id ?? null;
+    const updatedAt = plan.updated_at ?? null;
+
+    const lines: string[] = [];
+    lines.push('# Plan (derived view)');
+    lines.push('');
+    lines.push(`- Run: ${runId || '(unknown)'}`);
+    lines.push(`- Workflow: ${workflowId || '(unknown)'}`);
+    if (updatedAt) {
+      lines.push(`- Updated: ${updatedAt}`);
+    }
+    lines.push('');
+    lines.push('SSOT: `.autoresearch/state.json#/plan`');
+    lines.push('');
+    lines.push('## Steps');
+    lines.push('');
+
+    let idx = 0;
+    for (const rawStep of steps as unknown[]) {
+      if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) continue;
+      const step = rawStep as Record<string, unknown>;
+      idx++;
+      const stepId = String(step.step_id ?? '').trim();
+      const desc = String(step.description ?? '').trim();
+      const status = String(step.status ?? '').trim();
+      let approvals = step.expected_approvals;
+      if (!Array.isArray(approvals)) approvals = [];
+      const approvalsStr = (approvals as unknown[])
+        .filter((a) => a)
+        .map((a) => String(a))
+        .join(', ') || '-';
+      lines.push(`${idx}. [${status || 'pending'}] ${stepId} — ${desc}`);
+      lines.push(`   - expected_approvals: ${approvalsStr}`);
+      const outs = step.expected_outputs;
+      if (Array.isArray(outs) && outs.length > 0) {
+        lines.push('   - expected_outputs:');
+        for (const o of outs) {
+          if (o) lines.push(`     - ${o}`);
+        }
+      }
+      const rec = String(step.recovery_notes ?? '').trim();
+      if (rec) {
+        lines.push(`   - recovery_notes: ${rec}`);
+      }
+    }
+
+    if (branching) {
+      lines.push('');
+      lines.push('## Branching');
+      lines.push('');
+      const active = String(branching.active_branch_id ?? '').trim() || '-';
+      const maxPer = branching.max_branches_per_decision;
+      const maxPerStr = maxPer !== undefined && maxPer !== null ? String(maxPer) : '-';
+      lines.push(`- active_branch_id: ${active}`);
+      lines.push(`- max_branches_per_decision: ${maxPerStr}`);
+
+      const decisions = branching.decisions;
+      if (Array.isArray(decisions) && decisions.length > 0) {
+        lines.push('');
+        lines.push('### Decisions');
+        lines.push('');
+        let didx = 0;
+        for (const rawDec of decisions) {
+          if (!rawDec || typeof rawDec !== 'object' || Array.isArray(rawDec)) continue;
+          const dec = rawDec as Record<string, unknown>;
+          didx++;
+          const decisionId = String(dec.decision_id ?? '').trim() || 'DECISION';
+          const title = String(dec.title ?? '').trim() || '(missing title)';
+          const stepId = String(dec.step_id ?? '').trim() || '-';
+          lines.push(`${didx}. ${decisionId} — ${title}`);
+          lines.push(`   - step_id: ${stepId}`);
+          lines.push(`   - max_branches: ${dec.max_branches}`);
+          if (dec.cap_override !== undefined && dec.cap_override !== null) {
+            lines.push(`   - cap_override: ${dec.cap_override}`);
+          }
+          const activeBranch = String(dec.active_branch_id ?? '').trim() || '-';
+          lines.push(`   - active_branch_id: ${activeBranch}`);
+          const decBranches = dec.branches;
+          if (Array.isArray(decBranches) && decBranches.length > 0) {
+            lines.push('   - branches:');
+            for (const rawBr of decBranches) {
+              if (!rawBr || typeof rawBr !== 'object' || Array.isArray(rawBr)) continue;
+              const branch = rawBr as Record<string, unknown>;
+              const bid = String(branch.branch_id ?? '').trim() || 'BRANCH';
+              const label = String(branch.label ?? '').trim() || bid;
+              const bStatus = String(branch.status ?? '').trim() || 'candidate';
+              const bDesc = String(branch.description ?? '').trim() || '(missing description)';
+              lines.push(`     - [${bStatus}] ${bid} — ${label}: ${bDesc}`);
+            }
+          }
+        }
+      }
+    }
+
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  /** Validate plan, render to Markdown, and atomically write to .autoresearch/plan.md.
+   *  Matches Python write_plan_md (orchestrator_state.py L478-495).
+   *  Returns relative path. */
+  writePlanMd(plan: Record<string, unknown>): string {
+    this.validatePlan(plan);
+    this.ensureDirs();
+    const content = this.renderPlanMd(plan);
+    const p = this.planMdPath;
+    const tmp = p + '.tmp';
+    fs.writeFileSync(tmp, content, 'utf-8');
+    try {
+      fs.renameSync(tmp, p);
+    } catch (e) {
+      try { fs.unlinkSync(tmp); } catch { /* best-effort cleanup */ }
+      throw e;
+    }
+    return this.planMdRelativePath;
+  }
+
+  /** Sync plan.current_step_id to a new step.
+   *  Matches Python _sync_plan_current_step (orchestrator_cli.py L1955-1999). */
+  syncPlanCurrentStep(state: RunState, stepId: string, title: string): void {
+    const plan = state.plan;
+    if (!isDict(plan)) return;
+
+    const now = utcNowIso();
+    plan.updated_at = now;
+    plan.current_step_id = String(stepId);
+
+    let steps: unknown[] = plan.steps as unknown[];
+    if (!Array.isArray(plan.steps)) {
+      steps = [];
+      plan.steps = steps;
+    }
+
+    let found = false;
+    for (const rawStep of steps) {
+      if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) continue;
+      const step = rawStep as Record<string, unknown>;
+      if (String(step.step_id) === String(stepId)) {
+        found = true;
+        if (step.status !== 'in_progress') {
+          step.status = 'in_progress';
+        }
+        if (!step.started_at) {
+          step.started_at = now;
+        }
+        step.completed_at = null;
+        if (!step.description) {
+          step.description = String(title).trim() || '(missing description)';
+        }
+      } else if (step.status === 'in_progress') {
+        step.status = 'completed';
+        if (!step.completed_at) {
+          step.completed_at = now;
+        }
+      }
+    }
+
+    if (!found) {
+      steps.push(
+        makePlanStep(String(stepId), String(title), 'in_progress', now, null),
+      );
+    }
+    // plan_md_path is derived and written on saveState / saveStateWithLedger
+  }
+
+  /** Sync a plan step to terminal status.
+   *  Matches Python _sync_plan_terminal (orchestrator_cli.py L2002-2039). */
+  syncPlanTerminal(state: RunState, stepId: string, title: string, status: string): void {
+    const plan = state.plan;
+    if (!isDict(plan)) return;
+
+    const now = utcNowIso();
+    plan.updated_at = now;
+
+    let steps: unknown[] = plan.steps as unknown[];
+    if (!Array.isArray(plan.steps)) {
+      steps = [];
+      plan.steps = steps;
+    }
+
+    let found = false;
+    for (const rawStep of steps) {
+      if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) continue;
+      const step = rawStep as Record<string, unknown>;
+      if (String(step.step_id) !== String(stepId)) continue;
+      found = true;
+      step.status = String(status);
+      if (status === 'completed' || status === 'failed') {
+        if (!step.completed_at) {
+          step.completed_at = now;
+        }
+      }
+      if (!step.description) {
+        step.description = String(title).trim() || '(missing description)';
+      }
+    }
+
+    if (!found) {
+      steps.push(
+        makePlanStep(
+          String(stepId),
+          String(title),
+          String(status),
+          null,
+          (status === 'completed' || status === 'failed') ? now : null,
+        ),
+      );
+    }
+    // plan_md_path is derived and written on saveState / saveStateWithLedger
+  }
+}
+
+/** Build a plan step object matching Python _plan_step (orchestrator_cli.py L1692-1717). */
+function makePlanStep(
+  stepId: string,
+  description: string,
+  status: string,
+  startedAt: string | null,
+  completedAt: string | null,
+): Record<string, unknown> {
+  const sid = stepId.trim() || 'STEP';
+  const desc = description.trim() || '(missing description)';
+  const st = status.trim() || 'pending';
+  return {
+    step_id: sid,
+    description: desc,
+    status: st,
+    expected_approvals: [],
+    expected_outputs: [],
+    recovery_notes: '',
+    started_at: startedAt,
+    completed_at: completedAt,
+  };
 }
