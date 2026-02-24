@@ -101,7 +101,7 @@ make codegen-check    # 校验生成代码（TODO: NEW-01）
 | Runner | 模型 | 推理模式 | 调用方式 |
 |--------|------|---------|---------|
 | Codex CLI | `gpt-5.3-codex` | xhigh（`config.toml` 默认） | `codex-cli-runner` skill |
-| Gemini CLI | 默认（gemini-3-pro-preview） | — | `gemini-cli-runner` skill |
+| Gemini CLI | 默认（gemini-3.1-pro-preview） | — | `gemini-cli-runner` skill |
 | OpenCode | 默认（MiniMax-M2.5） | — | `opencode-cli-runner` skill |
 
 ### 触发条件
@@ -126,7 +126,7 @@ python3 skills/review-swarm/scripts/bin/run_dual_task.py \
   --claude-prompt <review_packet.md> \
   --gemini-prompt <gemini_prompt.txt> \
   --claude-model opus \
-  --gemini-model gemini-3-pro-preview \
+  --gemini-model gemini-3.1-pro-preview \
   --check-review-contract \
   --fallback-mode auto \
   --fallback-order codex,claude

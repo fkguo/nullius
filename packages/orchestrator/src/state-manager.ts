@@ -12,6 +12,16 @@ const STATE_FILENAME = 'state.json';
 const LEDGER_FILENAME = 'ledger.jsonl';
 const APPROVAL_POLICY_FILENAME = 'approval_policy.json';
 
+/** Maps approval category (A1–A5) to policy timeout key.
+ *  Must match Python APPROVAL_CATEGORY_TO_POLICY_KEY in orchestrator_state.py. */
+const APPROVAL_CATEGORY_TO_POLICY_KEY: Record<string, string> = {
+  A1: 'mass_search',
+  A2: 'code_changes',
+  A3: 'compute_runs',
+  A4: 'paper_edits',
+  A5: 'final_conclusions',
+};
+
 function autoresearchDir(repoRoot: string): string {
   const override = process.env['HEP_AUTORESEARCH_DIR'];
   if (override) {
@@ -273,6 +283,29 @@ export class StateManager {
     });
   }
 
+  // ─── Checkpoint management (Stage 3a) ───
+
+  /** Update the checkpoint timestamp. Matches Python: st["checkpoints"]["last_checkpoint_at"] = _now_z() */
+  updateCheckpoint(state: RunState): void {
+    state.checkpoints.last_checkpoint_at = utcNowIso();
+    this.saveState(state);
+  }
+
+  /** Check whether a checkpoint is due (elapsed > interval).
+   *  Note: Python maybe_mark_needs_recovery uses 2×interval (stricter recovery threshold);
+   *  this method uses 1×interval for general checkpoint scheduling. */
+  isCheckpointDue(state: RunState): boolean {
+    const last = state.checkpoints.last_checkpoint_at;
+    const interval = state.checkpoints.checkpoint_interval_seconds;
+    if (!last || interval <= 0) return false;
+    try {
+      const lastMs = new Date(last).getTime();
+      return Date.now() - lastMs > interval * 1000;
+    } catch {
+      return false;
+    }
+  }
+
   // ─── High-level state operations ───
 
   /** orch_run_create: Initialize a new run from idle state. */
@@ -322,10 +355,12 @@ export class StateManager {
     // Python uses category as key: st["gate_satisfied"][str(category)] = approval_id
     state.gate_satisfied[pending.category] = approvalId;
     state.pending_approval = null;
+    // Checkpoint heartbeat on approve (matching Python cmd_approve)
+    state.checkpoints.last_checkpoint_at = utcNowIso();
 
     this.transitionStatus(state, 'running', {
       notes: `approval ${approvalId} granted`,
-      details: { approval_id: approvalId },
+      details: { approval_id: approvalId, category: pending.category, note: note ?? '' },
       eventType: 'approval_approved',
     });
   }
@@ -361,7 +396,7 @@ export class StateManager {
 
     this.transitionStatus(state, 'paused', {
       notes: `rejected ${approvalId}${note ? ': ' + note : ''}`,
-      details: { approval_id: approvalId },
+      details: { approval_id: approvalId, category: pending.category, note: note ?? '' },
       eventType: 'approval_rejected',
     });
   }
@@ -388,6 +423,8 @@ export class StateManager {
         `cannot resume: pending_approval exists (${state.pending_approval.approval_id}); approve or reject first`,
       );
     }
+    // Checkpoint heartbeat on resume (matching Python cmd_resume)
+    state.checkpoints.last_checkpoint_at = utcNowIso();
     this.transitionStatus(state, 'running', {
       notes: `run resumed from ${state.run_status}`,
       eventType: 'resumed',
@@ -399,5 +436,68 @@ export class StateManager {
     const seq = (state.approval_seq[category] ?? 0) + 1;
     state.approval_seq[category] = seq;
     return `${category}-${String(seq).padStart(4, '0')}`;
+  }
+
+  /** orch_run_request_approval: Create a pending approval gate.
+   *  Matches Python _request_approval state-mutation logic.
+   *  Packet rendering is caller responsibility; only packet_path is recorded. */
+  requestApproval(
+    state: RunState,
+    category: string,
+    opts: {
+      plan_step_ids?: string[];
+      packet_path: string;
+      note?: string;
+      force?: boolean;
+    },
+  ): string {
+    if (state.pending_approval && !opts.force) {
+      throw new Error(
+        `already awaiting approval: ${state.pending_approval.approval_id}`,
+      );
+    }
+    if (state.run_status !== 'running') {
+      throw new Error(
+        `cannot request approval: current status is '${state.run_status}', expected 'running'`,
+      );
+    }
+
+    const approvalId = this.nextApprovalId(state, category);
+    const policy = this.readPolicy();
+    // Python uses APPROVAL_CATEGORY_TO_POLICY_KEY to map A1→mass_search, etc.
+    const policyKey = APPROVAL_CATEGORY_TO_POLICY_KEY[category] ?? category;
+    const timeoutCfg = policy.timeouts?.[policyKey] ?? { timeout_seconds: 86400, on_timeout: 'block' };
+    const timeoutSeconds = timeoutCfg.timeout_seconds ?? 0;
+    const onTimeout = timeoutCfg.on_timeout ?? 'block';
+
+    const requestedAt = utcNowIso();
+    let timeoutAt: string | null = null;
+    if (timeoutSeconds > 0) {
+      const deadline = new Date(new Date(requestedAt).getTime() + timeoutSeconds * 1000);
+      timeoutAt = deadline.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    }
+
+    const stepIds = (opts.plan_step_ids ?? []).filter((s) => s.trim());
+    if (stepIds.length === 0 && state.current_step?.step_id) {
+      stepIds.push(state.current_step.step_id);
+    }
+
+    state.pending_approval = {
+      approval_id: approvalId,
+      category,
+      plan_step_ids: stepIds,
+      requested_at: requestedAt,
+      timeout_at: timeoutAt,
+      on_timeout: onTimeout,
+      packet_path: opts.packet_path,
+    };
+    state.notes = opts.note ?? `awaiting approval ${approvalId}`;
+
+    this.transitionStatus(state, 'awaiting_approval', {
+      details: { approval_id: approvalId, category, packet_path: opts.packet_path },
+      eventType: 'approval_requested',
+    });
+
+    return approvalId;
   }
 }

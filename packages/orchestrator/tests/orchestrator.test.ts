@@ -657,3 +657,291 @@ describe('StateManager write operations (Stage 2)', () => {
     expect(raw.length).toBeGreaterThanOrEqual(6); // create, pause, resume, await, approve, complete
   });
 });
+
+// ─── Stage 3a: Checkpoint + requestApproval + ledger parity ───
+
+describe('Checkpoint management (Stage 3a)', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('updateCheckpoint sets last_checkpoint_at and persists', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'running' });
+    sm.saveState(state);
+
+    expect(state.checkpoints.last_checkpoint_at).toBeNull();
+    sm.updateCheckpoint(state);
+
+    expect(state.checkpoints.last_checkpoint_at).toBeTruthy();
+    // Verify persisted
+    const readState = sm.readState();
+    expect(readState.checkpoints.last_checkpoint_at).toBe(state.checkpoints.last_checkpoint_at);
+  });
+
+  it('isCheckpointDue returns false when no last_checkpoint_at', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState();
+    expect(sm.isCheckpointDue(state)).toBe(false);
+  });
+
+  it('isCheckpointDue returns false when interval is 0', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      checkpoints: { last_checkpoint_at: '2020-01-01T00:00:00Z', checkpoint_interval_seconds: 0 },
+    });
+    expect(sm.isCheckpointDue(state)).toBe(false);
+  });
+
+  it('isCheckpointDue returns true when elapsed > interval', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      checkpoints: { last_checkpoint_at: '2020-01-01T00:00:00Z', checkpoint_interval_seconds: 900 },
+    });
+    expect(sm.isCheckpointDue(state)).toBe(true); // long past
+  });
+
+  it('isCheckpointDue returns false when checkpoint is recent', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      checkpoints: { last_checkpoint_at: new Date().toISOString(), checkpoint_interval_seconds: 900 },
+    });
+    expect(sm.isCheckpointDue(state)).toBe(false);
+  });
+
+  it('approveRun updates checkpoint timestamp (deferral fix)', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'awaiting_approval',
+      pending_approval: {
+        approval_id: 'A1-0001',
+        category: 'A1',
+        plan_step_ids: ['s1'],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'approvals/A1-0001/packet.md',
+      },
+    });
+
+    sm.approveRun(state, 'A1-0001');
+
+    expect(state.checkpoints.last_checkpoint_at).toBeTruthy();
+    // Verify persisted
+    const readState = sm.readState();
+    expect(readState.checkpoints.last_checkpoint_at).toBeTruthy();
+  });
+
+  it('resumeRun updates checkpoint timestamp (deferral fix)', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'paused' });
+
+    sm.resumeRun(state);
+
+    expect(state.checkpoints.last_checkpoint_at).toBeTruthy();
+  });
+});
+
+describe('requestApproval (Stage 3a)', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('creates pending approval and transitions to awaiting_approval', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'running',
+    });
+
+    const approvalId = sm.requestApproval(state, 'A1', {
+      plan_step_ids: ['step_1'],
+      packet_path: 'approvals/A1-0001/packet.md',
+      note: 'need review',
+    });
+
+    expect(approvalId).toBe('A1-0001');
+    expect(state.run_status).toBe('awaiting_approval');
+    expect(state.pending_approval).not.toBeNull();
+    expect(state.pending_approval!.approval_id).toBe('A1-0001');
+    expect(state.pending_approval!.category).toBe('A1');
+    expect(state.pending_approval!.plan_step_ids).toEqual(['step_1']);
+    expect(state.pending_approval!.packet_path).toBe('approvals/A1-0001/packet.md');
+    expect(state.pending_approval!.on_timeout).toBe('block'); // default
+    expect(state.notes).toBe('need review');
+  });
+
+  it('reads timeout from policy via APPROVAL_CATEGORY_TO_POLICY_KEY mapping (Python parity)', () => {
+    // Python maps A2 → 'code_changes' for policy lookup
+    writePolicy(tmpDir, {
+      timeouts: { code_changes: { timeout_seconds: 7200, on_timeout: 'reject' } },
+    });
+
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'running',
+    });
+
+    sm.requestApproval(state, 'A2', {
+      packet_path: 'approvals/A2-0001/packet.md',
+    });
+
+    expect(state.pending_approval!.on_timeout).toBe('reject');
+    expect(state.pending_approval!.timeout_at).toBeTruthy();
+    // timeout_at should be ~7200s after requested_at
+    const requested = new Date(state.pending_approval!.requested_at).getTime();
+    const timeout = new Date(state.pending_approval!.timeout_at!).getTime();
+    const diffSeconds = (timeout - requested) / 1000;
+    expect(diffSeconds).toBe(7200);
+  });
+
+  it('rejects when already awaiting approval (no force)', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      run_status: 'running',
+      pending_approval: {
+        approval_id: 'A1-0001',
+        category: 'A1',
+        plan_step_ids: [],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: null,
+        on_timeout: 'block',
+        packet_path: 'approvals/A1-0001/packet.md',
+      },
+    });
+
+    expect(() =>
+      sm.requestApproval(state, 'A1', { packet_path: 'p.md' }),
+    ).toThrow(/already awaiting approval/);
+  });
+
+  it('rejects when not in running status', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'paused' });
+
+    expect(() =>
+      sm.requestApproval(state, 'A1', { packet_path: 'p.md' }),
+    ).toThrow(/expected 'running'/);
+  });
+
+  it('falls back to current_step.step_id when no plan_step_ids provided', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'running',
+      current_step: { step_id: 'phase_1', title: 'Phase 1', started_at: '2026-02-24T00:00:00Z' },
+    });
+
+    sm.requestApproval(state, 'A1', {
+      packet_path: 'approvals/A1-0001/packet.md',
+    });
+
+    expect(state.pending_approval!.plan_step_ids).toEqual(['phase_1']);
+  });
+
+  it('writes ledger event with category and packet_path in details', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'running',
+    });
+
+    sm.requestApproval(state, 'A3', {
+      packet_path: 'approvals/A3-0001/packet.md',
+    });
+
+    // Read ledger
+    const lines = fs.readFileSync(sm.ledgerPath, 'utf-8').trim().split('\n');
+    const event = JSON.parse(lines[lines.length - 1]!);
+    expect(event.event_type).toBe('approval_requested');
+    expect(event.details.approval_id).toBe('A3-0001');
+    expect(event.details.category).toBe('A3');
+    expect(event.details.packet_path).toBe('approvals/A3-0001/packet.md');
+  });
+});
+
+describe('Ledger detail parity (Stage 3a)', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('approveRun ledger includes category and note (Python parity)', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'awaiting_approval',
+      pending_approval: {
+        approval_id: 'A1-0001',
+        category: 'A1',
+        plan_step_ids: ['s1'],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'approvals/A1-0001/packet.md',
+      },
+    });
+
+    sm.approveRun(state, 'A1-0001', 'looks good');
+
+    const lines = fs.readFileSync(sm.ledgerPath, 'utf-8').trim().split('\n');
+    const event = JSON.parse(lines[lines.length - 1]!);
+    expect(event.event_type).toBe('approval_approved');
+    expect(event.details.approval_id).toBe('A1-0001');
+    expect(event.details.category).toBe('A1');
+    expect(event.details.note).toBe('looks good');
+  });
+
+  it('rejectRun ledger includes category and note (Python parity)', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'w1',
+      run_status: 'awaiting_approval',
+      pending_approval: {
+        approval_id: 'A2-0001',
+        category: 'A2',
+        plan_step_ids: [],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'approvals/A2-0001/packet.md',
+      },
+    });
+
+    sm.rejectRun(state, 'A2-0001', 'not ready');
+
+    const lines = fs.readFileSync(sm.ledgerPath, 'utf-8').trim().split('\n');
+    const event = JSON.parse(lines[lines.length - 1]!);
+    expect(event.event_type).toBe('approval_rejected');
+    expect(event.details.approval_id).toBe('A2-0001');
+    expect(event.details.category).toBe('A2');
+    expect(event.details.note).toBe('not ready');
+  });
+});
