@@ -1,5 +1,5 @@
-// @autoresearch/orchestrator — StateManager (NEW-05a Stage 2)
-// Read + write state operations. Compatible with Python orchestrator_state.py.
+// @autoresearch/orchestrator — StateManager (NEW-05a Stage 3b)
+// Read + write + enforcement + sentinel operations. Compatible with Python orchestrator_state.py.
 // Atomic writes: .tmp → rename (H-07 pre-requisite).
 
 import * as fs from 'node:fs';
@@ -79,9 +79,9 @@ function appendLedgerLine(
 const VALID_TRANSITIONS: Record<string, RunStatus[]> = {
   idle: ['running'],
   running: ['paused', 'awaiting_approval', 'completed', 'failed', 'needs_recovery', 'blocked'],
-  paused: ['running'],
+  paused: ['running', 'blocked', 'needs_recovery'],
   awaiting_approval: ['running', 'paused', 'rejected', 'blocked', 'needs_recovery'],
-  blocked: ['running', 'failed'],
+  blocked: ['running', 'paused', 'failed'],
   needs_recovery: ['running', 'paused', 'failed'],
   completed: [],
   failed: [],
@@ -90,8 +90,10 @@ const VALID_TRANSITIONS: Record<string, RunStatus[]> = {
 
 export class StateManager {
   private readonly dir: string;
+  private readonly repoRoot: string;
 
   constructor(repoRoot: string) {
+    this.repoRoot = repoRoot;
     this.dir = autoresearchDir(repoRoot);
   }
 
@@ -277,9 +279,14 @@ export class StateManager {
     }
 
     const eventType = opts?.eventType ?? `status_${newStatus}`;
+    // Only inject {from,to} for synthetic status_* events (no explicit eventType).
+    // Python ledger entries with explicit event types write only the details passed at callsite.
+    const details = opts?.eventType
+      ? (opts?.details ?? {})
+      : { from: current, to: newStatus, ...opts?.details };
     this.saveStateWithLedger(state, eventType, {
       step_id: state.current_step?.step_id ?? null,
-      details: { from: current, to: newStatus, ...opts?.details },
+      details,
     });
   }
 
@@ -321,7 +328,7 @@ export class StateManager {
     state.workflow_id = workflowId;
     this.transitionStatus(state, 'running', {
       notes: `run created: ${runId}`,
-      details: { run_id: runId, workflow_id: workflowId },
+      details: { note: '' },
       eventType: 'run_started',
     });
   }
@@ -366,6 +373,7 @@ export class StateManager {
   }
 
   /** orch_run_reject: Reject a pending approval. Transitions to paused (matching Python cmd_reject).
+   *  Also writes .pause sentinel (matching Python cmd_reject L1649).
    *  Note: 'rejected' terminal status is reserved for auto-rejection on timeout (Python check_approval_timeout). */
   rejectRun(
     state: RunState,
@@ -384,6 +392,9 @@ export class StateManager {
       );
     }
 
+    // Write .pause sentinel (matching Python cmd_reject L1649)
+    this.writePauseSentinel();
+
     const entry: ApprovalHistoryEntry = {
       ts: utcNowIso(),
       approval_id: approvalId,
@@ -401,34 +412,78 @@ export class StateManager {
     });
   }
 
-  /** orch_run_pause: Pause a running run.
-   *  Cannot pause while awaiting_approval — use rejectRun instead (matching Python cmd_pause guard). */
-  pauseRun(state: RunState): void {
-    if (state.run_status === 'awaiting_approval') {
-      throw new Error(
-        'cannot pause: run is awaiting_approval; use rejectRun to decline and pause',
-      );
+  /** orch_run_pause: Pause a run from any status.
+   *  Writes .pause sentinel and saves paused_from_status (matching Python cmd_pause L728-749).
+   *  Python allows pausing from ANY status — no transition validation. */
+  pauseRun(state: RunState, note?: string): void {
+    // Write .pause sentinel (matching Python cmd_pause L732)
+    this.writePauseSentinel();
+    // Save original status for resume (matching Python cmd_pause L735-736)
+    if (state.run_status !== 'paused') {
+      state.paused_from_status = state.run_status;
     }
-    this.transitionStatus(state, 'paused', {
-      notes: 'run paused by user',
-      eventType: 'paused',
+    state.run_status = 'paused';
+    state.notes = note ?? 'paused by user';
+    // Persist directly (bypass transitionStatus — Python sets run_status verbatim)
+    this.saveStateWithLedger(state, 'paused', {
+      step_id: state.current_step?.step_id ?? null,
+      details: { note: note ?? '' },
     });
   }
 
   /** orch_run_resume: Resume a paused or blocked run.
+   *  Removes .pause sentinel and restores paused_from_status (matching Python cmd_resume L752-780).
+   *  Bypasses transitionStatus to faithfully restore any saved status (Python sets run_status verbatim).
    *  Refuses resume while pending_approval exists (matching Python cmd_resume guard). */
-  resumeRun(state: RunState): void {
+  resumeRun(state: RunState, opts?: { note?: string; force?: boolean }): void {
     if (state.pending_approval) {
       throw new Error(
         `cannot resume: pending_approval exists (${state.pending_approval.approval_id}); approve or reject first`,
       );
     }
-    // Checkpoint heartbeat on resume (matching Python cmd_resume)
+    // Remove .pause sentinel BEFORE the idle guard (matching Python cmd_resume L760-761)
+    this.removePauseSentinel();
+    // Guard against resume from terminal/idle without force (matching Python cmd_resume L763-764)
+    if (['idle', 'completed', 'failed'].includes(state.run_status) && !opts?.force) {
+      throw new Error(
+        `cannot resume from status=${state.run_status} (use start or --force)`,
+      );
+    }
+    // Restore original status from paused_from_status (matching Python cmd_resume L766-767)
+    const restored = state.paused_from_status;
+    delete state.paused_from_status;
+    state.run_status = restored ?? 'running';
+    state.notes = opts?.note ?? 'resumed by user';
+    // Checkpoint heartbeat on resume (matching Python cmd_resume L769)
     state.checkpoints.last_checkpoint_at = utcNowIso();
-    this.transitionStatus(state, 'running', {
-      notes: `run resumed from ${state.run_status}`,
-      eventType: 'resumed',
+    // Persist directly (bypass transitionStatus — Python does not validate transitions on resume)
+    this.saveStateWithLedger(state, 'resumed', {
+      step_id: state.current_step?.step_id ?? null,
+      details: { note: opts?.note ?? '' },
     });
+  }
+
+  // ─── Sentinel file management (Stage 3b) ───
+
+  /** Check for .pause / .stop sentinel files at repo root.
+   *  Matches Python _check_stop_pause (orchestrator_cli.py L1675-1680). */
+  checkStopPause(): 'stop' | 'pause' | null {
+    if (fs.existsSync(path.join(this.repoRoot, '.stop'))) return 'stop';
+    if (fs.existsSync(path.join(this.repoRoot, '.pause'))) return 'pause';
+    return null;
+  }
+
+  /** Write .pause sentinel file at repo root (matching Python cmd_pause L732). */
+  writePauseSentinel(): void {
+    fs.writeFileSync(path.join(this.repoRoot, '.pause'), 'paused\n', 'utf-8');
+  }
+
+  /** Remove .pause sentinel file at repo root (best-effort, matching Python cmd_resume L760-761). */
+  removePauseSentinel(): void {
+    try {
+      const p = path.join(this.repoRoot, '.pause');
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    } catch { /* best-effort */ }
   }
 
   /** Generate the next approval ID for a category (matching Python next_approval_id). */
@@ -499,5 +554,135 @@ export class StateManager {
     });
 
     return approvalId;
+  }
+
+  // ─── Enforcement operations (Stage 3b) ───
+
+  /** Enforce approval timeout with side effects.
+   *  Returns the on_timeout action string if timed out, or null if not.
+   *  Matches Python check_approval_timeout (orchestrator_state.py L702-766). */
+  enforceApprovalTimeout(state: RunState): string | null {
+    const pending = state.pending_approval;
+    if (!pending?.timeout_at) return null;
+
+    let deadline: number;
+    try {
+      deadline = new Date(pending.timeout_at).getTime();
+      if (isNaN(deadline)) return null;
+    } catch {
+      return null;
+    }
+    if (Date.now() <= deadline) return null;
+
+    const onTimeout = pending.on_timeout || 'block';
+    const approvalId = pending.approval_id;
+
+    if (onTimeout === 'reject') {
+      state.pending_approval = null;
+      state.run_status = 'rejected';
+      state.notes = `approval ${approvalId} timed out — auto-rejected`;
+      state.approval_history.push({
+        ts: utcNowIso(),
+        approval_id: approvalId,
+        category: pending.category,
+        decision: 'timeout_rejected',
+        note: `auto-rejected: timed out at ${pending.timeout_at}`,
+      });
+    } else if (onTimeout === 'escalate') {
+      state.run_status = 'needs_recovery';
+      state.notes = `approval ${approvalId} timed out — escalated`;
+    } else {
+      // 'block' (default)
+      state.run_status = 'blocked';
+      state.notes = `approval ${approvalId} timed out — blocked`;
+    }
+
+    this.saveStateWithLedger(state, 'approval_timeout', {
+      step_id: state.current_step?.step_id ?? null,
+      details: {
+        approval_id: approvalId,
+        policy_action: onTimeout,
+        timeout_at: pending.timeout_at,
+      },
+    });
+
+    return onTimeout;
+  }
+
+  /** Enforce approval budget with side effects.
+   *  Returns true if budget is exhausted (and state is updated), false otherwise.
+   *  Matches Python check_approval_budget (orchestrator_state.py L769-814). */
+  enforceApprovalBudget(state: RunState): boolean {
+    const policy = this.readPolicy();
+    const maxApprovals = policy.budgets?.max_approvals ?? 0;
+    if (maxApprovals <= 0) return false;
+
+    const granted = state.approval_history.filter(
+      (h) => h.decision === 'approved',
+    ).length;
+    if (granted < maxApprovals) return false;
+
+    state.run_status = 'blocked';
+    state.notes = `approval budget exhausted (${granted}/${maxApprovals})`;
+    if (state.pending_approval) {
+      state.pending_approval = null;
+    }
+
+    this.saveStateWithLedger(state, 'approval_budget_exhausted', {
+      step_id: state.current_step?.step_id ?? null,
+      details: { granted, max_approvals: maxApprovals },
+    });
+
+    return true;
+  }
+
+  /** Full checkpoint command.
+   *  Matches Python cmd_checkpoint (orchestrator_cli.py L783-815).
+   *  Note: _sync_plan_current_step is not ported (→ Stage 3c: plan validation). */
+  checkpoint(
+    state: RunState,
+    opts?: {
+      step_id?: string;
+      step_title?: string;
+      note?: string;
+      force?: boolean;
+    },
+  ): { action?: string } {
+    // Status guard
+    const allowed: RunStatus[] = ['running', 'paused', 'awaiting_approval'];
+    if (!allowed.includes(state.run_status) && !opts?.force) {
+      throw new Error(
+        `refusing checkpoint in status=${state.run_status} (use --force)`,
+      );
+    }
+
+    // Timeout enforcement (C-01)
+    const timeoutAction = this.enforceApprovalTimeout(state);
+    if (timeoutAction) {
+      return { action: `approval_timeout:${timeoutAction}` };
+    }
+
+    // Budget enforcement (C-01)
+    if (this.enforceApprovalBudget(state)) {
+      return { action: 'budget_exhausted' };
+    }
+
+    // Step tracking
+    if (opts?.step_id || opts?.step_title) {
+      const stepId = opts.step_id ?? state.current_step?.step_id ?? 'STEP';
+      const title = opts.step_title ?? state.current_step?.title ?? '';
+      state.current_step = { step_id: stepId, title, started_at: utcNowIso() };
+    }
+
+    // Timestamp
+    state.checkpoints.last_checkpoint_at = utcNowIso();
+
+    // Persist
+    this.saveStateWithLedger(state, 'checkpoint', {
+      step_id: state.current_step?.step_id ?? null,
+      details: { note: opts?.note ?? '' },
+    });
+
+    return {};
   }
 }

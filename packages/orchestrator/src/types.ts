@@ -57,6 +57,9 @@ export interface RunState {
   approval_history: ApprovalHistoryEntry[];
   artifacts: Record<string, string>;
   notes: string;
+  /** Saved before pause so resume can restore the original status.
+   *  Python uses pop/setdefault pattern; TS uses optional field. */
+  paused_from_status?: RunStatus;
 }
 
 export interface LedgerEvent {

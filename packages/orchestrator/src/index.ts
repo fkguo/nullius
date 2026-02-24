@@ -1,4 +1,4 @@
-// @autoresearch/orchestrator — NEW-05a Stage 2
+// @autoresearch/orchestrator — NEW-05a Stage 3b
 // TS orchestrator: StateManager (read+write), LedgerWriter, McpClient, ApprovalGate.
 export const VERSION = '0.0.1';
 
