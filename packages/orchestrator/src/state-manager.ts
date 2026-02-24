@@ -106,14 +106,26 @@ const PLAN_SCHEMA: Record<string, unknown> = {
   },
 };
 
-/** Resolve a $ref pointer (e.g. "#/$defs/plan_step") against the root schema. */
+/** Resolve a $ref pointer (e.g. "#/$defs/plan_step") against the root schema.
+ *  Matches Python _schema_resolve_ref: filters empty tokens, unescapes ~1/~0, handles array indices. */
 function schemaResolveRef(rootSchema: Record<string, unknown>, ref: string): Record<string, unknown> | null {
   if (!ref.startsWith('#/')) return null;
-  const tokens = ref.slice(2).split('/');
+  const tokens = ref.slice(2).split('/').filter((t) => t !== '');
   let cur: unknown = rootSchema;
-  for (const t of tokens) {
-    if (!isDict(cur) || !(t in cur)) return null;
-    cur = (cur as Record<string, unknown>)[t];
+  for (const raw of tokens) {
+    const t = raw.replace(/~1/g, '/').replace(/~0/g, '~');
+    if (Array.isArray(cur)) {
+      if (!/^-?\d+$/.test(t)) return null;
+      let idx = Number(t);
+      if (idx < 0) idx = cur.length + idx;
+      if (idx < 0 || idx >= cur.length) return null;
+      cur = cur[idx];
+    } else if (isDict(cur)) {
+      if (!(t in cur)) return null;
+      cur = cur[t];
+    } else {
+      return null;
+    }
   }
   return isDict(cur) ? cur : null;
 }
@@ -1134,12 +1146,12 @@ export class StateManager {
 
     let idx = 0;
     for (const rawStep of steps as unknown[]) {
+      idx++;
       if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) continue;
       const step = rawStep as Record<string, unknown>;
-      idx++;
-      const stepId = String(step.step_id ?? '').trim();
-      const desc = String(step.description ?? '').trim();
-      const status = String(step.status ?? '').trim();
+      const stepId = String(step.step_id || '').trim();
+      const desc = String(step.description || '').trim();
+      const status = String(step.status || '').trim();
       let approvals = step.expected_approvals;
       if (!Array.isArray(approvals)) approvals = [];
       const approvalsStr = (approvals as unknown[])
@@ -1155,7 +1167,7 @@ export class StateManager {
           if (o) lines.push(`     - ${o}`);
         }
       }
-      const rec = String(step.recovery_notes ?? '').trim();
+      const rec = String(step.recovery_notes || '').trim();
       if (rec) {
         lines.push(`   - recovery_notes: ${rec}`);
       }
@@ -1165,7 +1177,7 @@ export class StateManager {
       lines.push('');
       lines.push('## Branching');
       lines.push('');
-      const active = String(branching.active_branch_id ?? '').trim() || '-';
+      const active = String(branching.active_branch_id || '').trim() || '-';
       const maxPer = branching.max_branches_per_decision;
       const maxPerStr = maxPer !== undefined && maxPer !== null ? String(maxPer) : '-';
       lines.push(`- active_branch_id: ${active}`);
@@ -1178,19 +1190,19 @@ export class StateManager {
         lines.push('');
         let didx = 0;
         for (const rawDec of decisions) {
+          didx++;
           if (!rawDec || typeof rawDec !== 'object' || Array.isArray(rawDec)) continue;
           const dec = rawDec as Record<string, unknown>;
-          didx++;
-          const decisionId = String(dec.decision_id ?? '').trim() || 'DECISION';
-          const title = String(dec.title ?? '').trim() || '(missing title)';
-          const stepId = String(dec.step_id ?? '').trim() || '-';
+          const decisionId = String(dec.decision_id || '').trim() || 'DECISION';
+          const title = String(dec.title || '').trim() || '(missing title)';
+          const stepId = String(dec.step_id || '').trim() || '-';
           lines.push(`${didx}. ${decisionId} — ${title}`);
           lines.push(`   - step_id: ${stepId}`);
           lines.push(`   - max_branches: ${dec.max_branches}`);
           if (dec.cap_override !== undefined && dec.cap_override !== null) {
             lines.push(`   - cap_override: ${dec.cap_override}`);
           }
-          const activeBranch = String(dec.active_branch_id ?? '').trim() || '-';
+          const activeBranch = String(dec.active_branch_id || '').trim() || '-';
           lines.push(`   - active_branch_id: ${activeBranch}`);
           const decBranches = dec.branches;
           if (Array.isArray(decBranches) && decBranches.length > 0) {
@@ -1198,10 +1210,10 @@ export class StateManager {
             for (const rawBr of decBranches) {
               if (!rawBr || typeof rawBr !== 'object' || Array.isArray(rawBr)) continue;
               const branch = rawBr as Record<string, unknown>;
-              const bid = String(branch.branch_id ?? '').trim() || 'BRANCH';
-              const label = String(branch.label ?? '').trim() || bid;
-              const bStatus = String(branch.status ?? '').trim() || 'candidate';
-              const bDesc = String(branch.description ?? '').trim() || '(missing description)';
+              const bid = String(branch.branch_id || '').trim() || 'BRANCH';
+              const label = String(branch.label || '').trim() || bid;
+              const bStatus = String(branch.status || '').trim() || 'candidate';
+              const bDesc = String(branch.description || '').trim() || '(missing description)';
               lines.push(`     - [${bStatus}] ${bid} — ${label}: ${bDesc}`);
             }
           }
