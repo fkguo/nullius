@@ -1,6 +1,12 @@
 import * as fs from 'fs';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_REVIEW,
+  HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { assertSafePathSegment, getRunArtifactPath } from '../paths.js';
@@ -142,7 +148,7 @@ function readRunArtifactJsonOrThrow<T>(runId: string, uri: string): T {
       parse_error_uri: parseErrRef.uri,
       parse_error_artifact: parseErrRef.name,
       next_actions: [
-        { tool: 'hep_run_read_artifact_chunk', args: { run_id: runId, artifact_name: parsed.artifactName, offset: 0, length: 1024 }, reason: 'Inspect the corrupted artifact and re-generate it.' },
+        { tool: HEP_RUN_READ_ARTIFACT_CHUNK, args: { run_id: runId, artifact_name: parsed.artifactName, offset: 0, length: 1024 }, reason: 'Inspect the corrupted artifact and re-generate it.' },
       ],
     });
   }
@@ -168,7 +174,7 @@ function extractReviewerReportOrThrow(runId: string, reviewerReportUri: string):
       parse_error_artifact: ref.name,
       next_actions: [
         {
-          tool: 'hep_run_writing_submit_review',
+          tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
           args: { run_id: runId, reviewer_report: '<submit a valid ReviewerReport v2 JSON first>' },
           reason: 'Revision planning requires a valid ReviewerReport v2 artifact.',
         },
@@ -195,7 +201,7 @@ function extractReviewerReportOrThrow(runId: string, reviewerReportUri: string):
       parse_error_artifact: ref.name,
       next_actions: [
         {
-          tool: 'hep_run_writing_submit_review',
+          tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
           args: { run_id: runId, reviewer_report: '<re-run reviewer prompt and re-submit ReviewerReport v2 JSON>' },
           reason: 'Revision planning requires a valid ReviewerReport v2 artifact.',
         },
@@ -335,7 +341,7 @@ export async function createRunWritingRevisionPlanPacketV1(params: {
     round,
     prompt_packet: packet as any,
     mode_used: 'client',
-    tool: 'hep_run_writing_create_revision_plan_packet_v1',
+    tool: HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
     schema: 'revision_plan_v1@1',
     extra: {
       prompt_packet_artifact: promptArtifactName,
@@ -369,7 +375,7 @@ export async function createRunWritingRevisionPlanPacketV1(params: {
     decisions: [`schema=revision_plan_v1@1`],
     next_actions: [
       {
-        tool: 'hep_run_writing_submit_revision_plan_v1',
+        tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
         args: { run_id: runId, revision_plan: '<paste RevisionPlan v1 JSON here or use revision_plan_uri>' },
         reason: `Run this prompt_packet with an LLM, then submit RevisionPlan v1 for round=${round}.`,
       },
@@ -380,7 +386,7 @@ export async function createRunWritingRevisionPlanPacketV1(params: {
   const updatedAt = nowIso();
   await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_writing_create_revision_plan_packet_v1', args: { reviewer_report_uri: params.reviewer_report_uri, manifest_uri: params.manifest_uri, quality_policy_uri: params.quality_policy_uri, round } },
+    tool: { name: HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1, args: { reviewer_report_uri: params.reviewer_report_uri, manifest_uri: params.manifest_uri, quality_policy_uri: params.quality_policy_uri, round } },
     update: current => {
       const ensured = ensureReviseStep(current);
       const manifest = ensured.manifest;
@@ -422,7 +428,7 @@ export async function createRunWritingRevisionPlanPacketV1(params: {
     },
     next_actions: [
       {
-        tool: 'hep_run_writing_submit_revision_plan_v1',
+        tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
         args: {
           run_id: runId,
           revision_plan: '<paste RevisionPlan v1 JSON here or use revision_plan_uri>',

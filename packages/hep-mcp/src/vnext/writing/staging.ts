@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import { randomUUID } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_STAGE_CONTENT,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun } from '../runs.js';
 import { assertSafePathSegment, getRunArtifactPath } from '../paths.js';
@@ -125,7 +128,7 @@ export async function readStagedContent(
       parse_error_uri: parseErrRef.uri,
       parse_error_artifact: parseErrRef.name,
       next_actions: [
-        { tool: 'hep_run_stage_content', args: { run_id, content_type: expected_content_type, content: '<valid JSON string>' }, reason: 'Re-stage valid JSON content and retry.' },
+        { tool: HEP_RUN_STAGE_CONTENT, args: { run_id, content_type: expected_content_type, content: '<valid JSON string>' }, reason: 'Re-stage valid JSON content and retry.' },
       ],
     });
   }
@@ -173,7 +176,7 @@ export async function readStagedContent(
       parse_error_uri: parseErrRef.uri,
       parse_error_artifact: parseErrRef.name,
       next_actions: [
-        { tool: 'hep_run_stage_content', args: { run_id, content_type: expected_content_type, content: '<valid JSON string>' }, reason: 'Re-stage valid JSON content and retry.' },
+        { tool: HEP_RUN_STAGE_CONTENT, args: { run_id, content_type: expected_content_type, content: '<valid JSON string>' }, reason: 'Re-stage valid JSON content and retry.' },
       ],
     });
   }

@@ -1,6 +1,14 @@
 import * as fs from 'fs';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
+  invalidParams,
+} from '@autoresearch/shared';
 import { z } from 'zod';
 
 import { getRun, type RunArtifactRef } from '../runs.js';
@@ -152,7 +160,7 @@ function readRunJsonArtifact<T>(runId: string, artifactName: string): T {
       parse_error_artifact: parseErrRef.name,
       next_actions: [
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 1024 },
           reason: 'Inspect the corrupted artifact and re-generate it.',
         },
@@ -298,7 +306,7 @@ export async function createRunWritingSectionWritePacketV1(params: {
       artifact_name: outlineArtifactName,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
           args: { run_id: runId, target_length: '<short|medium|long>', title: '<paper title>' },
           reason: 'M13: Generate N-best OutlinePlanV2 candidates (N>=2) and judge-select to produce writing_outline_v2.json (no bypass).',
         },
@@ -369,7 +377,7 @@ export async function createRunWritingSectionWritePacketV1(params: {
       outline_artifact_name: outlineArtifactName,
       next_actions: [
         {
-          tool: 'hep_run_writing_submit_paperset_curation',
+          tool: HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
           args: { run_id: runId },
           reason: 'Submit a valid PaperSetCuration to write writing_paperset_v1.json with request.title.',
         },
@@ -395,7 +403,7 @@ export async function createRunWritingSectionWritePacketV1(params: {
       artifact_name: evidencePacketArtifactName,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { run_id: runId, section_index: sectionIndex },
           reason: 'Build an EvidencePacketV2 with an allowlist before section writing.',
         },
@@ -408,7 +416,7 @@ export async function createRunWritingSectionWritePacketV1(params: {
       artifact_name: evidencePacketArtifactName,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { run_id: runId, section_index: sectionIndex, max_selected_chunks: 25 },
           reason: 'Select evidence chunks to ground the section (EvidencePacketV2.chunks[]).',
         },
@@ -656,7 +664,7 @@ export async function createRunWritingSectionWritePacketV1(params: {
     prompt_text_uri: promptTextRef.uri,
     next_actions: [
       {
-        tool: 'hep_run_writing_create_section_candidates_packet_v1',
+        tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
         args: {
           run_id: runId,
           section_index: sectionIndex,
@@ -676,7 +684,7 @@ export async function createRunWritingSectionWritePacketV1(params: {
     round: 1,
     prompt_packet: promptPacket as any,
     mode_used: 'client',
-    tool: 'hep_run_writing_create_section_write_packet_v1',
+    tool: HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
     schema: 'writing_section_output_v1@1',
     extra: {
       section_index: sectionIndex,

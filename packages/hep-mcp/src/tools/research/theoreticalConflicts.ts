@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  INSPIRE_CRITICAL_RESEARCH,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import * as api from '../../api/client.js';
 import { writeRunJsonArtifact } from '../../vnext/citations.js';
@@ -1003,7 +1006,7 @@ export async function performTheoreticalConflicts(params: {
   const nextActions: TheoreticalConflictsResult['next_actions'] = [];
   if (llmMode === 'client' && !hasClientResponses && requestsFinal.length > 0) {
     nextActions.push({
-      tool: 'inspire_critical_research',
+      tool: INSPIRE_CRITICAL_RESEARCH,
       args: {
         mode: 'theoretical',
         recids: recidsOrdered,

@@ -3,7 +3,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  INSPIRE_DEEP_RESEARCH,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';
@@ -159,7 +162,7 @@ export async function compileRunLatexOrThrow(params: {
       run_id: runId,
       bib_artifact_name: bibName,
       next_actions: [
-        { tool: 'inspire_deep_research', args: { mode: 'write', run_id: runId, resume_from: 'claims' }, reason: 'Ensure writing_master.bib is generated from ReferenceManager.' },
+        { tool: INSPIRE_DEEP_RESEARCH, args: { mode: 'write', run_id: runId, resume_from: 'claims' }, reason: 'Ensure writing_master.bib is generated from ReferenceManager.' },
       ],
     });
   }

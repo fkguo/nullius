@@ -1,6 +1,13 @@
 import * as fs from 'fs';
 import { z } from 'zod';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_STAGE_CONTENT,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_OUTLINE_CANDIDATES_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
@@ -123,7 +130,7 @@ function readRunJsonArtifactOrThrow<T>(runId: string, artifactName: string): T {
       parse_error_artifact: ref.name,
       next_actions: [
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 1024 },
           reason: 'Inspect the corrupted artifact and re-generate it.',
         },
@@ -217,7 +224,7 @@ export async function createRunWritingOutlineCandidatesPacketV1(params: {
       artifact_name: llmRequestName,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
           args: { run_id: runId, target_length: params.target_length, title: params.title },
           reason: 'Create outline candidates packet first, then retry.',
         },
@@ -232,7 +239,7 @@ export async function createRunWritingOutlineCandidatesPacketV1(params: {
 
   const nextActions: Array<{ tool: string; args: Record<string, unknown>; reason: string }> = [
     ...Array.from({ length: requested }, (_, idx) => ({
-      tool: 'hep_run_stage_content',
+      tool: HEP_RUN_STAGE_CONTENT,
       args: {
         run_id: runId,
         content_type: 'outline_plan',
@@ -242,7 +249,7 @@ export async function createRunWritingOutlineCandidatesPacketV1(params: {
       reason: `Stage outline candidate #${idx} OutlinePlanV2 JSON (Evidence-first).`,
     })),
     {
-      tool: 'hep_run_writing_submit_outline_candidates_v1',
+      tool: HEP_RUN_WRITING_SUBMIT_OUTLINE_CANDIDATES_V1,
       args: {
         run_id: runId,
         candidates: Array.from({ length: requested }, (_, idx) => ({
@@ -333,7 +340,7 @@ export async function submitRunWritingOutlineCandidatesV1(params: {
       parse_error_artifact: ref.name,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
           args: { run_id: runId, target_length: '<short|medium|long>', title: '<paper title>' },
           reason: 'Recreate the outline candidates packet artifact before submitting candidates.',
         },
@@ -508,7 +515,7 @@ export async function submitRunWritingOutlineCandidatesV1(params: {
 
   const nextActions: Array<{ tool: string; args: Record<string, unknown>; reason: string }> = [
     {
-      tool: 'hep_run_writing_create_outline_judge_packet_v1',
+      tool: HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
       args: { run_id: runId, candidates_uri: candidateSetRef.uri },
       reason: 'Create the Judge prompt_packet for selecting the best outline candidate (N-best → Judge → outline_contract_gate).',
     },

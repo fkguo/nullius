@@ -2,7 +2,77 @@ import { createHash } from 'crypto';
 import { z } from 'zod';
 import { TOOL_SPECS as PDG_TOOL_SPECS } from '@autoresearch/pdg-mcp/tooling';
 import { TOOL_SPECS as ZOTERO_TOOL_SPECS } from '@autoresearch/zotero-mcp/tooling';
-import { invalidParams, notFound } from '@autoresearch/shared';
+import {
+  invalidParams,
+  notFound,
+  HEP_PROJECT_CREATE,
+  HEP_PROJECT_GET,
+  HEP_PROJECT_LIST,
+  HEP_HEALTH,
+  HEP_PROJECT_BUILD_EVIDENCE,
+  HEP_PROJECT_QUERY_EVIDENCE,
+  HEP_PROJECT_QUERY_EVIDENCE_SEMANTIC,
+  HEP_PROJECT_PLAYBACK_EVIDENCE,
+  HEP_PROJECT_COMPARE_MEASUREMENTS,
+  HEP_RUN_CREATE,
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_CLEAR_MANIFEST_LOCK,
+  HEP_RUN_STAGE_CONTENT,
+  HEP_RUN_BUILD_PDF_EVIDENCE,
+  HEP_RUN_BUILD_EVIDENCE_INDEX_V1,
+  HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
+  HEP_RUN_WRITING_TOKEN_GATE_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_SECTION_CANDIDATES_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_JUDGE_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1,
+  HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET,
+  HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_OUTLINE_CANDIDATES_V1,
+  HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1,
+  HEP_RUN_BUILD_WRITING_EVIDENCE,
+  HEP_RUN_BUILD_MEASUREMENTS,
+  HEP_RUN_BUILD_WRITING_CRITICAL,
+  HEP_RUN_BUILD_CITATION_MAPPING,
+  HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
+  HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1,
+  HEP_RUN_WRITING_SUBMIT_REVIEW,
+  HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
+  HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1,
+  HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
+  HEP_RENDER_LATEX,
+  HEP_EXPORT_PROJECT,
+  HEP_EXPORT_PAPER_SCAFFOLD,
+  HEP_IMPORT_PAPER_BUNDLE,
+  HEP_IMPORT_FROM_ZOTERO,
+  HEP_INSPIRE_SEARCH_EXPORT,
+  HEP_INSPIRE_RESOLVE_IDENTIFIERS,
+  INSPIRE_SEARCH,
+  INSPIRE_SEARCH_NEXT,
+  INSPIRE_LITERATURE,
+  INSPIRE_RESOLVE_CITEKEY,
+  INSPIRE_PARSE_LATEX,
+  INSPIRE_RESEARCH_NAVIGATOR,
+  INSPIRE_CRITICAL_RESEARCH,
+  INSPIRE_PAPER_SOURCE,
+  INSPIRE_DEEP_RESEARCH,
+  INSPIRE_FIND_CROSSOVER_TOPICS,
+  INSPIRE_ANALYZE_CITATION_STANCE,
+  INSPIRE_CLEANUP_DOWNLOADS,
+  INSPIRE_VALIDATE_BIBLIOGRAPHY,
+  INSPIRE_STYLE_CORPUS_QUERY,
+  INSPIRE_STYLE_CORPUS_INIT_PROFILE,
+  INSPIRE_STYLE_CORPUS_BUILD_MANIFEST,
+  INSPIRE_STYLE_CORPUS_DOWNLOAD,
+  INSPIRE_STYLE_CORPUS_BUILD_EVIDENCE,
+  INSPIRE_STYLE_CORPUS_BUILD_INDEX,
+  INSPIRE_STYLE_CORPUS_EXPORT_PACK,
+  INSPIRE_STYLE_CORPUS_IMPORT_PACK,
+} from '@autoresearch/shared';
 import * as api from '../api/client.js';
 import { formatExpertsMarkdown } from '../utils/formatters.js';
 import { zodToMcpInputSchema } from './mcpSchema.js';
@@ -1225,7 +1295,7 @@ const ValidateBibliographyToolSchema = z.object({
 export const TOOL_SPECS: ToolSpec[] = [
   // vNext: Project/Run tools (M3)
   {
-    name: 'hep_project_create',
+    name: HEP_PROJECT_CREATE,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1245,7 +1315,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_project_get',
+    name: HEP_PROJECT_GET,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1266,7 +1336,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_project_list',
+    name: HEP_PROJECT_LIST,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1283,7 +1353,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_health',
+    name: HEP_HEALTH,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1293,7 +1363,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       getHepHealth({ check_inspire: params.check_inspire, inspire_timeout_ms: params.inspire_timeout_ms }),
   },
   {
-    name: 'hep_project_build_evidence',
+    name: HEP_PROJECT_BUILD_EVIDENCE,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1306,7 +1376,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_project_query_evidence',
+    name: HEP_PROJECT_QUERY_EVIDENCE,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1340,7 +1410,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_project_query_evidence_semantic',
+    name: HEP_PROJECT_QUERY_EVIDENCE_SEMANTIC,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1352,7 +1422,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_project_playback_evidence',
+    name: HEP_PROJECT_PLAYBACK_EVIDENCE,
     tier: 'core',
     exposure: 'standard',
     description: 'Playback an evidence locator and return a stable snippet (local-only)',
@@ -1360,7 +1430,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     handler: async params => playbackProjectEvidence(params),
   },
   {
-    name: 'hep_run_create',
+    name: HEP_RUN_CREATE,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1384,7 +1454,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_read_artifact_chunk',
+    name: HEP_RUN_READ_ARTIFACT_CHUNK,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1403,7 +1473,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_clear_manifest_lock',
+    name: HEP_RUN_CLEAR_MANIFEST_LOCK,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1415,7 +1485,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_stage_content',
+    name: HEP_RUN_STAGE_CONTENT,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1432,7 +1502,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_create_token_budget_plan_v1',
+    name: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1451,7 +1521,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_token_gate_v1',
+    name: HEP_RUN_WRITING_TOKEN_GATE_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1476,7 +1546,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_create_section_write_packet_v1',
+    name: HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1499,7 +1569,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_create_section_candidates_packet_v1',
+    name: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1519,7 +1589,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_submit_section_candidates_v1',
+    name: HEP_RUN_WRITING_SUBMIT_SECTION_CANDIDATES_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1535,7 +1605,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_create_section_judge_packet_v1',
+    name: HEP_RUN_WRITING_CREATE_SECTION_JUDGE_PACKET_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1551,7 +1621,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_submit_section_judge_decision_v1',
+    name: HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1571,7 +1641,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_create_paperset_curation_packet',
+    name: HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1593,7 +1663,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_submit_paperset_curation',
+    name: HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1611,7 +1681,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_create_outline_candidates_packet_v1',
+    name: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1636,7 +1706,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_submit_outline_candidates_v1',
+    name: HEP_RUN_WRITING_SUBMIT_OUTLINE_CANDIDATES_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1651,7 +1721,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_create_outline_judge_packet_v1',
+    name: HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1666,7 +1736,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_submit_outline_judge_decision_v1',
+    name: HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1684,7 +1754,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_build_writing_evidence',
+    name: HEP_RUN_BUILD_WRITING_EVIDENCE,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1713,7 +1783,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_build_measurements',
+    name: HEP_RUN_BUILD_MEASUREMENTS,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1735,7 +1805,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_project_compare_measurements',
+    name: HEP_PROJECT_COMPARE_MEASUREMENTS,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1756,7 +1826,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_build_writing_critical',
+    name: HEP_RUN_BUILD_WRITING_CRITICAL,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1779,7 +1849,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_build_citation_mapping',
+    name: HEP_RUN_BUILD_CITATION_MAPPING,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1791,7 +1861,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       const stepName = 'citation_mapping';
       const startedAt = new Date().toISOString();
       const toolInfo = {
-        name: 'hep_run_build_citation_mapping',
+        name: HEP_RUN_BUILD_CITATION_MAPPING,
         args: { run_id: params.run_id, identifier: params.identifier },
       };
 
@@ -1934,7 +2004,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_submit_review',
+    name: HEP_RUN_WRITING_SUBMIT_REVIEW,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1954,7 +2024,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_create_revision_plan_packet_v1',
+    name: HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1971,7 +2041,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_submit_revision_plan_v1',
+    name: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -1987,7 +2057,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_refinement_orchestrator_v1',
+    name: HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2004,7 +2074,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_integrate_sections_v1',
+    name: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2023,7 +2093,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_render_latex',
+    name: HEP_RENDER_LATEX,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2040,7 +2110,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     }),
   },
   {
-    name: 'hep_export_project',
+    name: HEP_EXPORT_PROJECT,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2065,7 +2135,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     }),
   },
   {
-    name: 'hep_export_paper_scaffold',
+    name: HEP_EXPORT_PAPER_SCAFFOLD,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2083,7 +2153,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     }),
   },
   {
-    name: 'hep_import_paper_bundle',
+    name: HEP_IMPORT_PAPER_BUNDLE,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2103,7 +2173,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   ...(ZOTERO_INTEGRATION_ENABLED
     ? ([
         {
-          name: 'hep_import_from_zotero',
+          name: HEP_IMPORT_FROM_ZOTERO,
           tier: 'core',
           exposure: 'standard',
           description:
@@ -2146,7 +2216,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       )
     : []),
   {
-    name: 'hep_run_build_pdf_evidence',
+    name: HEP_RUN_BUILD_PDF_EVIDENCE,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2177,7 +2247,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_build_evidence_index_v1',
+    name: HEP_RUN_BUILD_EVIDENCE_INDEX_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2196,7 +2266,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_build_evidence_packet_section_v2',
+    name: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2240,7 +2310,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_run_writing_submit_rerank_result_v1',
+    name: HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2264,7 +2334,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_inspire_search_export',
+    name: HEP_INSPIRE_SEARCH_EXPORT,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2291,7 +2361,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'hep_inspire_resolve_identifiers',
+    name: HEP_INSPIRE_RESOLVE_IDENTIFIERS,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2308,7 +2378,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 
   // Tier 1: Core tools
   {
-    name: 'inspire_search',
+    name: INSPIRE_SEARCH,
     tier: 'core',
     exposure: 'standard',
     description: `Search INSPIRE-HEP literature database (network). Supports combining multiple conditions in one query.
@@ -2372,7 +2442,7 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
     },
   },
   {
-    name: 'inspire_search_next',
+    name: INSPIRE_SEARCH_NEXT,
     tier: 'core',
     exposure: 'standard',
     description:
@@ -2398,7 +2468,7 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
     },
   },
   {
-    name: 'inspire_literature',
+    name: INSPIRE_LITERATURE,
     tier: 'consolidated',
     exposure: 'standard',
     description: `Unified INSPIRE literature access tool (network).
@@ -2440,7 +2510,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
     },
   },
   {
-    name: 'inspire_resolve_citekey',
+    name: INSPIRE_RESOLVE_CITEKEY,
     tier: 'consolidated',
     exposure: 'standard',
     description:
@@ -2554,7 +2624,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
 
   // Tier 2: Consolidated tools
   {
-    name: 'inspire_parse_latex',
+    name: INSPIRE_PARSE_LATEX,
     tier: 'consolidated',
     exposure: 'standard',
     description:
@@ -2581,7 +2651,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
           version: 1,
           generated_at: generatedAt,
           run_id: params.run_id,
-          tool: 'inspire_parse_latex',
+          tool: INSPIRE_PARSE_LATEX,
           request: {
             identifier: params.identifier,
             components: params.components,
@@ -2619,7 +2689,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
     },
   },
   {
-    name: 'inspire_research_navigator',
+    name: INSPIRE_RESEARCH_NAVIGATOR,
     tier: 'consolidated',
     exposure: 'standard',
     intent: 'paper_discovery',
@@ -2707,7 +2777,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
     },
   },
   {
-    name: 'inspire_critical_research',
+    name: INSPIRE_CRITICAL_RESEARCH,
     tier: 'consolidated',
     exposure: 'standard',
     description:
@@ -2719,7 +2789,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
     },
   },
   {
-    name: 'inspire_paper_source',
+    name: INSPIRE_PAPER_SOURCE,
     tier: 'consolidated',
     exposure: 'standard',
     description: `Unified paper source access tool (network). Modes: urls/content/metadata/auto (downloads arXiv sources/PDFs and optionally extracts).
@@ -2739,7 +2809,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
     },
   },
   {
-    name: 'inspire_deep_research',
+    name: INSPIRE_DEEP_RESEARCH,
     tier: 'consolidated',
     exposure: 'standard',
     description:
@@ -2755,7 +2825,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
   },
   // Full-only whitelist tools
   {
-    name: 'inspire_find_crossover_topics',
+    name: INSPIRE_FIND_CROSSOVER_TOPICS,
     tier: 'advanced',
     exposure: 'full',
     description:
@@ -2767,7 +2837,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
     },
   },
   {
-    name: 'inspire_analyze_citation_stance',
+    name: INSPIRE_ANALYZE_CITATION_STANCE,
     tier: 'advanced',
     exposure: 'full',
     description:
@@ -2784,7 +2854,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
     },
   },
   {
-    name: 'inspire_cleanup_downloads',
+    name: INSPIRE_CLEANUP_DOWNLOADS,
     tier: 'advanced',
     exposure: 'full',
     description:
@@ -2796,7 +2866,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
     },
   },
   {
-    name: 'inspire_validate_bibliography',
+    name: INSPIRE_VALIDATE_BIBLIOGRAPHY,
     tier: 'advanced',
     exposure: 'full',
     description:
@@ -2810,7 +2880,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
 
   // Style corpus tools (RMP 起步; Evidence-first)
   {
-    name: 'inspire_style_corpus_query',
+    name: INSPIRE_STYLE_CORPUS_QUERY,
     tier: 'writing',
     exposure: 'standard',
     description: `Query a journal style corpus (default: RMP) for style evidence (local-only).
@@ -2827,7 +2897,7 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
     },
   },
   {
-    name: 'inspire_style_corpus_init_profile',
+    name: INSPIRE_STYLE_CORPUS_INIT_PROFILE,
     tier: 'advanced',
     exposure: 'full',
     maturity: 'experimental',
@@ -2839,7 +2909,7 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
     },
   },
   {
-    name: 'inspire_style_corpus_build_manifest',
+    name: INSPIRE_STYLE_CORPUS_BUILD_MANIFEST,
     tier: 'advanced',
     exposure: 'full',
     maturity: 'experimental',
@@ -2852,7 +2922,7 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
     },
   },
   {
-    name: 'inspire_style_corpus_download',
+    name: INSPIRE_STYLE_CORPUS_DOWNLOAD,
     tier: 'advanced',
     exposure: 'full',
     maturity: 'experimental',
@@ -2864,7 +2934,7 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
     },
   },
   {
-    name: 'inspire_style_corpus_build_evidence',
+    name: INSPIRE_STYLE_CORPUS_BUILD_EVIDENCE,
     tier: 'advanced',
     exposure: 'full',
     maturity: 'experimental',
@@ -2877,7 +2947,7 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
     },
   },
   {
-    name: 'inspire_style_corpus_build_index',
+    name: INSPIRE_STYLE_CORPUS_BUILD_INDEX,
     tier: 'advanced',
     exposure: 'full',
     maturity: 'experimental',
@@ -2889,7 +2959,7 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
     },
   },
   {
-    name: 'inspire_style_corpus_export_pack',
+    name: INSPIRE_STYLE_CORPUS_EXPORT_PACK,
     tier: 'advanced',
     exposure: 'full',
     maturity: 'experimental',
@@ -2901,7 +2971,7 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
     },
   },
   {
-    name: 'inspire_style_corpus_import_pack',
+    name: INSPIRE_STYLE_CORPUS_IMPORT_PACK,
     tier: 'advanced',
     exposure: 'full',
     maturity: 'experimental',

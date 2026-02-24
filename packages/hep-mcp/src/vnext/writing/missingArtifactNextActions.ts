@@ -1,3 +1,12 @@
+import {
+  HEP_RUN_BUILD_WRITING_CRITICAL,
+  HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET,
+  HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
+  HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
+} from '@autoresearch/shared';
 export type RunNextAction = { tool: string; args: Record<string, unknown>; reason: string };
 
 function parsePad3Index(value: string): number | null {
@@ -17,7 +26,7 @@ export function suggestNextActionsForMissingRunArtifact(params: {
   if (name === 'writing_outline_v2.json') {
     return [
       {
-        tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+        tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
         args: {
           run_id: runId,
           language: 'auto',
@@ -36,7 +45,7 @@ export function suggestNextActionsForMissingRunArtifact(params: {
   if (name === 'writing_paperset_v1.json') {
     return [
       {
-        tool: 'hep_run_writing_create_paperset_curation_packet',
+        tool: HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET,
         args: {
           run_id: runId,
           language: 'auto',
@@ -49,7 +58,7 @@ export function suggestNextActionsForMissingRunArtifact(params: {
         reason: 'Create a PaperSetCuration prompt_packet for the client LLM.',
       },
       {
-        tool: 'hep_run_writing_submit_paperset_curation',
+        tool: HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
         args: {
           run_id: runId,
           paperset_uri: '<staging_uri from hep_run_stage_content (content_type=paperset)>',
@@ -62,7 +71,7 @@ export function suggestNextActionsForMissingRunArtifact(params: {
   if (name === 'writing_token_budget_plan_v1.json') {
     return [
       {
-        tool: 'hep_run_writing_create_token_budget_plan_v1',
+        tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
         args: { run_id: runId, model_context_tokens: 32_000 },
         reason: 'Create TokenBudgetPlanV1 (required for TokenGate-gated writing steps).',
       },
@@ -72,7 +81,7 @@ export function suggestNextActionsForMissingRunArtifact(params: {
   if (name === 'writing_claims_table.json') {
     return [
       {
-        tool: 'hep_run_build_writing_critical',
+        tool: HEP_RUN_BUILD_WRITING_CRITICAL,
         args: { run_id: runId, recids: ['<inspire_recid>'] },
         reason: 'Build writing-critical artifacts (including writing_claims_table.json) for this run.',
       },
@@ -85,7 +94,7 @@ export function suggestNextActionsForMissingRunArtifact(params: {
     if (sectionIndex !== null) {
       return [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { run_id: runId, section_index: sectionIndex },
           reason: 'Build the EvidencePacketV2 for this section (rerank packet + submit result).',
         },
@@ -99,7 +108,7 @@ export function suggestNextActionsForMissingRunArtifact(params: {
     if (sectionIndex !== null) {
       return [
         {
-          tool: 'hep_run_writing_create_section_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
           args: { run_id: runId, section_index: sectionIndex },
           reason: 'M13: Create N-best section candidates packet (N>=2 required), then follow next_actions to submit candidates + judge + verifiers.',
         },

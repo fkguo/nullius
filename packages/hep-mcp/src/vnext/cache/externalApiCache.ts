@@ -2,7 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createHash, randomUUID } from 'crypto';
 import { pathToFileURL } from 'url';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { ensureDir, getCacheDir } from '../../data/dataDir.js';
 import { getRun, type RunArtifactRef } from '../runs.js';
@@ -186,7 +189,7 @@ export async function cachedExternalApiJsonCall<T>(params: {
         parse_error_uri: parseErrRef.uri,
         parse_error_artifact: parseErrRef.name,
         next_actions: [
-          { tool: 'hep_run_read_artifact_chunk', args: { run_id: runId, artifact_name: parseErrRef.name, offset: 0, length: 2048 }, reason: 'Inspect the cache parse error artifact.' },
+          { tool: HEP_RUN_READ_ARTIFACT_CHUNK, args: { run_id: runId, artifact_name: parseErrRef.name, offset: 0, length: 2048 }, reason: 'Inspect the cache parse error artifact.' },
           ...(params.tool ? [{ tool: params.tool.name, args: params.tool.args, reason: 'Retry after removing the corrupted cache entry (manual) (fail-fast).' }] : []),
         ],
       });
@@ -223,7 +226,7 @@ export async function cachedExternalApiJsonCall<T>(params: {
         mismatch_uri: mismatchRef.uri,
         mismatch_artifact: mismatchRef.name,
         next_actions: [
-          { tool: 'hep_run_read_artifact_chunk', args: { run_id: runId, artifact_name: mismatchRef.name, offset: 0, length: 2048 }, reason: 'Inspect the cache mismatch artifact and remove the corrupted cache entry manually if needed.' },
+          { tool: HEP_RUN_READ_ARTIFACT_CHUNK, args: { run_id: runId, artifact_name: mismatchRef.name, offset: 0, length: 2048 }, reason: 'Inspect the cache mismatch artifact and remove the corrupted cache entry manually if needed.' },
           ...(params.tool ? [{ tool: params.tool.name, args: params.tool.args, reason: 'Retry after removing the corrupted cache entry (manual) (fail-fast).' }] : []),
         ],
       });
@@ -267,7 +270,7 @@ export async function cachedExternalApiJsonCall<T>(params: {
         cache_error_uri: ioErrRef.uri,
         cache_error_artifact: ioErrRef.name,
         next_actions: [
-          { tool: 'hep_run_read_artifact_chunk', args: { run_id: runId, artifact_name: ioErrRef.name, offset: 0, length: 2048 }, reason: 'Inspect the cache IO error artifact (disk/permission issues are fatal by design).' },
+          { tool: HEP_RUN_READ_ARTIFACT_CHUNK, args: { run_id: runId, artifact_name: ioErrRef.name, offset: 0, length: 2048 }, reason: 'Inspect the cache IO error artifact (disk/permission issues are fatal by design).' },
           ...(params.tool ? [{ tool: params.tool.name, args: params.tool.args, reason: 'Retry after resolving cache directory IO failures (fail-fast).' }] : []),
         ],
       });

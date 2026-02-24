@@ -1,5 +1,9 @@
 import * as fs from 'fs';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RENDER_LATEX,
+  HEP_RUN_BUILD_CITATION_MAPPING,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
@@ -270,7 +274,7 @@ export async function renderLatexForRun(params: {
 
   const manifestStart = await updateRunManifestAtomic({
     run_id: params.run_id,
-    tool: { name: 'hep_render_latex', args: { run_id: params.run_id } },
+    tool: { name: HEP_RENDER_LATEX, args: { run_id: params.run_id } },
     update: current => {
       const startStep: RunStep = { step: stepName, status: 'in_progress', started_at: startedAt };
       const next: RunManifest = {
@@ -298,7 +302,7 @@ export async function renderLatexForRun(params: {
             artifact_name: 'allowed_citations.json',
             next_actions: [
               {
-                tool: 'hep_run_build_citation_mapping',
+                tool: HEP_RUN_BUILD_CITATION_MAPPING,
                 args: {
                   run_id: params.run_id,
                   identifier: '<arXiv/DOI/recid>',
@@ -356,7 +360,7 @@ export async function renderLatexForRun(params: {
       const completedAt = new Date().toISOString();
       await updateRunManifestAtomic({
         run_id: params.run_id,
-        tool: { name: 'hep_render_latex', args: { run_id: params.run_id } },
+        tool: { name: HEP_RENDER_LATEX, args: { run_id: params.run_id } },
         update: current => {
           const idx = current.steps[stepIndex]?.step === stepName && current.steps[stepIndex]?.started_at === startedAt
             ? stepIndex
@@ -390,7 +394,7 @@ export async function renderLatexForRun(params: {
           statistics: verification.statistics,
           next_actions: [
             {
-              tool: 'hep_run_build_citation_mapping',
+              tool: HEP_RUN_BUILD_CITATION_MAPPING,
               args: {
                 run_id: params.run_id,
                 identifier: '<arXiv/DOI/recid>',
@@ -413,7 +417,7 @@ export async function renderLatexForRun(params: {
     const completedAt = new Date().toISOString();
     await updateRunManifestAtomic({
       run_id: params.run_id,
-      tool: { name: 'hep_render_latex', args: { run_id: params.run_id } },
+      tool: { name: HEP_RENDER_LATEX, args: { run_id: params.run_id } },
       update: current => {
         const idx = current.steps[stepIndex]?.step === stepName && current.steps[stepIndex]?.started_at === startedAt
           ? stepIndex
@@ -455,7 +459,7 @@ export async function renderLatexForRun(params: {
       const completedAt = new Date().toISOString();
       await updateRunManifestAtomic({
         run_id: params.run_id,
-        tool: { name: 'hep_render_latex', args: { run_id: params.run_id } },
+        tool: { name: HEP_RENDER_LATEX, args: { run_id: params.run_id } },
         update: current => {
           const idx = current.steps[stepIndex]?.step === stepName && current.steps[stepIndex]?.started_at === startedAt
             ? stepIndex

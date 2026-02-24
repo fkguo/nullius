@@ -1,5 +1,18 @@
 import { ZodError } from 'zod';
-import { invalidParams, McpError, unsafeFs } from '@autoresearch/shared';
+import {
+  invalidParams,
+  McpError,
+  unsafeFs,
+  HEP_RUN_PREFIX,
+  HEP_PROJECT_CREATE,
+  HEP_PROJECT_QUERY_EVIDENCE,
+  HEP_RUN_CREATE,
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_WRITING_SUBMIT_REVIEW,
+  HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
+  INSPIRE_PARSE_LATEX,
+  INSPIRE_SEARCH,
+} from '@autoresearch/shared';
 import type { Notification } from '@modelcontextprotocol/sdk/types.js';
 import type { OutputFormat, SearchResultData } from '../utils/formatters.js';
 import { formatSearchResultMarkdown } from '../utils/formatters.js';
@@ -74,7 +87,7 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
       const argsObj = (args && typeof args === 'object') ? (args as Record<string, unknown>) : null;
 
       const missingRunIdForHepRunTool = (() => {
-        if (!toolName.startsWith('hep_run_') && toolName !== 'inspire_parse_latex') return false;
+        if (!toolName.startsWith(HEP_RUN_PREFIX) && toolName !== INSPIRE_PARSE_LATEX) return false;
         const hasRunIdKey = argsObj ? Object.prototype.hasOwnProperty.call(argsObj, 'run_id') : false;
         const runIdValue = hasRunIdKey && argsObj ? argsObj.run_id : undefined;
         const runIdIsMissing = !hasRunIdKey || runIdValue === undefined;
@@ -86,7 +99,7 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
       })();
 
       const missingRunIdForProjectSemanticQuery = (() => {
-        if (toolName !== 'hep_project_query_evidence') return false;
+        if (toolName !== HEP_PROJECT_QUERY_EVIDENCE) return false;
         const modeValue = argsObj && typeof argsObj.mode === 'string' ? argsObj.mode.trim().toLowerCase() : 'lexical';
         if (modeValue !== 'semantic') return false;
         const hasRunIdKey = argsObj ? Object.prototype.hasOwnProperty.call(argsObj, 'run_id') : false;
@@ -121,7 +134,7 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
       const parseError = (() => {
         if (!runId) return null;
 
-        if (toolName === 'hep_run_writing_submit_review') {
+        if (toolName === HEP_RUN_WRITING_SUBMIT_REVIEW) {
           const ref = writeRunJsonArtifact(runId, 'writing_parse_error_reviewer_report_v2.json', {
             version: 1,
             generated_at: new Date().toISOString(),
@@ -138,17 +151,17 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
             parse_error_artifact: ref.name,
             next_actions: [
               {
-                tool: 'hep_run_read_artifact_chunk',
+                tool: HEP_RUN_READ_ARTIFACT_CHUNK,
                 args: { run_id: runId, artifact_name: 'writing_reviewer_prompt.md', offset: 0, length: 4096 },
                 reason: 'Read reviewer prompt (ReviewerReport v2 JSON contract).',
               },
               {
-                tool: 'hep_run_read_artifact_chunk',
+                tool: HEP_RUN_READ_ARTIFACT_CHUNK,
                 args: { run_id: runId, artifact_name: 'writing_reviewer_context.md', offset: 0, length: 4096 },
                 reason: 'Read reviewer context; then regenerate ReviewerReport v2 JSON with an LLM.',
               },
               {
-                tool: 'hep_run_writing_submit_review',
+                tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
                 args: {
                   run_id: runId,
                   reviewer_report: {
@@ -170,7 +183,7 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
           };
         }
 
-        if (toolName === 'hep_run_writing_submit_revision_plan_v1') {
+        if (toolName === HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1) {
           const ref = writeRunJsonArtifact(runId, 'writing_parse_error_revision_plan_v1.json', {
             version: 1,
             generated_at: new Date().toISOString(),
@@ -188,7 +201,7 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
             parse_error_artifact: ref.name,
             next_actions: [
               {
-                tool: 'hep_run_writing_submit_revision_plan_v1',
+                tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
                 args: { run_id: runId, revision_plan: '<paste RevisionPlan v1 JSON here or use revision_plan_uri>' },
                 reason: 'Submit a valid RevisionPlan v1 JSON.',
               },
@@ -212,14 +225,14 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
         const query = argsObj && typeof argsObj.query === 'string' ? argsObj.query : '<query>';
         data.next_actions = [
           {
-            tool: 'hep_run_create',
+            tool: HEP_RUN_CREATE,
             args: {
               project_id: projectId,
             },
             reason: 'Create a run and use run_id for semantic mode.',
           },
           {
-            tool: 'hep_project_query_evidence',
+            tool: HEP_PROJECT_QUERY_EVIDENCE,
             args: {
               project_id: projectId,
               mode: 'semantic',
@@ -232,7 +245,7 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
       } else if (missingRunIdForHepRunTool) {
         data.next_actions = [
           {
-            tool: 'hep_project_create',
+            tool: HEP_PROJECT_CREATE,
             args: {
               name: 'my_project',
               description: 'Create a project before creating a run.',
@@ -240,7 +253,7 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
             reason: 'Create a project first.',
           },
           {
-            tool: 'hep_run_create',
+            tool: HEP_RUN_CREATE,
             args: {
               project_id: '<project_id from hep_project_create>',
             },
@@ -324,7 +337,7 @@ function formatToolResult(
 
   const format = (args.format as OutputFormat) || 'json';
 
-  if (name === 'inspire_search' && format === 'markdown') {
+  if (name === INSPIRE_SEARCH && format === 'markdown') {
     const r = result as SearchResultData & { total: number; papers: any[]; next_url?: string };
     const rawHasMore = (r as Partial<SearchResultData>).has_more;
     const pageRaw = args.page;

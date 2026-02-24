@@ -43,7 +43,16 @@ import type { CheckOriginalityResult } from '../writing/originality/types.js';
 import { CLIENT_INSTRUCTIONS_EN, CLIENT_INSTRUCTIONS_ZH, buildPromptFromPacket, SYSTEM_PROMPT_EN, SYSTEM_PROMPT_ZH } from '../writing/prompts/sharedPrompt.js';
 import { selectAssetsForInjection } from '../writing/prompts/assetInjection.js';
 import { WORD_BUDGET_BY_LENGTH, calculatePerSectionBudget } from '../writing/outline/wordBudget.js';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_PROJECT_CREATE,
+  HEP_RUN_CREATE,
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_REVIEW,
+  INSPIRE_DEEP_RESEARCH,
+  invalidParams,
+} from '@autoresearch/shared';
 import { writeRunJsonArtifact } from '../../vnext/citations.js';
 import { repairAndParseJsonDeterministically } from '../../vnext/structuredOutput.js';
 import { ReviewerReportV2Schema } from '../../vnext/contracts/reviewerReport.js';
@@ -415,7 +424,7 @@ async function executeSectionWithLLM(
       llm_mode: llmMode,
         next_actions: [
           {
-            tool: 'hep_run_writing_create_section_candidates_packet_v1',
+            tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
             args: { run_id: '<run_id>', section_index: '<section_index>' },
             reason: 'M13 client mode is Evidence-first: generate N-best (N>=2) section candidates, then follow next_actions to judge+verify (no bypass).',
           },
@@ -1359,7 +1368,7 @@ async function performWriteToRun(params: {
         llm_mode: params.llmMode,
         next_actions: [
           {
-            tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+            tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
             args: { run_id: params.runId, language: 'auto', target_length: requestedLength, title: params.title },
             reason: 'M13 client mode: Generate N-best OutlinePlanV2 candidates (N>=2) and judge-select to write writing_outline_v2.json (no bypass).',
           },
@@ -1407,7 +1416,7 @@ async function performWriteToRun(params: {
         artifact_name: WRITING_OUTLINE_V2_ARTIFACT,
         next_actions: [
           {
-            tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+            tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
             args: { run_id: params.runId, language: 'auto', target_length: requestedLength, title: params.title },
             reason: 'M13: Generate N-best OutlinePlanV2 candidates (N>=2) and judge-select to write writing_outline_v2.json (no bypass).',
           },
@@ -1797,7 +1806,7 @@ async function performWriteToRun(params: {
       })),
       expected_output_schema: expectedOutputSchema,
       submit_tool: {
-        name: 'hep_run_writing_create_section_candidates_packet_v1',
+        name: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
         args_template: { run_id: params.runId, section_index: '<section_index>' },
       },
       internal: params.llmMode === 'internal'
@@ -1959,7 +1968,7 @@ async function performWriteToRun(params: {
         sections: { total: sectionTotal, ready: sectionsReady },
       },
       next_actions: packets.sections.slice(0, 1).map(s => ({
-        tool: 'hep_run_writing_create_section_candidates_packet_v1',
+        tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
         args: { run_id: params.runId, section_index: s.index },
         reason: 'M13: Create N-best section candidates packet (N>=2), then follow next_actions to stage candidates → judge → verifiers (fail-fast; no bypass).',
       })),
@@ -2167,7 +2176,7 @@ async function performWriteToRun(params: {
         phase2_error_artifact: 'writing_phase2_integration_error_v1.json',
         next_actions: [
           {
-            tool: 'inspire_deep_research',
+            tool: INSPIRE_DEEP_RESEARCH,
             args: {
               identifiers: params.identifiers,
               mode: 'write',
@@ -2468,7 +2477,7 @@ async function performWriteToRun(params: {
         },
         next_actions: [
           {
-            tool: 'hep_run_writing_submit_review',
+            tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
             args: {
               run_id: params.runId,
               reviewer_report: {
@@ -2510,7 +2519,7 @@ async function performWriteToRun(params: {
           parse_error_artifact: ref.name,
           next_actions: [
             {
-              tool: 'hep_run_writing_submit_review',
+              tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
               args: {
                 run_id: params.runId,
                 reviewer_report: '<re-run reviewer prompt, produce ReviewerReport v2 JSON, then re-submit>',
@@ -2541,17 +2550,17 @@ async function performWriteToRun(params: {
         parse_error_artifact: ref.name,
         next_actions: [
           {
-            tool: 'hep_run_read_artifact_chunk',
+            tool: HEP_RUN_READ_ARTIFACT_CHUNK,
             args: { run_id: params.runId, artifact_name: WRITING_REVIEW_PROMPT_ARTIFACT, offset: 0, length: 4096 },
             reason: 'Read reviewer prompt (ReviewerReport v2 JSON contract).',
           },
           {
-            tool: 'hep_run_read_artifact_chunk',
+            tool: HEP_RUN_READ_ARTIFACT_CHUNK,
             args: { run_id: params.runId, artifact_name: WRITING_REVIEW_CONTEXT_ARTIFACT, offset: 0, length: 4096 },
             reason: 'Read reviewer context; then regenerate ReviewerReport v2 JSON with an LLM.',
           },
           {
-            tool: 'hep_run_writing_submit_review',
+            tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
             args: {
               run_id: params.runId,
               reviewer_report: {
@@ -2745,10 +2754,10 @@ export async function performDeepResearch(
             mode,
             llm_mode: llmMode,
             next_actions: [
-              { tool: 'hep_project_create', args: { name: title, description: topic }, reason: 'Create a project for this writing run.' },
-              { tool: 'hep_run_create', args: { project_id: '<project_id from hep_project_create>' }, reason: 'Create a run to store evidence-first artifacts.' },
+              { tool: HEP_PROJECT_CREATE, args: { name: title, description: topic }, reason: 'Create a project for this writing run.' },
+              { tool: HEP_RUN_CREATE, args: { project_id: '<project_id from hep_project_create>' }, reason: 'Create a run to store evidence-first artifacts.' },
               {
-                tool: 'inspire_deep_research',
+                tool: INSPIRE_DEEP_RESEARCH,
                 args: { identifiers, mode: 'write', run_id: '<run_id from hep_run_create>', options },
                 reason: 'Re-run write mode with run_id.',
               },

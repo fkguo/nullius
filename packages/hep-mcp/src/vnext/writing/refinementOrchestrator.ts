@@ -1,6 +1,15 @@
 import * as fs from 'fs';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
+  HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
+  HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1,
+  HEP_RUN_WRITING_SUBMIT_REVIEW,
+  HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';
@@ -569,17 +578,17 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
       artifacts: ctx.refs,
       next_actions: [
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: 'writing_reviewer_prompt.md', offset: 0, length: 4096 },
           reason: 'Read reviewer prompt (ReviewerReport v2 JSON contract).',
         },
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: 'writing_reviewer_context.md', offset: 0, length: 4096 },
           reason: 'Read reviewer context (URIs); then run the prompt with an LLM.',
         },
         {
-          tool: 'hep_run_writing_submit_review',
+          tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
           args: {
             run_id: runId,
             round,
@@ -614,7 +623,7 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
       missing_artifact: revisionPlanArtifactName,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_revision_plan_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
           args: {
             reviewer_report_uri: reviewer.artifact_uri,
             manifest_uri: manifestUri,
@@ -623,7 +632,7 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
           reason: 'Create the revision plan prompt_packet for this round.',
         },
         {
-          tool: 'hep_run_writing_submit_revision_plan_v1',
+          tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
           args: { run_id: runId, revision_plan: '<paste RevisionPlan v1 JSON here or use revision_plan_uri>' },
           reason: 'Submit RevisionPlan v1 JSON for this round.',
         },
@@ -666,7 +675,7 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
         action_type: action.type,
         next_actions: [
           {
-            tool: 'hep_run_writing_submit_revision_plan_v1',
+            tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
             args: { run_id: runId, revision_plan: '<submit a RevisionPlan v1 with supported actions (rewrite_section/add_evidence/fix_assets)>' },
             reason: 'Re-submit a RevisionPlan v1 using supported action types for this orchestrator minimal loop.',
           },
@@ -690,7 +699,7 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
       },
       next_actions: [
         {
-          tool: 'hep_run_writing_create_section_write_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
           args: { run_id: runId, section_index: nextSectionIndex },
           reason: 'Create a per-section write packet (TokenGate) and follow its next_actions to submit a revised section.',
         },
@@ -720,7 +729,7 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
       },
       next_actions: [
         {
-          tool: 'hep_run_writing_integrate_sections_v1',
+          tool: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
           args: { run_id: runId },
           reason: 'Integrate sections into writing_integrated.tex and run LaTeX compile gate.',
         },
@@ -736,12 +745,12 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
       integrate_diagnostics_uri: runArtifactUri(runId, integrateDiagName),
       next_actions: [
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: integrateDiagName, offset: 0, length: 8192 },
           reason: 'Inspect integrate diagnostics and address failing gates.',
         },
         {
-          tool: 'hep_run_writing_integrate_sections_v1',
+          tool: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
           args: { run_id: runId },
           reason: 'Re-run integrate after addressing issues.',
         },
@@ -774,7 +783,7 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
       max_rounds: plan.plan.max_rounds,
       next_actions: [
         {
-          tool: 'hep_run_writing_refinement_orchestrator_v1',
+          tool: HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1,
           args: { run_id: runId, round },
           reason: 'Inspect current round state; manual intervention required to proceed.',
         },
@@ -796,7 +805,7 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
     },
     next_actions: [
       {
-        tool: 'hep_run_writing_refinement_orchestrator_v1',
+        tool: HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1,
         args: { run_id: runId, round: round + 1 },
         reason: 'Advance to next refinement round (will generate reviewer prompt/context and wait for submit_review).',
       },

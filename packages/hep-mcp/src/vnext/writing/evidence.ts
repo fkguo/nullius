@@ -1,5 +1,8 @@
 import * as fs from 'fs';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_BUILD_WRITING_EVIDENCE,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getProjectPaperEvidenceCatalogPath, getRunArtifactPath } from '../paths.js';
@@ -24,7 +27,7 @@ async function startRunStep(runId: string, stepName: string): Promise<{ manifest
   const now = nowIso();
   const manifestStart = await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_build_writing_evidence', args: { run_id: runId } },
+    tool: { name: HEP_RUN_BUILD_WRITING_EVIDENCE, args: { run_id: runId } },
     update: current => {
       const step: RunStep = { step: stepName, status: 'in_progress', started_at: now };
       const next: RunManifest = {
@@ -58,7 +61,7 @@ async function finishRunStep(params: {
   const now = nowIso();
   await updateRunManifestAtomic({
     run_id: params.runId,
-    tool: { name: 'hep_run_build_writing_evidence', args: { run_id: params.runId } },
+    tool: { name: HEP_RUN_BUILD_WRITING_EVIDENCE, args: { run_id: params.runId } },
     update: current => {
       const idx = current.steps[params.stepIndex]?.step === params.stepStart.step
         ? params.stepIndex

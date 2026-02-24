@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import { z } from 'zod';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
@@ -108,7 +111,7 @@ export function readWritingTokenBudgetPlanV1OrThrow(params: {
       artifact_name: name,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: runId, model_context_tokens: 32_000 },
           reason: 'Create a TokenBudgetPlan so TokenGate can enforce fail-fast budget checks.',
         },
@@ -213,12 +216,12 @@ export function createRunWritingTokenBudgetPlanV1(params: {
         safety_margin_tokens: safetyMarginTokens,
         next_actions: [
           {
-            tool: 'hep_run_writing_create_token_budget_plan_v1',
+            tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
             args: { run_id: runId, model_context_tokens: modelContextTokens + 8_000 },
             reason: 'Increase model_context_tokens (use a larger-context model).',
           },
           {
-            tool: 'hep_run_writing_create_token_budget_plan_v1',
+            tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
             args: { run_id: runId, model_context_tokens: modelContextTokens, reserved_output_tokens: { [step]: Math.max(0, modelContextTokens - safetyMarginTokens - 1024) } },
             reason: 'Lower reserved_output_tokens for this step to leave room for prompt+context.',
           },

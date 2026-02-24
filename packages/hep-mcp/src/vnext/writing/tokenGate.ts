@@ -1,6 +1,10 @@
 import * as fs from 'fs';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
+  HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { getRunArtifactPath, assertSafePathSegment } from '../paths.js';
@@ -271,7 +275,7 @@ export async function runWritingTokenGateV1(params: {
       manifest_uri: manifestUri,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: runId, model_context_tokens: 32_000 },
           reason: 'Create a token budget plan (includes model context hint + reserved output budgets).',
         },
@@ -293,7 +297,7 @@ export async function runWritingTokenGateV1(params: {
       manifest_uri: manifestUri,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: runId, model_context_tokens: modelContextTokens },
           reason: 'Create/update token budget plan with per-step reserved output budgets.',
         },
@@ -313,7 +317,7 @@ export async function runWritingTokenGateV1(params: {
       budget_input_tokens: budgetInputTokens,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: runId, model_context_tokens: Math.max(modelContextTokens, safetyMarginTokens + reservedOutputTokens + 1024) },
           reason: 'Increase model_context_tokens so there is room for prompt+context+output.',
         },
@@ -391,14 +395,14 @@ export async function runWritingTokenGateV1(params: {
 
   const nextActions: TokenOverflowArtifactV1['next_actions'] = [
     {
-      tool: 'hep_run_writing_create_token_budget_plan_v1',
+      tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
       args: { run_id: runId, model_context_tokens: Math.max(modelContextTokens, estimatedTotalInputTokens + safetyMarginTokens + reservedOutputTokens) },
       reason: 'Increase model_context_tokens (use a larger-context model) so prompt+context fits without trimming.',
     },
     ...(step === 'evidence_rerank'
       ? ([
           {
-            tool: 'hep_run_writing_build_evidence_packet_section_v2',
+            tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
             args: {
               section_index: sectionIndex ?? 1,
               max_candidates: 100,

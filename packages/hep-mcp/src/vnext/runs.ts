@@ -2,7 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { ensureDir } from '../data/dataDir.js';
-import { invalidParams, notFound } from '@autoresearch/shared';
+import {
+  HEP_EXPORT_PROJECT,
+  HEP_RUN_CLEAR_MANIFEST_LOCK,
+  invalidParams,
+  notFound,
+} from '@autoresearch/shared';
 import { newRunId } from './ids.js';
 import { getRunArtifactsDir, getRunArtifactPath, getRunDir, getRunManifestPath, getRunsDir } from './paths.js';
 import { getProject, updateProjectUpdatedAt } from './projects.js';
@@ -56,7 +61,7 @@ export function getRun(runId: string): RunManifest {
       parse_error_artifact: parseErrRef.name,
       next_actions: [
         {
-          tool: 'hep_export_project',
+          tool: HEP_EXPORT_PROJECT,
           args: { project_id: '<project_id>', include_runs: true, include_artifacts: true },
           reason: 'Export artifacts for manual recovery if the run manifest is corrupted.',
         },
@@ -117,7 +122,7 @@ async function acquireRunManifestLock(params: {
           error: err instanceof Error ? err.message : String(err),
           next_actions: [
             {
-              tool: 'hep_run_clear_manifest_lock',
+              tool: HEP_RUN_CLEAR_MANIFEST_LOCK,
               args: { run_id: params.run_id, force: true },
               reason: 'If a partial lock file exists due to IO issues, force-clear it and retry after resolving permissions/disk space.',
             },
@@ -134,7 +139,7 @@ async function acquireRunManifestLock(params: {
           error: err instanceof Error ? err.message : String(err),
           next_actions: [
             {
-              tool: 'hep_run_clear_manifest_lock',
+              tool: HEP_RUN_CLEAR_MANIFEST_LOCK,
               args: { run_id: params.run_id, force: false },
               reason: 'If a stale lock exists, clear it before retrying.',
             },
@@ -151,7 +156,7 @@ async function acquireRunManifestLock(params: {
           timeout_ms: params.timeout_ms,
           next_actions: [
             {
-              tool: 'hep_run_clear_manifest_lock',
+              tool: HEP_RUN_CLEAR_MANIFEST_LOCK,
               args: { run_id: params.run_id, force: false },
               reason: 'If the lock is stale, clear it and retry the previous tool call.',
             },
@@ -206,7 +211,7 @@ async function releaseRunManifestLock(params: {
       lock_file_exists: fs.existsSync(params.lock_path),
       next_actions: [
         {
-          tool: 'hep_run_clear_manifest_lock',
+          tool: HEP_RUN_CLEAR_MANIFEST_LOCK,
           args: { run_id: params.run_id, force: true },
           reason: 'Force-clear the lock if it remains due to filesystem issues, then retry the previous tool call.',
         },
@@ -293,7 +298,7 @@ export async function clearRunManifestLock(params: {
       lock_info: parsed ?? info.raw ?? null,
       next_actions: [
         {
-          tool: 'hep_run_clear_manifest_lock',
+          tool: HEP_RUN_CLEAR_MANIFEST_LOCK,
           args: { run_id: runId, force: true },
           reason: 'If you are sure no other tool is updating the run manifest, force-clear the lock and retry.',
         },
@@ -311,7 +316,7 @@ export async function clearRunManifestLock(params: {
       lock_info: parsed ?? info.raw ?? null,
       next_actions: [
         {
-          tool: 'hep_run_clear_manifest_lock',
+          tool: HEP_RUN_CLEAR_MANIFEST_LOCK,
           args: { run_id: runId, force: true },
           reason: 'Retry after resolving filesystem permission/disk issues.',
         },
@@ -366,7 +371,7 @@ export async function updateRunManifestAtomic(params: {
         parse_error_artifact: parseErrRef.name,
         next_actions: [
           {
-            tool: 'hep_export_project',
+            tool: HEP_EXPORT_PROJECT,
             args: { project_id: '<project_id>', include_runs: true, include_artifacts: true },
             reason: 'Export artifacts for manual recovery if the run manifest is corrupted.',
           },
@@ -419,7 +424,7 @@ export async function updateRunManifestAtomic(params: {
         release_error: release,
         previous_error: primary,
         next_actions: [
-          { tool: 'hep_run_clear_manifest_lock', args: { run_id: runId, force: true }, reason: 'Force-clear the lock file and retry after resolving filesystem issues.' },
+          { tool: HEP_RUN_CLEAR_MANIFEST_LOCK, args: { run_id: runId, force: true }, reason: 'Force-clear the lock file and retry after resolving filesystem issues.' },
         ],
       });
     }

@@ -1,6 +1,12 @@
 import * as fs from 'fs';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_STAGE_CONTENT,
+  HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
@@ -118,7 +124,7 @@ function readRunJsonArtifact<T>(runId: string, artifactName: string): T {
       parse_error_uri: parseErrRef.uri,
       parse_error_artifact: parseErrRef.name,
       next_actions: [
-        { tool: 'hep_run_read_artifact_chunk', args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 1024 }, reason: 'Inspect the corrupted artifact and re-generate it.' },
+        { tool: HEP_RUN_READ_ARTIFACT_CHUNK, args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 1024 }, reason: 'Inspect the corrupted artifact and re-generate it.' },
       ],
     });
   }
@@ -167,7 +173,7 @@ function writeParseErrorAndThrow(runId: string, rawPlan: unknown, issues: unknow
     outputs: { parse_error_uri: ref.uri },
     error: { message: 'revision_plan does not match RevisionPlan v1 schema', data: { issues } },
     next_actions: [
-      { tool: 'hep_run_writing_submit_revision_plan_v1', args: { run_id: runId, revision_plan: '<re-run revision plan prompt_packet and re-submit>' }, reason: 'Submit a valid RevisionPlan v1 JSON.' },
+      { tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1, args: { run_id: runId, revision_plan: '<re-run revision plan prompt_packet and re-submit>' }, reason: 'Submit a valid RevisionPlan v1 JSON.' },
     ],
   });
   throw invalidParams('revision_plan does not match RevisionPlan v1 schema (fail-fast)', {
@@ -178,7 +184,7 @@ function writeParseErrorAndThrow(runId: string, rawPlan: unknown, issues: unknow
     journal_artifact: journalRef.name,
     next_actions: [
       {
-        tool: 'hep_run_writing_submit_revision_plan_v1',
+        tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
         args: { run_id: runId, revision_plan: '<re-run revision plan prompt_packet and re-submit>' },
         reason: 'Submit a valid RevisionPlan v1 JSON.',
       },
@@ -229,8 +235,8 @@ export async function submitRunWritingRevisionPlanV1(params: {
         outputs: { parse_error_uri: ref.uri },
         error: { message: err instanceof Error ? err.message : String(err) },
         next_actions: [
-          { tool: 'hep_run_stage_content', args: { run_id: runId, content_type: 'revision_plan', content: '<JSON.stringify(RevisionPlan v1) then stage again>' }, reason: 'Stage a valid JSON RevisionPlan v1 with content_type=revision_plan.' },
-          { tool: 'hep_run_writing_submit_revision_plan_v1', args: { run_id: runId, revision_plan: '<or submit inline RevisionPlan v1 JSON>' }, reason: 'Retry submission after staging a valid revision_plan payload.' },
+          { tool: HEP_RUN_STAGE_CONTENT, args: { run_id: runId, content_type: 'revision_plan', content: '<JSON.stringify(RevisionPlan v1) then stage again>' }, reason: 'Stage a valid JSON RevisionPlan v1 with content_type=revision_plan.' },
+          { tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1, args: { run_id: runId, revision_plan: '<or submit inline RevisionPlan v1 JSON>' }, reason: 'Retry submission after staging a valid revision_plan payload.' },
         ],
       });
       throw invalidParams('Failed to read staged revision_plan content (fail-fast)', {
@@ -242,7 +248,7 @@ export async function submitRunWritingRevisionPlanV1(params: {
         journal_artifact: journalRef.name,
         next_actions: [
           {
-            tool: 'hep_run_stage_content',
+            tool: HEP_RUN_STAGE_CONTENT,
             args: {
               run_id: runId,
               content_type: 'revision_plan',
@@ -251,7 +257,7 @@ export async function submitRunWritingRevisionPlanV1(params: {
             reason: 'Stage a valid JSON RevisionPlan v1 with content_type=revision_plan.',
           },
           {
-            tool: 'hep_run_writing_submit_revision_plan_v1',
+            tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
             args: { run_id: runId, revision_plan: '<or submit inline RevisionPlan v1 JSON>' },
             reason: 'Retry submission after staging a valid revision_plan payload.',
           },
@@ -303,7 +309,7 @@ export async function submitRunWritingRevisionPlanV1(params: {
       missing_artifact: promptArtifactName,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_revision_plan_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
           args: {
             reviewer_report_uri: reviewerReportUri,
             manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
@@ -312,7 +318,7 @@ export async function submitRunWritingRevisionPlanV1(params: {
           reason: 'Create the revision plan prompt_packet for this run/round (requires an existing ReviewerReport v2).',
         },
         {
-          tool: 'hep_run_writing_submit_revision_plan_v1',
+          tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
           args: { run_id: runId, revision_plan: '<paste RevisionPlan v1 JSON here or use revision_plan_uri>' },
           reason: 'After generating a RevisionPlan v1 JSON from the prompt_packet, submit it to write run artifacts.',
         },
@@ -389,7 +395,7 @@ export async function submitRunWritingRevisionPlanV1(params: {
   const completedAt = nowIso();
   await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_writing_submit_revision_plan_v1', args: { run_id: runId } },
+    tool: { name: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1, args: { run_id: runId } },
     update: current => {
       const ensured = ensureReviseStep(current);
       const manifest = ensured.manifest;

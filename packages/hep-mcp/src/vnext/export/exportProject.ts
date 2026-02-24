@@ -2,7 +2,12 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_EXPORT_PROJECT,
+  HEP_IMPORT_PAPER_BUNDLE,
+  HEP_RUN_BUILD_CITATION_MAPPING,
+  invalidParams,
+} from '@autoresearch/shared';
 import { strToU8, unzipSync, zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
@@ -110,7 +115,7 @@ async function startRunStep(runId: string, stepName: string): Promise<{ manifest
   const now = new Date().toISOString();
   const manifestStart = await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_export_project', args: { run_id: runId } },
+    tool: { name: HEP_EXPORT_PROJECT, args: { run_id: runId } },
     update: current => {
       const step: RunStep = { step: stepName, status: 'in_progress', started_at: now };
       const next: RunManifest = {
@@ -452,12 +457,12 @@ export async function exportProjectForRun(params: {
         writing_master_bib_artifact: writingMasterBibName,
         next_actions: [
           {
-            tool: 'hep_run_build_citation_mapping',
+            tool: HEP_RUN_BUILD_CITATION_MAPPING,
             args: { run_id: runId, identifier: '<arXiv/DOI/recid>', allowed_citations_primary: masterBib.missing_keys },
             reason: 'Build bibliography_raw.json + writing_master.bib + allowed_citations.json (then re-run export).',
           },
           {
-            tool: 'hep_export_project',
+            tool: HEP_EXPORT_PROJECT,
             args: { run_id: runId },
             reason: 'Re-run export after citations/bibtex are available.',
           },
@@ -762,7 +767,7 @@ export async function exportProjectForRun(params: {
           run_id: runId,
           artifact: paperBundleZipArtifactName,
           next_actions: [
-            { tool: 'hep_import_paper_bundle', args: { run_id: runId }, reason: 'Import the final paper bundle first, then re-run export.' },
+            { tool: HEP_IMPORT_PAPER_BUNDLE, args: { run_id: runId }, reason: 'Import the final paper bundle first, then re-run export.' },
           ],
         });
       }
@@ -951,7 +956,7 @@ export async function exportProjectForRun(params: {
     // Persist completed run manifest last (avoids marking done if artifact writes fail).
     await updateRunManifestAtomic({
       run_id: runId,
-      tool: { name: 'hep_export_project', args: { run_id: runId } },
+      tool: { name: HEP_EXPORT_PROJECT, args: { run_id: runId } },
       update: current => {
         const idx = current.steps[stepIndex]?.step === step.step && current.steps[stepIndex]?.started_at === step.started_at
           ? stepIndex
@@ -1017,7 +1022,7 @@ export async function exportProjectForRun(params: {
       const message = err instanceof Error ? err.message : String(err);
       await updateRunManifestAtomic({
         run_id: runId,
-        tool: { name: 'hep_export_project', args: { run_id: runId } },
+        tool: { name: HEP_EXPORT_PROJECT, args: { run_id: runId } },
         update: current => {
           const idx = current.steps[stepIndex]?.step === step.step && current.steps[stepIndex]?.started_at === step.started_at
             ? stepIndex

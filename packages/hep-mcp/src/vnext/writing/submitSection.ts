@@ -1,5 +1,13 @@
 import * as fs from 'fs';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_BUILD_WRITING_CRITICAL,
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath, getRunArtifactsDir } from '../paths.js';
@@ -158,7 +166,7 @@ function readRunJsonArtifact<T>(runId: string, artifactName: string): T {
       parse_error_artifact: parseErrRef.name,
       next_actions: [
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 1024 },
           reason: 'Inspect the corrupted artifact and re-generate it.',
         },
@@ -434,7 +442,7 @@ export async function submitRunWritingSection(params: {
       section_index: sectionIndex,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_section_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
           args: { run_id: runId, section_index: sectionIndex },
           reason: 'M13: Generate N-best section candidates (N>=2) and follow next_actions to judge+verify (no bypass).',
         },
@@ -465,7 +473,7 @@ export async function submitRunWritingSection(params: {
       error: { message: 'Staged content does not match SectionOutputSubmissionSchema', data: { issues: parsed.error.issues } },
       next_actions: [
         {
-          tool: 'hep_run_writing_create_section_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
           args: { run_id: runId, section_index: sectionIndex },
           reason: 'M13: Regenerate N-best section candidates (fail-fast; no single-sample submit) and retry the judge+verifier pipeline.',
         },
@@ -482,7 +490,7 @@ export async function submitRunWritingSection(params: {
       journal_artifact: journalRef.name,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_section_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
           args: { run_id: runId, section_index: sectionIndex },
           reason: 'M13: Regenerate N-best section candidates and retry (fail-fast; no bypass).',
         },
@@ -543,7 +551,7 @@ export async function submitRunWritingSection(params: {
           target_length: packets.target_length,
           next_actions: [
             {
-              tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+              tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
               args: { run_id: runId, target_length: '<short|medium|long>', title: '<paper title>' },
               reason: 'M13: Regenerate writing_outline_v2.json via N-best outline candidates + judge so request.target_length is available (no bypass).',
             },
@@ -574,7 +582,7 @@ export async function submitRunWritingSection(params: {
         run_id: runId,
         next_actions: [
           {
-            tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+            tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
             args: { run_id: runId, target_length: '<short|medium|long>', title: '<paper title>' },
             reason: 'M13: Generate writing_outline_v2.json via N-best outline candidates + judge (required before section submission).',
           },
@@ -607,7 +615,7 @@ export async function submitRunWritingSection(params: {
         request_target_length: outline?.request?.target_length,
         next_actions: [
           {
-            tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+            tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
             args: { run_id: runId, target_length: '<short|medium|long>', title: '<paper title>' },
             reason: 'M13: Regenerate writing_outline_v2.json via N-best outline candidates + judge ensuring request.target_length is set (no bypass).',
           },
@@ -657,7 +665,7 @@ export async function submitRunWritingSection(params: {
       section_index: sectionIndex,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_section_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
           args: { run_id: runId, section_index: sectionIndex },
           reason: 'M13: Regenerate N-best section candidates ensuring content is non-empty, then re-judge and re-verify (fail-fast; no bypass).',
         },
@@ -676,7 +684,7 @@ export async function submitRunWritingSection(params: {
         section_index: sectionIndex,
         next_actions: [
           {
-            tool: 'hep_run_writing_create_section_candidates_packet_v1',
+            tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
             args: { run_id: runId, section_index: sectionIndex },
             reason: 'M13: Regenerate N-best section candidates with proper \\cite{} usage (and optionally explicit attributions), then re-judge.',
           },
@@ -732,7 +740,7 @@ export async function submitRunWritingSection(params: {
         artifact_name: evidencePacketArtifactName,
         next_actions: [
           {
-            tool: 'hep_run_writing_build_evidence_packet_section_v2',
+            tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
             args: { run_id: runId, section_index: sectionIndex },
             reason: 'Build an EvidencePacketV2 (allowlist) for this section before verifying citations.',
           },
@@ -778,7 +786,7 @@ export async function submitRunWritingSection(params: {
       artifact_name: WRITING_CLAIMS_ARTIFACT,
       next_actions: [
         {
-          tool: 'hep_run_build_writing_critical',
+          tool: HEP_RUN_BUILD_WRITING_CRITICAL,
           args: { run_id: runId, recids: recids.length > 0 ? recids : ['<inspire_recid>'] },
           reason: 'Build writing-critical artifacts (including writing_claims_table.json) for this run before verifying section citations/originality.',
         },
@@ -800,7 +808,7 @@ export async function submitRunWritingSection(params: {
       artifact_name: WRITING_CLAIMS_ARTIFACT,
       next_actions: [
         {
-          tool: 'hep_run_build_writing_critical',
+          tool: HEP_RUN_BUILD_WRITING_CRITICAL,
           args: { run_id: runId, recids: recids.length > 0 ? recids : ['<inspire_recid>'] },
           reason: 'Rebuild writing-critical artifacts (including writing_claims_table.json) for this run before verifying section citations/originality.',
         },
@@ -1181,7 +1189,7 @@ export async function submitRunWritingSection(params: {
     next_actions: missingQualityEval
       ? [
         {
-          tool: 'hep_run_writing_submit_section_judge_decision_v1',
+          tool: HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1,
           args: {
             run_id: runId,
             section_index: sectionIndex,
@@ -1194,7 +1202,7 @@ export async function submitRunWritingSection(params: {
       : retry_advice.retry_needed
         ? [
           {
-            tool: 'hep_run_writing_create_section_candidates_packet_v1',
+            tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
             args: {
               run_id: runId,
               section_index: sectionIndex,
@@ -1209,7 +1217,7 @@ export async function submitRunWritingSection(params: {
   const manifest = await updateRunManifestAtomic({
     run_id: runId,
     tool: {
-      name: 'hep_run_writing_submit_section_judge_decision_v1',
+      name: HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1,
       args: { run_id: runId, section_index: sectionIndex, section_output_uri: rawOutputUri },
     },
     update: current => {
@@ -1306,7 +1314,7 @@ export async function submitRunWritingSection(params: {
       journal_artifact: journalRef.name,
       next_actions: [
         {
-          tool: 'hep_run_writing_submit_section_judge_decision_v1',
+          tool: HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1,
           args: {
             run_id: runId,
             section_index: sectionIndex,
@@ -1333,7 +1341,7 @@ export async function submitRunWritingSection(params: {
       journal_artifact: journalRef.name,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_section_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
           args: {
             run_id: runId,
             section_index: sectionIndex,

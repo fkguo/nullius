@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 import type { EnhancedClaimsTable, Claim, SectionType, LLMCallMode } from '../../tools/writing/types.js';
 import { getWritingModeConfig, createLLMClient } from '../../tools/writing/llm/index.js';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 import { makePromptPacketFromZod, type PromptPacket } from '../contracts/promptPacket.js';
 import { zodToPortableJsonSchema } from '../contracts/jsonSchema.js';
 import { parseStructuredJsonOrThrow } from '../structuredOutput.js';
@@ -616,7 +619,7 @@ export async function planOutline(
       llm_mode,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
           args: { run_id: request.run_id, language: request.language, target_length: request.target_length, title: request.title },
           reason: 'M13 client mode: generate N-best outline candidates, then follow next_actions to submit candidates + judge + write writing_outline_v2.json.',
         },

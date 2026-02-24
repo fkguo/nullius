@@ -1,5 +1,12 @@
 import * as fs from 'fs';
-import { invalidParams, type McpError } from '@autoresearch/shared';
+import {
+  HEP_RUN_STAGE_CONTENT,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
+  HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1,
+  invalidParams,
+  type McpError,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
@@ -271,12 +278,12 @@ function mapSubmitOutlineErrorToNextActions(err: unknown, params: { run_id: stri
 
   const nextActions = [
     {
-      tool: 'hep_run_writing_submit_outline_judge_decision_v1',
+      tool: HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1,
       args: { run_id: params.run_id, judge_decision_uri: params.judge_decision_uri },
       reason: 'Retry outline judge decision submission after fixing the underlying issues (fail-fast).',
     },
     {
-      tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+      tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
       args: { run_id: params.run_id, target_length: '<short|medium|long>', title: '<paper title>' },
       reason: 'Regenerate N-best outline candidates and re-run judge selection (do not bypass N-best).',
     },
@@ -375,7 +382,7 @@ export async function createRunWritingOutlineJudgePacketV1(params: {
     round: 1,
     prompt_packet: promptPacket,
     mode_used: 'client',
-    tool: 'hep_run_writing_create_outline_judge_packet_v1',
+    tool: HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
     schema: 'writing_judge_decision_v1@1',
     extra: {
       candidates_uri: params.candidates_uri,
@@ -394,7 +401,7 @@ export async function createRunWritingOutlineJudgePacketV1(params: {
     decisions: [`quality_level=${qualityPolicy.quality_level}`, `n_candidates=${candidateSet.n_candidates}`],
     next_actions: [
       {
-        tool: 'hep_run_stage_content',
+        tool: HEP_RUN_STAGE_CONTENT,
         args: {
           run_id: runId,
           content_type: 'judge_decision',
@@ -404,7 +411,7 @@ export async function createRunWritingOutlineJudgePacketV1(params: {
         reason: 'Stage the judge decision JSON (Evidence-first).',
       },
       {
-        tool: 'hep_run_writing_submit_outline_judge_decision_v1',
+        tool: HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1,
         args: {
           run_id: runId,
           judge_decision_uri: '<staging_uri from hep_run_stage_content (content_type=judge_decision)>',
@@ -420,7 +427,7 @@ export async function createRunWritingOutlineJudgePacketV1(params: {
 
   const nextActions = [
     {
-      tool: 'hep_run_stage_content',
+      tool: HEP_RUN_STAGE_CONTENT,
       args: {
         run_id: runId,
         content_type: 'judge_decision',
@@ -430,7 +437,7 @@ export async function createRunWritingOutlineJudgePacketV1(params: {
       reason: 'Stage the judge decision JSON (Evidence-first).',
     },
     {
-      tool: 'hep_run_writing_submit_outline_judge_decision_v1',
+      tool: HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1,
       args: {
         run_id: runId,
         judge_decision_uri: '<staging_uri from hep_run_stage_content (content_type=judge_decision)>',
@@ -499,7 +506,7 @@ export async function submitRunWritingOutlineJudgeDecisionV1(params: {
       parse_error_artifact: ref.name,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_judge_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
           args: { run_id: runId, candidates_uri: '<candidates_uri>' },
           reason: 'Recreate judge prompt_packet and generate a valid WritingJudgeDecisionV1 JSON.',
         },
@@ -570,7 +577,7 @@ export async function submitRunWritingOutlineJudgeDecisionV1(params: {
       fix_recommendations: decision.fix_recommendations,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
           args: { run_id: runId, target_length: '<short|medium|long>', title: '<paper title>', n_candidates: Math.max(requiredN, candidateSet.n_candidates + 1) },
           reason: 'Regenerate a larger N-best outline candidate set applying fix_recommendations, then re-judge.',
         },
@@ -588,7 +595,7 @@ export async function submitRunWritingOutlineJudgeDecisionV1(params: {
       hard_gate_failures: hardGateFailures,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_judge_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
           args: { run_id: runId, candidates_uri: decision.candidates_uri },
           reason: 'Re-run judge with strict selection consistency + threshold alignment, then re-submit judge_decision_uri.',
         },

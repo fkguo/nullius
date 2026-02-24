@@ -1,6 +1,10 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_PROJECT_QUERY_EVIDENCE,
+  HEP_RUN_BUILD_WRITING_EVIDENCE,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef } from './runs.js';
 import { getRunArtifactPath } from './paths.js';
@@ -115,12 +119,12 @@ export async function queryProjectEvidenceSemantic(params: {
       ],
       next_actions: [
         {
-          tool: 'hep_run_build_writing_evidence',
+          tool: HEP_RUN_BUILD_WRITING_EVIDENCE,
           args: { run_id: params.run_id, latex_sources: '<latex_sources[]> (see tool schema)', include_inline_math: true },
           reason: 'Build latex_evidence_catalog.jsonl + latex_evidence_embeddings.jsonl for semantic retrieval.',
         },
         {
-          tool: 'hep_project_query_evidence',
+          tool: HEP_PROJECT_QUERY_EVIDENCE,
           args: { project_id: params.project_id, paper_id: params.paper_id, query: params.query, types: params.types, limit },
           reason: 'Use lexical evidence query (no embeddings required).',
         },

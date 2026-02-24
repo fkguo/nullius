@@ -1,7 +1,11 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_EXPORT_PAPER_SCAFFOLD,
+  HEP_IMPORT_PAPER_BUNDLE,
+  invalidParams,
+} from '@autoresearch/shared';
 import { zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
@@ -34,7 +38,7 @@ async function startRunStep(runId: string, stepName: string): Promise<{ manifest
   const now = nowIso();
   const manifestStart = await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_import_paper_bundle', args: { run_id: runId } },
+    tool: { name: HEP_IMPORT_PAPER_BUNDLE, args: { run_id: runId } },
     update: current => {
       const step: RunStep = { step: stepName, status: 'in_progress', started_at: now };
       const next: RunManifest = {
@@ -175,7 +179,7 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
         run_id: runId,
         paper_dir: paperDir,
         next_actions: [
-          { tool: 'hep_export_paper_scaffold', args: { run_id: runId }, reason: 'Create a starting paper/ scaffold inside the run directory.' },
+          { tool: HEP_EXPORT_PAPER_SCAFFOLD, args: { run_id: runId }, reason: 'Create a starting paper/ scaffold inside the run directory.' },
         ],
       });
     }
@@ -198,7 +202,7 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
         paper_dir: paperDir,
         expected: 'paper_manifest.json',
         next_actions: [
-          { tool: 'hep_export_paper_scaffold', args: { run_id: runId, overwrite: true }, reason: 'Recreate a valid paper scaffold and re-apply changes.' },
+          { tool: HEP_EXPORT_PAPER_SCAFFOLD, args: { run_id: runId, overwrite: true }, reason: 'Recreate a valid paper scaffold and re-apply changes.' },
         ],
       });
     }
@@ -224,7 +228,7 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
         artifact: zipName,
         overwrite: false,
         next_actions: [
-          { tool: 'hep_import_paper_bundle', args: { run_id: runId, overwrite: true }, reason: 'Overwrite the existing paper bundle artifacts.' },
+          { tool: HEP_IMPORT_PAPER_BUNDLE, args: { run_id: runId, overwrite: true }, reason: 'Overwrite the existing paper bundle artifacts.' },
         ],
       });
     }
@@ -348,7 +352,7 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
     const bundleManifest = {
       schemaVersion: '1.0',
       importedAt: nowIso(),
-      importer: { name: 'hep_import_paper_bundle' },
+      importer: { name: HEP_IMPORT_PAPER_BUNDLE },
       source: {
         hepRunId: runId,
         hepRunUri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
@@ -411,7 +415,7 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
 
     await updateRunManifestAtomic({
       run_id: runId,
-      tool: { name: 'hep_import_paper_bundle', args: { run_id: runId } },
+      tool: { name: HEP_IMPORT_PAPER_BUNDLE, args: { run_id: runId } },
       update: _current => manifestDone,
     });
 
@@ -447,7 +451,7 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
     try {
       await updateRunManifestAtomic({
         run_id: runId,
-        tool: { name: 'hep_import_paper_bundle', args: { run_id: runId } },
+        tool: { name: HEP_IMPORT_PAPER_BUNDLE, args: { run_id: runId } },
         update: _current => manifestFailed,
       });
     } catch {

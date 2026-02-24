@@ -1,6 +1,10 @@
 import * as fs from 'fs';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
@@ -97,7 +101,7 @@ function readRunJsonArtifact<T>(runId: string, artifactName: string): T {
       parse_error_artifact: parseErrRef.name,
       next_actions: [
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 1024 },
           reason: 'Inspect the corrupted artifact and re-generate it.',
         },
@@ -214,7 +218,7 @@ export async function submitRunWritingPaperSetCuration(params: {
       error: { message: 'PaperSetCuration does not match PaperSetCurationV1Schema', data: { issues: parsed.error.issues } },
       next_actions: [
         {
-          tool: 'hep_run_writing_submit_paperset_curation',
+          tool: HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
           args: { run_id: runId, paperset: '<valid PaperSetCuration V1 JSON>' },
           reason: 'Re-submit a valid PaperSetCuration payload.',
         },
@@ -298,7 +302,7 @@ export async function submitRunWritingPaperSetCuration(params: {
   const completedAt = nowIso();
   await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_writing_submit_paperset_curation', args: { run_id: runId } },
+    tool: { name: HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION, args: { run_id: runId } },
     update: current => {
       const ensured = ensurePaperSetStep(current);
       const manifest = ensured.manifest;

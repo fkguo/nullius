@@ -1,6 +1,14 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { invalidParams, McpError } from '@autoresearch/shared';
+import {
+  HEP_RUN_BUILD_WRITING_CRITICAL,
+  HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
+  HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1,
+  McpError,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { getRunArtifactPath, getRunManifestPath } from '../paths.js';
@@ -142,7 +150,7 @@ function resolveTokenBudgetPlanOrThrow(params: {
       safety_margin_tokens: safetyMarginTokens,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: params.runId, model_context_tokens: maxContextTokens + 8_000 },
           reason: 'Increase model_context_tokens or lower reserved_output_tokens to leave room for prompt+evidence.',
         },
@@ -182,7 +190,7 @@ function resolveTokenBudgetsForEvidencePacketOrThrow(params: {
       run_id: params.runId,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: params.runId, model_context_tokens: 32_000 },
           reason: 'Create a token budget plan so EvidencePacketV2 can record budgets (M05).',
         },
@@ -195,7 +203,7 @@ function resolveTokenBudgetsForEvidencePacketOrThrow(params: {
       reserved_output_tokens: reservedOutputTokens,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: params.runId, model_context_tokens: Math.max(32_000, maxContextTokens || 32_000) },
           reason: 'Create a token budget plan so EvidencePacketV2 can record reserved_output_tokens (M05).',
         },
@@ -210,7 +218,7 @@ function resolveTokenBudgetsForEvidencePacketOrThrow(params: {
       safety_margin_tokens: safetyMarginTokens,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: params.runId, model_context_tokens: maxContextTokens + 8_000 },
           reason: 'Increase model_context_tokens or lower reserved_output_tokens to leave room for prompt+evidence.',
         },
@@ -247,7 +255,7 @@ function normalizeQueriesOrThrow(raw: unknown, opts: { maxQueriesHardCap: number
       max_queries: opts.maxQueriesHardCap,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { queries: out.slice(0, 20) },
           reason: 'Reduce queries to a smaller set (e.g., 10–20) to keep retrieval deterministic and fast.',
         },
@@ -303,7 +311,7 @@ function deriveSectionInputsFromOutlineOrThrow(params: {
       artifact_name: params.outline_artifact_name,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
           args: { run_id: params.runId, target_length: '<short|medium|long>', title: '<paper title>' },
           reason: 'M13: Generate OutlinePlanV2 via N-best candidates + judge to produce writing_outline_v2.json (no bypass).',
         },
@@ -338,7 +346,7 @@ function deriveSectionInputsFromOutlineOrThrow(params: {
     throw invalidParams('Invalid claims artifact: missing claims_table.claims[]', {
       run_id: params.runId,
       artifact_name: params.claims_table_artifact_name,
-      next_actions: [{ tool: 'hep_run_build_writing_critical', args: { run_id: params.runId }, reason: 'Ensure writing_claims_table.json exists.' }],
+      next_actions: [{ tool: HEP_RUN_BUILD_WRITING_CRITICAL, args: { run_id: params.runId }, reason: 'Ensure writing_claims_table.json exists.' }],
     });
   }
 
@@ -377,12 +385,12 @@ function deriveSectionInputsFromOutlineOrThrow(params: {
       max_queries: params.max_queries,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { run_id: params.runId, section_index: params.sectionIndex, max_queries: queries.length },
           reason: 'Increase max_queries to accept all derived queries.',
         },
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: {
             run_id: params.runId,
             section_index: params.sectionIndex,
@@ -787,7 +795,7 @@ function validateRankedIndicesOrThrow(params: {
       expected_length: params.expected_length,
       next_actions: [
         {
-          tool: 'hep_run_writing_submit_rerank_result_v1',
+          tool: HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1,
           args: { ranked_indices: `<JSON array of exactly ${params.expected_length} unique indices>` },
           reason: 'Submit exactly the requested number of ranked indices.',
         },
@@ -834,7 +842,7 @@ function selectEvidenceChunksFromRankedCandidates(params: {
   if (candidateCount === 0) {
     throw invalidParams('No candidates available for selection', {
       section_type: params.section_type,
-      next_actions: [{ tool: 'hep_run_writing_build_evidence_packet_section_v2', args: {}, reason: 'Increase candidate pool or adjust queries.' }],
+      next_actions: [{ tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2, args: {}, reason: 'Increase candidate pool or adjust queries.' }],
     });
   }
 
@@ -854,7 +862,7 @@ function selectEvidenceChunksFromRankedCandidates(params: {
       max_selected_chunks: maxSelected,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { max_selected_chunks: queryCount * minPerQuery },
           reason: 'Increase max_selected_chunks or reduce min_per_query.',
         },
@@ -868,7 +876,7 @@ function selectEvidenceChunksFromRankedCandidates(params: {
       max_selected_chunks: maxSelected,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { top_k_per_query: Math.min(200, maxSelected * 3), max_candidates: Math.min(2000, maxSelected * 20) },
           reason: 'Increase top_k_per_query/max_candidates to enlarge the candidate pool.',
         },
@@ -941,12 +949,12 @@ function selectEvidenceChunksFromRankedCandidates(params: {
             max_total_tokens: tokenBudget,
             next_actions: [
               {
-                tool: 'hep_run_writing_build_evidence_packet_section_v2',
+                tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
                 args: { rerank_output_top_n: Math.min(100, maxSelected * 2), rerank_top_k: Math.min(300, candidateCount) },
                 reason: 'Increase rerank_output_top_n / rerank_top_k to give the selector more room.',
               },
               {
-                tool: 'hep_run_writing_build_evidence_packet_section_v2',
+                tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
                 args: { max_total_tokens: tokenBudget * 2 },
                 reason: 'Increase max_total_tokens to fit coverage + diversity constraints.',
               },
@@ -991,12 +999,12 @@ function selectEvidenceChunksFromRankedCandidates(params: {
         max_total_tokens: tokenBudget,
         next_actions: [
           {
-            tool: 'hep_run_writing_build_evidence_packet_section_v2',
+            tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
             args: { rerank_output_top_n: Math.min(100, maxSelected * 3), rerank_top_k: Math.min(300, candidateCount) },
             reason: 'Increase rerank_output_top_n / rerank_top_k so the reranker can surface missing evidence types.',
           },
           {
-            tool: 'hep_run_writing_build_evidence_packet_section_v2',
+            tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
             args: { max_total_tokens: tokenBudget * 2 },
             reason: 'Increase max_total_tokens to allow adding missing evidence types.',
           },
@@ -1026,12 +1034,12 @@ function selectEvidenceChunksFromRankedCandidates(params: {
       max_total_tokens: tokenBudget,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { max_chunks_per_source: maxPerSource + 5 },
           reason: 'Relax max_chunks_per_source if diversity constraints are too strict.',
         },
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { max_total_tokens: tokenBudget * 2 },
           reason: 'Increase max_total_tokens to fit more evidence chunks.',
         },
@@ -1046,7 +1054,7 @@ function selectEvidenceChunksFromRankedCandidates(params: {
       max_total_tokens: tokenBudget,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { max_total_tokens: totalTokens },
           reason: 'Increase max_total_tokens to at least the selected token estimate.',
         },
@@ -1061,7 +1069,7 @@ function selectEvidenceChunksFromRankedCandidates(params: {
       min_sources: params.min_sources,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { max_chunks_per_source: Math.max(1, maxPerSource - 1), rerank_top_k: Math.min(300, candidateCount) },
           reason: 'Tighten max_chunks_per_source and/or increase rerank_top_k to encourage multi-paper coverage.',
         },
@@ -1110,7 +1118,7 @@ function buildEvidencePacketV2(params: {
       max_selected_chunks: maxSelected,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { rerank_output_top_n: maxSelected },
           reason: 'Ensure the reranker returns at least max_selected_chunks indices.',
         },
@@ -1251,7 +1259,7 @@ function ensureRerankConfigOrThrow(params: {
       max_selected_chunks: params.max_selected_chunks,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { rerank_output_top_n: params.max_selected_chunks },
           reason: 'Increase rerank_output_top_n so the selector can choose max_selected_chunks from ranked results.',
         },
@@ -1393,7 +1401,7 @@ export async function buildRunWritingEvidencePacketSectionV2(params: {
       evidence_index_uri: runArtifactUri(runId, evidenceIndexArtifactName),
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { top_k_per_query: 80, max_candidates: 1000 },
           reason: 'Increase candidate budget to capture sparse matches.',
         },
@@ -1499,7 +1507,7 @@ export async function buildRunWritingEvidencePacketSectionV2(params: {
       prompt_text_uri: promptRef.uri,
       next_actions: [
         {
-          tool: 'hep_run_writing_submit_rerank_result_v1',
+          tool: HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1,
           args: {
             run_id: runId,
             section_index: sectionIndex,
@@ -1633,12 +1641,12 @@ export async function buildRunWritingEvidencePacketSectionV2(params: {
       budget_input_tokens: maxInputTokens,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { max_total_tokens: Math.max(1000, Math.trunc(maxInputTokens * 0.7)) },
           reason: 'Reduce max_total_tokens so evidence selection can fit within model context budget.',
         },
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: runId, model_context_tokens: tokenBudgets.max_context_tokens + 8_000 },
           reason: 'Increase model_context_tokens (use a larger-context model) to keep evidence budget without trimming.',
         },
@@ -1827,12 +1835,12 @@ export async function submitRunWritingRerankResultV1(params: {
       budget_input_tokens: maxInputTokens,
       next_actions: [
         {
-          tool: 'hep_run_writing_build_evidence_packet_section_v2',
+          tool: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
           args: { max_total_tokens: Math.max(1000, Math.trunc(maxInputTokens * 0.7)) },
           reason: 'Reduce max_total_tokens so evidence selection can fit within model context budget.',
         },
         {
-          tool: 'hep_run_writing_create_token_budget_plan_v1',
+          tool: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
           args: { run_id: runId, model_context_tokens: tokenBudgets.max_context_tokens + 8_000 },
           reason: 'Increase model_context_tokens (use a larger-context model) to keep evidence budget without trimming.',
         },

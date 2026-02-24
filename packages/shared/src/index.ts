@@ -1,6 +1,9 @@
 // Types
 export * from './types/index.js';
 
+// Tool name constants (H-16a)
+export * from './tool-names.js';
+
 // Utils
 export * from './utils/index.js';
 

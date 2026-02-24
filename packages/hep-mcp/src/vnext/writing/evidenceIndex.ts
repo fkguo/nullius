@@ -6,7 +6,12 @@ import { Readable } from 'stream';
 import * as zlib from 'zlib';
 import * as tar from 'tar';
 import { latexParser } from 'latex-utensils';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_BUILD_EVIDENCE_INDEX_V1,
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  INSPIRE_LITERATURE,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import * as api from '../../api/client.js';
 import { arxivFetch } from '../../api/rateLimiter.js';
@@ -124,7 +129,7 @@ async function startRunStep(runId: string, stepName: string): Promise<{ manifest
   const now = nowIso();
   const manifestStart = await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_build_evidence_index_v1', args: { run_id: runId } },
+    tool: { name: HEP_RUN_BUILD_EVIDENCE_INDEX_V1, args: { run_id: runId } },
     update: current => {
       const step: RunStep = { step: stepName, status: 'in_progress', started_at: now };
       const next: RunManifest = {
@@ -158,7 +163,7 @@ async function finishRunStep(params: {
   const now = nowIso();
   await updateRunManifestAtomic({
     run_id: params.runId,
-    tool: { name: 'hep_run_build_evidence_index_v1', args: { run_id: params.runId } },
+    tool: { name: HEP_RUN_BUILD_EVIDENCE_INDEX_V1, args: { run_id: params.runId } },
     update: current => {
       const idx = current.steps[params.stepIndex]?.step === params.stepStart.step
         ? params.stepIndex
@@ -1537,7 +1542,7 @@ export async function buildRunEvidenceIndexV1(params: {
           },
           next_actions: [
             {
-              tool: 'hep_run_read_artifact_chunk',
+              tool: HEP_RUN_READ_ARTIFACT_CHUNK,
               args: { run_id: runId, artifact_name: outputArtifactName, offset: 0, length: 4096 },
               reason: 'Inspect evidence_index_v1.json (large; use chunked read or MCP Resources).',
             },
@@ -1704,7 +1709,7 @@ export async function buildRunEvidenceIndexV1(params: {
       },
       next_actions: [
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: outputArtifactName, offset: 0, length: 4096 },
           reason: 'Inspect evidence index (large; use chunked read or MCP Resources).',
         },
@@ -1720,14 +1725,14 @@ export async function buildRunEvidenceIndexV1(params: {
     const recid = paperId ? resolveRecidFromPaperId(paperId) : null;
     if (recid) {
       nextActions.push({
-        tool: 'inspire_literature',
+        tool: INSPIRE_LITERATURE,
         args: { mode: 'get_paper', recid },
         reason: 'Inspect INSPIRE record and confirm it has an arXiv eprint.',
       });
     }
 
     nextActions.push({
-      tool: 'hep_run_build_evidence_index_v1',
+      tool: HEP_RUN_BUILD_EVIDENCE_INDEX_V1,
       args: { run_id: runId, paper_ids: paperIds, force_rebuild: true },
       reason: 'Re-run evidence ingestion after fixing the source (force rebuild).',
     });

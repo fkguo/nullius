@@ -1,7 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createHash, randomUUID } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_EXPORT_PROJECT,
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { assertSafePathSegment, getRunArtifactPath, getRunArtifactsDir, getRunManifestPath } from '../paths.js';
@@ -114,9 +118,9 @@ export function computeUriSha256OrThrow(params: { run_id: string; uri: string })
       error: err instanceof Error ? err.message : String(err),
       next_actions: [
         ...(parsed.kind === 'artifact'
-          ? [{ tool: 'hep_run_read_artifact_chunk', args: { run_id: params.run_id, artifact_name: parsed.artifactName, offset: 0, length: 1024 }, reason: 'Inspect the artifact bytes to diagnose the IO failure.' }]
+          ? [{ tool: HEP_RUN_READ_ARTIFACT_CHUNK, args: { run_id: params.run_id, artifact_name: parsed.artifactName, offset: 0, length: 1024 }, reason: 'Inspect the artifact bytes to diagnose the IO failure.' }]
           : []),
-        { tool: 'hep_export_project', args: { project_id: '<project_id>', include_runs: true, include_artifacts: true }, reason: 'Export the run for manual inspection/recovery if hashing fails due to filesystem issues.' },
+        { tool: HEP_EXPORT_PROJECT, args: { project_id: '<project_id>', include_runs: true, include_artifacts: true }, reason: 'Export the run for manual inspection/recovery if hashing fails due to filesystem issues.' },
       ],
     });
   }
@@ -132,7 +136,7 @@ export function writeRunJsonArtifactAtomic(runId: string, artifactName: string, 
       artifact_name: artifactName,
       error: err instanceof Error ? err.message : String(err),
       next_actions: [
-        { tool: 'hep_run_read_artifact_chunk', args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 256 }, reason: 'Verify whether the artifact was partially written.' },
+        { tool: HEP_RUN_READ_ARTIFACT_CHUNK, args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 256 }, reason: 'Verify whether the artifact was partially written.' },
       ],
     });
   }
@@ -149,7 +153,7 @@ export function writeRunTextArtifactAtomic(params: { run_id: string; artifact_na
       artifact_name: params.artifact_name,
       error: err instanceof Error ? err.message : String(err),
       next_actions: [
-        { tool: 'hep_run_read_artifact_chunk', args: { run_id: params.run_id, artifact_name: params.artifact_name, offset: 0, length: 256 }, reason: 'Verify whether the artifact was partially written.' },
+        { tool: HEP_RUN_READ_ARTIFACT_CHUNK, args: { run_id: params.run_id, artifact_name: params.artifact_name, offset: 0, length: 256 }, reason: 'Verify whether the artifact was partially written.' },
       ],
     });
   }

@@ -1,4 +1,14 @@
 import { z } from 'zod';
+import {
+  ZOTERO_LOCAL,
+  ZOTERO_FIND_ITEMS,
+  ZOTERO_SEARCH_ITEMS,
+  ZOTERO_EXPORT_ITEMS,
+  ZOTERO_GET_SELECTED_COLLECTION,
+  ZOTERO_ADD,
+  ZOTERO_CONFIRM,
+} from '@autoresearch/shared';
+
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import { normalizeZoteroArxivId, normalizeZoteroDoi } from '../zotero/identifiers.js';
 import { consumeConfirmAction } from '../zotero/confirm.js';
@@ -383,7 +393,7 @@ async function runZoteroQueryItemsBridge(request: ZoteroQueryItemsBridgeRequest)
 
 export const TOOL_SPECS: ToolSpec[] = [
   {
-    name: 'zotero_local',
+    name: ZOTERO_LOCAL,
     exposure: 'standard',
     description:
       'Unified Zotero Local API tool (requires Zotero Local API at `http://127.0.0.1:23119`). Modes: list_collections/list_collection_paths/list_items/get_item/get_item_attachments/download_attachment/get_attachment_fulltext/list_tags (fulltext requires `ZOTERO_DATA_DIR`; local-only).',
@@ -432,7 +442,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
-    name: 'zotero_find_items',
+    name: ZOTERO_FIND_ITEMS,
     exposure: 'standard',
     description:
       'Resolve Zotero items by identifiers (doi/arxiv/recid/item_key/title) with optional local filters (tags/authors/publication_title/year/volume/issue), optionally scoped by collection_key (and include_children). Internally, it fetches a limited candidate set via Zotero Local API search and then verifies matches; for interactive browsing, prefer zotero_search_items (local-only).',
@@ -440,7 +450,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     handler: async params => runZoteroQueryItemsBridge({ mode: 'find', params }),
   },
   {
-    name: 'zotero_search_items',
+    name: ZOTERO_SEARCH_ITEMS,
     exposure: 'standard',
     description:
       'Browse/search Zotero items via Zotero Local API query params (q/qmode/tag/itemType, optional collection scope). Returns summarized items with select_uri + identifier digest; does not guarantee exact identifier resolution (use zotero_find_items for that; local-only).',
@@ -448,14 +458,14 @@ export const TOOL_SPECS: ToolSpec[] = [
     handler: async params => runZoteroQueryItemsBridge({ mode: 'search', params }),
   },
   {
-    name: 'zotero_export_items',
+    name: ZOTERO_EXPORT_ITEMS,
     exposure: 'standard',
     description: 'Export Zotero items into BibTeX/CSL-JSON/RIS/etc via Local API (local-only).',
     zodSchema: ZoteroExportItemsToolSchema,
     handler: async params => zoteroExportItems(params),
   },
   {
-    name: 'zotero_get_selected_collection',
+    name: ZOTERO_GET_SELECTED_COLLECTION,
     exposure: 'standard',
     description:
       'Resolve the Zotero UI-selected collection to a Local API collection_key (requires Zotero Connector + Zotero open; maps connector path → Local API key; local-only).',
@@ -463,7 +473,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     handler: async params => zoteroGetSelectedCollection(params),
   },
   {
-    name: 'zotero_add',
+    name: ZOTERO_ADD,
     exposure: 'standard',
     description:
       'Preview a Zotero add/update operation and return a confirm_token; execute via zotero_confirm (local-only write). ' +
@@ -473,7 +483,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     handler: async params => zoteroAdd(params),
   },
   {
-    name: 'zotero_confirm',
+    name: ZOTERO_CONFIRM,
     exposure: 'standard',
     description:
       'Confirm and execute a previewed Zotero write operation (local-only). Use the confirm_token returned by tools like zotero_add.',
@@ -485,7 +495,7 @@ export const TOOL_SPECS: ToolSpec[] = [
           const result = await zoteroAddConfirm(stored.action.payload.params);
           return {
             status: 'executed',
-            tool: 'zotero_add',
+            tool: ZOTERO_ADD,
             executed_at: new Date().toISOString(),
             confirm_token_consumed: stored.token,
             result,

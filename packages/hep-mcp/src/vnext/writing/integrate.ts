@@ -1,6 +1,11 @@
 import * as fs from 'fs';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_READ_ARTIFACT_CHUNK,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
@@ -76,7 +81,7 @@ function readRunJsonArtifact<T>(runId: string, artifactName: string): T {
       parse_error_artifact: parseErrRef.name,
       next_actions: [
         {
-          tool: 'hep_run_read_artifact_chunk',
+          tool: HEP_RUN_READ_ARTIFACT_CHUNK,
           args: { run_id: runId, artifact_name: artifactName, offset: 0, length: 1024 },
           reason: 'Inspect the corrupted artifact and re-generate it.',
         },
@@ -230,7 +235,7 @@ export async function integrateWritingSections(params: IntegrateParams): Promise
       request_target_length: (request as any)?.target_length,
       next_actions: [
         {
-          tool: 'hep_run_writing_create_outline_candidates_packet_v1',
+          tool: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
           args: { run_id: runId, target_length: '<short|medium|long>', title: '<paper title>' },
           reason: 'M13: Regenerate writing_outline_v2.json via N-best outline candidates + judge ensuring request.target_length is present (no bypass).',
         },
@@ -341,7 +346,7 @@ export async function integrateWritingSections(params: IntegrateParams): Promise
       outputs: { compile_error_uri: compileErrorRef.uri, checkpoint_uri: checkpointRef.uri },
       error: { message: msg },
       next_actions: [
-        { tool: 'hep_run_writing_integrate_sections_v1', args: { run_id: runId }, reason: 'Fix LaTeX issues and re-run integration.' },
+        { tool: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1, args: { run_id: runId }, reason: 'Fix LaTeX issues and re-run integration.' },
       ],
     });
     artifacts.push(checkpointRef, journalRef);
@@ -350,7 +355,7 @@ export async function integrateWritingSections(params: IntegrateParams): Promise
     const completedAt = nowIso();
     await updateRunManifestAtomic({
       run_id: runId,
-      tool: { name: 'hep_run_writing_integrate_sections_v1', args: { run_id: runId } },
+      tool: { name: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1, args: { run_id: runId } },
       update: current => {
         const ensured = ensureIntegrateStep(current);
         const base = ensured.manifest;
@@ -436,7 +441,7 @@ export async function integrateWritingSections(params: IntegrateParams): Promise
   const completedAt = nowIso();
   await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_writing_integrate_sections_v1', args: { run_id: runId } },
+    tool: { name: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1, args: { run_id: runId } },
     update: current => {
       const ensured = ensureIntegrateStep(current);
       const base = ensured.manifest;

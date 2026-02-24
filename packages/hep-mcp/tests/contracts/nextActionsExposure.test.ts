@@ -30,9 +30,15 @@ function collectTsFiles(dir: string): string[] {
 function extractNextActionToolRefs(source: string): string[] {
   if (!source.includes('next_actions')) return [];
   const refs: string[] = [];
-  const regex = /tool\s*:\s*['"`]([a-z][a-z0-9_]+)['"`]/g;
-  for (let match = regex.exec(source); match; match = regex.exec(source)) {
+  // Match string literals: tool: 'some_tool'
+  const stringRegex = /tool\s*:\s*['"`]([a-z][a-z0-9_]+)['"`]/g;
+  for (let match = stringRegex.exec(source); match; match = stringRegex.exec(source)) {
     refs.push(String(match[1] ?? ''));
+  }
+  // Match constant references: tool: SOME_TOOL (H-16a)
+  const constRegex = /tool:\s*([A-Z][A-Z0-9_]+)/g;
+  for (let match = constRegex.exec(source); match; match = constRegex.exec(source)) {
+    refs.push(String(match[1] ?? '').toLowerCase());
   }
   return refs;
 }

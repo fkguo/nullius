@@ -12,6 +12,9 @@ import * as api from '../../api/client.js';
 import { extractMeasurements, type Measurement } from './measurementExtractor.js';
 import { getConfig, validateRecids, getConversionFactor, areUnitsCompatible } from './config.js';
 import { getToolSpec as getPdgToolSpec } from '@autoresearch/pdg-mcp/tooling';
+import {
+  PDG_GET_PROPERTY,
+} from '@autoresearch/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -139,7 +142,7 @@ type PdgGetPropertyOutput = {
 };
 
 async function tryGetPdgWmassBaseline(): Promise<{ measurement: MeasurementWithSource | null; warning?: string }> {
-  const spec = getPdgToolSpec('pdg_get_property');
+  const spec = getPdgToolSpec(PDG_GET_PROPERTY);
   if (!spec) {
     return { measurement: null, warning: 'pdg_baseline_skipped:pdg_get_property_unavailable' };
   }

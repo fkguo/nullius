@@ -1,7 +1,13 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_EXPORT_PAPER_SCAFFOLD,
+  HEP_RUN_BUILD_CITATION_MAPPING,
+  HEP_RUN_STAGE_CONTENT,
+  HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
+  invalidParams,
+} from '@autoresearch/shared';
 import { zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
@@ -60,7 +66,7 @@ async function startRunStep(runId: string, stepName: string): Promise<{ manifest
   const now = nowIso();
   const manifestStart = await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_export_paper_scaffold', args: { run_id: runId } },
+    tool: { name: HEP_EXPORT_PAPER_SCAFFOLD, args: { run_id: runId } },
     update: current => {
       const step: RunStep = { step: stepName, status: 'in_progress', started_at: now };
       const next: RunManifest = {
@@ -284,7 +290,7 @@ function failIfContainsHepUri(text: string, what: string, runId: string): void {
       what,
       next_actions: [
         {
-          tool: 'hep_run_writing_integrate_sections_v1',
+          tool: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
           args: { run_id: runId },
           reason: 'Ensure the integrated LaTeX contains only local paths (no hep:// URIs), then re-run export.',
         },
@@ -370,7 +376,7 @@ function rewriteIncludeGraphicsAndMaterialize(params: {
           includegraphics_path: rawPath,
           expected_run_artifact: artifactName,
           next_actions: [
-            { tool: 'hep_run_stage_content', args: { run_id: runId, content_type: 'application/octet-stream', content: '<binary>', artifact_suffix: artifactName }, reason: 'Stage the figure file as a run artifact (or regenerate it) and re-run export.' },
+            { tool: HEP_RUN_STAGE_CONTENT, args: { run_id: runId, content_type: 'application/octet-stream', content: '<binary>', artifact_suffix: artifactName }, reason: 'Stage the figure file as a run artifact (or regenerate it) and re-run export.' },
           ],
         });
       }
@@ -520,11 +526,11 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
         writing_master_bib_artifact: writingMasterBibName,
         next_actions: [
           {
-            tool: 'hep_run_build_citation_mapping',
+            tool: HEP_RUN_BUILD_CITATION_MAPPING,
             args: { run_id: runId, identifier: '<arXiv/DOI/recid>', allowed_citations_primary: generatedBib.missing_keys },
             reason: 'Build bibliography_raw.json + writing_master.bib + allowed_citations.json (then re-run export).',
           },
-          { tool: 'hep_export_paper_scaffold', args: { run_id: runId }, reason: 'Re-run export after citations/bibtex are available.' },
+          { tool: HEP_EXPORT_PAPER_SCAFFOLD, args: { run_id: runId }, reason: 'Re-run export after citations/bibtex are available.' },
         ],
       });
     }
@@ -554,7 +560,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
           paper_dir: paperDir,
           overwrite: false,
           next_actions: [
-            { tool: 'hep_export_paper_scaffold', args: { run_id: runId, overwrite: true }, reason: 'Overwrite the existing paper/ scaffold.' },
+            { tool: HEP_EXPORT_PAPER_SCAFFOLD, args: { run_id: runId, overwrite: true }, reason: 'Overwrite the existing paper/ scaffold.' },
           ],
         });
       }
@@ -641,7 +647,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
     const paperManifest = {
       schemaVersion: '1.0',
       generatedAt: nowIso(),
-      generator: { name: 'hep_export_paper_scaffold' },
+      generator: { name: HEP_EXPORT_PAPER_SCAFFOLD },
       source: {
         hepRunId: runId,
         hepRunUri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
@@ -706,7 +712,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
 
     await updateRunManifestAtomic({
       run_id: runId,
-      tool: { name: 'hep_export_paper_scaffold', args: { run_id: runId } },
+      tool: { name: HEP_EXPORT_PAPER_SCAFFOLD, args: { run_id: runId } },
       update: _current => manifestDone,
     });
 
@@ -740,7 +746,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
     try {
       await updateRunManifestAtomic({
         run_id: runId,
-        tool: { name: 'hep_export_paper_scaffold', args: { run_id: runId } },
+        tool: { name: HEP_EXPORT_PAPER_SCAFFOLD, args: { run_id: runId } },
         update: _current => manifestFailed,
       });
     } catch {

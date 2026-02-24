@@ -1,5 +1,8 @@
 import * as fs from 'fs';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_BUILD_WRITING_CRITICAL,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import { detectConflicts } from '../../tools/research/conflictDetector.js';
 import type { ConflictDetectionResult } from '../../tools/research/conflictDetector.js';
@@ -144,7 +147,7 @@ export async function buildRunWritingCritical(params: {
   const startedAt = nowIso();
   await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_build_writing_critical', args: { run_id: runId } },
+    tool: { name: HEP_RUN_BUILD_WRITING_CRITICAL, args: { run_id: runId } },
     update: current => {
       const ensured = ensureStep(current, stepName);
       const manifest = ensured.manifest;
@@ -303,7 +306,7 @@ export async function buildRunWritingCritical(params: {
     const completedAt = nowIso();
     await updateRunManifestAtomic({
       run_id: runId,
-      tool: { name: 'hep_run_build_writing_critical', args: { run_id: runId } },
+      tool: { name: HEP_RUN_BUILD_WRITING_CRITICAL, args: { run_id: runId } },
       update: current => {
         const ensured = ensureStep(current, stepName);
         const manifest = ensured.manifest;
@@ -342,7 +345,7 @@ export async function buildRunWritingCritical(params: {
       const failedAt = nowIso();
       await updateRunManifestAtomic({
         run_id: runId,
-        tool: { name: 'hep_run_build_writing_critical', args: { run_id: runId } },
+        tool: { name: HEP_RUN_BUILD_WRITING_CRITICAL, args: { run_id: runId } },
         update: current => {
           const ensured = ensureStep(current, stepName);
           const manifest = ensured.manifest;

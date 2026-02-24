@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_BUILD_MEASUREMENTS,
+  invalidParams,
+} from '@autoresearch/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';
@@ -164,7 +167,7 @@ function missingMeasurementsArtifactError(params: {
     expected_pattern: 'hep_measurements_*.jsonl',
     next_actions: [
       {
-        tool: 'hep_run_build_measurements',
+        tool: HEP_RUN_BUILD_MEASUREMENTS,
         args: { run_id: params.run_id },
         reason: 'Build run-level measurements artifact before cross-run comparison.',
       },

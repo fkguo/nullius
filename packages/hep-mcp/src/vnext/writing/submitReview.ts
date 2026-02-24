@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 
-import { invalidParams } from '@autoresearch/shared';
+import {
+  HEP_RUN_WRITING_SUBMIT_REVIEW,
+  invalidParams,
+} from '@autoresearch/shared';
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
@@ -74,7 +77,7 @@ function writeParseErrorAndThrow(params: { run_id: string; round: number; raw_re
   const roundKey = pad2(params.round);
   const next_actions = [
     {
-      tool: 'hep_run_writing_submit_review',
+      tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
       args: { run_id: params.run_id, round: params.round, reviewer_report: '<valid ReviewerReport v2 JSON>' },
       reason: 'Re-submit a valid ReviewerReport v2 payload.',
     },
@@ -115,7 +118,7 @@ function writeParseErrorAndThrow(params: { run_id: string; round: number; raw_re
     journal_artifact: journalRef.name,
     next_actions: [
       {
-        tool: 'hep_run_writing_submit_review',
+        tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
         args: { run_id: params.run_id, round: params.round, reviewer_report: '<valid ReviewerReport v2 JSON>' },
         reason: 'Re-submit a valid ReviewerReport v2 payload.',
       },
@@ -187,7 +190,7 @@ export async function submitRunWritingReview(params: {
   const startedAt = nowIso();
   await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_writing_submit_review', args: { run_id: runId, round } },
+    tool: { name: HEP_RUN_WRITING_SUBMIT_REVIEW, args: { run_id: runId, round } },
     update: current => {
       const ensured = ensureReviewStep(current);
       const manifest = ensured.manifest;
@@ -300,7 +303,7 @@ export async function submitRunWritingReview(params: {
   const completedAt = nowIso();
   await updateRunManifestAtomic({
     run_id: runId,
-    tool: { name: 'hep_run_writing_submit_review', args: { run_id: runId, round } },
+    tool: { name: HEP_RUN_WRITING_SUBMIT_REVIEW, args: { run_id: runId, round } },
     update: current => {
       const ensured = ensureReviewStep(current);
       const manifest = ensured.manifest;
