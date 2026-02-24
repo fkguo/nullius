@@ -160,6 +160,20 @@ Supported config keys: `models`, `model`, `agents`, `output_prefix`, `fallback_m
 `max_prompt_chars`, `max_prompt_overflow`, `gemini_cli_home`, `backend_system`,
 `backend_prompt`, `backend_output`.
 
+## Tool access policy
+
+All review backends run with **read-only tool access** — reviewers can inspect the codebase
+but cannot modify files:
+
+| Backend | Mechanism | Tool access |
+|---------|-----------|-------------|
+| Codex | `--sandbox read-only --full-auto` | Shell (read-only fs), file reads |
+| Claude | `--tools 'Read,Glob,Grep,Bash'` | Read, Glob, Grep, Bash (no Edit/Write) |
+| Gemini | `--approval-mode plan` | Read-only agentic mode |
+
+This is configured in each runner script (`run_codex.sh`, `run_claude.sh`, `run_gemini.sh`).
+Override via `--sandbox`, `--tools`, or `--approval-mode` flags on the runner if needed.
+
 ## Standalone contract checker
 
 ```bash
