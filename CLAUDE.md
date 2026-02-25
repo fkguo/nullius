@@ -11,6 +11,7 @@
 - 数据格式迁移脚本（直接采用新 schema，旧数据可丢弃重建）
 - 运行时版本协商或兼容性矩阵维护
 - 字段设为 optional "以兼容旧数据"——如果语义上应该 required，就直接 required
+- 临时 stopgap / Python 退役路径保留缓冲期——TS 替代方案实现并通过验收后，Python 侧对应功能**立即删除**，不留缓冲期
 
 来源：`meta/REDESIGN_PLAN.md` §全局约束。
 
