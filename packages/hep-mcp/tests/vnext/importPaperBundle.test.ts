@@ -38,7 +38,7 @@ describe('vNext M4: hep_import_paper_bundle (paper_bundle.zip)', () => {
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_integrated.tex'), '\\section{Intro}\\nHello.\\n', 'utf-8');
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_master.bib'), '', 'utf-8');
 
-    const scaffoldRes = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id, overwrite: true });
+    const scaffoldRes = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id, overwrite: true });
     expect(scaffoldRes.isError).not.toBe(true);
 
     const paperDir = path.join(getRunDir(run.run_id), 'paper');
@@ -89,7 +89,7 @@ describe('vNext M4: hep_import_paper_bundle (paper_bundle.zip)', () => {
 
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_integrated.tex'), '\\section{Intro}\\nHello.\\n', 'utf-8');
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_master.bib'), '', 'utf-8');
-    const scaffoldRes = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id, overwrite: true });
+    const scaffoldRes = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id, overwrite: true });
     expect(scaffoldRes.isError).not.toBe(true);
 
     const paperDir = path.join(getRunDir(run.run_id), 'paper');
@@ -120,7 +120,7 @@ describe('vNext M4: hep_import_paper_bundle (paper_bundle.zip)', () => {
 
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_integrated.tex'), '\\section{Intro}\\nHello.\\n', 'utf-8');
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_master.bib'), '', 'utf-8');
-    const scaffoldRes = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id, overwrite: true });
+    const scaffoldRes = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id, overwrite: true });
     expect(scaffoldRes.isError).not.toBe(true);
 
     const paperDir = path.join(getRunDir(run.run_id), 'paper');

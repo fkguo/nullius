@@ -427,6 +427,27 @@ export async function handleToolCall(
 
     validatePathArgs(args);
 
+    // H-11a Phase 2: destructive tools require explicit _confirm: true
+    if (spec.riskLevel === 'destructive' && args._confirm !== true) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            error: {
+              code: 'CONFIRMATION_REQUIRED',
+              message: `Tool ${name} is destructive. Pass _confirm: true to proceed.`,
+              data: {
+                tool: name,
+                risk_level: 'destructive',
+                next_actions: [{ tool: name, args: { ...args, _confirm: true } }],
+              },
+            },
+          }, null, 2),
+        }],
+        isError: true,
+      };
+    }
+
     if (reportProgress) {
       reportProgress(0, 1, `started: ${name}`);
     }

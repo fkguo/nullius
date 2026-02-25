@@ -115,7 +115,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
       'utf-8'
     );
 
-    const exportRes = await handleToolCall('hep_export_project', {
+    const exportRes = await handleToolCall('hep_export_project', { _confirm: true,
       run_id: run.run_id,
       include_evidence_digests: true,
       max_chars_per_notebooklm_file: 600,
@@ -237,7 +237,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
 
     // Minimal paper scaffold (no cites needed here).
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_integrated.tex'), '\\section{Intro}\\nHello.\\n', 'utf-8');
-    const scaffoldRes = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id, overwrite: true });
+    const scaffoldRes = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id, overwrite: true });
     expect(scaffoldRes.isError).not.toBe(true);
 
     const paperDir = path.join(dataDir, 'runs', run.run_id, 'paper');
@@ -245,7 +245,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     const importRes = await handleToolCall('hep_import_paper_bundle', { run_id: run.run_id });
     expect(importRes.isError).not.toBe(true);
 
-    const exportRes = await handleToolCall('hep_export_project', {
+    const exportRes = await handleToolCall('hep_export_project', { _confirm: true,
       run_id: run.run_id,
       include_paper_bundle: true,
       include_evidence_digests: false,
@@ -300,7 +300,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     const sourceStatusPath = getRunArtifactPath(run.run_id, 'writing_evidence_source_status.json');
     if (fs.existsSync(sourceStatusPath)) fs.rmSync(sourceStatusPath);
 
-    const exportRes = await handleToolCall('hep_export_project', {
+    const exportRes = await handleToolCall('hep_export_project', { _confirm: true,
       run_id: run.run_id,
       include_evidence_digests: false,
     });
@@ -355,7 +355,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
       'utf-8'
     );
 
-    const exportRes = await handleToolCall('hep_export_project', {
+    const exportRes = await handleToolCall('hep_export_project', { _confirm: true,
       run_id: run.run_id,
       include_evidence_digests: false,
       include_pdg_artifacts: true,

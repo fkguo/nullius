@@ -547,7 +547,7 @@ describe('Tool Handlers (current exposure)', () => {
 
   // Full-only whitelist tools
   it('full-only tools should be rejected in standard mode', async () => {
-    const result = await handleToolCall('inspire_cleanup_downloads', { dry_run: true });
+    const result = await handleToolCall('inspire_cleanup_downloads', { _confirm: true, dry_run: true });
     expect(result.isError).toBe(true);
   });
 
@@ -565,7 +565,7 @@ describe('Tool Handlers (current exposure)', () => {
 
   it('inspire_cleanup_downloads should call cleanupDownloads', async () => {
     vi.mocked(cleanupDownloads.cleanupDownloads).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_cleanup_downloads', { dry_run: true }, 'full');
+    await handleToolCall('inspire_cleanup_downloads', { _confirm: true, dry_run: true }, 'full');
     expect(cleanupDownloads.cleanupDownloads).toHaveBeenCalled();
   });
 

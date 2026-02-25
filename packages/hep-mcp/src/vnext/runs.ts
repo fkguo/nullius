@@ -7,23 +7,27 @@ import {
   HEP_RUN_CLEAR_MANIFEST_LOCK,
   invalidParams,
   notFound,
+  type RunArtifactRef,
+  type RunState,
+  type RunStepState,
 } from '@autoresearch/shared';
 import { newRunId } from './ids.js';
 import { getRunArtifactsDir, getRunArtifactPath, getRunDir, getRunManifestPath, getRunsDir } from './paths.js';
 import { getProject, updateProjectUpdatedAt } from './projects.js';
 import { writeRunJsonArtifact } from './citations.js';
 
-export type RunStepStatus = 'pending' | 'in_progress' | 'done' | 'failed';
+// Re-export from shared (H-03, H-18) so existing consumers don't need import changes
+export type { RunArtifactRef, RunState, RunStepState };
 
-export interface RunArtifactRef {
-  name: string;
-  uri: string;
-  mimeType?: string;
-}
+/**
+ * @deprecated Use `RunStepState` from `@autoresearch/shared` instead (H-03).
+ * Kept for backward compatibility during migration.
+ */
+export type RunStepStatus = RunStepState;
 
 export interface RunStep {
   step: string;
-  status: RunStepStatus;
+  status: RunStepState;
   started_at?: string;
   completed_at?: string;
   artifacts?: RunArtifactRef[];
@@ -35,7 +39,7 @@ export interface RunManifest {
   project_id: string;
   created_at: string;
   updated_at: string;
-  status: 'created' | 'running' | 'done' | 'failed';
+  status: RunState;
   args_snapshot?: RunArtifactRef;
   steps: RunStep[];
 }
@@ -493,7 +497,7 @@ export function createRun(params: {
     project_id: params.project_id,
     created_at: now,
     updated_at: now,
-    status: 'created',
+    status: 'pending',
     args_snapshot: argsArtifactRef,
     steps: [
       {

@@ -113,6 +113,7 @@ export const StyleCorpusExportPackToolSchema = z.object({
   include_index: z.boolean().optional().default(true),
   include_artifacts: z.boolean().optional().default(false),
   compression_level: z.number().int().min(0).max(9).optional().default(6),
+  _confirm: z.boolean().optional(),
 });
 
 export const StyleCorpusImportPackToolSchema = z.object({

@@ -10,6 +10,18 @@ export * from './tool-names.js';
 // Tool risk classification (H-11a)
 export * from './tool-risk.js';
 
+// EcosystemID (H-15a)
+export * from './ecosystem-id.js';
+
+// ArtifactRef (H-18)
+export * from './artifact-ref.js';
+
+// RunState (H-03)
+export * from './run-state.js';
+
+// Gate Registry (H-04)
+export * from './gate-registry.js';
+
 // Utils
 export * from './utils/index.js';
 

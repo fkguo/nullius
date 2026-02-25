@@ -66,7 +66,11 @@ describe('Tool registry contracts (M2)', () => {
       const payload = JSON.parse(res.content[0]?.text ?? '{}') as {
         error?: { code?: string };
       };
-      expect(payload.error?.code).toBe('INVALID_PARAMS');
+      // Destructive tools may return CONFIRMATION_REQUIRED before INVALID_PARAMS (H-11a Phase 2)
+      const expectedCodes = spec.riskLevel === 'destructive'
+        ? ['INVALID_PARAMS', 'CONFIRMATION_REQUIRED']
+        : ['INVALID_PARAMS'];
+      expect(expectedCodes).toContain(payload.error?.code);
     }
   });
 
@@ -128,5 +132,52 @@ describe('Tool risk level contracts (H-11a)', () => {
     if (stale.length > 0) {
       throw new Error(`Stale TOOL_RISK_LEVELS entries:\n${stale.join('\n')}`);
     }
+  });
+
+  it('destructive tools include _confirm in Zod schema', () => {
+    const specs = getToolSpecs('full');
+    const destructiveSpecs = specs.filter(s => s.riskLevel === 'destructive');
+    expect(destructiveSpecs.length).toBeGreaterThan(0);
+    const missing: string[] = [];
+    for (const spec of destructiveSpecs) {
+      const mcpSchema = zodToMcpInputSchema(spec.zodSchema);
+      const props = (mcpSchema as any).properties ?? {};
+      if (!props._confirm) {
+        missing.push(spec.name);
+      }
+    }
+    if (missing.length > 0) {
+      throw new Error(`Destructive tools missing _confirm in schema:\n${missing.join('\n')}`);
+    }
+  });
+});
+
+describe('Destructive tool confirmation gate (H-11a Phase 2)', () => {
+  it('destructive tool without _confirm returns CONFIRMATION_REQUIRED', async () => {
+    // Use a destructive tool with minimal args (will fail validation but confirmation check is first)
+    const res = await handleToolCall('hep_export_project', { run_id: 'test-run' }, 'standard');
+    expect(res.isError).toBe(true);
+    const payload = JSON.parse(res.content[0].text);
+    expect(payload.error.code).toBe('CONFIRMATION_REQUIRED');
+    expect(payload.error.data.tool).toBe('hep_export_project');
+    expect(payload.error.data.risk_level).toBe('destructive');
+    expect(payload.error.data.next_actions).toHaveLength(1);
+    expect(payload.error.data.next_actions[0].args._confirm).toBe(true);
+  });
+
+  it('destructive tool with _confirm: true passes confirmation gate', async () => {
+    // With _confirm: true, it should pass the gate and hit the normal handler
+    // (which will fail for other reasons since test-run doesn't exist, but the error code should differ)
+    const res = await handleToolCall('hep_export_project', { run_id: 'nonexistent-run', _confirm: true }, 'standard');
+    expect(res.isError).toBe(true);
+    const payload = JSON.parse(res.content[0].text);
+    // Should NOT be CONFIRMATION_REQUIRED — it passed the gate
+    expect(payload.error?.code).not.toBe('CONFIRMATION_REQUIRED');
+  });
+
+  it('non-destructive tools are not affected by _confirm gate', async () => {
+    // A read tool should work without _confirm
+    const res = await handleToolCall('hep_health', { check_inspire: false, inspire_timeout_ms: 1000 }, 'standard');
+    expect(res.isError).toBeFalsy();
   });
 });

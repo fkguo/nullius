@@ -64,7 +64,7 @@ describe('Contract: Skill↔MCP bridge job envelope', () => {
     expect(run.job.polling.strategy).toBe('manifest_resource');
     expect(run.job.polling.resource_uri).toBe(run.manifest_uri);
     expect(run.job.polling.terminal_statuses).toContain('done');
-    expect(['created', 'running', 'done', 'failed', 'unknown']).toContain(run.job.status);
+    expect(['pending', 'running', 'done', 'failed', 'unknown']).toContain(run.job.status);
   });
 
   it('does not attach job envelope to error payloads', async () => {

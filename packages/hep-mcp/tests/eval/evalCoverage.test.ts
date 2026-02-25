@@ -56,7 +56,7 @@ describe('eval: coverage_report completeness (local-only)', () => {
         allowed_citations: [],
       });
 
-      const exportRes = await handleToolCall('hep_export_project', { run_id: run.run_id, include_evidence_digests: false });
+      const exportRes = await handleToolCall('hep_export_project', { _confirm: true, run_id: run.run_id, include_evidence_digests: false });
       const exportPayload = JSON.parse(exportRes.content[0].text) as { artifacts: Array<{ name: string; uri: string }> };
       const coverageUri = exportPayload.artifacts.find(a => a.name === 'coverage_report.json')?.uri;
       expect(coverageUri).toBeTruthy();

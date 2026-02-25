@@ -511,6 +511,7 @@ const HepExportProjectToolSchema = z.object({
   include_paper_bundle: z.boolean().optional().default(false),
   paper_bundle_zip_artifact_name: SafePathSegmentSchema.optional().default('paper_bundle.zip'),
   paper_bundle_manifest_artifact_name: SafePathSegmentSchema.optional().default('paper_bundle_manifest.json'),
+  _confirm: z.boolean().optional(),
 });
 
 const HepExportPaperScaffoldToolSchema = z.object({
@@ -522,6 +523,7 @@ const HepExportPaperScaffoldToolSchema = z.object({
   bibliography_raw_artifact_name: SafePathSegmentSchema.optional().default('bibliography_raw.json'),
   zip_artifact_name: SafePathSegmentSchema.optional().default('paper_scaffold.zip'),
   paper_manifest_artifact_name: SafePathSegmentSchema.optional().default('paper_manifest.json'),
+  _confirm: z.boolean().optional(),
 });
 
 const HepImportPaperBundleToolSchema = z.object({
@@ -1281,6 +1283,7 @@ const CleanupDownloadsToolSchema = z.object({
   arxiv_id: z.string().optional(),
   older_than_hours: z.number().int().optional(),
   dry_run: z.boolean().optional(),
+  _confirm: z.boolean().optional(),
 });
 
 const ValidateBibliographyToolSchema = z.object({

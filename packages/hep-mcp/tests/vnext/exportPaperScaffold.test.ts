@@ -61,7 +61,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
       'utf-8'
     );
 
-    const exportRes = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id });
+    const exportRes = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id });
     expect(exportRes.isError).not.toBe(true);
 
     const payload = JSON.parse(exportRes.content[0].text) as {
@@ -140,7 +140,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
     );
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_master.bib'), '', 'utf-8');
 
-    const exportRes = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id });
+    const exportRes = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id });
     expect(exportRes.isError).not.toBe(true);
 
     const payload = JSON.parse(exportRes.content[0].text) as { artifacts: Array<{ name: string; uri: string }> };
@@ -168,7 +168,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_integrated.tex'), '\\section{Intro}\\nCite \\cite{Missing:2020}.\\n', 'utf-8');
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_master.bib'), '', 'utf-8');
 
-    const exportRes = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id });
+    const exportRes = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id });
     expect(exportRes.isError).toBe(true);
 
     const payload = JSON.parse(exportRes.content[0]?.text ?? '{}') as { error?: { code?: string } };
@@ -185,10 +185,10 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
     fs.writeFileSync(getRunArtifactPath(run.run_id, 'writing_master.bib'), '', 'utf-8');
 
     // First run succeeds only if no cites are present.
-    const first = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id, overwrite: true });
+    const first = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id, overwrite: true });
     expect(first.isError).not.toBe(true);
 
-    const second = await handleToolCall('hep_export_paper_scaffold', { run_id: run.run_id });
+    const second = await handleToolCall('hep_export_paper_scaffold', { _confirm: true, run_id: run.run_id });
     expect(second.isError).toBe(true);
   });
 });
