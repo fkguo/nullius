@@ -13,10 +13,19 @@ import {
   HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
   INSPIRE_PARSE_LATEX,
   INSPIRE_SEARCH,
+  INSPIRE_SEARCH_NEXT,
+  INSPIRE_LITERATURE,
+  INSPIRE_RESEARCH_NAVIGATOR,
+  HEP_IMPORT_FROM_ZOTERO,
+  MAX_INLINE_RESULT_BYTES,
+  HARD_CAP_RESULT_BYTES,
 } from '@autoresearch/shared';
+import type { SpanSink } from '@autoresearch/shared';
+import type { PaperSummary } from '@autoresearch/shared';
 import type { Notification } from '@modelcontextprotocol/sdk/types.js';
 import type { OutputFormat, SearchResultData } from '../utils/formatters.js';
-import { formatSearchResultMarkdown } from '../utils/formatters.js';
+import { formatSearchResultMarkdown, formatPaperListMarkdown } from '../utils/formatters.js';
+import { compactPapersInResult, compactPaperSummary } from '../utils/compactPaper.js';
 import { getDataDir } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { writeRunJsonArtifact } from '../vnext/citations.js';
@@ -25,10 +34,19 @@ import { assertSafePathSegment } from '../vnext/paths.js';
 import { getToolSpec, isToolExposed, type ToolExposureMode } from './registry.js';
 import { recordToolUsage } from './utils/toolUsageTelemetry.js';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// H-13: Result content block types (L4: supports resource_link)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ToolResultContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'resource_link'; uri: string; name: string; mimeType: string };
+
 export interface ToolCallContext {
   requestId?: string | number;
   progressToken?: string | number;
   sendNotification?: (notification: Notification) => Promise<void>;
+  spanSink?: SpanSink;
 }
 
 function createProgressReporter(
@@ -327,57 +345,269 @@ function maybeAttachSkillBridgeJobEnvelope(result: unknown): unknown {
   };
 }
 
-function formatToolResult(
+// ─────────────────────────────────────────────────────────────────────────────
+// H-13 L1: Tools whose paper lists should be compacted
+// ─────────────────────────────────────────────────────────────────────────────
+
+const COMPACT_PAPER_TOOLS = new Set([
+  INSPIRE_SEARCH,
+  INSPIRE_SEARCH_NEXT,
+  INSPIRE_LITERATURE,
+  INSPIRE_RESEARCH_NAVIGATOR,
+  HEP_IMPORT_FROM_ZOTERO,
+]);
+
+function shouldCompactPapers(name: string, args: Record<string, unknown>): boolean {
+  if (!(COMPACT_PAPER_TOOLS as Set<string>).has(name)) return false;
+  // Single-paper result (get_paper) — full data is appropriate (~2-5KB)
+  if (name === INSPIRE_LITERATURE && args.mode === 'get_paper') return false;
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// H-13 L0: Extended markdown formatting
+// ─────────────────────────────────────────────────────────────────────────────
+
+function tryFormatMarkdown(
   name: string,
   result: unknown,
   args: Record<string, unknown>
-): { content: { type: string; text: string }[] } {
-  if (typeof result === 'string') {
-    return { content: [{ type: 'text', text: result }] };
-  }
+): string | null {
+  const r = result as Record<string, unknown>;
 
-  const format = (args.format as OutputFormat) || 'json';
+  // inspire_search / inspire_search_next → formatSearchResultMarkdown
+  if (name === INSPIRE_SEARCH || name === INSPIRE_SEARCH_NEXT) {
+    const data = r as unknown as SearchResultData & { next_url?: string };
+    let hasMore = false;
 
-  if (name === INSPIRE_SEARCH && format === 'markdown') {
-    const r = result as SearchResultData & { total: number; papers: any[]; next_url?: string };
-    const rawHasMore = (r as Partial<SearchResultData>).has_more;
-    const pageRaw = args.page;
-    const sizeRaw = args.size;
-    const page = typeof pageRaw === 'number' && Number.isFinite(pageRaw) ? Math.max(1, Math.trunc(pageRaw)) : 1;
-    const size = typeof sizeRaw === 'number' && Number.isFinite(sizeRaw) ? Math.max(1, Math.trunc(sizeRaw)) : 10;
-    const shown = (page - 1) * size + (Array.isArray(r.papers) ? r.papers.length : 0);
-    const fallbackHasMore = r.total > shown;
-    const hasMore = typeof rawHasMore === 'boolean' ? rawHasMore : fallbackHasMore;
-    const nextUrl = typeof r.next_url === 'string' && r.next_url.trim().length > 0 ? r.next_url.trim() : undefined;
+    if (typeof data.has_more === 'boolean') {
+      hasMore = data.has_more;
+    } else if (name === INSPIRE_SEARCH) {
+      const pageRaw = args.page;
+      const sizeRaw = args.size;
+      const page = typeof pageRaw === 'number' && Number.isFinite(pageRaw) ? Math.max(1, Math.trunc(pageRaw)) : 1;
+      const size = typeof sizeRaw === 'number' && Number.isFinite(sizeRaw) ? Math.max(1, Math.trunc(sizeRaw)) : 10;
+      const shown = (page - 1) * size + (Array.isArray(data.papers) ? data.papers.length : 0);
+      hasMore = data.total > shown;
+    }
+
+    const nextUrl = typeof data.next_url === 'string' && data.next_url.trim().length > 0 ? data.next_url.trim() : undefined;
 
     let text = formatSearchResultMarkdown({
-      total: r.total,
-      papers: r.papers,
+      total: data.total,
+      papers: data.papers ?? [],
       has_more: hasMore,
     });
 
     if (hasMore && nextUrl) {
       text += `\n\n---\n\nNext page: call \`inspire_search_next\` with \`next_url\`:\n\n\`\`\`\n${nextUrl}\n\`\`\`\n`;
     }
+    return text;
+  }
 
+  // inspire_literature (get_references / get_citations) → formatPaperListMarkdown
+  if (name === INSPIRE_LITERATURE) {
+    const mode = args.mode as string;
+    if (mode === 'get_references' || mode === 'get_citations') {
+      const papers: unknown[] = Array.isArray(r.papers) ? r.papers : Array.isArray(r) ? r as unknown[] : [];
+      if (papers.length > 0) {
+        const title = mode === 'get_references' ? 'References' : 'Citations';
+        return formatPaperListMarkdown(papers as PaperSummary[], title);
+      }
+    }
+    return null;
+  }
+
+  // inspire_research_navigator (discover / field_survey) → formatPaperListMarkdown
+  if (name === INSPIRE_RESEARCH_NAVIGATOR) {
+    const mode = args.mode as string;
+    if (mode === 'discover' || mode === 'field_survey') {
+      const papers: unknown[] = Array.isArray(r.papers) ? r.papers : [];
+      if (papers.length > 0) {
+        const title = mode === 'discover' ? 'Discovered Papers' : 'Field Survey Results';
+        return formatPaperListMarkdown(papers as PaperSummary[], title);
+      }
+    }
+    return null;
+  }
+
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// H-13 L3: Size guard helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function extractRunIdFromResult(result: unknown, args: Record<string, unknown>): string | null {
+  if (typeof args.run_id === 'string' && args.run_id.trim()) return args.run_id.trim();
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const record = result as Record<string, unknown>;
+    if (typeof record.run_id === 'string' && record.run_id.trim()) return record.run_id.trim();
+  }
+  return null;
+}
+
+function autoSummarize(result: unknown, _toolName: string): Record<string, unknown> {
+  if (!result || typeof result !== 'object') {
+    return { type: 'unknown' };
+  }
+
+  if (Array.isArray(result)) {
     return {
-      content: [{
-        type: 'text',
-        text,
-      }],
+      total_items: result.length,
+      shown_items: Math.min(5, result.length),
+      highlights: result.slice(0, 5),
     };
   }
 
-  return {
-    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-  };
+  const record = result as Record<string, unknown>;
+
+  // { papers: [...] }
+  if (Array.isArray(record.papers)) {
+    const papers = record.papers;
+    const compacted = papers.slice(0, 5).map((p: unknown) => {
+      if (p && typeof p === 'object' && 'title' in p) {
+        return compactPaperSummary(p as PaperSummary);
+      }
+      return p;
+    });
+    return {
+      total_items: typeof record.total === 'number' ? record.total : papers.length,
+      shown_items: compacted.length,
+      highlights: compacted,
+    };
+  }
+
+  // { results: [...] } or { hits: [...] }
+  for (const key of ['results', 'hits'] as const) {
+    if (Array.isArray(record[key])) {
+      const arr = record[key] as unknown[];
+      return {
+        total_items: typeof record.total === 'number' ? record.total : arr.length,
+        shown_items: Math.min(5, arr.length),
+        highlights: arr.slice(0, 5),
+      };
+    }
+  }
+
+  // Generic object — expose keys
+  const keys = Object.keys(record);
+  return { type: 'object', keys: keys.slice(0, 20), total_keys: keys.length };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// H-13 L4: resource_link helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function collectHepUris(value: unknown, depth = 0): string[] {
+  if (depth > 3) return [];
+  if (typeof value === 'string' && value.startsWith('hep://')) {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    const uris: string[] = [];
+    for (const item of value) {
+      uris.push(...collectHepUris(item, depth + 1));
+    }
+    return uris;
+  }
+  if (value && typeof value === 'object') {
+    const uris: string[] = [];
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      uris.push(...collectHepUris(v, depth + 1));
+    }
+    return uris;
+  }
+  return [];
+}
+
+function appendResourceLinks(content: ToolResultContentBlock[], result: unknown): void {
+  const uris = [...new Set(collectHepUris(result))];
+  for (const uri of uris) {
+    const name = decodeURIComponent(uri.split('/').pop() ?? 'artifact');
+    content.push({ type: 'resource_link', uri, name, mimeType: 'application/json' });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// formatToolResult — H-13 L0+L1+L3+L4 unified
+// ─────────────────────────────────────────────────────────────────────────────
+
+function formatToolResult(
+  name: string,
+  result: unknown,
+  args: Record<string, unknown>
+): { content: ToolResultContentBlock[] } {
+  // String result: pass through
+  if (typeof result === 'string') {
+    return { content: [{ type: 'text', text: result }] };
+  }
+
+  const format = (args.format as OutputFormat) || 'json';
+
+  // L1: compact paper projection for applicable tools
+  const processed = shouldCompactPapers(name, args) ? compactPapersInResult(result) : result;
+
+  // L0: extended markdown format branches
+  if (format === 'markdown') {
+    const markdown = tryFormatMarkdown(name, processed, args);
+    if (markdown !== null) {
+      const content: ToolResultContentBlock[] = [{ type: 'text', text: markdown }];
+      appendResourceLinks(content, processed);
+      return { content };
+    }
+  }
+
+  // L0: compact JSON serialization (no indent)
+  const json = JSON.stringify(processed);
+  const size = Buffer.byteLength(json, 'utf-8');
+
+  // L3: fast path — small result
+  if (size <= MAX_INLINE_RESULT_BYTES) {
+    const content: ToolResultContentBlock[] = [{ type: 'text', text: json }];
+    appendResourceLinks(content, processed);
+    return { content };
+  }
+
+  // L3: over soft limit — write artifact if run_id available
+  const runId = extractRunIdFromResult(processed, args);
+  if (runId) {
+    const artifactName = `${name}_result_${Date.now()}.json`;
+    const ref = writeRunJsonArtifact(runId, artifactName, processed);
+    const summary = autoSummarize(processed, name);
+    return {
+      content: [
+        { type: 'text', text: JSON.stringify({
+          _result_too_large: true,
+          size_bytes: size,
+          artifact_uri: ref.uri,
+          artifact_name: artifactName,
+          summary,
+        }) },
+        { type: 'resource_link', uri: ref.uri, name: artifactName, mimeType: 'application/json' },
+      ],
+    };
+  }
+
+  // L3: no run context — hard truncate if beyond hard cap
+  if (size > HARD_CAP_RESULT_BYTES) {
+    const truncated = json.slice(0, HARD_CAP_RESULT_BYTES);
+    return {
+      content: [{ type: 'text', text: truncated + '\n... [TRUNCATED, original: ' + size + ' bytes]' }],
+    };
+  }
+
+  // Between soft and hard cap, no run context — return as-is
+  const content: ToolResultContentBlock[] = [{ type: 'text', text: json }];
+  appendResourceLinks(content, processed);
+  return { content };
 }
 
 function formatToolError(
   err: unknown,
   ctx?: ToolCallContext,
   traceId?: string
-): { content: { type: string; text: string }[]; isError: true } {
+): { content: ToolResultContentBlock[]; isError: true } {
   const requestId = ctx?.requestId ?? null;
   const runId = null;
 
@@ -422,10 +652,15 @@ export async function handleToolCall(
   args: Record<string, unknown>,
   mode: ToolExposureMode = 'standard',
   ctx?: ToolCallContext
-): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
+): Promise<{ content: ToolResultContentBlock[]; isError?: boolean }> {
   const reportProgress = createProgressReporter(ctx);
   // H-02: extract or generate trace_id for this tool call
   const { traceId, params: cleanArgs } = extractTraceId(args);
+
+  // NEW-RT-03: optional span tracing
+  const span = ctx?.spanSink?.startSpan(name, traceId);
+  span?.setAttribute('tool.name', name);
+
   try {
     const spec = getToolSpec(name);
     if (!spec) {
@@ -439,6 +674,7 @@ export async function handleToolCall(
 
     // H-11a Phase 2: destructive tools require explicit _confirm: true
     if (spec.riskLevel === 'destructive' && cleanArgs._confirm !== true) {
+      span?.end('OK');
       return {
         content: [{
           type: 'text',
@@ -469,9 +705,13 @@ export async function handleToolCall(
     recordToolUsage(name);
 
     if (reportProgress) reportProgress(1, 1, `completed: ${name}`);
+    span?.end('OK');
     return formatToolResult(name, resultWithSkillBridgeEnvelope, parsedArgs);
   } catch (err) {
     if (reportProgress) reportProgress(1, 1, `failed: ${name}`);
+    span?.setAttribute('error.type', err instanceof Error ? err.constructor.name : 'unknown');
+    span?.setAttribute('error.message', err instanceof Error ? err.message : String(err));
+    span?.end('ERROR');
     return formatToolError(err, ctx, traceId);
   }
 }

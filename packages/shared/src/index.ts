@@ -25,6 +25,9 @@ export * from './gate-registry.js';
 // Tracing (H-02)
 export { generateTraceId, extractTraceId } from './tracing.js';
 
+// Span (NEW-RT-03)
+export { type Span, type SpanStatus, type SpanHandle, type SpanSink, generateSpanId } from './span.js';
+
 // Retry Policy (H-19)
 export { type RetryPolicy, DEFAULT_RETRY_POLICY } from './retry-policy.js';
 
@@ -33,6 +36,12 @@ export * from './utils/index.js';
 
 // Sanitization (H-08)
 export { sanitizePath, sanitizeFilename, sanitizeQueryString } from './sanitize.js';
+
+// Redaction (M-14a)
+export { redact } from './redaction.js';
+
+// Constants (H-13)
+export { MAX_INLINE_RESULT_BYTES, HARD_CAP_RESULT_BYTES } from './constants.js';
 
 // Errors
 export {

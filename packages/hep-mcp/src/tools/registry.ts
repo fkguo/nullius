@@ -2815,7 +2815,30 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
     zodSchema: CriticalResearchToolSchema,
     handler: async params => {
       const { performCriticalResearch } = await import('./research/criticalResearch.js');
-      return performCriticalResearch(params);
+      const result = await performCriticalResearch(params);
+
+      // H-13 L2: mode=evidence/analysis → write artifact + return URI + summary if run_id
+      if ((params.mode === 'evidence' || params.mode === 'analysis') && params.run_id) {
+        const artifactName = `critical_${params.mode}_result.json`;
+        const ref = writeRunJsonArtifact(params.run_id, artifactName, result);
+        const modeResult = result && typeof result === 'object'
+          ? (result as unknown as Record<string, unknown>)[params.mode] as Record<string, unknown> | undefined
+          : undefined;
+
+        const summary: Record<string, unknown> = { mode: params.mode };
+        if (params.mode === 'evidence' && modeResult) {
+          summary.claim_count = modeResult.claim_count ?? modeResult.total_claims ?? 0;
+          summary.grade_distribution = modeResult.grade_distribution ?? {};
+        }
+        if (params.mode === 'analysis' && modeResult) {
+          summary.assumption_count = modeResult.assumption_count ?? 0;
+          summary.open_question_count = modeResult.open_question_count ?? 0;
+        }
+
+        return { artifact_uri: ref.uri, summary };
+      }
+
+      return result;
     },
   },
   {
@@ -2851,7 +2874,44 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
         ...params,
         _mcp: ctx.reportProgress ? { reportProgress: ctx.reportProgress } : undefined,
       });
-      // NEW-CONN-01: mode=analyze → suggest synthesize/write
+
+      // H-13 L2: mode=analyze/synthesize → write artifact + return URI + summary
+      if (params.mode === 'analyze' && params.run_id) {
+        const ref = writeRunJsonArtifact(params.run_id, 'deep_analyze_result.json', result);
+        const analysis = result && typeof result === 'object' && 'analysis' in result
+          ? (result as unknown as Record<string, unknown>).analysis as Record<string, unknown> | undefined
+          : undefined;
+        return {
+          artifact_uri: ref.uri,
+          summary: {
+            paper_count: analysis?.paper_count ?? (Array.isArray(params.identifiers) ? params.identifiers.length : 0),
+            equations_found: analysis?.equations_found ?? analysis?.total_equations ?? 0,
+            key_findings: Array.isArray(analysis?.key_findings)
+              ? (analysis.key_findings as unknown[]).slice(0, 3)
+              : [],
+          },
+          next_actions: deepResearchAnalyzeNextActions(params.identifiers),
+        };
+      }
+
+      if (params.mode === 'synthesize' && params.run_id) {
+        const ref = writeRunJsonArtifact(params.run_id, 'deep_synthesize_result.json', result);
+        const review = result && typeof result === 'object' && 'review' in result
+          ? (result as unknown as Record<string, unknown>).review as Record<string, unknown> | undefined
+          : undefined;
+        return {
+          artifact_uri: ref.uri,
+          summary: {
+            theme_count: review?.theme_count ?? review?.total_themes ?? 0,
+            paper_count: review?.paper_count ?? (Array.isArray(params.identifiers) ? params.identifiers.length : 0),
+            open_questions: Array.isArray(review?.open_questions)
+              ? (review.open_questions as unknown[]).slice(0, 5)
+              : [],
+          },
+        };
+      }
+
+      // NEW-CONN-01: mode=analyze (no run_id) → suggest synthesize/write with run_id hint
       if (params.mode === 'analyze') {
         return withNextActions(result, deepResearchAnalyzeNextActions(params.identifiers));
       }

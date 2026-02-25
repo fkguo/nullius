@@ -1,9 +1,9 @@
-// @autoresearch/orchestrator — McpClient (NEW-05a Stage 1)
-// Minimal MCP stdio client for tool invocation.
-// Full implementation in Stage 2; this provides the interface + basic subprocess management.
+// @autoresearch/orchestrator — McpClient (NEW-05a Stage 1 + NEW-RT-02 Reconnect)
+// MCP stdio client with automatic reconnect on subprocess crash/exit.
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import * as readline from 'node:readline';
+import { type RetryPolicy, DEFAULT_RETRY_POLICY } from '@autoresearch/shared';
 import type { LedgerWriter } from './ledger-writer.js';
 
 export interface McpToolResult {
@@ -19,6 +19,14 @@ interface PendingRequest {
   reject: (reason: Error) => void;
 }
 
+export interface McpClientOptions {
+  ledger?: LedgerWriter;
+  /** Max reconnect attempts before giving up (default: 3). */
+  maxReconnects?: number;
+  /** Retry policy for reconnect backoff (uses H-19 defaults). */
+  reconnectPolicy?: RetryPolicy;
+}
+
 export class McpClient {
   private proc: ChildProcess | null = null;
   private nextId = 1;
@@ -26,14 +34,37 @@ export class McpClient {
   private readonly ledger: LedgerWriter | null;
   private initialized = false;
 
-  constructor(options?: { ledger?: LedgerWriter }) {
+  // NEW-RT-02: Reconnect state
+  private startCommand: string = '';
+  private startArgs: string[] = [];
+  private startEnv: Record<string, string> | undefined;
+  private reconnectCount = 0;
+  private readonly maxReconnects: number;
+  private readonly reconnectPolicy: RetryPolicy;
+  private reconnecting = false;
+  private closed = false;
+
+  constructor(options?: McpClientOptions) {
     this.ledger = options?.ledger ?? null;
+    this.maxReconnects = options?.maxReconnects ?? 3;
+    this.reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RETRY_POLICY;
   }
 
   /** Start the MCP server subprocess and perform initialize/initialized handshake. */
   async start(command: string, args: string[], env?: Record<string, string>): Promise<void> {
     if (this.proc) throw new Error('McpClient already started');
 
+    // Store for reconnect
+    this.startCommand = command;
+    this.startArgs = args;
+    this.startEnv = env;
+    this.closed = false;
+
+    await this.doStart(command, args, env);
+  }
+
+  /** Internal start logic (shared between initial start and reconnect). */
+  private async doStart(command: string, args: string[], env?: Record<string, string>): Promise<void> {
     const mergedEnv = { ...process.env, ...(env ?? {}) };
     this.proc = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -59,11 +90,21 @@ export class McpClient {
       }
     });
 
+    // NEW-RT-02: Detect process exit and trigger reconnect
     this.proc.on('exit', (code) => {
+      const wasConnected = this.initialized;
+      this.initialized = false;
+
+      // Reject all pending requests
       for (const [, p] of this.pending) {
         p.reject(new Error(`MCP process exited with code ${code}`));
       }
       this.pending.clear();
+
+      // Attempt reconnect if not explicitly closed
+      if (wasConnected && !this.closed && !this.reconnecting) {
+        this.handleDisconnect(code);
+      }
     });
 
     // MCP protocol: initialize handshake
@@ -81,6 +122,61 @@ export class McpClient {
 
     this.initialized = true;
     this.ledger?.log('mcp_client.started', { details: { command, args, serverInfo: initResponse['result'] } });
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // NEW-RT-02: Reconnect logic
+  // ───────────────────────────────────────────────────────────────────────────
+
+  private handleDisconnect(exitCode: number | null): void {
+    if (this.reconnectCount >= this.maxReconnects) {
+      this.ledger?.log('mcp_client.reconnect_exhausted', {
+        details: { exitCode, attempts: this.reconnectCount, maxReconnects: this.maxReconnects },
+      });
+      return;
+    }
+
+    this.reconnecting = true;
+    this.reconnectCount++;
+
+    const attempt = this.reconnectCount;
+    const delay = Math.min(
+      this.reconnectPolicy.baseDelayMs * 2 ** (attempt - 1),
+      this.reconnectPolicy.maxDelayMs,
+    );
+
+    this.ledger?.log('mcp_client.reconnecting', {
+      details: { exitCode, attempt, delay, maxReconnects: this.maxReconnects },
+    });
+
+    setTimeout(async () => {
+      // Re-check closed state — close() may have been called during the delay
+      if (this.closed) {
+        this.reconnecting = false;
+        return;
+      }
+      try {
+        this.proc = null;
+        await this.doStart(this.startCommand, this.startArgs, this.startEnv);
+        this.reconnectCount = 0; // Reset on success
+        this.reconnecting = false;
+        this.ledger?.log('mcp_client.reconnected', { details: { attempt } });
+      } catch (err) {
+        this.reconnecting = false;
+        this.ledger?.log('mcp_client.reconnect_failed', {
+          details: { attempt, error: err instanceof Error ? err.message : String(err) },
+        });
+        // Try again if under limit
+        if (!this.closed) {
+          this.handleDisconnect(null);
+        }
+      }
+    }, delay);
+  }
+
+  /** Whether the client is connected and ready for tool calls. */
+  get isConnected(): boolean {
+    return this.initialized && this.proc !== null && !this.closed;
   }
 
   /** Send a JSON-RPC request and wait for the response. */
@@ -155,6 +251,7 @@ export class McpClient {
 
   /** Close the MCP server subprocess. */
   async close(): Promise<void> {
+    this.closed = true;
     if (!this.proc) return;
 
     try {

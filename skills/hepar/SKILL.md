@@ -37,3 +37,8 @@ hep-autoresearch status   # read pending_approval.approval_id
 hep-autoresearch approve <approval_id>
 ```
 
+## Session Protocol
+
+For research session flow (stage identification, tool recommendations, transition hints),
+see `meta/protocols/session_protocol_v1.md`.
+

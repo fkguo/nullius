@@ -37,4 +37,7 @@ smoke:
 		|| echo "FAIL: MCP server smoke test"
 
 code-health-check:
-	@echo "TODO: check_loc.py + check_entry_files.py (NEW-R02a)"
+	@echo "--- CODE-01.1: eLOC gate ---"
+	git diff --name-only origin/main...HEAD | python3 meta/scripts/check_loc.py
+	@echo "--- NEW-R02: as any / swallowed catch gate ---"
+	bash meta/scripts/check_as_any.sh --vs-main

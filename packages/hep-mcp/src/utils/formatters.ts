@@ -215,5 +215,5 @@ export function formatOutput(
   if (format === 'markdown' && markdownFormatter) {
     return markdownFormatter();
   }
-  return JSON.stringify(data, null, 2);
+  return JSON.stringify(data);
 }
