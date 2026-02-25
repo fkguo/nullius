@@ -1,10 +1,11 @@
 # Design: NEW-01 Cross-Language Type Code Generation
 
-> **Status**: Approved (R3 CONVERGED)
+> **Status**: Phase 1B DONE
 > **Author**: Claude (Phase 1 kickoff)
 > **Date**: 2026-02-25
 > **Review**: R1 NOT_CONVERGED → R2 NOT_CONVERGED → R3 CONVERGED (Codex PASS / Gemini PASS)
 > **Scope**: JSON Schema -> TS / Python code generation pipeline for `meta/schemas/`
+> **Implementation**: Phase 1A spike PASS, Phase 1B rollout DONE (18 TS + 18 Python types generated)
 
 ---
 

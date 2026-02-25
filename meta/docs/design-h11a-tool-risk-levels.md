@@ -1,10 +1,11 @@
 # Design: H-11a MCP Tool Risk Classification
 
-> **Status**: Draft
+> **Status**: Phase 1 DONE
 > **Author**: Claude (Phase 1 kickoff)
 > **Date**: 2026-02-25
 > **Scope**: Risk level classification for all MCP tools based on NEW-R15-spec threat model
 > **Depends on**: C-02 (done), NEW-R15-spec (done)
+> **Implementation**: ToolRiskLevel type + TOOL_RISK_LEVELS map in shared, riskLevel on ToolSpec, 3 contract tests
 
 ---
 

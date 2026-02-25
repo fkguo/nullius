@@ -72,6 +72,8 @@ import {
   INSPIRE_STYLE_CORPUS_BUILD_INDEX,
   INSPIRE_STYLE_CORPUS_EXPORT_PACK,
   INSPIRE_STYLE_CORPUS_IMPORT_PACK,
+  TOOL_RISK_LEVELS,
+  type ToolRiskLevel,
 } from '@autoresearch/shared';
 import * as api from '../api/client.js';
 import { formatExpertsMarkdown } from '../utils/formatters.js';
@@ -135,6 +137,8 @@ export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, a
   maturity?: ToolMaturity;
   /** Minimal mode required to expose this tool */
   exposure: ToolExposure;
+  /** Risk classification (H-11a) */
+  riskLevel: ToolRiskLevel;
   /** Tool input schema (SSOT) */
   zodSchema: TSchema;
   /** Business handler called with parsed params */
@@ -1292,7 +1296,8 @@ const ValidateBibliographyToolSchema = z.object({
 // Tool registry (SSOT)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const TOOL_SPECS: ToolSpec[] = [
+// Specs without riskLevel — injected from TOOL_RISK_LEVELS below
+const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   // vNext: Project/Run tools (M3)
   {
     name: HEP_PROJECT_CREATE,
@@ -2193,12 +2198,12 @@ export const TOOL_SPECS: ToolSpec[] = [
             });
           },
         },
-      ] satisfies ToolSpec[])
+      ] satisfies Omit<ToolSpec, 'riskLevel'>[])
     : []),
   // NOTE: Zotero tool specs are imported from `@autoresearch/zotero-mcp/tooling` (built output).
   ...(ZOTERO_INTEGRATION_ENABLED
     ? ZOTERO_TOOL_SPECS.map(
-        (spec): ToolSpec => ({
+        (spec): Omit<ToolSpec, 'riskLevel'> => ({
           name: spec.name,
           tier: 'consolidated',
           exposure: spec.exposure,
@@ -2986,7 +2991,7 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
   // Keep a lightweight normalization here so the tool list remains clear even if the PDG package
   // has not been rebuilt yet in a workspace setting.
   ...PDG_TOOL_SPECS.map(
-    (spec): ToolSpec => ({
+    (spec): Omit<ToolSpec, 'riskLevel'> => ({
       name: spec.name,
       tier: 'consolidated',
       exposure: spec.exposure,
@@ -3007,6 +3012,12 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
     })
   ),
 ];
+
+// Inject riskLevel from the shared static map (H-11a)
+export const TOOL_SPECS: ToolSpec[] = _RAW_TOOL_SPECS.map(spec => ({
+  ...spec,
+  riskLevel: (TOOL_RISK_LEVELS[spec.name] ?? 'read') as ToolRiskLevel,
+}));
 
 const TOOL_SPECS_BY_NAME = new Map<string, ToolSpec>(
   TOOL_SPECS.map(spec => [spec.name, spec])

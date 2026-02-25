@@ -16,5 +16,9 @@
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "devDependencies": {
+    "json-schema-to-typescript": "^15.0.4",
+    "tsx": "^4.21.0"
+  }
 }

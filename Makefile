@@ -21,10 +21,14 @@ clean:
 	find packages/ -type d -name dist -exec rm -rf {} + 2>/dev/null || true
 
 codegen:
-	@echo "TODO: JSON Schema -> TS/Python type generation (NEW-01)"
+	bash meta/scripts/codegen.sh
 
 codegen-check:
-	@echo "TODO: codegen && git diff --exit-code */generated/ (NEW-01)"
+	bash meta/scripts/codegen.sh
+	git diff --exit-code packages/shared/src/generated/ meta/generated/python/
+	@if git ls-files --others --exclude-standard -- packages/shared/src/generated/ meta/generated/python/ | grep -q .; then \
+		echo "codegen-check: FAIL — untracked generated files detected"; exit 1; fi
+	@echo "codegen-check: OK — generated code is in sync with schemas"
 
 smoke:
 	@echo "--- Smoke test: MCP server starts and lists tools ---"
