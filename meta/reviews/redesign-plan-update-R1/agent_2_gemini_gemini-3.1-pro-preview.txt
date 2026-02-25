@@ -1,0 +1,42 @@
+# Verdict: **APPROVED AND READY FOR EXECUTION**
+
+The REDESIGN_PLAN v1.8.0 scope audit and pipeline connectivity convergence represents a highly mature, structurally sound, and pragmatic architectural blueprint. The transition from 1.7.0 to 1.8.0 resolves lingering ambiguities around agent-loop control, computation evidence, and execution environments.
+
+Here is my detailed review of the structural updates and key design decisions:
+
+### 1. Global Constraints Validation
+*   **Quality First (No LLM/USD Limits in code)**: *Strong Agree.* Hardcoding budget limits in the core execution logic often leads to brittle state machines and premature exits. Relegating budget tracking to an observability concern ensures the agent can actually complete complex workflows.
+*   **No Backward Compatibility Burden**: *Strong Agree.* Refusing to make semantically required fields `optional` just to appease legacy JSON data prevents the codebase from drowning in null-checks and type assertions. Data migration scripts should handle old data, not core schemas.
+
+### 2. Key Design Decisions Audit
+*   **Decision 1: `ComputationEvidenceCatalogItemV1` (Parallel Schema)** 
+    *   *Verdict:* **Elegant workaround.** Trying to force computation results into `EvidenceCatalogItemV1` would have required making `LatexLocatorV1` optional or nullable, destroying the rigorous validation of standard paper evidence. A parallel schema keeps the type boundaries strictly delineated.
+*   **Decision 2: `next_actions` as hint-only (`{ tool, args, reason }`)**
+    *   *Verdict:* **Safe and predictable.** With 221+ usages across 33 files, standardizing this as a prompt-hinting mechanism rather than an auto-execution trigger prevents runaway recursive loops and keeps the human/CLI strictly in the driver's seat.
+*   **Decision 3 & 4: CLI-First & Pipeline Unification**
+    *   *Verdict:* **Highly pragmatic.** Bypassing heavy Agent UI/runners in Phases 1-2 in favor of CLI-first execution allows us to battle-test the domain logic, MCP tools, and prompts without debugging UI/WebSocket state simultaneously. 
+*   **Decision 5: No Third-Party Frameworks**
+    *   *Verdict:* **Crucial for long-term maintainability.** LangChain/LlamaIndex etc., often obscure prompt structures and token management. Using the raw AI SDK for transport and building bespoke domain state management ensures complete control over the context window.
+
+### 3. Dependency & Tracker Health
+*   **Pruning & Scoping**: Cutting `hep-autoresearch` (NEW-R09) and deferring H-17/M-22 to later phases shows excellent scope discipline.
+*   **Dependency Graph**: The new edges (e.g., `EVO-01` -> `UX-02`, `UX-04`, `NEW-R15-impl`, `NEW-COMP-01`) create a strict topological sort for implementation. We now know exactly what needs to exist before Evolutionary Workflows can be touched.
+
+---
+
+### Proactive Next Steps
+
+As your pair-programming agent, I am ready to transition from **Planning** to **Implementation**. Based on the Phase definitions and dependencies, I recommend we attack the immediate foundational items first. 
+
+Where would you like to begin?
+
+**Option A: Foundational Cleanup (H-01)**
+Simplify `McpError` by adding `retryable` and `retry_after_ms`, and eliminate the redundant `AutoresearchError` envelope.
+
+**Option B: Computation Schema (UX-02 / NEW-COMP-01)**
+Draft the `ComputationEvidenceCatalogItemV1` and the Computation Contract schemas to lay the groundwork for pipeline connectivity.
+
+**Option C: Connectivity Scaffolding (NEW-CONN-01)**
+Implement the first P1 connectivity layer (depending on H-16a) to ensure the baseline tool inputs/outputs are routing correctly.
+
+Please provide the corresponding files or let me know which thread to pull first!

@@ -1,0 +1,54 @@
+```json
+{
+  "verdict": "FAIL",
+  "blocking_issues": [
+    {
+      "id": "B1",
+      "description": "`meta/remediation_tracker_v1.json` contains a dangling dependency: `EVO-13.depends_on` references `NEW-05a`, but `NEW-05a` is not a tracked item ID (only `NEW-05a-stage12` and `NEW-05a-stage3` exist). This breaks dependency resolution and violates roadmap self-consistency.",
+      "affected_items": ["meta/remediation_tracker_v1.json", "EVO-13", "NEW-05a-stage12", "NEW-05a-stage3"],
+      "suggested_fix": "Either (a) add an umbrella tracker item `NEW-05a` that depends on `NEW-05a-stage12` + `NEW-05a-stage3`, or (b) update `EVO-13.depends_on` to the correct stage ID(s) it truly requires."
+    },
+    {
+      "id": "B2",
+      "description": "Phase deferrals are not reflected in tracker Phase placement: `H-17` is stored under Phase 1 while its note says \"deferred to Phase 2\", and `M-22` is stored under Phase 1 while its note says \"deferred to Phase 3\". This makes the Phase roadmap and the tracker’s Phase buckets disagree, undermining critical-path reasoning and Phase completion accounting.",
+      "affected_items": ["meta/remediation_tracker_v1.json", "H-17", "M-22"],
+      "suggested_fix": "Move `H-17` into Phase 2 and `M-22` into Phase 3 in the tracker (or introduce an explicit `deferred_to_phase` field and update any tooling/reading conventions so Phase grouping remains authoritative and unambiguous)."
+    },
+    {
+      "id": "B3",
+      "description": "`meta/REDESIGN_PLAN.md` applies the H-01 simplification only locally, but leaves multiple plan-level artifacts inconsistent with the decision \"do not create AutoresearchErrorEnvelope; extend McpError instead\". The plan still lists `AutoresearchErrorEnvelope` as a schema SSOT, multiple dependencies/acceptance checklists refer to `AutoresearchError` (e.g., H-02/H-19 dependency text and Phase 1 acceptance bullets), and downstream items reference exporting registries \"from H-01 AutoresearchError\"—creating ambiguity about the actual error contract and what must be implemented.",
+      "affected_items": ["meta/REDESIGN_PLAN.md", "H-01", "H-02", "H-19", "Phase 1 acceptance checklist", "SSOT table (AutoresearchErrorEnvelope row)"],
+      "suggested_fix": "Propagate the H-01 scope-audit decision throughout the document: remove/strike `AutoresearchErrorEnvelope` from the SSOT table, update dependencies/acceptance text to reference `McpError.retryable` + `retryAfterMs` (and trace propagation) explicitly, and re-scope any items that currently assume an AutoresearchError envelope/adapter so the error model is single and unambiguous."
+    },
+    {
+      "id": "B4",
+      "description": "`UX-02` claims computation outputs are compatible with `EvidenceCatalogItemV1` JSONL \"so compute results are natively consumable\". This contradicts the explicitly adopted parallel-schema decision (and the NEW-CONN-03 section) that computation evidence cannot be stored as `EvidenceCatalogItemV1` because `paper_id` + `LatexLocatorV1` are required. This is a direct consistency break against the pipeline-connectivity convergence and risks implementers trying to shoehorn compute results into the LaTeX-only schema.",
+      "affected_items": ["meta/REDESIGN_PLAN.md", "UX-02", "NEW-CONN-03", "meta/docs/pipeline-connectivity-audit.md"],
+      "suggested_fix": "Rewrite `UX-02` to specify that computation contract outputs must be ingestible into `computation_evidence_catalog_v1.jsonl` via `ComputationEvidenceCatalogItemV1` (NEW-CONN-03), not `EvidenceCatalogItemV1`. If a mapping into LaTeX evidence is ever required, define it as an explicit, lossy conversion step with clear locator semantics rather than claiming schema compatibility."
+    }
+  ],
+  "non_blocking_suggestions": [
+    {
+      "id": "N1",
+      "description": "Define “Pipeline A” and “Pipeline B” explicitly in `meta/REDESIGN_PLAN.md` (1–2 sentences each) so the A/B unification timeline is interpretable without external context."
+    },
+    {
+      "id": "N2",
+      "description": "Standardize schema-path wording (`meta/schemas/` vs `autoresearch-meta/schemas/`) across the plan to avoid implementers writing SSOT schemas into the wrong directory; the connectivity audit explicitly flags this consistency risk."
+    },
+    {
+      "id": "N3",
+      "description": "Add a compact mapping table from the “12 missing connections” to `NEW-CONN-01~05` (and any supporting items like `NEW-IDEA-01/NEW-WF-01`) to demonstrate full coverage and make review/verification mechanical."
+    },
+    {
+      "id": "N4",
+      "description": "Fix minor internal duplication/inconsistency in `UX-04` where dependencies are listed twice but not identically (the second “依赖” line omits `NEW-R15-impl`)."
+    },
+    {
+      "id": "N5",
+      "description": "For `ComputationLocatorV1.json_pointer`, explicitly document semantics and what happens for non-JSON artifacts (optional pointer vs alternative selector), aligning with the audit’s R4 non-blocking recommendations."
+    }
+  ],
+  "summary": "v1.8.0-draft captures the major convergence themes (quality-first, hint-only next_actions, parallel computation evidence schema, NEW-CONN items), but currently fails basic self-consistency across the tracker and plan: a missing tracker dependency (`NEW-05a`), Phase deferrals not reflected in tracker Phase placement, an incomplete propagation of the H-01 error-model simplification, and a direct contradiction in UX-02 about `EvidenceCatalogItemV1` compatibility versus the adopted parallel computation-evidence schema."
+}
+```

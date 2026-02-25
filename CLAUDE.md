@@ -98,9 +98,18 @@ make codegen-check    # 校验生成代码（TODO: NEW-01）
 
 ### 模型配置
 
-| Runner | 模型 | 推理模式 | 调用方式 |
-|--------|------|---------|---------|
-| Codex CLI | `gpt-5.3-codex` | xhigh（`config.toml` 默认） | `codex-cli-runner` skill |
+**按审核场景分工**：
+
+| 场景 | Codex 模型 | 推理模式 | 理由 |
+|------|-----------|---------|------|
+| **架构/方案审核** (REDESIGN_PLAN 修订、Phase 级条目变更) | `gpt-5.2` | xhigh | 保守性好、不建议不必要的 breaking rewrite；R1-R4 流程已验证 |
+| **代码实现审核** (schema 实现、工具代码、测试) | `gpt-5.3-codex` | xhigh | Terminal-Bench 77.3%（大幅提升）；代码生成和执行场景的首选 |
+
+> `review-swarm.json` 中的 `models` 字段配置的是代码审核模型 (`gpt-5.3-codex`)。方案审核需手动传 `--model gpt-5.2` 覆盖。
+
+| Runner | 默认模型 | 推理模式 | 调用方式 |
+|--------|---------|---------|---------|
+| Codex CLI | `gpt-5.3-codex`（代码）/ `gpt-5.2`（方案） | xhigh（`config.toml` 默认） | `codex-cli-runner` skill |
 | Gemini CLI | 默认（gemini-3.1-pro-preview） | — | `gemini-cli-runner` skill |
 | OpenCode | 默认（MiniMax-M2.5） | — | `opencode-cli-runner` skill |
 

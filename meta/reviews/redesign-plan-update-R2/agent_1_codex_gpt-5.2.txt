@@ -1,0 +1,34 @@
+{
+  "verdict": "FAIL",
+  "blocking_issues": [
+    {
+      "id": "B1",
+      "description": "`meta/remediation_tracker_v1.json` still has a positive `AutoresearchError` reference: Phase 1 item `NEW-R03b.title` is `\"Python 异常 AutoresearchError 迁移\"`, contradicting the R1/B3 fix intent (AutoresearchError is cancelled / not introduced) and the updated `meta/REDESIGN_PLAN.md` section text.",
+      "affected_items": [
+        "meta/remediation_tracker_v1.json:NEW-R03b"
+      ],
+      "suggested_fix": "Rename `NEW-R03b.title` to the v1.8.0 wording (e.g. `\"Python 异常处理规范化\"`) and ensure its intent/notes (if added later) explicitly state it does not introduce `AutoresearchError` subtypes/envelopes."
+    },
+    {
+      "id": "B2",
+      "description": "Runtime reliability placement is internally inconsistent with the scope-audit convergence conclusion “Retry/Tracing only in TS orchestrator” and with the Phase-2 runtime dependency chain: `NEW-RT-02` (TS reconnect) depends on `H-19`, but `H-19` is currently specified as Python (`hep-autoresearch/.../retry.py`, `mcp_stdio_client.py`) work. This risks implementing the critical retry/backoff prerequisite in the wrong runtime (or duplicating it) and breaks the intended critical path for NEW-RT-02.",
+      "affected_items": [
+        "meta/REDESIGN_PLAN.md:H-19",
+        "meta/REDESIGN_PLAN.md:NEW-RT-02",
+        "meta/docs/scope-audit-converged.md:Python vs TS Chasm (blocking issue)"
+      ],
+      "suggested_fix": "Re-scope `H-19` to be implemented in the TS orchestrator runtime (the `McpStdioClient` used by `NEW-RT-01/02`) and treat any Python-side retry as either (a) explicitly temporary stopgap with a deprecation note tied to Pipeline A retirement, or (b) removed from the plan. Update the `H-19` file list accordingly so `NEW-RT-02`’s dependency is actionable and aligned with the convergence rule."
+    }
+  ],
+  "non_blocking_suggestions": [
+    {
+      "id": "N1",
+      "description": "The “5 islands + 12 gaps” requirement is not directly verifiable from `meta/docs/pipeline-connectivity-audit.md` as written (it enumerates 5 islands and solution items, but does not list 12 gaps). Add a short explicit “12 gaps” enumeration or clarify that the 12 gaps are subsumed by the 5 islands + connectors, to make NEW-CONN coverage auditable."
+    },
+    {
+      "id": "N2",
+      "description": "Standardize schema-path wording (`meta/schemas/` vs `autoresearch-meta/schemas/`) in `meta/REDESIGN_PLAN.md` to avoid implementation confusion; keep one canonical prefix and treat the other as historical/alias."
+    }
+  ],
+  "summary": "R2 verification checks for EVO-13.depends_on, H-17/M-22 phase placement, and UX-02’s ComputationEvidenceCatalogItemV1 wording are satisfied; AutoresearchError mentions in `meta/REDESIGN_PLAN.md` are negations only. However, the tracker still contains a positive AutoresearchError migration title (NEW-R03b), and H-19’s specified Python implementation conflicts with the scope-audit convergence and the Phase-2 TS runtime dependency chain."
+}
