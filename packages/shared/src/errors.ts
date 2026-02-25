@@ -11,10 +11,26 @@ export type ErrorCode =
   | 'UNSAFE_FS';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// H-01: retryable defaults per ErrorCode
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RETRYABLE_BY_CODE: Record<ErrorCode, boolean> = {
+  RATE_LIMIT: true,
+  UPSTREAM_ERROR: true,
+  INVALID_PARAMS: false,
+  NOT_FOUND: false,
+  INTERNAL_ERROR: false,
+  UNSAFE_FS: false,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MCP Error Class
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class McpError extends Error {
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | undefined;
+
   constructor(
     public code: ErrorCode,
     message: string,
@@ -22,6 +38,12 @@ export class McpError extends Error {
   ) {
     super(message);
     this.name = 'McpError';
+    this.retryable = RETRYABLE_BY_CODE[code];
+    this.retryAfterMs = code === 'RATE_LIMIT' && data && typeof data === 'object' && 'retryAfter' in data
+      ? (typeof (data as Record<string, unknown>).retryAfter === 'number'
+        ? (data as Record<string, unknown>).retryAfter as number
+        : undefined)
+      : undefined;
   }
 
   toJSON() {
@@ -29,6 +51,8 @@ export class McpError extends Error {
       name: this.name,
       code: this.code,
       message: this.message,
+      retryable: this.retryable,
+      ...(this.retryAfterMs !== undefined ? { retryAfterMs: this.retryAfterMs } : {}),
       data: this.data,
     };
   }

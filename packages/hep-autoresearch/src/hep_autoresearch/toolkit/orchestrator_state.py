@@ -612,6 +612,7 @@ def append_ledger_event(
     run_id: str | None,
     workflow_id: str | None,
     step_id: str | None = None,
+    trace_id: str | None = None,
     details: dict[str, Any] | None = None,
 ) -> None:
     ensure_runtime_dirs(repo_root)
@@ -621,6 +622,7 @@ def append_ledger_event(
         "run_id": run_id,
         "workflow_id": workflow_id,
         "step_id": step_id,
+        **({"trace_id": trace_id} if trace_id else {}),
         "details": details or {},
     }
     ledger = ledger_path(repo_root)

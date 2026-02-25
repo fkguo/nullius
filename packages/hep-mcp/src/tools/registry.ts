@@ -78,6 +78,7 @@ import {
 import * as api from '../api/client.js';
 import { formatExpertsMarkdown } from '../utils/formatters.js';
 import { zodToMcpInputSchema } from './mcpSchema.js';
+import { discoveryNextActions, deepResearchAnalyzeNextActions, withNextActions } from './utils/discoveryHints.js';
 import {
   StyleCorpusInitProfileToolSchema,
   StyleCorpusBuildManifestToolSchema,
@@ -2190,7 +2191,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
           handler: async (params, ctx) => {
             const raw = ctx.rawArgs ?? {};
             const concurrencyProvided = Object.prototype.hasOwnProperty.call(raw, 'concurrency');
-            return hepImportFromZotero({
+            const result = await hepImportFromZotero({
               run_id: params.run_id,
               collection_key: params.collection_key,
               item_keys: params.item_keys,
@@ -2199,6 +2200,17 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
               concurrency: params.concurrency,
               budget_hints: { concurrency_provided: concurrencyProvided },
             });
+            // NEW-CONN-01: suggest deep research after import (recids are in artifact, not return;
+            // emit a generic hint when any items were resolved)
+            const hasResolved = result.summary?.resolved_recids > 0;
+            if (hasResolved) {
+              return withNextActions(result, [{
+                tool: INSPIRE_DEEP_RESEARCH,
+                args: { mode: 'analyze', run_id: result.run_id },
+                reason: 'Analyze the imported papers. Read zotero_map.json artifact for recids.',
+              }]);
+            }
+            return result;
           },
         },
       ] satisfies Omit<ToolSpec, 'riskLevel'>[])
@@ -2433,20 +2445,23 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
         page: params.page,
       });
 
-      if (params.review_mode === 'mixed' || result.papers.length === 0) {
-        return result;
-      }
+      const applyReviewMode = (r: typeof result) => {
+        if (params.review_mode === 'mixed' || r.papers.length === 0) return r;
+        // classifyPapers is lazy-loaded for cost reasons
+        return getClassifyPapers().then(classifyPapersFn => {
+          const classified = classifyPapersFn(r.papers) as Array<{ is_review?: boolean }>;
+          const nonReviews = classified.filter(p => !p.is_review);
+          const reviews = classified.filter(p => p.is_review);
+          if (params.review_mode === 'exclude') {
+            return { ...r, papers: nonReviews as typeof r.papers, total: nonReviews.length };
+          }
+          return { ...r, papers: [...nonReviews, ...reviews] as typeof r.papers };
+        });
+      };
 
-      const classifyPapersFn = await getClassifyPapers();
-      const classified = classifyPapersFn(result.papers) as Array<{ is_review?: boolean }>;
-      const nonReviews = classified.filter(p => !p.is_review);
-      const reviews = classified.filter(p => p.is_review);
-
-      if (params.review_mode === 'exclude') {
-        return { ...result, papers: nonReviews as typeof result.papers, total: nonReviews.length };
-      }
-
-      return { ...result, papers: [...nonReviews, ...reviews] as typeof result.papers };
+      const final = await applyReviewMode(result);
+      // NEW-CONN-01: attach discovery next_actions hints
+      return withNextActions(final, discoveryNextActions(final.papers));
     },
   },
   {
@@ -2706,82 +2721,89 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
       'Unified research navigation tool (network). Modes: discover/field_survey/topic_analysis/network/experts/connections/trace_source/analyze. NOT FOR deep write pipeline; use inspire_deep_research(mode=write) for full writing orchestration.',
     zodSchema: ResearchNavigatorToolSchema,
     handler: async params => {
-      switch (params.mode) {
-        case 'discover': {
-          const { discoverPapers } = await import('./research/discoverPapers.js');
-          return discoverPapers({
-            mode: params.discover_mode!,
-            topic: params.topic,
-            seed_recids: params.seed_recids,
-            limit: params.limit,
-            options: params.discover_options,
-          });
-        }
-        case 'field_survey': {
-          const { performFieldSurvey } = await import('./research/fieldSurvey.js');
-          return performFieldSurvey({
-            topic: params.topic!,
-            seed_recid: params.seed_recid,
-            iterations: params.iterations,
-            max_papers: params.limit,
-            focus: params.focus,
-            prefer_journal: params.prefer_journal,
-          });
-        }
-        case 'topic_analysis': {
-          const { analyzeTopicUnified } = await import('./research/topicAnalysis.js');
-          return analyzeTopicUnified({
-            topic: params.topic!,
-            mode: params.topic_mode!,
-            time_range: params.time_range,
-            limit: params.limit,
-            options: params.topic_options,
-          });
-        }
-        case 'network': {
-          const { analyzeNetwork } = await import('./research/networkAnalysis.js');
-          return analyzeNetwork({
-            mode: params.network_mode!,
-            seed: params.seed!,
-            limit: params.limit,
-            options: params.network_options,
-          });
-        }
-        case 'experts': {
-          const { findExperts } = await import('./research/experts.js');
-          const res = await findExperts({ topic: params.topic!, limit: params.limit ?? 10 });
-          if (params.format === 'markdown') {
-            return formatExpertsMarkdown(res.topic, res.experts);
+      const result = await (async () => {
+        switch (params.mode) {
+          case 'discover': {
+            const { discoverPapers } = await import('./research/discoverPapers.js');
+            return discoverPapers({
+              mode: params.discover_mode!,
+              topic: params.topic,
+              seed_recids: params.seed_recids,
+              limit: params.limit,
+              options: params.discover_options,
+            });
           }
-          return res;
+          case 'field_survey': {
+            const { performFieldSurvey } = await import('./research/fieldSurvey.js');
+            return performFieldSurvey({
+              topic: params.topic!,
+              seed_recid: params.seed_recid,
+              iterations: params.iterations,
+              max_papers: params.limit,
+              focus: params.focus,
+              prefer_journal: params.prefer_journal,
+            });
+          }
+          case 'topic_analysis': {
+            const { analyzeTopicUnified } = await import('./research/topicAnalysis.js');
+            return analyzeTopicUnified({
+              topic: params.topic!,
+              mode: params.topic_mode!,
+              time_range: params.time_range,
+              limit: params.limit,
+              options: params.topic_options,
+            });
+          }
+          case 'network': {
+            const { analyzeNetwork } = await import('./research/networkAnalysis.js');
+            return analyzeNetwork({
+              mode: params.network_mode!,
+              seed: params.seed!,
+              limit: params.limit,
+              options: params.network_options,
+            });
+          }
+          case 'experts': {
+            const { findExperts } = await import('./research/experts.js');
+            const res = await findExperts({ topic: params.topic!, limit: params.limit ?? 10 });
+            if (params.format === 'markdown') {
+              return formatExpertsMarkdown(res.topic, res.experts);
+            }
+            return res;
+          }
+          case 'connections': {
+            const { findConnections } = await import('./research/findConnections.js');
+            const recids = params.seed_recids ?? (params.seed ? [params.seed] : []);
+            return findConnections({
+              recids,
+              include_external: params.include_external,
+              max_external_depth: params.max_external_depth,
+            });
+          }
+          case 'trace_source': {
+            const { traceOriginalSource } = await import('./research/traceSource.js');
+            const recid = params.seed ?? params.seed_recids?.[0];
+            return traceOriginalSource({
+              recid: recid!,
+              max_depth: params.max_depth,
+              max_refs_per_level: params.max_refs_per_level,
+              cross_validate: params.cross_validate,
+            });
+          }
+          case 'analyze': {
+            const { analyzePapers } = await import('./research/analyzePapers.js');
+            const recids = params.recids ?? params.seed_recids ?? (params.seed ? [params.seed] : []);
+            return analyzePapers({ recids, analysis_type: params.analysis_type });
+          }
+          default:
+            throw new Error(`Unknown inspire_research_navigator mode: ${String((params as { mode?: unknown }).mode)}`);
         }
-        case 'connections': {
-          const { findConnections } = await import('./research/findConnections.js');
-          const recids = params.seed_recids ?? (params.seed ? [params.seed] : []);
-          return findConnections({
-            recids,
-            include_external: params.include_external,
-            max_external_depth: params.max_external_depth,
-          });
-        }
-        case 'trace_source': {
-          const { traceOriginalSource } = await import('./research/traceSource.js');
-          const recid = params.seed ?? params.seed_recids?.[0];
-          return traceOriginalSource({
-            recid: recid!,
-            max_depth: params.max_depth,
-            max_refs_per_level: params.max_refs_per_level,
-            cross_validate: params.cross_validate,
-          });
-        }
-        case 'analyze': {
-          const { analyzePapers } = await import('./research/analyzePapers.js');
-          const recids = params.recids ?? params.seed_recids ?? (params.seed ? [params.seed] : []);
-          return analyzePapers({ recids, analysis_type: params.analysis_type });
-        }
-        default:
-          throw new Error(`Unknown inspire_research_navigator mode: ${String((params as { mode?: unknown }).mode)}`);
-      }
+      })();
+      // NEW-CONN-01: attach discovery next_actions hints
+      const papers = result && typeof result === 'object' && 'papers' in result
+        ? (result as Record<string, unknown>).papers
+        : undefined;
+      return withNextActions(result, discoveryNextActions(papers));
     },
   },
   {
@@ -2825,10 +2847,15 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
     zodSchema: DeepResearchToolSchema,
     handler: async (params, ctx) => {
       const { performDeepResearch } = await import('./research/deepResearch.js');
-      return performDeepResearch({
+      const result = await performDeepResearch({
         ...params,
         _mcp: ctx.reportProgress ? { reportProgress: ctx.reportProgress } : undefined,
       });
+      // NEW-CONN-01: mode=analyze → suggest synthesize/write
+      if (params.mode === 'analyze') {
+        return withNextActions(result, deepResearchAnalyzeNextActions(params.identifiers));
+      }
+      return result;
     },
   },
   // Full-only whitelist tools

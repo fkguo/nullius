@@ -77,6 +77,10 @@ importers:
   packages/idea-engine: {}
 
   packages/orchestrator:
+    dependencies:
+      '@autoresearch/shared':
+        specifier: workspace:^
+        version: link:../shared
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

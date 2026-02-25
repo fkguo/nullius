@@ -5,6 +5,7 @@ import queue
 import subprocess
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,7 @@ class McpToolCallResult:
     raw_text: str
     json: Any | None
     error_code: str | None = None
+    trace_id: str | None = None
 
 
 class McpStdioClient:
@@ -308,9 +310,12 @@ class McpStdioClient:
         arguments: dict[str, Any],
         timeout_seconds: float = 60.0,
     ) -> McpToolCallResult:
+        # H-02: inject _trace_id for cross-component correlation
+        trace_id = str(uuid.uuid4())
+        augmented_args = {**arguments, "_trace_id": trace_id}
         res = self._request(
             "tools/call",
-            {"name": str(tool_name), "arguments": dict(arguments)},
+            {"name": str(tool_name), "arguments": augmented_args},
             timeout_seconds=float(timeout_seconds),
         )
         is_error = bool(res.get("isError")) if isinstance(res.get("isError"), bool) else False
@@ -343,10 +348,18 @@ class McpStdioClient:
                         error_code = candidate
                         break
 
+        # H-02: extract trace_id from response (error responses include it)
+        resp_trace_id: str | None = trace_id
+        if parsed is not None and isinstance(parsed, dict):
+            resp_tid = parsed.get("trace_id")
+            if isinstance(resp_tid, str) and resp_tid.strip():
+                resp_trace_id = resp_tid.strip()
+
         return McpToolCallResult(
             ok=not is_error,
             is_error=is_error,
             raw_text=raw_text,
             json=parsed,
             error_code=error_code,
+            trace_id=resp_trace_id,
         )

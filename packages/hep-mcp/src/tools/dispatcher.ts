@@ -3,6 +3,7 @@ import {
   invalidParams,
   McpError,
   unsafeFs,
+  extractTraceId,
   HEP_RUN_PREFIX,
   HEP_PROJECT_CREATE,
   HEP_PROJECT_QUERY_EVIDENCE,
@@ -374,7 +375,8 @@ function formatToolResult(
 
 function formatToolError(
   err: unknown,
-  ctx?: ToolCallContext
+  ctx?: ToolCallContext,
+  traceId?: string
 ): { content: { type: string; text: string }[]; isError: true } {
   const requestId = ctx?.requestId ?? null;
   const runId = null;
@@ -385,8 +387,13 @@ function formatToolError(
         error: {
           code: err.code,
           message: err.message,
-          data: err.data,
+          data: {
+            ...(err.data && typeof err.data === 'object' ? err.data as Record<string, unknown> : { raw: err.data }),
+            retryable: err.retryable,
+            ...(err.retryAfterMs !== undefined ? { retryAfterMs: err.retryAfterMs } : {}),
+          },
         },
+        trace_id: traceId ?? null,
         request_id: requestId,
         run_id: runId,
       };
@@ -398,6 +405,7 @@ function formatToolError(
         code: 'INTERNAL_ERROR',
         message,
       },
+      trace_id: traceId ?? null,
       request_id: requestId,
       run_id: runId,
     };
@@ -416,6 +424,8 @@ export async function handleToolCall(
   ctx?: ToolCallContext
 ): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
   const reportProgress = createProgressReporter(ctx);
+  // H-02: extract or generate trace_id for this tool call
+  const { traceId, params: cleanArgs } = extractTraceId(args);
   try {
     const spec = getToolSpec(name);
     if (!spec) {
@@ -425,10 +435,10 @@ export async function handleToolCall(
       throw invalidParams(`Tool not exposed in ${mode} mode: ${name}`);
     }
 
-    validatePathArgs(args);
+    validatePathArgs(cleanArgs);
 
     // H-11a Phase 2: destructive tools require explicit _confirm: true
-    if (spec.riskLevel === 'destructive' && args._confirm !== true) {
+    if (spec.riskLevel === 'destructive' && cleanArgs._confirm !== true) {
       return {
         content: [{
           type: 'text',
@@ -439,9 +449,10 @@ export async function handleToolCall(
               data: {
                 tool: name,
                 risk_level: 'destructive',
-                next_actions: [{ tool: name, args: { ...args, _confirm: true } }],
+                next_actions: [{ tool: name, args: { ...cleanArgs, _confirm: true } }],
               },
             },
+            trace_id: traceId,
           }, null, 2),
         }],
         isError: true,
@@ -452,8 +463,8 @@ export async function handleToolCall(
       reportProgress(0, 1, `started: ${name}`);
     }
 
-    const parsedArgs = parseToolArgs(name, spec.zodSchema, args) as unknown as Record<string, unknown>;
-    const result = await spec.handler(parsedArgs, { reportProgress, rawArgs: args });
+    const parsedArgs = parseToolArgs(name, spec.zodSchema, cleanArgs) as unknown as Record<string, unknown>;
+    const result = await spec.handler(parsedArgs, { reportProgress, rawArgs: cleanArgs });
     const resultWithSkillBridgeEnvelope = maybeAttachSkillBridgeJobEnvelope(result);
     recordToolUsage(name);
 
@@ -461,6 +472,6 @@ export async function handleToolCall(
     return formatToolResult(name, resultWithSkillBridgeEnvelope, parsedArgs);
   } catch (err) {
     if (reportProgress) reportProgress(1, 1, `failed: ${name}`);
-    return formatToolError(err, ctx);
+    return formatToolError(err, ctx, traceId);
   }
 }
