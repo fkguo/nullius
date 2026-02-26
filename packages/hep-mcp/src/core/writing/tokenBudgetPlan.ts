@@ -35,6 +35,7 @@ export type WritingTokenBudgetPlanV1 = {
       reserved_output_tokens: number;
     }
   >;
+  tokenizer_model?: string;
 };
 
 const StepBudgetSchema = z.object({
@@ -61,6 +62,7 @@ const WritingTokenBudgetPlanV1Schema = z.object({
   safety_margin_tokens: z.number().int().nonnegative(),
   overflow_policy: z.literal('fail_fast'),
   per_step_budgets: PerStepBudgetsSchema,
+  tokenizer_model: z.string().optional(),
 }).passthrough();
 
 function nowIso(): string {
@@ -166,6 +168,7 @@ export function createRunWritingTokenBudgetPlanV1(params: {
   safety_margin_tokens?: number;
   reserved_output_tokens?: Partial<Record<WritingTokenBudgetPlanStepV1 | string, number>>;
   output_artifact_name?: string;
+  tokenizer_model?: string;
 }): {
   run_id: string;
   project_id: string;
@@ -183,6 +186,7 @@ export function createRunWritingTokenBudgetPlanV1(params: {
 
   const safetyMarginTokens = clampInt(params.safety_margin_tokens, 512, 0, Math.max(0, modelContextTokens - 1));
   const model = params.model?.trim() ? params.model.trim() : undefined;
+  const tokenizerModel = params.tokenizer_model?.trim() ? params.tokenizer_model.trim() : 'claude-opus-4-6';
 
   const perStepBudgets = ((): WritingTokenBudgetPlanV1['per_step_budgets'] => {
     const steps: WritingTokenBudgetPlanStepV1[] = ['outline', 'evidence_rerank', 'section_write', 'review', 'revise'];
@@ -246,6 +250,7 @@ export function createRunWritingTokenBudgetPlanV1(params: {
     safety_margin_tokens: safetyMarginTokens,
     overflow_policy: 'fail_fast',
     per_step_budgets: perStepBudgets,
+    tokenizer_model: tokenizerModel,
   };
 
   const ref = writeRunJsonArtifact(runId, artifactName, payload);
@@ -261,6 +266,7 @@ export function createRunWritingTokenBudgetPlanV1(params: {
       model_context_tokens: modelContextTokens,
       safety_margin_tokens: safetyMarginTokens,
       overflow_policy: payload.overflow_policy,
+      tokenizer_model: tokenizerModel,
       per_step_reserved_output_tokens: Object.fromEntries(
         Object.entries(payload.per_step_budgets).map(([step, b]) => [step, b.reserved_output_tokens])
       ),

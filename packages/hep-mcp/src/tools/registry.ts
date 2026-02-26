@@ -248,6 +248,7 @@ const HepRunWritingCreateTokenBudgetPlanV1ToolSchema = z.object({
   safety_margin_tokens: z.number().int().nonnegative().optional(),
   reserved_output_tokens: WritingTokenBudgetPlanReservedOutputTokensOverridesSchema.optional(),
   output_artifact_name: SafePathSegmentSchema.optional(),
+  tokenizer_model: z.string().optional().describe('Tokenizer model for token estimation (default: claude-opus-4-6). Recorded in artifact metadata for reproducibility.'),
 });
 
 const TokenGateStepSchema = z.enum([
@@ -273,6 +274,7 @@ const HepRunWritingTokenGateV1ToolSchema = z
     section_index: z.number().int().positive().optional(),
     output_pass_artifact_name: SafePathSegmentSchema.optional(),
     output_overflow_artifact_name: SafePathSegmentSchema.optional(),
+    tokenizer_model: z.string().optional().describe('Tokenizer model for token estimation (default: claude-opus-4-6). Recorded in artifact metadata for reproducibility.'),
   })
   .refine(v => !(v.prompt_packet && v.prompt_packet_uri), {
     message: 'Only one of prompt_packet or prompt_packet_uri may be provided',
@@ -1526,6 +1528,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         safety_margin_tokens: params.safety_margin_tokens,
         reserved_output_tokens: params.reserved_output_tokens,
         output_artifact_name: params.output_artifact_name,
+        tokenizer_model: params.tokenizer_model,
       });
     },
   },
@@ -1551,6 +1554,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         section_index: params.section_index,
         output_pass_artifact_name: params.output_pass_artifact_name,
         output_overflow_artifact_name: params.output_overflow_artifact_name,
+        tokenizer_model: params.tokenizer_model,
       });
     },
   },

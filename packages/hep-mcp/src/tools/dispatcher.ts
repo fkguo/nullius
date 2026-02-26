@@ -522,11 +522,21 @@ function collectHepUris(value: unknown, depth = 0): string[] {
   return [];
 }
 
+// M-21 R2 fix: infer MIME type from hep:// URI artifact name extension
+export function inferMimeType(uri: string): string {
+  const name = uri.split('/').pop() ?? '';
+  if (name.endsWith('.json')) return 'application/json';
+  if (name.endsWith('.jsonl')) return 'application/x-ndjson';
+  if (name.endsWith('.md')) return 'text/markdown';
+  if (name.endsWith('.tex')) return 'text/x-latex';
+  return 'application/octet-stream';
+}
+
 function appendResourceLinks(content: ToolResultContentBlock[], result: unknown): void {
   const uris = [...new Set(collectHepUris(result))];
   for (const uri of uris) {
     const name = decodeURIComponent(uri.split('/').pop() ?? 'artifact');
-    content.push({ type: 'resource_link', uri, name, mimeType: 'application/json' });
+    content.push({ type: 'resource_link', uri, name, mimeType: inferMimeType(uri) });
   }
 }
 

@@ -40,9 +40,23 @@ export function compactPaperSummary(p: PaperSummary): CompactPaperSummary {
 /**
  * Apply compact projection to any paper arrays found in a result object.
  * Returns a shallow copy with papers compacted; does not mutate the original.
+ * Handles both raw PaperSummary[] arrays and objects with a `papers` key.
  */
 export function compactPapersInResult(result: unknown): unknown {
-  if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+  // M-21 R2 fix: handle raw PaperSummary[] arrays (e.g. inspire_literature get_references)
+  if (Array.isArray(result)) {
+    let anyCompacted = false;
+    const compacted = result.map((p: unknown) => {
+      if (p && typeof p === 'object' && 'title' in p) {
+        anyCompacted = true;
+        return compactPaperSummary(p as PaperSummary);
+      }
+      return p;
+    });
+    return anyCompacted ? compacted : result;
+  }
+
+  if (!result || typeof result !== 'object') return result;
 
   const record = result as Record<string, unknown>;
   let changed = false;

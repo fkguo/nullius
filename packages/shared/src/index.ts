@@ -40,11 +40,19 @@ export { sanitizePath, sanitizeFilename, sanitizeQueryString } from './sanitize.
 // Redaction (M-14a)
 export { redact } from './redaction.js';
 
-// Constants (H-13)
-export { MAX_INLINE_RESULT_BYTES, HARD_CAP_RESULT_BYTES } from './constants.js';
+// Constants (H-13, M-21)
+export { MAX_INLINE_RESULT_BYTES, HARD_CAP_RESULT_BYTES, STDIO_MAX_RESULT_BYTES } from './constants.js';
 
 // Sandbox resource limits (H-12)
 export { PDF_RESOURCE_LIMITS } from './sandbox.js';
+
+// SQLite WAL utilities (M-06)
+export {
+  type SqliteWalConfig,
+  SQLITE_WAL_DEFAULTS,
+  SQLITE_WAL_PRAGMAS,
+  EXPECTED_WAL_JOURNAL_MODE,
+} from './db/sqlite-utils.js';
 
 // Errors
 export {

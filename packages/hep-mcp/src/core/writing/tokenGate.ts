@@ -50,6 +50,7 @@ type TokenGatePassArtifactV1 = {
   run_id: string;
   project_id: string;
   step: TokenGateStepV1;
+  tokenizer_model: string;
   budget: {
     model_context_tokens: number;
     safety_margin_tokens: number;
@@ -236,6 +237,7 @@ export async function runWritingTokenGateV1(params: {
   section_index?: number;
   output_pass_artifact_name?: string;
   output_overflow_artifact_name?: string;
+  tokenizer_model?: string;
 }): Promise<{
   run_id: string;
   project_id: string;
@@ -354,12 +356,19 @@ export async function runWritingTokenGateV1(params: {
     ? params.output_overflow_artifact_name.trim()
     : `writing_token_overflow_${step}${sectionIndex ? `_section_${pad3(sectionIndex)}` : ''}_v1.json`;
 
+  const tokenizerModel = params.tokenizer_model?.trim()
+    ? params.tokenizer_model.trim()
+    : plan?.tokenizer_model?.trim()
+      ? plan.tokenizer_model.trim()
+      : 'claude-opus-4-6';
+
   const base: TokenGatePassArtifactV1 = {
     version: 1,
     generated_at: nowIso(),
     run_id: runId,
     project_id: run.project_id,
     step,
+    tokenizer_model: tokenizerModel,
     budget: {
       model_context_tokens: modelContextTokens,
       safety_margin_tokens: safetyMarginTokens,

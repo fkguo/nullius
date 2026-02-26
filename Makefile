@@ -1,4 +1,4 @@
-.PHONY: install build test lint clean codegen codegen-check smoke code-health-check
+.PHONY: install build test lint clean codegen codegen-check smoke code-health-check contract-test
 
 install:
 	pnpm install
@@ -43,3 +43,7 @@ code-health-check:
 	bash meta/scripts/check_as_any.sh --vs-main
 	@echo "--- M-01: artifact naming convention ---"
 	python3 meta/scripts/lint_artifact_names.py
+
+contract-test:
+	@echo "--- H-16b: cross-component tool subset contract ---"
+	cd packages/hep-mcp && npx vitest run tests/contracts/crossComponentToolSubset.test.ts

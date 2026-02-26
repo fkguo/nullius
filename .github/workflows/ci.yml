@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r build
+
+      - run: pnpm -r lint
+
+      - run: pnpm -r test
+
+      - run: make contract-test
+
+  python-test:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Python tests (hep-autoresearch)
+        run: |
+          cd packages/hep-autoresearch
+          if [ -f pyproject.toml ] || [ -f setup.py ]; then
+            pip install -e ".[dev]"
+            python -m pytest tests/ -q
+          else
+            echo "No Python package found, skipping"
+          fi
+
+      - name: Python tests (idea-core)
+        run: |
+          cd packages/idea-core
+          if [ -f pyproject.toml ] || [ -f setup.py ]; then
+            pip install -e ".[dev]"
+            python -m pytest tests/ -q
+          else
+            echo "No Python package found, skipping"
+          fi
