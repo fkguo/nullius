@@ -84,20 +84,45 @@ Mastra is the only TS-native option. It's YC W25, very young, API unstable. Lang
 
 1. **MCP**: Already using ✅
 2. **A2A (Google Agent-to-Agent)**: Adopt for NEW-07 Phase 4 instead of designing private protocol
-3. **OpenTelemetry**: Adopt for H-02 Phase 2 observability
+3. **OpenTelemetry**: Adopt for H-02 Phase 2 observability (span data model only, not full SDK)
 
-### Track PydanticAI for Phase 5 evaluation
+### SDK usage strategy: "SDK manages model interaction, self-built manages domain state"
 
-PydanticAI's durable execution + A2A support makes it the strongest candidate if we ever need to adopt a framework component. Evaluate at Phase 5 when multi-agent long-running research becomes the focus.
+> Updated 2026-02-25 after scope audit (`meta/docs/scope-audit-phase1-2.md`)
+
+| Layer | Responsibility | Implementation |
+|-------|---------------|----------------|
+| Model interaction | Message construction, token management, tool call parsing | Anthropic SDK (`@anthropic-ai/sdk`), Google Gen AI SDK |
+| Agent loop | Tool dispatch, error handling, max_turns, retry | Self-built thin AgentRunner (~200 LOC TS) based on Anthropic SDK `messages.create()` |
+| Domain state | Artifact management, ledger, approval gates, checkpoint | Self-built: RunManifest + StateManager + ApprovalGate |
+
+**TS Agent Loop**: Based on Anthropic SDK. Not Mastra (too young, YC W25, unstable API).
+
+**Python Agent Loop**: Not implementing. Python orchestrator (hep-autoresearch) is a retirement target. CLI runners (claude/gemini/codex) provide sufficient tool use loops.
+
+### Track PydanticAI for Phase 3 evaluation (moved from Phase 5)
+
+> Updated 2026-02-25: Moved from Phase 5 to Phase 3 to evaluate sooner.
+
+PydanticAI's durable execution + A2A support makes it the strongest candidate if Python-side components remain active (e.g., if idea-engine TS migration is delayed). Time-boxed evaluation: spike 1 writing run on PydanticAI.
 
 ## 5. Impact on REDESIGN_PLAN
 
-| Phase | Addition |
-|-------|----------|
-| Phase 2 | Add thin `AgentRunner` (~200 LOC) after `orch_run_*` tools: LLM call → tool dispatch → state update → loop |
-| Phase 2 (H-02) | Align structured tracing with OpenTelemetry span format |
+> Updated 2026-02-25 after scope audit. See `meta/docs/scope-audit-phase1-2.md` for full analysis.
+
+| Phase | Item | Description |
+|-------|------|-------------|
+| Phase 1 | **H-19 promoted** | Retry/backoff decoupled from H-01, implemented directly on McpStdioClient. Most urgent runtime gap. |
+| Phase 1 | **H-01 simplified** | Add `retryable` + `retry_after_ms` to existing McpError instead of new error envelope. |
+| Phase 1 | **H-04 simplified** | Plain enum `['A1'..'A5']` + validate function. No GateSpec type (deferred to Phase 3). |
+| Phase 2 | **NEW-RT-01** | Thin AgentRunner (~200 LOC TS) based on Anthropic SDK `messages.create()` + tool dispatch loop |
+| Phase 2 | **NEW-RT-02** | MCP StdioClient reconnect: detect disconnect + auto-restart + recover pending calls |
+| Phase 2 | **NEW-RT-03** | OTel-aligned Span tracing: span data model + JSONL writer + dispatcher integration |
+| Phase 2 | **NEW-RT-04** | Durable execution: RunManifest `last_completed_step` + `resume_from` completion |
+| Phase 2 (H-02) | Align structured tracing with OpenTelemetry span format (data model only, no OTel SDK) |
+| Phase 3 | **NEW-RT-05** | Eval framework: agent-level end-to-end evaluation infrastructure |
+| Phase 3 | PydanticAI time-boxed evaluation (moved from Phase 5) |
 | Phase 4 (NEW-07) | Adopt Google A2A protocol (open standard) instead of designing private agent communication protocol |
-| Phase 5 | Evaluate PydanticAI durable execution vs self-built checkpoint/resume based on RunManifest |
 
 ## 6. Sources
 

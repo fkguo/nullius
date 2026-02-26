@@ -145,6 +145,17 @@ python3 skills/review-swarm/scripts/bin/run_multi_task.py \
 - **CONVERGED**: 所有模型 0 blocking issues → 通过
 - **NOT_CONVERGED**: 任一模型有 blocking issue → 修正后重新提交 (R+1)
 - **最大轮次**: 5 轮。超过 5 轮未收敛 → 人类介入
+- **最终轮必须使用完整 packet**: 中间轮次可用 delta packet 加速迭代，但宣布收敛的那一轮（所有模型 0 BLOCKING 的那一轮）必须使用包含完整实现的 review packet，不能用 delta packet 收敛
+
+### Rn 修复范围（硬性规则）
+
+**每一轮必须处理所有模型的所有 BLOCKING findings**，不能只处理某一个模型的 findings。
+
+- 收到 Rn 结果后，**先汇总所有模型的所有 BLOCKING**，再统一修复
+- 不能只看 Gemini 的 findings 而忽略 Codex 的，或反之
+- 如果两个模型发现了不同的 BLOCKING issues，R(n+1) 必须同时修复全部
+
+> **教训**: Batch 3 R1 中 Codex 发现了死锁 BLOCKING，Gemini 发现了 TOCTOU BLOCKING，协调者只修复了 Gemini 的，完全忽略了 Codex 的死锁。导致死锁问题拖到后续单独补审才发现。
 
 ### 完整性要求（硬性规则）
 

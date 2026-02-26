@@ -68,7 +68,6 @@ python3 skills/review-swarm/scripts/bin/run_multi_task.py \
   --prompt "$OUT_DIR/packet.md" \
   --models claude/opus,gemini/default \
   --backend-prompt gemini="$OUT_DIR/gemini_prompt.txt" \
-  --backend-system gemini=none \
   --backend-output claude=claude_output.md \
   --backend-output gemini=gemini_output.md \
   --check-review-contract \
@@ -81,7 +80,6 @@ python3 skills/review-swarm/scripts/bin/run_multi_task.py \
 # 在上面基础上改 --models:
   --models claude/opus,gemini/default,codex/default \
   --backend-prompt codex="$OUT_DIR/codex_prompt.txt" \
-  --backend-system codex=none \
   --backend-output codex=codex_output.md
 ```
 
