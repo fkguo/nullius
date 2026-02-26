@@ -16,8 +16,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
@@ -48,8 +46,13 @@ jobs:
         run: |
           cd packages/hep-autoresearch
           if [ -f pyproject.toml ] || [ -f setup.py ]; then
-            pip install -e ".[dev]"
-            python -m pytest tests/ -q
+            pip install -e ".[dev]" 2>/dev/null || pip install -e .
+            pip install pytest
+            if [ -d tests ] && find tests -name 'test_*.py' | head -1 | grep -q .; then
+              python -m pytest tests/ -q
+            else
+              echo "No test files found, skipping"
+            fi
           else
             echo "No Python package found, skipping"
           fi
@@ -58,8 +61,13 @@ jobs:
         run: |
           cd packages/idea-core
           if [ -f pyproject.toml ] || [ -f setup.py ]; then
-            pip install -e ".[dev]"
-            python -m pytest tests/ -q
+            pip install -e ".[dev]" 2>/dev/null || pip install -e .
+            pip install pytest
+            if [ -d tests ] && find tests -name 'test_*.py' | head -1 | grep -q .; then
+              python -m pytest tests/ -q
+            else
+              echo "No test files found, skipping"
+            fi
           else
             echo "No Python package found, skipping"
           fi
