@@ -7,7 +7,7 @@ import { handleToolCall } from '../../src/tools/index.js';
 import { cleanupDownloads } from '../../src/tools/research/cleanupDownloads.js';
 import { getWritingProgressDir } from '../../src/data/dataDir.js';
 import { writeDirectoryMarker } from '../../src/data/markers.js';
-import { assertSafePathSegment } from '../../src/vnext/paths.js';
+import { assertSafePathSegment } from '../../src/core/paths.js';
 
 describe('Path safety + marker cleanup (M1)', () => {
   let dataDir: string;

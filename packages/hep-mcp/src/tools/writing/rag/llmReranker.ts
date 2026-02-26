@@ -9,9 +9,9 @@
 import { createLLMClient, getWritingModeConfig } from '../llm/index.js';
 import type { RerankerConfig } from './types.js';
 import { z } from 'zod';
-import { ClientContinuationSchema, type ClientContinuation } from '../../../vnext/contracts/clientContinuation.js';
-import { makePromptPacketFromZod } from '../../../vnext/contracts/promptPacket.js';
-import { parseStructuredJsonOrThrow } from '../../../vnext/structuredOutput.js';
+import { ClientContinuationSchema, type ClientContinuation } from '../../../core/contracts/clientContinuation.js';
+import { makePromptPacketFromZod } from '../../../core/contracts/promptPacket.js';
+import { parseStructuredJsonOrThrow } from '../../../core/structuredOutput.js';
 
 const RERANK_INDICES_SCHEMA_NAME = 'llm_rerank_indices_v1';
 const RERANK_INDICES_SCHEMA_VERSION = 1;

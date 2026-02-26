@@ -10,7 +10,7 @@ const api = await import('../../../src/api/client.js');
 
 import type { BibEntry } from '../../../src/tools/research/latex/bibliographyExtractor.js';
 import { mapBibEntryToInspire } from '../../../src/tools/research/latex/citekeyMapper.js';
-import { buildAllowedCitationsArtifact } from '../../../src/vnext/citations.js';
+import { buildAllowedCitationsArtifact } from '../../../src/core/citations.js';
 
 describe('citekeyMapper (M5)', () => {
   beforeEach(() => {

@@ -12,7 +12,7 @@ vi.mock('../../src/api/rateLimiter.js', () => ({
 const rateLimiter = await import('../../src/api/rateLimiter.js');
 const { clearAllCaches } = await import('../../src/cache/memoryCache.js');
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/vnext/resources.js');
+const { readHepResource } = await import('../../src/core/resources.js');
 
 function makeHit(controlNumber: number) {
   return {

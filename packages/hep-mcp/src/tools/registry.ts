@@ -89,26 +89,26 @@ import {
   StyleCorpusExportPackToolSchema,
   StyleCorpusImportPackToolSchema,
 } from './writing/inputSchemas.js';
-import { createProject, getProject, listProjects } from '../vnext/projects.js';
-import { createRun, getRun, updateRunManifestAtomic, type RunArtifactRef, type RunManifest } from '../vnext/runs.js';
-import { buildAllowedCitationsArtifact, buildCitekeyToInspireStats, writeRunJsonArtifact } from '../vnext/citations.js';
-import { buildProjectEvidenceCatalog, playbackProjectEvidence, queryProjectEvidence } from '../vnext/evidence.js';
-import { ReportDraftSchema, SectionDraftSchema } from '../vnext/writing/draftSchemas.js';
-import { PromptPacketSchema } from '../vnext/contracts/promptPacket.js';
-import { ReviewerReportV2Schema } from '../vnext/contracts/reviewerReport.js';
-import { RevisionPlanV1Schema } from '../vnext/contracts/revisionPlan.js';
-import { PaperSetCurationV1Schema } from '../vnext/writing/papersetPlanner.js';
-import { SectionQualityEvalV1Schema } from '../vnext/writing/sectionQualityEvaluator.js';
-import { renderLatexForRun } from '../vnext/writing/renderLatex.js';
-import { buildRunPdfEvidence } from '../vnext/pdf/evidence.js';
-import { exportProjectForRun } from '../vnext/export/exportProject.js';
-import { exportPaperScaffoldForRun } from '../vnext/export/exportPaperScaffold.js';
-import { importPaperBundleForRun } from '../vnext/export/importPaperBundle.js';
-import { hepInspireSearchExport } from '../vnext/inspire/searchExport.js';
-import { hepInspireResolveIdentifiers } from '../vnext/inspire/resolveIdentifiers.js';
-import { buildRunMeasurements } from '../vnext/hep/measurements.js';
-import { compareProjectMeasurements } from '../vnext/hep/compareMeasurements.js';
-import { hepImportFromZotero } from '../vnext/zotero/tools.js';
+import { createProject, getProject, listProjects } from '../core/projects.js';
+import { createRun, getRun, updateRunManifestAtomic, type RunArtifactRef, type RunManifest } from '../core/runs.js';
+import { buildAllowedCitationsArtifact, buildCitekeyToInspireStats, writeRunJsonArtifact } from '../core/citations.js';
+import { buildProjectEvidenceCatalog, playbackProjectEvidence, queryProjectEvidence } from '../core/evidence.js';
+import { ReportDraftSchema, SectionDraftSchema } from '../core/writing/draftSchemas.js';
+import { PromptPacketSchema } from '../core/contracts/promptPacket.js';
+import { ReviewerReportV2Schema } from '../core/contracts/reviewerReport.js';
+import { RevisionPlanV1Schema } from '../core/contracts/revisionPlan.js';
+import { PaperSetCurationV1Schema } from '../core/writing/papersetPlanner.js';
+import { SectionQualityEvalV1Schema } from '../core/writing/sectionQualityEvaluator.js';
+import { renderLatexForRun } from '../core/writing/renderLatex.js';
+import { buildRunPdfEvidence } from '../core/pdf/evidence.js';
+import { exportProjectForRun } from '../core/export/exportProject.js';
+import { exportPaperScaffoldForRun } from '../core/export/exportPaperScaffold.js';
+import { importPaperBundleForRun } from '../core/export/importPaperBundle.js';
+import { hepInspireSearchExport } from '../core/inspire/searchExport.js';
+import { hepInspireResolveIdentifiers } from '../core/inspire/resolveIdentifiers.js';
+import { buildRunMeasurements } from '../core/hep/measurements.js';
+import { compareProjectMeasurements } from '../core/hep/compareMeasurements.js';
+import { hepImportFromZotero } from '../core/zotero/tools.js';
 import { getHepHealth } from './utils/health.js';
 import { extractKeyFromBibtex } from './writing/reference/bibtexUtils.js';
 import {
@@ -1393,7 +1393,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     zodSchema: HepProjectQueryEvidenceToolSchema,
     handler: async (params, ctx) => {
       if (params.mode === 'semantic') {
-        const { queryProjectEvidenceSemantic } = await import('../vnext/evidenceSemantic.js');
+        const { queryProjectEvidenceSemantic } = await import('../core/evidenceSemantic.js');
         return queryProjectEvidenceSemantic({
           run_id: params.run_id!,
           project_id: params.project_id,
@@ -1426,7 +1426,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Semantic query interface for a project Evidence Catalog. Currently falls back to lexical search and writes a run artifact (URI + summary; local-only).',
     zodSchema: HepProjectQueryEvidenceSemanticToolSchema,
     handler: async params => {
-      const { queryProjectEvidenceSemantic } = await import('../vnext/evidenceSemantic.js');
+      const { queryProjectEvidenceSemantic } = await import('../core/evidenceSemantic.js');
       return queryProjectEvidenceSemantic(params);
     },
   },
@@ -1472,7 +1472,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'For PDG artifacts (pdg://artifacts/...), use MCP Resources (ReadResource request) instead.',
     zodSchema: HepRunReadArtifactChunkToolSchema,
     handler: async params => {
-      const { readRunArtifactChunk } = await import('../vnext/artifactChunk.js');
+      const { readRunArtifactChunk } = await import('../core/artifactChunk.js');
       return readRunArtifactChunk({
         run_id: params.run_id,
         artifact_name: params.artifact_name,
@@ -1489,7 +1489,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Clear a stale run manifest lock file (fail-fast; local-only). Use force=true only if you are sure no other tool is updating the run manifest.',
     zodSchema: HepRunClearManifestLockToolSchema,
     handler: async params => {
-      const { clearRunManifestLock } = await import('../vnext/runs.js');
+      const { clearRunManifestLock } = await import('../core/runs.js');
       return clearRunManifestLock({ run_id: params.run_id, force: params.force });
     },
   },
@@ -1501,7 +1501,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Stage large client content into a run artifact and return its URI (token-limit safe two-step submission; local-only)',
     zodSchema: HepRunStageContentToolSchema,
     handler: async params => {
-      const { stageRunContent } = await import('../vnext/writing/staging.js');
+      const { stageRunContent } = await import('../core/writing/staging.js');
       return stageRunContent({
         run_id: params.run_id,
         content_type: params.content_type,
@@ -1518,7 +1518,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create a `writing_token_budget_plan_v1.json` artifact for a run (M05: TokenBudgetPlan SSOT; overflow_policy=fail_fast; Evidence-first; local-only).',
     zodSchema: HepRunWritingCreateTokenBudgetPlanV1ToolSchema,
     handler: async params => {
-      const { createRunWritingTokenBudgetPlanV1 } = await import('../vnext/writing/tokenBudgetPlan.js');
+      const { createRunWritingTokenBudgetPlanV1 } = await import('../core/writing/tokenBudgetPlan.js');
       return createRunWritingTokenBudgetPlanV1({
         run_id: params.run_id,
         model_context_tokens: params.model_context_tokens,
@@ -1537,7 +1537,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Run TokenGate on a prompt_packet (+ optional evidence_packet) and write either token gate pass or writing_token_overflow artifacts (M05; fail-fast; Evidence-first; local-only).',
     zodSchema: HepRunWritingTokenGateV1ToolSchema,
     handler: async params => {
-      const { runWritingTokenGateV1 } = await import('../vnext/writing/tokenGate.js');
+      const { runWritingTokenGateV1 } = await import('../core/writing/tokenGate.js');
       return runWritingTokenGateV1({
         run_id: params.run_id,
         step: params.step,
@@ -1562,7 +1562,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create a per-section PromptPacket + evidence context artifacts for client section writing, gated by TokenGate (M06; fail-fast; Evidence-first; local-only).',
     zodSchema: HepRunWritingCreateSectionWritePacketV1ToolSchema,
     handler: async params => {
-      const { createRunWritingSectionWritePacketV1 } = await import('../vnext/writing/sectionWritePacket.js');
+      const { createRunWritingSectionWritePacketV1 } = await import('../core/writing/sectionWritePacket.js');
       return createRunWritingSectionWritePacketV1({
         run_id: params.run_id,
         section_index: params.section_index,
@@ -1585,7 +1585,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create an N-best section candidates prompt_packet + next_actions (M13; N>=2 hard requirement; Evidence-first; fail-fast; local-only).',
     zodSchema: HepRunWritingCreateSectionCandidatesPacketV1ToolSchema,
     handler: async params => {
-      const { createRunWritingSectionCandidatesPacketV1 } = await import('../vnext/writing/sectionCandidates.js');
+      const { createRunWritingSectionCandidatesPacketV1 } = await import('../core/writing/sectionCandidates.js');
       return createRunWritingSectionCandidatesPacketV1({
         run_id: params.run_id,
         section_index: params.section_index,
@@ -1605,7 +1605,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Submit N-best section candidates (strict schema validation; writes writing_candidates_section_###_v1.json; fail-fast; local-only).',
     zodSchema: HepRunWritingSubmitSectionCandidatesV1ToolSchema,
     handler: async params => {
-      const { submitRunWritingSectionCandidatesV1 } = await import('../vnext/writing/sectionCandidates.js');
+      const { submitRunWritingSectionCandidatesV1 } = await import('../core/writing/sectionCandidates.js');
       return submitRunWritingSectionCandidatesV1({
         run_id: params.run_id,
         section_index: params.section_index,
@@ -1621,7 +1621,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create a Judge prompt_packet for selecting the best section candidate (M13; hard gates; Evidence-first; fail-fast; local-only).',
     zodSchema: HepRunWritingCreateSectionJudgePacketV1ToolSchema,
     handler: async params => {
-      const { createRunWritingSectionJudgePacketV1 } = await import('../vnext/writing/sectionJudge.js');
+      const { createRunWritingSectionJudgePacketV1 } = await import('../core/writing/sectionJudge.js');
       return createRunWritingSectionJudgePacketV1({
         run_id: params.run_id,
         section_index: params.section_index,
@@ -1637,7 +1637,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Submit a client-generated JudgeDecision for section selection, enforce hard gates, then run verifiers (M13; fail-fast; local-only).',
     zodSchema: HepRunWritingSubmitSectionJudgeDecisionV1ToolSchema,
     handler: async params => {
-      const { submitRunWritingSectionJudgeDecisionV1 } = await import('../vnext/writing/sectionJudge.js');
+      const { submitRunWritingSectionJudgeDecisionV1 } = await import('../core/writing/sectionJudge.js');
       return submitRunWritingSectionJudgeDecisionV1({
         run_id: params.run_id,
         section_index: params.section_index,
@@ -1657,7 +1657,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create a PaperSetCuration prompt_packet artifact for client paperset planning (Evidence-first; writes run artifact; local-only).',
     zodSchema: HepRunWritingCreatePapersetCurationPacketToolSchema,
     handler: async params => {
-      const { createRunWritingPaperSetCurationPacket } = await import('../vnext/writing/papersetCurationPacket.js');
+      const { createRunWritingPaperSetCurationPacket } = await import('../core/writing/papersetCurationPacket.js');
       return createRunWritingPaperSetCurationPacket({
         run_id: params.run_id,
         language: params.language,
@@ -1679,7 +1679,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Submit a client-generated PaperSetCuration into run artifacts (fail-fast validated; writes writing_paperset_v1.json; local-only).',
     zodSchema: HepRunWritingSubmitPapersetCurationToolSchema,
     handler: async params => {
-      const { submitRunWritingPaperSetCuration } = await import('../vnext/writing/submitPapersetCuration.js');
+      const { submitRunWritingPaperSetCuration } = await import('../core/writing/submitPapersetCuration.js');
       return submitRunWritingPaperSetCuration({
         run_id: params.run_id,
         paperset: params.paperset,
@@ -1697,7 +1697,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create an N-best outline candidates prompt_packet + next_actions (M13; N>=2 hard requirement; Evidence-first; fail-fast; local-only).',
     zodSchema: HepRunWritingCreateOutlineCandidatesPacketV1ToolSchema,
     handler: async params => {
-      const { createRunWritingOutlineCandidatesPacketV1 } = await import('../vnext/writing/outlineCandidates.js');
+      const { createRunWritingOutlineCandidatesPacketV1 } = await import('../core/writing/outlineCandidates.js');
       return createRunWritingOutlineCandidatesPacketV1({
         run_id: params.run_id,
         language: params.language,
@@ -1722,7 +1722,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Submit N-best outline candidates (strict validation; writes writing_candidates_outline_v1.json; fail-fast; local-only).',
     zodSchema: HepRunWritingSubmitOutlineCandidatesV1ToolSchema,
     handler: async params => {
-      const { submitRunWritingOutlineCandidatesV1 } = await import('../vnext/writing/outlineCandidates.js');
+      const { submitRunWritingOutlineCandidatesV1 } = await import('../core/writing/outlineCandidates.js');
       return submitRunWritingOutlineCandidatesV1({
         run_id: params.run_id,
         candidates: params.candidates,
@@ -1737,7 +1737,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create a Judge prompt_packet for selecting the best outline candidate (M13; hard gates; Evidence-first; fail-fast; local-only).',
     zodSchema: HepRunWritingCreateOutlineJudgePacketV1ToolSchema,
     handler: async params => {
-      const { createRunWritingOutlineJudgePacketV1 } = await import('../vnext/writing/outlineJudge.js');
+      const { createRunWritingOutlineJudgePacketV1 } = await import('../core/writing/outlineJudge.js');
       return createRunWritingOutlineJudgePacketV1({
         run_id: params.run_id,
         candidates_uri: params.candidates_uri,
@@ -1752,7 +1752,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Submit a client-generated JudgeDecision for outline selection, enforce hard gates, then write writing_outline_v2.json (M13; fail-fast; local-only).',
     zodSchema: HepRunWritingSubmitOutlineJudgeDecisionV1ToolSchema,
     handler: async params => {
-      const { submitRunWritingOutlineJudgeDecisionV1 } = await import('../vnext/writing/outlineJudge.js');
+      const { submitRunWritingOutlineJudgeDecisionV1 } = await import('../core/writing/outlineJudge.js');
       return submitRunWritingOutlineJudgeDecisionV1({
         run_id: params.run_id,
         judge_decision_uri: params.judge_decision_uri,
@@ -1770,7 +1770,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; optional PDF evidence; Evidence-first, local-only). NOT FOR end-to-end manuscript drafting; use inspire_deep_research(mode=write) for full writing orchestration.',
     zodSchema: HepRunBuildWritingEvidenceToolSchema,
     handler: async (params, ctx) => {
-      const { buildRunWritingEvidence } = await import('../vnext/writing/evidence.js');
+      const { buildRunWritingEvidence } = await import('../core/writing/evidence.js');
       const raw = ctx.rawArgs ?? {};
       const maxEvidenceItemsProvided = Object.prototype.hasOwnProperty.call(raw, 'max_evidence_items');
       return buildRunWritingEvidence({
@@ -1842,7 +1842,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Build writing-critical artifacts for a run: conflicts.json, stance.jsonl, evidence_grades.json, and a summary (Evidence-first, local-only)',
     zodSchema: HepRunBuildWritingCriticalToolSchema,
     handler: async params => {
-      const { buildRunWritingCritical } = await import('../vnext/writing/critical.js');
+      const { buildRunWritingCritical } = await import('../core/writing/critical.js');
       return buildRunWritingCritical({
         run_id: params.run_id,
         recids: params.recids,
@@ -2020,7 +2020,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Submit a client-generated reviewer report for a completed run write (Evidence-first: writes run artifacts; local-only).',
     zodSchema: HepRunWritingSubmitReviewToolSchema,
     handler: async params => {
-      const { submitRunWritingReview } = await import('../vnext/writing/submitReview.js');
+      const { submitRunWritingReview } = await import('../core/writing/submitReview.js');
       return submitRunWritingReview({
         run_id: params.run_id,
         round: params.round,
@@ -2040,7 +2040,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create a RevisionPlanV1 prompt_packet for client revision planning (requires ReviewerReport v2; Evidence-first; local-only).',
     zodSchema: HepRunWritingCreateRevisionPlanPacketV1ToolSchema,
     handler: async params => {
-      const { createRunWritingRevisionPlanPacketV1 } = await import('../vnext/writing/revisionPlanPacket.js');
+      const { createRunWritingRevisionPlanPacketV1 } = await import('../core/writing/revisionPlanPacket.js');
       return createRunWritingRevisionPlanPacketV1({
         reviewer_report_uri: params.reviewer_report_uri,
         manifest_uri: params.manifest_uri,
@@ -2057,7 +2057,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Submit a client-generated RevisionPlan v1 into run artifacts (fail-fast validated; writes writing_revision_plan_round_XX_v1.json; local-only).',
     zodSchema: HepRunWritingSubmitRevisionPlanV1ToolSchema,
     handler: async params => {
-      const { submitRunWritingRevisionPlanV1 } = await import('../vnext/writing/submitRevisionPlan.js');
+      const { submitRunWritingRevisionPlanV1 } = await import('../core/writing/submitRevisionPlan.js');
       return submitRunWritingRevisionPlanV1({
         run_id: params.run_id,
         revision_plan: params.revision_plan,
@@ -2073,7 +2073,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Advance one writing refinement round state machine step (Review → RevisionPlan → Execute → Re-verify → Integrate → Repeat) (Evidence-first; fail-fast; local-only).',
     zodSchema: HepRunWritingRefinementOrchestratorV1ToolSchema,
     handler: async params => {
-      const { advanceRunWritingRefinementOrchestratorV1 } = await import('../vnext/writing/refinementOrchestrator.js');
+      const { advanceRunWritingRefinementOrchestratorV1 } = await import('../core/writing/refinementOrchestrator.js');
       return advanceRunWritingRefinementOrchestratorV1({
         run_id: params.run_id,
         round: params.round,
@@ -2090,7 +2090,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Integrate run writing_section_*.json into writing_integrated.tex + diagnostics and run LaTeX compile gate (fail-fast; Evidence-first; local-only).',
     zodSchema: HepRunWritingIntegrateSectionsV1ToolSchema,
     handler: async params => {
-      const { integrateWritingSections } = await import('../vnext/writing/integrate.js');
+      const { integrateWritingSections } = await import('../core/writing/integrate.js');
       return integrateWritingSections({
         run_id: params.run_id,
         fix_unused_materials: params.fix_unused_materials,
@@ -2274,7 +2274,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Build LaTeX EvidenceChunks + BM25 index for a run (fail-fast; no PDF fallback) and write artifacts (Evidence-first)',
     zodSchema: HepRunBuildEvidenceIndexV1ToolSchema,
     handler: async params => {
-      const { buildRunEvidenceIndexV1 } = await import('../vnext/writing/evidenceIndex.js');
+      const { buildRunEvidenceIndexV1 } = await import('../core/writing/evidenceIndex.js');
       return buildRunEvidenceIndexV1({
         run_id: params.run_id,
         paper_ids: params.paper_ids,
@@ -2293,7 +2293,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Build per-section retrieval candidates, run LLM rerank (client/internal), and write `writing_evidence_packet_section_###_v2.json` (fail-fast; no BM25 fallback; Evidence-first).',
     zodSchema: HepRunWritingBuildEvidencePacketSectionV2ToolSchema,
     handler: async params => {
-      const { buildRunWritingEvidencePacketSectionV2 } = await import('../vnext/writing/evidenceSelection.js');
+      const { buildRunWritingEvidencePacketSectionV2 } = await import('../core/writing/evidenceSelection.js');
       return buildRunWritingEvidencePacketSectionV2({
         run_id: params.run_id,
         section_index: params.section_index,
@@ -2337,7 +2337,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Submit client LLM rerank indices (for a previously generated rerank packet) and write `writing_rerank_result_section_###_v1.json` + `writing_evidence_packet_section_###_v2.json` (fail-fast; no BM25 fallback; Evidence-first).',
     zodSchema: HepRunWritingSubmitRerankResultV1ToolSchema,
     handler: async params => {
-      const { submitRunWritingRerankResultV1 } = await import('../vnext/writing/evidenceSelection.js');
+      const { submitRunWritingRerankResultV1 } = await import('../core/writing/evidenceSelection.js');
       return submitRunWritingRerankResultV1({
         run_id: params.run_id,
         section_index: params.section_index,

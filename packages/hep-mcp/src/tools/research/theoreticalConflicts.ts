@@ -6,9 +6,9 @@ import {
 } from '@autoresearch/shared';
 
 import * as api from '../../api/client.js';
-import { writeRunJsonArtifact } from '../../vnext/citations.js';
-import { getRunArtifactPath } from '../../vnext/paths.js';
-import { getRun, type RunArtifactRef } from '../../vnext/runs.js';
+import { writeRunJsonArtifact } from '../../core/citations.js';
+import { getRunArtifactPath } from '../../core/paths.js';
+import { getRun, type RunArtifactRef } from '../../core/runs.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
 import { createLLMClient } from '../writing/llm/clients/index.js';
 import { getLLMConfigFromEnv } from '../writing/llm/config.js';

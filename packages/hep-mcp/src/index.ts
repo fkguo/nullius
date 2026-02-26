@@ -24,7 +24,7 @@ import { logConfigSummary } from './config.js';
 import { ensureDir, getDataDir, getDownloadsDir } from './data/dataDir.js';
 import { cleanupRegisteredDownloadDirs } from './data/downloadSession.js';
 import { isMarkedDirectory } from './data/markers.js';
-import { listHepResourceTemplates, listHepResources, readHepResource } from './vnext/resources.js';
+import { listHepResourceTemplates, listHepResources, readHepResource } from './core/resources.js';
 import {
   cleanupOldPdgArtifacts,
   listPdgResourceTemplates,

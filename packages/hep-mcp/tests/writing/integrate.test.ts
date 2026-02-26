@@ -4,10 +4,10 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { getRun, type RunManifest } from '../../src/vnext/runs.js';
-import { getRunArtifactPath } from '../../src/vnext/paths.js';
-import { integrateWritingSections } from '../../src/vnext/writing/integrate.js';
-import { detectTerminologyVariants, detectUnusedMaterials } from '../../src/vnext/writing/globalChecks.js';
+import { getRun, type RunManifest } from '../../src/core/runs.js';
+import { getRunArtifactPath } from '../../src/core/paths.js';
+import { integrateWritingSections } from '../../src/core/writing/integrate.js';
+import { detectTerminologyVariants, detectUnusedMaterials } from '../../src/core/writing/globalChecks.js';
 
 describe('M12.3: Phase 2 Integration (internal stage)', () => {
   let dataDir: string;

@@ -10,7 +10,7 @@
 
 import type { GenerateOutlineParams, GenerateOutlineResult, OutlineSection } from './types.js';
 import type { EnhancedClaimsTable, SectionType, OriginalSection, Claim } from '../types.js';
-import { planOutline, type OutlinePlan } from '../../../vnext/writing/outlinePlanner.js';
+import { planOutline, type OutlinePlan } from '../../../core/writing/outlinePlanner.js';
 import { WORD_BUDGET_BY_LENGTH, calculatePerSectionBudget } from './wordBudget.js';
 import { verifyOutlineCoverage } from './coverage.js';
 import { invalidParams } from '@autoresearch/shared';

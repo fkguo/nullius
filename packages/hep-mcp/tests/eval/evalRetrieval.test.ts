@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { readEvalFixture } from './evalSnapshots.js';
 
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/vnext/resources.js');
+const { readHepResource } = await import('../../src/core/resources.js');
 
 type RetrievalFixture = {
   name: string;

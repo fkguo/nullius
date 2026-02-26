@@ -91,8 +91,8 @@ vi.mock('../src/tools/research/paperClassifier.js', () => ({
   classifyPapers: vi.fn(),
 }));
 
-vi.mock('../src/vnext/citations.js', async () => {
-  const actual = await vi.importActual('../src/vnext/citations.js') as object;
+vi.mock('../src/core/citations.js', async () => {
+  const actual = await vi.importActual('../src/core/citations.js') as object;
   return {
     ...actual,
     writeRunJsonArtifact: vi.fn(),
@@ -121,7 +121,7 @@ const stance = await import('../src/tools/research/stance/index.js');
 const cleanupDownloads = await import('../src/tools/research/cleanupDownloads.js');
 const validateBibliography = await import('../src/tools/research/validateBibliography.js');
 const paperClassifier = await import('../src/tools/research/paperClassifier.js');
-const citations = await import('../src/vnext/citations.js');
+const citations = await import('../src/core/citations.js');
 
 function getBibtexEntryKey(bibtex: string): string | null {
   const cleaned = bibtex.replace(/^\uFEFF/, '').trim();

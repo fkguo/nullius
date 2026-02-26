@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/vnext/resources.js';
+import { readHepResource } from '../../src/core/resources.js';
 
 const LIVE_SMOKE_ENABLED = process.env.HEP_LIVE_SMOKE === '1';
 const describeLive = LIVE_SMOKE_ENABLED ? describe : describe.skip;

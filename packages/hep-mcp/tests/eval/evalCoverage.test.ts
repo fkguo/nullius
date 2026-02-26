@@ -6,7 +6,7 @@ import * as path from 'path';
 import { assertEvalSnapshot, readEvalFixture } from './evalSnapshots.js';
 
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/vnext/resources.js');
+const { readHepResource } = await import('../../src/core/resources.js');
 
 describe('eval: coverage_report completeness (local-only)', () => {
   let dataDir: string;

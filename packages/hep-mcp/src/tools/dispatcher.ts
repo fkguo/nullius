@@ -28,9 +28,9 @@ import { formatSearchResultMarkdown, formatPaperListMarkdown } from '../utils/fo
 import { compactPapersInResult, compactPaperSummary } from '../utils/compactPaper.js';
 import { getDataDir } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
-import { writeRunJsonArtifact } from '../vnext/citations.js';
-import { getRun } from '../vnext/runs.js';
-import { assertSafePathSegment } from '../vnext/paths.js';
+import { writeRunJsonArtifact } from '../core/citations.js';
+import { getRun } from '../core/runs.js';
+import { assertSafePathSegment } from '../core/paths.js';
 import { getToolSpec, isToolExposed, type ToolExposureMode } from './registry.js';
 import { recordToolUsage } from './utils/toolUsageTelemetry.js';
 

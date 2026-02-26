@@ -9,6 +9,7 @@
 - **Local MCP transport only**：只保留 stdio（`StdioServerTransport`）；不实现/不引入 HTTP transport/server。
 - **Zotero Local API only**：仅 `http://127.0.0.1:23119`；不做 Zotero Web API。
 - **Evidence-first I/O**：大对象写入 **artifacts + MCP Resources**；tool result 仅返回 **URI + 小摘要**。
+- **禁止临时性/阶段性命名**：不要引入 `vNext`、`v2`、`new_`、`legacy_`、`old_` 等暗示"当前版本以后会替换"的目录名或模块名。直接使用面向功能的永久命名（如 `core/`、`writing/`、`runs/`）。如果确实有新旧共存的过渡期，用 feature flag 或版本号而不是目录分叉。
 - 不要在可 push 的代码分支中提交开发过程文档（见"文档与分支卫生"）。
 
 ## 开发/验收命令（repo root）
@@ -29,7 +30,7 @@ pnpm -r lint    # 或 pnpm lint
   - 工具注册表（单点 SSOT）：`packages/hep-mcp/src/tools/registry.ts`
   - 调度/参数校验：`packages/hep-mcp/src/tools/dispatcher.ts`
   - Zod → MCP `inputSchema`：`packages/hep-mcp/src/tools/mcpSchema.ts`
-  - vNext 本地工作流：`packages/hep-mcp/src/vnext/**`（Project/Run、artifacts、`hep://` resources）
+  - 核心工作流：`packages/hep-mcp/src/core/**`（Project/Run、artifacts、`hep://` resources）
 - `packages/zotero-mcp/`：Zotero Local API tools（也会被聚合进 hep-research-mcp）
 - `packages/pdg-mcp/`：离线 PDG sqlite tools/resources（也会被聚合进 hep-research-mcp）
 - `packages/shared/`：共享 types/errors/utils（如 `invalidParams()` / `notFound()`）
@@ -47,8 +48,8 @@ pnpm -r lint    # 或 pnpm lint
 
 ## Evidence-first 与 `hep://` resources
 
-- vNext 大输出写入 run artifacts（`packages/hep-mcp/src/vnext/**`），tool result 返回 URI + 摘要。
-- 资源读取通过 `hep://...`（实现：`packages/hep-mcp/src/vnext/resources.ts`）。
+- 大输出写入 run artifacts（`packages/hep-mcp/src/core/**`），tool result 返回 URI + 摘要。
+- 资源读取通过 `hep://...`（实现：`packages/hep-mcp/src/core/resources.ts`）。
 - 写作入口统一走 `hep_*` 写作链：
   - Draft Path：`hep_render_latex` → `hep_export_project`
   - Client Path：`hep_run_writing_submit_section_candidates_v1` → `hep_run_writing_submit_section_judge_decision_v1` → `hep_run_writing_integrate_sections_v1` → `hep_export_project`

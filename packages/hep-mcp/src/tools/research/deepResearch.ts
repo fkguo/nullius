@@ -53,22 +53,22 @@ import {
   INSPIRE_DEEP_RESEARCH,
   invalidParams,
 } from '@autoresearch/shared';
-import { writeRunJsonArtifact } from '../../vnext/citations.js';
-import { repairAndParseJsonDeterministically } from '../../vnext/structuredOutput.js';
-import { ReviewerReportV2Schema } from '../../vnext/contracts/reviewerReport.js';
-import { getRun, type RunArtifactRef, type RunManifest, type RunStep } from '../../vnext/runs.js';
-import { getRunArtifactPath, getRunArtifactsDir, getRunManifestPath } from '../../vnext/paths.js';
-import { buildRunWritingCritical } from '../../vnext/writing/critical.js';
-import { CandidatePoolArtifactV1Schema, buildRunWritingCandidatePoolFromInspireNetwork } from '../../vnext/writing/candidatePool.js';
-import { createRunWritingPaperSetCurationPacket } from '../../vnext/writing/papersetCurationPacket.js';
-import { planPaperSetCuration, type PaperSetCuration, type PaperSetCurationRequest } from '../../vnext/writing/papersetPlanner.js';
-import { submitRunWritingPaperSetCuration } from '../../vnext/writing/submitPapersetCuration.js';
-import { createRunWritingOutlinePlanPacket } from '../../vnext/writing/outlinePlanPacket.js';
-import { integrateWritingSections } from '../../vnext/writing/integrate.js';
-import { OutlinePlanV2Schema, validateOutlinePlanV2OrThrow, planOutline, type OutlinePlan, type OutlinePlanRequest } from '../../vnext/writing/outlinePlanner.js';
-import { ensureWritingQualityPolicyV1 } from '../../vnext/writing/qualityPolicy.js';
+import { writeRunJsonArtifact } from '../../core/citations.js';
+import { repairAndParseJsonDeterministically } from '../../core/structuredOutput.js';
+import { ReviewerReportV2Schema } from '../../core/contracts/reviewerReport.js';
+import { getRun, type RunArtifactRef, type RunManifest, type RunStep } from '../../core/runs.js';
+import { getRunArtifactPath, getRunArtifactsDir, getRunManifestPath } from '../../core/paths.js';
+import { buildRunWritingCritical } from '../../core/writing/critical.js';
+import { CandidatePoolArtifactV1Schema, buildRunWritingCandidatePoolFromInspireNetwork } from '../../core/writing/candidatePool.js';
+import { createRunWritingPaperSetCurationPacket } from '../../core/writing/papersetCurationPacket.js';
+import { planPaperSetCuration, type PaperSetCuration, type PaperSetCurationRequest } from '../../core/writing/papersetPlanner.js';
+import { submitRunWritingPaperSetCuration } from '../../core/writing/submitPapersetCuration.js';
+import { createRunWritingOutlinePlanPacket } from '../../core/writing/outlinePlanPacket.js';
+import { integrateWritingSections } from '../../core/writing/integrate.js';
+import { OutlinePlanV2Schema, validateOutlinePlanV2OrThrow, planOutline, type OutlinePlan, type OutlinePlanRequest } from '../../core/writing/outlinePlanner.js';
+import { ensureWritingQualityPolicyV1 } from '../../core/writing/qualityPolicy.js';
 import { ReferenceManager } from '../writing/reference/referenceManager.js';
-import { SectionOutputSubmissionSchema } from '../../vnext/writing/sectionOutputSchema.js';
+import { SectionOutputSubmissionSchema } from '../../core/writing/sectionOutputSchema.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

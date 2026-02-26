@@ -3,7 +3,7 @@
  */
 
 import type { SectionType, LLMCallMode } from '../types.js';
-import type { PromptPacket } from '../../../vnext/contracts/promptPacket.js';
+import type { PromptPacket } from '../../../core/contracts/promptPacket.js';
 
 export interface GenerateOutlineParams {
   claims_table: any;

@@ -9,7 +9,7 @@ vi.mock('../../src/api/client.js', () => ({
 
 const api = await import('../../src/api/client.js');
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { getRunArtifactPath } = await import('../../src/vnext/paths.js');
+const { getRunArtifactPath } = await import('../../src/core/paths.js');
 
 function readJson<T>(p: string): T {
   return JSON.parse(fs.readFileSync(p, 'utf-8')) as T;
