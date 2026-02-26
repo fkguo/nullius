@@ -23,6 +23,7 @@ from hep_autoresearch.toolkit.orchestrator_state import (
     load_state,
     maybe_mark_needs_recovery,
     save_state,
+    state_lock,
 )
 
 
@@ -227,6 +228,41 @@ def test_budget_proceeds_when_still_exhausted(tmp_path: Path) -> None:
 
     assert result is True
     assert state.get("run_status") == "blocked"
+
+
+# ─── Nested lock regression (Codex full-review fix) ───
+
+
+def test_maybe_mark_needs_recovery_inside_outer_lock_no_deadlock(tmp_path: Path) -> None:
+    """Regression: calling maybe_mark_needs_recovery with _caller_holds_lock=True
+    inside an outer state_lock must NOT deadlock (FileLock is non-reentrant)."""
+    repo = _setup_repo(tmp_path)
+
+    stale_ts = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2)).isoformat()
+    state = _make_state(
+        repo,
+        run_status="running",
+        checkpoints={"last_checkpoint_at": stale_ts, "checkpoint_interval_seconds": 900},
+    )
+
+    with state_lock(repo, timeout_seconds=2.0):
+        # This would deadlock without _caller_holds_lock
+        result = maybe_mark_needs_recovery(repo, state, _caller_holds_lock=True)
+
+    assert result is True
+    assert state.get("run_status") == "needs_recovery"
+
+
+def test_maybe_mark_needs_recovery_inside_outer_lock_skips_when_not_running(tmp_path: Path) -> None:
+    """When called with _caller_holds_lock=True and state is not running, returns False."""
+    repo = _setup_repo(tmp_path)
+
+    state = _make_state(repo, run_status="paused")
+
+    with state_lock(repo, timeout_seconds=2.0):
+        result = maybe_mark_needs_recovery(repo, state, _caller_holds_lock=True)
+
+    assert result is False
 
 
 if __name__ == "__main__":

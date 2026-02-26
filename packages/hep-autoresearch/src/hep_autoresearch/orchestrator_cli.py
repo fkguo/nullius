@@ -152,14 +152,14 @@ def _repo_root_for_init(args: argparse.Namespace) -> Path:
     return Path.cwd()
 
 
-def _read_or_init_state(repo_root: Path) -> dict:
+def _read_or_init_state(repo_root: Path, *, _caller_holds_lock: bool = False) -> dict:
     ensure_runtime_dirs(repo_root)
     st = load_state(repo_root)
     if st is None:
         st = default_state()
         save_state(repo_root, st)
         append_ledger_event(repo_root, event_type="initialized", run_id=None, workflow_id=None, details={})
-    maybe_mark_needs_recovery(repo_root, st)
+    maybe_mark_needs_recovery(repo_root, st, _caller_holds_lock=_caller_holds_lock)
     return st
 
 
@@ -916,7 +916,7 @@ def cmd_branch_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_branch_list_locked(repo_root: Path, args: argparse.Namespace) -> int:
-    st = _read_or_init_state(repo_root)
+    st = _read_or_init_state(repo_root, _caller_holds_lock=True)
     try:
         plan = _require_plan(st)
     except Exception as e:
@@ -977,7 +977,7 @@ def cmd_branch_add(args: argparse.Namespace) -> int:
 
 
 def _cmd_branch_add_locked(repo_root: Path, args: argparse.Namespace) -> int:
-    st = _read_or_init_state(repo_root)
+    st = _read_or_init_state(repo_root, _caller_holds_lock=True)
     try:
         plan = _require_plan(st)
     except Exception as e:
@@ -1222,7 +1222,7 @@ def cmd_branch_switch(args: argparse.Namespace) -> int:
 
 
 def _cmd_branch_switch_locked(repo_root: Path, args: argparse.Namespace) -> int:
-    st = _read_or_init_state(repo_root)
+    st = _read_or_init_state(repo_root, _caller_holds_lock=True)
     try:
         plan = _require_plan(st)
     except Exception as e:

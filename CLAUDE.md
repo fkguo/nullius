@@ -13,6 +13,8 @@
 - 字段设为 optional "以兼容旧数据"——如果语义上应该 required，就直接 required
 - 临时 stopgap / Python 退役路径保留缓冲期——TS 替代方案实现并通过验收后，Python 侧对应功能**立即删除**，不留缓冲期
 
+**禁止临时性/阶段性命名**：不要引入 `vNext`、`v2`、`new_`、`legacy_`、`old_` 等暗示"当前版本以后会替换"的目录名或模块名。直接使用面向功能的永久命名（如 `core/`、`writing/`、`runs/`）。如果确实有新旧共存的过渡期，用 feature flag 或版本号区分，不要目录分叉。
+
 来源：`meta/REDESIGN_PLAN.md` §全局约束。
 
 ## 工作区路径映射
@@ -143,6 +145,15 @@ python3 skills/review-swarm/scripts/bin/run_multi_task.py \
 - **CONVERGED**: 所有模型 0 blocking issues → 通过
 - **NOT_CONVERGED**: 任一模型有 blocking issue → 修正后重新提交 (R+1)
 - **最大轮次**: 5 轮。超过 5 轮未收敛 → 人类介入
+
+### 完整性要求（硬性规则）
+
+**每个模型必须至少完成一次对完整实现的审核**，才能计入收敛判定。
+
+- 如果某个模型在 R1（完整 packet）超时或返回无效输出，后续 Rn 只审核了 delta fix packet，**不能**仅凭 delta 审核 PASS 就声称该模型已通过
+- 必须为该模型重新提交包含**完整源码**的 review packet（所有新文件 + 所有修改文件的关键变更段落），直到其返回有效的 PASS 判定
+- 只有所有模型都对完整实现返回 0 BLOCKING 后，才能标记为 CONVERGED
+- Codex CLI 审核可能需要 10-15 分钟，**绝对不要提前截断**——耐心等待完成
 
 ## 网络访问
 

@@ -637,8 +637,16 @@ def read_approval_policy(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def maybe_mark_needs_recovery(repo_root: Path, state: dict[str, Any]) -> bool:
-    """Return True if state was mutated and saved."""
+def maybe_mark_needs_recovery(
+    repo_root: Path, state: dict[str, Any], *, _caller_holds_lock: bool = False,
+) -> bool:
+    """Return True if state was mutated and saved.
+
+    When *_caller_holds_lock* is True the function skips lock acquisition and
+    state re-read — the caller is responsible for holding ``state_lock`` and
+    ensuring *state* is already fresh.  This prevents deadlock in call sites
+    that already hold the non-reentrant ``FileLock`` (e.g. branch commands).
+    """
     if state.get("run_status") != "running":
         return False
     checkpoints = state.get("checkpoints") or {}
@@ -657,38 +665,49 @@ def maybe_mark_needs_recovery(repo_root: Path, state: dict[str, Any]) -> bool:
     if (now_dt - last_dt).total_seconds() <= 2 * interval:
         return False
 
+    if _caller_holds_lock:
+        # Caller already holds state_lock — skip lock + re-read to avoid
+        # deadlock (FileLock is NOT reentrant).  State is assumed fresh.
+        return _maybe_mark_needs_recovery_core(repo_root, state)
+
     with state_lock(repo_root):
         # Re-read state inside the lock to prevent TOCTOU races (R1 review fix).
         fresh = load_state(repo_root)
         if fresh is not None:
             state.clear()
             state.update(fresh)
-        # Re-check ALL conditions after reload — checkpoint may have been refreshed concurrently.
-        if state.get("run_status") != "running":
-            return False
-        checkpoints = state.get("checkpoints") or {}
-        last = checkpoints.get("last_checkpoint_at")
-        interval = int(checkpoints.get("checkpoint_interval_seconds") or 0)
-        if not last or interval <= 0:
-            return False
-        try:
-            last_dt = dt.datetime.fromisoformat(str(last).replace("Z", "+00:00"))
-            now_dt = dt.datetime.now(dt.timezone.utc)
-        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
-            return False
-        if (now_dt - last_dt).total_seconds() <= 2 * interval:
-            return False
-        state["run_status"] = "needs_recovery"
-        state["notes"] = "checkpoint timeout: needs recovery decision (resume/pause/abort)"
-        save_state(repo_root, state)
-        append_ledger_event(
-            repo_root,
-            event_type="needs_recovery",
-            run_id=state.get("run_id"),
-            workflow_id=state.get("workflow_id"),
-            step_id=(state.get("current_step") or {}).get("step_id") if isinstance(state.get("current_step"), dict) else None,
-            details={"reason": "checkpoint_stale"},
-        )
+        return _maybe_mark_needs_recovery_core(repo_root, state)
+
+
+def _maybe_mark_needs_recovery_core(repo_root: Path, state: dict[str, Any]) -> bool:
+    """Core check — caller must hold state_lock and ensure state is fresh."""
+    import datetime as dt
+
+    if state.get("run_status") != "running":
+        return False
+    checkpoints = state.get("checkpoints") or {}
+    last = checkpoints.get("last_checkpoint_at")
+    interval = int(checkpoints.get("checkpoint_interval_seconds") or 0)
+    if not last or interval <= 0:
+        return False
+    try:
+        last_dt = dt.datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+        now_dt = dt.datetime.now(dt.timezone.utc)
+    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
+        return False
+    if (now_dt - last_dt).total_seconds() <= 2 * interval:
+        return False
+    state["run_status"] = "needs_recovery"
+    state["notes"] = "checkpoint timeout: needs recovery decision (resume/pause/abort)"
+    save_state(repo_root, state)
+    append_ledger_event(
+        repo_root,
+        event_type="needs_recovery",
+        run_id=state.get("run_id"),
+        workflow_id=state.get("workflow_id"),
+        step_id=(state.get("current_step") or {}).get("step_id") if isinstance(state.get("current_step"), dict) else None,
+        details={"reason": "checkpoint_stale"},
+    )
     return True
 
 
