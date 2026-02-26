@@ -358,7 +358,7 @@ async function calculateSelfCitationRate(
     return selfCitations / refs.length;
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] calculateSelfCitationRatio (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] calculateSelfCitationRatio (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
     return undefined;
   }
 }
@@ -373,7 +373,7 @@ async function checkForComments(recid: string): Promise<boolean> {
     return result.papers.length > 0;
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] checkForComments (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] checkForComments (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }

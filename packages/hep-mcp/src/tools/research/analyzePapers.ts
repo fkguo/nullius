@@ -190,7 +190,7 @@ export async function analyzePapers(params: AnalyzePapersParams): Promise<Collec
           } catch (error) {
             // Log at debug level for troubleshooting
             console.debug(
-              `[hep-research-mcp] analyzePapers getPaper (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`
+              `[hep-mcp] analyzePapers getPaper (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`
             );
             return null; // Skip papers that fail to fetch
           }

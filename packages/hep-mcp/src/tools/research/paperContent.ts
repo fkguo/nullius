@@ -179,7 +179,7 @@ async function isTarArchive(filePath: string): Promise<boolean> {
     return false;
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] isTarFile: Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] isTarFile: Skipped - ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }
@@ -216,7 +216,7 @@ function findMainTexFile(destDir: string, files: string[]): string | undefined {
     
     if (potentialTexFiles.length > 0) {
       texFiles = potentialTexFiles;
-      console.error(`[hep-research-mcp] findMainTexFile - found ${texFiles.length} LaTeX file(s) without .tex extension: ${texFiles.join(', ')}`);
+      console.error(`[hep-mcp] findMainTexFile - found ${texFiles.length} LaTeX file(s) without .tex extension: ${texFiles.join(', ')}`);
     }
   }
   
@@ -241,7 +241,7 @@ function findMainTexFile(destDir: string, files: string[]): string | undefined {
       }
     } catch (error) {
       // Log at debug level for troubleshooting
-      console.debug(`[hep-research-mcp] findMainTexFile - file read failed (${tex}): ${error instanceof Error ? error.message : String(error)}`);
+      console.debug(`[hep-mcp] findMainTexFile - file read failed (${tex}): ${error instanceof Error ? error.message : String(error)}`);
       // Skip unreadable files
     }
   }
@@ -273,7 +273,7 @@ function findMainTexFile(destDir: string, files: string[]): string | undefined {
         }
       } catch (error) {
         // Log at debug level for troubleshooting
-        console.debug(`[hep-research-mcp] findMainTexFile - stat failed (${tex}): ${error instanceof Error ? error.message : String(error)}`);
+        console.debug(`[hep-mcp] findMainTexFile - stat failed (${tex}): ${error instanceof Error ? error.message : String(error)}`);
         // Skip
       }
     }

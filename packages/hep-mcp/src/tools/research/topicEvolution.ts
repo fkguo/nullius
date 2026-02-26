@@ -122,7 +122,7 @@ export async function analyzeTopicEvolution(
           return { period, result: await api.search(query, { sort: 'mostcited', size: 1000 }) };
         } catch (error) {
           // Log at debug level for troubleshooting
-          console.debug(`[hep-research-mcp] topicEvolution search (period=${period.start}-${period.end}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+          console.debug(`[hep-mcp] topicEvolution search (period=${period.start}-${period.end}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
           return { period, result: { total: 0, papers: [], has_more: false } };
         }
       })

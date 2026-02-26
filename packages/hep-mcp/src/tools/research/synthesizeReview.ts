@@ -289,7 +289,7 @@ export async function synthesizeReview(
       bibliography = await api.getBibtex(recids);
     } catch (error) {
       // Log at debug level for troubleshooting
-      console.debug(`[hep-research-mcp] synthesizeReview getBibtex: Skipped - ${error instanceof Error ? error.message : String(error)}`);
+      console.debug(`[hep-mcp] synthesizeReview getBibtex: Skipped - ${error instanceof Error ? error.message : String(error)}`);
       // Skip on error
     }
   }

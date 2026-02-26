@@ -47,7 +47,7 @@ function parseToolMode(): ToolExposureMode {
   if (v === '') return 'standard';
   if (v === 'standard') return 'standard';
   if (v === 'full') return 'full';
-  throw new Error(`[hep-research-mcp] Invalid HEP_TOOL_MODE: ${raw} (expected 'standard' or 'full')`);
+  throw new Error(`[hep-mcp] Invalid HEP_TOOL_MODE: ${raw} (expected 'standard' or 'full')`);
 }
 
 const TOOL_MODE: ToolExposureMode = parseToolMode();
@@ -81,7 +81,7 @@ function validateEnvironment(): void {
   }
 
   if (errors.length > 0) {
-    throw new Error(`[hep-research-mcp] Startup validation failed:\n- ${errors.join('\n- ')}`);
+    throw new Error(`[hep-mcp] Startup validation failed:\n- ${errors.join('\n- ')}`);
   }
 }
 
@@ -144,7 +144,7 @@ function cleanupOldDownloads(): void {
     }
 
     if (cleanedCount > 0) {
-      console.error(`[hep-research-mcp] Cleaned up ${cleanedCount} old download directories`);
+      console.error(`[hep-mcp] Cleaned up ${cleanedCount} old download directories`);
     }
   } catch {
     // Ignore errors during cleanup
@@ -157,7 +157,7 @@ function cleanupOldDownloads(): void {
 
 const server = new Server(
   {
-    name: 'hep-research-mcp',
+    name: 'hep-mcp',
     version: '0.3.0',
   },
   {
@@ -210,7 +210,7 @@ async function main() {
   try {
     const cleaned = cleanupOldPdgArtifacts();
     if (cleaned.deleted_files > 0) {
-      console.error(`[hep-research-mcp] Cleaned up ${cleaned.deleted_files} old PDG artifact files`);
+      console.error(`[hep-mcp] Cleaned up ${cleaned.deleted_files} old PDG artifact files`);
     }
   } catch {
     // ignore PDG cleanup errors
@@ -219,7 +219,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logConfigSummary();
-  console.error('[hep-research-mcp] Server started');
+  console.error('[hep-mcp] Server started');
 }
 
 const isExecutedAsScript = (() => {

@@ -457,7 +457,7 @@ async function searchConfirmations(
     }
 
   } catch (error) {
-    console.debug(`[hep-research-mcp] searchConfirmations: Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] searchConfirmations: Skipped - ${error instanceof Error ? error.message : String(error)}`);
   }
 
   return { confirming, conflicting, truncated, warning };
@@ -482,7 +482,7 @@ async function searchComments(recid: string): Promise<Array<{ recid: string; tit
     }
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] searchComments: Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] searchComments: Skipped - ${error instanceof Error ? error.message : String(error)}`);
   }
 
   return comments;

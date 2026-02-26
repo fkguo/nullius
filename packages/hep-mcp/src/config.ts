@@ -72,7 +72,7 @@ interface ConfigEntry {
 }
 
 const CONFIG_KEYS: ConfigEntry[] = [
-  { key: 'HEP_DATA_DIR', defaultValue: '~/.hep-research-mcp' },
+  { key: 'HEP_DATA_DIR', defaultValue: '~/.hep-mcp' },
   { key: 'HEP_TOOL_MODE', defaultValue: 'standard' },
   { key: 'HEP_DOWNLOAD_DIR', defaultValue: '<HEP_DATA_DIR>/downloads' },
   { key: 'HEP_ENABLE_ZOTERO', defaultValue: 'true' },

@@ -45,7 +45,7 @@ function getPdgDataDir(): string {
     return path.resolve(path.join(expandTilde(hepDataDir), 'pdg'));
   }
 
-  return path.resolve(path.join(os.homedir(), '.hep-research-mcp', 'pdg'));
+  return path.resolve(path.join(os.homedir(), '.hep-mcp', 'pdg'));
 }
 
 function getPdgArtifactsDir(): string {

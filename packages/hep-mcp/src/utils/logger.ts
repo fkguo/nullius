@@ -30,7 +30,7 @@ export interface LogContext {
 // Configuration
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LOG_PREFIX = '[hep-research-mcp]';
+const LOG_PREFIX = '[hep-mcp]';
 
 /** Parse HEP_DEBUG env var to get enabled categories */
 function getEnabledCategories(): Set<LogCategory> {

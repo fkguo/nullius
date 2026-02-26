@@ -92,7 +92,7 @@ async function getAllRefRecids(recid: string): Promise<string[]> {
       .map(r => r.recid)
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
   } catch (error) {
-    console.debug(`[hep-research-mcp] getAllRefRecids (recid=${recid}): ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] getAllRefRecids (recid=${recid}): ${error instanceof Error ? error.message : String(error)}`);
     return [];
   }
 }
@@ -153,7 +153,7 @@ async function countPapersCitingBoth(
     const result = await api.search(query, { size: 1 });
     return { total: result.total, refs_available, refs_used };
   } catch (error) {
-    console.debug(`[hep-research-mcp] countPapersCitingBoth: ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] countPapersCitingBoth: ${error instanceof Error ? error.message : String(error)}`);
     return { total: 0, refs_available: refRecids.length, refs_used: Math.min(maxRefsForQuery, refRecids.length) };
   }
 }
@@ -199,7 +199,7 @@ async function estimateNk(
       }
     } catch (error) {
       // Log at debug level for troubleshooting
-      console.debug(`[hep-research-mcp] estimateNk (refRecid=${refRecid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+      console.debug(`[hep-mcp] estimateNk (refRecid=${refRecid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
       // Skip this reference if search fails
       continue;
     }

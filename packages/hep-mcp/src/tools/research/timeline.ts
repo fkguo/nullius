@@ -79,7 +79,7 @@ export async function buildResearchTimeline(
           return { year, result };
         } catch (error) {
           // Log at debug level for troubleshooting
-          console.debug(`[hep-research-mcp] timeline search (year=${year}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+          console.debug(`[hep-mcp] timeline search (year=${year}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
           return { year, result: { total: 0, papers: [], has_more: false } };
         }
       })

@@ -2,7 +2,7 @@
  * Writing Module - Phase 11
  *
  * Academic writing tools for generating RMP/PRL/Nature/PRD style reports.
- * Integrated as a separable submodule within hep-research-mcp.
+ * Integrated as a separable submodule within hep-mcp.
  *
  * Key Features:
  * - Claims Table as Single Source of Truth (SSOT)

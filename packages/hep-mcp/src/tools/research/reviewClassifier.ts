@@ -376,7 +376,7 @@ async function estimatePaperCount(recid: string): Promise<number> {
     return refs.length;
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] estimatePaperCount (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] estimatePaperCount (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
     return 0;
   }
 }
@@ -473,7 +473,7 @@ export async function classifyReviews(
       };
     } catch (error) {
       // Log at debug level for troubleshooting
-      console.debug(`[hep-research-mcp] classifyReviews (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+      console.debug(`[hep-mcp] classifyReviews (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
       return null;
     }
   });

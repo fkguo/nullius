@@ -8,7 +8,7 @@ export const HEP_DOWNLOAD_DIR_ENV = 'HEP_DOWNLOAD_DIR';
 export const ARXIV_DOWNLOAD_DIR_ENV = 'ARXIV_DOWNLOAD_DIR';
 export const WRITING_PROGRESS_DIR_ENV = 'WRITING_PROGRESS_DIR';
 
-const DEFAULT_DATA_DIR_NAME = '.hep-research-mcp';
+const DEFAULT_DATA_DIR_NAME = '.hep-mcp';
 
 function expandTilde(p: string): string {
   const trimmed = p.trim();

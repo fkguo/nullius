@@ -81,7 +81,7 @@ export async function extractBibliography(
     }
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] extractBibliography - .bib file read failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] extractBibliography - .bib file read failed: ${error instanceof Error ? error.message : String(error)}`);
     // .bib file not accessible, continue without it
   }
 

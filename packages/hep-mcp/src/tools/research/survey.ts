@@ -113,7 +113,7 @@ async function collectFoundationalPapers(
             return { recid, refs: await api.getReferences(recid, fetchSize) };
           } catch (error) {
             // Log at debug level for troubleshooting
-            console.debug(`[hep-research-mcp] survey getReferences (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+            console.debug(`[hep-mcp] survey getReferences (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
             return { recid, refs: [] }; // Skip on error
           }
         })
@@ -172,7 +172,7 @@ async function collectRecentPapers(
             return { recid, citations: await api.getCitations(recid, { size: fetchSize, sort: 'mostrecent' }) };
           } catch (error) {
             // Log at debug level for troubleshooting
-            console.debug(`[hep-research-mcp] survey getCitations (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+            console.debug(`[hep-mcp] survey getCitations (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
             return { recid, citations: { papers: [] } }; // Skip on error
           }
         })

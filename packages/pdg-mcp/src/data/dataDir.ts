@@ -6,7 +6,7 @@ import { resolvePathWithinParent } from './pathGuard.js';
 export const PDG_DATA_DIR_ENV = 'PDG_DATA_DIR';
 const HEP_DATA_DIR_ENV = 'HEP_DATA_DIR';
 
-const DEFAULT_DATA_DIR = path.join(os.homedir(), '.hep-research-mcp', 'pdg');
+const DEFAULT_DATA_DIR = path.join(os.homedir(), '.hep-mcp', 'pdg');
 
 function expandTilde(p: string): string {
   const trimmed = p.trim();
@@ -21,7 +21,7 @@ export function getDataDir(): string {
     return path.resolve(expandTilde(explicit));
   }
 
-  // Convenience: when hep-research-mcp is configured with a per-project HEP_DATA_DIR, default PDG_DATA_DIR
+  // Convenience: when hep-mcp is configured with a per-project HEP_DATA_DIR, default PDG_DATA_DIR
   // to live under the same root to keep everything easy to relocate/clean up.
   const hepDataDir = process.env[HEP_DATA_DIR_ENV];
   if (hepDataDir && hepDataDir.trim().length > 0) {

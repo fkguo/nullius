@@ -226,7 +226,7 @@ async function checkForChallenges(
     }
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] searchChallenges (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] searchChallenges (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
   }
 
   return challenges.slice(0, 3); // Limit to 3
@@ -258,7 +258,7 @@ async function checkForValidation(
     }
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] checkValidations (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] checkValidations (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
     // Skip on error
   }
 
@@ -305,13 +305,13 @@ async function extractInheritedAssumptions(
         }
       } catch (error) {
         // Log at debug level for troubleshooting
-        console.debug(`[hep-research-mcp] extractInheritedAssumptions - ref processing (recid=${ref.recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+        console.debug(`[hep-mcp] extractInheritedAssumptions - ref processing (recid=${ref.recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
         continue;
       }
     }
   } catch (error) {
     // Log at debug level for troubleshooting
-    console.debug(`[hep-research-mcp] extractInheritedAssumptions (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    console.debug(`[hep-mcp] extractInheritedAssumptions (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
     // Skip on error
   }
 

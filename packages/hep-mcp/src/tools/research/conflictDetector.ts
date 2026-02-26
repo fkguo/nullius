@@ -184,7 +184,7 @@ async function tryGetPdgWmassBaseline(): Promise<{ measurement: MeasurementWithS
   } catch (error) {
     // Optional enhancement; never fail the main conflict detector.
     const msg = error instanceof Error ? error.message : String(error);
-    console.debug(`[hep-research-mcp] PDG baseline (m_W): skipped - ${msg}`);
+    console.debug(`[hep-mcp] PDG baseline (m_W): skipped - ${msg}`);
     return { measurement: null, warning: `pdg_baseline_skipped:${msg}` };
   }
 }
@@ -398,7 +398,7 @@ export async function detectConflicts(
       return null;
     } catch (error) {
       // Log at debug level for troubleshooting
-      console.debug(`[hep-research-mcp] fetchPaperData (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+      console.debug(`[hep-mcp] fetchPaperData (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
       return null;
     }
   });

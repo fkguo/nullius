@@ -333,7 +333,7 @@ export async function buildCollaborationNetwork(
           return await api.searchAll(`a:${author}`, { sort: 'mostcited' });
         } catch (error) {
           // Log at debug level for troubleshooting
-          console.debug(`[hep-research-mcp] collaborationNetwork author search (author="${author}"): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+          console.debug(`[hep-mcp] collaborationNetwork author search (author="${author}"): Skipped - ${error instanceof Error ? error.message : String(error)}`);
           return { papers: [] }; // Ignore errors for individual author searches
         }
       })

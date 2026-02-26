@@ -51,7 +51,7 @@ async function findHighCitedRefs(
           return await api.getReferences(recid);
         } catch (error) {
           // Log at debug level for troubleshooting
-          console.debug(`[hep-research-mcp] findCommonReferences (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+          console.debug(`[hep-mcp] findCommonReferences (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
           return []; // Skip on error
         }
       })
@@ -117,7 +117,7 @@ async function findCitingOverlap(
           return await api.getCitations(recid, { size: fetchSize, sort: 'mostcited' });
         } catch (error) {
           // Log at debug level for troubleshooting
-          console.debug(`[hep-research-mcp] findCitingOverlap (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+          console.debug(`[hep-mcp] findCitingOverlap (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
           return { papers: [] }; // Skip on error
         }
       })

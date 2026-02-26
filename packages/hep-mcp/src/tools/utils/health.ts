@@ -90,7 +90,7 @@ function getPdgDataDir(): string {
     return path.resolve(path.join(expandTilde(hepDataDir), 'pdg'));
   }
 
-  return path.resolve(path.join(os.homedir(), '.hep-research-mcp', 'pdg'));
+  return path.resolve(path.join(os.homedir(), '.hep-mcp', 'pdg'));
 }
 
 function getPdgArtifactsDir(): string {
@@ -113,11 +113,11 @@ function readPackageInfo(): { name: string; version: string } {
     const here = path.dirname(fileURLToPath(import.meta.url));
     const pkgPath = path.resolve(here, '..', '..', '..', 'package.json');
     const raw = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as any;
-    const name = typeof raw?.name === 'string' ? raw.name : 'hep-research-mcp';
+    const name = typeof raw?.name === 'string' ? raw.name : 'hep-mcp';
     const version = typeof raw?.version === 'string' ? raw.version : '0.0.0';
     return { name, version };
   } catch {
-    return { name: 'hep-research-mcp', version: '0.0.0' };
+    return { name: 'hep-mcp', version: '0.0.0' };
   }
 }
 
