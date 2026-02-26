@@ -156,6 +156,38 @@ describe('safeExtractZip (H-12)', () => {
     expect(() => safeExtractZip(zipPath, dest, { maxTotalBytes: 512 })).toThrow(/size/i);
   });
 
+  it('rejects archive whose compressed file size exceeds limit', () => {
+    // Create a zip with data that is already larger than the limit on disk
+    const data = Buffer.alloc(2048, 'X');
+    const zip = buildZipBuffer([{ name: 'large.bin', data }]);
+    const zipPath = path.join(tmpBase, 'precheck.zip');
+    fs.mkdirSync(tmpBase, { recursive: true });
+    fs.writeFileSync(zipPath, zip);
+
+    const dest = path.join(tmpBase, 'out');
+    // Set limit smaller than the zip file itself
+    expect(() => safeExtractZip(zipPath, dest, { maxTotalBytes: 100 })).toThrow(ZipSafetyError);
+    expect(() => safeExtractZip(zipPath, dest, { maxTotalBytes: 100 })).toThrow(/archive file size/i);
+  });
+
+  it('limits actual decompressed size, not header-claimed size (decompression bomb guard)', () => {
+    // Create a compressed entry whose actual inflated output exceeds the limit,
+    // even though we set a tight maxTotalBytes. The inflateRawSync maxOutputLength
+    // should prevent unbounded memory allocation.
+    const realData = Buffer.alloc(4096, 'B');
+    const zip = buildZipBuffer([
+      { name: 'bomb.txt', data: realData, compress: true },
+    ]);
+    const zipPath = path.join(tmpBase, 'bomb.zip');
+    fs.mkdirSync(tmpBase, { recursive: true });
+    fs.writeFileSync(zipPath, zip);
+
+    const dest = path.join(tmpBase, 'out');
+    // The zip file on disk is small (compressed), but decompresses to 4096 bytes.
+    // Set limit to 1024 — the decompression should fail via maxOutputLength guard.
+    expect(() => safeExtractZip(zipPath, dest, { maxTotalBytes: 1024 })).toThrow(ZipSafetyError);
+  });
+
   it('ZipSafetyError has code RESOURCE_LIMIT', () => {
     const err = new ZipSafetyError('test');
     expect(err.code).toBe('RESOURCE_LIMIT');

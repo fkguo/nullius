@@ -67,6 +67,15 @@ export function safeExtractZip(archivePath: string, destDir: string, opts?: Extr
   const resolvedDest = path.resolve(destDir);
   fs.mkdirSync(resolvedDest, { recursive: true });
 
+  // Pre-check: reject archives whose compressed size already exceeds the limit
+  // to avoid loading a multi-GB file into memory.
+  const archiveStat = fs.statSync(archivePath);
+  if (archiveStat.size > maxTotalBytes) {
+    throw new ZipSafetyError(
+      `Archive file size (${archiveStat.size}) exceeds limit: ${maxTotalBytes} bytes`,
+    );
+  }
+
   const buf = fs.readFileSync(archivePath);
   let offset = 0;
   let totalBytes = 0;
@@ -81,7 +90,6 @@ export function safeExtractZip(archivePath: string, destDir: string, opts?: Extr
 
     const compressionMethod = buf.readUInt16LE(offset + 8);
     const compressedSize = buf.readUInt32LE(offset + 18);
-    const uncompressedSize = buf.readUInt32LE(offset + 22);
     const fileNameLength = buf.readUInt16LE(offset + 26);
     const extraFieldLength = buf.readUInt16LE(offset + 28);
 
@@ -108,13 +116,8 @@ export function safeExtractZip(archivePath: string, destDir: string, opts?: Extr
     // Path safety check
     const targetPath = validateEntryPath(entryName, resolvedDest);
 
-    // Size limit check
-    totalBytes += uncompressedSize;
-    if (totalBytes > maxTotalBytes) {
-      throw new ZipSafetyError(`Total uncompressed size exceeds limit: ${maxTotalBytes} bytes`);
-    }
-
-    // Extract
+    // Extract — then check actual decompressed size (not header-claimed size,
+    // which is attacker-controlled and can understate to bypass limits).
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
 
     const compressedData = buf.subarray(dataOffset, dataOffset + compressedSize);
@@ -123,10 +126,29 @@ export function safeExtractZip(archivePath: string, destDir: string, opts?: Extr
       // Stored (no compression)
       content = Buffer.from(compressedData);
     } else if (compressionMethod === 8) {
-      // Deflate
-      content = zlib.inflateRawSync(compressedData);
+      // Deflate — cap output size to prevent decompression bombs.
+      const remainingBudget = maxTotalBytes - totalBytes;
+      try {
+        content = zlib.inflateRawSync(compressedData, {
+          maxOutputLength: remainingBudget,
+        });
+      } catch (err: unknown) {
+        // inflateRawSync throws ERR_BUFFER_TOO_LARGE when maxOutputLength is exceeded.
+        if (err instanceof RangeError) {
+          throw new ZipSafetyError(
+            `Decompression of "${entryName}" exceeds remaining budget (${remainingBudget} bytes)`,
+          );
+        }
+        throw err;
+      }
     } else {
       throw new ZipSafetyError(`Unsupported compression method ${compressionMethod} for entry "${entryName}"`);
+    }
+
+    // Track actual decompressed bytes (not header-claimed uncompressedSize).
+    totalBytes += content.length;
+    if (totalBytes > maxTotalBytes) {
+      throw new ZipSafetyError(`Total uncompressed size exceeds limit: ${maxTotalBytes} bytes`);
     }
 
     fs.writeFileSync(targetPath, content);

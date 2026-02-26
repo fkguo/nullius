@@ -673,8 +673,15 @@ export async function handleToolCall(
 
     validatePathArgs(cleanArgs);
 
-    // H-11b: chain depth limit
-    const chainDepth = typeof cleanArgs._chain_depth === 'number' ? cleanArgs._chain_depth : 0;
+    // H-11b: chain depth limit — validate as finite non-negative integer
+    const rawDepth = cleanArgs._chain_depth;
+    const chainDepth = (typeof rawDepth === 'number' && Number.isInteger(rawDepth) && rawDepth >= 0) ? rawDepth : 0;
+    if (typeof rawDepth !== 'undefined' && chainDepth === 0 && rawDepth !== 0) {
+      throw invalidParams(
+        `Invalid _chain_depth value: expected non-negative integer, got ${JSON.stringify(rawDepth)}`,
+        { raw_value: rawDepth },
+      );
+    }
     if (chainDepth > PERMISSION_POLICY.max_chain_length) {
       throw invalidParams(
         `Tool chain depth ${chainDepth} exceeds max_chain_length ${PERMISSION_POLICY.max_chain_length}`,
