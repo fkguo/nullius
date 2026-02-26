@@ -250,7 +250,7 @@ def _mcp_env(repo_root: Path, base_env: dict[str, str] | None, inps: MethodDesig
     if inps.hep_data_dir:
         env["HEP_DATA_DIR"] = str(Path(str(inps.hep_data_dir)).expanduser().resolve())
     else:
-        env.setdefault("HEP_DATA_DIR", os.fspath((repo_root / ".hep-research-mcp").resolve()))
+        env.setdefault("HEP_DATA_DIR", os.fspath((repo_root / ".hep-mcp").resolve()))
     return env
 
 
@@ -780,7 +780,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
                 "            p = (Path.cwd() / p)\n"
                 "        hep_path = p.resolve()\n"
                 "    else:\n"
-                "        hep_path = (Path.cwd() / \".hep-research-mcp\").resolve()\n"
+                "        hep_path = (Path.cwd() / \".hep-mcp\").resolve()\n"
                 "    hep_path.mkdir(parents=True, exist_ok=True)\n"
                 "\n"
                 "    overrides = dict(cfg.env or {})\n"

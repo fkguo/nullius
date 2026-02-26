@@ -7,6 +7,8 @@ from typing import Any
 
 from ._json import read_json
 from ._time import utc_now_iso
+from .ledger import validate_event_type
+from .locking import FileLock
 
 
 AUTORESEARCH_DIRNAME = ".autoresearch"
@@ -54,48 +56,15 @@ def state_lock_path(repo_root: Path) -> Path:
 def state_lock(repo_root: Path, *, timeout_seconds: float = 10.0, poll_seconds: float = 0.1):
     """Return a context manager that holds an advisory exclusive lock for state/ledger mutations.
 
-    On POSIX, uses `fcntl.flock` on `.autoresearch/state.lock`. On platforms without `fcntl`,
-    the lock is a no-op (single-process use only).
+    Uses ``FileLock`` (H-05) which is based on ``fcntl.flock`` on POSIX.  On
+    platforms without ``fcntl``, the lock is a no-op (single-process use only).
     """
-    from contextlib import contextmanager
-
-    @contextmanager
-    def _cm():
-        ensure_runtime_dirs(repo_root)
-        lock_path = state_lock_path(repo_root)
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-
-        try:
-            import errno
-            import time
-
-            import fcntl  # type: ignore
-        except ImportError:
-            with lock_path.open("a", encoding="utf-8"):
-                yield
-            return
-
-        deadline = time.time() + max(float(timeout_seconds), 0.0)
-        with lock_path.open("a", encoding="utf-8") as f:
-            while True:
-                try:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except OSError as e:
-                    if e.errno not in {errno.EACCES, errno.EAGAIN}:
-                        raise
-                    if time.time() >= deadline:
-                        raise TimeoutError(f"timed out acquiring state lock: {lock_path}")
-                    time.sleep(max(float(poll_seconds), 0.01))
-            try:
-                yield
-            finally:
-                try:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-                except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort lock release in finally
-                    pass
-
-    return _cm()
+    ensure_runtime_dirs(repo_root)
+    return FileLock(
+        state_lock_path(repo_root),
+        timeout_seconds=timeout_seconds,
+        poll_seconds=poll_seconds,
+    )
 
 
 def approval_policy_path(repo_root: Path) -> Path:
@@ -615,6 +584,7 @@ def append_ledger_event(
     trace_id: str | None = None,
     details: dict[str, Any] | None = None,
 ) -> None:
+    validate_event_type(event_type)
     ensure_runtime_dirs(repo_root)
     event = {
         "ts": utc_now_iso().replace("+00:00", "Z"),
@@ -687,17 +657,38 @@ def maybe_mark_needs_recovery(repo_root: Path, state: dict[str, Any]) -> bool:
     if (now_dt - last_dt).total_seconds() <= 2 * interval:
         return False
 
-    state["run_status"] = "needs_recovery"
-    state["notes"] = "checkpoint timeout: needs recovery decision (resume/pause/abort)"
-    save_state(repo_root, state)
-    append_ledger_event(
-        repo_root,
-        event_type="needs_recovery",
-        run_id=state.get("run_id"),
-        workflow_id=state.get("workflow_id"),
-        step_id=(state.get("current_step") or {}).get("step_id") if isinstance(state.get("current_step"), dict) else None,
-        details={"reason": "checkpoint_stale"},
-    )
+    with state_lock(repo_root):
+        # Re-read state inside the lock to prevent TOCTOU races (R1 review fix).
+        fresh = load_state(repo_root)
+        if fresh is not None:
+            state.clear()
+            state.update(fresh)
+        # Re-check ALL conditions after reload — checkpoint may have been refreshed concurrently.
+        if state.get("run_status") != "running":
+            return False
+        checkpoints = state.get("checkpoints") or {}
+        last = checkpoints.get("last_checkpoint_at")
+        interval = int(checkpoints.get("checkpoint_interval_seconds") or 0)
+        if not last or interval <= 0:
+            return False
+        try:
+            last_dt = dt.datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+            now_dt = dt.datetime.now(dt.timezone.utc)
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
+            return False
+        if (now_dt - last_dt).total_seconds() <= 2 * interval:
+            return False
+        state["run_status"] = "needs_recovery"
+        state["notes"] = "checkpoint timeout: needs recovery decision (resume/pause/abort)"
+        save_state(repo_root, state)
+        append_ledger_event(
+            repo_root,
+            event_type="needs_recovery",
+            run_id=state.get("run_id"),
+            workflow_id=state.get("workflow_id"),
+            step_id=(state.get("current_step") or {}).get("step_id") if isinstance(state.get("current_step"), dict) else None,
+            details={"reason": "checkpoint_stale"},
+        )
     return True
 
 
@@ -725,46 +716,67 @@ def check_approval_timeout(repo_root: Path, state: dict[str, Any]) -> str | None
     if now <= deadline:
         return None
 
-    on_timeout = str(pending.get("on_timeout") or "block")
-    approval_id = pending.get("approval_id", "")
+    with state_lock(repo_root):
+        # Re-read state inside the lock to prevent TOCTOU races (R1 review fix).
+        fresh = load_state(repo_root)
+        if fresh is not None:
+            state.clear()
+            state.update(fresh)
 
-    if on_timeout == "reject":
-        state["pending_approval"] = None
-        state["run_status"] = "rejected"
-        state["notes"] = f"approval {approval_id} timed out — auto-rejected"
-        state.setdefault("approval_history", []).append(
-            {
-                "ts": utc_now_iso().replace("+00:00", "Z"),
+        # Re-check pending approval after reload — it may have been resolved concurrently.
+        pending = state.get("pending_approval")
+        if not pending or not isinstance(pending, dict):
+            return None
+        timeout_at = pending.get("timeout_at")
+        if not timeout_at:
+            return None
+        try:
+            deadline = dt.datetime.fromisoformat(str(timeout_at).replace("Z", "+00:00"))
+        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback
+            return None
+        if dt.datetime.now(dt.timezone.utc) <= deadline:
+            return None
+
+        on_timeout = str(pending.get("on_timeout") or "block")
+        approval_id = pending.get("approval_id", "")
+
+        if on_timeout == "reject":
+            state["pending_approval"] = None
+            state["run_status"] = "rejected"
+            state["notes"] = f"approval {approval_id} timed out — auto-rejected"
+            state.setdefault("approval_history", []).append(
+                {
+                    "ts": utc_now_iso().replace("+00:00", "Z"),
+                    "approval_id": approval_id,
+                    "category": pending.get("category"),
+                    "decision": "timeout_rejected",
+                    "note": f"auto-rejected: timed out at {timeout_at}",
+                }
+            )
+        elif on_timeout == "escalate":
+            state["run_status"] = "needs_recovery"
+            state["notes"] = f"approval {approval_id} timed out — escalated"
+        else:  # "block" (default)
+            state["run_status"] = "blocked"
+            state["notes"] = f"approval {approval_id} timed out — blocked"
+
+        save_state(repo_root, state)
+        append_ledger_event(
+            repo_root,
+            event_type="approval_timeout",
+            run_id=state.get("run_id"),
+            workflow_id=state.get("workflow_id"),
+            step_id=(
+                (state.get("current_step") or {}).get("step_id")
+                if isinstance(state.get("current_step"), dict)
+                else None
+            ),
+            details={
                 "approval_id": approval_id,
-                "category": pending.get("category"),
-                "decision": "timeout_rejected",
-                "note": f"auto-rejected: timed out at {timeout_at}",
-            }
+                "policy_action": on_timeout,
+                "timeout_at": timeout_at,
+            },
         )
-    elif on_timeout == "escalate":
-        state["run_status"] = "needs_recovery"
-        state["notes"] = f"approval {approval_id} timed out — escalated"
-    else:  # "block" (default)
-        state["run_status"] = "blocked"
-        state["notes"] = f"approval {approval_id} timed out — blocked"
-
-    save_state(repo_root, state)
-    append_ledger_event(
-        repo_root,
-        event_type="approval_timeout",
-        run_id=state.get("run_id"),
-        workflow_id=state.get("workflow_id"),
-        step_id=(
-            (state.get("current_step") or {}).get("step_id")
-            if isinstance(state.get("current_step"), dict)
-            else None
-        ),
-        details={
-            "approval_id": approval_id,
-            "policy_action": on_timeout,
-            "timeout_at": timeout_at,
-        },
-    )
     return on_timeout
 
 
@@ -796,21 +808,90 @@ def check_approval_budget(
     if granted < max_approvals:
         return False
 
-    state["run_status"] = "blocked"
-    state["notes"] = f"approval budget exhausted ({granted}/{max_approvals})"
-    if state.get("pending_approval"):
-        state["pending_approval"] = None
-    save_state(repo_root, state)
-    append_ledger_event(
-        repo_root,
-        event_type="approval_budget_exhausted",
-        run_id=state.get("run_id"),
-        workflow_id=state.get("workflow_id"),
-        step_id=(
-            (state.get("current_step") or {}).get("step_id")
-            if isinstance(state.get("current_step"), dict)
-            else None
-        ),
-        details={"granted": granted, "max_approvals": max_approvals},
-    )
+    with state_lock(repo_root):
+        # Re-read state inside the lock to prevent TOCTOU races (R1 review fix).
+        fresh = load_state(repo_root)
+        if fresh is not None:
+            state.clear()
+            state.update(fresh)
+
+        # Re-check budget condition after reload.
+        history = state.get("approval_history") or []
+        granted = sum(1 for h in history if isinstance(h, dict) and h.get("decision") == "approved")
+        if granted < max_approvals:
+            return False
+
+        state["run_status"] = "blocked"
+        state["notes"] = f"approval budget exhausted ({granted}/{max_approvals})"
+        if state.get("pending_approval"):
+            state["pending_approval"] = None
+        save_state(repo_root, state)
+        append_ledger_event(
+            repo_root,
+            event_type="approval_budget_exhausted",
+            run_id=state.get("run_id"),
+            workflow_id=state.get("workflow_id"),
+            step_id=(
+                (state.get("current_step") or {}).get("step_id")
+                if isinstance(state.get("current_step"), dict)
+                else None
+            ),
+            details={"granted": granted, "max_approvals": max_approvals},
+        )
+    return True
+
+
+def transition_state(
+    repo_root: Path,
+    *,
+    run_id: str,
+    expected_status: str,
+    new_status: str,
+    details: dict[str, Any] | None = None,
+) -> bool:
+    """Atomically transition ``run_status`` using compare-and-swap (H-09).
+
+    Acquires the state lock, reads the current state, and only applies the
+    transition if the current ``run_status`` matches *expected_status*.
+
+    Returns ``True`` on success.
+    Raises ``ValueError`` on CAS failure (state mismatch).
+    Raises ``ValueError`` if no state file or ``run_id`` doesn't match.
+    """
+    with state_lock(repo_root):
+        state = load_state(repo_root)
+        if state is None:
+            raise ValueError("no state file found; cannot transition")
+
+        current_run_id = state.get("run_id")
+        if current_run_id != run_id:
+            raise ValueError(
+                f"CAS failure: run_id mismatch — expected {run_id!r}, got {current_run_id!r}"
+            )
+
+        current_status = state.get("run_status")
+        if current_status != expected_status:
+            raise ValueError(
+                f"CAS failure: expected run_status={expected_status!r}, "
+                f"got {current_status!r}"
+            )
+
+        state["run_status"] = new_status
+        persist_state_with_ledger_event(
+            repo_root,
+            state=state,
+            event_type="state_transition",
+            run_id=run_id,
+            workflow_id=state.get("workflow_id"),
+            step_id=(
+                (state.get("current_step") or {}).get("step_id")
+                if isinstance(state.get("current_step"), dict)
+                else None
+            ),
+            details={
+                "from": expected_status,
+                "to": new_status,
+                **(details or {}),
+            },
+        )
     return True

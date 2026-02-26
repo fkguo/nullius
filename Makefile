@@ -1,4 +1,4 @@
-.PHONY: install build test lint clean codegen codegen-check smoke code-health-check contract-test
+.PHONY: install build test lint clean codegen codegen-check smoke code-health-check contract-test release test-coverage-gate
 
 install:
 	pnpm install
@@ -47,3 +47,13 @@ code-health-check:
 contract-test:
 	@echo "--- H-16b: cross-component tool subset contract ---"
 	cd packages/hep-mcp && npx vitest run tests/contracts/crossComponentToolSubset.test.ts
+
+release:
+	@echo "--- M-23: Release artifact alignment ---"
+	pnpm -r build
+	@if [ -f meta/scripts/codegen.sh ]; then bash meta/scripts/codegen.sh; fi
+	bash meta/scripts/check_version_sync.sh
+
+test-coverage-gate:
+	@echo "--- NEW-R07: hep-autoresearch test coverage gate ---"
+	python3 meta/scripts/check_test_coverage_gate.py

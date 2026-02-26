@@ -46,7 +46,7 @@ _minted*
 .mcp.json
 
 # Local MCP data dir (downloads/artifacts; never commit)
-.hep-research-mcp/
+.hep-mcp/
 
 # Ad-hoc consultation scratchpads (not part of the reproducible artifact contract)
 artifacts/consultations/

@@ -214,7 +214,7 @@ def ensure_project_scaffold(*, repo_root: Path) -> dict[str, Any]:
                 "hep-research": {
                     "command": "node",
                     "args": ["<path-to-hep-research-mcp-entrypoint.js>"],
-                    "env": {"HEP_DATA_DIR": ".hep-research-mcp"},
+                    "env": {"HEP_DATA_DIR": ".hep-mcp"},
                 }
             },
         },

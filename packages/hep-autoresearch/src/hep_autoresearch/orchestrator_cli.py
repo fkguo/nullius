@@ -5830,7 +5830,7 @@ def main() -> int:
     p_doc = sub.add_parser("doctor", help="Check MCP server connectivity and required tool availability (Phase B6).")
     p_doc.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
     p_doc.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
-    p_doc.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-research-mcp).")
+    p_doc.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
     p_doc.add_argument(
         "--allow-missing-mcp-config",
         action="store_true",
@@ -5855,7 +5855,7 @@ def main() -> int:
     p_bridge.add_argument("--mcp-project-name", default="hep-autoresearch", help="MCP project name to create/reuse.")
     p_bridge.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
     p_bridge.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
-    p_bridge.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-research-mcp).")
+    p_bridge.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
     p_bridge.set_defaults(fn=cmd_bridge)
 
     p_gap = sub.add_parser("literature-gap", help="Discover literature gaps via MCP INSPIRE tools (Phase C1).")
@@ -5925,7 +5925,7 @@ def main() -> int:
     )
     p_gap.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
     p_gap.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
-    p_gap.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-research-mcp).")
+    p_gap.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
     p_gap.set_defaults(fn=cmd_literature_gap)
 
     p_md = sub.add_parser("method-design", help="Generate a runnable W_compute project scaffold (Phase C2).")
@@ -5953,7 +5953,7 @@ def main() -> int:
     # MCP options (used by templates that query PDG at design time).
     p_md.add_argument("--mcp-config", help="Path to MCP config JSON (default: .mcp.json).")
     p_md.add_argument("--mcp-server", default="hep-research", help="MCP server name in config (default: hep-research).")
-    p_md.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-research-mcp).")
+    p_md.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
 
     # PDG knobs (template=pdg_snapshot or template=pdg_runtime).
     p_md.add_argument("--pdg-particle-name", help="Particle name for PDG query (template=pdg_snapshot|pdg_runtime).")

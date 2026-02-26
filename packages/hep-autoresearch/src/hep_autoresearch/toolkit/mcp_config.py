@@ -60,9 +60,9 @@ def load_mcp_server_config(*, config_path: Path, server_name: str) -> McpServerC
 
 
 def default_hep_data_dir(*, repo_root: Path) -> Path:
-    """Default HEP_DATA_DIR for this repo (aligned with .hep/workspace.json convention)."""
+    """Default HEP_DATA_DIR for this repo (aligned with TS-side dataDir.ts: ``<repo_root>/.hep-mcp``)."""
     # Keep this deterministic and local-by-default. Users can override by exporting HEP_DATA_DIR.
-    return (repo_root / ".hep-research-mcp").resolve()
+    return (repo_root / ".hep-mcp").resolve()
 
 
 _MCP_SUBPROCESS_ENV_ALLOWLIST = frozenset(
