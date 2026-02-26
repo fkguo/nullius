@@ -132,3 +132,39 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.ZOTERO_ADD]: 'write',
   [T.ZOTERO_CONFIRM]: 'write',
 };
+
+// ── H-11b: Permission Composition ────────────────────────────────────────
+
+const RISK_ORDER: Record<ToolRiskLevel, number> = {
+  read: 0,
+  write: 1,
+  destructive: 2,
+};
+
+/**
+ * Compute the composed risk level for a chain of tools.
+ * Strategy: take the highest risk level (destructive > write > read).
+ * Empty array returns 'read'.
+ */
+export function composedRiskLevel(levels: ToolRiskLevel[]): ToolRiskLevel {
+  if (levels.length === 0) return 'read';
+  let max: ToolRiskLevel = 'read';
+  for (const level of levels) {
+    if (RISK_ORDER[level] > RISK_ORDER[max]) {
+      max = level;
+    }
+  }
+  return max;
+}
+
+/**
+ * Static permission policy for tool chains (H-11b).
+ */
+export const PERMISSION_POLICY = {
+  /** Chains containing destructive tools require A5 gate approval */
+  destructive_requires_gate: true,
+  /** Write-only chains do NOT require gate approval */
+  write_chain_requires_gate: false,
+  /** Maximum number of tools in a single chain */
+  max_chain_length: 10,
+} as const;

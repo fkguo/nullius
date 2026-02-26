@@ -1053,7 +1053,7 @@ async function performWriteToRun(params: {
     await refManager.saveToDisk();
 	    const refMapRef = makeRunArtifactRef(params.runId, WRITING_REFERENCE_MAP_ARTIFACT, 'application/json');
 
-	    const claimsRef = writeRunJsonArtifact(params.runId, WRITING_CLAIMS_ARTIFACT, claimsResult);
+	    const claimsRef = writeRunJsonArtifact(params.runId, WRITING_CLAIMS_ARTIFACT, { version: 1, ...claimsResult });
 	    const masterBibRef = writeRunTextArtifact({
 	      runId: params.runId,
 	      artifactName: WRITING_MASTER_BIB_ARTIFACT,

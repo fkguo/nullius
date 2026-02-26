@@ -332,15 +332,17 @@ export async function renderLatexForRun(params: {
     const rendered = renderDraft({ draft: params.draft, recidToCitekeys });
 
     const sectionOutput = {
+      version: 1,
       content: rendered.latex,
       attributions: rendered.attributions,
     };
 
-    const verification = verifyCitations({
+    const verificationRaw = verifyCitations({
       section_output: sectionOutput,
       claims_table: {},
       allowed_citations: expandedAllowed,
     });
+    const verification = { version: 1, ...verificationRaw };
 
     const latexRef = writeRunTextArtifact(
       params.run_id,

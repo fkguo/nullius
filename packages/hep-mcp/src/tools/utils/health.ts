@@ -1,12 +1,14 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
 
 import { INSPIRE_API_URL } from '@autoresearch/shared';
 
 import { getDataDir, getDownloadsDir } from '../../data/dataDir.js';
 import { getToolUsageSnapshot } from './toolUsageTelemetry.js';
+import { getTools, type ToolExposureMode } from '../registry.js';
 
 export interface HepHealthParams {
   check_inspire: boolean;
@@ -15,6 +17,7 @@ export interface HepHealthParams {
 
 export interface HepHealthResult {
   ok: boolean;
+  tool_catalog_hash: string;
   server: {
     name: string;
     version: string;
@@ -145,6 +148,15 @@ async function checkInspire(params: { timeoutMs: number }): Promise<{ ok: boolea
   }
 }
 
+/**
+ * Compute SHA-256 hash of sorted tool names for the given exposure mode (H-17).
+ * Stable across restarts as long as the tool registry is unchanged.
+ */
+export function computeToolCatalogHash(mode: ToolExposureMode = 'standard'): string {
+  const names = getTools(mode).map(t => t.name).sort();
+  return createHash('sha256').update(names.join('\n')).digest('hex');
+}
+
 export async function getHepHealth(params: HepHealthParams): Promise<HepHealthResult> {
   const pkg = readPackageInfo();
 
@@ -168,6 +180,7 @@ export async function getHepHealth(params: HepHealthParams): Promise<HepHealthRe
 
   return {
     ok,
+    tool_catalog_hash: computeToolCatalogHash(parseToolModeFromEnv()),
     server: {
       name: pkg.name,
       version: pkg.version,

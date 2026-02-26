@@ -1,8 +1,8 @@
-import * as fs from 'fs';
 import type { BibEntry } from '../tools/research/latex/bibliographyExtractor.js';
 import type { CitekeyMapping } from '../tools/research/latex/citekeyMapper.js';
 import { getRunArtifactPath } from './paths.js';
 import type { RunArtifactRef } from './runs.js';
+import { atomicWriteFileSync } from './atomicWrite.js';
 
 export interface BibliographyRawArtifact {
   version: 1;
@@ -118,7 +118,7 @@ export function buildCitekeyToInspireStats(mappings: Record<string, CitekeyMappi
 
 export function writeRunJsonArtifact(runId: string, artifactName: string, data: unknown): RunArtifactRef {
   const artifactPath = getRunArtifactPath(runId, artifactName);
-  fs.writeFileSync(artifactPath, JSON.stringify(data, null, 2), 'utf-8');
+  atomicWriteFileSync(artifactPath, JSON.stringify(data, null, 2));
   return {
     name: artifactName,
     uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`,

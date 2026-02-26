@@ -43,6 +43,9 @@ export { redact } from './redaction.js';
 // Constants (H-13)
 export { MAX_INLINE_RESULT_BYTES, HARD_CAP_RESULT_BYTES } from './constants.js';
 
+// Sandbox resource limits (H-12)
+export { PDF_RESOURCE_LIMITS } from './sandbox.js';
+
 // Errors
 export {
   McpError,

@@ -2820,7 +2820,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
       // H-13 L2: mode=evidence/analysis → write artifact + return URI + summary if run_id
       if ((params.mode === 'evidence' || params.mode === 'analysis') && params.run_id) {
         const artifactName = `critical_${params.mode}_result.json`;
-        const ref = writeRunJsonArtifact(params.run_id, artifactName, result);
+        const ref = writeRunJsonArtifact(params.run_id, artifactName, { version: 1, ...result });
         const modeResult = result && typeof result === 'object'
           ? (result as unknown as Record<string, unknown>)[params.mode] as Record<string, unknown> | undefined
           : undefined;
@@ -2877,7 +2877,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
 
       // H-13 L2: mode=analyze/synthesize → write artifact + return URI + summary
       if (params.mode === 'analyze' && params.run_id) {
-        const ref = writeRunJsonArtifact(params.run_id, 'deep_analyze_result_v1.json', result);
+        const ref = writeRunJsonArtifact(params.run_id, 'deep_analyze_result_v1.json', { version: 1, ...result });
         const analysis = result && typeof result === 'object' && 'analysis' in result
           ? (result as unknown as Record<string, unknown>).analysis as Record<string, unknown> | undefined
           : undefined;
@@ -2895,7 +2895,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
       }
 
       if (params.mode === 'synthesize' && params.run_id) {
-        const ref = writeRunJsonArtifact(params.run_id, 'deep_synthesize_result_v1.json', result);
+        const ref = writeRunJsonArtifact(params.run_id, 'deep_synthesize_result_v1.json', { version: 1, ...result });
         const review = result && typeof result === 'object' && 'review' in result
           ? (result as unknown as Record<string, unknown>).review as Record<string, unknown> | undefined
           : undefined;

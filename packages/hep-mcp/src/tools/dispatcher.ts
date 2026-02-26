@@ -19,6 +19,7 @@ import {
   HEP_IMPORT_FROM_ZOTERO,
   MAX_INLINE_RESULT_BYTES,
   HARD_CAP_RESULT_BYTES,
+  PERMISSION_POLICY,
 } from '@autoresearch/shared';
 import type { SpanSink } from '@autoresearch/shared';
 import type { PaperSummary } from '@autoresearch/shared';
@@ -573,7 +574,7 @@ function formatToolResult(
   const runId = extractRunIdFromResult(processed, args);
   if (runId) {
     const artifactName = `${name}_result_${Date.now()}.json`;
-    const ref = writeRunJsonArtifact(runId, artifactName, processed);
+    const ref = writeRunJsonArtifact(runId, artifactName, { version: 1, result: processed });
     const summary = autoSummarize(processed, name);
     return {
       content: [
@@ -671,6 +672,16 @@ export async function handleToolCall(
     }
 
     validatePathArgs(cleanArgs);
+
+    // H-11b: chain depth limit
+    const chainDepth = typeof cleanArgs._chain_depth === 'number' ? cleanArgs._chain_depth : 0;
+    if (chainDepth > PERMISSION_POLICY.max_chain_length) {
+      throw invalidParams(
+        `Tool chain depth ${chainDepth} exceeds max_chain_length ${PERMISSION_POLICY.max_chain_length}`,
+        { chain_depth: chainDepth, max: PERMISSION_POLICY.max_chain_length },
+      );
+    }
+    delete cleanArgs._chain_depth;
 
     // H-11a Phase 2: destructive tools require explicit _confirm: true
     if (spec.riskLevel === 'destructive' && cleanArgs._confirm !== true) {
