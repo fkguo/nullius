@@ -54,6 +54,10 @@ export interface MutationProposalV1 {
   created_at: string;
   completed_at?: string | null;
 }
+/**
+ * This interface was referenced by `MutationProposalV1`'s JSON-Schema
+ * via the `definition` "StrategyState".
+ */
 export interface StrategyState {
   /**
    * Validation thoroughness (0=minimal, 1=exhaustive)
@@ -76,6 +80,10 @@ export interface StrategyState {
    */
   obedience: number;
 }
+/**
+ * This interface was referenced by `MutationProposalV1`'s JSON-Schema
+ * via the `definition` "StrategyMutation".
+ */
 export interface StrategyMutation {
   param: "rigor" | "creativity" | "verbosity" | "risk_tolerance" | "obedience";
   /**
@@ -87,6 +95,10 @@ export interface StrategyMutation {
    */
   reason: string;
 }
+/**
+ * This interface was referenced by `MutationProposalV1`'s JSON-Schema
+ * via the `definition` "MutationResult".
+ */
 export interface MutationResult {
   success?: boolean;
   /**

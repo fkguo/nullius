@@ -74,6 +74,10 @@ export interface SkillProposalV2 {
   created_at: string;
   reviewed_at?: string | null;
 }
+/**
+ * This interface was referenced by `SkillProposalV2`'s JSON-Schema
+ * via the `definition` "SkillTrigger".
+ */
 export interface SkillTrigger {
   /**
    * Human-readable trigger description
@@ -88,6 +92,10 @@ export interface SkillTrigger {
    */
   signal_pattern?: string;
 }
+/**
+ * This interface was referenced by `SkillProposalV2`'s JSON-Schema
+ * via the `definition` "SkillAction".
+ */
 export interface SkillAction {
   /**
    * Edit pattern class
@@ -105,6 +113,10 @@ export interface SkillAction {
    */
   rule: string;
 }
+/**
+ * This interface was referenced by `SkillProposalV2`'s JSON-Schema
+ * via the `definition` "EvidenceTrace".
+ */
 export interface EvidenceTrace {
   trace_id: string;
   run_id: string;
@@ -115,6 +127,10 @@ export interface EvidenceTrace {
    */
   artifact_uri?: string | null;
 }
+/**
+ * This interface was referenced by `SkillProposalV2`'s JSON-Schema
+ * via the `definition` "CoverageDelta".
+ */
 export interface CoverageDelta {
   /**
    * Current coverage description
@@ -125,6 +141,10 @@ export interface CoverageDelta {
    */
   after: string;
 }
+/**
+ * This interface was referenced by `SkillProposalV2`'s JSON-Schema
+ * via the `definition` "PatternFingerprint".
+ */
 export interface PatternFingerprint {
   /**
    * File extension pattern applies to

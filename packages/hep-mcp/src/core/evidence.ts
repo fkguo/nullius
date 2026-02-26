@@ -38,44 +38,21 @@ import { ensureDir } from '../data/dataDir.js';
 import { BudgetTrackerV1, writeProjectDiagnosticsArtifact } from './diagnostics.js';
 import { normalizeTextPreserveUnits } from '../utils/textNormalization.js';
 
-export type EvidenceType =
-  | 'title'
-  | 'abstract'
-  | 'section'
-  | 'paragraph'
-  | 'equation'
-  | 'figure'
-  | 'table'
-  | 'theorem'
-  | 'citation_context';
+// NEW-R05: Import generated types from evidence schema SSOT (via shared barrel)
+// The generated types come from meta/schemas/evidence_catalog_item_v1.schema.json
+import type {
+  EvidenceType,
+  LatexLocatorV1,
+  PdfLocatorV1,
+  EvidenceCatalogItemV1,
+} from '@autoresearch/shared';
 
-export interface LatexLocatorV1 {
-  kind: 'latex';
-  file: string;
-  offset: number;
-  line: number;
-  column: number;
-  endOffset?: number;
-  endLine?: number;
-  endColumn?: number;
-  anchor?: {
-    before: string;
-    after: string;
-  };
-}
+// Re-export for consumers that import from this module
+export type { EvidenceType, LatexLocatorV1, PdfLocatorV1, EvidenceCatalogItemV1 };
 
-export interface EvidenceCatalogItemV1 {
-  version: 1;
-  evidence_id: string;
-  project_id: string;
-  paper_id: string;
-  type: EvidenceType;
-  locator: LatexLocatorV1;
-  text: string;
-  normalized_text?: string;
-  citations?: string[];
-  meta?: Record<string, unknown>;
-}
+// Narrow type for this module: evidence.ts only produces/queries LaTeX evidence.
+// Items produced here always have LatexLocatorV1 locators.
+type LatexEvidenceItem = EvidenceCatalogItemV1 & { locator: LatexLocatorV1 };
 
 export interface BuildEvidenceResult {
   project_id: string;
@@ -100,7 +77,7 @@ export interface QueryEvidenceHit {
   type: EvidenceType;
   score: number;
   text_preview: string;
-  locator: LatexLocatorV1;
+  locator: LatexLocatorV1 | PdfLocatorV1;
 }
 
 export interface QueryEvidenceResult {
@@ -118,7 +95,7 @@ export interface EvidenceSnippetResult {
   project_id: string;
   paper_id: string;
   evidence_id: string;
-  locator: LatexLocatorV1;
+  locator: LatexLocatorV1 | PdfLocatorV1;
   playback: {
     file: string;
     line: number;
@@ -429,7 +406,7 @@ export async function buildProjectEvidenceCatalog(params: {
     'conjecture', 'claim',
   ]);
 
-  const items: EvidenceCatalogItemV1[] = [];
+  const items: LatexEvidenceItem[] = [];
 
   const macroWrappedMathPairs = buildMacroWrappedEnvironmentPairsFromContent(merged, {
     allowedEnvNames: new Set(
@@ -1143,29 +1120,37 @@ export async function playbackProjectEvidence(params: {
     });
   }
 
+  if (item.locator.kind !== 'latex') {
+    throw invalidParams('Playback is only supported for LaTeX evidence', {
+      evidence_id: params.evidence_id,
+      locator_kind: item.locator.kind,
+    });
+  }
+  const latexLocator = item.locator;
+
   const latexExtractedDir = getProjectPaperLatexExtractedDir(params.project_id, params.paper_id);
   const absFile = resolvePathWithinParent(
     latexExtractedDir,
-    path.join(latexExtractedDir, item.locator.file),
+    path.join(latexExtractedDir, latexLocator.file),
     'evidence_locator_file'
   );
   if (!fs.existsSync(absFile)) {
     throw notFound('Locator source file not found', {
       project_id: params.project_id,
       paper_id: params.paper_id,
-      file: item.locator.file,
+      file: latexLocator.file,
     });
   }
 
   const locator: Locator = {
     file: absFile,
-    offset: item.locator.offset,
-    line: item.locator.line,
-    column: item.locator.column,
-    endOffset: item.locator.endOffset,
-    endLine: item.locator.endLine,
-    endColumn: item.locator.endColumn,
-    anchor: item.locator.anchor,
+    offset: latexLocator.offset,
+    line: latexLocator.line,
+    column: latexLocator.column,
+    endOffset: latexLocator.endOffset,
+    endLine: latexLocator.endLine,
+    endColumn: latexLocator.endColumn,
+    anchor: latexLocator.anchor,
   };
 
   const playback = playbackLocator(locator, (file) => fs.readFileSync(file, 'utf-8'), {
@@ -1179,7 +1164,7 @@ export async function playbackProjectEvidence(params: {
     evidence_id: params.evidence_id,
     locator: item.locator,
     playback: {
-      file: normalizePathForCatalog(item.locator.file),
+      file: normalizePathForCatalog(latexLocator.file),
       line: playback.line,
       column: playback.column,
       snippet: playback.snippet,

@@ -52,6 +52,10 @@ export interface CapsuleV1 {
   generalized_to_gene?: string | null;
   created_at: string;
 }
+/**
+ * This interface was referenced by `CapsuleV1`'s JSON-Schema
+ * via the `definition` "BlastRadius".
+ */
 export interface BlastRadius {
   files_changed: number;
   lines_added: number;
@@ -65,6 +69,10 @@ export interface BlastRadius {
   files_list?: string[];
   untracked_files?: string[];
 }
+/**
+ * This interface was referenced by `CapsuleV1`'s JSON-Schema
+ * via the `definition` "ValidationResult".
+ */
 export interface ValidationResult {
   all_passed: boolean;
   steps: {
@@ -75,6 +83,10 @@ export interface ValidationResult {
     error?: string;
   }[];
 }
+/**
+ * This interface was referenced by `CapsuleV1`'s JSON-Schema
+ * via the `definition` "ContractGuardResult".
+ */
 export interface ContractGuardResult {
   passed: boolean;
   violations: {

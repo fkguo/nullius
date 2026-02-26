@@ -125,6 +125,10 @@ export interface GeneV1 {
    */
   node_id?: string | null;
 }
+/**
+ * This interface was referenced by `GeneV1`'s JSON-Schema
+ * via the `definition` "ConstraintPolicy".
+ */
 export interface ConstraintPolicy {
   max_files?: number;
   include_prefixes?: string[];
@@ -139,6 +143,10 @@ export interface ConstraintPolicy {
    */
   critical_paths?: string[];
 }
+/**
+ * This interface was referenced by `GeneV1`'s JSON-Schema
+ * via the `definition` "EpigeneticMark".
+ */
 export interface EpigeneticMark {
   /**
    * Environment context (platform_arch_nodeVersion)

@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/migration_registry_v1.schema.json",
+  "title": "Migration Registry V1",
+  "description": "Registry of schema migration chains. Each entry describes how to migrate artifacts from one schema version to another.",
+  "type": "object",
+  "required": ["version", "chains"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Registry format version."
+    },
+    "chains": {
+      "type": "array",
+      "description": "Migration chains, one per schema.",
+      "items": {
+        "$ref": "#/$defs/MigrationChain"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "MigrationChain": {
+      "type": "object",
+      "required": ["schema_id", "current_version", "migrations"],
+      "properties": {
+        "schema_id": {
+          "type": "string",
+          "description": "Identifier matching the schema filename stem (e.g. 'artifact_ref_v1')."
+        },
+        "current_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current (latest) schema version number."
+        },
+        "migrations": {
+          "type": "array",
+          "description": "Ordered list of version-to-version migration steps.",
+          "items": {
+            "$ref": "#/$defs/MigrationStep"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MigrationStep": {
+      "type": "object",
+      "required": ["from_version", "to_version", "operations"],
+      "properties": {
+        "from_version": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Source version number."
+        },
+        "to_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Target version number."
+        },
+        "operations": {
+          "type": "array",
+          "description": "Ordered list of field-level operations to apply.",
+          "items": {
+            "$ref": "#/$defs/MigrationOperation"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MigrationOperation": {
+      "type": "object",
+      "required": ["op"],
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": ["add_field", "remove_field", "rename_field", "set_field"],
+          "description": "Operation type."
+        },
+        "path": {
+          "type": "string",
+          "description": "Dot-path to the target field."
+        },
+        "value": {
+          "description": "Value for add_field / set_field operations.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" },
+            { "type": "object" },
+            { "type": "array" },
+            { "type": "null" }
+          ]
+        },
+        "from_path": {
+          "type": "string",
+          "description": "Source path for rename_field operations."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "op": { "const": "add_field" } } },
+          "then": { "required": ["path", "value"] }
+        },
+        {
+          "if": { "properties": { "op": { "const": "remove_field" } } },
+          "then": { "required": ["path"] }
+        },
+        {
+          "if": { "properties": { "op": { "const": "rename_field" } } },
+          "then": { "required": ["path", "from_path"] }
+        },
+        {
+          "if": { "properties": { "op": { "const": "set_field" } } },
+          "then": { "required": ["path", "value"] }
+        }
+      ]
+    }
+  }
+}

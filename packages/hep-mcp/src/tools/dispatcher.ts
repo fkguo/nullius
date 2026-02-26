@@ -658,6 +658,32 @@ function formatToolError(
   };
 }
 
+// trace-jsonl: emit structured JSONL log entry to stderr
+export function emitJsonlLog(params: {
+  traceId: string;
+  toolName: string;
+  durationMs: number;
+  success: boolean;
+}): void {
+  const entry = {
+    ts: new Date().toISOString(),
+    level: params.success ? 'INFO' : 'ERROR',
+    component: 'mcp_server',
+    trace_id: params.traceId,
+    event: 'tool_call',
+    data: {
+      tool_name: params.toolName,
+      duration_ms: params.durationMs,
+      success: params.success,
+    },
+  };
+  try {
+    process.stderr.write(JSON.stringify(entry) + '\n');
+  } catch {
+    // Best-effort: never break MCP protocol on log failure
+  }
+}
+
 export async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -672,6 +698,7 @@ export async function handleToolCall(
   const span = ctx?.spanSink?.startSpan(name, traceId);
   span?.setAttribute('tool.name', name);
 
+  const startMs = Date.now();
   try {
     const spec = getToolSpec(name);
     if (!spec) {
@@ -731,15 +758,24 @@ export async function handleToolCall(
     const result = await spec.handler(parsedArgs, { reportProgress, rawArgs: cleanArgs });
     const resultWithSkillBridgeEnvelope = maybeAttachSkillBridgeJobEnvelope(result);
     recordToolUsage(name);
+    const durationMs = Date.now() - startMs;
+
+    // trace-jsonl: structured JSONL log to stderr (compatible with MCP stdio protocol)
+    emitJsonlLog({ traceId, toolName: name, durationMs, success: true });
 
     if (reportProgress) reportProgress(1, 1, `completed: ${name}`);
     span?.end('OK');
     return formatToolResult(name, resultWithSkillBridgeEnvelope, parsedArgs);
   } catch (err) {
+    const durationMs = Date.now() - startMs;
     if (reportProgress) reportProgress(1, 1, `failed: ${name}`);
     span?.setAttribute('error.type', err instanceof Error ? err.constructor.name : 'unknown');
     span?.setAttribute('error.message', err instanceof Error ? err.message : String(err));
     span?.end('ERROR');
+
+    // trace-jsonl: structured JSONL log for failed tool calls
+    emitJsonlLog({ traceId, toolName: name, durationMs, success: false });
+
     return formatToolError(err, ctx, traceId);
   }
 }

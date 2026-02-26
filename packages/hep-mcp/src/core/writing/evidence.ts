@@ -194,6 +194,8 @@ function importanceScoreForLatex(item: EvidenceCatalogItemV1): number {
     table: 0.8,
     theorem: 0.8,
     citation_context: 0.6,
+    pdf_page: 0.5,
+    pdf_region: 0.6,
   };
 
   const text = item.text ?? '';

@@ -25,6 +25,7 @@ const compileOptions = {
   bannerComment: '',
   style: { singleQuote: true, semi: true, tabWidth: 2 },
   declareExternallyReferenced: true,
+  unreachableDefinitions: true,
   enableConstEnums: false,
   cwd: path.resolve(schemaDir),
 };

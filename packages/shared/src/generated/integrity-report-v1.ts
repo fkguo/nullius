@@ -58,6 +58,10 @@ export interface IntegrityReportV1 {
    */
   duration_ms?: number;
 }
+/**
+ * This interface was referenced by `IntegrityReportV1`'s JSON-Schema
+ * via the `definition` "IntegrityCheckResult".
+ */
 export interface IntegrityCheckResult {
   /**
    * Unique identifier of the check (e.g., 'hep_cross_check.ward_identity').
@@ -93,6 +97,10 @@ export interface IntegrityCheckResult {
   remediation?: string;
   duration_ms?: number;
 }
+/**
+ * This interface was referenced by `IntegrityReportV1`'s JSON-Schema
+ * via the `definition` "Evidence".
+ */
 export interface Evidence {
   /**
    * Type of evidence. V1 covers numerical/computational verification domains. V2 will add 'formal_proof' for mechanized verification workflows (see DESIGN_DEBT.md item 6).

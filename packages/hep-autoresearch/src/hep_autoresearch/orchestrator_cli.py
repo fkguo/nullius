@@ -61,6 +61,7 @@ from .toolkit.w3_revision import RevisionInputs, revise_one
 from .toolkit.w_compute import WComputeInputs, w_compute_one
 from .toolkit.run_card import ensure_run_card
 from .toolkit.run_card_schema import load_run_card_v2, normalize_and_validate_run_card_v2
+from .toolkit.logging_config import configure_logging
 
 
 def _die(msg: str, code: int = 2) -> int:
@@ -5556,6 +5557,19 @@ def cmd_run_card_render(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_migrate_wrapper(args: argparse.Namespace) -> int:
+    """CLI wrapper for ``workspace migrate`` (M-20)."""
+    from .toolkit.migrate import cmd_migrate
+
+    repo_root = _repo_root_from_args(args)
+    registry_path = None
+    reg_arg = getattr(args, "registry", None)
+    if reg_arg:
+        registry_path = Path(str(reg_arg)).expanduser().resolve()
+    dry_run = getattr(args, "dry_run", False)
+    return cmd_migrate(repo_root, registry_path=registry_path, dry_run=dry_run)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Orchestrator CLI v0.4 (run + status/pause/resume/approve).")
     parser.add_argument(
@@ -6062,7 +6076,17 @@ def main() -> int:
     p_branch_switch.add_argument("--note", help="Optional note for the ledger event.")
     p_branch_switch.set_defaults(fn=cmd_branch_switch)
 
+    # -- migrate -----------------------------------------------------------
+    p_migrate = sub.add_parser("migrate", help="Detect and upgrade old-version artifacts (M-20).")
+    p_migrate.add_argument("--registry", help="Path to migration_registry_v1.json (auto-detected if omitted).")
+    p_migrate.add_argument("--dry-run", action="store_true", help="Show what would be migrated without writing.")
+    p_migrate.set_defaults(fn=cmd_migrate_wrapper)
+
     args = parser.parse_args()
+
+    # trace-jsonl: configure structured JSONL logging for the orchestrator
+    configure_logging("orchestrator")
+
     return int(args.fn(args))
 
 

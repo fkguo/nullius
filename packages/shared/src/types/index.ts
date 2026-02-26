@@ -70,68 +70,49 @@ export {
   type CitationNetwork,
 } from './network.js';
 
-// Analysis Params
+// Analysis Types (consolidated — NEW-R06)
 export {
   AnalysisTypeSchema,
   RelatedStrategySchema,
   ExpansionDirectionSchema,
   SurveyGoalSchema,
+  SurveyPrioritizeSchema,
   AnalyzePapersParamsSchema,
   AnalyzeCollectionParamsSchema,
+  FindConnectionsParamsSchema,
+  FindRelatedParamsSchema,
+  ResearchExpansionParamsSchema,
+  GenerateSurveyParamsSchema,
+  TopicEvolutionParamsSchema,
+  BatchImportParamsSchema,
+  CollectionAnalysisSchema,
+  ConnectionsResultSchema,
+  RelatedPapersSchema,
+  ExpansionResultSchema,
+  SurveyResultSchema,
+  TopicEvolutionSchema,
+  BatchImportResultSchema,
   type AnalysisType,
   type RelatedStrategy,
   type ExpansionDirection,
   type SurveyGoal,
+  type SurveyPrioritize,
   type AnalyzePapersParams,
   type AnalyzeCollectionParams,
-} from './analysis-params.js';
-
-export {
-  FindConnectionsParamsSchema,
-  FindRelatedParamsSchema,
-  ResearchExpansionParamsSchema,
   type FindConnectionsParams,
   type FindRelatedParams,
   type ResearchExpansionParams,
-} from './analysis-params2.js';
-
-export {
-  GenerateSurveyParamsSchema,
-  TopicEvolutionParamsSchema,
-  BatchImportParamsSchema,
-  SurveyPrioritizeSchema,
   type GenerateSurveyParams,
   type TopicEvolutionParams,
   type BatchImportParams,
-  type SurveyPrioritize,
-} from './analysis-params3.js';
-
-// Analysis Results
-export {
-  CollectionAnalysisSchema,
   type CollectionAnalysis,
-} from './analysis-results.js';
-
-export {
-  ConnectionsResultSchema,
-  RelatedPapersSchema,
   type ConnectionsResult,
   type RelatedPapers,
-} from './analysis-results2.js';
-
-export {
-  ExpansionResultSchema,
-  SurveyResultSchema,
   type ExpansionResult,
   type SurveyResult,
-} from './analysis-results3.js';
-
-export {
-  TopicEvolutionSchema,
-  BatchImportResultSchema,
   type TopicEvolution,
   type BatchImportResult,
-} from './analysis-results4.js';
+} from './analysis-types.js';
 
 // Writing (Phase 10)
 export {

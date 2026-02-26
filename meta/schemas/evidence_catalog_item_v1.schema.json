@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/evidence_catalog_item_v1.schema.json",
+  "title": "Evidence Catalog Item V1",
+  "description": "Unified evidence catalog item for LaTeX and PDF sources. Each item represents a piece of evidence extracted from a research paper.",
+  "type": "object",
+  "required": ["version", "evidence_id", "project_id", "paper_id", "type", "locator", "text"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version."
+    },
+    "evidence_id": {
+      "type": "string",
+      "description": "Unique identifier for this evidence item (e.g. ev_<paper_id>_<type>_<hash>)."
+    },
+    "project_id": {
+      "type": "string",
+      "description": "Project that owns this evidence."
+    },
+    "paper_id": {
+      "type": "string",
+      "description": "Paper from which this evidence was extracted."
+    },
+    "type": {
+      "$ref": "#/$defs/EvidenceType"
+    },
+    "locator": {
+      "oneOf": [
+        { "$ref": "#/$defs/LatexLocatorV1" },
+        { "$ref": "#/$defs/PdfLocatorV1" }
+      ],
+      "description": "Source locator pointing to the evidence in the original document."
+    },
+    "text": {
+      "type": "string",
+      "description": "Extracted text content of the evidence."
+    },
+    "normalized_text": {
+      "type": "string",
+      "description": "Normalized text for search matching."
+    },
+    "citations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Citation keys referenced in this evidence (for citation_context type)."
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Type-specific metadata (e.g. equation_type, label, section_path)."
+    },
+    "artifact_ref": {
+      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json",
+      "description": "Optional content-addressed reference to the source artifact."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "EvidenceType": {
+      "type": "string",
+      "enum": [
+        "title",
+        "abstract",
+        "section",
+        "paragraph",
+        "equation",
+        "figure",
+        "table",
+        "theorem",
+        "citation_context",
+        "pdf_page",
+        "pdf_region"
+      ],
+      "description": "Type of evidence. First 9 are LaTeX-sourced, last 2 are PDF-sourced."
+    },
+    "LatexLocatorV1": {
+      "type": "object",
+      "required": ["kind", "file", "offset", "line", "column"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "latex",
+          "description": "Locator kind discriminator."
+        },
+        "file": {
+          "type": "string",
+          "description": "Relative path to the LaTeX source file within the extracted directory."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Byte offset in the (merged) source."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based line number."
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based column number."
+        },
+        "endOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "End byte offset (exclusive)."
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "End line number."
+        },
+        "endColumn": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "End column number."
+        },
+        "anchor": {
+          "type": "object",
+          "required": ["before", "after"],
+          "properties": {
+            "before": { "type": "string" },
+            "after": { "type": "string" }
+          },
+          "additionalProperties": false,
+          "description": "Textual anchors around the evidence for fuzzy re-location."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PdfLocatorV1": {
+      "type": "object",
+      "required": ["kind", "page"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pdf",
+          "description": "Locator kind discriminator."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based page number in the PDF."
+        },
+        "bbox": {
+          "type": "object",
+          "required": ["x0", "y0", "x1", "y1"],
+          "properties": {
+            "x0": { "type": "number" },
+            "y0": { "type": "number" },
+            "x1": { "type": "number" },
+            "y1": { "type": "number" }
+          },
+          "additionalProperties": false,
+          "description": "Bounding box coordinates in PDF coordinate space."
+        },
+        "char_offset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character offset within the extracted text of the page."
+        },
+        "char_length": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Character length of the evidence text."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -68,6 +68,10 @@ export interface ReproducibilityReportV1DeviationReport {
    */
   notes?: string;
 }
+/**
+ * This interface was referenced by `ReproducibilityReportV1DeviationReport`'s JSON-Schema
+ * via the `definition` "QuantityComparison".
+ */
 export interface QuantityComparison {
   /**
    * Name of the compared quantity (e.g., 'sigma_total', 'Gamma_H_bb').
@@ -101,6 +105,10 @@ export interface QuantityComparison {
    */
   notes?: string;
 }
+/**
+ * This interface was referenced by `ReproducibilityReportV1DeviationReport`'s JSON-Schema
+ * via the `definition` "NumericValue".
+ */
 export interface NumericValue {
   /**
    * Central/best value.
@@ -115,6 +123,10 @@ export interface NumericValue {
    */
   unit?: string;
 }
+/**
+ * This interface was referenced by `ReproducibilityReportV1DeviationReport`'s JSON-Schema
+ * via the `definition` "ToleranceSpec".
+ */
 export interface ToleranceSpec {
   /**
    * Maximum allowed absolute deviation.
