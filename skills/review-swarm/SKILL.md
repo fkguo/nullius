@@ -51,7 +51,6 @@ python3 scripts/bin/run_multi_task.py \
   --prompt /path/to/packet.md \
   --models claude/default,gemini/default \
   --backend-prompt gemini=/path/to/gemini_prompt.txt \
-  --backend-system gemini=none \
   --backend-output claude=claude_output.md \
   --backend-output gemini=gemini_output.md \
   --check-review-contract
@@ -156,6 +155,37 @@ JSON outputs wrapped in markdown code fences (`` ```json ... ``` ``) are automat
 - `{out-dir}/agent_*_*.txt` (or backend output override paths)
 - `{out-dir}/trace.jsonl`
 - `{out-dir}/meta.json`
+
+## Runner parity notes
+
+### System prompt delivery
+
+All backends now receive the system prompt by default. However, the delivery mechanism differs:
+
+| Runner | Delivery | True system role? |
+|--------|----------|-------------------|
+| claude-cli-runner | `--system-prompt` native arg | Yes |
+| codex-cli-runner | Merged into stdin (`=== System Instructions ===` + `=== Task ===`) | No — prepended to user message |
+| gemini-cli-runner | Concatenated into stdin (`system + \n\n + prompt`) | No — prepended to stdin |
+| opencode-cli-runner | Concatenated into stdin (same as gemini) | No — prepended to stdin |
+
+Only Claude CLI uses a true system role with elevated priority. The other three runners prepend the system prompt as a user-message prefix. This is a CLI limitation, not a bug.
+
+### File access
+
+| Runner | File access | Notes |
+|--------|-------------|-------|
+| Codex | `--sandbox read-only` | Can browse the codebase |
+| Gemini | Gemini CLI has shell/file tools | One-shot stdin mode may not trigger tool use |
+| Claude | `--tools` parameter | Depends on configuration |
+| OpenCode | Agent-dependent | Depends on agent configuration |
+
+### Implications for review weight
+
+- Codex reviews may reference specific files/lines thanks to sandbox access — treat as higher-confidence for implementation details.
+- Gemini/OpenCode reviews are prompt-only — stronger on high-level reasoning, weaker on code-level specifics.
+- Claude reviews can be either, depending on `--tools` configuration.
+- System prompt parity ensures all backends share the same review criteria (BLOCKING/HIGH/LOW taxonomy, output format).
 
 ## Skill name note
 
