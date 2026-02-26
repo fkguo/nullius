@@ -1,0 +1,16 @@
+**BLOCKING**
+1. `approvals show --format json` does not emit a single valid JSON document when more than one approval exists.  
+At the moment it loops and prints each packet blob with `end=""`, producing concatenated top-level JSON values (or mixed JSON + plain error strings), which breaks machine parsing for a command explicitly labeled `json` format.  
+Reference: [orchestrator_cli.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#L1598), [orchestrator_cli.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#L1601), [orchestrator_cli.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#L1605).  
+Repro output (2 approvals) is:
+```json
+{"approval_id":"A1-0001"}
+{"approval_id":"A2-0001"}
+```
+This is JSONL-like but undocumented and not valid single JSON.
+
+**NON-BLOCKING**
+1. Coverage gap for NEW-03/NEW-04 CLI integration paths. Current new tests only cover toolkit render/collection functions, not CLI behavior (`argparse` wiring, multi-approval output contract, fallback paths, `--gate` filtering, `--output-path` behavior).  
+References: [test_approval_packet.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/tests/test_approval_packet.py), [test_report_renderer.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/tests/test_report_renderer.py), [orchestrator_cli.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#L1575), [orchestrator_cli.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#L1627).
+
+FAIL

@@ -53,6 +53,8 @@ from .toolkit.orchestrator_state import (
     state_lock,
     state_path,
 )
+from .toolkit.approval_packet import ApprovalPacketData, write_trio
+from .toolkit.report_renderer import collect_run_result, render_md, render_tex
 from .toolkit.workflow_context import workflow_context
 from .toolkit.w1_ingest import IngestInputs, ingest_one
 from .toolkit.w2_reproduce import ReproduceInputs, reproduce_one
@@ -1456,52 +1458,37 @@ def _request_approval(
         if sid:
             step_ids = [str(sid)]
 
-    packet_path = repo_root / "artifacts" / "runs" / run_id / "approvals" / approval_id / "packet.md"
-    packet_path.parent.mkdir(parents=True, exist_ok=True)
-    packet_text = _approval_packet_skeleton(
-            category=category,
-            approval_id=approval_id,
-            run_id=run_id,
-            workflow_id=st.get("workflow_id"),
-            context_pack_path=(st.get("artifacts") or {}).get("context_md") if isinstance(st.get("artifacts"), dict) else None,
-            run_card_path=str(run_card_path) if isinstance(run_card_path, str) else None,
-            run_card_sha256=str(run_card_sha256) if isinstance(run_card_sha256, str) else None,
-            plan_md_path=plan_md_path,
-            plan_ssot_pointer=plan_ssot_pointer,
-            plan_step_ids=step_ids,
-            active_branch_id=active_branch_id,
-            purpose=purpose or "(fill)",
-            plan=plan,
-            details_md=details_md,
-            budgets={
-                "max_network_calls": int(budgets.get("max_network_calls") or 0),
-                "max_runtime_minutes": int(budgets.get("max_runtime_minutes") or 0),
-            },
-            risks=risks,
-            outputs=outputs,
-            rollback=rollback or "(fill)",
-        )
-    if isinstance(gate_resolution_trace, list) and gate_resolution_trace:
-        lines: list[str] = []
-        lines.append(packet_text.rstrip())
-        lines.extend(["", "## Gate resolution trace", ""])
-        for item in gate_resolution_trace:
-            if not isinstance(item, dict):
-                continue
-            gate_id = str(item.get("gate_id") or "").strip() or "(unknown)"
-            triggered_by = str(item.get("triggered_by") or "").strip() or "(unknown)"
-            reason = str(item.get("reason") or "").strip() or "(no reason)"
-            ts = str(item.get("timestamp_utc") or "").strip()
-            line = f"- gate={gate_id}; triggered_by={triggered_by}; reason={reason}"
-            if ts:
-                line += f"; at={ts}"
-            lines.append(line)
-        packet_text = "\n".join(lines).rstrip() + "\n"
-
-    packet_path.write_text(
-        packet_text,
-        encoding="utf-8",
+    approval_dir = repo_root / "artifacts" / "runs" / run_id / "approvals" / approval_id
+    packet_data = ApprovalPacketData(
+        approval_id=approval_id,
+        gate_id=category,
+        run_id=run_id,
+        workflow_id=st.get("workflow_id"),
+        purpose=purpose or "(fill)",
+        plan=plan,
+        risks=risks,
+        budgets={
+            "max_network_calls": int(budgets.get("max_network_calls") or 0),
+            "max_runtime_minutes": int(budgets.get("max_runtime_minutes") or 0),
+        },
+        outputs=outputs,
+        rollback=rollback or "(fill)",
+        commands=[],
+        checklist=[],
+        requested_at=requested_at,
+        context_pack_path=(st.get("artifacts") or {}).get("context_md") if isinstance(st.get("artifacts"), dict) else None,
+        run_card_path=str(run_card_path) if isinstance(run_card_path, str) else None,
+        run_card_sha256=str(run_card_sha256) if isinstance(run_card_sha256, str) else None,
+        plan_ssot_pointer=plan_ssot_pointer,
+        plan_step_ids=step_ids,
+        active_branch_id=active_branch_id,
+        gate_resolution_trace=[
+            item for item in (gate_resolution_trace or []) if isinstance(item, dict)
+        ],
+        details_md=details_md,
     )
+    write_trio(packet_data, approval_dir)
+    packet_path = approval_dir / "packet.md"
 
     st["run_id"] = run_id
     st["run_status"] = "awaiting_approval"
@@ -1582,6 +1569,108 @@ def cmd_request_approval(args: argparse.Namespace) -> int:
 
     print(f"[ok] requested approval: {approval_id}")
     print(f"[ok] packet: {packet_rel}")
+    return 0
+
+
+def cmd_approvals_show(args: argparse.Namespace) -> int:
+    """Show approval packets for a run (NEW-03)."""
+    repo_root = _repo_root_from_args(args)
+    run_id: str = args.run_id
+    gate_filter: str | None = getattr(args, "gate", None)
+    fmt: str = getattr(args, "format", "short") or "short"
+
+    approvals_dir = repo_root / "artifacts" / "runs" / run_id / "approvals"
+    if not approvals_dir.is_dir():
+        if fmt == "json":
+            print("[]")
+        else:
+            print(f"[info] no approvals found for run {run_id}")
+        return 0
+
+    dirs = sorted(approvals_dir.iterdir())
+    if gate_filter:
+        dirs = [d for d in dirs if d.name.startswith(gate_filter)]
+
+    if not dirs:
+        if fmt == "json":
+            print("[]")
+        else:
+            print(f"[info] no approvals matching gate={gate_filter or '*'} for run {run_id}")
+        return 0
+
+    json_packets: list[dict] = []  # collect for --format json
+
+    for approval_dir in dirs:
+        if not approval_dir.is_dir():
+            continue
+        if fmt == "json":
+            json_path = approval_dir / "approval_packet_v1.json"
+            if json_path.exists():
+                try:
+                    json_packets.append(json.loads(json_path.read_text(encoding="utf-8")))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    json_packets.append({"error": f"malformed JSON in {approval_dir.name}/approval_packet_v1.json"})
+            else:
+                packet_path = approval_dir / "packet.md"
+                if packet_path.exists():
+                    json_packets.append({"error": f"no JSON packet, showing markdown path: {packet_path}"})
+                else:
+                    json_packets.append({"error": f"no packet found in {approval_dir.name}"})
+        elif fmt == "full":
+            full_path = approval_dir / "packet.md"
+            if full_path.exists():
+                print(full_path.read_text(encoding="utf-8"), end="")
+            else:
+                print(f"[warn] no packet.md in {approval_dir.name}")
+        else:
+            short_path = approval_dir / "packet_short.md"
+            if short_path.exists():
+                print(short_path.read_text(encoding="utf-8"), end="")
+            else:
+                full_path = approval_dir / "packet.md"
+                if full_path.exists():
+                    print(full_path.read_text(encoding="utf-8"), end="")
+                else:
+                    print(f"[warn] no packet found in {approval_dir.name}")
+
+    if fmt == "json":
+        print(json.dumps(json_packets, indent=2, ensure_ascii=False))
+
+    return 0
+
+
+def cmd_report_render(args: argparse.Namespace) -> int:
+    """Render a self-contained report from run results (NEW-04)."""
+    repo_root = _repo_root_from_args(args)
+    run_ids = [rid.strip() for rid in args.run_ids.split(",") if rid.strip()]
+    if not run_ids:
+        return _die("no run-ids provided")
+
+    out_fmt: str = getattr(args, "out", "md") or "md"
+    output_path: str | None = getattr(args, "output_path", None)
+
+    results = []
+    for rid in run_ids:
+        run_dir = repo_root / "artifacts" / "runs" / rid
+        if not run_dir.is_dir():
+            print(f"[warn] run directory not found: {rid}")
+            continue
+        results.append(collect_run_result(repo_root, rid))
+
+    if not results:
+        return _die("no valid runs found")
+
+    if out_fmt == "tex":
+        content = render_tex(results)
+    else:
+        content = render_md(results)
+
+    if output_path:
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_text(content, encoding="utf-8")
+        print(f"[ok] report written to {output_path}")
+    else:
+        print(content)
     return 0
 
 
@@ -5639,6 +5728,25 @@ def main() -> int:
     p_rej.add_argument("approval_id", help="Approval id, e.g. A1-0001")
     p_rej.add_argument("--note", help="Ledger note.")
     p_rej.set_defaults(fn=cmd_reject)
+
+    p_approvals = sub.add_parser("approvals", help="Approval packet utilities (NEW-03).")
+    approvals_sub = p_approvals.add_subparsers(dest="approvals_cmd", required=True)
+    p_approvals_show = approvals_sub.add_parser("show", help="Show approval packets for a run.")
+    p_approvals_show.add_argument("--run-id", required=True, help="Run id.")
+    p_approvals_show.add_argument("--gate", help="Filter by gate prefix (e.g. A1, A3).")
+    p_approvals_show.add_argument(
+        "--format", choices=["short", "full", "json"], default="short",
+        help="Output format (default: short).",
+    )
+    p_approvals_show.set_defaults(fn=cmd_approvals_show)
+
+    p_report = sub.add_parser("report", help="Report utilities (NEW-04).")
+    report_sub = p_report.add_subparsers(dest="report_cmd", required=True)
+    p_report_render = report_sub.add_parser("render", help="Render a self-contained report from run results.")
+    p_report_render.add_argument("--run-ids", required=True, help="Comma-separated run ids.")
+    p_report_render.add_argument("--out", choices=["md", "tex"], default="md", help="Output format (default: md).")
+    p_report_render.add_argument("--output-path", help="Write to file instead of stdout.")
+    p_report_render.set_defaults(fn=cmd_report_render)
 
     p_run = sub.add_parser(
         "run",

@@ -43,3 +43,4 @@ paper/
 
 # Lock files are committed
 # !pnpm-lock.yaml
+.gitnexus

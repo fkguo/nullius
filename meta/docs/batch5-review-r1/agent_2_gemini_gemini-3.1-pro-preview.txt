@@ -1,0 +1,65 @@
+**Evaluating Code Review Findings**
+
+I'm now prioritizing my findings by item and classifying them as either blocking or non-blocking issues. I've pinpointed two blocking issues: the need for directory creation handling in `NEW-02`'s `write_trio` function and the necessity of binary mode file reading in `NEW-04`'s SHA256 calculation. Additionally, I've confirmed the proper pattern for exempt annotations in `NEW-R08` and am ready for the final summary.
+
+
+This code review covers the Phase 2 Batch 5 implementation. The focus is on the approval gate infrastructure, CLI extensions, and the report rendering engine.
+
+---
+
+### NEW-02: Approval Packet Trio
+
+#### [BLOCKING] Missing Directory Creation in `write_trio`
+In `packages/hep-autoresearch/src/hep_autoresearch/toolkit/approval_packet.py`, the `write_trio` function attempts to write files to a path (typically inside an `approvals/` subdirectory). If the subdirectory does not exist, `open(path, "w")` will raise a `FileNotFoundError`.
+*   **Fix**: Add `os.makedirs(os.path.dirname(base_path), exist_ok=True)` before writing.
+
+#### [NON-BLOCKING] Schema Strictness
+The `meta/schemas/approval_packet_v1.schema.json` is well-structured, but it lacks `"additionalProperties": false` at the top level. To ensure the SSOT (Single Source of Truth) remains clean and codegen doesn't produce unexpected types in TypeScript, it is recommended to restrict additional properties.
+
+#### [NON-BLOCKING] `render_short` Truncation Logic
+The implementation uses `lines[:57]` to enforce the 60-line limit. While functional, if the `gate_resolution_trace` itself contains very long lines that wrap in a standard terminal, the "visual" line count will exceed 60. This is acceptable for now given the "zero external dependency" constraint, but consider a more robust wrapping check in the future.
+
+---
+
+### NEW-03: Approvals CLI Show Command
+
+#### [NON-BLOCKING] UX: Missing Run-ID Feedback
+In `cmd_approvals_show`, if a user provides a `--run-id` that exists but has no approval packets, the CLI returns 0 with an info message. While this matches the requirement, it is helpful to distinguish between "Run not found" and "Run found, but no approvals recorded." Currently, it treats both similarly.
+
+---
+
+### NEW-04: Self-Contained Human Report
+
+#### [BLOCKING] Security/Integrity: Binary File Reading for SHA256
+In `packages/hep-autoresearch/src/hep_autoresearch/toolkit/report_renderer.py`, the `collect_run_result` function computes SHA256 hashes for artifacts.
+*   **Issue**: If files are opened in text mode (`"r"`), the hash will vary based on the system's default encoding and newline handling (CRLF vs LF), breaking the audit trail.
+*   **Fix**: Ensure all files used for hashing are opened in binary mode: `with open(path, "rb") as f:`.
+
+#### [NON-BLOCKING] LaTeX Escaping Completeness
+The `_tex_escape` function handles standard characters (`&`, `%`, `$`, etc.). However, it should also handle backslashes (`\`) by converting them to `\textbackslash{}` and tildes (`~`) to `\textasciitilde{}`. Without this, a skill output containing a file path like `C:\Users\~` will break the LaTeX compilation.
+
+---
+
+### NEW-R08: Skills LOC Budget (CONTRACT-EXEMPT)
+
+#### [NON-BLOCKING] Sunset Date Consistency
+The sunset date `2026-06-01` is applied consistently across all 6 scripts. This is acceptable. Note that `literature_fetch.py` is significantly over the limit (~450 lines); ensure that the "reason" field in the annotation specifically mentions the dependency on complex legacy parsing logic to justify the long-term exemption.
+
+---
+
+### Tests
+
+#### [NON-BLOCKING] Test Coverage for Malformed JSON
+The `test_approval_packet.py` covers valid data and file writing. It would be beneficial to add a test case for `render_json` when optional fields (like `context`) are `None` to verify the "sparse JSON" requirement (ensuring keys are omitted rather than included as `null`).
+
+---
+
+### Summary: **FAIL**
+
+**Reasoning**: Two blocking issues identified regarding file system safety and cryptographic integrity.
+1.  **`write_trio`** will crash if the target directory hasn't been pre-created by the orchestrator.
+2.  **SHA256 computation** must use binary reads to ensure the audit pointers are valid across different operating systems.
+
+**Required Actions**:
+1.  Update `approval_packet.py` to ensure directory existence.
+2.  Update `report_renderer.py` to use `rb` for hashing.

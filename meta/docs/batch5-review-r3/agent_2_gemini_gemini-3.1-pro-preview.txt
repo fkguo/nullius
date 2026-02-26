@@ -1,0 +1,20 @@
+Here is the review of Phase 2 Batch 5. 
+
+**BLOCKING**: Missing Source Code Context
+- **Description**: The prompt instructs me to read local files directly from your filesystem (e.g., `/home/user/...`). As an AI, I do not have access to your local machine's filesystem and the file contents were not attached to this prompt's context window. I cannot verify correctness, schema validity, CLI integration, tests, or security without seeing the actual code.
+- **Remediation**: Please provide the contents of the files (either by pasting them or ensuring your AI CLI/IDE tool successfully attaches them to the prompt context) so I can perform the full review.
+
+**NON-BLOCKING**: LaTeX Escaping Edge Cases (Pre-review check)
+- **Description**: Regarding **NEW-04** (`_tex_escape`), a common pitfall in zero-dependency LaTeX generation is improperly escaping `~` (tilde), `^` (caret), and `\` (backslash). Simply prepending a backslash to these (`\~`, `\^`, `\\`) causes compilation errors or unintended formatting. 
+- **Remediation**: Once the code is provided, I will verify that `\` becomes `\textbackslash{}`, `~` becomes `\textasciitilde{}`, and `^` becomes `\textasciicircum{}`.
+
+**NON-BLOCKING**: Sparse JSON vs. Schema Requirements (Pre-review check)
+- **Description**: Regarding **NEW-02**, the notes mention `render_json` only includes optional fields when non-empty (sparse JSON). A common bug here is accidentally omitting a field that is empty *but marked as required* in the JSON Schema, which would break downstream validation.
+- **Remediation**: Once the code is provided, I will cross-reference the `render_json` omission logic against the `required` array in `approval_packet_v1.schema.json`.
+
+**NON-BLOCKING**: Memory scaling on `approvals show --format json` (Pre-review check)
+- **Description**: Regarding **NEW-03**, the R2 fix collects all packets into a `list[dict]` before calling `json.dumps()`. Since this is a zero-dependency orchestrator, if the number of approval packets grows to the tens of thousands, loading all JSON dicts into memory simultaneously might cause spikes. 
+- **Remediation**: Given the context of human-in-the-loop approvals, the volume is likely low enough that this is perfectly fine, but it is worth noting for future scalability.
+
+### Summary
+`FAIL` (1 blocking)

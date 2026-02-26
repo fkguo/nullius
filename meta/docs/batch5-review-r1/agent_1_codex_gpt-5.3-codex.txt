@@ -1,0 +1,30 @@
+1. **BLOCKING**: `CONTRACT-EXEMPT` comment was inserted before shebang, breaking direct script execution.
+- Impact: executable scripts are now interpreted by `/bin/sh` instead of Python when run as `./script.py`, causing runtime failures.
+- Evidence: running `./skills/auto-relay/scripts/relay.py --help` now fails with shell parsing errors.
+- File refs:
+  - [relay.py](/home/user/Coding/Agents/autoresearch-lab/skills/auto-relay/scripts/relay.py:1)
+  - [paper_reviser_edit.py](/home/user/Coding/Agents/autoresearch-lab/skills/paper-reviser/scripts/bin/paper_reviser_edit.py:1)
+  - [build_team_packet.py](/home/user/Coding/Agents/autoresearch-lab/skills/research-team/scripts/bin/build_team_packet.py:1)
+  - [literature_fetch.py](/home/user/Coding/Agents/autoresearch-lab/skills/research-team/scripts/bin/literature_fetch.py:1)
+  - [research_writer_learn_discussion_logic.py](/home/user/Coding/Agents/autoresearch-lab/skills/research-writer/scripts/bin/research_writer_learn_discussion_logic.py:1)
+  - [run_multi_task.py](/home/user/Coding/Agents/autoresearch-lab/skills/review-swarm/scripts/bin/run_multi_task.py:1)
+
+2. **BLOCKING**: `render_short()` does not actually enforce the `<=60` line contract.
+- Impact: output is truncated to 60 lines, then overflow note is appended, resulting in 63 lines in overflow cases.
+- Evidence: reproduced with long `plan` list (`SHORT_LINE_LIMIT=60`, actual output lines=63).
+- File ref: [approval_packet.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/src/hep_autoresearch/toolkit/approval_packet.py:101)
+
+3. **NON-BLOCKING**: New CLI paths (`approvals show`, `report render`) lack direct command-level tests.
+- Impact: regressions in argparse wiring/fallback behavior may not be caught by current suite.
+- File refs:
+  - [orchestrator_cli.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1575)
+  - [orchestrator_cli.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1627)
+  - [test_approval_packet.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/tests/test_approval_packet.py:1)
+  - [test_report_renderer.py](/home/user/Coding/Agents/autoresearch-lab/packages/hep-autoresearch/tests/test_report_renderer.py:1)
+
+4. **NON-BLOCKING**: Schema could be stricter for gate/timestamp semantics.
+- `gate_id` is documented as `A1–A5` but unconstrained string.
+- `gate_resolution_trace[].timestamp_utc` lacks `date-time` format validation.
+- File ref: [approval_packet_v1.schema.json](/home/user/Coding/Agents/autoresearch-lab/meta/schemas/approval_packet_v1.schema.json:32)
+
+`FAIL`

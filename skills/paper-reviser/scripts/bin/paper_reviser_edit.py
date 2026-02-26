@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-06-01 — monolithic reviser; split blocked on paper-reviser skill redesign
 """
 paper_reviser_edit.py
 

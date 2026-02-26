@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-06-01 — discussion logic learner; split into extraction + analysis modules planned
 """
 research_writer_learn_discussion_logic.py
 

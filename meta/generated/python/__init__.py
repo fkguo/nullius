@@ -1,6 +1,7 @@
 # AUTO-GENERATED — DO NOT EDIT. Source: meta/schemas/
 
 from .analysis_types_v1 import *  # noqa: F401,F403
+from .approval_packet_v1 import *  # noqa: F401,F403
 from .artifact_ref_v1 import *  # noqa: F401,F403
 from .capsule_v1 import *  # noqa: F401,F403
 from .domain_pack_manifest_v1 import *  # noqa: F401,F403

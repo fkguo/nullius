@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-06-01 — cross-session orchestrator; split into phase modules planned
 """Cross-session auto relay orchestrator (general skill, profile-driven)."""
 
 from __future__ import annotations

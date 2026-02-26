@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-06-01 — multi-backend orchestrator; split into backend modules planned
 """
 run_multi_task.py
 
@@ -581,6 +582,7 @@ def _build_cmd(
     opencode_agent: Optional[str],
     opencode_variant: Optional[str],
     gemini_cli_home: Optional[str],
+    gemini_no_proxy_first: bool = False,
 ) -> list[str]:
     cmd = ["bash", str(plan.runner_path)]
     if system is not None:
@@ -602,6 +604,8 @@ def _build_cmd(
             cmd.extend(["--variant", opencode_variant])
     if plan.backend == "gemini" and gemini_cli_home:
         cmd.extend(["--gemini-cli-home", gemini_cli_home])
+    if plan.backend == "gemini" and gemini_no_proxy_first:
+        cmd.append("--no-proxy-first")
     return cmd
 
 
@@ -616,6 +620,7 @@ def _run_one(
     opencode_agent: Optional[str],
     opencode_variant: Optional[str],
     gemini_cli_home: Optional[str],
+    gemini_no_proxy_first: bool = False,
     output_path: Optional[Path] = None,
 ) -> dict[str, Any]:
     out_path = output_path or (out_dir / f"{output_prefix}_{plan.index + 1}_{_model_slug(plan.requested_model)}.txt")
@@ -628,6 +633,7 @@ def _run_one(
         opencode_agent=opencode_agent,
         opencode_variant=opencode_variant,
         gemini_cli_home=gemini_cli_home,
+        gemini_no_proxy_first=gemini_no_proxy_first,
     )
 
     _append_jsonl(
@@ -1353,6 +1359,7 @@ def main() -> int:
                     opencode_agent=args.agent or None,
                     opencode_variant=args.variant or None,
                     gemini_cli_home=gemini_cli_home,
+                    gemini_no_proxy_first=True,
                     output_path=plan_out,
                 ): (plan, plan_out)
                 for plan, plan_system, plan_prompt, plan_out in run_specs
@@ -1398,6 +1405,7 @@ def main() -> int:
                     opencode_agent=args.agent or None,
                     opencode_variant=args.variant or None,
                     gemini_cli_home=gemini_cli_home,
+                    gemini_no_proxy_first=True,
                     output_path=plan_out,
                 )
             )
@@ -1495,6 +1503,7 @@ def main() -> int:
                         opencode_agent=args.agent or None,
                         opencode_variant=args.variant or None,
                         gemini_cli_home=gemini_cli_home,
+                        gemini_no_proxy_first=True,
                         output_path=out_path,
                     )
                     r["resolved"] = {"backend": backend, "model": model}

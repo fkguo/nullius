@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/approval_packet_v1.schema.json",
+  "title": "ApprovalPacket V1",
+  "description": "Structured approval packet for human review of orchestrator gate decisions. Contains purpose, plan, risks, budgets, outputs, rollback, and checklist.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "approval_id",
+    "gate_id",
+    "run_id",
+    "purpose",
+    "plan",
+    "risks",
+    "budgets",
+    "outputs",
+    "rollback",
+    "commands",
+    "checklist",
+    "requested_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version, always 1 for this schema."
+    },
+    "approval_id": {
+      "type": "string",
+      "description": "Unique approval identifier, e.g. A1-0001."
+    },
+    "gate_id": {
+      "type": "string",
+      "description": "Gate category (A1–A5)."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run identifier this approval belongs to."
+    },
+    "workflow_id": {
+      "type": "string",
+      "description": "Workflow identifier."
+    },
+    "purpose": {
+      "type": "string",
+      "description": "1–3 sentence description of what this approval authorizes."
+    },
+    "plan": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered list of plan steps."
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Known risks and failure modes."
+    },
+    "budgets": {
+      "type": "object",
+      "properties": {
+        "max_network_calls": { "type": "integer", "minimum": 0 },
+        "max_runtime_minutes": { "type": "integer", "minimum": 0 },
+        "max_cpu_hours": { "type": "number", "minimum": 0 },
+        "max_gpu_hours": { "type": "number", "minimum": 0 },
+        "max_disk_gb": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false,
+      "description": "Resource budget limits for this approval scope."
+    },
+    "outputs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Expected output paths/artifacts."
+    },
+    "rollback": {
+      "type": "string",
+      "description": "Rollback plan if execution fails or is rejected."
+    },
+    "commands": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Shell commands that will be executed upon approval."
+    },
+    "checklist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Human-readable checklist items for the reviewer."
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z timestamp of when approval was requested."
+    },
+    "context_pack_path": {
+      "type": "string",
+      "description": "Relative path to the context pack file."
+    },
+    "run_card_path": {
+      "type": "string",
+      "description": "Relative path to the run card."
+    },
+    "run_card_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the run card (canonical JSON)."
+    },
+    "plan_ssot_pointer": {
+      "type": "string",
+      "description": "JSON pointer to the plan in state.json."
+    },
+    "plan_step_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Plan step IDs covered by this approval."
+    },
+    "active_branch_id": {
+      "type": "string",
+      "description": "Currently active branch ID (if branching is in use)."
+    },
+    "gate_resolution_trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "gate_id": { "type": "string" },
+          "triggered_by": { "type": "string" },
+          "reason": { "type": "string" },
+          "timestamp_utc": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "description": "Trace of gate resolution events leading to this approval."
+    },
+    "details_md": {
+      "type": "string",
+      "description": "Optional extended details in Markdown format."
+    }
+  },
+  "additionalProperties": false
+}

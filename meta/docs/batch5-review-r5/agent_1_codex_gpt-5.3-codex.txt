@@ -1,0 +1,9 @@
+**Findings**
+- **BLOCKING**: `approvals show --format json` still crashes on malformed packet files that are non-UTF8, because only `json.JSONDecodeError` is caught; `read_text()` can raise `UnicodeDecodeError` first. Repro: write bytes like `0xff 0xfe` into `approval_packet_v1.json` and run command. See `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1610` and `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1611`.
+- **BLOCKING**: `collect_run_result()` picks the first lexicographically sorted `analysis.json` under the run tree and then `break`s, which can select a nested analysis instead of the intended run-level one, producing wrong summary/workflow/headline data in `report render`. See `packages/hep-autoresearch/src/hep_autoresearch/toolkit/report_renderer.py:44` and `packages/hep-autoresearch/src/hep_autoresearch/toolkit/report_renderer.py:58`.
+- **NON-BLOCKING**: `write_trio()` docstring says returned paths are relative to repo root, but returned values are raw `str(Path)` and will usually be absolute when `approval_dir` is absolute. See `packages/hep-autoresearch/src/hep_autoresearch/toolkit/approval_packet.py:223` and `packages/hep-autoresearch/src/hep_autoresearch/toolkit/approval_packet.py:241`.
+- **NON-BLOCKING**: Schema constraints are looser than descriptions (`gate_id` not constrained to A1–A5; `gate_resolution_trace.timestamp_utc` lacks `date-time` format), which weakens validation quality. See `meta/schemas/approval_packet_v1.schema.json:32` and `meta/schemas/approval_packet_v1.schema.json:128`.
+
+- NEW-R08 header order/content checks look correct in all 6 scripts.
+
+**FAIL** (2 blocking).

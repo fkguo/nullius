@@ -7,6 +7,7 @@ export type {
   AnalysisTypesV1,
   PaperSummaryRef,
 } from "./analysis-types-v1.js";
+export * from "./approval-packet-v1.js";
 export type { ArtifactRefV1 } from "./artifact-ref-v1.js";
 export * from "./capsule-v1.js";
 export * from "./domain-pack-manifest-v1.js";

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-06-01 — team packet builder; split into section generators planned
 """
 Build a compact team packet for a two-member research-team cycle.
 
