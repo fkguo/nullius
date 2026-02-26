@@ -18,6 +18,10 @@
     "./shared/zotero": {
       "import": "./dist/shared/zotero/index.js",
       "types": "./dist/shared/zotero/index.d.ts"
+    },
+    "./zotero/tools": {
+      "import": "./dist/zotero/tools.js",
+      "types": "./dist/zotero/tools.d.ts"
     }
   },
   "bin": {

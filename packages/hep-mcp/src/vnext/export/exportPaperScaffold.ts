@@ -492,7 +492,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
   const writingMasterBibName = params.writing_master_bib_artifact_name?.trim() || 'writing_master.bib';
   assertSafePathSegment(writingMasterBibName, 'writing_master_bib_artifact_name');
 
-  const bibliographyRawName = params.bibliography_raw_artifact_name?.trim() || 'bibliography_raw.json';
+  const bibliographyRawName = params.bibliography_raw_artifact_name?.trim() || 'bibliography_raw_v1.json';
   assertSafePathSegment(bibliographyRawName, 'bibliography_raw_artifact_name');
 
   const zipArtifactName = params.zip_artifact_name?.trim() || 'paper_scaffold.zip';
@@ -528,7 +528,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
           {
             tool: HEP_RUN_BUILD_CITATION_MAPPING,
             args: { run_id: runId, identifier: '<arXiv/DOI/recid>', allowed_citations_primary: generatedBib.missing_keys },
-            reason: 'Build bibliography_raw.json + writing_master.bib + allowed_citations.json (then re-run export).',
+            reason: 'Build bibliography_raw_v1.json + writing_master.bib + allowed_citations_v1.json (then re-run export).',
           },
           { tool: HEP_EXPORT_PAPER_SCAFFOLD, args: { run_id: runId }, reason: 'Re-run export after citations/bibtex are available.' },
         ],

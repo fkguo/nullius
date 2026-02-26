@@ -105,7 +105,7 @@ describe('vNext: Zotero integration', () => {
     };
     expect(payload.summary.resolved_recids).toBe(1);
 
-    const mapUri = payload.artifacts.find(a => a.name === 'zotero_map.json')?.uri;
+    const mapUri = payload.artifacts.find(a => a.name === 'zotero_map_v1.json')?.uri;
     expect(mapUri).toBeTruthy();
 
     const map = JSON.parse((readHepResource(mapUri!) as any).text) as any;

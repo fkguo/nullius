@@ -500,7 +500,7 @@ const HepExportProjectToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   rendered_latex_artifact_name: SafePathSegmentSchema.optional().default('rendered_latex.tex'),
   rendered_latex_verification_artifact_name: SafePathSegmentSchema.optional().default('rendered_latex_verification.json'),
-  bibliography_raw_artifact_name: SafePathSegmentSchema.optional().default('bibliography_raw.json'),
+  bibliography_raw_artifact_name: SafePathSegmentSchema.optional().default('bibliography_raw_v1.json'),
   master_bib_artifact_name: SafePathSegmentSchema.optional().default('master.bib'),
   report_tex_artifact_name: SafePathSegmentSchema.optional().default('report.tex'),
   report_md_artifact_name: SafePathSegmentSchema.optional().default('report.md'),
@@ -521,7 +521,7 @@ const HepExportPaperScaffoldToolSchema = z.object({
   overwrite: z.boolean().optional().default(false),
   integrated_latex_artifact_name: SafePathSegmentSchema.optional().default('writing_integrated.tex'),
   writing_master_bib_artifact_name: SafePathSegmentSchema.optional().default('writing_master.bib'),
-  bibliography_raw_artifact_name: SafePathSegmentSchema.optional().default('bibliography_raw.json'),
+  bibliography_raw_artifact_name: SafePathSegmentSchema.optional().default('bibliography_raw_v1.json'),
   zip_artifact_name: SafePathSegmentSchema.optional().default('paper_scaffold.zip'),
   paper_manifest_artifact_name: SafePathSegmentSchema.optional().default('paper_manifest.json'),
   _confirm: z.boolean().optional(),
@@ -1862,7 +1862,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'Build bibliography→INSPIRE mapping artifacts for a run (runs locally; uses INSPIRE network) and write `bibliography_raw.json`, `citekey_to_inspire.json`, `allowed_citations.json` (Evidence-first URIs + summary).',
+      'Build bibliography→INSPIRE mapping artifacts for a run (runs locally; uses INSPIRE network) and write `bibliography_raw_v1.json`, `citekey_to_inspire_v1.json`, `allowed_citations_v1.json` (Evidence-first URIs + summary).',
     zodSchema: HepRunBuildCitationMappingToolSchema,
     handler: async params => {
       const run = getRun(params.run_id);
@@ -1927,9 +1927,9 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
           allowed_citations_secondary: secondary,
         });
 
-        const bibliographyRef = writeRunJsonArtifact(params.run_id, 'bibliography_raw.json', bibliographyRaw);
-        const mappingRef = writeRunJsonArtifact(params.run_id, 'citekey_to_inspire.json', citekeyToInspire);
-        const allowedRef = writeRunJsonArtifact(params.run_id, 'allowed_citations.json', allowedCitations);
+        const bibliographyRef = writeRunJsonArtifact(params.run_id, 'bibliography_raw_v1.json', bibliographyRaw);
+        const mappingRef = writeRunJsonArtifact(params.run_id, 'citekey_to_inspire_v1.json', citekeyToInspire);
+        const allowedRef = writeRunJsonArtifact(params.run_id, 'allowed_citations_v1.json', allowedCitations);
 
         artifacts.push(bibliographyRef, mappingRef, allowedRef);
 
@@ -2186,7 +2186,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
           tier: 'core',
           exposure: 'standard',
           description:
-            'Import Zotero items into a run mapping (Zotero item → identifiers → INSPIRE recid). Requires Zotero Local API; resolves via INSPIRE when needed (network) and writes `zotero_map.json` artifact (Evidence-first).',
+            'Import Zotero items into a run mapping (Zotero item → identifiers → INSPIRE recid). Requires Zotero Local API; resolves via INSPIRE when needed (network) and writes `zotero_map_v1.json` artifact (Evidence-first).',
           zodSchema: HepImportFromZoteroToolSchema,
           handler: async (params, ctx) => {
             const raw = ctx.rawArgs ?? {};
@@ -2207,7 +2207,7 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
               return withNextActions(result, [{
                 tool: INSPIRE_DEEP_RESEARCH,
                 args: { mode: 'analyze', run_id: result.run_id },
-                reason: 'Analyze the imported papers. Read zotero_map.json artifact for recids.',
+                reason: 'Analyze the imported papers. Read zotero_map_v1.json artifact for recids.',
               }]);
             }
             return result;
@@ -2877,7 +2877,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
 
       // H-13 L2: mode=analyze/synthesize → write artifact + return URI + summary
       if (params.mode === 'analyze' && params.run_id) {
-        const ref = writeRunJsonArtifact(params.run_id, 'deep_analyze_result.json', result);
+        const ref = writeRunJsonArtifact(params.run_id, 'deep_analyze_result_v1.json', result);
         const analysis = result && typeof result === 'object' && 'analysis' in result
           ? (result as unknown as Record<string, unknown>).analysis as Record<string, unknown> | undefined
           : undefined;
@@ -2895,7 +2895,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
       }
 
       if (params.mode === 'synthesize' && params.run_id) {
-        const ref = writeRunJsonArtifact(params.run_id, 'deep_synthesize_result.json', result);
+        const ref = writeRunJsonArtifact(params.run_id, 'deep_synthesize_result_v1.json', result);
         const review = result && typeof result === 'object' && 'review' in result
           ? (result as unknown as Record<string, unknown>).review as Record<string, unknown> | undefined
           : undefined;

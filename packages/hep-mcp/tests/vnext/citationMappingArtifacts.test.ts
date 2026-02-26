@@ -39,7 +39,7 @@ describe('vNext M5: citation mapping artifacts', () => {
     }
   });
 
-  it('writes bibliography_raw.json, citekey_to_inspire.json, allowed_citations.json and records them in manifest', async () => {
+  it('writes bibliography_raw_v1.json, citekey_to_inspire_v1.json, allowed_citations_v1.json and records them in manifest', async () => {
     vi.mocked(extract.extractBibliography).mockResolvedValueOnce({
       entries: [
         {
@@ -92,12 +92,12 @@ describe('vNext M5: citation mapping artifacts', () => {
     };
 
     expect(payload.artifacts.map(a => a.name).sort()).toEqual([
-      'allowed_citations.json',
-      'bibliography_raw.json',
-      'citekey_to_inspire.json',
+      'allowed_citations_v1.json',
+      'bibliography_raw_v1.json',
+      'citekey_to_inspire_v1.json',
     ]);
 
-    const allowedUri = payload.artifacts.find(a => a.name === 'allowed_citations.json')!.uri;
+    const allowedUri = payload.artifacts.find(a => a.name === 'allowed_citations_v1.json')!.uri;
     const allowed = JSON.parse((readHepResource(allowedUri) as any).text) as {
       include_mapped_references: boolean;
       allowed_citations: string[];
@@ -115,9 +115,9 @@ describe('vNext M5: citation mapping artifacts', () => {
     expect(last.step).toBe('citation_mapping');
     expect(last.status).toBe('done');
     expect(last.artifacts?.map(a => a.name).sort()).toEqual([
-      'allowed_citations.json',
-      'bibliography_raw.json',
-      'citekey_to_inspire.json',
+      'allowed_citations_v1.json',
+      'bibliography_raw_v1.json',
+      'citekey_to_inspire_v1.json',
     ]);
   });
 });

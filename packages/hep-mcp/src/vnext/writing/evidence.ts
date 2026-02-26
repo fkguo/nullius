@@ -745,7 +745,7 @@ export async function buildRunWritingEvidence(params: {
     }
 
     const attempted = statusSummary.succeeded + statusSummary.failed;
-    const metaRef = writeRunJsonArtifact(runId, 'writing_evidence_meta.json', {
+    const metaRef = writeRunJsonArtifact(runId, 'writing_evidence_meta_v1.json', {
       version: 1,
       generated_at: nowIso(),
       run_id: runId,

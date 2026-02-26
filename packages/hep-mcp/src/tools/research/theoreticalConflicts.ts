@@ -924,7 +924,7 @@ export async function performTheoreticalConflicts(params: {
       llm_responses_failed: responsesJsonl.filter(r => r.ok === false).length,
     },
   };
-  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_meta.json', metaPayload));
+  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_meta_v1.json', metaPayload));
 
   const sourceStatusPayload = {
     version: 1,
@@ -947,7 +947,7 @@ export async function performTheoreticalConflicts(params: {
     },
     warnings,
   };
-  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_source_status.json', sourceStatusPayload));
+  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_source_status_v1.json', sourceStatusPayload));
 
   artifacts.push(writeRunJsonlArtifact(params.run_id, 'theoretical_claim_candidates.jsonl', candidatesFinal));
   artifacts.push(writeRunJsonlArtifact(params.run_id, 'theoretical_claims_normalized.jsonl', claimsFinal));
@@ -960,7 +960,7 @@ export async function performTheoreticalConflicts(params: {
       stableSortEnabled ? stableSort(responsesJsonl, r => String(r.request_id ?? '')) : responsesJsonl
     ));
   }
-  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_debate_map.json', debateNodesFinal));
+  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_debate_map_v1.json', debateNodesFinal));
 
   const conflictsPayload = {
     version: 1,
@@ -981,19 +981,19 @@ export async function performTheoreticalConflicts(params: {
       llm_responses_failed: responsesJsonl.filter(r => r.ok === false).length,
     },
     artifacts: {
-      meta_uri: runArtifactUri(params.run_id, 'theoretical_meta.json'),
-      source_status_uri: runArtifactUri(params.run_id, 'theoretical_source_status.json'),
+      meta_uri: runArtifactUri(params.run_id, 'theoretical_meta_v1.json'),
+      source_status_uri: runArtifactUri(params.run_id, 'theoretical_source_status_v1.json'),
       claim_candidates_uri: runArtifactUri(params.run_id, 'theoretical_claim_candidates.jsonl'),
       claims_normalized_uri: runArtifactUri(params.run_id, 'theoretical_claims_normalized.jsonl'),
       conflict_candidates_uri: runArtifactUri(params.run_id, 'theoretical_conflict_candidates.jsonl'),
       llm_requests_uri: runArtifactUri(params.run_id, 'theoretical_llm_requests.jsonl'),
       llm_responses_uri: responsesJsonl.length > 0 ? runArtifactUri(params.run_id, 'theoretical_llm_responses.jsonl') : null,
-      debate_map_uri: runArtifactUri(params.run_id, 'theoretical_debate_map.json'),
-      conflicts_uri: runArtifactUri(params.run_id, 'theoretical_conflicts.json'),
+      debate_map_uri: runArtifactUri(params.run_id, 'theoretical_debate_map_v1.json'),
+      conflicts_uri: runArtifactUri(params.run_id, 'theoretical_conflicts_v1.json'),
     },
     warnings,
   };
-  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_conflicts.json', conflictsPayload));
+  artifacts.push(writeRunJsonArtifact(params.run_id, 'theoretical_conflicts_v1.json', conflictsPayload));
 
   if (strictLlm && strictFailure) {
     throw invalidParams('LLM response parse failed in strict mode', {

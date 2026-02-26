@@ -438,7 +438,7 @@ export async function exportProjectForRun(params: {
     const renderedLatexVerificationText = JSON.stringify(renderedLatexVerification, null, 2);
     const renderedLatexVerificationRef = makeRunArtifactRef(runId, renderedLatexVerificationName, 'application/json');
 
-    const bibliographyName = params.bibliography_raw_artifact_name ?? 'bibliography_raw.json';
+    const bibliographyName = params.bibliography_raw_artifact_name ?? 'bibliography_raw_v1.json';
     const bibRawByKey = tryReadBibliographyRawEntries(runId, bibliographyName);
 
     const writingMasterBibName = 'writing_master.bib';
@@ -459,7 +459,7 @@ export async function exportProjectForRun(params: {
           {
             tool: HEP_RUN_BUILD_CITATION_MAPPING,
             args: { run_id: runId, identifier: '<arXiv/DOI/recid>', allowed_citations_primary: masterBib.missing_keys },
-            reason: 'Build bibliography_raw.json + writing_master.bib + allowed_citations.json (then re-run export).',
+            reason: 'Build bibliography_raw_v1.json + writing_master.bib + allowed_citations_v1.json (then re-run export).',
           },
           {
             tool: HEP_EXPORT_PROJECT,
@@ -567,7 +567,7 @@ export async function exportProjectForRun(params: {
       return candidates[0] ? { artifactName: candidates[0].name, meta: candidates[0].meta } : null;
     })();
 
-    const evidenceMeta = tryReadRunArtifactJson<any>(runId, 'writing_evidence_meta.json');
+    const evidenceMeta = tryReadRunArtifactJson<any>(runId, 'writing_evidence_meta_v1.json');
     const evidenceSourceStatusName = 'writing_evidence_source_status.json';
     const evidenceSourceStatus = tryReadRunArtifactJson<any>(runId, evidenceSourceStatusName);
 
@@ -664,7 +664,7 @@ export async function exportProjectForRun(params: {
         warnings: Array.isArray(searchExportMeta?.meta?.warnings) ? searchExportMeta!.meta.warnings.map((w: any) => String(w)) : undefined,
       },
       evidence: {
-        writing_evidence_meta_artifact: evidenceMeta ? 'writing_evidence_meta.json' : undefined,
+        writing_evidence_meta_artifact: evidenceMeta ? 'writing_evidence_meta_v1.json' : undefined,
         latex_sources: Array.isArray(evidenceMeta?.latex?.sources) ? evidenceMeta.latex.sources : undefined,
         latex_total_items: typeof evidenceMeta?.latex?.total_items === 'number' ? evidenceMeta.latex.total_items : undefined,
         pdf_included: evidenceMeta?.pdf ? true : false,
@@ -880,7 +880,7 @@ export async function exportProjectForRun(params: {
         }
         : {}),
     };
-    artifacts.push(writeRunJsonArtifact(runId, 'export_manifest.json', exportManifest));
+    artifacts.push(writeRunJsonArtifact(runId, 'export_manifest_v1.json', exportManifest));
 
     const zipName = params.research_pack_zip_artifact_name ?? 'research_pack.zip';
     const zipRef = makeRunArtifactRef(runId, zipName, 'application/zip');
@@ -927,7 +927,7 @@ export async function exportProjectForRun(params: {
       zipEntries['writing_master.bib'] = strToU8(writingMasterBibText);
     }
     zipEntries['run_manifest.json'] = strToU8(runManifestJson);
-    zipEntries['export_manifest.json'] = strToU8(JSON.stringify(exportManifest, null, 2));
+    zipEntries['export_manifest_v1.json'] = strToU8(JSON.stringify(exportManifest, null, 2));
 
     zipEntries['notebooklm_pack/master.bib'] = strToU8(masterBib.content);
     zipEntries['notebooklm_pack/report.md'] = strToU8(reportMd);

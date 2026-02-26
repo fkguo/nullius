@@ -78,7 +78,7 @@ describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', 
     const latexCatalogUri = buildPayload.artifacts.find(a => a.name === 'latex_evidence_catalog.jsonl')?.uri;
     const latexEmbeddingsUri = buildPayload.artifacts.find(a => a.name === 'latex_evidence_embeddings.jsonl')?.uri;
     const latexEnrichmentUri = buildPayload.artifacts.find(a => a.name === 'latex_evidence_enrichment.jsonl')?.uri;
-    const metaUri = buildPayload.artifacts.find(a => a.name === 'writing_evidence_meta.json')?.uri;
+    const metaUri = buildPayload.artifacts.find(a => a.name === 'writing_evidence_meta_v1.json')?.uri;
     const statusUri = buildPayload.artifacts.find(a => a.name === 'writing_evidence_source_status.json')?.uri;
 
     expect(latexCatalogUri).toBeTruthy();
@@ -212,7 +212,7 @@ describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', 
     expect(diag.warnings.some(w => w.code === 'budget_hit' && w.data?.key === 'writing.max_evidence_items')).toBe(true);
     expect(diag.budgets.find(b => b.key === 'writing.max_evidence_items')?.source?.kind).toBe('tool_args');
 
-    const metaUri = payload.artifacts.find(a => a.name === 'writing_evidence_meta.json')?.uri;
+    const metaUri = payload.artifacts.find(a => a.name === 'writing_evidence_meta_v1.json')?.uri;
     expect(metaUri).toBeTruthy();
     const meta = JSON.parse(String((readHepResource(metaUri!) as any).text)) as { warnings?: string[] };
     expect(meta.warnings?.some(w => w.includes('max_evidence_items'))).toBe(true);

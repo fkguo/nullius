@@ -147,7 +147,7 @@ describe('M12.3: Phase 2 Integration (internal stage)', () => {
     const res = await integrateWritingSections({ run_id: run.run_id });
     const names = new Set(res.artifacts.map(a => a.name));
     expect(names.has('writing_integrated.tex')).toBe(true);
-    expect(names.has('writing_integrate_diagnostics.json')).toBe(true);
+    expect(names.has('writing_integrate_diagnostics_v1.json')).toBe(true);
 
     const manifest: RunManifest = getRun(run.run_id);
     const step = manifest.steps.find(s => s.step === 'writing_integrate');

@@ -193,7 +193,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     expect(Object.keys(files)).toContain('coverage_report.json');
     expect(Object.keys(files)).toContain('writing_master.bib');
     expect(Object.keys(files)).toContain('run_manifest.json');
-    expect(Object.keys(files)).toContain('export_manifest.json');
+    expect(Object.keys(files)).toContain('export_manifest_v1.json');
     expect(Object.keys(files)).toContain('notebooklm_pack/report.md');
     expect(Object.keys(files)).toContain('notebooklm_pack/master.bib');
     expect(Object.keys(files)).toContain('notebooklm_pack/run_manifest.json');
@@ -387,7 +387,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     expect(jsonText).toContain('"hello": "pdg"');
     expect(Array.from(files['pdg/artifacts/pdg_sample.bin'] as Uint8Array)).toEqual([0, 1, 2, 3]);
 
-    const exportManifestText = Buffer.from(files['export_manifest.json'] as Uint8Array).toString('utf-8');
+    const exportManifestText = Buffer.from(files['export_manifest_v1.json'] as Uint8Array).toString('utf-8');
     const exportManifest = JSON.parse(exportManifestText) as any;
     expect(exportManifest.files?.pdg_artifacts).toContain('pdg/artifacts/pdg_sample.json');
     expect(exportManifest.pdg_artifacts?.artifacts_dir_exists).toBe(true);

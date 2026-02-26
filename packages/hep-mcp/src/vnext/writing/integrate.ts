@@ -382,7 +382,7 @@ export async function integrateWritingSections(params: IntegrateParams): Promise
     throw err;
   }
 
-  artifacts.push(writeRunJsonArtifact(runId, 'writing_integrate_diagnostics.json', {
+  artifacts.push(writeRunJsonArtifact(runId, 'writing_integrate_diagnostics_v1.json', {
     version: 1,
     generated_at: nowIso(),
     run_id: runId,
@@ -411,7 +411,7 @@ export async function integrateWritingSections(params: IntegrateParams): Promise
     round,
     pointers: {
       integrated_uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('writing_integrated.tex')}`,
-      diagnostics_uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('writing_integrate_diagnostics.json')}`,
+      diagnostics_uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('writing_integrate_diagnostics_v1.json')}`,
     },
   });
   const journalRef = writeWritingJournalMarkdown({
@@ -426,7 +426,7 @@ export async function integrateWritingSections(params: IntegrateParams): Promise
     },
     outputs: {
       integrated_uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('writing_integrated.tex')}`,
-      diagnostics_uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('writing_integrate_diagnostics.json')}`,
+      diagnostics_uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('writing_integrate_diagnostics_v1.json')}`,
       checkpoint_uri: checkpointRef.uri,
     },
     decisions: [

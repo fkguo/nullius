@@ -95,7 +95,7 @@ export async function queryProjectEvidenceSemantic(params: {
   const types = params.types;
   const includeExplanation = params.include_explanation ?? false;
 
-  const metaPath = getRunArtifactPath(params.run_id, 'writing_evidence_meta.json');
+  const metaPath = getRunArtifactPath(params.run_id, 'writing_evidence_meta_v1.json');
   const meta = safeReadJson<any>(metaPath);
   const latexCatalogName = typeof meta?.latex?.catalog_artifact_name === 'string'
     ? meta.latex.catalog_artifact_name

@@ -20,6 +20,7 @@ import {
 
 import { getTools, handleToolCall } from './tools/index.js';
 import type { ToolExposureMode } from './tools/index.js';
+import { logConfigSummary } from './config.js';
 import { ensureDir, getDataDir, getDownloadsDir } from './data/dataDir.js';
 import { cleanupRegisteredDownloadDirs } from './data/downloadSession.js';
 import { isMarkedDirectory } from './data/markers.js';
@@ -217,6 +218,7 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  logConfigSummary();
   console.error('[hep-research-mcp] Server started');
 }
 

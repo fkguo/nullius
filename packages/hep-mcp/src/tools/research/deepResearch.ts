@@ -2124,7 +2124,7 @@ async function performWriteToRun(params: {
       manifest = getRun(params.runId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const phase2ErrorRef = writeRunJsonArtifact(params.runId, 'writing_phase2_integration_error_v1.json', {
+      const phase2ErrorRef = writeRunJsonArtifact(params.runId, 'writing_integration_error_v1.json', {
         version: 1,
         generated_at: nowIso(),
         run_id: params.runId,
@@ -2173,7 +2173,7 @@ async function performWriteToRun(params: {
       throw invalidParams('Phase2 integration failed (fail-fast)', {
         run_id: params.runId,
         phase2_error_uri: phase2ErrorRef.uri,
-        phase2_error_artifact: 'writing_phase2_integration_error_v1.json',
+        phase2_error_artifact: 'writing_integration_error_v1.json',
         next_actions: [
           {
             tool: INSPIRE_DEEP_RESEARCH,
@@ -2249,8 +2249,8 @@ async function performWriteToRun(params: {
       }
       contextParts.push(`- packets: ${makeUri(WRITING_PACKETS_ARTIFACT)}`);
       if (integratedExists) contextParts.push(`- integrated_tex: ${makeUri('writing_integrated.tex')}`);
-      if (fs.existsSync(getRunArtifactPath(params.runId, 'writing_integrate_diagnostics.json'))) {
-        contextParts.push(`- integrate_diagnostics: ${makeUri('writing_integrate_diagnostics.json')}`);
+      if (fs.existsSync(getRunArtifactPath(params.runId, 'writing_integrate_diagnostics_v1.json'))) {
+        contextParts.push(`- integrate_diagnostics: ${makeUri('writing_integrate_diagnostics_v1.json')}`);
       }
       if (fs.existsSync(getRunArtifactPath(params.runId, WRITING_CRITICAL_SUMMARY_ARTIFACT))) {
         contextParts.push(`- critical_summary: ${makeUri(WRITING_CRITICAL_SUMMARY_ARTIFACT)}`);

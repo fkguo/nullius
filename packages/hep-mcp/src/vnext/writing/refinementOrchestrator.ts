@@ -462,7 +462,7 @@ function buildReviewerContextMarkdown(params: { run_id: string; round: number })
   parts.push(`- manifest: hep://runs/${encodeURIComponent(runId)}/manifest`);
   parts.push(`- quality_policy: ${policyRef.uri}`);
 
-  for (const name of ['writing_integrated.tex', 'writing_integrate_diagnostics.json', 'writing_outline_v2.json', 'writing_packets_sections.json', 'writing_claims_table.json']) {
+  for (const name of ['writing_integrated.tex', 'writing_integrate_diagnostics_v1.json', 'writing_outline_v2.json', 'writing_packets_sections.json', 'writing_claims_table.json']) {
     if (!exists(name)) continue;
     parts.push(`- ${name}: ${makeUri(name)}`);
   }
@@ -708,7 +708,7 @@ export async function advanceRunWritingRefinementOrchestratorV1(params: {
   }
 
   // All actions appear satisfied; integrate (client tool) then move to next round.
-  const integrateDiagName = 'writing_integrate_diagnostics.json';
+  const integrateDiagName = 'writing_integrate_diagnostics_v1.json';
   const integrateDiagPath = getRunArtifactPath(runId, integrateDiagName);
   const integrateDiag = fs.existsSync(integrateDiagPath)
     ? readRunJsonArtifactOrThrow<any>(runId, integrateDiagName)

@@ -293,13 +293,13 @@ export async function renderLatexForRun(params: {
     const allowed = (() => {
       if (params.allowed_citations !== undefined) return normalizeAllowedCitationsInput(params.allowed_citations);
 
-      const p = getRunArtifactPath(params.run_id, 'allowed_citations.json');
+      const p = getRunArtifactPath(params.run_id, 'allowed_citations_v1.json');
       if (!fs.existsSync(p)) {
         throw invalidParams(
-          'Citation allowlist not found. Run hep_run_build_citation_mapping to generate allowed_citations.json, or pass allowed_citations directly.',
+          'Citation allowlist not found. Run hep_run_build_citation_mapping to generate allowed_citations_v1.json, or pass allowed_citations directly.',
           {
             run_id: params.run_id,
-            artifact_name: 'allowed_citations.json',
+            artifact_name: 'allowed_citations_v1.json',
             next_actions: [
               {
                 tool: HEP_RUN_BUILD_CITATION_MAPPING,
@@ -321,7 +321,7 @@ export async function renderLatexForRun(params: {
     const citeMappings = (() => {
       if (params.cite_mapping !== undefined) return normalizeCiteMappingInput(params.cite_mapping);
 
-      const p = getRunArtifactPath(params.run_id, 'citekey_to_inspire.json');
+      const p = getRunArtifactPath(params.run_id, 'citekey_to_inspire_v1.json');
       if (!fs.existsSync(p)) return {};
       return normalizeCiteMappingInput(readJsonFile(p));
     })();

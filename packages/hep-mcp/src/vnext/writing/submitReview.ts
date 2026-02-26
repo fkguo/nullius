@@ -2,6 +2,11 @@ import * as fs from 'fs';
 
 import {
   HEP_RUN_WRITING_SUBMIT_REVIEW,
+  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
+  HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
+  HEP_RUN_BUILD_WRITING_EVIDENCE,
+  INSPIRE_SEARCH,
   invalidParams,
 } from '@autoresearch/shared';
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
@@ -73,6 +78,68 @@ function recommendResumeFrom(summary: ReturnType<typeof summarizeReviewerReport>
   return 'review';
 }
 
+// NEW-CONN-02: Resume-from → writing tool mapping
+const RESUME_TOOL_MAP: Record<string, string> = {
+  outline: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
+  sections: HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
+  review: HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
+};
+
+/**
+ * NEW-CONN-02: Build next_actions hints from review results.
+ * Hint-only — does not alter execution flow.
+ */
+export function buildReviewNextActions(params: {
+  run_id: string;
+  report: ReviewerReportV2;
+  resume_from: string;
+  round?: number;
+  reviewer_report_uri?: string;
+  manifest_uri?: string;
+}): Array<{ tool: string; args: Record<string, unknown>; reason: string }> {
+  const actions: Array<{ tool: string; args: Record<string, unknown>; reason: string }> = [];
+  const { run_id, report, resume_from } = params;
+
+  // follow_up_evidence_queries → inspire_search + rebuild evidence
+  const queries = report.follow_up_evidence_queries ?? [];
+  const capped = queries.slice(0, 5);
+  for (const q of capped) {
+    actions.push({
+      tool: INSPIRE_SEARCH,
+      args: { query: q.query, size: 10 },
+      reason: q.purpose.slice(0, 200),
+    });
+  }
+  if (capped.length > 0) {
+    actions.push({
+      tool: HEP_RUN_BUILD_WRITING_EVIDENCE,
+      args: { run_id },
+      reason: 'Rebuild evidence after follow-up search',
+    });
+  }
+
+  // recommended_resume_from → corresponding writing tool
+  const resumeTool = RESUME_TOOL_MAP[resume_from];
+  if (resumeTool) {
+    // revision_plan tool takes reviewer_report_uri + manifest_uri + round (not run_id)
+    const resumeArgs: Record<string, unknown> =
+      resume_from === 'review' && params.reviewer_report_uri && params.manifest_uri
+        ? {
+            reviewer_report_uri: params.reviewer_report_uri,
+            manifest_uri: params.manifest_uri,
+            ...(params.round !== undefined ? { round: params.round } : {}),
+          }
+        : { run_id };
+    actions.push({
+      tool: resumeTool,
+      args: resumeArgs,
+      reason: `Resume writing from ${resume_from} stage`,
+    });
+  }
+
+  return actions;
+}
+
 function writeParseErrorAndThrow(params: { run_id: string; round: number; raw_report: unknown; raw_uri?: string; issues: unknown }): never {
   const roundKey = pad2(params.round);
   const next_actions = [
@@ -140,6 +207,7 @@ export async function submitRunWritingReview(params: {
   manifest_uri: string;
   artifacts: RunArtifactRef[];
   summary: Record<string, unknown>;
+  next_actions: Array<{ tool: string; args: Record<string, unknown>; reason: string }>;
 }> {
   const runId = params.run_id;
   const run = getRun(runId);
@@ -346,5 +414,14 @@ export async function submitRunWritingReview(params: {
       checkpoint_uri: checkpointRef.uri,
       journal_uri: journalRef.uri,
     },
+    // NEW-CONN-02: hint-only next actions
+    next_actions: buildReviewNextActions({
+      run_id: runId,
+      report,
+      resume_from,
+      round,
+      reviewer_report_uri: reportLatestRef.uri,
+      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+    }),
   };
 }

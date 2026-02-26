@@ -430,7 +430,7 @@ describe('M11 regression: submit section → integrate → review → revision p
     const integrateRes = await handleToolCall('hep_run_writing_integrate_sections_v1', { run_id: run.run_id });
     expect(integrateRes.isError).not.toBe(true);
     expect(fs.existsSync(getRunArtifactPath(run.run_id, 'writing_integrated.tex'))).toBe(true);
-    expect(fs.existsSync(getRunArtifactPath(run.run_id, 'writing_integrate_diagnostics.json'))).toBe(true);
+    expect(fs.existsSync(getRunArtifactPath(run.run_id, 'writing_integrate_diagnostics_v1.json'))).toBe(true);
 
     const manifestAfterIntegrate = getRun(run.run_id);
     expect(manifestAfterIntegrate.steps.some(s => s.step === 'writing_integrate' && s.status === 'done')).toBe(true);

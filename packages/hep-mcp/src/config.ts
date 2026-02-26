@@ -61,3 +61,40 @@ export const CIRCUIT_BREAKER = {
   FAILURE_THRESHOLD: 5,
   RESET_TIMEOUT_MS: 60000,  // 60s
 } as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// M-18: Config Summary (logged to stderr on startup)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ConfigEntry {
+  key: string;
+  defaultValue: string;
+}
+
+const CONFIG_KEYS: ConfigEntry[] = [
+  { key: 'HEP_DATA_DIR', defaultValue: '~/.hep-research-mcp' },
+  { key: 'HEP_TOOL_MODE', defaultValue: 'standard' },
+  { key: 'HEP_DOWNLOAD_DIR', defaultValue: '<HEP_DATA_DIR>/downloads' },
+  { key: 'HEP_ENABLE_ZOTERO', defaultValue: 'true' },
+  { key: 'ZOTERO_BASE_URL', defaultValue: 'http://127.0.0.1:23119' },
+  { key: 'ZOTERO_DATA_DIR', defaultValue: '(none)' },
+  { key: 'PDG_DB_PATH', defaultValue: '(none)' },
+  { key: 'PDG_DATA_DIR', defaultValue: '<HEP_DATA_DIR>/pdg' },
+  { key: 'PDG_TOOL_MODE', defaultValue: 'standard' },
+  { key: 'WRITING_LLM_PROVIDER', defaultValue: '(none)' },
+  { key: 'WRITING_LLM_MODE', defaultValue: '(derived)' },
+  { key: 'HEP_DEBUG', defaultValue: '(none)' },
+];
+
+/**
+ * Log a summary of current configuration to stderr.
+ * Safe to call at MCP server startup (does not touch stdout / stdio transport).
+ */
+export function logConfigSummary(): void {
+  for (const { key, defaultValue } of CONFIG_KEYS) {
+    const envVal = process.env[key];
+    const source = envVal !== undefined ? 'env' : 'default';
+    const display = envVal !== undefined ? envVal : defaultValue;
+    console.error(`[config] ${key}=${display} (${source})`);
+  }
+}
