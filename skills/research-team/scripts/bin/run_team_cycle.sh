@@ -435,7 +435,7 @@ if not isinstance(runners, dict):
 meta_pat = re.compile(r"^(?P<prefix>.+)attempt_(?P<idx>\d+)\.meta\.json$")
 by_member: dict[str, list[dict]] = {"member_a": [], "member_b": [], "member_c": []}
 
-for meta in sorted(log_dir.glob("*attempt_*.meta.json")):
+for meta in sorted(log_dir.rglob("*attempt_*.meta.json")):
     m = meta_pat.match(meta.name)
     if not m:
         continue
