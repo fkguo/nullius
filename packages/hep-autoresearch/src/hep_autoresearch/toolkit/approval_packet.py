@@ -220,7 +220,8 @@ def render_json(data: ApprovalPacketData) -> dict:
 def write_trio(data: ApprovalPacketData, approval_dir: Path) -> dict[str, str]:
     """Write the three approval artifacts to *approval_dir*.
 
-    Returns a dict mapping artifact name to its relative path (from repo root).
+    Returns a dict mapping artifact name to its path (absolute or relative,
+    matching whatever *approval_dir* resolves to).
     """
     approval_dir.mkdir(parents=True, exist_ok=True)
 
