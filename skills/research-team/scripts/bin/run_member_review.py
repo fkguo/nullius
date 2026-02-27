@@ -711,19 +711,19 @@ def main() -> int:
             # that is NOT under the member's workspace.  This covers:
             #   1. Standalone path args:  cat /…/logs/member_b/attempt.log
             #   2. Exact run_dir arg:     ls /…/team/runs/<tag>
-            #   3. Embedded path strings: python3 -c "open('/…/member_b/…')"
-            # Strategy: strip all workspace-safe substrings (_ws_prefix) from the
-            # normalized arg, then check whether run_dir still appears in what remains.
+            #   3. Embedded path strings: python3 -c "p='/.../tag'; open(p+'/member_b/…')"
+            # Strategy: strip all workspace-safe substrings (with AND without trailing
+            # slash to handle exact workspace_root args), then check whether run_dir
+            # still appears anywhere in what remains.
             _rdir_str = str(run_dir).rstrip("/")
-            _rdir_prefix = _rdir_str + "/"
-            _ws_prefix = str(workspace_root).rstrip("/") + "/"
+            _ws_str = str(workspace_root).rstrip("/")
+            _ws_prefix = _ws_str + "/"
 
             def _arg_escapes_workspace(a: str) -> bool:
                 n = a.replace("\\", "/")
-                # Remove every occurrence of the workspace-safe prefix so that only
-                # non-workspace run_dir references remain in the cleaned string.
-                cleaned = n.replace(_ws_prefix, "")
-                return _rdir_prefix in cleaned or n == _rdir_str
+                # Remove workspace-safe occurrences (trailing-slash and exact-root forms).
+                cleaned = n.replace(_ws_prefix, "").replace(_ws_str, "")
+                return _rdir_str in cleaned
 
             _abs_escape_arg = next((a for a in cmd_parts[1:] if _arg_escapes_workspace(a)), None)
             if _abs_escape_arg is not None:
