@@ -20,7 +20,7 @@ import type {
 } from '../types.js';
 import { extractPaperContent, extractVisualAssetsFromTexFiles, extractOriginalSections } from './extractor.js';
 import { generateFingerprint, generateEvidenceId } from '../contentIndex/fingerprint.js';
-import { accessPaperSource } from '../../research/paperSource.js';
+import { accessPaperSource } from '../../../utils/arxivCompat.js';
 import { detectConflicts } from '../../research/conflictDetector.js';
 import { getProjectStructure } from '../../research/latex/index.js';
 import { storeClaimsTable, type ClaimsTableReference } from './storage.js';

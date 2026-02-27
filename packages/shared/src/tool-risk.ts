@@ -112,6 +112,11 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.INSPIRE_STYLE_CORPUS_EXPORT_PACK]: 'destructive',
   [T.INSPIRE_STYLE_CORPUS_IMPORT_PACK]: 'write',
 
+  // ── Arxiv Tools ──────────────────────────────────────────────────────
+  [T.ARXIV_SEARCH]: 'read',
+  [T.ARXIV_GET_METADATA]: 'read',
+  [T.ARXIV_PAPER_SOURCE]: 'write',
+
   // ── PDG Tools ─────────────────────────────────────────────────────────
   [T.PDG_INFO]: 'read',
   [T.PDG_FIND_PARTICLE]: 'read',

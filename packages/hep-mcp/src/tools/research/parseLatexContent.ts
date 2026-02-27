@@ -4,7 +4,7 @@
  * Consolidates 7 individual extract_* tools into one polymorphic tool
  */
 
-import { getPaperContent } from './paperContent.js';
+import { getPaperContent } from '../../utils/arxivCompat.js';
 import {
   parseTexFile,
   resolveAllIncludes,

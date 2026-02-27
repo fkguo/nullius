@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { getPaperContent } from './paperContent.js';
+import { getPaperContent } from '../../utils/arxivCompat.js';
 import {
   parseTexFile,
   resolveAllIncludes,

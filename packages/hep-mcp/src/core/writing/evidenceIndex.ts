@@ -14,7 +14,7 @@ import {
 } from '@autoresearch/shared';
 
 import * as api from '../../api/client.js';
-import { arxivFetch } from '../../api/rateLimiter.js';
+import { arxivFetch } from '@autoresearch/arxiv-mcp/tooling';
 import { writeRunJsonArtifact } from '../citations.js';
 import { cachedExternalApiJsonCall } from '../cache/externalApiCache.js';
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';

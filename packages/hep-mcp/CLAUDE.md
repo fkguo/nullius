@@ -44,7 +44,8 @@ pnpm -r lint    # 或 pnpm lint
 
 ## 网络请求与速率限制
 
-- INSPIRE/arXiv 请求必须使用封装：`packages/hep-mcp/src/api/rateLimiter.ts`（`inspireFetch()` / `arxivFetch()`），避免绕开重试/限速逻辑去直接对外 `fetch()`。
+- INSPIRE 请求必须使用封装：`packages/hep-mcp/src/api/rateLimiter.ts`（`inspireFetch()`），避免绕开重试/限速逻辑去直接对外 `fetch()`。
+- arXiv 请求使用 `@autoresearch/arxiv-mcp/tooling`（`arxivFetch()`）；arXiv 相关源码/下载/元数据功能由 `packages/arxiv-mcp/` 提供。
 
 ## Evidence-first 与 `hep://` resources
 

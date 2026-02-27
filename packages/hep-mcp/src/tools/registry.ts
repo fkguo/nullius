@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
 import { TOOL_SPECS as PDG_TOOL_SPECS } from '@autoresearch/pdg-mcp/tooling';
+import { TOOL_SPECS as ARXIV_TOOL_SPECS } from '@autoresearch/arxiv-mcp/tooling';
 import { TOOL_SPECS as ZOTERO_TOOL_SPECS } from '@autoresearch/zotero-mcp/tooling';
 import {
   invalidParams,
@@ -2861,8 +2862,63 @@ To download arXiv LaTeX source, use mode='content' with options.prefer='latex' a
 Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a relative output_dir (e.g. "arxiv_sources/<arxiv_id>"); relative paths are resolved under HEP_DATA_DIR. Or set HEP_DATA_DIR to change the root.`,
     zodSchema: PaperSourceToolSchema,
     handler: async params => {
-      const { accessPaperSource } = await import('./research/paperSource.js');
-      return accessPaperSource(params);
+      const path = await import('path');
+      const { resolveArxivIdRich } = await import('../utils/resolveArxivId.js');
+      const resolved = await resolveArxivIdRich(params.identifier);
+      if (!resolved.arxivId) {
+        if (params.mode === 'urls' || params.mode === 'auto') {
+          return { mode: params.mode, identifier: params.identifier,
+            provenance: { downloaded: false, retrieval_level: 'urls_only' },
+            urls: {
+              has_source: false, source_available: null,
+              ...(resolved.doi ? { doi_url: `https://doi.org/${resolved.doi}` } : {}),
+              ...(resolved.recid ? { inspire_url: `https://inspirehep.net/literature/${resolved.recid}` } : {}),
+            } };
+        }
+        if (params.mode === 'content') {
+          return { mode: params.mode, identifier: params.identifier,
+            provenance: { downloaded: false, retrieval_level: 'none' },
+            content: { success: false, source_type: 'pdf', file_path: '', arxiv_id: '',
+              error: `Could not resolve arXiv ID for: ${params.identifier}` } };
+        }
+        throw new Error(`Could not resolve "${params.identifier}" to an arXiv ID`);
+      }
+      const { auto_cleanup, output_dir: _outputDir, ...arxivOptions } = params.options ?? {};
+      if (params.mode === 'content') {
+        const { resolvePathWithinParent } = await import('../data/pathGuard.js');
+        const { getDataDir, getDownloadsDir } = await import('../data/dataDir.js');
+        const outputDir = params.options?.output_dir
+          ? resolvePathWithinParent(getDataDir(), params.options.output_dir, 'output_dir')
+          : getDownloadsDir();
+        const destDir = path.join(outputDir, `arxiv-${resolved.arxivId.replace('/', '-')}`);
+        const fs = await import('fs');
+        fs.mkdirSync(destDir, { recursive: true });
+        const { writeDirectoryMarker } = await import('../data/markers.js');
+        writeDirectoryMarker(destDir, 'download_dir');
+        if (auto_cleanup) {
+          const { registerDownloadDir } = await import('../data/downloadSession.js');
+          registerDownloadDir(destDir);
+        }
+        const { accessPaperSource } = await import('@autoresearch/arxiv-mcp/tooling');
+        const result = await accessPaperSource({
+          identifier: resolved.arxivId, mode: params.mode,
+          options: { ...arxivOptions, output_dir: outputDir },
+        });
+        result.identifier = params.identifier;
+        return result;
+      }
+      const { accessPaperSource } = await import('@autoresearch/arxiv-mcp/tooling');
+      const result = await accessPaperSource({
+        identifier: resolved.arxivId, mode: params.mode,
+        options: arxivOptions,
+      });
+      result.identifier = params.identifier;
+      if ((params.mode === 'urls' || params.mode === 'auto') && result.urls) {
+        const urls = result.urls as unknown as Record<string, unknown>;
+        if (resolved.recid) urls.inspire_url = `https://inspirehep.net/literature/${resolved.recid}`;
+        if (resolved.doi) urls.doi_url = `https://doi.org/${resolved.doi}`;
+      }
+      return result;
     },
   },
   {
@@ -3103,6 +3159,17 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
       })(),
       zodSchema: spec.zodSchema,
       handler: spec.handler,
+    })
+  ),
+  // NOTE: Arxiv tool specs are imported from `@autoresearch/arxiv-mcp/tooling` (built output).
+  ...ARXIV_TOOL_SPECS.map(
+    (spec): Omit<ToolSpec, 'riskLevel'> => ({
+      name: spec.name,
+      tier: 'consolidated',
+      exposure: spec.exposure,
+      description: spec.description,
+      zodSchema: spec.zodSchema,
+      handler: spec.handler as ToolSpec['handler'],
     })
   ),
 ];

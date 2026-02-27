@@ -355,7 +355,7 @@ export async function buildProjectEvidenceCatalog(params: {
   const sourceMainTexPath = await (async () => {
     if (params.main_tex_path) return path.resolve(params.main_tex_path);
     if (!params.identifier) throw invalidParams('Either identifier or main_tex_path must be provided');
-    const { getPaperContent } = await import('../tools/research/paperContent.js');
+    const { getPaperContent } = await import('../utils/arxivCompat.js');
     const res = await getPaperContent({ identifier: params.identifier, prefer: 'latex', extract: true });
     if (!res.success || res.source_type !== 'latex' || !res.main_tex) {
       throw new Error(res.error || res.fallback_reason || 'LaTeX source not available');

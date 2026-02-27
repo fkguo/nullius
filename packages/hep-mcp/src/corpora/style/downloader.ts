@@ -7,8 +7,8 @@ import * as tar from 'tar';
 import pLimit from 'p-limit';
 import { createHash } from 'crypto';
 
-import { arxivFetch } from '../../api/rateLimiter.js';
-import { resolveArxivId } from '../../tools/research/arxivSource.js';
+import { arxivFetch } from '@autoresearch/arxiv-mcp/tooling';
+import { resolveArxivId } from '../../utils/resolveArxivId.js';
 import { ensureDir } from '../../data/dataDir.js';
 import { resolvePathWithinParent } from '../../data/pathGuard.js';
 import type { StyleCorpusManifestEntry } from './schemas.js';

@@ -44,10 +44,6 @@ vi.mock('../../src/api/rateLimiter.js', () => ({
     ok: true,
     json: () => Promise.resolve({ hits: { hits: [], total: 0 } }),
   }),
-  arxivFetch: vi.fn().mockResolvedValue({
-    ok: true,
-    text: () => Promise.resolve('<feed></feed>'),
-  }),
 }));
 
 describe('Golden Master: Tool Response Structure', () => {

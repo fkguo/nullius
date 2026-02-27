@@ -137,6 +137,12 @@ export const INSPIRE_STYLE_CORPUS_BUILD_INDEX = 'inspire_style_corpus_build_inde
 export const INSPIRE_STYLE_CORPUS_EXPORT_PACK = 'inspire_style_corpus_export_pack' as const;
 export const INSPIRE_STYLE_CORPUS_IMPORT_PACK = 'inspire_style_corpus_import_pack' as const;
 
+// ── Arxiv Tools ──────────────────────────────────────────────────────────────
+
+export const ARXIV_SEARCH = 'arxiv_search' as const;
+export const ARXIV_GET_METADATA = 'arxiv_get_metadata' as const;
+export const ARXIV_PAPER_SOURCE = 'arxiv_paper_source' as const;
+
 // ── PDG Tools ───────────────────────────────────────────────────────────────
 
 export const PDG_INFO = 'pdg_info' as const;
@@ -253,5 +259,10 @@ export type ZoteroToolName =
   | typeof ZOTERO_ADD
   | typeof ZOTERO_CONFIRM;
 
+export type ArxivToolName =
+  | typeof ARXIV_SEARCH
+  | typeof ARXIV_GET_METADATA
+  | typeof ARXIV_PAPER_SOURCE;
+
 /** Union of all tool names across the ecosystem */
-export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName;
+export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | ArxivToolName;

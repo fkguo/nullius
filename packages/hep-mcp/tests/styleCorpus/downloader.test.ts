@@ -4,14 +4,18 @@ import * as os from 'os';
 import * as path from 'path';
 import { Readable } from 'stream';
 
-vi.mock('../../src/api/rateLimiter.js', () => ({
-  arxivFetch: vi.fn(),
-}));
+vi.mock('@autoresearch/arxiv-mcp/tooling', async () => {
+  const actual = await vi.importActual('@autoresearch/arxiv-mcp/tooling');
+  return {
+    ...actual,
+    arxivFetch: vi.fn(),
+  };
+});
 
 const downloader = await import('../../src/corpora/style/downloader.js');
 const paths = await import('../../src/corpora/style/paths.js');
 const paperKeyMod = await import('../../src/corpora/style/paperKey.js');
-const rateLimiter = await import('../../src/api/rateLimiter.js');
+const arxivTooling = await import('@autoresearch/arxiv-mcp/tooling');
 
 function webBodyFromBytes(bytes: Uint8Array): ReadableStream {
   // Node >=18 supports Readable.toWeb(); cast to avoid TS DOM lib assumptions.
@@ -26,7 +30,7 @@ describe('StyleCorpus downloader', () => {
     originalDataDirEnv = process.env.HEP_DATA_DIR;
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hep-style-downloader-'));
     process.env.HEP_DATA_DIR = dataDir;
-    vi.mocked(rateLimiter.arxivFetch).mockReset();
+    vi.mocked(arxivTooling.arxivFetch).mockReset();
   });
 
   afterEach(() => {
@@ -39,7 +43,7 @@ describe('StyleCorpus downloader', () => {
   });
 
   it('does not leave empty extracted/ dir when LaTeX fails but PDF succeeds', async () => {
-    const arxivFetch = vi.mocked(rateLimiter.arxivFetch);
+    const arxivFetch = vi.mocked(arxivTooling.arxivFetch);
     arxivFetch.mockImplementation(async (url: string, options?: RequestInit) => {
       const method = (options?.method ?? 'GET').toUpperCase();
       if (method === 'HEAD' && url.includes('/src/')) {
@@ -82,7 +86,7 @@ describe('StyleCorpus downloader', () => {
   });
 
   it('treats zero-byte PDF downloads as errors (and avoids marking downloaded)', async () => {
-    const arxivFetch = vi.mocked(rateLimiter.arxivFetch);
+    const arxivFetch = vi.mocked(arxivTooling.arxivFetch);
     arxivFetch.mockImplementation(async (url: string, options?: RequestInit) => {
       const method = (options?.method ?? 'GET').toUpperCase();
       if (method === 'HEAD' && url.includes('/src/')) {
