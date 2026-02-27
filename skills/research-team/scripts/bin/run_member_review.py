@@ -222,6 +222,21 @@ def _allowed_command(command: str) -> tuple[bool, str, list[str]]:
                 break
             if _arg in ("-e", "-E", "--eval", "--print"):
                 return False, "julia -e/-E is not allowed; use a script file instead", []
+    # find -exec/-execdir/-ok/-okdir spawn arbitrary subprocesses as a second-order
+    # executor and can discover cross-member paths at runtime without embedding
+    # the literal run_dir string in argv.
+    if exe_lower == "find":
+        for _arg in parts[1:]:
+            if _arg in ("-exec", "-execdir", "-ok", "-okdir"):
+                return False, "find -exec/-execdir is not allowed; use a script instead", []
+    # awk/gawk/nawk programs with system(), popen(), or |& allow arbitrary shell
+    # execution from within the awk program — same second-order risk as find -exec.
+    if exe_lower in ("awk", "gawk", "nawk"):
+        for _arg in parts[1:]:
+            if _arg.startswith("-"):
+                continue
+            if "system(" in _arg or "popen(" in _arg or "|&" in _arg:
+                return False, "awk programs with system()/popen() are not allowed", []
     return True, "", parts
 
 

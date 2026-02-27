@@ -1876,8 +1876,11 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" ]]; then
 	    if [[ -n "${MEMBER_B_MODEL_EFFECTIVE}" ]]; then
 	      member_b_args=( --model "${MEMBER_B_MODEL_EFFECTIVE}" "${member_b_args[@]}" )
 	    fi
-	    # --api-base-url / --api-key-env are supported by the claude runner only (codex hard-fails on unknown args).
-	    if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" ]]; then
+	    # --api-base-url / --api-key-env are supported by the project-local claude runner
+	    # (LOCAL_CLAUDE_RUNNER) or a custom runner path (MEMBER_B_RUNNER_PATH), but NOT
+	    # the skills-level runner which exits on unknown args.
+	    if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" ]] && \
+	       { [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] || [[ -n "${MEMBER_B_RUNNER_PATH}" ]]; }; then
 	      if [[ -n "${MEMBER_B_API_BASE_URL}" ]]; then
 	        member_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
 	      fi
