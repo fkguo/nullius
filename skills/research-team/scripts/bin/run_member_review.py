@@ -231,11 +231,14 @@ def _allowed_command(command: str) -> tuple[bool, str, list[str]]:
                 return False, "find -exec/-execdir is not allowed; use a script instead", []
     # awk/gawk/nawk programs with system(), popen(), or |& allow arbitrary shell
     # execution from within the awk program — same second-order risk as find -exec.
+    # Use regex to tolerate whitespace between the function name and '(' since awk
+    # allows `system ("cmd")` as well as `system("cmd")`.
+    _AWK_EXEC_RE = re.compile(r"system\s*\(|popen\s*\(")
     if exe_lower in ("awk", "gawk", "nawk"):
         for _arg in parts[1:]:
             if _arg.startswith("-"):
                 continue
-            if "system(" in _arg or "popen(" in _arg or "|&" in _arg:
+            if _AWK_EXEC_RE.search(_arg) or "|&" in _arg:
                 return False, "awk programs with system()/popen() are not allowed", []
     return True, "", parts
 
