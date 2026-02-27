@@ -33,6 +33,7 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.HEP_RUN_STAGE_CONTENT]: 'write',
   [T.HEP_RUN_BUILD_PDF_EVIDENCE]: 'write',
   [T.HEP_RUN_BUILD_EVIDENCE_INDEX_V1]: 'write',
+  [T.HEP_RUN_INGEST_SKILL_ARTIFACTS]: 'write',
 
   // ── HEP Run Writing: Token Budget ─────────────────────────────────────
   [T.HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1]: 'write',
@@ -142,6 +143,16 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.ORCH_RUN_RESUME]: 'write',
   [T.ORCH_RUN_APPROVALS_LIST]: 'read',
   [T.ORCH_POLICY_QUERY]: 'read',
+
+  // ── Idea Tools (NEW-IDEA-01) ────────────────────────────────────────────
+  [T.IDEA_CAMPAIGN_INIT]: 'write',
+  [T.IDEA_CAMPAIGN_STATUS]: 'read',
+  [T.IDEA_CAMPAIGN_TOPUP]: 'write',
+  [T.IDEA_CAMPAIGN_PAUSE]: 'write',
+  [T.IDEA_CAMPAIGN_RESUME]: 'write',
+  [T.IDEA_CAMPAIGN_COMPLETE]: 'write',
+  [T.IDEA_SEARCH_STEP]: 'write',
+  [T.IDEA_EVAL_RUN]: 'write',
 };
 
 // ── H-11b: Permission Composition ────────────────────────────────────────

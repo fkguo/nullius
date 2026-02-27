@@ -1496,9 +1496,13 @@ export async function buildRunEvidenceIndexV1(params: {
 
   try {
     // Index cache hit: if output + metrics exist and not forcing, return immediately.
+    // Also invalidate cache if computation evidence catalog is newer than the index.
     const existingIndexPath = getRunArtifactPath(runId, outputArtifactName);
     const existingMetricsPath = getRunArtifactPath(runId, metricsArtifactName);
-    if (!force && fs.existsSync(existingIndexPath) && fs.existsSync(existingMetricsPath)) {
+    const compCatalogPath = path.join(getRunDir(runId), 'computation_evidence_catalog_v1.jsonl');
+    const compCatalogNewer = fs.existsSync(compCatalogPath) && fs.existsSync(existingIndexPath) &&
+      fs.statSync(compCatalogPath).mtimeMs > fs.statSync(existingIndexPath).mtimeMs;
+    if (!force && !compCatalogNewer && fs.existsSync(existingIndexPath) && fs.existsSync(existingMetricsPath)) {
       let metrics: EvidenceIndexMetricsArtifactV1 | null = null;
       try {
         metrics = JSON.parse(fs.readFileSync(existingMetricsPath, 'utf-8')) as EvidenceIndexMetricsArtifactV1;
@@ -1627,6 +1631,39 @@ export async function buildRunEvidenceIndexV1(params: {
     failureStage = 'evidence_ingestion';
 
     const allChunks = perPaper.flatMap(p => p.chunks);
+
+    // NEW-CONN-03: Merge computation evidence into BM25 index
+    const computationCatalogPath = path.join(getRunDir(runId), 'computation_evidence_catalog_v1.jsonl');
+    if (fs.existsSync(computationCatalogPath)) {
+      const lines = fs.readFileSync(computationCatalogPath, 'utf-8').split('\n').filter(Boolean);
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line) as { skill_id: string; notes?: string; tags?: string[]; step_id: string };
+          const text = [entry.skill_id, entry.notes ?? '', ...(entry.tags ?? [])].filter(Boolean).join(' ');
+          if (!text.trim()) continue;
+          const chunkId = stableHash(`computation:${entry.step_id}`);
+          allChunks.push({
+            id: chunkId,
+            content_hash: sha256HexString(text),
+            type: 'paragraph',
+            content_latex: '',
+            text,
+            locator: { paper_id: `computation:${entry.skill_id}`, file_path: '', section_path: [], line_start: 0, line_end: 0 },
+            refs: { outgoing: [], outgoing_cites: [], incoming: [] },
+            navigation: {},
+            metadata: { has_math: false, has_citation: false, word_count: text.split(/\s+/).length, token_estimate: estimateTokens(text) },
+          });
+        } catch (err) {
+          process.stderr.write(JSON.stringify({
+            ts: new Date().toISOString(),
+            level: 'WARN',
+            component: 'evidence_index',
+            event: 'malformed_computation_catalog_line',
+            data: { run_id: runId, error: err instanceof Error ? err.message : String(err), line_preview: line.slice(0, 200) },
+          }) + '\n');
+        }
+      }
+    }
 
     // Run-level index artifact
     const index = buildIndex(allChunks);

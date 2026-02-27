@@ -120,14 +120,16 @@ describe('Tool risk level contracts (H-11a)', () => {
     }
   });
 
-  it('TOOL_RISK_LEVELS has no stale entries (every key is a registered tool)', () => {
+  it('TOOL_RISK_LEVELS has no stale entries (every key is a registered tool or belongs to another MCP server)', () => {
     const specs = getToolSpecs('full');
     const registeredNames = new Set(specs.map(s => s.name));
+    // Tools registered in other MCP servers (not hep-mcp)
+    const otherServerPrefixes = ['idea_'];
     const stale: string[] = [];
     for (const name of Object.keys(TOOL_RISK_LEVELS)) {
-      if (!registeredNames.has(name)) {
-        stale.push(name);
-      }
+      if (registeredNames.has(name)) continue;
+      if (otherServerPrefixes.some(p => name.startsWith(p))) continue;
+      stale.push(name);
     }
     if (stale.length > 0) {
       throw new Error(`Stale TOOL_RISK_LEVELS entries:\n${stale.join('\n')}`);

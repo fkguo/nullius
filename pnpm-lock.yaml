@@ -76,6 +76,25 @@ importers:
 
   packages/idea-engine: {}
 
+  packages/idea-mcp:
+    dependencies:
+      '@autoresearch/shared':
+        specifier: workspace:^
+        version: link:../shared
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.25.2
+        version: 1.27.0(zod@4.3.6)
+      zod:
+        specifier: ^4.3.5
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.11
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@22.19.11)(tsx@4.21.0)
+
   packages/orchestrator:
     dependencies:
       '@anthropic-ai/sdk':

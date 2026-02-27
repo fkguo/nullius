@@ -1,0 +1,27 @@
+{
+  "name": "@autoresearch/idea-mcp",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MCP bridge for idea-core Python JSON-RPC server (NEW-IDEA-01)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "idea-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "echo \"no lint yet\"",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@autoresearch/shared": "workspace:^",
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "zod": "^4.3.5"
+  }
+}

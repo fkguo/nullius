@@ -51,6 +51,7 @@ import {
   HEP_IMPORT_FROM_ZOTERO,
   HEP_INSPIRE_SEARCH_EXPORT,
   HEP_INSPIRE_RESOLVE_IDENTIFIERS,
+  HEP_RUN_INGEST_SKILL_ARTIFACTS,
   INSPIRE_SEARCH,
   INSPIRE_SEARCH_NEXT,
   INSPIRE_LITERATURE,
@@ -116,6 +117,7 @@ import {
 } from './research/schemas.js';
 import { ResearchNavigatorToolSchema } from './research/researchNavigator.js';
 import { ORCH_TOOL_SPECS } from './orchestrator/tools.js';
+import { ingestSkillArtifacts } from './ingest-skill-artifacts.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -586,6 +588,14 @@ const HepRunBuildEvidenceIndexV1ToolSchema = z.object({
   metrics_artifact_name: SafePathSegmentSchema.optional().default('evidence_index_metrics_v1.json'),
   paper_cache_prefix: SafePathSegmentSchema.optional().default('evidence_paper'),
   force_rebuild: z.boolean().optional().default(false),
+});
+
+const HepRunIngestSkillArtifactsToolSchema = z.object({
+  run_id: SafePathSegmentSchema,
+  skill_artifacts_dir: z.string().min(1).describe('Absolute path to skill artifacts directory (must be within run_dir)'),
+  manifest_path: z.string().optional().describe('Optional path to computation_manifest_v1.json (within run_dir)'),
+  step_id: z.string().min(1).optional().describe('Optional manifest step_id for traceability (generated UUID if omitted)'),
+  tags: z.array(z.string()).max(20).optional().describe('Classification tags (e.g. feyncalc, one-loop)'),
 });
 
 const RagSectionTypeSchema = z.enum(['introduction', 'methodology', 'results', 'discussion', 'conclusion']);
@@ -3108,6 +3118,16 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
   ),
   // ── Orchestrator Run Tools (NEW-R15-impl) ──────────────────────────────────
   ...ORCH_TOOL_SPECS,
+  // ── Computation Evidence Ingestion (NEW-CONN-03) ──────────────────────────
+  {
+    name: HEP_RUN_INGEST_SKILL_ARTIFACTS,
+    tier: 'advanced',
+    exposure: 'full',
+    description:
+      'Ingest skill artifacts from a computation step into the computation evidence catalog (JSONL). Requires skill_artifacts_dir within run_dir (C-02 containment).',
+    zodSchema: HepRunIngestSkillArtifactsToolSchema,
+    handler: async (params) => ingestSkillArtifacts(params),
+  },
 ];
 
 // Inject riskLevel from the shared static map (H-11a)

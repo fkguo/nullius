@@ -1,4 +1,4 @@
-# Tool Categories（standard=71 / full=93）
+# Tool Categories（standard=71 / full=94）
 
 本文件把 `hep-research-mcp` 的 **standard 暴露**工具按“场景/闭环”分组，目的是让你不必理解全部工具，也能快速完成闭环。
 

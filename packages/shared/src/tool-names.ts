@@ -45,6 +45,7 @@ export const HEP_RUN_CLEAR_MANIFEST_LOCK = 'hep_run_clear_manifest_lock' as cons
 export const HEP_RUN_STAGE_CONTENT = 'hep_run_stage_content' as const;
 export const HEP_RUN_BUILD_PDF_EVIDENCE = 'hep_run_build_pdf_evidence' as const;
 export const HEP_RUN_BUILD_EVIDENCE_INDEX_V1 = 'hep_run_build_evidence_index_v1' as const;
+export const HEP_RUN_INGEST_SKILL_ARTIFACTS = 'hep_run_ingest_skill_artifacts' as const;
 
 // ── HEP Run Writing: Token Budget (Stage 2) ────────────────────────────────
 
@@ -173,6 +174,18 @@ export const ORCH_RUN_RESUME = 'orch_run_resume' as const;
 export const ORCH_RUN_APPROVALS_LIST = 'orch_run_approvals_list' as const;
 export const ORCH_POLICY_QUERY = 'orch_policy_query' as const;
 
+// ── Idea Tools (NEW-IDEA-01) ─────────────────────────────────────────────────
+
+export const IDEA_PREFIX = 'idea_' as const;
+export const IDEA_CAMPAIGN_INIT = 'idea_campaign_init' as const;
+export const IDEA_CAMPAIGN_STATUS = 'idea_campaign_status' as const;
+export const IDEA_CAMPAIGN_TOPUP = 'idea_campaign_topup' as const;
+export const IDEA_CAMPAIGN_PAUSE = 'idea_campaign_pause' as const;
+export const IDEA_CAMPAIGN_RESUME = 'idea_campaign_resume' as const;
+export const IDEA_CAMPAIGN_COMPLETE = 'idea_campaign_complete' as const;
+export const IDEA_SEARCH_STEP = 'idea_search_step' as const;
+export const IDEA_EVAL_RUN = 'idea_eval_run' as const;
+
 // ── Aggregate Type ──────────────────────────────────────────────────────────
 
 /** Union of all tool name constants for type-safe dispatch */
@@ -192,6 +205,7 @@ export type HepToolName =
   | typeof HEP_RUN_STAGE_CONTENT
   | typeof HEP_RUN_BUILD_PDF_EVIDENCE
   | typeof HEP_RUN_BUILD_EVIDENCE_INDEX_V1
+  | typeof HEP_RUN_INGEST_SKILL_ARTIFACTS
   | typeof HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1
   | typeof HEP_RUN_WRITING_TOKEN_GATE_V1
   | typeof HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET
@@ -279,5 +293,15 @@ export type OrchToolName =
   | typeof ORCH_RUN_APPROVALS_LIST
   | typeof ORCH_POLICY_QUERY;
 
+export type IdeaToolName =
+  | typeof IDEA_CAMPAIGN_INIT
+  | typeof IDEA_CAMPAIGN_STATUS
+  | typeof IDEA_CAMPAIGN_TOPUP
+  | typeof IDEA_CAMPAIGN_PAUSE
+  | typeof IDEA_CAMPAIGN_RESUME
+  | typeof IDEA_CAMPAIGN_COMPLETE
+  | typeof IDEA_SEARCH_STEP
+  | typeof IDEA_EVAL_RUN;
+
 /** Union of all tool names across the ecosystem */
-export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | OrchToolName;
+export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | OrchToolName | IdeaToolName;

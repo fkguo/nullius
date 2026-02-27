@@ -213,4 +213,155 @@ describe('M03 evidence ingestion + chunking (run evidence index v1)', () => {
     const errArtifact = JSON.parse(fs.readFileSync(errPath, 'utf-8')) as { failures?: Array<{ paper_id?: string }> };
     expect(errArtifact.failures?.[0]?.paper_id).toBe(paperId);
   });
+
+  it('merges computation evidence catalog into BM25 index', async () => {
+    // Setup: create project + run + LaTeX paper (reuse pattern from first test)
+    const projectRes = await handleToolCall('hep_project_create', { name: 'proj-comp' }, 'standard');
+    const project = parseToolJson(projectRes);
+    const projectId = project.project_id as string;
+
+    const runRes = await handleToolCall('hep_run_create', { project_id: projectId, args_snapshot: {} }, 'standard');
+    const run = parseToolJson(runRes);
+    const runId = run.run_id as string;
+
+    const paperId = 'inspire:125';
+    const extractedDir = getProjectPaperLatexExtractedDir(projectId, paperId);
+
+    fs.writeFileSync(
+      path.join(extractedDir, 'main.tex'),
+      [
+        '\\documentclass{article}',
+        '\\begin{document}',
+        '\\section{Intro}',
+        'A test paragraph.',
+        '\\end{document}',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      getProjectPaperJsonPath(projectId, paperId),
+      JSON.stringify({
+        version: 1,
+        project_id: projectId,
+        paper_id: paperId,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        source: { kind: 'latex', identifier: paperId, main_tex: 'main.tex' },
+      }, null, 2),
+      'utf-8'
+    );
+
+    // Write a computation evidence catalog JSONL BEFORE building the index
+    const { getRunDir } = await import('../../src/core/paths.js');
+    const catalogPath = path.join(getRunDir(runId), 'computation_evidence_catalog_v1.jsonl');
+    const catalogEntry = JSON.stringify({
+      schema_version: 1,
+      run_id: runId,
+      step_id: 'feyncalc-step-1',
+      skill_id: 'feyncalc-oneloop',
+      artifacts: [{ path: 'output/result.json', sha256: 'a'.repeat(64) }],
+      ingested_at: '2026-01-01T00:00:00Z',
+      tags: ['feyncalc', 'one-loop', 'vertex-correction'],
+    });
+    fs.writeFileSync(catalogPath, catalogEntry + '\n', 'utf-8');
+
+    // Build evidence index
+    const buildRes = await handleToolCall(
+      'hep_run_build_evidence_index_v1',
+      { run_id: runId, paper_ids: [paperId] },
+      'standard'
+    );
+    expect(buildRes.isError).toBeFalsy();
+
+    // Verify computation chunks appear in the index
+    const indexPath = getRunArtifactPath(runId, 'evidence_index_v1.json');
+    const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as {
+      chunks: Array<{ id: string; type: string; text: string; locator: { paper_id: string } }>;
+    };
+
+    const compChunks = index.chunks.filter(c => c.locator.paper_id.startsWith('computation:'));
+    expect(compChunks.length).toBe(1);
+    expect(compChunks[0]!.locator.paper_id).toBe('computation:feyncalc-oneloop');
+    expect(compChunks[0]!.text).toContain('feyncalc-oneloop');
+    expect(compChunks[0]!.text).toContain('one-loop');
+    expect(compChunks[0]!.text).toContain('vertex-correction');
+  });
+
+  it('invalidates index cache when computation catalog is newer', async () => {
+    // Setup project + run + paper
+    const projectRes = await handleToolCall('hep_project_create', { name: 'proj-cache' }, 'standard');
+    const project = parseToolJson(projectRes);
+    const projectId = project.project_id as string;
+
+    const runRes = await handleToolCall('hep_run_create', { project_id: projectId, args_snapshot: {} }, 'standard');
+    const run = parseToolJson(runRes);
+    const runId = run.run_id as string;
+
+    const paperId = 'inspire:126';
+    const extractedDir = getProjectPaperLatexExtractedDir(projectId, paperId);
+
+    fs.writeFileSync(
+      path.join(extractedDir, 'main.tex'),
+      '\\documentclass{article}\\begin{document}Test.\\end{document}\n',
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      getProjectPaperJsonPath(projectId, paperId),
+      JSON.stringify({
+        version: 1,
+        project_id: projectId,
+        paper_id: paperId,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        source: { kind: 'latex', identifier: paperId, main_tex: 'main.tex' },
+      }, null, 2),
+      'utf-8'
+    );
+
+    // Build index first (no computation catalog)
+    const buildRes1 = await handleToolCall(
+      'hep_run_build_evidence_index_v1',
+      { run_id: runId, paper_ids: [paperId] },
+      'standard'
+    );
+    expect(buildRes1.isError).toBeFalsy();
+
+    const indexPath = getRunArtifactPath(runId, 'evidence_index_v1.json');
+    const index1 = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as { chunks: Array<{ locator: { paper_id: string } }> };
+    const compChunks1 = index1.chunks.filter(c => c.locator.paper_id.startsWith('computation:'));
+    expect(compChunks1.length).toBe(0);
+
+    // Now add computation catalog (mtime will be newer than index)
+    const { getRunDir } = await import('../../src/core/paths.js');
+    const catalogPath = path.join(getRunDir(runId), 'computation_evidence_catalog_v1.jsonl');
+    // Ensure mtime is strictly newer by waiting 10ms
+    await new Promise(r => setTimeout(r, 10));
+    fs.writeFileSync(catalogPath, JSON.stringify({
+      schema_version: 1,
+      run_id: runId,
+      step_id: 'step-2',
+      skill_id: 'julia-calc',
+      artifacts: [{ path: 'out.json', sha256: 'b'.repeat(64) }],
+      ingested_at: '2026-01-02T00:00:00Z',
+      tags: ['julia'],
+    }) + '\n', 'utf-8');
+
+    // Rebuild without force — should invalidate cache due to mtime
+    const buildRes2 = await handleToolCall(
+      'hep_run_build_evidence_index_v1',
+      { run_id: runId, paper_ids: [paperId] },
+      'standard'
+    );
+    expect(buildRes2.isError).toBeFalsy();
+    const build2 = parseToolJson(buildRes2);
+    expect(build2.summary?.cache?.index_cache_hit).toBe(false);
+
+    // Verify computation chunks now present
+    const index2 = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as { chunks: Array<{ locator: { paper_id: string } }> };
+    const compChunks2 = index2.chunks.filter(c => c.locator.paper_id.startsWith('computation:'));
+    expect(compChunks2.length).toBe(1);
+  });
 });
