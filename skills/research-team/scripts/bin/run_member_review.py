@@ -206,6 +206,15 @@ def _allowed_command(command: str) -> tuple[bool, str, list[str]]:
             # Match any single-dash flag string containing 'c' (e.g. -c, -lc, -ec, -xc).
             if re.match(r"^-[a-zA-Z]*c[a-zA-Z]*$", _arg):
                 return False, "bash/sh -c is not allowed; use a script file instead", []
+    # python/python3 with -c executes an arbitrary code string; members can derive
+    # run_dir at runtime (Path.cwd().parents[...]) even without literal path strings
+    # in their args, so the pre-exec path scan cannot protect against it.
+    if exe_lower in ("python3", "python"):
+        for _arg in parts[1:]:
+            if _arg == "--":
+                break
+            if re.match(r"^-[a-zA-Z]*c[a-zA-Z]*$", _arg):
+                return False, "python -c is not allowed; use a script file instead", []
     return True, "", parts
 
 

@@ -2364,6 +2364,11 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" && "${MEMBER_B_RUNNER_KIND_RESOLV
       if [[ -n "${MEMBER_B_MODEL_EFFECTIVE}" ]]; then
         member_b_retry_args=( --model "${MEMBER_B_MODEL_EFFECTIVE}" "${member_b_retry_args[@]}" )
       fi
+      # Propagate RT-03 API routing settings for claude fallback (codex runner does not accept these args).
+      if [[ "${fb_kind}" == "claude" ]]; then
+        [[ -n "${MEMBER_B_API_BASE_URL}" ]] && member_b_retry_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
+        [[ -n "${MEMBER_B_API_KEY_ENV}" ]]  && member_b_retry_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
+      fi
 
       set +e
       RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}" \
