@@ -10,3 +10,16 @@ export { ApprovalGate, approvalPacketSha256, type ApprovalRequest, type Approval
 export { retryWithBackoff, RetryExhaustedError, type RetryAttempt, type RetryResult } from './retry.js';
 export { SpanCollector, ActiveSpan } from './tracing.js';
 export { sortKeysRecursive, utcNowIso } from './util.js';
+export {
+  AgentRunner,
+  _resetLaneQueue,
+  type AgentEvent,
+  type AgentRunnerOptions,
+  type MessageParam,
+  type Tool,
+} from './agent-runner.js';
+export {
+  RunManifestManager,
+  type RunManifest,
+  type StepCheckpoint,
+} from './run-manifest.js';

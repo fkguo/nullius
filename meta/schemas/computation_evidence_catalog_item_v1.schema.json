@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/computation_evidence_catalog_item_v1.schema.json",
+  "title": "ComputationEvidenceCatalogItemV1",
+  "description": "A single entry in computation_evidence_catalog_v1.jsonl. Records the outputs of a hep-calc skill run, keyed by source identifiers. Intentionally distinct from EvidenceCatalogItemV1 (which requires paper_id + LatexLocatorV1 and is LaTeX-only). Computation evidence does not have a paper_id and uses artifact paths + SHA-256 instead of LaTeX locators.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "step_id",
+    "skill_id",
+    "artifacts",
+    "ingested_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version, always 1 for this schema."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "ID of the orchestrator run that produced these artifacts."
+    },
+    "step_id": {
+      "type": "string",
+      "description": "ID of the specific computation step within the run (matches manifest step.id)."
+    },
+    "skill_id": {
+      "type": "string",
+      "description": "Identifier of the hep-calc skill that produced the artifacts (e.g. 'hep-calc/mathematica-feyncalc')."
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to the artifact file, relative to run_dir or as an ArtifactRef URI (artifact://<run_id>/<step_id>/<filename>)."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 hex digest of the artifact file (64 lowercase hex characters)."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of what this artifact contains."
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Artifact files produced by this computation step, with SHA-256 integrity checksums."
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex digest of the computation_manifest_v1.json file used for this computation. Provides a cryptographic pointer back to the exact computation specification."
+    },
+    "ingested_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp when this entry was ingested via hep_run_ingest_skill_artifacts."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 20,
+      "description": "Optional classification tags (e.g. ['feyncalc', 'one-loop', 'SMEFT'])."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free-text notes about this computation result."
+    }
+  },
+  "additionalProperties": false
+}
