@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
-from idea_core.engine.service import IdeaCoreService, RpcError
+from idea_core.engine.coordinator import IdeaCoreService, RpcError
 
 
 def make_service(tmp_path: Path) -> IdeaCoreService:

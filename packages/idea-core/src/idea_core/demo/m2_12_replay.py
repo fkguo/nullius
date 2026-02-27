@@ -10,7 +10,7 @@ from urllib.parse import unquote, urlparse
 from jsonschema import Draft202012Validator, FormatChecker
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
-from idea_core.engine.service import IdeaCoreService
+from idea_core.engine.coordinator import IdeaCoreService
 from idea_core.engine.utils import sha256_hex, utc_now_iso
 from idea_core.hepar.fs_ops import atomic_write_text
 

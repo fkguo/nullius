@@ -1031,3 +1031,24 @@ the renderer core and adapters remain unchanged.
 | Budget | ~950 eLOC, 11 files, all ≤200 eLOC (CODE-01 compliant) |
 | Adapters | 5 adapters (4 JSON-parsing in shared, 1 API-based in memory-graph) + 1 progress parser |
 | Testing | Snapshot tests + parity test + adapter unit tests |
+
+## 11. Future Extension: Graph Compute Layer (派生节点 + 结构化查询)
+
+> **状态**: 仅注记，不做详细设计。详细设计时机：EVO-20 (Memory Graph) 实现时。
+> **来源**: GitNexus (github.com/abhigyanpatwari/GitNexus) 知识图谱设计的启发。
+
+NEW-VIZ-01 是纯渲染层。未来在 UniversalGraph 之上需要一层 compute/query 能力：
+
+1. **派生节点生成** — 从基础图的边关系预计算聚类/模式节点（构建时，非查询时）：
+   - Claim DAG → argument cluster（共享 supports/contradicts 链的 claim 群）
+   - Literature graph → citation community（引用密集的论文群 = research school）
+   - Idea map → research direction（共享 evidence/formalism 的 idea 聚类）
+   - Memory Graph (EVO-20) → signal pattern（高频 triggered_by 链 = 反复出现的模式）
+
+2. **结构化查询 API** — 类似 GitNexus 的 `impact`/`context` 工具：
+   - "这个 claim 的 blast radius"（downstream supports/contradicts 链）
+   - "这个 signal pattern 关联了哪些 Gene"（跨节点类型遍历）
+
+**关键设计原则**（借鉴 GitNexus）：预计算 > 实时遍历。对 LLM agent 而言，预计算的聚类节点 = 一次查询完整上下文，实时遍历 = 多轮可能遗漏。
+
+**不影响 NEW-VIZ-01 实现**：派生节点是普通 `UniversalNode`（`type: "claim_cluster"` 等），adapter 产出，renderer 无需感知。

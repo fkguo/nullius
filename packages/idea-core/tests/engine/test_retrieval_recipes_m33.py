@@ -6,7 +6,7 @@ from pathlib import Path
 from jsonschema.validators import Draft202012Validator
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
-from idea_core.engine.service import IdeaCoreService
+from idea_core.engine.coordinator import IdeaCoreService
 
 
 def make_service(tmp_path: Path) -> IdeaCoreService:

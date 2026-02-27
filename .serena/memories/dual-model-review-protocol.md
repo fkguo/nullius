@@ -183,7 +183,7 @@ CLI 参数始终覆盖配置文件值。
 
 ### 跨会话 prompt 传递约定
 
-新对话的启动 prompt 写为 `meta/docs/prompt-<task-id>.md`，命名示例：
+新对话的启动 prompt 写为 `meta/docs/prompts/prompt-<task-id>.md`，命名示例：
 - `prompt-phase0-remaining.md`
 - `prompt-new05a-stage3a.md`
 - `prompt-track-b.md`

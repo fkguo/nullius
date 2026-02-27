@@ -9,6 +9,8 @@ OUT=""
 MODEL=""
 OUTPUT_FORMAT="text"
 INTERNAL_FORMAT="json"
+API_BASE_URL=""
+API_KEY_ENV=""
 
 usage() {
   cat <<'EOF'
@@ -22,6 +24,8 @@ Options:
   --output-format FORMAT  Default: text (choices depend on gemini CLI; typically text/json/stream-json)
   --prompt-file FILE      Required
   --out PATH              Required
+  --api-base-url URL      Optional. Accepted for interface parity; Gemini CLI uses its own auth.
+  --api-key-env VAR       Optional. Accepted for interface parity; Gemini CLI uses its own auth.
 EOF
 }
 
@@ -31,6 +35,8 @@ while [[ $# -gt 0 ]]; do
     --output-format) OUTPUT_FORMAT="$2"; shift 2;;
     --prompt-file) PROMPT_FILE="$2"; shift 2;;
     --out) OUT="$2"; shift 2;;
+    --api-base-url) API_BASE_URL="$2"; shift 2;;
+    --api-key-env) API_KEY_ENV="$2"; shift 2;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac

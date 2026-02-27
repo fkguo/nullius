@@ -16,6 +16,18 @@ MEMBER_B_MODEL=""
 MEMBER_A_RUNNER_PATH=""
 MEMBER_B_RUNNER_PATH=""
 
+MEMBER_A_API_BASE_URL=""
+MEMBER_A_API_KEY_ENV=""
+MEMBER_B_API_BASE_URL=""
+MEMBER_B_API_KEY_ENV=""
+
+MEMBER_A_TOOL_ACCESS="restricted"
+MEMBER_B_TOOL_ACCESS="restricted"
+MEMBER_A_WORKSPACE_ID=""
+MEMBER_B_WORKSPACE_ID=""
+MEMBER_A_WORKSPACE_DIR=""
+MEMBER_B_WORKSPACE_DIR=""
+
 MEMBER_A_TOOLS=""
 MEMBER_B_OUTPUT_FORMAT="text"
 MEMBER_B_RUNNER_KIND=""
@@ -571,6 +583,12 @@ Options:
   --member-b-fallback-codex-model MODEL Optional. Default: Codex CLI config default.
   --member-a-runner PATH      Optional (override Claude runner path)
   --member-b-runner PATH      Optional (override Gemini runner path)
+  --member-a-api-base-url URL Optional. API base URL for member A runner (e.g. for self-hosted LLMs).
+  --member-a-api-key-env VAR  Optional. Env var NAME holding member A's API key (never pass the key value directly).
+  --member-b-api-base-url URL Optional. API base URL for member B runner.
+  --member-b-api-key-env VAR  Optional. Env var NAME holding member B's API key.
+  --member-a-tool-access MODE Optional. restricted|full (default: restricted). full enables MCP tools + audit log.
+  --member-b-tool-access MODE Optional. restricted|full (default: restricted).
   --member-a-model MODEL      Optional (default: runner's default)
   --member-b-model MODEL      Optional
   --member-a-tools TOOLS      Optional (e.g. "default"; runner default disables tools)
@@ -606,6 +624,13 @@ while [[ $# -gt 0 ]]; do
     --member-b-model) MEMBER_B_MODEL="${2:-}"; shift 2 ;;
     --member-a-runner) MEMBER_A_RUNNER_PATH="${2:-}"; shift 2 ;;
     --member-b-runner) MEMBER_B_RUNNER_PATH="${2:-}"; shift 2 ;;
+    --member-a-api-base-url) MEMBER_A_API_BASE_URL="${2:-}"; shift 2 ;;
+    --member-a-api-key-env)  MEMBER_A_API_KEY_ENV="${2:-}"; shift 2 ;;
+    --member-b-api-base-url) MEMBER_B_API_BASE_URL="${2:-}"; shift 2 ;;
+    --member-b-api-key-env)  MEMBER_B_API_KEY_ENV="${2:-}"; shift 2 ;;
+    --member-a-tool-access)  MEMBER_A_TOOL_ACCESS="${2:-restricted}"; shift 2 ;;
+    --member-b-tool-access)  MEMBER_B_TOOL_ACCESS="${2:-restricted}"; shift 2 ;;
+    --api-key) echo "ERROR: --api-key plaintext is forbidden. Use --member-X-api-key-env <ENV_VAR_NAME> instead." >&2; exit 2 ;;
     --member-a-tools) MEMBER_A_TOOLS="${2:-}"; shift 2 ;;
     --member-b-output-format) MEMBER_B_OUTPUT_FORMAT="${2:-}"; shift 2 ;;
     --pointer-import-cmd) POINTER_IMPORT_CMD="${2:-}"; shift 2 ;;
@@ -792,7 +817,8 @@ run_dir="${OUT_DIR}/runs/${safe_tag}"
 mkdir -p "${run_dir}"
 run_dir_abs="$(cd "${run_dir}" && pwd)"
 attempt_logs_dir="${run_dir}/logs"
-mkdir -p "${attempt_logs_dir}" >/dev/null 2>&1 || true
+# Per-member subdirs isolate attempt logs so deny_other_outputs can revoke cross-member access.
+mkdir -p "${attempt_logs_dir}" "${attempt_logs_dir}/member_a" "${attempt_logs_dir}/member_b" >/dev/null 2>&1 || true
 member_a_attempt_prefix="${safe_tag}_member_a_"
 member_b_attempt_prefix="${safe_tag}_member_b_"
 cycle_state_path="${run_dir}/cycle_state.json"
@@ -1515,6 +1541,26 @@ fi
 mkdir -p "${run_dir}"
 run_dir_abs="$(cd "${run_dir}" && pwd)"
 
+# Validate and set up tool-access / workspace isolation.
+case "${MEMBER_A_TOOL_ACCESS}" in
+  restricted|full) ;;
+  *) echo "ERROR: invalid --member-a-tool-access: ${MEMBER_A_TOOL_ACCESS} (allowed: restricted|full)" >&2; exit 2 ;;
+esac
+case "${MEMBER_B_TOOL_ACCESS}" in
+  restricted|full) ;;
+  *) echo "ERROR: invalid --member-b-tool-access: ${MEMBER_B_TOOL_ACCESS} (allowed: restricted|full)" >&2; exit 2 ;;
+esac
+
+if [[ "${REVIEW_ACCESS_MODE}" == "full_access" || "${MEMBER_A_TOOL_ACCESS}" == "full" || "${MEMBER_B_TOOL_ACCESS}" == "full" ]]; then
+  _ws_lib="${SCRIPTS_DIR}/lib"
+  MEMBER_A_WORKSPACE_ID="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import generate_workspace_id; print(generate_workspace_id())")"
+  MEMBER_B_WORKSPACE_ID="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import generate_workspace_id; print(generate_workspace_id())")"
+  MEMBER_A_WORKSPACE_DIR="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import create_isolated_workspace; from pathlib import Path; print(create_isolated_workspace(Path('${run_dir}'), 'member_a', '${MEMBER_A_WORKSPACE_ID}'))")"
+  MEMBER_B_WORKSPACE_DIR="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import create_isolated_workspace; from pathlib import Path; print(create_isolated_workspace(Path('${run_dir}'), 'member_b', '${MEMBER_B_WORKSPACE_ID}'))")"
+  echo "[info] workspace isolation: member-a=${MEMBER_A_WORKSPACE_ID} (${MEMBER_A_WORKSPACE_DIR})" >&2
+  echo "[info] workspace isolation: member-b=${MEMBER_B_WORKSPACE_ID} (${MEMBER_B_WORKSPACE_DIR})" >&2
+fi
+
 if [[ -f "${TRAJ_SCRIPT}" ]]; then
   python3 "${TRAJ_SCRIPT}" --notes "${NOTEBOOK_PATH}" --out-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --stage "preflight_start" --packet "${PACKET}" >/dev/null 2>&1 || true
 fi
@@ -1813,6 +1859,12 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" ]]; then
   if [[ -n "${MEMBER_A_TOOLS}" ]]; then
     member_a_args=( --tools "${MEMBER_A_TOOLS}" "${member_a_args[@]}" )
   fi
+  if [[ -n "${MEMBER_A_API_BASE_URL}" ]]; then
+    member_a_args+=( --api-base-url "${MEMBER_A_API_BASE_URL}" )
+  fi
+  if [[ -n "${MEMBER_A_API_KEY_ENV}" ]]; then
+    member_a_args+=( --api-key-env "${MEMBER_A_API_KEY_ENV}" )
+  fi
 
 	  if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" || "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" ]]; then
 	    echo "[member-b] tag=${RESOLVED_TAG} -> ${member_b_out} (runner-kind=${MEMBER_B_RUNNER_KIND_RESOLVED})"
@@ -1823,6 +1875,15 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" ]]; then
 	    )
 	    if [[ -n "${MEMBER_B_MODEL_EFFECTIVE}" ]]; then
 	      member_b_args=( --model "${MEMBER_B_MODEL_EFFECTIVE}" "${member_b_args[@]}" )
+	    fi
+	    # --api-base-url / --api-key-env are supported by the claude runner only (codex hard-fails on unknown args).
+	    if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" ]]; then
+	      if [[ -n "${MEMBER_B_API_BASE_URL}" ]]; then
+	        member_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
+	      fi
+	      if [[ -n "${MEMBER_B_API_KEY_ENV}" ]]; then
+	        member_b_args+=( --api-key-env "${MEMBER_B_API_KEY_ENV}" )
+	      fi
 	    fi
 	  else
     tmp_gemini_prompt="$(mktemp)"
@@ -1842,6 +1903,12 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" ]]; then
 	    )
 	    if [[ -n "${MEMBER_B_MODEL_EFFECTIVE}" ]]; then
 	      member_b_args=( --model "${MEMBER_B_MODEL_EFFECTIVE}" "${member_b_args[@]}" )
+	    fi
+	    if [[ -n "${MEMBER_B_API_BASE_URL}" ]]; then
+	      member_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
+	    fi
+	    if [[ -n "${MEMBER_B_API_KEY_ENV}" ]]; then
+	      member_b_args+=( --api-key-env "${MEMBER_B_API_KEY_ENV}" )
 	    fi
 	  fi
 else
@@ -2053,6 +2120,18 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     exit 2
   fi
 
+  # Build optional API arg arrays for full_access invocations.
+  _api_args_a=()
+  [[ -n "${MEMBER_A_API_BASE_URL}" ]] && _api_args_a+=( --api-base-url "${MEMBER_A_API_BASE_URL}" )
+  [[ -n "${MEMBER_A_API_KEY_ENV}" ]]  && _api_args_a+=( --api-key-env  "${MEMBER_A_API_KEY_ENV}" )
+  [[ -n "${MEMBER_A_WORKSPACE_ID}" ]] && _api_args_a+=( --workspace-id "${MEMBER_A_WORKSPACE_ID}" )
+  [[ -n "${MEMBER_A_TOOL_ACCESS}" ]]  && _api_args_a+=( --tool-access  "${MEMBER_A_TOOL_ACCESS}" )
+  _api_args_b=()
+  [[ -n "${MEMBER_B_API_BASE_URL}" ]] && _api_args_b+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
+  [[ -n "${MEMBER_B_API_KEY_ENV}" ]]  && _api_args_b+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
+  [[ -n "${MEMBER_B_WORKSPACE_ID}" ]] && _api_args_b+=( --workspace-id "${MEMBER_B_WORKSPACE_ID}" )
+  [[ -n "${MEMBER_B_TOOL_ACCESS}" ]]  && _api_args_b+=( --tool-access  "${MEMBER_B_TOOL_ACCESS}" )
+
   # Best-effort ACL isolation: deny reading the other member's outputs during each member run.
   mkdir -p "${run_dir}/member_a" "${run_dir}/member_b"
   mkdir -p "${PROJECT_ROOT}/artifacts/${safe_tag}/member_a/independent" "${PROJECT_ROOT}/artifacts/${safe_tag}/member_b/independent" || true
@@ -2062,34 +2141,65 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     local other="$2"
     chmod -R a-rwx "${run_dir}/${other}" >/dev/null 2>&1 || true
     chmod a-rwx "${run_dir}/${other}_evidence.json" >/dev/null 2>&1 || true
+    # Also revoke access to the other member's top-level report file.
+    chmod a-rwx "${run_dir}/${safe_tag}_${other}.md" >/dev/null 2>&1 || true
+    # Revoke audit log and per-member attempt log subdir.
+    chmod a-rwx "${run_dir}/${other}_audit.jsonl" >/dev/null 2>&1 || true
+    chmod -R a-rwx "${attempt_logs_dir}/${other}" >/dev/null 2>&1 || true
     chmod -R a-rwx "${PROJECT_ROOT}/artifacts/${safe_tag}/${other}" >/dev/null 2>&1 || true
     chmod -R u+rwX "${run_dir}/${who}" >/dev/null 2>&1 || true
     chmod u+rw "${run_dir}/${who}_evidence.json" >/dev/null 2>&1 || true
+    chmod u+rw "${run_dir}/${safe_tag}_${who}.md" >/dev/null 2>&1 || true
+    chmod u+rw "${run_dir}/${who}_audit.jsonl" >/dev/null 2>&1 || true
+    chmod -R u+rwX "${attempt_logs_dir}/${who}" >/dev/null 2>&1 || true
     chmod -R u+rwX "${PROJECT_ROOT}/artifacts/${safe_tag}/${who}" >/dev/null 2>&1 || true
   }
 
   restore_outputs() {
     chmod -R u+rwX "${run_dir}/member_a" "${run_dir}/member_b" >/dev/null 2>&1 || true
     chmod u+rw "${member_a_evidence}" "${member_b_evidence}" >/dev/null 2>&1 || true
+    chmod u+rw "${member_a_out}" "${member_b_out}" >/dev/null 2>&1 || true
+    chmod u+rw "${run_dir}/member_a_audit.jsonl" "${run_dir}/member_b_audit.jsonl" >/dev/null 2>&1 || true
+    chmod -R u+rwX "${attempt_logs_dir}/member_a" "${attempt_logs_dir}/member_b" >/dev/null 2>&1 || true
     chmod -R u+rwX "${PROJECT_ROOT}/artifacts/${safe_tag}/member_a" "${PROJECT_ROOT}/artifacts/${safe_tag}/member_b" >/dev/null 2>&1 || true
   }
 
   if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]]; then
     echo "[resume] member-a: using existing report+evidence: ${member_a_out}"
     cycle_state_update "member_a" "skipped" "running" ""
+    # Recover workspace ID from the prior audit log so the gate's provenance check
+    # does not fail with PROVENANCE_MISMATCH (newly generated ID ≠ audit-log ID).
+    _audit_a_log="${run_dir}/member_a_audit.jsonl"
+    if [[ -s "${_audit_a_log}" ]]; then
+      _prior_ws_a="$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                ws = json.loads(line).get('workspace', '')
+                if ws:
+                    print(ws); break
+except Exception:
+    pass
+" "${_audit_a_log}" 2>/dev/null || true)"
+      [[ -n "${_prior_ws_a}" ]] && MEMBER_A_WORKSPACE_ID="${_prior_ws_a}"
+    fi
   else
     deny_other_outputs "member_a" "member_b"
     cycle_state_update "member_a" "started" "running" ""
     set +e
-    RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}" \
+    RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}/member_a" \
     RESEARCH_TEAM_ATTEMPT_LOG_PREFIX="${member_a_attempt_prefix}" \
     python3 "${RUN_MEMBER_REVIEW_SCRIPT}" \
       --member-id "member_a" --mode "full_access" --tag "${RESOLVED_TAG}" \
-      --project-root "${PROJECT_ROOT}" --workspace-root "${PROJECT_ROOT}" \
+      --project-root "${PROJECT_ROOT}" --workspace-root "${MEMBER_A_WORKSPACE_DIR}" \
       --packet "${packet_for_run}" --system "${MEMBER_A_SYSTEM}" \
       --runner "${MEMBER_A_RUNNER}" --runner-kind "claude" \
       --model "${MEMBER_A_MODEL}" --tools "${MEMBER_A_TOOLS}" \
-      --run-dir "${run_dir}" --out-report "${member_a_out}" --out-evidence "${member_a_evidence}"
+      --run-dir "${run_dir}" --out-report "${member_a_out}" --out-evidence "${member_a_evidence}" \
+      "${_api_args_a[@]}"
     code_a=$?
     set -e
     restore_outputs
@@ -2104,19 +2214,38 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
   if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" && -s "${member_b_evidence}" ]]; then
     echo "[resume] member-b: using existing report+evidence: ${member_b_out}"
     cycle_state_update "member_b" "skipped" "running" ""
+    # Recover workspace ID from the prior audit log (same reason as member_a above).
+    _audit_b_log="${run_dir}/member_b_audit.jsonl"
+    if [[ -s "${_audit_b_log}" ]]; then
+      _prior_ws_b="$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                ws = json.loads(line).get('workspace', '')
+                if ws:
+                    print(ws); break
+except Exception:
+    pass
+" "${_audit_b_log}" 2>/dev/null || true)"
+      [[ -n "${_prior_ws_b}" ]] && MEMBER_B_WORKSPACE_ID="${_prior_ws_b}"
+    fi
   else
     deny_other_outputs "member_b" "member_a"
     cycle_state_update "member_b" "started" "running" ""
     set +e
-    RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}" \
+    RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}/member_b" \
     RESEARCH_TEAM_ATTEMPT_LOG_PREFIX="${member_b_attempt_prefix}" \
     python3 "${RUN_MEMBER_REVIEW_SCRIPT}" \
       --member-id "member_b" --mode "full_access" --tag "${RESOLVED_TAG}" \
-      --project-root "${PROJECT_ROOT}" --workspace-root "${PROJECT_ROOT}" \
+      --project-root "${PROJECT_ROOT}" --workspace-root "${MEMBER_B_WORKSPACE_DIR}" \
       --packet "${packet_for_run}" --system "${MEMBER_B_SYSTEM_EFFECTIVE}" \
       --runner "${MEMBER_B_RUNNER}" --runner-kind "${MEMBER_B_RUNNER_KIND_RESOLVED}" \
-      --model "${MEMBER_B_MODEL}" --tools "" --output-format "${MEMBER_B_OUTPUT_FORMAT}" \
-      --run-dir "${run_dir}" --out-report "${member_b_out}" --out-evidence "${member_b_evidence}"
+      --model "${MEMBER_B_MODEL_EFFECTIVE}" --tools "" --output-format "${MEMBER_B_OUTPUT_FORMAT}" \
+      --run-dir "${run_dir}" --out-report "${member_b_out}" --out-evidence "${member_b_evidence}" \
+      "${_api_args_b[@]}"
     code_b=$?
     set -e
     restore_outputs
@@ -2304,7 +2433,22 @@ for entry in "${post_gates[@]}"; do
       gate_code=$?
       ;;
     clean_room_gate)
-      python3 "${gate_script}" --notes "${NOTEBOOK_PATH}" --member-a "${member_a_evidence}" --member-b "${member_b_evidence}" --safe-tag "${safe_tag}"
+      _clean_room_args=(
+        --notes "${NOTEBOOK_PATH}"
+        --member-a "${member_a_evidence}"
+        --member-b "${member_b_evidence}"
+        --safe-tag "${safe_tag}"
+      )
+      # Pass audit logs and workspace IDs if generated.
+      _audit_a="${run_dir}/member_a_audit.jsonl"
+      _audit_b="${run_dir}/member_b_audit.jsonl"
+      # Always pass audit-a/b when workspace_id is set (full_access mode); the gate
+      # enforces that the file must exist (PROVENANCE_MISSING if absent).
+      [[ -n "${MEMBER_A_WORKSPACE_ID}" ]] && _clean_room_args+=( --audit-a "${_audit_a}" )
+      [[ -n "${MEMBER_B_WORKSPACE_ID}" ]] && _clean_room_args+=( --audit-b "${_audit_b}" )
+      [[ -n "${MEMBER_A_WORKSPACE_ID}" ]] && _clean_room_args+=( --workspace-id-a "${MEMBER_A_WORKSPACE_ID}" )
+      [[ -n "${MEMBER_B_WORKSPACE_ID}" ]] && _clean_room_args+=( --workspace-id-b "${MEMBER_B_WORKSPACE_ID}" )
+      python3 "${gate_script}" "${_clean_room_args[@]}"
       gate_code=$?
       ;;
     independent_reproduction_gate)
@@ -2327,6 +2471,12 @@ for entry in "${post_gates[@]}"; do
 
   if [[ ${gate_code} -ne 0 ]]; then
     echo "" >&2
+    # Exit codes 3 (CONTAMINATION_DETECTED) and 4 (PROVENANCE_MISMATCH) are hard-fail:
+    # non-degradable even in exploration mode.
+    if [[ ${gate_code} -eq 3 || ${gate_code} -eq 4 ]]; then
+      echo "[gate] HARD-FAIL (non-degradable): ${gate_name} exit=${gate_code}. Cannot continue." >&2
+      exit ${gate_code}
+    fi
     if [[ "${PROJECT_STAGE}" == "exploration" ]] && should_warn_gate_in_exploration "${gate_name}"; then
       echo "[warn] (exploration) ${gate_name} failed; continuing. Fix before switching to development." >&2
       record_exploration_debt "${gate_name}" "${gate_code}" "${gate_name} failed (see gate output above)"

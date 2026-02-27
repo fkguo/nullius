@@ -1,9 +1,0 @@
-**Findings**
-- **BLOCKING** `approvals show --format json` crashes on malformed packet JSON instead of degrading gracefully. `json.loads(...)` is unguarded at `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1609`; a single bad `approval_packet_v1.json` raises `JSONDecodeError` and aborts the command.
-- **BLOCKING** Report audit hashes are truncated, so output is not a full SHA256 audit pointer as required. Markdown truncates to 16 chars + `...` at `packages/hep-autoresearch/src/hep_autoresearch/toolkit/report_renderer.py:110`, and LaTeX truncates to 16 chars at `packages/hep-autoresearch/src/hep_autoresearch/toolkit/report_renderer.py:176`.
-- **NON-BLOCKING** `_tex_escape` treats backslash as `\\` at `packages/hep-autoresearch/src/hep_autoresearch/toolkit/report_renderer.py:122`, which is a LaTeX linebreak command, not a literal backslash escape; `\textbackslash{}` would be safer/clearer.
-- **NON-BLOCKING** Test coverage misses these high-risk paths: malformed approval JSON handling in `approvals show`, and full-hash presence in reports (current test only checks prefix at `packages/hep-autoresearch/tests/test_report_renderer.py:40`).
-
-Verified separately: NEW-R08 shebang/CONTRACT-EXEMPT ordering is correct in all 6 scripts.
-
-**FAIL** (2 blocking findings).

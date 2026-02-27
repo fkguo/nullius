@@ -1,8 +1,0 @@
-**Findings**
-- **BLOCKING:** None found.
-- **NON-BLOCKING:** `cmd_approvals_show` still has unhandled filesystem I/O paths; malformed/non-UTF8 JSON is handled, but `OSError` (permission/TOCTOU) can still crash in JSON/full/short reads (`packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1610`, `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1622`, `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1628`).
-- **NON-BLOCKING:** `report render` has no defensive handling around artifact hashing/output write, so a single unreadable artifact or unwritable `--output-path` raises traceback instead of CLI-style `_die(...)` (`packages/hep-autoresearch/src/hep_autoresearch/toolkit/report_renderer.py:72`, `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py:1669`).
-- **NON-BLOCKING:** `write_trio` docstring says returned paths are relative to repo root, but it returns whatever `approval_dir` uses (currently absolute in caller), which can mislead downstream callers (`packages/hep-autoresearch/src/hep_autoresearch/toolkit/approval_packet.py:223`, `packages/hep-autoresearch/src/hep_autoresearch/toolkit/approval_packet.py:241`).
-- **NON-BLOCKING (tests):** Good regression coverage on fixed bugs; remaining gap is CLI-level tests for `cmd_report_render` error paths (unreadable artifacts/unwritable output), currently only renderer-level behavior is covered (`packages/hep-autoresearch/tests/test_report_renderer.py:58`).
-
-PASS

@@ -11,6 +11,8 @@ OUT=""
 MAX_RETRIES=6
 SLEEP_SECS=10
 TOOLS='""'
+API_BASE_URL=""
+API_KEY_ENV=""
 
 usage() {
   cat <<'EOF'
@@ -27,6 +29,9 @@ Options:
   --out PATH               Required (stdout+stderr captured)
   --max-retries N          Default: 6
   --sleep-secs SECONDS     Default: 10 (base; exponential backoff)
+  --api-base-url URL       Optional. Override Anthropic API base URL (sets ANTHROPIC_BASE_URL).
+  --api-key-env VAR        Optional. Env var NAME holding the API key (sets ANTHROPIC_API_KEY).
+                           Never pass the key value directly.
 EOF
 }
 
@@ -39,6 +44,8 @@ while [[ $# -gt 0 ]]; do
     --out) OUT="$2"; shift 2;;
     --max-retries) MAX_RETRIES="$2"; shift 2;;
     --sleep-secs) SLEEP_SECS="$2"; shift 2;;
+    --api-base-url) API_BASE_URL="$2"; shift 2;;
+    --api-key-env) API_KEY_ENV="$2"; shift 2;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
@@ -143,6 +150,18 @@ print_stderr_excerpt() {
 }
 
 attempt=1
+# Apply API overrides via env vars (preferred over CLI flags to avoid key exposure in process list).
+if [[ -n "${API_BASE_URL}" ]]; then
+  export ANTHROPIC_BASE_URL="${API_BASE_URL}"
+fi
+if [[ -n "${API_KEY_ENV}" ]]; then
+  _resolved_key="${!API_KEY_ENV:-}"
+  if [[ -z "${_resolved_key}" ]]; then
+    echo "ERROR: --api-key-env '${API_KEY_ENV}' is set but the env var is empty or unset." >&2
+    exit 2
+  fi
+  export ANTHROPIC_API_KEY="${_resolved_key}"
+fi
 while true; do
   : >"${tmp_stdout}"
   : >"${tmp_stderr}"

@@ -5,7 +5,7 @@ from pathlib import Path
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.domain_pack import DomainPackAssets, DomainPackDescriptor, DomainPackIndex
 from idea_core.engine.operators import OperatorOutput
-from idea_core.engine.service import IdeaCoreService, RpcError
+from idea_core.engine.coordinator import IdeaCoreService, RpcError
 
 
 class _NoopOperator:

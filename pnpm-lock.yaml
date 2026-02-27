@@ -120,6 +120,9 @@ importers:
         specifier: ^4.3.5
         version: 4.3.6
     devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.3.0
       json-schema-to-typescript:
         specifier: ^15.0.4
         version: 15.0.4
