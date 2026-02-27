@@ -707,20 +707,28 @@ def main() -> int:
                     f"- commands_run[{i}]: (denied) arg contains path traversal: {_traversal_arg!r}"
                 )
                 continue
-            # Pre-execution: deny any argument that is an absolute path inside run_dir
-            # but outside the member's workspace.  Catches read attempts like:
-            #   cat /…/team/runs/<tag>/logs/member_b/attempt.log
-            # The check covers cmd_parts[1:] (args only; executable is already allowlist-gated).
-            _rdir_prefix = str(run_dir).rstrip("/") + "/"
+            # Pre-execution: deny any argument that contains a reference to run_dir
+            # that is NOT under the member's workspace.  This covers:
+            #   1. Standalone path args:  cat /…/logs/member_b/attempt.log
+            #   2. Exact run_dir arg:     ls /…/team/runs/<tag>
+            #   3. Embedded path strings: python3 -c "open('/…/member_b/…')"
+            # Strategy: strip all workspace-safe substrings (_ws_prefix) from the
+            # normalized arg, then check whether run_dir still appears in what remains.
+            _rdir_str = str(run_dir).rstrip("/")
+            _rdir_prefix = _rdir_str + "/"
             _ws_prefix = str(workspace_root).rstrip("/") + "/"
-            _abs_escape_arg = next(
-                (a for a in cmd_parts[1:]
-                 if a.startswith(_rdir_prefix) and not a.startswith(_ws_prefix)),
-                None,
-            )
+
+            def _arg_escapes_workspace(a: str) -> bool:
+                n = a.replace("\\", "/")
+                # Remove every occurrence of the workspace-safe prefix so that only
+                # non-workspace run_dir references remain in the cleaned string.
+                cleaned = n.replace(_ws_prefix, "")
+                return _rdir_prefix in cleaned or n == _rdir_str
+
+            _abs_escape_arg = next((a for a in cmd_parts[1:] if _arg_escapes_workspace(a)), None)
             if _abs_escape_arg is not None:
                 response_lines.append(
-                    f"- commands_run[{i}]: (denied) absolute path argument escapes workspace: {_abs_escape_arg!r}"
+                    f"- commands_run[{i}]: (denied) argument references run_dir outside workspace: {_abs_escape_arg!r}"
                 )
                 continue
             try:
