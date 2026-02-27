@@ -131,6 +131,17 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.ZOTERO_GET_SELECTED_COLLECTION]: 'read',
   [T.ZOTERO_ADD]: 'write',
   [T.ZOTERO_CONFIRM]: 'write',
+  // ── Orchestrator Run Tools (NEW-R15-impl) ─────────────────────────────────
+  [T.ORCH_RUN_CREATE]: 'write',
+  [T.ORCH_RUN_STATUS]: 'read',
+  [T.ORCH_RUN_LIST]: 'read',
+  [T.ORCH_RUN_APPROVE]: 'destructive',
+  [T.ORCH_RUN_REJECT]: 'destructive',
+  [T.ORCH_RUN_EXPORT]: 'destructive',
+  [T.ORCH_RUN_PAUSE]: 'write',
+  [T.ORCH_RUN_RESUME]: 'write',
+  [T.ORCH_RUN_APPROVALS_LIST]: 'read',
+  [T.ORCH_POLICY_QUERY]: 'read',
 };
 
 // ── H-11b: Permission Composition ────────────────────────────────────────

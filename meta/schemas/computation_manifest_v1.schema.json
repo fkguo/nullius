@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/computation_manifest_v1.schema.json",
+  "title": "ComputationManifest V1",
+  "description": "Computation contract schema (UX-02). Standardizes the interface between research-team computation planning and hep-calc execution. A manifest.json at the root of a computation/ directory must conform to this schema.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "entry_point",
+    "steps",
+    "environment",
+    "dependencies"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version, always 1 for this schema."
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable title for this computation manifest."
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief description of what this computation does."
+    },
+    "entry_point": {
+      "type": "object",
+      "required": ["script"],
+      "properties": {
+        "script": {
+          "type": "string",
+          "description": "Relative path to the main entry script (e.g. 'mathematica/run_all.wl', 'python/main.py')."
+        },
+        "tool": {
+          "type": "string",
+          "enum": ["mathematica", "julia", "python", "bash"],
+          "description": "Tool/interpreter used to run the entry script."
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Command-line arguments passed to the entry script."
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Environment variables required by the entry script."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Primary execution entry point."
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "tool"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique step identifier within this manifest."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of what this step does."
+          },
+          "tool": {
+            "type": "string",
+            "enum": ["mathematica", "julia", "python", "bash"],
+            "description": "Tool/interpreter for this step."
+          },
+          "script": {
+            "type": "string",
+            "description": "Relative path to the script for this step."
+          },
+          "args": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Arguments passed to the script."
+          },
+          "expected_outputs": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Relative paths to files this step is expected to produce."
+          },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Step IDs that must complete before this step runs."
+          },
+          "timeout_minutes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Per-step timeout in minutes."
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Ordered or dependency-resolved execution steps."
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "mathematica_version": {
+          "type": "string",
+          "description": "Minimum required Wolfram Mathematica version (e.g. '13.3')."
+        },
+        "julia_version": {
+          "type": "string",
+          "description": "Minimum required Julia version (e.g. '1.9')."
+        },
+        "python_version": {
+          "type": "string",
+          "description": "Minimum required Python version (e.g. '3.11')."
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["any", "linux", "macos", "windows"],
+          "default": "any",
+          "description": "Target platform constraint."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text notes about the execution environment."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Runtime environment requirements."
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "mathematica_packages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required Mathematica packages (e.g. ['FeynCalc', 'FeynArts', 'LoopTools'])."
+        },
+        "julia_packages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required Julia packages (e.g. ['LoopTools'])."
+        },
+        "python_packages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required Python packages with optional version constraints (e.g. ['numpy>=1.24', 'scipy'])."
+        },
+        "external_libraries": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "External C/Fortran libraries required (e.g. ['LoopTools-2.15', 'COLLIER-1.2'])."
+        },
+        "data_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "External data files required (relative paths or URIs)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Software and data dependencies."
+    },
+    "computation_budget": {
+      "type": "object",
+      "properties": {
+        "estimated_runtime_minutes": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Estimated wall-clock runtime in minutes."
+        },
+        "max_runtime_minutes": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Hard timeout in minutes (computation aborts if exceeded)."
+        },
+        "max_memory_gb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum RAM usage in GB."
+        },
+        "max_cpu_cores": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of CPU cores to use."
+        },
+        "max_disk_gb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum disk space for outputs in GB."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text notes about resource requirements."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Resource budget for this computation."
+    },
+    "outputs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Top-level output files produced by this manifest (relative paths)."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp when this manifest was created."
+    }
+  },
+  "additionalProperties": false
+}

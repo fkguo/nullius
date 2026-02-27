@@ -1,4 +1,4 @@
-"""Tests for approval_packet trio renderer (NEW-02)."""
+"""Tests for approval_packet trio renderer (NEW-02) + UX-07 gate context enrichment."""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,15 @@ import pytest
 
 from hep_autoresearch.toolkit.approval_packet import (
     ApprovalPacketData,
+    GateContextSummary,
+    KeyResult,
     SHORT_LINE_LIMIT,
+    assemble_a0_context,
+    assemble_a1_context,
+    assemble_a2_context,
+    assemble_a3_context,
+    assemble_a4_context,
+    assemble_a5_context,
     render_full,
     render_json,
     render_short,
@@ -194,3 +202,173 @@ def test_approvals_show_json_non_utf8_packet(
     assert isinstance(result, list)
     assert len(result) == 1
     assert "error" in result[0]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UX-07: Gate context assemblers
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_assemble_a0_context_basic() -> None:
+    ctx = assemble_a0_context(
+        thesis="Dark matter is a Dirac fermion.",
+        hypotheses=["H1: coupling > 0.1", "H2: mass 1-10 GeV"],
+        compute_difficulty="medium",
+        literature_coverage="32 papers; gaps in 1-10 GeV range",
+    )
+    assert isinstance(ctx, GateContextSummary)
+    assert ctx.gate_id == "A0"
+    assert "Dark matter" in ctx.summary
+    assert len(ctx.key_results) == 2  # two hypotheses
+    assert ctx.key_results[0].label == "Hypothesis 1"
+
+
+def test_assemble_a1_context_hit_count() -> None:
+    ctx = assemble_a1_context(
+        retrieval_strategy="INSPIRE: dark matter LHC",
+        hit_count=45,
+        coverage_summary="Good coverage for 2015–2024",
+        missed_risk="Pre-LHC papers underrepresented",
+    )
+    assert ctx.gate_id == "A1"
+    assert "45" in ctx.summary
+    assert any(kr.label == "Retrieved papers" for kr in ctx.key_results)
+
+
+def test_assemble_a2_context_diff_stats() -> None:
+    ctx = assemble_a2_context(
+        changed_files=["src/a.py", "src/b.py", "tests/test_a.py"],
+        lines_added=120,
+        lines_removed=30,
+        test_coverage_status="pass (95%)",
+    )
+    assert ctx.gate_id == "A2"
+    assert "3 file(s) changed" in ctx.summary
+    assert "+120/-30 lines" in ctx.summary
+    files_result = next(kr for kr in ctx.key_results if kr.label == "Files changed")
+    assert files_result.value == "3"
+
+
+def test_assemble_a3_context_parameters() -> None:
+    ctx = assemble_a3_context(
+        parameter_rationale="renormalization scale mu=mZ chosen to minimize logs",
+        computation_budget="~2h on 4 cores",
+        expected_precision="1% relative error",
+        key_parameters=[("mu", "91.2"), ("alpha_s", "0.118")],
+    )
+    assert ctx.gate_id == "A3"
+    assert len(ctx.key_results) == 2
+    assert ctx.key_results[0].label == "mu"
+    assert ctx.key_results[0].value == "91.2"
+
+
+def test_assemble_a4_context_coverage() -> None:
+    ctx = assemble_a4_context(
+        modification_summary="Rewrote section 3, updated abstract",
+        citation_changes="2 added, 1 removed",
+        evidence_coverage_pct=87.5,
+        integrity_flags=["citation [10] may be stale"],
+    )
+    assert ctx.gate_id == "A4"
+    assert "87.5%" in ctx.summary or "88%" in ctx.summary
+    assert len(ctx.integrity_flags) == 1
+    cov_result = next(kr for kr in ctx.key_results if kr.label == "Evidence coverage")
+    assert cov_result.unit == "%"
+
+
+def test_assemble_a5_context_results_table() -> None:
+    ctx = assemble_a5_context(
+        core_results=[
+            ("sigma_total", "1.23 ± 0.05", "pb"),
+            ("K-factor", "1.42", ""),
+        ],
+        cross_validation_summary="Agrees with MadGraph5 at 1% level",
+        recommendation="APPROVE",
+    )
+    assert ctx.gate_id == "A5"
+    assert len(ctx.key_results) == 2
+    assert ctx.key_results[0].unit == "pb"
+    assert ctx.recommendation == "APPROVE"
+    assert "2 key result(s)" in ctx.summary
+
+
+def test_gate_context_in_render_short(sample_data: ApprovalPacketData) -> None:
+    """Gate context section appears in packet_short when gate_context is set."""
+    sample_data.gate_context = assemble_a1_context(
+        retrieval_strategy="INSPIRE: top quark mass",
+        hit_count=18,
+        recommendation="APPROVE",
+    )
+    text = render_short(sample_data)
+    assert "Gate Context" in text
+    assert "18" in text
+    assert "APPROVE" in text
+    # Must still respect line limit
+    assert len(text.split("\n")) <= SHORT_LINE_LIMIT
+
+
+def test_gate_context_in_render_json(sample_data: ApprovalPacketData) -> None:
+    """context_summary and key_results appear in JSON when gate_context is set."""
+    sample_data.gate_context = assemble_a5_context(
+        core_results=[("m_top", "172.5", "GeV")],
+        cross_validation_summary="consistent",
+        recommendation="APPROVE",
+        integrity_flags=["preliminary result"],
+    )
+    obj = render_json(sample_data)
+    assert "context_summary" in obj
+    assert "key_results" in obj
+    assert len(obj["key_results"]) == 1  # type: ignore[arg-type]
+    assert obj["key_results"][0]["label"] == "m_top"  # type: ignore[index]
+    assert obj["key_results"][0]["unit"] == "GeV"  # type: ignore[index]
+    assert obj["integrity_flags"] == ["preliminary result"]
+    assert obj["recommendation"] == "APPROVE"
+
+
+def test_no_gate_context_no_section(sample_data: ApprovalPacketData) -> None:
+    """When gate_context is None, no Gate Context section appears."""
+    assert sample_data.gate_context is None
+    text = render_short(sample_data)
+    assert "Gate Context" not in text
+    obj = render_json(sample_data)
+    assert "context_summary" not in obj
+    assert "key_results" not in obj
+
+
+def test_gate_context_write_trio(
+    sample_data: ApprovalPacketData, tmp_path: Path
+) -> None:
+    """write_trio writes v1 file (no gate_context) + v2 file (enriched) when gate_context is set."""
+    sample_data.gate_context = assemble_a2_context(
+        changed_files=["a.py"], lines_added=10, lines_removed=2,
+    )
+    approval_dir = tmp_path / "approvals" / "A1-ctx"
+    paths = write_trio(sample_data, approval_dir)
+
+    # v1 file must NOT contain gate_context fields (strict v1 schema compliance)
+    v1_obj = json.loads((approval_dir / "approval_packet_v1.json").read_text("utf-8"))
+    assert "key_results" not in v1_obj
+    assert "context_summary" not in v1_obj
+    assert v1_obj["schema_version"] == 1
+
+    # v2 file must exist and contain enriched fields
+    assert "packet_json_v2" in paths
+    v2_obj = json.loads((approval_dir / "approval_packet_v2.json").read_text("utf-8"))
+    assert "key_results" in v2_obj
+    assert any(kr["label"] == "Files changed" for kr in v2_obj["key_results"])
+    assert v2_obj["schema_version"] == 2
+
+    # packet_short must still contain the gate context section
+    short = (approval_dir / "packet_short.md").read_text("utf-8")
+    assert "Gate Context" in short
+
+
+def test_write_trio_no_v2_file_when_no_context(
+    sample_data: ApprovalPacketData, tmp_path: Path
+) -> None:
+    """When gate_context is None, no approval_packet_v2.json is written."""
+    assert sample_data.gate_context is None
+    approval_dir = tmp_path / "approvals" / "A1-plain"
+    paths = write_trio(sample_data, approval_dir)
+    assert "packet_json_v2" not in paths
+    assert not (approval_dir / "approval_packet_v2.json").exists()

@@ -159,6 +159,20 @@ export const ZOTERO_GET_SELECTED_COLLECTION = 'zotero_get_selected_collection' a
 export const ZOTERO_ADD = 'zotero_add' as const;
 export const ZOTERO_CONFIRM = 'zotero_confirm' as const;
 
+// ── Orchestrator Run Tools (NEW-R15-impl) ────────────────────────────────────
+
+export const ORCH_RUN_PREFIX = 'orch_run_' as const;
+export const ORCH_RUN_CREATE = 'orch_run_create' as const;
+export const ORCH_RUN_STATUS = 'orch_run_status' as const;
+export const ORCH_RUN_LIST = 'orch_run_list' as const;
+export const ORCH_RUN_APPROVE = 'orch_run_approve' as const;
+export const ORCH_RUN_REJECT = 'orch_run_reject' as const;
+export const ORCH_RUN_EXPORT = 'orch_run_export' as const;
+export const ORCH_RUN_PAUSE = 'orch_run_pause' as const;
+export const ORCH_RUN_RESUME = 'orch_run_resume' as const;
+export const ORCH_RUN_APPROVALS_LIST = 'orch_run_approvals_list' as const;
+export const ORCH_POLICY_QUERY = 'orch_policy_query' as const;
+
 // ── Aggregate Type ──────────────────────────────────────────────────────────
 
 /** Union of all tool name constants for type-safe dispatch */
@@ -253,5 +267,17 @@ export type ZoteroToolName =
   | typeof ZOTERO_ADD
   | typeof ZOTERO_CONFIRM;
 
+export type OrchToolName =
+  | typeof ORCH_RUN_CREATE
+  | typeof ORCH_RUN_STATUS
+  | typeof ORCH_RUN_LIST
+  | typeof ORCH_RUN_APPROVE
+  | typeof ORCH_RUN_REJECT
+  | typeof ORCH_RUN_EXPORT
+  | typeof ORCH_RUN_PAUSE
+  | typeof ORCH_RUN_RESUME
+  | typeof ORCH_RUN_APPROVALS_LIST
+  | typeof ORCH_POLICY_QUERY;
+
 /** Union of all tool names across the ecosystem */
-export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName;
+export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | OrchToolName;

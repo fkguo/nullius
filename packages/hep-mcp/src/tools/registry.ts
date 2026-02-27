@@ -115,6 +115,7 @@ import {
   TimeRangeSchema,
 } from './research/schemas.js';
 import { ResearchNavigatorToolSchema } from './research/researchNavigator.js';
+import { ORCH_TOOL_SPECS } from './orchestrator/tools.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -3105,6 +3106,8 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
       handler: spec.handler,
     })
   ),
+  // ── Orchestrator Run Tools (NEW-R15-impl) ──────────────────────────────────
+  ...ORCH_TOOL_SPECS,
 ];
 
 // Inject riskLevel from the shared static map (H-11a)
