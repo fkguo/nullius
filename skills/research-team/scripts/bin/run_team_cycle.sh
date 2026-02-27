@@ -2147,12 +2147,20 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     chmod a-rwx "${run_dir}/${other}_audit.jsonl" >/dev/null 2>&1 || true
     chmod -R a-rwx "${attempt_logs_dir}/${other}" >/dev/null 2>&1 || true
     chmod -R a-rwx "${PROJECT_ROOT}/artifacts/${safe_tag}/${other}" >/dev/null 2>&1 || true
+    # Revoke other member's workspace dir(s) (names include UUID suffix; use glob).
+    for _ws in "${run_dir}/workspaces/${other}_"*; do
+      [[ -e "${_ws}" ]] && chmod -R a-rwx "${_ws}" >/dev/null 2>&1 || true
+    done
     chmod -R u+rwX "${run_dir}/${who}" >/dev/null 2>&1 || true
     chmod u+rw "${run_dir}/${who}_evidence.json" >/dev/null 2>&1 || true
     chmod u+rw "${run_dir}/${safe_tag}_${who}.md" >/dev/null 2>&1 || true
     chmod u+rw "${run_dir}/${who}_audit.jsonl" >/dev/null 2>&1 || true
     chmod -R u+rwX "${attempt_logs_dir}/${who}" >/dev/null 2>&1 || true
     chmod -R u+rwX "${PROJECT_ROOT}/artifacts/${safe_tag}/${who}" >/dev/null 2>&1 || true
+    # Restore own workspace dir(s).
+    for _ws in "${run_dir}/workspaces/${who}_"*; do
+      [[ -e "${_ws}" ]] && chmod -R u+rwX "${_ws}" >/dev/null 2>&1 || true
+    done
   }
 
   restore_outputs() {
@@ -2162,6 +2170,10 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     chmod u+rw "${run_dir}/member_a_audit.jsonl" "${run_dir}/member_b_audit.jsonl" >/dev/null 2>&1 || true
     chmod -R u+rwX "${attempt_logs_dir}/member_a" "${attempt_logs_dir}/member_b" >/dev/null 2>&1 || true
     chmod -R u+rwX "${PROJECT_ROOT}/artifacts/${safe_tag}/member_a" "${PROJECT_ROOT}/artifacts/${safe_tag}/member_b" >/dev/null 2>&1 || true
+    # Restore both members' workspace dirs.
+    for _ws in "${run_dir}/workspaces/member_a_"* "${run_dir}/workspaces/member_b_"*; do
+      [[ -e "${_ws}" ]] && chmod -R u+rwX "${_ws}" >/dev/null 2>&1 || true
+    done
   }
 
   if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]]; then
@@ -2364,8 +2376,11 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" && "${MEMBER_B_RUNNER_KIND_RESOLV
       if [[ -n "${MEMBER_B_MODEL_EFFECTIVE}" ]]; then
         member_b_retry_args=( --model "${MEMBER_B_MODEL_EFFECTIVE}" "${member_b_retry_args[@]}" )
       fi
-      # Propagate RT-03 API routing settings for claude fallback (codex runner does not accept these args).
-      if [[ "${fb_kind}" == "claude" ]]; then
+      # Propagate RT-03 API routing settings for claude fallback.
+      # Only when using the project-local runner (LOCAL_CLAUDE_RUNNER), which
+      # supports --api-base-url/--api-key-env. The skills-level runner exits on
+      # unknown args and does not accept these flags.
+      if [[ "${fb_kind}" == "claude" && -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
         [[ -n "${MEMBER_B_API_BASE_URL}" ]] && member_b_retry_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
         [[ -n "${MEMBER_B_API_KEY_ENV}" ]]  && member_b_retry_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
       fi

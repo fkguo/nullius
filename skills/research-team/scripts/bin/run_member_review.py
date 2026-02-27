@@ -215,6 +215,13 @@ def _allowed_command(command: str) -> tuple[bool, str, list[str]]:
                 break
             if re.match(r"^-[a-zA-Z]*c[a-zA-Z]*$", _arg):
                 return False, "python -c is not allowed; use a script file instead", []
+    # julia -e/-E/--eval/--print similarly allows arbitrary inline code execution.
+    if exe_lower == "julia":
+        for _arg in parts[1:]:
+            if _arg == "--":
+                break
+            if _arg in ("-e", "-E", "--eval", "--print"):
+                return False, "julia -e/-E is not allowed; use a script file instead", []
     return True, "", parts
 
 
