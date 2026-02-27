@@ -411,7 +411,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **autoresearch-lab** (12858 symbols, 27234 relationships, 300 execution flows).
+This project is indexed by GitNexus as **autoresearch-lab** (12833 symbols, 27202 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 
