@@ -17,6 +17,12 @@
 
 **Commit 消息不加 Co-Authored-By**：提交时不要在 commit message 中写 `Co-Authored-By: Claude ...` 或任何类似的 AI co-author 标注。
 
+**基于最新信息设计与实现（SOTA 原则）**：本项目目标是构建 SOTA 级工具。在做架构设计、技术选型、算法选择、以及判断"某功能是否仍有价值"时，**必须联网搜索最新的研究论文、基准测试、最佳实践和竞品动态**，不能仅凭模型训练数据中的知识。训练数据可能已过时，而前沿领域（LLM 能力、MCP 架构、学术 AI 工具）发展极快。具体要求：
+- 涉及"LLM 是否已能做 X"的判断 → 搜索最新 benchmark 和实践报告
+- 涉及架构模式选择 → 搜索当前最佳实践和竞品做法
+- 涉及算法/策略选择（如 RAG、reranking、evidence retrieval）→ 搜索最新研究
+- 多模型审核的 review system prompt 中也应要求审核模型联网验证关键判断
+
 来源：`meta/REDESIGN_PLAN.md` §全局约束。
 
 ## 工作区路径映射
