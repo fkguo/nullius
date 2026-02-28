@@ -3,7 +3,7 @@
  * Extracts table environments from LaTeX papers
  */
 
-import { getPaperContent } from './paperContent.js';
+import { getPaperContent } from '../../utils/arxivCompat.js';
 import {
   parseTexFile,
   resolveIncludes,

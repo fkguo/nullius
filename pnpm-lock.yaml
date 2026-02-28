@@ -17,10 +17,41 @@ importers:
 
   packages/agent-arxiv: {}
 
+  packages/arxiv-mcp:
+    dependencies:
+      '@autoresearch/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.25.2
+        version: 1.27.0(zod@4.3.6)
+      tar:
+        specifier: ^7.4.3
+        version: 7.5.9
+      zod:
+        specifier: ^4.3.5
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.3.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.16
+        version: 4.0.18(@types/node@25.3.0)(tsx@4.21.0)
+
   packages/hep-autoresearch: {}
 
   packages/hep-mcp:
     dependencies:
+      '@autoresearch/arxiv-mcp':
+        specifier: workspace:*
+        version: link:../arxiv-mcp
       '@autoresearch/hepdata-mcp':
         specifier: workspace:*
         version: link:../hepdata-mcp

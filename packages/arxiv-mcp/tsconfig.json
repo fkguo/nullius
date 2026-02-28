@@ -11,8 +11,6 @@
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"],
   "references": [
-    { "path": "../shared" },
-    { "path": "../hepdata-mcp" },
-    { "path": "../arxiv-mcp" }
+    { "path": "../shared" }
   ]
 }

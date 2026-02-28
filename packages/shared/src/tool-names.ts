@@ -145,6 +145,12 @@ export const HEPDATA_GET_RECORD = 'hepdata_get_record' as const;
 export const HEPDATA_GET_TABLE = 'hepdata_get_table' as const;
 export const HEPDATA_DOWNLOAD = 'hepdata_download' as const;
 
+// ── Arxiv Tools ──────────────────────────────────────────────────────────────
+
+export const ARXIV_SEARCH = 'arxiv_search' as const;
+export const ARXIV_GET_METADATA = 'arxiv_get_metadata' as const;
+export const ARXIV_PAPER_SOURCE = 'arxiv_paper_source' as const;
+
 // ── PDG Tools ───────────────────────────────────────────────────────────────
 
 export const PDG_INFO = 'pdg_info' as const;
@@ -316,5 +322,10 @@ export type HepDataToolName =
   | typeof HEPDATA_GET_TABLE
   | typeof HEPDATA_DOWNLOAD;
 
+export type ArxivToolName =
+  | typeof ARXIV_SEARCH
+  | typeof ARXIV_GET_METADATA
+  | typeof ARXIV_PAPER_SOURCE;
+
 /** Union of all tool names across the ecosystem */
-export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | OrchToolName | IdeaToolName | HepDataToolName;
+export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | OrchToolName | IdeaToolName | HepDataToolName | ArxivToolName;

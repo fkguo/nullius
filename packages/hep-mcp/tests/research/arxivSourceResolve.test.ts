@@ -5,7 +5,7 @@ vi.mock('../../src/api/client.js', () => ({
 }));
 
 const api = await import('../../src/api/client.js');
-const { resolveArxivId } = await import('../../src/tools/research/arxivSource.js');
+const { resolveArxivId } = await import('../../src/utils/resolveArxivId.js');
 
 describe('arxivSource.resolveArxivId', () => {
   beforeEach(() => {

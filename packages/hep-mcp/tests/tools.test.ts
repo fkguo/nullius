@@ -39,9 +39,18 @@ vi.mock('../src/tools/research/criticalResearch.js', () => ({
   performCriticalResearch: vi.fn(),
 }));
 
-vi.mock('../src/tools/research/paperSource.js', () => ({
-  accessPaperSource: vi.fn(),
+vi.mock('../src/utils/resolveArxivId.js', () => ({
+  resolveArxivIdRich: vi.fn().mockResolvedValue({ arxivId: '2301.12345' }),
+  resolveArxivId: vi.fn().mockResolvedValue('2301.12345'),
 }));
+
+vi.mock('@autoresearch/arxiv-mcp/tooling', async () => {
+  const actual = await vi.importActual('@autoresearch/arxiv-mcp/tooling');
+  return {
+    ...actual,
+    accessPaperSource: vi.fn(),
+  };
+});
 
 vi.mock('../src/tools/research/deepResearch.js', () => ({
   performDeepResearch: vi.fn(),
@@ -108,7 +117,7 @@ const topicAnalysis = await import('../src/tools/research/topicAnalysis.js');
 const discoverPapers = await import('../src/tools/research/discoverPapers.js');
 const networkAnalysis = await import('../src/tools/research/networkAnalysis.js');
 const criticalResearch = await import('../src/tools/research/criticalResearch.js');
-const paperSource = await import('../src/tools/research/paperSource.js');
+const arxivTooling = await import('@autoresearch/arxiv-mcp/tooling');
 const deepResearch = await import('../src/tools/research/deepResearch.js');
 const fieldSurvey = await import('../src/tools/research/fieldSurvey.js');
 const parseLatexContent = await import('../src/tools/research/parseLatexContent.js');
@@ -469,9 +478,12 @@ describe('Tool Handlers (current exposure)', () => {
   });
 
   it('inspire_paper_source should call accessPaperSource', async () => {
-    vi.mocked(paperSource.accessPaperSource).mockResolvedValueOnce({ ok: true } as any);
+    vi.mocked(arxivTooling.accessPaperSource).mockResolvedValueOnce({
+      mode: 'urls', identifier: '2301.12345',
+      provenance: { downloaded: false, retrieval_level: 'urls_only' },
+    } as any);
     await handleToolCall('inspire_paper_source', { identifier: '123', mode: 'urls' });
-    expect(paperSource.accessPaperSource).toHaveBeenCalled();
+    expect(arxivTooling.accessPaperSource).toHaveBeenCalled();
   });
 
   it('inspire_deep_research should call performDeepResearch', async () => {

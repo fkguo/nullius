@@ -4,8 +4,8 @@
  * equations, theorems, methodology, and conclusions.
  */
 
-import { getPaperContent } from './paperContent.js';
-import { resolveArxivId } from './arxivSource.js';
+import { getPaperContent } from '../../utils/arxivCompat.js';
+import { resolveArxivId } from '../../utils/resolveArxivId.js';
 import * as api from '../../api/client.js';
 import {
   parseTexFile,

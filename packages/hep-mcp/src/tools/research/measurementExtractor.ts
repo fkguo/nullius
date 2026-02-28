@@ -13,8 +13,8 @@
  * - (5.2 ± 0.3)% (percentage uncertainties)
  */
 
-import { getPaperContent } from './paperContent.js';
-import { resolveArxivId } from './arxivSource.js';
+import { getPaperContent } from '../../utils/arxivCompat.js';
+import { resolveArxivId } from '../../utils/resolveArxivId.js';
 import { extractTables } from './extractTables.js';
 import { type Table } from './latex/index.js';
 import {

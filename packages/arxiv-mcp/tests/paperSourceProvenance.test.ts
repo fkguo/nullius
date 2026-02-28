@@ -1,25 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/tools/research/downloadUrls.js', () => ({
+vi.mock('../src/source/downloadUrls.js', () => ({
   getDownloadUrls: vi.fn(),
 }));
 
-vi.mock('../src/tools/research/paperContent.js', () => ({
+vi.mock('../src/source/paperContent.js', () => ({
   getPaperContent: vi.fn(),
 }));
 
-vi.mock('../src/tools/research/arxivSource.js', () => ({
+vi.mock('../src/source/arxivSource.js', () => ({
+  normalizeArxivId: vi.fn((id: string) => (id.match(/^\d{4}\.\d{4,5}/) ? id : null)),
   getArxivSource: vi.fn(),
 }));
 
-const downloadUrls = await import('../src/tools/research/downloadUrls.js');
-const paperContent = await import('../src/tools/research/paperContent.js');
-const arxivSource = await import('../src/tools/research/arxivSource.js');
-const { accessPaperSource } = await import('../src/tools/research/paperSource.js');
+const downloadUrls = await import('../src/source/downloadUrls.js');
+const paperContent = await import('../src/source/paperContent.js');
+const arxivSource = await import('../src/source/arxivSource.js');
+const { accessPaperSource } = await import('../src/source/paperSource.js');
 
 describe('accessPaperSource provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(arxivSource.normalizeArxivId).mockImplementation(
+      (id: string) => (id.match(/^\d{4}\.\d{4,5}/) ? id : null)
+    );
   });
 
   it('mode=urls sets provenance.retrieval_level=urls_only and passes through source_available', async () => {
@@ -28,7 +32,7 @@ describe('accessPaperSource provenance', () => {
       source_available: null,
     } as any);
 
-    const result = await accessPaperSource({ identifier: '123', mode: 'urls' });
+    const result = await accessPaperSource({ identifier: '2301.12345', mode: 'urls' });
 
     expect(result.provenance).toEqual({
       downloaded: false,
@@ -54,7 +58,7 @@ describe('accessPaperSource provenance', () => {
     });
   });
 
-  it('mode=content (latex) sets provenance.retrieval_level=latex_source and downloaded=true', async () => {
+  it('mode=content (latex) sets provenance.retrieval_level=latex_source', async () => {
     vi.mocked(paperContent.getPaperContent).mockResolvedValueOnce({
       success: true,
       source_type: 'latex',
@@ -71,7 +75,7 @@ describe('accessPaperSource provenance', () => {
     });
   });
 
-  it('mode=content (pdf) sets provenance.retrieval_level=pdf_only and downloaded=true', async () => {
+  it('mode=content (pdf) sets provenance.retrieval_level=pdf_only', async () => {
     vi.mocked(paperContent.getPaperContent).mockResolvedValueOnce({
       success: true,
       source_type: 'pdf',
@@ -87,7 +91,7 @@ describe('accessPaperSource provenance', () => {
     });
   });
 
-  it('mode=content (failed) sets provenance.retrieval_level=none and downloaded=false', async () => {
+  it('mode=content (failed) sets provenance.retrieval_level=none', async () => {
     vi.mocked(paperContent.getPaperContent).mockResolvedValueOnce({
       success: false,
       source_type: 'pdf',
@@ -96,7 +100,7 @@ describe('accessPaperSource provenance', () => {
       error: 'fail',
     } as any);
 
-    const result = await accessPaperSource({ identifier: 'bad', mode: 'content' });
+    const result = await accessPaperSource({ identifier: '2301.12345', mode: 'content' });
 
     expect(result.provenance).toEqual({
       downloaded: false,
@@ -123,4 +127,3 @@ describe('accessPaperSource provenance', () => {
     });
   });
 });
-

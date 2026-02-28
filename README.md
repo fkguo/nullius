@@ -165,7 +165,7 @@ This project is an MCP (Model Context Protocol) server that provides AI assistan
 │                  hep-research-mcp Server                    │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
 │  │   Tool Layer    │  │ Artifacts/Cache │  │  API Layer  │ │
-│  │ (75 std / 98)   │  │  (FS+Memory)    │  │ (Rate Limit)│ │
+│  │ (78 std / 101)   │  │  (FS+Memory)    │  │ (Rate Limit)│ │
 │  └─────────────────┘  └─────────────────┘  └──────┬──────┘ │
 └───────────────┬───────────────────────┬──────────┼────────┘
                 │                       │          │ HTTPS APIs
@@ -303,14 +303,14 @@ This server exposes four tool families:
 Notes:
 - `inspire_*` tools can be called directly (no Project/Run required). Projects/Runs and `hep://...` resources are for evidence-first local workflows (`hep_*`).
 
-Tool counts: **75 tools in `standard` mode** (default, compact surface) and **98 tools in `full` mode** (adds advanced/heavy tools like Style Corpus).
+Tool counts: **78 tools in `standard` mode** (default, compact surface) and **101 tools in `full` mode** (adds advanced/heavy tools like Style Corpus).
 
 ### Tool Exposure Modes
 
 | Mode | Tools | Description |
 |------|-------|-------------|
-| `standard` | 75 | Default: compact, recommended |
-| `full` | 98 | `standard` + advanced/heavy tools |
+| `standard` | 78 | Default: compact, recommended |
+| `full` | 101 | `standard` + advanced/heavy tools |
 
 ```bash
 # Use full mode (optional)

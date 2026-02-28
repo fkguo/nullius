@@ -12,8 +12,8 @@ vi.mock('../../src/api/client.js', () => ({
   }),
 }));
 
-vi.mock('../../src/api/rateLimiter.js', async () => {
-  const actual = await vi.importActual<typeof import('../../src/api/rateLimiter.js')>('../../src/api/rateLimiter.js');
+vi.mock('@autoresearch/arxiv-mcp/tooling', async () => {
+  const actual = await vi.importActual('@autoresearch/arxiv-mcp/tooling');
   return {
     ...actual,
     arxivFetch: vi.fn(() => {

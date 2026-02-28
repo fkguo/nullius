@@ -91,23 +91,23 @@ export {
 
 export {
   getArxivSource,
-  type ArxivSourceParams,
   type ArxivSourceResult,
   type ArxivMetadata,
-} from './arxivSource.js';
+} from '@autoresearch/arxiv-mcp/tooling';
 
 // Phase 5 Download Tools
 export {
   getDownloadUrls,
   type GetDownloadUrlsParams,
   type GetDownloadUrlsResult,
-} from './downloadUrls.js';
+} from '@autoresearch/arxiv-mcp/tooling';
 
 export {
   getPaperContent,
   type GetPaperContentParams,
-  type GetPaperContentResult,
-} from './paperContent.js';
+} from '../../utils/arxivCompat.js';
+
+export type { GetPaperContentResult } from '@autoresearch/arxiv-mcp/tooling';
 
 // Paper classification
 export {
@@ -343,11 +343,14 @@ export {
 // Paper Source (3→1): urls + content + metadata
 export {
   accessPaperSource,
-  type PaperSourceParams,
-  type SourceOptions,
-  type PaperSourceResult,
-  type SourceMode,
-} from './paperSource.js';
+} from '../../utils/arxivCompat.js';
+
+export type {
+  PaperSourceParams,
+  SourceOptions,
+  PaperSourceResult,
+  SourceMode,
+} from '@autoresearch/arxiv-mcp/tooling';
 
 // Deep Research (2→1): analyze + synthesize
 export {

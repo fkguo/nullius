@@ -16,9 +16,6 @@ export const REQUEST_TIMEOUT_MS = 30000; // 30 second timeout
 const INSPIRE_RATE_LIMIT = 15;        // Max requests per window
 const INSPIRE_RATE_WINDOW_MS = 5000;  // 5 second window
 
-// arXiv API rate limit (R-004): at least 3 seconds between requests
-const ARXIV_MIN_INTERVAL_MS = 3000;
-
 // Network errors that should trigger retry
 const RETRYABLE_ERROR_CODES = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED'];
 
@@ -124,29 +121,6 @@ class SlidingWindowLimiter {
     }
 
     this.timestamps.push(Date.now());
-  }
-
-  private sleep(ms: number): Promise<void> {
-    if (isTestEnv()) return Promise.resolve();
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// arXiv Rate Limiter (R-004)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class ArxivRateLimiter {
-  private lastRequestTime = 0;
-
-  async acquire(): Promise<void> {
-    if (isTestEnv()) return;
-    const now = Date.now();
-    const elapsed = now - this.lastRequestTime;
-    if (elapsed < ARXIV_MIN_INTERVAL_MS) {
-      await this.sleep(ARXIV_MIN_INTERVAL_MS - elapsed);
-    }
-    this.lastRequestTime = Date.now();
   }
 
   private sleep(ms: number): Promise<void> {
@@ -283,39 +257,4 @@ export function inspireFetch(
   options?: RequestInit & { signal?: AbortSignal }
 ): Promise<Response> {
   return InspireRateLimiter.getInstance().fetch(url, options);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// arXiv Fetch Function (R-004)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const arxivLimiter = new ArxivRateLimiter();
-
-/**
- * Fetch from arXiv API with rate limiting and timeout
- * arXiv requires at least 3 seconds between requests
- */
-export async function arxivFetch(
-  url: string,
-  options?: RequestInit & { signal?: AbortSignal }
-): Promise<Response> {
-  await arxivLimiter.acquire();
-
-  // Add timeout if no signal provided
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  let signal: AbortSignal;
-
-  if (options?.signal) {
-    signal = options.signal;
-  } else {
-    const controller = new AbortController();
-    timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    signal = controller.signal;
-  }
-
-  try {
-    return await fetch(url, { ...options, signal });
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
 }
