@@ -24,6 +24,7 @@
   "dependencies": {
     "@autoresearch/pdg-mcp": "workspace:*",
     "@autoresearch/shared": "workspace:*",
+    "@autoresearch/hepdata-mcp": "workspace:*",
     "@autoresearch/zotero-mcp": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@napi-rs/canvas": "^0.1.80",

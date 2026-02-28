@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { z } from 'zod';
 import { TOOL_SPECS as PDG_TOOL_SPECS } from '@autoresearch/pdg-mcp/tooling';
 import { TOOL_SPECS as ZOTERO_TOOL_SPECS } from '@autoresearch/zotero-mcp/tooling';
+import { TOOL_SPECS as HEPDATA_TOOL_SPECS } from '@autoresearch/hepdata-mcp/tooling';
 import {
   invalidParams,
   notFound,
@@ -3101,6 +3102,18 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
         const base = d.replace(/\.\s*$/, '');
         return `${base} (${suffix}).`;
       })(),
+      zodSchema: spec.zodSchema,
+      handler: spec.handler,
+    })
+  ),
+
+  // NOTE: HEPData tool specs are imported from `@autoresearch/hepdata-mcp/tooling`.
+  ...HEPDATA_TOOL_SPECS.map(
+    (spec): Omit<ToolSpec, 'riskLevel'> => ({
+      name: spec.name,
+      tier: 'consolidated',
+      exposure: spec.exposure,
+      description: String(spec.description ?? '').trim(),
       zodSchema: spec.zodSchema,
       handler: spec.handler,
     })

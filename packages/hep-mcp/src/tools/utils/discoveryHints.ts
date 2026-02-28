@@ -8,6 +8,7 @@
 
 import {
   INSPIRE_DEEP_RESEARCH,
+  HEPDATA_SEARCH,
 } from '@autoresearch/shared';
 
 interface NextAction {
@@ -45,13 +46,45 @@ export function discoveryNextActions(papers: unknown): NextAction[] {
   const identifiers = extractIdentifiers(papers);
   if (identifiers.length === 0) return [];
 
-  return [
+  const actions: NextAction[] = [
     {
       tool: INSPIRE_DEEP_RESEARCH,
       args: { mode: 'analyze', identifiers },
       reason: 'Analyze the discovered papers in depth.',
     },
   ];
+
+  // NEW-CONN-02: suggest HEPData search for each paper's experimental data
+  const recids = extractRecids(papers);
+  for (const recid of recids.slice(0, 5)) {
+    actions.push({
+      tool: HEPDATA_SEARCH,
+      args: { inspire_recid: recid },
+      reason: 'Search HEPData for experimental measurement data associated with this paper.',
+    });
+  }
+
+  return actions;
+}
+
+/**
+ * Extract INSPIRE recids (numeric) from papers array for HEPData lookup.
+ */
+function extractRecids(papers: unknown): number[] {
+  if (!Array.isArray(papers)) return [];
+  const recids: number[] = [];
+  for (const p of papers) {
+    if (recids.length >= 5) break;
+    if (p && typeof p === 'object') {
+      const recid = (p as Record<string, unknown>).recid ?? (p as Record<string, unknown>).id;
+      if (typeof recid === 'number') {
+        recids.push(recid);
+      } else if (typeof recid === 'string' && /^\d+$/.test(recid)) {
+        recids.push(Number(recid));
+      }
+    }
+  }
+  return recids;
 }
 
 /**

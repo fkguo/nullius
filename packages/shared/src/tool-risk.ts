@@ -131,6 +131,12 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.ZOTERO_GET_SELECTED_COLLECTION]: 'read',
   [T.ZOTERO_ADD]: 'write',
   [T.ZOTERO_CONFIRM]: 'write',
+
+  // ── HEPData Tools ─────────────────────────────────────────────────────
+  [T.HEPDATA_SEARCH]: 'read',
+  [T.HEPDATA_GET_RECORD]: 'read',
+  [T.HEPDATA_GET_TABLE]: 'read',
+  [T.HEPDATA_DOWNLOAD]: 'destructive',
 };
 
 // ── H-11b: Permission Composition ────────────────────────────────────────

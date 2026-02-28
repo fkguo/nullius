@@ -17,7 +17,7 @@ import { computeToolCatalogHash } from '../../src/tools/utils/health.js';
  * Excludes namespace prefixes like 'hep_run_' which end with underscore.
  */
 function extractToolNameConstants(): string[] {
-  const TOOL_NAME_PREFIXES = ['hep_', 'inspire_', 'pdg_', 'zotero_'];
+  const TOOL_NAME_PREFIXES = ['hep_', 'inspire_', 'pdg_', 'zotero_', 'hepdata_'];
   const names: string[] = [];
   for (const [_key, value] of Object.entries(shared)) {
     if (typeof value !== 'string') continue;

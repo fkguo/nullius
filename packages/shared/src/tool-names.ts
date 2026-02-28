@@ -137,6 +137,13 @@ export const INSPIRE_STYLE_CORPUS_BUILD_INDEX = 'inspire_style_corpus_build_inde
 export const INSPIRE_STYLE_CORPUS_EXPORT_PACK = 'inspire_style_corpus_export_pack' as const;
 export const INSPIRE_STYLE_CORPUS_IMPORT_PACK = 'inspire_style_corpus_import_pack' as const;
 
+// ── HEPData Tools ────────────────────────────────────────────────────────────
+
+export const HEPDATA_SEARCH = 'hepdata_search' as const;
+export const HEPDATA_GET_RECORD = 'hepdata_get_record' as const;
+export const HEPDATA_GET_TABLE = 'hepdata_get_table' as const;
+export const HEPDATA_DOWNLOAD = 'hepdata_download' as const;
+
 // ── PDG Tools ───────────────────────────────────────────────────────────────
 
 export const PDG_INFO = 'pdg_info' as const;
@@ -253,5 +260,11 @@ export type ZoteroToolName =
   | typeof ZOTERO_ADD
   | typeof ZOTERO_CONFIRM;
 
+export type HepDataToolName =
+  | typeof HEPDATA_SEARCH
+  | typeof HEPDATA_GET_RECORD
+  | typeof HEPDATA_GET_TABLE
+  | typeof HEPDATA_DOWNLOAD;
+
 /** Union of all tool names across the ecosystem */
-export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName;
+export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | HepDataToolName;
