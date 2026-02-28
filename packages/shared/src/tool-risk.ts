@@ -153,6 +153,12 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.IDEA_CAMPAIGN_COMPLETE]: 'write',
   [T.IDEA_SEARCH_STEP]: 'write',
   [T.IDEA_EVAL_RUN]: 'write',
+
+  // ── HEPData Tools ─────────────────────────────────────────────────────
+  [T.HEPDATA_SEARCH]: 'read',
+  [T.HEPDATA_GET_RECORD]: 'read',
+  [T.HEPDATA_GET_TABLE]: 'read',
+  [T.HEPDATA_DOWNLOAD]: 'destructive',
 };
 
 // ── H-11b: Permission Composition ────────────────────────────────────────
