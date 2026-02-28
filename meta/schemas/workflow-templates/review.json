@@ -1,0 +1,103 @@
+{
+  "workflow_id": "00000000-0000-0000-0000-000000000001",
+  "template": "review",
+  "entry_point": {
+    "variant": "from_literature",
+    "params": {
+      "query": "",
+      "max_papers": 50
+    }
+  },
+  "nodes": [
+    {
+      "id": "search_literature",
+      "type": "tool_call",
+      "label": "Search literature",
+      "tool_name": "inspire_search",
+      "tool_args": { "query": "{{entry_point.params.query}}" }
+    },
+    {
+      "id": "build_evidence",
+      "type": "tool_call",
+      "label": "Build evidence catalog",
+      "tool_name": "hep_project_build_evidence"
+    },
+    {
+      "id": "evidence_gate",
+      "type": "gate",
+      "label": "Evidence sufficiency check",
+      "gate_spec": {
+        "gate_type": "quality_threshold",
+        "metric": "evidence_count",
+        "threshold": 5
+      }
+    },
+    {
+      "id": "paperset_curation",
+      "type": "tool_call",
+      "label": "Curate paper set",
+      "tool_name": "hep_run_writing_create_paperset_curation_packet"
+    },
+    {
+      "id": "curation_review",
+      "type": "gate",
+      "label": "Human review of paper set",
+      "gate_spec": { "gate_type": "approval" }
+    },
+    {
+      "id": "outline_generation",
+      "type": "tool_call",
+      "label": "Generate outline candidates",
+      "tool_name": "hep_run_writing_create_outline_candidates_packet_v1"
+    },
+    {
+      "id": "outline_review",
+      "type": "gate",
+      "label": "Human review of outline",
+      "gate_spec": { "gate_type": "approval" }
+    },
+    {
+      "id": "section_writing",
+      "type": "tool_call",
+      "label": "Write sections",
+      "tool_name": "hep_run_writing_create_section_candidates_packet_v1"
+    },
+    {
+      "id": "integration",
+      "type": "tool_call",
+      "label": "Integrate sections",
+      "tool_name": "hep_run_writing_integrate_sections_v1"
+    },
+    {
+      "id": "final_review",
+      "type": "human_review",
+      "label": "Final manuscript review"
+    },
+    {
+      "id": "export",
+      "type": "tool_call",
+      "label": "Export project",
+      "tool_name": "hep_export_project"
+    }
+  ],
+  "edges": [
+    { "from": "search_literature", "to": "build_evidence" },
+    { "from": "build_evidence", "to": "evidence_gate" },
+    { "from": "evidence_gate", "to": "paperset_curation", "condition": "approved" },
+    { "from": "evidence_gate", "to": "search_literature", "condition": "rejected" },
+    { "from": "paperset_curation", "to": "curation_review" },
+    { "from": "curation_review", "to": "outline_generation", "condition": "approved" },
+    { "from": "curation_review", "to": "paperset_curation", "condition": "rejected" },
+    { "from": "outline_generation", "to": "outline_review" },
+    { "from": "outline_review", "to": "section_writing", "condition": "approved" },
+    { "from": "outline_review", "to": "outline_generation", "condition": "rejected" },
+    { "from": "section_writing", "to": "integration" },
+    { "from": "integration", "to": "final_review" },
+    { "from": "final_review", "to": "export" }
+  ],
+  "state_model": {
+    "current_node": null,
+    "completed_nodes": [],
+    "gate_outcomes": {}
+  }
+}

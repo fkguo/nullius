@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "research_workflow_v1.schema.json",
+  "title": "Research Workflow v1",
+  "description": "Declarative research workflow graph with nodes, edges, gates, and entry points.",
+  "type": "object",
+  "required": ["workflow_id", "template", "entry_point", "nodes", "edges"],
+  "properties": {
+    "workflow_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "template": {
+      "type": "string",
+      "enum": ["review", "original_research", "reproduction"]
+    },
+    "entry_point": {
+      "$ref": "#/$defs/EntryPoint"
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/WorkflowNode" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/WorkflowEdge" }
+    },
+    "state_model": {
+      "$ref": "#/$defs/StateModel"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "EntryPoint": {
+      "type": "object",
+      "required": ["variant"],
+      "properties": {
+        "variant": {
+          "type": "string",
+          "enum": ["from_literature", "from_idea", "from_computation", "from_existing_paper"]
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Variant-specific parameters (e.g. handoff_uri for from_idea, paper_id for from_existing_paper)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkflowNode": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": ["tool_call", "gate", "human_review", "parallel_group"]
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable label for display."
+        },
+        "tool_name": {
+          "type": "string",
+          "description": "MCP tool name (required when type=tool_call)."
+        },
+        "tool_args": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Static or template args passed to the tool."
+        },
+        "gate_spec": {
+          "$ref": "#/$defs/GateSpec"
+        },
+        "children": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Child node IDs for parallel_group nodes."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "tool_call" } }, "required": ["type"] },
+          "then": { "required": ["tool_name"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "gate" } }, "required": ["type"] },
+          "then": { "required": ["gate_spec"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "parallel_group" } }, "required": ["type"] },
+          "then": { "required": ["children"] }
+        }
+      ]
+    },
+    "GateSpec": {
+      "type": "object",
+      "required": ["gate_type"],
+      "properties": {
+        "gate_type": {
+          "type": "string",
+          "enum": ["approval", "quality_threshold", "automatic"],
+          "description": "approval = human approval required; quality_threshold = passes if metric >= threshold; automatic = always passes."
+        },
+        "metric": {
+          "type": "string",
+          "description": "Metric name for quality_threshold gates."
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Minimum value for quality_threshold gates."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "gate_type": { "const": "quality_threshold" } }, "required": ["gate_type"] },
+          "then": { "required": ["metric", "threshold"] }
+        }
+      ]
+    },
+    "WorkflowEdge": {
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Source node ID."
+        },
+        "to": {
+          "type": "string",
+          "description": "Target node ID."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Condition for traversal (e.g. 'approved', 'rejected', gate outcome)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "StateModel": {
+      "type": "object",
+      "properties": {
+        "current_node": {
+          "type": ["string", "null"],
+          "description": "Currently active node ID, or null if not started / completed."
+        },
+        "completed_nodes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "gate_outcomes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["approved", "rejected", "pending"]
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

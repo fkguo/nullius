@@ -199,6 +199,25 @@ CLI 参数始终覆盖配置文件值。
 
 写好后 git commit 一并提交（或单独提交），新对话开头粘贴该文件内容即可。
 
+### Review Artifact 命名规范
+
+**变更日期**: 2026-02-28
+**关联项**: CLAUDE.md §多模型收敛检查 → Review 产物存放约定
+
+所有 review 产物文件（system prompt、review packet、swarm 输出目录）存放在 `~/.autoresearch-lab-dev/batch-reviews/`，**必须带 phase 前缀**：
+
+| 类型 | 命名格式 | 示例 |
+|------|---------|------|
+| System prompt | `phase{P}-batch{N}-review-system.md` | `phase2-batch10-review-system.md` |
+| Review packet | `phase{P}-batch{N}-review-r{M}.md` | `phase2-batch10-review-r3.md` |
+| Swarm 输出目录 | `phase{P}-batch{N}-r{M}-review/` | `phase2-batch10-r5-review/` |
+
+**事件**: Batch 7-10 的 review artifact 文件因 CLAUDE.md 规则遗漏 `phase{P}-` 前缀，导致 21 个文件命名不一致。已在 2026-02-28 批量修复（`mv` 重命名）。
+
+**根因**: CLAUDE.md 在 commit 9072625 写入命名规则时使用了 `batch{N}-review-*` 而非 `phase{P}-batch{N}-review-*`，而 Batch 1-6 的文件实际上一直带有 `phase2-` 前缀。从 Batch 7 开始新 session 遵循了"错误的"规则。
+
+**教训**: 命名规范必须与现有文件的实际命名一致；引入新规则时应检查已有文件是否匹配。
+
 ### 审核 prompt 结构模板
 
 ```

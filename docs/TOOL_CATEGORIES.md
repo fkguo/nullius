@@ -1,4 +1,4 @@
-# Tool Categories（standard=78 / full=101）
+# Tool Categories（standard=79 / full=102）
 
 本文件把 `hep-research-mcp` 的 **standard 暴露**工具按“场景/闭环”分组，目的是让你不必理解全部工具，也能快速完成闭环。
 
@@ -87,6 +87,9 @@
 - `hep_run_read_artifact_chunk`
 - `hep_run_clear_manifest_lock`
 - `hep_run_stage_content`
+
+**Idea → Run（Pipeline Connectivity）**
+- `hep_run_create_from_idea`（从 IdeaHandoffC2 创建 project + run + outline seed）
 
 ## B) Evidence 构建（写作/检索/回放的输入资产）
 

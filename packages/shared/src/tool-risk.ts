@@ -34,6 +34,7 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.HEP_RUN_BUILD_PDF_EVIDENCE]: 'write',
   [T.HEP_RUN_BUILD_EVIDENCE_INDEX_V1]: 'write',
   [T.HEP_RUN_INGEST_SKILL_ARTIFACTS]: 'write',
+  [T.HEP_RUN_CREATE_FROM_IDEA]: 'write',
 
   // ── HEP Run Writing: Token Budget ─────────────────────────────────────
   [T.HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1]: 'write',

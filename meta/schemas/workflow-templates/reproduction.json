@@ -1,0 +1,115 @@
+{
+  "workflow_id": "00000000-0000-0000-0000-000000000003",
+  "template": "reproduction",
+  "entry_point": {
+    "variant": "from_existing_paper",
+    "params": {
+      "paper_id": "",
+      "source": "inspire"
+    }
+  },
+  "nodes": [
+    {
+      "id": "search_source_paper",
+      "type": "tool_call",
+      "label": "Search for source paper",
+      "tool_name": "inspire_search",
+      "tool_args": { "query": "{{entry_point.params.paper_id}}" }
+    },
+    {
+      "id": "build_evidence",
+      "type": "tool_call",
+      "label": "Build evidence from paper",
+      "tool_name": "hep_project_build_evidence"
+    },
+    {
+      "id": "identify_claims",
+      "type": "human_review",
+      "label": "Identify reproducible claims"
+    },
+    {
+      "id": "computation",
+      "type": "parallel_group",
+      "label": "Reproduce computations",
+      "children": ["compute_step", "ingest_artifacts"]
+    },
+    {
+      "id": "compute_step",
+      "type": "human_review",
+      "label": "Run reproduction computation (external)"
+    },
+    {
+      "id": "ingest_artifacts",
+      "type": "tool_call",
+      "label": "Ingest reproduction artifacts",
+      "tool_name": "hep_run_ingest_skill_artifacts"
+    },
+    {
+      "id": "comparison_gate",
+      "type": "gate",
+      "label": "Compare with original results",
+      "gate_spec": { "gate_type": "approval" }
+    },
+    {
+      "id": "evidence_index",
+      "type": "tool_call",
+      "label": "Build evidence index",
+      "tool_name": "hep_run_build_evidence_index_v1"
+    },
+    {
+      "id": "outline_generation",
+      "type": "tool_call",
+      "label": "Generate reproduction report outline",
+      "tool_name": "hep_run_writing_create_outline_candidates_packet_v1"
+    },
+    {
+      "id": "outline_review",
+      "type": "gate",
+      "label": "Review reproduction outline",
+      "gate_spec": { "gate_type": "approval" }
+    },
+    {
+      "id": "section_writing",
+      "type": "tool_call",
+      "label": "Write reproduction report sections",
+      "tool_name": "hep_run_writing_create_section_candidates_packet_v1"
+    },
+    {
+      "id": "integration",
+      "type": "tool_call",
+      "label": "Integrate sections",
+      "tool_name": "hep_run_writing_integrate_sections_v1"
+    },
+    {
+      "id": "final_review",
+      "type": "human_review",
+      "label": "Final reproduction report review"
+    },
+    {
+      "id": "export",
+      "type": "tool_call",
+      "label": "Export project",
+      "tool_name": "hep_export_project"
+    }
+  ],
+  "edges": [
+    { "from": "search_source_paper", "to": "build_evidence" },
+    { "from": "build_evidence", "to": "identify_claims" },
+    { "from": "identify_claims", "to": "computation" },
+    { "from": "computation", "to": "comparison_gate" },
+    { "from": "comparison_gate", "to": "evidence_index", "condition": "approved" },
+    { "from": "comparison_gate", "to": "computation", "condition": "rejected" },
+    { "from": "evidence_index", "to": "outline_generation" },
+    { "from": "outline_generation", "to": "outline_review" },
+    { "from": "outline_review", "to": "section_writing", "condition": "approved" },
+    { "from": "outline_review", "to": "outline_generation", "condition": "rejected" },
+    { "from": "section_writing", "to": "integration" },
+    { "from": "integration", "to": "final_review" },
+    { "from": "final_review", "to": "export" }
+  ],
+  "state_model": {
+    "current_node": null,
+    "completed_nodes": [],
+    "gate_outcomes": {}
+  }
+}

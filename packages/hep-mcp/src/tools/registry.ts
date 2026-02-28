@@ -54,6 +54,7 @@ import {
   HEP_INSPIRE_SEARCH_EXPORT,
   HEP_INSPIRE_RESOLVE_IDENTIFIERS,
   HEP_RUN_INGEST_SKILL_ARTIFACTS,
+  HEP_RUN_CREATE_FROM_IDEA,
   INSPIRE_SEARCH,
   INSPIRE_SEARCH_NEXT,
   INSPIRE_LITERATURE,
@@ -120,6 +121,7 @@ import {
 import { ResearchNavigatorToolSchema } from './research/researchNavigator.js';
 import { ORCH_TOOL_SPECS } from './orchestrator/tools.js';
 import { ingestSkillArtifacts } from './ingest-skill-artifacts.js';
+import { createFromIdea } from './create-from-idea.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -598,6 +600,12 @@ const HepRunIngestSkillArtifactsToolSchema = z.object({
   manifest_path: z.string().optional().describe('Optional path to computation_manifest_v1.json (within run_dir)'),
   step_id: z.string().min(1).optional().describe('Optional manifest step_id for traceability (generated UUID if omitted)'),
   tags: z.array(z.string()).max(20).optional().describe('Classification tags (e.g. feyncalc, one-loop)'),
+});
+
+const HepRunCreateFromIdeaToolSchema = z.object({
+  handoff_uri: z.string().min(1).describe('hep:// URI or file path pointing to an IdeaHandoffC2 artifact'),
+  project_id: SafePathSegmentSchema.optional().describe('Existing project ID; auto-created from thesis if omitted'),
+  run_label: z.string().optional().describe('Optional label for the new run'),
 });
 
 const RagSectionTypeSchema = z.enum(['introduction', 'methodology', 'results', 'discussion', 'conclusion']);
@@ -3184,6 +3192,17 @@ Note: Requires a built local corpus index (run \`inspire_style_corpus_build_inde
       'Ingest skill artifacts from a computation step into the computation evidence catalog (JSONL). Requires skill_artifacts_dir within run_dir (C-02 containment).',
     zodSchema: HepRunIngestSkillArtifactsToolSchema,
     handler: async (params) => ingestSkillArtifacts(params),
+  },
+
+  // ── Idea → Run Creation (NEW-CONN-04) ────────────────────────────────────
+  {
+    name: HEP_RUN_CREATE_FROM_IDEA,
+    tier: 'core',
+    exposure: 'standard',
+    description:
+      'Create a project + run from an IdeaHandoffC2 artifact. Stages outline_seed_v1.json with thesis/claims/hypotheses. Pure local staging, no network calls.',
+    zodSchema: HepRunCreateFromIdeaToolSchema,
+    handler: async (params) => createFromIdea(params),
   },
 
   // NOTE: HEPData tool specs are imported from `@autoresearch/hepdata-mcp/tooling`.

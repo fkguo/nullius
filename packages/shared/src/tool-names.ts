@@ -46,6 +46,7 @@ export const HEP_RUN_STAGE_CONTENT = 'hep_run_stage_content' as const;
 export const HEP_RUN_BUILD_PDF_EVIDENCE = 'hep_run_build_pdf_evidence' as const;
 export const HEP_RUN_BUILD_EVIDENCE_INDEX_V1 = 'hep_run_build_evidence_index_v1' as const;
 export const HEP_RUN_INGEST_SKILL_ARTIFACTS = 'hep_run_ingest_skill_artifacts' as const;
+export const HEP_RUN_CREATE_FROM_IDEA = 'hep_run_create_from_idea' as const;
 
 // ── HEP Run Writing: Token Budget (Stage 2) ────────────────────────────────
 
@@ -219,6 +220,7 @@ export type HepToolName =
   | typeof HEP_RUN_BUILD_PDF_EVIDENCE
   | typeof HEP_RUN_BUILD_EVIDENCE_INDEX_V1
   | typeof HEP_RUN_INGEST_SKILL_ARTIFACTS
+  | typeof HEP_RUN_CREATE_FROM_IDEA
   | typeof HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1
   | typeof HEP_RUN_WRITING_TOKEN_GATE_V1
   | typeof HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET
