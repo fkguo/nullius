@@ -15,6 +15,8 @@
 
 **禁止临时性/阶段性命名**：不要引入 `vNext`、`v2`、`new_`、`legacy_`、`old_` 等暗示"当前版本以后会替换"的目录名或模块名。直接使用面向功能的永久命名（如 `core/`、`writing/`、`runs/`）。如果确实有新旧共存的过渡期，用 feature flag 或版本号区分，不要目录分叉。
 
+**Commit 消息不加 Co-Authored-By**：提交时不要在 commit message 中写 `Co-Authored-By: Claude ...` 或任何类似的 AI co-author 标注。
+
 来源：`meta/REDESIGN_PLAN.md` §全局约束。
 
 ## 工作区路径映射
