@@ -47,10 +47,10 @@ hep-research-mcp is a **local-first, evidence-first** research and writing pipel
 - Discover, map, and trace a field: `inspire_research_navigator(mode=discover|field_survey|topic_analysis|network|experts|connections|trace_source|analyze)`
 - (Optional) Cross-check particle properties/measurements via offline PDG tools (`pdg_*`)
 
-### 3. Run-based writing with enforcement (vNext)
+### 3. Run-based writing and export
 
-- `inspire_deep_research(mode=write, run_id=...)` generates run-scoped writing artifacts (outlines, evidence quotas, reviewer round prompts)
-- Submit N-best section candidates + judge decisions (`hep_run_writing_submit_section_candidates_v1`, `hep_run_writing_submit_section_judge_decision_v1`) and (optionally) reviewer reports (`hep_run_writing_submit_review`), then integrate/export (`hep_run_writing_integrate_sections_v1`, `hep_export_project`, `hep_export_paper_scaffold`, `hep_import_paper_bundle`)
+- Draft Path: `hep_render_latex` → `hep_export_project`
+- Publication scaffold: `hep_export_paper_scaffold` → *(external editing / research-writer)* → `hep_import_paper_bundle`
 
 ---
 
@@ -408,7 +408,7 @@ These polymorphic tools cover most use cases with simple interfaces:
 | `inspire_literature` | `get_paper` / `get_references` / `lookup_by_id` / `get_citations` / `search_affiliation` / `get_bibtex` / `get_author` | Unified INSPIRE “atomic” access (standard) |
 | `inspire_resolve_citekey` | - | Resolve INSPIRE citekey + BibTeX + canonical links for recid(s) |
 | `inspire_parse_latex` | `components=[sections/equations/theorems/citations/figures/tables/bibliography/all]` | Parse LaTeX into a run artifact (`run_id` required; returns URI + summary) |
-| `inspire_deep_research` | `analyze` / `synthesize` / `write` | **Deep research & report generation** |
+| `inspire_deep_research` | `analyze` / `synthesize` | **Deep research & report generation** |
 | `inspire_research_navigator` | `discover` / `field_survey` / `topic_analysis` / `network` / `experts` / `connections` / `trace_source` / `analyze` | Unified research navigation facade (Phase 3) |
 | `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | Critical research (incl. theoretical debate map; `theoretical` requires `run_id`) |
 | `inspire_paper_source` | `urls` / `content` / `metadata` / `auto` | Paper source access |
@@ -422,7 +422,7 @@ These polymorphic tools cover most use cases with simple interfaces:
 
 ### `inspire_deep_research` - Deep Research & Report Generation
 
-The most powerful tool, supporting three modes:
+The most powerful tool, supporting two modes:
 
 #### Mode: `analyze` - Deep Content Analysis
 ```json
@@ -451,29 +451,6 @@ Returns: extracted components (e.g., equations, key sections) plus a compact sum
 }
 ```
 Returns: structured review grouped by methodology/timeline/comparison.
-
-#### Mode: `write` - Run-Based Report Writing (vNext)
-```json
-{
-  "mode": "write",
-  "run_id": "<run_id>",
-  "identifiers": ["1833986", "627760"],
-  "options": {
-    "topic": "Exotic Hadrons",
-    "title": "Review of Exotic Hadron States",
-    "target_length": "medium",
-    "llm_mode": "client"
-  }
-}
-```
-Returns: **run artifacts** (`hep://runs/{run_id}/artifact/...`) plus optional `client_continuation` prompts. Next:
-- Generate N-best section candidates (host LLM) and submit via `hep_run_writing_submit_section_candidates_v1`
-- Select the best candidate via `hep_run_writing_submit_section_judge_decision_v1` (verifiers run here)
-- If requested by `client_continuation.next_actions`: run the reviewer prompt and submit via `hep_run_writing_submit_review`
-- Integrate via `hep_run_writing_integrate_sections_v1` (writes `writing_integrated.tex` + diagnostics)
-- Export:
-  - Research pack via `hep_export_project` (typically pointing `rendered_latex_artifact_name` to `writing_integrated.tex`)
-  - Publication scaffold via `hep_export_paper_scaffold` (writes `paper_manifest.json` + `paper_scaffold.zip`)
 
 ### `inspire_research_navigator` - Discovery/Survey/Network/Experts/Trace
 
@@ -698,7 +675,7 @@ Calls are rejected by the server when not in `full` mode.
 | `HEP_ENABLE_TOOL_USAGE_TELEMETRY` | Opt-in tool usage counters for scheduling diagnostics (`1/true/yes/on` to enable; exposed via `hep_health.telemetry`) | (disabled) |
 | `HEP_DEBUG` | Debug categories (comma-separated): `rate_limiter,cache,downloads,circuit_breaker,api,tools` | (empty) |
 | `DEBUG` | Enable extra debug logs (Node convention) | (empty) |
-| `CONCURRENCY_LIMIT` | Max concurrent section generations in `inspire_deep_research` write mode | `1` |
+| `CONCURRENCY_LIMIT` | Max concurrent processing workers in deep research pipelines | `1` |
 | `HEP_DOWNLOAD_DIR` | Downloads directory (must be within `HEP_DATA_DIR`) | `<dataDir>/downloads` |
 | `ARXIV_DOWNLOAD_DIR` | Alias of `HEP_DOWNLOAD_DIR` | `<dataDir>/downloads` |
 | `WRITING_PROGRESS_DIR` | Progress output directory (must be within `HEP_DATA_DIR`) | `<dataDir>/writing_progress` |
@@ -817,110 +794,9 @@ Note: some MCP clients also display previously returned artifact URIs in their U
 
 By default, the persistent cache lives in `<HEP_DATA_DIR>/cache` (gzipped entries). If you suspect stale/corrupted cache after upgrades, it is safe to delete this directory.
 
-### Deep Research Write Mode (vNext)
-
-`inspire_deep_research` (mode=`write`) is Evidence-first: pass `run_id` and read outputs via `hep://runs/{run_id}/...` resources.
-
-| llm_mode | Behavior |
-|----------|----------|
-| `client` | Returns `client_continuation` prompts/next_actions; host LLM submits N-best section candidates + judge decisions (`hep_run_writing_submit_section_candidates_v1`, `hep_run_writing_submit_section_judge_decision_v1`) |
-| `passthrough` | Similar to `client`, intended for external orchestration; section submission still uses candidates + judge |
-| `internal` | Server generates sections using configured LLM clients and writes section/verification/originality artifacts |
-
-Example (client mode):
-
-```json
-{
-  "mode": "write",
-  "run_id": "<run_id>",
-  "identifiers": ["1833986", "627760"],
-  "options": {
-    "topic": "Exotic Hadrons",
-    "title": "Review of Exotic Hadron States",
-    "target_length": "medium",
-    "llm_mode": "client"
-  }
-}
-```
-
-### LLM Configuration (for `internal` mode)
-
-The `internal` mode uses built-in LLM clients to generate section content with automatic verification. Configure via environment variables:
-
-#### Required Variables
-
-```bash
-# Enable internal mode
-export WRITING_LLM_MODE=internal
-
-# Provider selection (required)
-export WRITING_LLM_PROVIDER=deepseek  # See supported providers below
-
-# API key (required)
-export WRITING_LLM_API_KEY=YOUR_API_KEY
-```
-
-#### Optional Variables
-
-```bash
-# Model selection (uses provider default if not set)
-export WRITING_LLM_MODEL=deepseek-chat
-
-# Custom API endpoint (for self-hosted or proxy)
-export WRITING_LLM_BASE_URL=https://api.deepseek.com/v1
-
-# Generation parameters
-export WRITING_LLM_TEMPERATURE=0.3      # Default: 0.3
-export WRITING_LLM_MAX_TOKENS=8192      # Default: provider-specific
-
-# Timeout and retry
-export WRITING_LLM_TIMEOUT=90000        # Default: 90 seconds
-export WRITING_LLM_MAX_RETRIES=3        # Default: 3 attempts
-```
-
-#### Supported LLM Providers
-
-| Provider | Default Model | API Type | Default Base URL |
-|----------|---------------|----------|------------------|
-| `openai` | gpt-4o | Native | api.openai.com/v1 |
-| `anthropic` | claude-sonnet-4-20250514 | Native | api.anthropic.com |
-| `google` | gemini-1.5-pro | Native | generativelanguage.googleapis.com |
-| `deepseek` | deepseek-chat | OpenAI-compatible | api.deepseek.com/v1 |
-| `kimi` | moonshot-v1-128k | OpenAI-compatible | api.moonshot.cn/v1 |
-| `glm` | glm-4-plus | OpenAI-compatible | open.bigmodel.cn/api/paas/v4 |
-| `qwen` | qwen-max | OpenAI-compatible | dashscope.aliyuncs.com/compatible-mode/v1 |
-
-#### DeepSeek R1 (Reasoning Model) Support
-
-DeepSeek R1 (`deepseek-reasoner`) is a reasoning model that provides detailed thinking process. To use it:
-
-```bash
-export WRITING_LLM_PROVIDER=deepseek
-export WRITING_LLM_MODEL=deepseek-reasoner
-export WRITING_LLM_API_KEY=YOUR_API_KEY
-```
-
-**Note**: R1 model returns both `reasoning_content` (thinking process) and `content` (final answer). The system automatically captures both.
-
-#### Mode Priority
-
-1. **Tool parameter** (highest): `llm_mode` in tool call
-2. **Environment variable**: `WRITING_LLM_MODE`
-3. **Smart default**: `internal` if API key configured, otherwise `client`
-
-#### Write-Verify-Revise Loop
-
-When using `internal` mode, the system automatically:
-1. Generates draft content using the configured LLM
-2. Verifies citations against allowed sources
-3. Checks originality (n-gram overlap detection)
-4. Runs a peer-reviewer round (critical reviewer role; can request another iteration)
-5. If verification fails, generates correction feedback and retries (up to 3 times)
-6. Returns final output with quality metrics
-
 ### Progress & Resume (Run-Based)
 
-For vNext workflows, progress is tracked in the run manifest: `hep://runs/{run_id}/manifest` (steps + artifact refs). For `inspire_deep_research` write mode, use `resume_from` with the same `run_id` to continue from a step.
+For vNext workflows, progress is tracked in the run manifest: `hep://runs/{run_id}/manifest` (steps + artifact refs).
 
 ### MCP Server Configuration
 
@@ -1057,9 +933,6 @@ Customize hep-research-mcp behavior via environment variables:
 		        "HEP_DEBUG": "tools,downloads",
 		        "ZOTERO_BASE_URL": "http://127.0.0.1:23119",
 		        "ZOTERO_DATA_DIR": "/path/to/Zotero",
-		        "WRITING_LLM_PROVIDER": "deepseek",
-		        "WRITING_LLM_MODEL": "deepseek-chat",
-		        "WRITING_LLM_API_KEY": "YOUR_API_KEY"
 		      }
 	    }
 	  }
@@ -1070,7 +943,7 @@ Zotero Local API has no authentication — you do not need a Local API key.
 
 > Note: Do NOT commit any config file that contains real API keys. Keep local MCP configs (e.g., `.mcp.json`) out of git.
 
-See [Environment Variables](#environment-variables) and [LLM Configuration](#llm-configuration-for-internal-mode) for all available options.
+See [Environment Variables](#environment-variables) for all available options.
 
 ---
 

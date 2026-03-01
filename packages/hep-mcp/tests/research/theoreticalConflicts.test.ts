@@ -11,6 +11,12 @@ const api = await import('../../src/api/client.js');
 const { handleToolCall } = await import('../../src/tools/index.js');
 const { getRunArtifactPath } = await import('../../src/core/paths.js');
 
+function readTextBlock(result: { content: Array<{ type: string; text?: string }> }): string {
+  const block = result.content.find(item => item.type === 'text' && typeof item.text === 'string');
+  if (!block?.text) throw new Error('missing text content block');
+  return block.text;
+}
+
 function readJson<T>(p: string): T {
   return JSON.parse(fs.readFileSync(p, 'utf-8')) as T;
 }
@@ -27,9 +33,6 @@ function readJsonl<T>(p: string): T[] {
 describe('inspire_critical_research(mode=theoretical): debate map + edges', () => {
   let dataDir: string;
   let originalDataDirEnv: string | undefined;
-  let originalLlmProvider: string | undefined;
-  let originalLlmApiKey: string | undefined;
-  let originalLlmModel: string | undefined;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,26 +42,12 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     originalDataDirEnv = process.env.HEP_DATA_DIR;
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hep-data-'));
     process.env.HEP_DATA_DIR = dataDir;
-
-    originalLlmProvider = process.env.WRITING_LLM_PROVIDER;
-    originalLlmApiKey = process.env.WRITING_LLM_API_KEY;
-    originalLlmModel = process.env.WRITING_LLM_MODEL;
-    delete process.env.WRITING_LLM_PROVIDER;
-    delete process.env.WRITING_LLM_API_KEY;
-    delete process.env.WRITING_LLM_MODEL;
   });
 
   afterEach(() => {
     vi.useRealTimers();
     if (originalDataDirEnv !== undefined) process.env.HEP_DATA_DIR = originalDataDirEnv;
     else delete process.env.HEP_DATA_DIR;
-
-    if (originalLlmProvider !== undefined) process.env.WRITING_LLM_PROVIDER = originalLlmProvider;
-    else delete process.env.WRITING_LLM_PROVIDER;
-    if (originalLlmApiKey !== undefined) process.env.WRITING_LLM_API_KEY = originalLlmApiKey;
-    else delete process.env.WRITING_LLM_API_KEY;
-    if (originalLlmModel !== undefined) process.env.WRITING_LLM_MODEL = originalLlmModel;
-    else delete process.env.WRITING_LLM_MODEL;
 
     if (fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true });
     vi.restoreAllMocks();
@@ -69,13 +58,13 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       name: 'Test Project',
       description: 'Local-only',
     });
-    const projectPayload = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const projectPayload = JSON.parse(readTextBlock(projectRes)) as { project_id: string };
 
     const runRes = await handleToolCall('hep_run_create', {
       project_id: projectPayload.project_id,
       args_snapshot: { test: true },
     });
-    const runPayload = JSON.parse(runRes.content[0].text) as { run_id: string };
+    const runPayload = JSON.parse(readTextBlock(runRes)) as { run_id: string };
     return { project_id: projectPayload.project_id, run_id: runPayload.run_id };
   }
 
@@ -125,7 +114,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     });
 
     expect(res.isError).toBeFalsy();
-    const payload = JSON.parse(res.content[0].text) as any;
+    const payload = JSON.parse(readTextBlock(res)) as any;
     expect(payload.mode).toBe('theoretical');
     expect(payload.theoretical.run_id).toBe(run_id);
 
@@ -170,7 +159,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       },
     });
     expect(phaseA.isError).toBeFalsy();
-    const aPayload = JSON.parse(phaseA.content[0].text) as any;
+    const aPayload = JSON.parse(readTextBlock(phaseA)) as any;
     expect(Array.isArray(aPayload.theoretical.next_actions)).toBe(true);
     expect(aPayload.theoretical.next_actions[0].tool).toBe('inspire_critical_research');
 
@@ -234,11 +223,11 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     });
 
     expect(res.isError).toBe(true);
-    const err = JSON.parse(res.content[0].text) as any;
+    const err = JSON.parse(readTextBlock(res)) as any;
     expect(err.error.code).toBe('INVALID_PARAMS');
   });
 
-  it('internal mode requires WRITING_LLM_* env vars (does not call network by default)', async () => {
+  it('internal mode returns INVALID_PARAMS when MCP sampling is unavailable', async () => {
     mockPapers();
     const { run_id } = await createProjectAndRun();
 
@@ -250,8 +239,87 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     });
 
     expect(res.isError).toBe(true);
-    const err = JSON.parse(res.content[0].text) as any;
+    const err = JSON.parse(readTextBlock(res)) as any;
     expect(err.error.code).toBe('INVALID_PARAMS');
-    expect(String(err.error.message)).toContain("llm_mode='internal'");
+    expect(String(err.error.message)).toContain('sampling support');
+  });
+
+  it('internal mode returns INVALID_PARAMS when MCP sampling method is unsupported', async () => {
+    mockPapers();
+    const { run_id } = await createProjectAndRun();
+
+    const createMessage = vi.fn().mockRejectedValue(new Error('Method not found'));
+
+    const res = await handleToolCall('inspire_critical_research', {
+      mode: 'theoretical',
+      recids: ['101', '102', '103'],
+      run_id,
+      options: {
+        subject_entity: 'X(3872)',
+        llm_mode: 'internal',
+        prompt_version: 'v1',
+        max_candidates_total: 10,
+        max_llm_requests: 2,
+      },
+    }, 'standard', {
+      createMessage,
+    });
+
+    expect(res.isError).toBe(true);
+    const err = JSON.parse(readTextBlock(res)) as any;
+    expect(err.error.code).toBe('INVALID_PARAMS');
+    expect(String(err.error.message)).toContain('sampling support');
+    expect(String(err.error.data?.sampling_error ?? '')).toContain('Method not found');
+  });
+
+  it('internal mode with sampling applies adjudications and updates conflict edges', async () => {
+    mockPapers();
+    const { run_id } = await createProjectAndRun();
+
+    const createMessage = vi.fn().mockResolvedValue({
+      model: 'mock-sampling-model',
+      role: 'assistant',
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            relation: 'different_scope',
+            confidence: 0.78,
+            reasoning: 'Different assumptions and observables across model classes.',
+            compatibility_note: 'Can coexist in disjoint kinematic regions.',
+          }),
+        },
+      ],
+    });
+
+    const res = await handleToolCall('inspire_critical_research', {
+      mode: 'theoretical',
+      recids: ['101', '102', '103'],
+      run_id,
+      options: {
+        subject_entity: 'X(3872)',
+        llm_mode: 'internal',
+        prompt_version: 'v1',
+        max_candidates_total: 10,
+        max_llm_requests: 2,
+      },
+    }, 'standard', {
+      createMessage,
+    });
+
+    expect(res.isError).toBeFalsy();
+    expect(createMessage).toHaveBeenCalled();
+
+    const responses = readJsonl<any>(getRunArtifactPath(run_id, 'theoretical_llm_responses.jsonl'));
+    expect(responses.length).toBeGreaterThan(0);
+    expect(responses.every((r: any) => r.ok === true)).toBe(true);
+    expect(responses[0].parsed.relation).toBe('different_scope');
+
+    const conflicts = readJson<any>(getRunArtifactPath(run_id, 'theoretical_conflicts_v1.json'));
+    const updated = (conflicts.conflicts as any[]).some((edge: any) =>
+      edge.relation === 'different_scope' &&
+      edge.reasoning === 'Different assumptions and observables across model classes.'
+    );
+    expect(updated).toBe(true);
   });
 });

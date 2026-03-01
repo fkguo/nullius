@@ -4,14 +4,16 @@ import {
   INSPIRE_CRITICAL_RESEARCH,
   invalidParams,
 } from '@autoresearch/shared';
+import type {
+  CreateMessageRequestParamsBase,
+  CreateMessageResult,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import * as api from '../../api/client.js';
 import { writeRunJsonArtifact } from '../../core/citations.js';
 import { getRunArtifactPath } from '../../core/paths.js';
 import { getRun, type RunArtifactRef } from '../../core/runs.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
-import { createLLMClient } from '../writing/llm/clients/index.js';
-import { getLLMConfigFromEnv } from '../writing/llm/config.js';
 import { classifyAxisPosition, mutualExclusionRuleHits, type DebateAxis } from './theoreticalConflict/lexicon.js';
 import {
   buildAdjudicateEdgePrompt,
@@ -122,8 +124,72 @@ type ParsedAdjudication = {
 
 type SparseVector = { dim: number; indices: number[]; values: number[] };
 
+interface TheoreticalConflictsContext {
+  createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+}
+
+function extractSamplingText(content: CreateMessageResult['content']): string {
+  if (!content) return '';
+  if (Array.isArray(content)) {
+    const textParts = content
+      .filter((block): block is { type: 'text'; text: string } => {
+        return Boolean(
+          block
+          && typeof block === 'object'
+          && 'type' in block
+          && 'text' in block
+          && (block as { type?: unknown }).type === 'text'
+          && typeof (block as { text?: unknown }).text === 'string'
+        );
+      })
+      .map(block => block.text.trim())
+      .filter(Boolean);
+    if (textParts.length > 0) return textParts.join('\n');
+    return JSON.stringify(content);
+  }
+  if (typeof content === 'object' && !Array.isArray(content) && 'type' in content && content.type === 'text') {
+    return typeof content.text === 'string' ? content.text : '';
+  }
+  return JSON.stringify(content);
+}
+
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err ?? 'unknown_error');
+}
+
+function errorCode(err: unknown): number | string | undefined {
+  if (!err || typeof err !== 'object') return undefined;
+  const record = err as Record<string, unknown>;
+  const direct = record.code;
+  if (typeof direct === 'number' || typeof direct === 'string') return direct;
+  const nested = record.error;
+  if (!nested || typeof nested !== 'object') return undefined;
+  const nestedCode = (nested as Record<string, unknown>).code;
+  return (typeof nestedCode === 'number' || typeof nestedCode === 'string') ? nestedCode : undefined;
+}
+
+function isSamplingUnavailableError(err: unknown): boolean {
+  const code = errorCode(err);
+  if (code === -32601 || code === '-32601') return true;
+
+  const msg = errorMessage(err).toLowerCase();
+  if (msg.includes('method not found')) return true;
+  if (msg.includes('create message') && (msg.includes('not support') || msg.includes('unsupported'))) return true;
+  if (msg.includes('createmessage') && (msg.includes('not support') || msg.includes('unsupported'))) return true;
+  if (msg.includes('sampling') && (
+    msg.includes('not support') ||
+    msg.includes('unsupported') ||
+    msg.includes('not available') ||
+    msg.includes('unavailable')
+  )) {
+    return true;
+  }
+  return false;
 }
 
 function sha256Hex(input: string): string {
@@ -362,7 +428,7 @@ export async function performTheoreticalConflicts(params: {
     stable_sort?: boolean;
     client_llm_responses?: ClientLlmResponseInput[];
   };
-}): Promise<TheoreticalConflictsResult> {
+}, ctx: TheoreticalConflictsContext = {}): Promise<TheoreticalConflictsResult> {
   const run = getRun(params.run_id);
   const runStartedAt = nowIso();
   const stableSortEnabled = params.options.stable_sort ?? true;
@@ -736,62 +802,57 @@ export async function performTheoreticalConflicts(params: {
 
   async function collectInternalResponses(): Promise<ClientLlmResponseInput[]> {
     if (requestsFinal.length === 0) return [];
-    const cfg = getLLMConfigFromEnv();
-    if (!cfg) {
-      throw invalidParams("llm_mode='internal' requires WRITING_LLM_PROVIDER + WRITING_LLM_API_KEY", {
+    const createMessage = ctx.createMessage;
+    if (!createMessage) {
+      throw invalidParams("llm_mode='internal' requires MCP client sampling support (createMessage)", {
         llm_mode: llmMode,
       });
     }
 
-    const timeoutEnv = process.env.WRITING_LLM_TIMEOUT ? parseInt(process.env.WRITING_LLM_TIMEOUT, 10) : NaN;
-    const timeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 90_000; // Default: 90 seconds per LLM call
-    const maxRetriesEnv = process.env.WRITING_LLM_MAX_RETRIES ? parseInt(process.env.WRITING_LLM_MAX_RETRIES, 10) : NaN;
-    const maxRetries = Number.isFinite(maxRetriesEnv) && maxRetriesEnv > 0 ? maxRetriesEnv : 3;
-    const concurrency = 4;
-
-    const client = createLLMClient(cfg, timeout);
     const out: ClientLlmResponseInput[] = [];
 
-    const queue = requestsFinal.slice();
-    const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-      while (queue.length > 0) {
-        const req = queue.shift();
-        if (!req) return;
-
-        let attempt = 0;
-        let lastErr: unknown = null;
-        while (attempt < Math.max(1, maxRetries)) {
-          attempt += 1;
-          try {
-            const raw = await client.generate(req.prompt);
-            out.push({
-              request_id: req.request_id,
-              json_response: raw,
-              model: client.model,
-              created_at: nowIso(),
-              attempts: attempt,
-            });
-            lastErr = null;
-            break;
-          } catch (err) {
-            lastErr = err;
-            if (attempt >= Math.max(1, maxRetries)) break;
-          }
-        }
-
-        if (lastErr) {
-          out.push({
+    for (const req of requestsFinal) {
+      try {
+        const samplingRequest: CreateMessageRequestParamsBase = {
+          messages: [{
+            role: 'user',
+            content: { type: 'text', text: req.prompt },
+          }],
+          maxTokens: 800,
+          metadata: {
+            tool: INSPIRE_CRITICAL_RESEARCH,
+            mode: 'theoretical',
             request_id: req.request_id,
-            json_response: '',
-            model: client.model,
-            created_at: nowIso(),
-            error: lastErr instanceof Error ? lastErr.message : String(lastErr),
+            prompt_version: req.prompt_version,
+            run_id: params.run_id,
+          },
+        };
+
+        const response = await createMessage(samplingRequest);
+        const rawText = extractSamplingText(response.content);
+        out.push({
+          request_id: req.request_id,
+          json_response: rawText,
+          model: response.model,
+          created_at: nowIso(),
+        });
+      } catch (err) {
+        if (isSamplingUnavailableError(err)) {
+          throw invalidParams("llm_mode='internal' requires MCP client sampling support (createMessage)", {
+            llm_mode: llmMode,
+            sampling_error: errorMessage(err),
           });
         }
-      }
-    });
 
-    await Promise.all(workers);
+        out.push({
+          request_id: req.request_id,
+          json_response: '',
+          created_at: nowIso(),
+          error: errorMessage(err),
+        });
+      }
+    }
+
     return out;
   }
 
@@ -800,7 +861,11 @@ export async function performTheoreticalConflicts(params: {
       ? await collectInternalResponses()
       : responseInputs;
 
-  if ((llmMode === 'client' && responseInputs.length > 0) || llmMode === 'internal') {
+  const shouldConsumeLlmResponses =
+    (llmMode === 'client' && responseInputs.length > 0) ||
+    (llmMode === 'internal' && effectiveResponseInputs.length > 0);
+
+  if (shouldConsumeLlmResponses) {
     for (const resp of effectiveResponseInputs) {
       const requestId = String(resp.request_id ?? '').trim();
       if (!requestId) continue;
@@ -866,6 +931,8 @@ export async function performTheoreticalConflicts(params: {
         raw: resp.json_response,
       });
     }
+  } else if (llmMode === 'internal' && requestsFinal.length === 0) {
+    warnings.push('internal_sampling_skipped:no_llm_requests');
   } else if (llmMode === 'client' && responseInputs.length === 0 && params.options.client_llm_responses) {
     warnings.push('client_llm_responses_ignored:llm_mode_not_client_or_empty');
   }

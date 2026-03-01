@@ -1,5 +1,9 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
+import type {
+  CreateMessageRequestParamsBase,
+  CreateMessageResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import { TOOL_SPECS as PDG_TOOL_SPECS } from '@autoresearch/pdg-mcp/tooling';
 import { TOOL_SPECS as ARXIV_TOOL_SPECS } from '@autoresearch/arxiv-mcp/tooling';
 import { TOOL_SPECS as ZOTERO_TOOL_SPECS } from '@autoresearch/zotero-mcp/tooling';
@@ -90,6 +94,7 @@ export type ToolMaturity = 'stable' | 'experimental' | 'deprecated';
 export interface ToolHandlerContext {
   reportProgress?: (progress: number, total?: number, message?: string) => void;
   rawArgs?: Record<string, unknown>;
+  createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
 }
 
 export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, any>> {
@@ -1991,11 +1996,13 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
     tier: 'consolidated',
     exposure: 'standard',
     description:
-      'Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. NOT FOR broad paper discovery/navigation; use inspire_research_navigator for discovery workflows.',
+      'Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (createMessage) provided by the MCP client. NOT FOR broad paper discovery/navigation; use inspire_research_navigator for discovery workflows.',
     zodSchema: CriticalResearchToolSchema,
-    handler: async params => {
+    handler: async (params, ctx) => {
       const { performCriticalResearch } = await import('./research/criticalResearch.js');
-      const result = await performCriticalResearch(params);
+      const result = await performCriticalResearch(params, {
+        createMessage: ctx.createMessage,
+      });
 
       // H-13 L2: mode=evidence/analysis → write artifact + return URI + summary if run_id
       if ((params.mode === 'evidence' || params.mode === 'analysis') && params.run_id) {

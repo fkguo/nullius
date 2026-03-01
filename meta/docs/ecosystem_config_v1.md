@@ -20,26 +20,19 @@ Environment variables follow a strict priority chain (highest → lowest):
 | `HEP_TOOL_MODE` | `standard` \| `full` | `standard` | Tool exposure level — `standard` shows core tools, `full` shows all | hep-mcp |
 | `HEP_DOWNLOAD_DIR` | path | `<HEP_DATA_DIR>/downloads` | Override directory for arXiv/paper downloads | hep-mcp |
 | `ARXIV_DOWNLOAD_DIR` | path | `<HEP_DATA_DIR>/downloads` | Alias for `HEP_DOWNLOAD_DIR` (fallback) | hep-mcp |
-| `WRITING_PROGRESS_DIR` | path | `<HEP_DATA_DIR>/writing_progress` | Directory for writing pipeline artifacts | hep-mcp |
+| `WRITING_PROGRESS_DIR` | path | `<HEP_DATA_DIR>/writing_progress` | Directory for run progress artifacts | hep-mcp |
 | `HEP_ENABLE_ZOTERO` | boolean | `true` | Enable/disable Zotero Local API integration | hep-mcp |
 | `HEP_DEBUG` | comma-separated | (none) | Enable debug logging for specific categories (e.g. `cache,evidence`) | hep-mcp |
 | `DEBUG` | any | (none) | Enable all debug logging if set | hep-mcp |
 | `HEP_ENABLE_TOOL_USAGE_TELEMETRY` | boolean | (unset) | Enable tool call telemetry | hep-mcp |
 
-### LLM Provider (hep-mcp writing subsystem)
+### LLM / Sampling (hep-mcp)
 
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|
-| `WRITING_LLM_PROVIDER` | string | (none) | LLM provider: `openai`, `anthropic`, `google`, `deepseek`, `kimi`, `glm`, `qwen`, `openai-compatible` | hep-mcp |
-| `WRITING_LLM_API_KEY` | string | (none) | API key for the selected LLM provider | hep-mcp |
-| `WRITING_LLM_MODEL` | string | provider default | Model identifier (e.g. `gpt-4o`, `claude-sonnet-4-20250514`) | hep-mcp |
-| `WRITING_LLM_BASE_URL` | URL | provider default | API endpoint override for custom/self-hosted endpoints | hep-mcp |
-| `WRITING_LLM_TEMPERATURE` | float | `0.3` | Sampling temperature (0.0–2.0) | hep-mcp |
-| `WRITING_LLM_MAX_TOKENS` | int | (none) | Max output tokens per request | hep-mcp |
-| `WRITING_LLM_MODE` | `passthrough` \| `client` \| `internal` | derived | LLM call strategy | hep-mcp |
-| `WRITING_LLM_TIMEOUT` | int (ms) | `90000` | LLM request timeout | hep-mcp |
-| `WRITING_LLM_MAX_RETRIES` | int | `3` | LLM request retry count | hep-mcp |
-| `CONCURRENCY_LIMIT` | int | derived | Max concurrent section writes | hep-mcp |
+| `CONCURRENCY_LIMIT` | int | derived | Max concurrent processing workers in deep research pipelines | hep-mcp |
+
+Note: `inspire_critical_research(mode=theoretical, options.llm_mode='internal')` now uses MCP client sampling (`createMessage`) and no longer relies on provider-specific writing LLM environment variables.
 
 ### PDG (pdg-mcp)
 
@@ -85,7 +78,6 @@ HEP_TOOL_MODE, PDG_DB_PATH, PDG_ARTIFACT_TTL_HOURS
 
 ## Security Notes
 
-- **API keys** (`WRITING_LLM_API_KEY`) are never forwarded to MCP subprocesses.
 - **Zotero** is restricted to localhost only — no Zotero Web API support.
 - **PDG database** path must be absolute and existing.
 - **`HEP_DATA_DIR`** supports `~` expansion for home directory.

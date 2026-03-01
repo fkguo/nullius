@@ -14,6 +14,7 @@ import { detectConflicts, type ConflictDetectionResult } from './conflictDetecto
 import { performCriticalAnalysis, type CriticalAnalysisResult } from './criticalAnalysis.js';
 import { classifyReviews, type ClassifyReviewsResult } from './reviewClassifier.js';
 import { performTheoreticalConflicts, type TheoreticalConflictsResult } from './theoreticalConflicts.js';
+import type { ToolHandlerContext } from '../registry.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -94,7 +95,8 @@ export interface CriticalResearchResult {
  * Unified critical research tool
  */
 export async function performCriticalResearch(
-  params: CriticalResearchParams
+  params: CriticalResearchParams,
+  ctx: Pick<ToolHandlerContext, 'createMessage'> = {}
 ): Promise<CriticalResearchResult> {
   const { mode, recids, options = {} } = params;
 
@@ -154,6 +156,8 @@ export async function performCriticalResearch(
         run_id: params.run_id,
         recids,
         options,
+      }, {
+        createMessage: ctx.createMessage,
       });
       break;
     }

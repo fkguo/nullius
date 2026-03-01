@@ -13,10 +13,7 @@
         "HEP_DEBUG": "",
         "ZOTERO_BASE_URL": "http://127.0.0.1:23119",
         "ZOTERO_DATA_DIR": "/absolute/path/to/Zotero",
-        "WRITING_PROGRESS_DIR": "/absolute/path/to/hep-research-mcp/tmp/research_progress",
-        "WRITING_LLM_PROVIDER": "deepseek",
-        "WRITING_LLM_MODEL": "deepseek-chat",
-        "WRITING_LLM_API_KEY": "YOUR_API_KEY"
+        "WRITING_PROGRESS_DIR": "/absolute/path/to/hep-research-mcp/tmp/research_progress"
       }
     },
     "zotero-mcp": {

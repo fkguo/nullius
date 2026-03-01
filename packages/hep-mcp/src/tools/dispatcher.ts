@@ -20,7 +20,11 @@ import {
 } from '@autoresearch/shared';
 import type { SpanSink } from '@autoresearch/shared';
 import type { PaperSummary } from '@autoresearch/shared';
-import type { Notification } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  Notification,
+  CreateMessageRequestParamsBase,
+  CreateMessageResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import type { OutputFormat, SearchResultData } from '../utils/formatters.js';
 import { formatSearchResultMarkdown, formatPaperListMarkdown } from '../utils/formatters.js';
 import { compactPapersInResult, compactPaperSummary } from '../utils/compactPaper.js';
@@ -45,6 +49,7 @@ export interface ToolCallContext {
   progressToken?: string | number;
   sendNotification?: (notification: Notification) => Promise<void>;
   spanSink?: SpanSink;
+  createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
 }
 
 function createProgressReporter(
@@ -648,7 +653,11 @@ export async function handleToolCall(
     }
 
     const parsedArgs = parseToolArgs(name, spec.zodSchema, cleanArgs) as unknown as Record<string, unknown>;
-    const result = await spec.handler(parsedArgs, { reportProgress, rawArgs: cleanArgs });
+    const result = await spec.handler(parsedArgs, {
+      reportProgress,
+      rawArgs: cleanArgs,
+      createMessage: ctx?.createMessage,
+    });
     const resultWithSkillBridgeEnvelope = maybeAttachSkillBridgeJobEnvelope(result);
     recordToolUsage(name);
     const durationMs = Date.now() - startMs;

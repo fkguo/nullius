@@ -626,7 +626,7 @@ body: {
 - 旧的 category 标题过于宽泛，造成结构哲学不一致（RAG 自适应，但 outline 标题刚性）
 
 **解决方案（三级回退）**：
-1. **LLM**：`llm_mode=internal` 且配置可用时，根据该组 claims 生成 2–6 词的具体标题
+1. **LLM（MCP sampling）**：`llm_mode=internal` 且 MCP 客户端支持 sampling（`createMessage`）时，根据该组 claims 生成 2–6 词的具体标题
 2. **Heuristic**：从 keywords/claim_text 抽取高频主题短语，拼接软化的类别词（Results/Theory/Methods/Discussion）
 3. **Soft default**：最终回退为软化的类别标题（Results/Theory/...），避免 “Experimental Results” 这类硬编码短语
 

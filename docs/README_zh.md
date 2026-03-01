@@ -374,7 +374,7 @@ export HEP_TOOL_MODE=full
 | `inspire_literature` | `get_paper` / `get_references` / `lookup_by_id` / `get_citations` / `search_affiliation` / `get_bibtex` / `get_author` | 统一 INSPIRE “原子能力”入口（standard） |
 | `inspire_resolve_citekey` | - | 按 recid 批量解析 INSPIRE citekey + BibTeX + canonical links |
 | `inspire_parse_latex` | `components=[sections/equations/theorems/citations/figures/tables/bibliography/all]` | LaTeX 解析写入 run artifact（需要 `run_id`，返回 URI + 摘要） |
-| `inspire_deep_research` | `analyze` / `synthesize` / `write` | **深度研究与报告生成** |
+| `inspire_deep_research` | `analyze` / `synthesize` | **深度研究与报告生成** |
 | `inspire_research_navigator` | `discover` / `field_survey` / `topic_analysis` / `network` / `experts` / `connections` / `trace_source` / `analyze` | 统一研究导航门面（Phase 3） |
 | `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | 批判性研究（含理论争议图谱；`theoretical` 需要 `run_id`） |
 | `inspire_paper_source` | `urls` / `content` / `metadata` / `auto` | 论文源码访问 |
@@ -388,7 +388,7 @@ export HEP_TOOL_MODE=full
 
 ### `inspire_deep_research` - 深度研究与报告生成
 
-最强大的工具，支持三种模式：
+最强大的工具，支持两种模式：
 
 #### 模式：`analyze` - 深度内容分析
 ```json
@@ -417,27 +417,6 @@ export HEP_TOOL_MODE=full
 }
 ```
 返回：按方法论/时间线/对比分组的结构化综述。
-
-#### 模式：`write` - Run-based 写作（vNext）
-```json
-{
-  "mode": "write",
-  "run_id": "<run_id>",
-  "identifiers": ["1833986", "627760"],
-  "options": {
-    "topic": "奇特强子",
-    "title": "奇特强子态综述",
-    "target_length": "medium",
-    "llm_mode": "client"
-  }
-}
-```
-返回：**run artifacts**（`hep://runs/{run_id}/artifact/...`）。下一步：
-- 渲染：`hep_render_latex`（传 draft + allowed_citations + cite_mapping）
-- 导出：
-  - 研究资产包：`hep_export_project`
-  - 投稿脚手架：`hep_export_paper_scaffold`（写入 `paper_manifest.json` + `paper_scaffold.zip`）
-  - 投稿回灌（可选）：`hep_import_paper_bundle`（导入最终 `paper/`，写入 `paper_bundle.zip` + `paper_final.pdf`）
 
 ### `inspire_research_navigator` - 发现/调研/网络/专家/溯源
 
@@ -645,7 +624,7 @@ export HEP_TOOL_MODE=full
 | `HEP_ENABLE_TOOL_USAGE_TELEMETRY` | 工具调用计数遥测（opt-in；`1/true/yes/on` 启用；通过 `hep_health.telemetry` 暴露） | （默认关闭） |
 | `HEP_DEBUG` | 调试分类（逗号分隔）：`rate_limiter,cache,downloads,circuit_breaker,api,tools` | （空） |
 | `DEBUG` | 额外调试日志（Node 常用约定） | （空） |
-| `CONCURRENCY_LIMIT` | `inspire_deep_research` 的 write 模式章节生成并发数上限 | `1` |
+| `CONCURRENCY_LIMIT` | Deep research 流水线的并发处理上限 | `1` |
 | `HEP_DOWNLOAD_DIR` | 下载目录（必须位于 `HEP_DATA_DIR` 内） | `<dataDir>/downloads` |
 | `ARXIV_DOWNLOAD_DIR` | `HEP_DOWNLOAD_DIR` 的别名 | `<dataDir>/downloads` |
 | `WRITING_PROGRESS_DIR` | 长任务进度输出目录（必须位于 `HEP_DATA_DIR` 内） | `<dataDir>/writing_progress` |
@@ -755,91 +734,9 @@ curl "http://127.0.0.1:23119/api/users/0/collections?limit=1"
 
 默认情况下，持久化缓存位于 `<HEP_DATA_DIR>/cache`（gzip 压缩条目）。若升级后怀疑缓存陈旧/损坏，可直接删除该目录，功能不受影响。
 
-### Deep Research 的 write 模式（vNext）
-
-`inspire_deep_research`（mode=`write`）是 Evidence-first：传入 `run_id`，输出统一写入 run artifacts，并通过 `hep://runs/{run_id}/...` resources 读取。
-
-示例（client 模式）：
-
-```json
-{
-  "mode": "write",
-  "run_id": "<run_id>",
-  "identifiers": ["1833986", "627760"],
-  "options": {
-    "topic": "奇特强子",
-    "title": "奇特强子态综述",
-    "target_length": "medium",
-    "llm_mode": "client"
-  }
-}
-```
-
-### LLM 配置（`internal` 模式）
-
-`internal` 模式使用内置 LLM 客户端生成章节内容，并自动进行验证。通过环境变量配置：
-
-#### 必需变量
-
-```bash
-# 启用 internal 模式
-export WRITING_LLM_MODE=internal
-
-# 提供商选择（必需）
-export WRITING_LLM_PROVIDER=deepseek  # 见下方支持的提供商
-
-# API 密钥（必需）
-export WRITING_LLM_API_KEY=YOUR_API_KEY
-```
-
-#### 可选变量
-
-```bash
-# 模型选择（不设置则使用提供商默认模型）
-export WRITING_LLM_MODEL=deepseek-chat
-
-# 自定义 API 端点（用于自托管或代理）
-export WRITING_LLM_BASE_URL=https://api.deepseek.com/v1
-
-# 生成参数
-export WRITING_LLM_TEMPERATURE=0.3      # 默认: 0.3
-export WRITING_LLM_MAX_TOKENS=8192      # 默认: 提供商特定
-
-# 超时和重试
-export WRITING_LLM_TIMEOUT=90000        # 默认: 90 秒
-export WRITING_LLM_MAX_RETRIES=3        # 默认: 3 次
-```
-
-#### 支持的 LLM 提供商
-
-| 提供商 | 默认模型 | API 类型 | 默认 Base URL |
-|--------|----------|----------|---------------|
-| `openai` | gpt-4o | 原生 | api.openai.com/v1 |
-| `anthropic` | claude-sonnet-4-20250514 | 原生 | api.anthropic.com |
-| `google` | gemini-1.5-pro | 原生 | generativelanguage.googleapis.com |
-| `deepseek` | deepseek-chat | OpenAI 兼容 | api.deepseek.com/v1 |
-| `kimi` | moonshot-v1-128k | OpenAI 兼容 | api.moonshot.cn/v1 |
-| `glm` | glm-4-plus | OpenAI 兼容 | open.bigmodel.cn/api/paas/v4 |
-| `qwen` | qwen-max | OpenAI 兼容 | dashscope.aliyuncs.com/compatible-mode/v1 |
-
-#### 模式优先级
-
-1. **工具参数**（最高）：工具调用中的 `llm_mode`
-2. **环境变量**：`WRITING_LLM_MODE`
-3. **智能默认**：如果配置了 API 密钥则使用 `internal`，否则 `client`
-
-#### Write-Verify-Revise 循环
-
-使用 `internal` 模式时，系统自动执行：
-1. 使用配置的 LLM 生成草稿内容
-2. 验证引用是否来自允许的来源
-3. 检测原创性（n-gram 重叠检测）
-4. 如果验证失败，生成修正反馈并重试（最多 3 次）
-5. 返回带有质量指标的最终输出
-
 ### 进度与续跑（Run-based）
 
-vNext 工作流的进度统一记录在 run manifest：`hep://runs/{run_id}/manifest`（steps + artifacts）。`inspire_deep_research` 的 write 模式可在同一 `run_id` 上通过 `resume_from` 从某一步继续。
+vNext 工作流的进度统一记录在 run manifest：`hep://runs/{run_id}/manifest`（steps + artifacts）。
 
 ### INSPIRE 搜索语法
 
@@ -992,9 +889,6 @@ MCP 是开放协议，以下工具也支持 MCP 服务器：
 		        "HEP_DEBUG": "tools,downloads",
 		        "ZOTERO_BASE_URL": "http://127.0.0.1:23119",
 		        "ZOTERO_DATA_DIR": "/path/to/Zotero",
-		        "WRITING_LLM_PROVIDER": "deepseek",
-		        "WRITING_LLM_MODEL": "deepseek-chat",
-		        "WRITING_LLM_API_KEY": "YOUR_API_KEY"
 		      }
 	    }
 	  }
@@ -1007,7 +901,7 @@ Zotero Local API 无认证：不需要 Local API Key。
 
 > 注意：不要提交任何包含真实 API Key 的配置文件。请将本地 MCP 配置（如 `.mcp.json`）排除在 git 之外。
 
-详见 [环境变量](#环境变量) 和 [LLM 配置](#llm-配置internal-模式) 部分的完整说明。
+详见 [环境变量](#环境变量) 部分的完整说明。
 
 ## 工具调用示例
 

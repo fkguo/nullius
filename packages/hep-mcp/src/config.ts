@@ -81,8 +81,6 @@ const CONFIG_KEYS: ConfigEntry[] = [
   { key: 'PDG_DB_PATH', defaultValue: '(none)' },
   { key: 'PDG_DATA_DIR', defaultValue: '<HEP_DATA_DIR>/pdg' },
   { key: 'PDG_TOOL_MODE', defaultValue: 'standard' },
-  { key: 'WRITING_LLM_PROVIDER', defaultValue: '(none)' },
-  { key: 'WRITING_LLM_MODE', defaultValue: '(derived)' },
   { key: 'HEP_DEBUG', defaultValue: '(none)' },
 ];
 

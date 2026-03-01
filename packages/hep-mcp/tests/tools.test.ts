@@ -144,6 +144,11 @@ function getBibtexEntryKey(bibtex: string): string | null {
   return null;
 }
 
+function readTextBlock(result: { content: Array<{ type: string; text?: string }> }): string {
+  const block = result.content.find(item => item.type === 'text' && typeof item.text === 'string');
+  return block?.text ?? '{}';
+}
+
 describe('Tool Handlers (current exposure)', () => {
   let originalDataDirEnv: string | undefined;
   let dataDir: string;
@@ -209,7 +214,7 @@ describe('Tool Handlers (current exposure)', () => {
     expect(api.search).not.toHaveBeenCalled();
     expect(paperClassifier.classifyPapers).not.toHaveBeenCalled();
 
-    const payload = JSON.parse(res.content[0]?.text ?? '{}') as {
+    const payload = JSON.parse(readTextBlock(res)) as {
       error?: { code?: string; data?: { issues?: unknown[] } };
     };
     expect(payload.error?.code).toBe('INVALID_PARAMS');
@@ -227,7 +232,7 @@ describe('Tool Handlers (current exposure)', () => {
     expect(api.searchByUrl).not.toHaveBeenCalled();
     expect(paperClassifier.classifyPapers).not.toHaveBeenCalled();
 
-    const payload = JSON.parse(res.content[0]?.text ?? '{}') as {
+    const payload = JSON.parse(readTextBlock(res)) as {
       error?: { code?: string; data?: { issues?: unknown[] } };
     };
     expect(payload.error?.code).toBe('INVALID_PARAMS');
@@ -283,7 +288,7 @@ describe('Tool Handlers (current exposure)', () => {
     expect(result.isError).toBe(true);
     expect(api.getCitations).not.toHaveBeenCalled();
 
-    const payload = JSON.parse(result.content[0]?.text ?? '{}') as {
+    const payload = JSON.parse(readTextBlock(result)) as {
       error?: { code?: string; data?: { issues?: unknown[] } };
     };
     expect(payload.error?.code).toBe('INVALID_PARAMS');
@@ -344,7 +349,7 @@ describe('Tool Handlers (current exposure)', () => {
     const res = await handleToolCall('inspire_resolve_citekey', { recid });
     expect(res.isError).toBeFalsy();
 
-    const payload = JSON.parse(res.content[0]?.text ?? '{}') as {
+    const payload = JSON.parse(readTextBlock(res)) as {
       results?: Array<{ recid: string; citekey: string; bibtex: string; links?: Record<string, string> }>;
     };
 
@@ -376,7 +381,7 @@ describe('Tool Handlers (current exposure)', () => {
     const res = await handleToolCall('inspire_resolve_citekey', { recids: [recidA, recidB] });
     expect(res.isError).toBeFalsy();
 
-    const payload = JSON.parse(res.content[0]?.text ?? '{}') as {
+    const payload = JSON.parse(readTextBlock(res)) as {
       results?: Array<{ recid: string; citekey: string; bibtex: string }>;
     };
 
@@ -473,8 +478,19 @@ describe('Tool Handlers (current exposure)', () => {
 
   it('inspire_critical_research should call performCriticalResearch', async () => {
     vi.mocked(criticalResearch.performCriticalResearch).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_critical_research', { mode: 'evidence', recids: ['1'] });
-    expect(criticalResearch.performCriticalResearch).toHaveBeenCalled();
+    const createMessage = vi.fn();
+
+    await handleToolCall(
+      'inspire_critical_research',
+      { mode: 'evidence', recids: ['1'] },
+      'standard',
+      { createMessage }
+    );
+
+    expect(criticalResearch.performCriticalResearch).toHaveBeenCalledWith(
+      { mode: 'evidence', recids: ['1'] },
+      { createMessage }
+    );
   });
 
   it('inspire_paper_source should call accessPaperSource', async () => {
@@ -505,7 +521,7 @@ describe('Tool Handlers (current exposure)', () => {
     } as any);
 
     expect(res.isError).toBe(true);
-    const payload = JSON.parse(res.content[0]?.text ?? '{}') as {
+    const payload = JSON.parse(readTextBlock(res)) as {
       error?: { code?: string; data?: { next_actions?: Array<{ tool?: string }> } };
     };
     expect(payload.error?.code).toBe('INVALID_PARAMS');
@@ -542,7 +558,7 @@ describe('Tool Handlers (current exposure)', () => {
       options: { cross_validate: true, max_depth: 2 },
     });
 
-    const payload = JSON.parse(res.content[0]?.text ?? '{}') as {
+    const payload = JSON.parse(readTextBlock(res)) as {
       uri?: string;
       summary?: { artifact_name?: string; run_id?: string; counts?: Record<string, number> };
     };

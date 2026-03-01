@@ -196,6 +196,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     requestId: extra.requestId,
     progressToken,
     sendNotification: extra.sendNotification,
+    createMessage: server.createMessage.bind(server),
   });
 });
 
