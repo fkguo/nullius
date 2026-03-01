@@ -99,11 +99,6 @@ export function deepResearchAnalyzeNextActions(identifiers: string[]): NextActio
       args: { mode: 'synthesize', identifiers: capped },
       reason: 'Synthesize findings from the analyzed papers.',
     },
-    {
-      tool: INSPIRE_DEEP_RESEARCH,
-      args: { mode: 'write', identifiers: capped, run_id: '<run_id>' },
-      reason: 'Generate a full research write-up (requires a run_id from hep_run_create).',
-    },
   ];
 }
 

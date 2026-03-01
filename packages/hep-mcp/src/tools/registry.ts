@@ -21,31 +21,9 @@ import {
   HEP_RUN_CLEAR_MANIFEST_LOCK,
   HEP_RUN_STAGE_CONTENT,
   HEP_RUN_BUILD_PDF_EVIDENCE,
-  HEP_RUN_BUILD_EVIDENCE_INDEX_V1,
-  HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
-  HEP_RUN_WRITING_TOKEN_GATE_V1,
-  HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
-  HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
-  HEP_RUN_WRITING_SUBMIT_SECTION_CANDIDATES_V1,
-  HEP_RUN_WRITING_CREATE_SECTION_JUDGE_PACKET_V1,
-  HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1,
-  HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET,
-  HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
-  HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
-  HEP_RUN_WRITING_SUBMIT_OUTLINE_CANDIDATES_V1,
-  HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
-  HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1,
   HEP_RUN_BUILD_WRITING_EVIDENCE,
   HEP_RUN_BUILD_MEASUREMENTS,
-  HEP_RUN_BUILD_WRITING_CRITICAL,
   HEP_RUN_BUILD_CITATION_MAPPING,
-  HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
-  HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1,
-  HEP_RUN_WRITING_SUBMIT_REVIEW,
-  HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
-  HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
-  HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1,
-  HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
   HEP_RENDER_LATEX,
   HEP_EXPORT_PROJECT,
   HEP_EXPORT_PAPER_SCAFFOLD,
@@ -80,11 +58,6 @@ import { createRun, getRun, updateRunManifestAtomic, type RunArtifactRef, type R
 import { buildAllowedCitationsArtifact, buildCitekeyToInspireStats, writeRunJsonArtifact } from '../core/citations.js';
 import { buildProjectEvidenceCatalog, playbackProjectEvidence, queryProjectEvidence } from '../core/evidence.js';
 import { ReportDraftSchema, SectionDraftSchema } from '../core/writing/draftSchemas.js';
-import { PromptPacketSchema } from '../core/contracts/promptPacket.js';
-import { ReviewerReportV2Schema } from '../core/contracts/reviewerReport.js';
-import { RevisionPlanV1Schema } from '../core/contracts/revisionPlan.js';
-import { PaperSetCurationV1Schema } from '../core/writing/papersetPlanner.js';
-import { SectionQualityEvalV1Schema } from '../core/writing/sectionQualityEvaluator.js';
 import { renderLatexForRun } from '../core/writing/renderLatex.js';
 import { buildRunPdfEvidence } from '../core/pdf/evidence.js';
 import { exportProjectForRun } from '../core/export/exportProject.js';
@@ -220,138 +193,6 @@ const HepRunStageContentToolSchema = z.object({
   artifact_suffix: SafePathSegmentSchema.optional(),
 });
 
-const WritingTokenBudgetPlanReservedOutputTokensOverridesSchema = z
-  .object({
-    outline: z.number().int().nonnegative().optional(),
-    evidence_rerank: z.number().int().nonnegative().optional(),
-    section_write: z.number().int().nonnegative().optional(),
-    review: z.number().int().nonnegative().optional(),
-    revise: z.number().int().nonnegative().optional(),
-  })
-  .passthrough();
-
-const HepRunWritingCreateTokenBudgetPlanV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  model_context_tokens: z.number().int().positive(),
-  model: z.string().optional(),
-  safety_margin_tokens: z.number().int().nonnegative().optional(),
-  reserved_output_tokens: WritingTokenBudgetPlanReservedOutputTokensOverridesSchema.optional(),
-  output_artifact_name: SafePathSegmentSchema.optional(),
-  tokenizer_model: z.string().optional().describe('Tokenizer model for token estimation (default: claude-opus-4-6). Recorded in artifact metadata for reproducibility.'),
-});
-
-const TokenGateStepSchema = z.enum([
-  'outline',
-  'evidence_rerank',
-  'section_write',
-  'review',
-  'revise',
-  'custom',
-]);
-
-const HepRunWritingTokenGateV1ToolSchema = z
-  .object({
-    run_id: SafePathSegmentSchema,
-    step: TokenGateStepSchema,
-    prompt_packet: PromptPacketSchema.optional(),
-    prompt_packet_uri: z.string().min(1).optional(),
-    evidence_packet_uri: z.string().min(1).optional(),
-    token_budget_plan_artifact_name: SafePathSegmentSchema.optional(),
-    max_context_tokens: z.number().int().positive().optional(),
-    reserved_output_tokens: z.number().int().nonnegative().optional(),
-    safety_margin_tokens: z.number().int().nonnegative().optional(),
-    section_index: z.number().int().positive().optional(),
-    output_pass_artifact_name: SafePathSegmentSchema.optional(),
-    output_overflow_artifact_name: SafePathSegmentSchema.optional(),
-    tokenizer_model: z.string().optional().describe('Tokenizer model for token estimation (default: claude-opus-4-6). Recorded in artifact metadata for reproducibility.'),
-  })
-  .refine(v => !(v.prompt_packet && v.prompt_packet_uri), {
-    message: 'Only one of prompt_packet or prompt_packet_uri may be provided',
-  })
-  .refine(v => Boolean(v.prompt_packet) || Boolean(v.prompt_packet_uri) || Boolean(v.evidence_packet_uri), {
-    message: 'At least one of prompt_packet, prompt_packet_uri, or evidence_packet_uri is required',
-  });
-
-const HepRunWritingCreateSectionWritePacketV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  section_index: z.number().int().positive(),
-  outline_artifact_name: SafePathSegmentSchema.optional(),
-  paperset_artifact_name: SafePathSegmentSchema.optional(),
-  claims_table_artifact_name: SafePathSegmentSchema.optional(),
-  evidence_packet_artifact_name: SafePathSegmentSchema.optional(),
-  token_budget_plan_artifact_name: SafePathSegmentSchema.optional(),
-  output_packet_artifact_name: SafePathSegmentSchema.optional(),
-  output_prompt_text_artifact_name: SafePathSegmentSchema.optional(),
-  output_evidence_context_artifact_name: SafePathSegmentSchema.optional(),
-});
-
-const HepRunWritingCreateOutlineCandidatesPacketV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  language: z.enum(['en', 'zh', 'auto']).optional().default('auto'),
-  target_length: z.enum(['short', 'medium', 'long']),
-  title: z.string().min(1),
-  topic: z.string().optional(),
-  structure_hints: z.string().optional(),
-  user_outline: z.string().optional(),
-  claims_table_artifact_name: SafePathSegmentSchema.optional(),
-  n_candidates: z.number().int().min(2).optional(),
-  variation_strategy: z.string().min(1).optional(),
-  temperatures: z.array(z.number()).optional(),
-  seeds: z.array(z.union([z.number(), z.string()])).optional(),
-});
-
-const HepRunWritingSubmitOutlineCandidatesV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  candidates: z
-    .array(
-      z.object({
-        candidate_index: z.number().int().nonnegative(),
-        outline_plan_uri: z.string().min(1),
-        client_model: z.string().min(1).nullable().optional(),
-        temperature: z.number().nullable().optional(),
-        seed: z.union([z.number(), z.string()]).nullable().optional(),
-      })
-    )
-    .min(2),
-});
-
-const HepRunWritingCreateOutlineJudgePacketV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  candidates_uri: z.string().min(1),
-});
-
-const HepRunWritingSubmitOutlineJudgeDecisionV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  judge_decision_uri: z.string().min(1),
-  client_model: z.string().min(1).nullable().optional(),
-  temperature: z.number().nullable().optional(),
-  seed: z.union([z.number(), z.string()]).nullable().optional(),
-});
-
-const HepRunWritingCreatePapersetCurationPacketToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  language: z.enum(['en', 'zh', 'auto']).optional().default('auto'),
-  target_length: z.enum(['short', 'medium', 'long']),
-  title: z.string().min(1),
-  topic: z.string().optional(),
-  structure_hints: z.string().optional(),
-  seed_identifiers: z.array(z.string().min(1)).min(1),
-  candidate_pool_artifact_name: SafePathSegmentSchema.optional(),
-  output_artifact_name: SafePathSegmentSchema.optional(),
-});
-
-const HepRunWritingSubmitPapersetCurationToolSchema = z
-  .object({
-    run_id: SafePathSegmentSchema,
-    paperset: PaperSetCurationV1Schema.optional(),
-    paperset_uri: z.string().min(1).optional(),
-    paperset_artifact_name: SafePathSegmentSchema.optional(),
-    prompt_packet_artifact_name: SafePathSegmentSchema.optional(),
-  })
-  .refine(v => Boolean(v.paperset) !== Boolean(v.paperset_uri), {
-    message: 'Exactly one of paperset or paperset_uri must be provided',
-  });
-
 const HepRunBuildCitationMappingToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   /** Paper identifier: recid, arXiv ID, or DOI */
@@ -360,93 +201,6 @@ const HepRunBuildCitationMappingToolSchema = z.object({
   allowed_citations_primary: z.array(z.string().min(1)).optional().default([]),
   /** Whether to include mapped references from bibliography into allowlist (default: true) */
   include_mapped_references: z.boolean().optional().default(true),
-});
-
-const HepRunWritingCreateSectionCandidatesPacketV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  section_index: z.number().int().positive(),
-  n_candidates: z.number().int().min(2).optional(),
-  variation_strategy: z.string().min(1).optional(),
-  temperatures: z.array(z.number()).optional(),
-  seeds: z.array(z.union([z.number(), z.string()])).optional(),
-  output_artifact_name: SafePathSegmentSchema.optional(),
-});
-
-const HepRunWritingSubmitSectionCandidatesV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  section_index: z.number().int().positive(),
-  candidates: z
-    .array(
-      z.object({
-        candidate_index: z.number().int().nonnegative(),
-        section_output_uri: z.string().min(1),
-        client_model: z.string().min(1).nullable().optional(),
-        temperature: z.number().nullable().optional(),
-        seed: z.union([z.number(), z.string()]).nullable().optional(),
-      })
-    )
-    .min(2),
-});
-
-const HepRunWritingCreateSectionJudgePacketV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  section_index: z.number().int().positive(),
-  candidates_uri: z.string().min(1),
-});
-
-const HepRunWritingSubmitSectionJudgeDecisionV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  section_index: z.number().int().positive(),
-  judge_decision_uri: z.string().min(1),
-  client_model: z.string().min(1).nullable().optional(),
-  temperature: z.number().nullable().optional(),
-  seed: z.union([z.number(), z.string()]).nullable().optional(),
-  quality_eval: SectionQualityEvalV1Schema.optional(),
-});
-
-const HepRunWritingSubmitReviewToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  round: z.number().int().positive().optional().default(1),
-  reviewer_report: ReviewerReportV2Schema.optional(),
-  reviewer_report_uri: z.string().min(1).optional(),
-  client_model: z.string().min(1).nullable().optional(),
-  temperature: z.number().nullable().optional(),
-  seed: z.union([z.number(), z.string()]).nullable().optional(),
-}).refine(
-  v => Boolean(v.reviewer_report) !== Boolean(v.reviewer_report_uri),
-  { message: 'Exactly one of reviewer_report or reviewer_report_uri must be provided' }
-);
-
-const HepRunWritingCreateRevisionPlanPacketV1ToolSchema = z.object({
-  reviewer_report_uri: z.string().min(1),
-  manifest_uri: z.string().min(1),
-  quality_policy_uri: z.string().min(1).optional(),
-  round: z.number().int().positive().optional().default(1),
-});
-
-const HepRunWritingSubmitRevisionPlanV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  revision_plan: RevisionPlanV1Schema.optional(),
-  revision_plan_uri: z.string().min(1).optional(),
-}).refine(
-  v => Boolean(v.revision_plan) !== Boolean(v.revision_plan_uri),
-  { message: 'Exactly one of revision_plan or revision_plan_uri must be provided' }
-);
-
-const HepRunWritingIntegrateSectionsV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  fix_unused_materials: z.boolean().optional().default(true),
-  add_cross_references: z.boolean().optional().default(true),
-  unify_terminology: z.boolean().optional().default(false),
-  final_polish: z.boolean().optional().default(false),
-  max_retries: z.number().int().nonnegative().optional(),
-});
-
-const HepRunWritingRefinementOrchestratorV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  round: z.number().int().positive().optional().default(1),
-  reviewer_report_uri: z.string().min(1).optional(),
-  revision_plan_uri: z.string().min(1).optional(),
 });
 
 const CitekeyMappingSchema = z
@@ -556,15 +310,6 @@ const HepRunBuildPdfEvidenceToolSchema = z.object({
   message: 'Either pdf_path, pdf_artifact_name, or zotero_attachment_key is required',
 });
 
-const HepRunBuildEvidenceIndexV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  paper_ids: z.array(z.string().min(1)).min(1),
-  output_artifact_name: SafePathSegmentSchema.optional().default('evidence_index_v1.json'),
-  metrics_artifact_name: SafePathSegmentSchema.optional().default('evidence_index_metrics_v1.json'),
-  paper_cache_prefix: SafePathSegmentSchema.optional().default('evidence_paper'),
-  force_rebuild: z.boolean().optional().default(false),
-});
-
 const HepRunIngestSkillArtifactsToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   skill_artifacts_dir: z.string().min(1).describe('Absolute path to skill artifacts directory (must be within run_dir)'),
@@ -577,60 +322,6 @@ const HepRunCreateFromIdeaToolSchema = z.object({
   handoff_uri: z.string().min(1).describe('hep:// URI or file path pointing to an IdeaHandoffC2 artifact'),
   project_id: SafePathSegmentSchema.optional().describe('Existing project ID; auto-created from thesis if omitted'),
   run_label: z.string().optional().describe('Optional label for the new run'),
-});
-
-const RagSectionTypeSchema = z.enum(['introduction', 'methodology', 'results', 'discussion', 'conclusion']);
-
-const HepRunWritingBuildEvidencePacketSectionV2ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  section_index: z.number().int().positive(),
-  llm_mode: z.enum(['client', 'internal']).optional().default('client'),
-  evidence_index_artifact_name: SafePathSegmentSchema.optional().default('evidence_index_v1.json'),
-  outline_artifact_name: SafePathSegmentSchema.optional().default('writing_outline_v2.json'),
-  claims_table_artifact_name: SafePathSegmentSchema.optional().default('writing_claims_table.json'),
-  max_queries: z.number().int().nonnegative().optional().default(0),
-  section_title: z.string().min(1).optional(),
-  section_type: RagSectionTypeSchema.optional(),
-  queries: z.array(z.string().min(1)).optional(),
-  claim_ids: z.array(z.string().min(1)).optional().default([]),
-  token_budget_plan_artifact_name: SafePathSegmentSchema.optional(),
-  max_context_tokens: z.number().int().positive().optional(),
-  reserved_output_tokens: z.number().int().nonnegative().optional(),
-  safety_margin_tokens: z.number().int().nonnegative().optional(),
-  top_k_per_query: z.number().int().positive().optional().default(20),
-  max_candidates: z.number().int().positive().optional().default(200),
-  rerank_top_k: z.number().int().positive().optional().default(100),
-  rerank_output_top_n: z.number().int().positive().optional().default(50),
-  max_chunk_chars: z.number().int().positive().optional().default(500),
-  max_selected_chunks: z.number().int().positive().optional().default(25),
-  max_total_tokens: z.number().int().positive().optional().default(10_000),
-  max_chunks_per_source: z.number().int().positive().optional().default(10),
-  min_sources: z.number().int().nonnegative().optional().default(3),
-  min_per_query: z.number().int().nonnegative().optional().default(1),
-  output_candidates_artifact_name: SafePathSegmentSchema.optional(),
-  output_rerank_packet_artifact_name: SafePathSegmentSchema.optional(),
-  output_rerank_prompt_artifact_name: SafePathSegmentSchema.optional(),
-  output_rerank_raw_artifact_name: SafePathSegmentSchema.optional(),
-  output_rerank_result_artifact_name: SafePathSegmentSchema.optional(),
-  output_packet_artifact_name: SafePathSegmentSchema.optional(),
-}).refine(v => {
-  const hasQueries = Array.isArray(v.queries) && v.queries.length > 0;
-  if (!hasQueries) return true;
-  return Boolean(v.section_title) && Boolean(v.section_type);
-}, { message: 'When queries are provided, section_title and section_type are required' });
-
-const HepRunWritingSubmitRerankResultV1ToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  section_index: z.number().int().positive(),
-  rerank_packet_artifact_name: SafePathSegmentSchema.optional(),
-  ranked_indices: z.array(z.number().int().nonnegative()).min(1),
-  token_budget_plan_artifact_name: SafePathSegmentSchema.optional(),
-  max_context_tokens: z.number().int().positive().optional(),
-  reserved_output_tokens: z.number().int().nonnegative().optional(),
-  safety_margin_tokens: z.number().int().nonnegative().optional(),
-  output_rerank_raw_artifact_name: SafePathSegmentSchema.optional(),
-  output_rerank_result_artifact_name: SafePathSegmentSchema.optional(),
-  output_packet_artifact_name: SafePathSegmentSchema.optional(),
 });
 
 const SearchExportFormatSchema = z.enum(['jsonl', 'json']);
@@ -776,19 +467,6 @@ const HepRunBuildWritingEvidenceToolSchema = z
   .refine(v => v.latex_sources.length > 0 || Boolean(v.pdf_source), {
     message: 'At least one latex_sources entry or pdf_source is required',
   });
-
-const HepRunBuildWritingCriticalToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  recids: z.array(z.string().min(1)).min(1),
-  claims_artifact_name: SafePathSegmentSchema.optional().default('writing_claims_table.json'),
-  conflicts_artifact_name: SafePathSegmentSchema.optional().default('writing_conflicts.json'),
-  stance_artifact_name: SafePathSegmentSchema.optional().default('writing_stance.jsonl'),
-  evidence_grades_artifact_name: SafePathSegmentSchema.optional().default('writing_evidence_grades.json'),
-  summary_artifact_name: SafePathSegmentSchema.optional().default('writing_critical_summary.json'),
-  min_tension_sigma: z.number().optional().default(2),
-  target_quantities: z.array(z.string().min(1)).optional(),
-  include_tables: z.boolean().optional().default(true),
-});
 
 const HepProjectBuildEvidenceToolSchema = z
   .object({
@@ -1159,10 +837,9 @@ const PaperSourceToolSchema = z.object({
 
 const DeepResearchToolSchema = z.object({
   identifiers: z.array(z.string().min(1)).min(1),
-  mode: z.enum(['analyze', 'synthesize', 'write']),
+  mode: z.enum(['analyze', 'synthesize']),
   format: JsonMarkdownSchema.optional(),
   run_id: SafePathSegmentSchema.optional(),
-  resume_from: z.enum(['paperset', 'claims', 'critical', 'outline', 'sections', 'verify', 'originality', 'review']).optional(),
   options: z
     .object({
       // Analyze mode options
@@ -1182,46 +859,8 @@ const DeepResearchToolSchema = z.object({
       include_equations: z.boolean().optional(),
       include_bibliography: z.boolean().optional(),
       max_papers_per_group: z.number().int().optional(),
-
-      // Write mode options
-      topic: z.string().optional(),
-      title: z.string().optional(),
-      target_length: z.enum(['short', 'medium', 'long']).optional(),
-      quality_level: z.enum(['standard', 'publication']).optional(),
-      structure_hints: z.string().optional(),
-      user_outline: z.string().max(20_000).optional(),
-      outline_policy: z.enum(['lock', 'allow_minimal_edits']).optional(),
-      phase0_options: z
-        .object({
-          max_retries: z.number().int().min(0).max(5).optional(),
-        })
-        .optional(),
-      phase1_options: z
-        .object({
-          max_retries: z.number().int().min(0).max(5).optional(),
-          require_asset_coverage: z.boolean().optional(),
-        })
-        .optional(),
-      phase2_options: z
-        .object({
-          max_retries: z.number().int().min(0).max(5).optional(),
-        })
-        .optional(),
-      llm_mode: z.enum(['client', 'internal']).optional(),
-      max_section_retries: z.number().int().min(0).max(5).optional().default(3),
-      auto_fix_originality: z.boolean().optional().default(true),
-      auto_fix_citations: z.boolean().optional().default(true),
-      language: z.enum(['en', 'zh']).optional(),
     })
     .optional(),
-}).strict().superRefine((v, ctx) => {
-  if (v.mode === 'write' && !v.run_id) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "mode='write' requires run_id (Evidence-first: use hep_project_create + hep_run_create first)",
-      path: ['run_id'],
-    });
-  }
 });
 
 const InspireParseLatexToolSchema = z.object({
@@ -1505,265 +1144,11 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     },
   },
   {
-    name: HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Create a `writing_token_budget_plan_v1.json` artifact for a run (M05: TokenBudgetPlan SSOT; overflow_policy=fail_fast; Evidence-first; local-only).',
-    zodSchema: HepRunWritingCreateTokenBudgetPlanV1ToolSchema,
-    handler: async params => {
-      const { createRunWritingTokenBudgetPlanV1 } = await import('../core/writing/tokenBudgetPlan.js');
-      return createRunWritingTokenBudgetPlanV1({
-        run_id: params.run_id,
-        model_context_tokens: params.model_context_tokens,
-        model: params.model,
-        safety_margin_tokens: params.safety_margin_tokens,
-        reserved_output_tokens: params.reserved_output_tokens,
-        output_artifact_name: params.output_artifact_name,
-        tokenizer_model: params.tokenizer_model,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_TOKEN_GATE_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Run TokenGate on a prompt_packet (+ optional evidence_packet) and write either token gate pass or writing_token_overflow artifacts (M05; fail-fast; Evidence-first; local-only).',
-    zodSchema: HepRunWritingTokenGateV1ToolSchema,
-    handler: async params => {
-      const { runWritingTokenGateV1 } = await import('../core/writing/tokenGate.js');
-      return runWritingTokenGateV1({
-        run_id: params.run_id,
-        step: params.step,
-        prompt_packet: params.prompt_packet,
-        prompt_packet_uri: params.prompt_packet_uri,
-        evidence_packet_uri: params.evidence_packet_uri,
-        token_budget_plan_artifact_name: params.token_budget_plan_artifact_name,
-        max_context_tokens: params.max_context_tokens,
-        reserved_output_tokens: params.reserved_output_tokens,
-        safety_margin_tokens: params.safety_margin_tokens,
-        section_index: params.section_index,
-        output_pass_artifact_name: params.output_pass_artifact_name,
-        output_overflow_artifact_name: params.output_overflow_artifact_name,
-        tokenizer_model: params.tokenizer_model,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Create a per-section PromptPacket + evidence context artifacts for client section writing, gated by TokenGate (M06; fail-fast; Evidence-first; local-only).',
-    zodSchema: HepRunWritingCreateSectionWritePacketV1ToolSchema,
-    handler: async params => {
-      const { createRunWritingSectionWritePacketV1 } = await import('../core/writing/sectionWritePacket.js');
-      return createRunWritingSectionWritePacketV1({
-        run_id: params.run_id,
-        section_index: params.section_index,
-        outline_artifact_name: params.outline_artifact_name,
-        paperset_artifact_name: params.paperset_artifact_name,
-        claims_table_artifact_name: params.claims_table_artifact_name,
-        evidence_packet_artifact_name: params.evidence_packet_artifact_name,
-        token_budget_plan_artifact_name: params.token_budget_plan_artifact_name,
-        output_packet_artifact_name: params.output_packet_artifact_name,
-        output_prompt_text_artifact_name: params.output_prompt_text_artifact_name,
-        output_evidence_context_artifact_name: params.output_evidence_context_artifact_name,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Create an N-best section candidates prompt_packet + next_actions (M13; N>=2 hard requirement; Evidence-first; fail-fast; local-only).',
-    zodSchema: HepRunWritingCreateSectionCandidatesPacketV1ToolSchema,
-    handler: async params => {
-      const { createRunWritingSectionCandidatesPacketV1 } = await import('../core/writing/sectionCandidates.js');
-      return createRunWritingSectionCandidatesPacketV1({
-        run_id: params.run_id,
-        section_index: params.section_index,
-        n_candidates: params.n_candidates,
-        variation_strategy: params.variation_strategy,
-        temperatures: params.temperatures,
-        seeds: params.seeds,
-        output_artifact_name: params.output_artifact_name,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_SUBMIT_SECTION_CANDIDATES_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Submit N-best section candidates (strict schema validation; writes writing_candidates_section_###_v1.json; fail-fast; local-only).',
-    zodSchema: HepRunWritingSubmitSectionCandidatesV1ToolSchema,
-    handler: async params => {
-      const { submitRunWritingSectionCandidatesV1 } = await import('../core/writing/sectionCandidates.js');
-      return submitRunWritingSectionCandidatesV1({
-        run_id: params.run_id,
-        section_index: params.section_index,
-        candidates: params.candidates,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_CREATE_SECTION_JUDGE_PACKET_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Create a Judge prompt_packet for selecting the best section candidate (M13; hard gates; Evidence-first; fail-fast; local-only).',
-    zodSchema: HepRunWritingCreateSectionJudgePacketV1ToolSchema,
-    handler: async params => {
-      const { createRunWritingSectionJudgePacketV1 } = await import('../core/writing/sectionJudge.js');
-      return createRunWritingSectionJudgePacketV1({
-        run_id: params.run_id,
-        section_index: params.section_index,
-        candidates_uri: params.candidates_uri,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Submit a client-generated JudgeDecision for section selection, enforce hard gates, then run verifiers (M13; fail-fast; local-only).',
-    zodSchema: HepRunWritingSubmitSectionJudgeDecisionV1ToolSchema,
-    handler: async params => {
-      const { submitRunWritingSectionJudgeDecisionV1 } = await import('../core/writing/sectionJudge.js');
-      return submitRunWritingSectionJudgeDecisionV1({
-        run_id: params.run_id,
-        section_index: params.section_index,
-        judge_decision_uri: params.judge_decision_uri,
-        client_model: params.client_model,
-        temperature: params.temperature,
-        seed: params.seed,
-        quality_eval: params.quality_eval,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Create a PaperSetCuration prompt_packet artifact for client paperset planning (Evidence-first; writes run artifact; local-only).',
-    zodSchema: HepRunWritingCreatePapersetCurationPacketToolSchema,
-    handler: async params => {
-      const { createRunWritingPaperSetCurationPacket } = await import('../core/writing/papersetCurationPacket.js');
-      return createRunWritingPaperSetCurationPacket({
-        run_id: params.run_id,
-        language: params.language,
-        target_length: params.target_length,
-        title: params.title,
-        topic: params.topic,
-        structure_hints: params.structure_hints,
-        seed_identifiers: params.seed_identifiers,
-        candidate_pool_artifact_name: params.candidate_pool_artifact_name,
-        output_artifact_name: params.output_artifact_name,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Submit a client-generated PaperSetCuration into run artifacts (fail-fast validated; writes writing_paperset_v1.json; local-only).',
-    zodSchema: HepRunWritingSubmitPapersetCurationToolSchema,
-    handler: async params => {
-      const { submitRunWritingPaperSetCuration } = await import('../core/writing/submitPapersetCuration.js');
-      return submitRunWritingPaperSetCuration({
-        run_id: params.run_id,
-        paperset: params.paperset,
-        paperset_uri: params.paperset_uri,
-        paperset_artifact_name: params.paperset_artifact_name,
-        prompt_packet_artifact_name: params.prompt_packet_artifact_name,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Create an N-best outline candidates prompt_packet + next_actions (M13; N>=2 hard requirement; Evidence-first; fail-fast; local-only).',
-    zodSchema: HepRunWritingCreateOutlineCandidatesPacketV1ToolSchema,
-    handler: async params => {
-      const { createRunWritingOutlineCandidatesPacketV1 } = await import('../core/writing/outlineCandidates.js');
-      return createRunWritingOutlineCandidatesPacketV1({
-        run_id: params.run_id,
-        language: params.language,
-        target_length: params.target_length,
-        title: params.title,
-        topic: params.topic,
-        structure_hints: params.structure_hints,
-        user_outline: params.user_outline,
-        claims_table_artifact_name: params.claims_table_artifact_name,
-        n_candidates: params.n_candidates,
-        variation_strategy: params.variation_strategy,
-        temperatures: params.temperatures,
-        seeds: params.seeds,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_SUBMIT_OUTLINE_CANDIDATES_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Submit N-best outline candidates (strict validation; writes writing_candidates_outline_v1.json; fail-fast; local-only).',
-    zodSchema: HepRunWritingSubmitOutlineCandidatesV1ToolSchema,
-    handler: async params => {
-      const { submitRunWritingOutlineCandidatesV1 } = await import('../core/writing/outlineCandidates.js');
-      return submitRunWritingOutlineCandidatesV1({
-        run_id: params.run_id,
-        candidates: params.candidates,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Create a Judge prompt_packet for selecting the best outline candidate (M13; hard gates; Evidence-first; fail-fast; local-only).',
-    zodSchema: HepRunWritingCreateOutlineJudgePacketV1ToolSchema,
-    handler: async params => {
-      const { createRunWritingOutlineJudgePacketV1 } = await import('../core/writing/outlineJudge.js');
-      return createRunWritingOutlineJudgePacketV1({
-        run_id: params.run_id,
-        candidates_uri: params.candidates_uri,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Submit a client-generated JudgeDecision for outline selection, enforce hard gates, then write writing_outline_v2.json (M13; fail-fast; local-only).',
-    zodSchema: HepRunWritingSubmitOutlineJudgeDecisionV1ToolSchema,
-    handler: async params => {
-      const { submitRunWritingOutlineJudgeDecisionV1 } = await import('../core/writing/outlineJudge.js');
-      return submitRunWritingOutlineJudgeDecisionV1({
-        run_id: params.run_id,
-        judge_decision_uri: params.judge_decision_uri,
-        client_model: params.client_model,
-        temperature: params.temperature,
-        seed: params.seed,
-      });
-    },
-  },
-  {
     name: HEP_RUN_BUILD_WRITING_EVIDENCE,
     tier: 'core',
     exposure: 'standard',
     description:
-      'Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; optional PDF evidence; Evidence-first, local-only). NOT FOR end-to-end manuscript drafting; use inspire_deep_research(mode=write) for full writing orchestration.',
+      'Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; optional PDF evidence; Evidence-first, local-only).',
     zodSchema: HepRunBuildWritingEvidenceToolSchema,
     handler: async (params, ctx) => {
       const { buildRunWritingEvidence } = await import('../core/writing/evidence.js');
@@ -1827,29 +1212,6 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         include_not_comparable: params.include_not_comparable,
         output_artifact_name: params.output_artifact_name,
         budget_hints: { max_flags_provided: maxFlagsProvided },
-      });
-    },
-  },
-  {
-    name: HEP_RUN_BUILD_WRITING_CRITICAL,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Build writing-critical artifacts for a run: conflicts.json, stance.jsonl, evidence_grades.json, and a summary (Evidence-first, local-only)',
-    zodSchema: HepRunBuildWritingCriticalToolSchema,
-    handler: async params => {
-      const { buildRunWritingCritical } = await import('../core/writing/critical.js');
-      return buildRunWritingCritical({
-        run_id: params.run_id,
-        recids: params.recids,
-        claims_artifact_name: params.claims_artifact_name,
-        conflicts_artifact_name: params.conflicts_artifact_name,
-        stance_artifact_name: params.stance_artifact_name,
-        evidence_grades_artifact_name: params.evidence_grades_artifact_name,
-        summary_artifact_name: params.summary_artifact_name,
-        min_tension_sigma: params.min_tension_sigma,
-        target_quantities: params.target_quantities,
-        include_tables: params.include_tables,
       });
     },
   },
@@ -2006,95 +1368,6 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         }
         throw err;
       }
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_SUBMIT_REVIEW,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Submit a client-generated reviewer report for a completed run write (Evidence-first: writes run artifacts; local-only).',
-    zodSchema: HepRunWritingSubmitReviewToolSchema,
-    handler: async params => {
-      const { submitRunWritingReview } = await import('../core/writing/submitReview.js');
-      return submitRunWritingReview({
-        run_id: params.run_id,
-        round: params.round,
-        reviewer_report: params.reviewer_report,
-        reviewer_report_uri: params.reviewer_report_uri,
-        client_model: params.client_model,
-        temperature: params.temperature,
-        seed: params.seed,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Create a RevisionPlanV1 prompt_packet for client revision planning (requires ReviewerReport v2; Evidence-first; local-only).',
-    zodSchema: HepRunWritingCreateRevisionPlanPacketV1ToolSchema,
-    handler: async params => {
-      const { createRunWritingRevisionPlanPacketV1 } = await import('../core/writing/revisionPlanPacket.js');
-      return createRunWritingRevisionPlanPacketV1({
-        reviewer_report_uri: params.reviewer_report_uri,
-        manifest_uri: params.manifest_uri,
-        quality_policy_uri: params.quality_policy_uri,
-        round: params.round,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Submit a client-generated RevisionPlan v1 into run artifacts (fail-fast validated; writes writing_revision_plan_round_XX_v1.json; local-only).',
-    zodSchema: HepRunWritingSubmitRevisionPlanV1ToolSchema,
-    handler: async params => {
-      const { submitRunWritingRevisionPlanV1 } = await import('../core/writing/submitRevisionPlan.js');
-      return submitRunWritingRevisionPlanV1({
-        run_id: params.run_id,
-        revision_plan: params.revision_plan,
-        revision_plan_uri: params.revision_plan_uri,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Advance one writing refinement round state machine step (Review → RevisionPlan → Execute → Re-verify → Integrate → Repeat) (Evidence-first; fail-fast; local-only).',
-    zodSchema: HepRunWritingRefinementOrchestratorV1ToolSchema,
-    handler: async params => {
-      const { advanceRunWritingRefinementOrchestratorV1 } = await import('../core/writing/refinementOrchestrator.js');
-      return advanceRunWritingRefinementOrchestratorV1({
-        run_id: params.run_id,
-        round: params.round,
-        reviewer_report_uri: params.reviewer_report_uri,
-        revision_plan_uri: params.revision_plan_uri,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Integrate run writing_section_*.json into writing_integrated.tex + diagnostics and run LaTeX compile gate (fail-fast; Evidence-first; local-only).',
-    zodSchema: HepRunWritingIntegrateSectionsV1ToolSchema,
-    handler: async params => {
-      const { integrateWritingSections } = await import('../core/writing/integrate.js');
-      return integrateWritingSections({
-        run_id: params.run_id,
-        fix_unused_materials: params.fix_unused_materials,
-        add_cross_references: params.add_cross_references,
-        unify_terminology: params.unify_terminology,
-        final_polish: params.final_polish,
-        max_retries: params.max_retries,
-      });
     },
   },
   {
@@ -2257,93 +1530,6 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
           max_pages_provided: maxPagesProvided,
           max_regions_total_provided: maxRegionsTotalProvided,
         },
-      });
-    },
-  },
-  {
-    name: HEP_RUN_BUILD_EVIDENCE_INDEX_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Build LaTeX EvidenceChunks + BM25 index for a run (fail-fast; no PDF fallback) and write artifacts (Evidence-first)',
-    zodSchema: HepRunBuildEvidenceIndexV1ToolSchema,
-    handler: async params => {
-      const { buildRunEvidenceIndexV1 } = await import('../core/writing/evidenceIndex.js');
-      return buildRunEvidenceIndexV1({
-        run_id: params.run_id,
-        paper_ids: params.paper_ids,
-        output_artifact_name: params.output_artifact_name,
-        metrics_artifact_name: params.metrics_artifact_name,
-        paper_cache_prefix: params.paper_cache_prefix,
-        force_rebuild: params.force_rebuild,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Build per-section retrieval candidates, run LLM rerank (client/internal), and write `writing_evidence_packet_section_###_v2.json` (fail-fast; no BM25 fallback; Evidence-first).',
-    zodSchema: HepRunWritingBuildEvidencePacketSectionV2ToolSchema,
-    handler: async params => {
-      const { buildRunWritingEvidencePacketSectionV2 } = await import('../core/writing/evidenceSelection.js');
-      return buildRunWritingEvidencePacketSectionV2({
-        run_id: params.run_id,
-        section_index: params.section_index,
-        llm_mode: params.llm_mode,
-        evidence_index_artifact_name: params.evidence_index_artifact_name,
-        outline_artifact_name: params.outline_artifact_name,
-        claims_table_artifact_name: params.claims_table_artifact_name,
-        max_queries: params.max_queries,
-        section_title: params.section_title,
-        section_type: params.section_type,
-        queries: params.queries,
-        claim_ids: params.claim_ids,
-        token_budget_plan_artifact_name: params.token_budget_plan_artifact_name,
-        max_context_tokens: params.max_context_tokens,
-        reserved_output_tokens: params.reserved_output_tokens,
-        safety_margin_tokens: params.safety_margin_tokens,
-        top_k_per_query: params.top_k_per_query,
-        max_candidates: params.max_candidates,
-        rerank_top_k: params.rerank_top_k,
-        rerank_output_top_n: params.rerank_output_top_n,
-        max_chunk_chars: params.max_chunk_chars,
-        max_selected_chunks: params.max_selected_chunks,
-        max_total_tokens: params.max_total_tokens,
-        max_chunks_per_source: params.max_chunks_per_source,
-        min_sources: params.min_sources,
-        min_per_query: params.min_per_query,
-        output_candidates_artifact_name: params.output_candidates_artifact_name,
-        output_rerank_packet_artifact_name: params.output_rerank_packet_artifact_name,
-        output_rerank_prompt_artifact_name: params.output_rerank_prompt_artifact_name,
-        output_rerank_raw_artifact_name: params.output_rerank_raw_artifact_name,
-        output_rerank_result_artifact_name: params.output_rerank_result_artifact_name,
-        output_packet_artifact_name: params.output_packet_artifact_name,
-      });
-    },
-  },
-  {
-    name: HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Submit client LLM rerank indices (for a previously generated rerank packet) and write `writing_rerank_result_section_###_v1.json` + `writing_evidence_packet_section_###_v2.json` (fail-fast; no BM25 fallback; Evidence-first).',
-    zodSchema: HepRunWritingSubmitRerankResultV1ToolSchema,
-    handler: async params => {
-      const { submitRunWritingRerankResultV1 } = await import('../core/writing/evidenceSelection.js');
-      return submitRunWritingRerankResultV1({
-        run_id: params.run_id,
-        section_index: params.section_index,
-        rerank_packet_artifact_name: params.rerank_packet_artifact_name,
-        ranked_indices: params.ranked_indices,
-        token_budget_plan_artifact_name: params.token_budget_plan_artifact_name,
-        max_context_tokens: params.max_context_tokens,
-        reserved_output_tokens: params.reserved_output_tokens,
-        safety_margin_tokens: params.safety_margin_tokens,
-        output_rerank_raw_artifact_name: params.output_rerank_raw_artifact_name,
-        output_rerank_result_artifact_name: params.output_rerank_result_artifact_name,
-        output_packet_artifact_name: params.output_packet_artifact_name,
       });
     },
   },
@@ -2712,7 +1898,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
     intent: 'paper_discovery',
     maturity: 'stable',
     description:
-      'Unified research navigation tool (network). Modes: discover/field_survey/topic_analysis/network/experts/connections/trace_source/analyze. NOT FOR deep write pipeline; use inspire_deep_research(mode=write) for full writing orchestration.',
+      'Unified research navigation tool (network). Modes: discover/field_survey/topic_analysis/network/experts/connections/trace_source/analyze.',
     zodSchema: ResearchNavigatorToolSchema,
     handler: async params => {
       const result = await (async () => {
@@ -2915,7 +2101,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
     tier: 'consolidated',
     exposure: 'standard',
     description:
-      'End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize/write. write mode is Evidence-first via `run_id` (writes artifacts/URIs; network) and supports resume via `resume_from`. NOT FOR lightweight discovery-only requests; use inspire_research_navigator for discovery workflows.',
+      'End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize. NOT FOR lightweight discovery-only requests; use inspire_research_navigator for discovery workflows.',
     zodSchema: DeepResearchToolSchema,
     handler: async (params, ctx) => {
       const { performDeepResearch } = await import('./research/deepResearch.js');
@@ -2960,7 +2146,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
         };
       }
 
-      // NEW-CONN-01: mode=analyze (no run_id) → suggest synthesize/write with run_id hint
+      // NEW-CONN-01: mode=analyze (no run_id) → suggest synthesize with run_id hint
       if (params.mode === 'analyze') {
         return withNextActions(result, deepResearchAnalyzeNextActions(params.identifiers));
       }

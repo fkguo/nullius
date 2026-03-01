@@ -1,8 +1,5 @@
 /**
  * LaTeX text stripping utilities for HEP content.
- *
- * Extracted from tools/writing/rag/hepTokenizer.ts for use by KEEP modules
- * (figureExtractor, tableExtractor) without depending on the writing pipeline.
  */
 
 export function stripLatexPreserveHEP(latex: string): string {

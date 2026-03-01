@@ -2,7 +2,7 @@
 
 > **Created**: 2026-03-01
 > **Source**: `meta/docs/hep-mcp-restructuring-proposal.md` (R8 converged)
-> **Status**: BATCH 1 COMPLETE
+> **Status**: BATCH 2 COMPLETE
 
 ## Baseline Snapshot
 
@@ -42,20 +42,25 @@
 
 ## Batch 2: Writing Pipeline Deletion (medium risk)
 
-**Session**: _not started_
-**Commit**: _pending_
+**Session**: 2026-03-01
+**Commit**: `16b32be`
 
-- [ ] 1. Remove `mode='write'` from `deepResearch.ts` + ~50 writing imports
-- [ ] 2. Delete `llm/deepWriterAgent.ts` + remove re-export from `llm/index.ts`
-- [ ] 3. Delete `core/writing/` 32 files (keep: renderLatex, latexCompileGate, draftSchemas, staging, evidence, writingTypes)
-- [ ] 4. Delete `tools/writing/` except `llm/` and `types.ts`
-- [ ] 5. Remove ~28 writing tool registrations from `registry.ts`
-- [ ] 6. Remove writing schema/handler imports from `registry.ts` (preserve citation mapping params)
-- [ ] 7. `pnpm -r build` passes
+- [x] 1. Remove `mode='write'` from `deepResearch.ts` + ~50 writing imports
+- [x] 2. Delete `llm/deepWriterAgent.ts` + remove re-export from `llm/index.ts`
+- [x] 3. Delete `core/writing/` 32 files (keep: renderLatex, latexCompileGate, draftSchemas, staging, evidence, writingTypes)
+- [x] 4. Delete `tools/writing/` except `llm/` and `types.ts`
+- [x] 5. Remove ~22 writing tool registrations from `registry.ts`
+- [x] 6. Remove writing schema/handler imports from `registry.ts` (preserve citation mapping params)
+- [x] 7. `pnpm -r build` passes
 
-**Build gate**: _pending_
-**Review**: _pending_
-**Deviations**: _none_
+**Build gate**: PASS (0 errors, all 11 packages)
+**Review**: R1 CONVERGED — Codex 0 BLOCKING / 1 NON-BLOCKING (stale comment, fixed), Gemini Approved / 2 findings (both already fixed before review completed)
+**Deviations**:
+- Steps 5-6 combined: removed 22 tool registrations, ~15 schema definitions, ~5 dead schema imports, ~22 shared constants. Cleaned `mode=write` references from tool descriptions (HEP_RUN_BUILD_WRITING_EVIDENCE, INSPIRE_RESEARCH_NAVIGATOR).
+- Step 1: deepResearch.ts rewritten from 2808→121 lines. Also cleaned discoveryHints.ts (removed write mode suggestion).
+- Step 3: Also removed `ideaToOutline.ts` from core/writing/ (discovered as dead code).
+- Step 4: Also removed `llm/services/`, `llm/prompts/`, `llm/reranker/` subdirectories.
+- Additional: Fixed stale `mode: 'write'` next_actions in `latexCompileGate.ts`, stale `HEP_RUN_BUILD_EVIDENCE_INDEX_V1` in `create-from-idea.ts`, stale comment in `registry.ts`.
 
 ---
 

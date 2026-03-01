@@ -11,7 +11,6 @@ import {
   invalidParams,
   INSPIRE_SEARCH,
   HEP_PROJECT_BUILD_EVIDENCE,
-  HEP_RUN_BUILD_EVIDENCE_INDEX_V1,
   McpError,
 } from '@autoresearch/shared';
 import { createProject } from '../core/projects.js';
@@ -177,10 +176,6 @@ export function createFromIdea(params: CreateFromIdeaParams): CreateFromIdeaResu
       {
         tool: HEP_PROJECT_BUILD_EVIDENCE,
         reason: 'Build evidence catalog after importing papers into the project.',
-      },
-      {
-        tool: HEP_RUN_BUILD_EVIDENCE_INDEX_V1,
-        reason: 'Build BM25 evidence index after evidence catalog is populated.',
       },
     ],
   };

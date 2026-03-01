@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import {
-  INSPIRE_DEEP_RESEARCH,
+  HEP_RUN_BUILD_CITATION_MAPPING,
   invalidParams,
 } from '@autoresearch/shared';
 
@@ -162,7 +162,7 @@ export async function compileRunLatexOrThrow(params: {
       run_id: runId,
       bib_artifact_name: bibName,
       next_actions: [
-        { tool: INSPIRE_DEEP_RESEARCH, args: { mode: 'write', run_id: runId, resume_from: 'claims' }, reason: 'Ensure writing_master.bib is generated from ReferenceManager.' },
+        { tool: HEP_RUN_BUILD_CITATION_MAPPING, args: { run_id: runId, identifier: '<paper-identifier>' }, reason: 'Build citation mapping to generate writing_master.bib.' },
       ],
     });
   }
