@@ -8,7 +8,7 @@ import type { LatexAst, LatexNode, Locator } from './parser.js';
 import { extractText } from './sectionExtractor.js';
 import { nodeToLocator } from './locator.js';
 import { stringifyLatexNodes } from './astStringify.js';
-import { stripLatexPreserveHEP } from '../../writing/rag/hepTokenizer.js';
+import { stripLatexPreserveHEP } from '../../../utils/latex.js';
 
 // Use latexParser's find
 const { find } = latexParser;

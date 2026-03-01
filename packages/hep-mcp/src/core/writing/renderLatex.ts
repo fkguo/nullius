@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import {
   HEP_RENDER_LATEX,
-  HEP_RUN_BUILD_CITATION_MAPPING,
   invalidParams,
 } from '@autoresearch/shared';
 
@@ -9,8 +8,7 @@ import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunM
 import { getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 
-import { verifyCitations } from '../../tools/writing/verifier/citationVerifier.js';
-import type { SentenceAttribution, SentenceType } from '../../tools/writing/types.js';
+import type { SentenceAttribution, SentenceType } from './writingTypes.js';
 
 import type { ReportDraft, SectionDraft, SentenceDraft } from './draftSchemas.js';
 
@@ -35,16 +33,6 @@ function normalizeRecidToken(token: string): string {
   const m = t.match(/^(?:inspire:)?(\d+)$/);
   if (!m) throw invalidParams(`Invalid recid token: ${token}`);
   return m[1];
-}
-
-function normalizeAllowedCitationsInput(input: unknown): string[] {
-  if (Array.isArray(input)) {
-    return input.map(v => String(v).trim()).filter(Boolean);
-  }
-  if (isRecord(input) && Array.isArray(input.allowed_citations)) {
-    return input.allowed_citations.map(v => String(v).trim()).filter(Boolean);
-  }
-  throw invalidParams('allowed_citations must be an array of strings or an artifact object with allowed_citations[]');
 }
 
 function normalizeCiteMappingInput(input: unknown): CitekeyToInspireMappings {
@@ -83,26 +71,6 @@ function selectCitationKey(recid: string, recidToCitekeys: Map<string, string[]>
   if (Array.isArray(keys) && keys.length > 0) return keys[0];
   // Fallback keeps LaTeX key stable even if bibliography mapping is incomplete.
   return `inspire:${recid}`;
-}
-
-function expandAllowedCitations(allowed: string[], recidToCitekeys: Map<string, string[]>): string[] {
-  const out = new Set<string>();
-  for (const raw of allowed) {
-    const token = String(raw).trim();
-    if (!token) continue;
-    out.add(token);
-
-    const m = token.match(/^(?:inspire:)?(\d+)$/);
-    if (!m) continue;
-
-    const recid = m[1];
-    out.add(recid);
-    out.add(`inspire:${recid}`);
-    for (const citekey of recidToCitekeys.get(recid) ?? []) {
-      out.add(citekey);
-    }
-  }
-  return Array.from(out).sort((a, b) => a.localeCompare(b));
 }
 
 function sentenceTypeOrDefault(value: unknown): SentenceType {
@@ -251,11 +219,9 @@ function mergeArtifactRefs(existing: RunStep['artifacts'] | undefined, added: Ru
 export async function renderLatexForRun(params: {
   run_id: string;
   draft: SectionDraft | ReportDraft;
-  allowed_citations?: unknown;
   cite_mapping?: unknown;
   latex_artifact_name: string;
   section_output_artifact_name: string;
-  verification_artifact_name: string;
 }): Promise<{
   run_id: string;
   project_id: string;
@@ -264,7 +230,6 @@ export async function renderLatexForRun(params: {
   summary: {
     sentences: number;
     total_citations: number;
-    verifier_pass: boolean;
   };
 }> {
   const run = getRun(params.run_id);
@@ -290,34 +255,6 @@ export async function renderLatexForRun(params: {
   const artifacts: RunArtifactRef[] = [];
 
   try {
-    const allowed = (() => {
-      if (params.allowed_citations !== undefined) return normalizeAllowedCitationsInput(params.allowed_citations);
-
-      const p = getRunArtifactPath(params.run_id, 'allowed_citations_v1.json');
-      if (!fs.existsSync(p)) {
-        throw invalidParams(
-          'Citation allowlist not found. Run hep_run_build_citation_mapping to generate allowed_citations_v1.json, or pass allowed_citations directly.',
-          {
-            run_id: params.run_id,
-            artifact_name: 'allowed_citations_v1.json',
-            next_actions: [
-              {
-                tool: HEP_RUN_BUILD_CITATION_MAPPING,
-                args: {
-                  run_id: params.run_id,
-                  identifier: '<arXiv/DOI/recid>',
-                  allowed_citations_primary: ['<inspire_recid>'],
-                  include_mapped_references: true,
-                },
-                reason: 'Build allowlist + citekey mapping artifacts for citation verification.',
-              },
-            ],
-          }
-        );
-      }
-      return normalizeAllowedCitationsInput(readJsonFile(p));
-    })();
-
     const citeMappings = (() => {
       if (params.cite_mapping !== undefined) return normalizeCiteMappingInput(params.cite_mapping);
 
@@ -327,7 +264,6 @@ export async function renderLatexForRun(params: {
     })();
 
     const recidToCitekeys = buildRecidToCitekeys(citeMappings);
-    const expandedAllowed = expandAllowedCitations(allowed, recidToCitekeys);
 
     const rendered = renderDraft({ draft: params.draft, recidToCitekeys });
 
@@ -336,13 +272,6 @@ export async function renderLatexForRun(params: {
       content: rendered.latex,
       attributions: rendered.attributions,
     };
-
-    const verificationRaw = verifyCitations({
-      section_output: sectionOutput,
-      claims_table: {},
-      allowed_citations: expandedAllowed,
-    });
-    const verification = { version: 1, ...verificationRaw };
 
     const latexRef = writeRunTextArtifact(
       params.run_id,
@@ -355,66 +284,7 @@ export async function renderLatexForRun(params: {
     const sectionOutputRef = writeRunJsonArtifact(params.run_id, params.section_output_artifact_name, sectionOutput);
     artifacts.push(sectionOutputRef);
 
-    const verificationRef = writeRunJsonArtifact(params.run_id, params.verification_artifact_name, verification);
-    artifacts.push(verificationRef);
-
-    if (!verification.pass) {
-      const completedAt = new Date().toISOString();
-      await updateRunManifestAtomic({
-        run_id: params.run_id,
-        tool: { name: HEP_RENDER_LATEX, args: { run_id: params.run_id } },
-        update: current => {
-          const idx = current.steps[stepIndex]?.step === stepName && current.steps[stepIndex]?.started_at === startedAt
-            ? stepIndex
-            : current.steps.findIndex(s => s.step === stepName && s.started_at === startedAt);
-          if (idx < 0) {
-            throw invalidParams('Internal: unable to locate run step for completion (fail-fast)', { run_id: params.run_id, step: stepName, started_at: startedAt });
-          }
-          const merged = mergeArtifactRefs(current.steps[idx]?.artifacts, artifacts);
-          const step: RunStep = {
-            ...current.steps[idx]!,
-            status: 'failed',
-            started_at: current.steps[idx]!.started_at ?? startedAt,
-            completed_at: completedAt,
-            artifacts: merged,
-            notes: 'citation verification failed',
-          };
-          const next: RunManifest = {
-            ...current,
-            updated_at: completedAt,
-            steps: current.steps.map((s, i) => (i === idx ? step : s)),
-          };
-          return { ...next, status: computeRunStatus(next) };
-        },
-      });
-
-      const unauthorizedIssue = verification.issues.find(issue => issue.type === 'unauthorized_citation');
-      if (unauthorizedIssue?.citation) {
-        throw invalidParams(`Citation '${unauthorizedIssue.citation}' not in allowlist. Run hep_run_build_citation_mapping to rebuild.`, {
-          verification_uri: verificationRef.uri,
-          issues: verification.issues,
-          statistics: verification.statistics,
-          next_actions: [
-            {
-              tool: HEP_RUN_BUILD_CITATION_MAPPING,
-              args: {
-                run_id: params.run_id,
-                identifier: '<arXiv/DOI/recid>',
-                allowed_citations_primary: ['<inspire_recid>'],
-                include_mapped_references: true,
-              },
-              reason: 'Rebuild allowlist + citekey mapping artifacts, then rerun citation verification.',
-            },
-          ],
-        });
-      }
-
-      throw invalidParams('Citation verification failed (missing/unauthorized/orphan citations)', {
-        verification_uri: verificationRef.uri,
-        issues: verification.issues,
-        statistics: verification.statistics,
-      });
-    }
+    const totalCitations = rendered.attributions.reduce((sum, a) => sum + a.citations.length, 0);
 
     const completedAt = new Date().toISOString();
     await updateRunManifestAtomic({
@@ -451,8 +321,7 @@ export async function renderLatexForRun(params: {
       artifacts,
       summary: {
         sentences: rendered.attributions.length,
-        total_citations: verification.statistics.total_citations,
-        verifier_pass: verification.pass,
+        total_citations: totalCitations,
       },
     };
   } catch (err) {

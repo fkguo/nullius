@@ -368,18 +368,6 @@ function tryReadRunArtifactText(runId: string, artifactName: string): string | n
   return fs.readFileSync(p, 'utf-8');
 }
 
-function readRunArtifactJson<T>(runId: string, artifactName: string): T {
-  const raw = readRunArtifactText(runId, artifactName);
-  try {
-    return JSON.parse(raw) as T;
-  } catch (err) {
-    throw invalidParams(`Invalid JSON run artifact: ${artifactName}`, {
-      run_id: runId,
-      artifact_name: artifactName,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
 
 function tryReadRunArtifactJson<T>(runId: string, artifactName: string): T | null {
   const raw = tryReadRunArtifactText(runId, artifactName);
@@ -434,9 +422,9 @@ export async function exportProjectForRun(params: {
     const citeKeys = extractCiteKeysFromLatex(latexBody);
 
     const renderedLatexVerificationName = params.rendered_latex_verification_artifact_name ?? 'rendered_latex_verification.json';
-    const renderedLatexVerification = readRunArtifactJson<any>(runId, renderedLatexVerificationName);
-    const renderedLatexVerificationText = JSON.stringify(renderedLatexVerification, null, 2);
-    const renderedLatexVerificationRef = makeRunArtifactRef(runId, renderedLatexVerificationName, 'application/json');
+    const renderedLatexVerification = tryReadRunArtifactJson<any>(runId, renderedLatexVerificationName);
+    const renderedLatexVerificationText = renderedLatexVerification ? JSON.stringify(renderedLatexVerification, null, 2) : null;
+    const renderedLatexVerificationRef = renderedLatexVerification ? makeRunArtifactRef(runId, renderedLatexVerificationName, 'application/json') : null;
 
     const bibliographyName = params.bibliography_raw_artifact_name ?? 'bibliography_raw_v1.json';
     const bibRawByKey = tryReadBibliographyRawEntries(runId, bibliographyName);
@@ -610,7 +598,7 @@ export async function exportProjectForRun(params: {
       };
     })();
 
-    const citationsPass = renderedLatexVerification?.pass === true;
+    const citationsPass = renderedLatexVerification ? renderedLatexVerification.pass === true : undefined;
     const stats = renderedLatexVerification?.statistics ?? {};
     const orphanCount = typeof stats.orphan_count === 'number' ? stats.orphan_count : undefined;
     const unauthorizedCount = typeof stats.unauthorized_count === 'number' ? stats.unauthorized_count : undefined;
@@ -642,9 +630,11 @@ export async function exportProjectForRun(params: {
           ? 'Dataset complete'
           : 'Dataset unknown',
       evidenceSummary,
-      citationsPass
+      citationsPass === true
         ? 'Verifier pass'
-        : `Verifier failed (unauthorized=${unauthorizedCount ?? 'unknown'}, orphan=${orphanCount ?? 'unknown'}, missing=${missingCount ?? 'unknown'})`,
+        : citationsPass === false
+          ? `Verifier failed (unauthorized=${unauthorizedCount ?? 'unknown'}, orphan=${orphanCount ?? 'unknown'}, missing=${missingCount ?? 'unknown'})`
+          : 'Verifier: N/A',
     ].join('; ') + '.';
 
     const coverageReport = {
@@ -672,7 +662,7 @@ export async function exportProjectForRun(params: {
         warnings: Array.isArray(evidenceMeta?.warnings) ? evidenceMeta.warnings.map((w: any) => String(w)) : undefined,
       },
       citations: {
-        verification_artifact: renderedLatexVerificationName,
+        verification_artifact: renderedLatexVerification ? renderedLatexVerificationName : undefined,
         pass: citationsPass,
         total_citations: totalCitations,
         orphan_count: orphanCount,
@@ -691,7 +681,7 @@ export async function exportProjectForRun(params: {
 
     const coverageReportName = 'coverage_report.json';
     artifacts.push(writeRunJsonArtifact(runId, coverageReportName, coverageReport));
-    artifacts.push(renderedLatexVerificationRef);
+    if (renderedLatexVerificationRef) artifacts.push(renderedLatexVerificationRef);
     if (writingMasterBibRef) artifacts.push(writingMasterBibRef);
 
     // Evidence digests (optional): collect from run catalogs + project paper catalogs.
@@ -851,7 +841,7 @@ export async function exportProjectForRun(params: {
         ...(writingMasterBibText ? { writing_master_bib: writingMasterBibName } : {}),
         report_tex: reportTexName,
         report_md: reportMdName,
-        rendered_latex_verification: renderedLatexVerificationName,
+        ...(renderedLatexVerification ? { rendered_latex_verification: renderedLatexVerificationName } : {}),
         coverage_report: coverageReportName,
         run_manifest: runManifestArtifactName,
         notebooklm_pack: [...notebookFiles.map(f => f.name), notebookRunManifestName],
@@ -921,7 +911,9 @@ export async function exportProjectForRun(params: {
     zipEntries['master.bib'] = strToU8(masterBib.content);
     zipEntries['report.tex'] = strToU8(reportTex);
     zipEntries['report.md'] = strToU8(reportMd);
-    zipEntries['rendered_latex_verification.json'] = strToU8(renderedLatexVerificationText);
+    if (renderedLatexVerificationText) {
+      zipEntries['rendered_latex_verification.json'] = strToU8(renderedLatexVerificationText);
+    }
     zipEntries['coverage_report.json'] = strToU8(JSON.stringify(coverageReport, null, 2));
     if (writingMasterBibText) {
       zipEntries['writing_master.bib'] = strToU8(writingMasterBibText);

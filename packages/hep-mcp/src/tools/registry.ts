@@ -68,14 +68,6 @@ import {
   INSPIRE_ANALYZE_CITATION_STANCE,
   INSPIRE_CLEANUP_DOWNLOADS,
   INSPIRE_VALIDATE_BIBLIOGRAPHY,
-  INSPIRE_STYLE_CORPUS_QUERY,
-  INSPIRE_STYLE_CORPUS_INIT_PROFILE,
-  INSPIRE_STYLE_CORPUS_BUILD_MANIFEST,
-  INSPIRE_STYLE_CORPUS_DOWNLOAD,
-  INSPIRE_STYLE_CORPUS_BUILD_EVIDENCE,
-  INSPIRE_STYLE_CORPUS_BUILD_INDEX,
-  INSPIRE_STYLE_CORPUS_EXPORT_PACK,
-  INSPIRE_STYLE_CORPUS_IMPORT_PACK,
   TOOL_RISK_LEVELS,
   type ToolRiskLevel,
 } from '@autoresearch/shared';
@@ -83,16 +75,6 @@ import * as api from '../api/client.js';
 import { formatExpertsMarkdown } from '../utils/formatters.js';
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import { discoveryNextActions, deepResearchAnalyzeNextActions, withNextActions } from './utils/discoveryHints.js';
-import {
-  StyleCorpusInitProfileToolSchema,
-  StyleCorpusBuildManifestToolSchema,
-  StyleCorpusDownloadToolSchema,
-  StyleCorpusBuildEvidenceToolSchema,
-  StyleCorpusBuildIndexToolSchema,
-  StyleCorpusQueryToolSchema,
-  StyleCorpusExportPackToolSchema,
-  StyleCorpusImportPackToolSchema,
-} from './writing/inputSchemas.js';
 import { createProject, getProject, listProjects } from '../core/projects.js';
 import { createRun, getRun, updateRunManifestAtomic, type RunArtifactRef, type RunManifest } from '../core/runs.js';
 import { buildAllowedCitationsArtifact, buildCitekeyToInspireStats, writeRunJsonArtifact } from '../core/citations.js';
@@ -114,7 +96,7 @@ import { buildRunMeasurements } from '../core/hep/measurements.js';
 import { compareProjectMeasurements } from '../core/hep/compareMeasurements.js';
 import { hepImportFromZotero } from '../core/zotero/tools.js';
 import { getHepHealth } from './utils/health.js';
-import { extractKeyFromBibtex } from './writing/reference/bibtexUtils.js';
+import { extractKeyFromBibtex } from '../utils/bibtex.js';
 import {
   TimeRangeSchema,
 } from './research/schemas.js';
@@ -486,23 +468,12 @@ const CitekeyToInspireArtifactInputSchema = z
 
 const CiteMappingInputSchema = z.union([CitekeyToInspireMappingsSchema, CitekeyToInspireArtifactInputSchema]);
 
-const AllowedCitationsArtifactInputSchema = z
-  .object({
-    version: z.literal(1).optional(),
-    allowed_citations: z.array(z.string().min(1)),
-  })
-  .passthrough();
-
-const AllowedCitationsInputSchema = z.union([z.array(z.string().min(1)), AllowedCitationsArtifactInputSchema]);
-
 const HepRenderLatexToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   draft: z.union([SectionDraftSchema, ReportDraftSchema]),
-  allowed_citations: AllowedCitationsInputSchema.optional(),
   cite_mapping: CiteMappingInputSchema.optional(),
   latex_artifact_name: SafePathSegmentSchema.optional().default('rendered_latex.tex'),
   section_output_artifact_name: SafePathSegmentSchema.optional().default('rendered_section_output.json'),
-  verification_artifact_name: SafePathSegmentSchema.optional().default('rendered_latex_verification.json'),
 });
 
 const HepExportProjectToolSchema = z.object({
@@ -2131,16 +2102,14 @@ const _RAW_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'Render structured SectionDraft/ReportDraft into LaTeX, enforce allowed_citations via citation verifier, and write artifacts (Evidence-first, local-only)',
+      'Render structured SectionDraft/ReportDraft into LaTeX and write artifacts (Evidence-first, local-only)',
     zodSchema: HepRenderLatexToolSchema,
     handler: async params => renderLatexForRun({
       run_id: params.run_id,
       draft: params.draft,
-      allowed_citations: params.allowed_citations,
       cite_mapping: params.cite_mapping,
       latex_artifact_name: params.latex_artifact_name,
       section_output_artifact_name: params.section_output_artifact_name,
-      verification_artifact_name: params.verification_artifact_name,
     }),
   },
   {
@@ -3053,110 +3022,6 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
     },
   },
 
-  // Style corpus tools (RMP 起步; Evidence-first)
-  {
-    name: INSPIRE_STYLE_CORPUS_QUERY,
-    tier: 'writing',
-    exposure: 'standard',
-    description: `Query a journal style corpus (default: RMP) for style evidence (local-only).
-
-Evidence-first:
-- Writes a compact query result artifact to disk
-- Returns only {uri + summary} (read details via MCP resources)
-
-Note: Requires a built local corpus index (run \`inspire_style_corpus_build_index\` first).`,
-    zodSchema: StyleCorpusQueryToolSchema,
-    handler: async params => {
-      const { queryStyleCorpus } = await import('./writing/styleCorpusTools.js');
-      return queryStyleCorpus(params);
-    },
-  },
-  {
-    name: INSPIRE_STYLE_CORPUS_INIT_PROFILE,
-    tier: 'advanced',
-    exposure: 'full',
-    maturity: 'experimental',
-    description: 'Initialize a built-in style corpus profile on disk (local-only; Evidence-first)',
-    zodSchema: StyleCorpusInitProfileToolSchema,
-    handler: async params => {
-      const { initStyleCorpusProfile } = await import('./writing/styleCorpusTools.js');
-      return initStyleCorpusProfile(params);
-    },
-  },
-  {
-    name: INSPIRE_STYLE_CORPUS_BUILD_MANIFEST,
-    tier: 'advanced',
-    exposure: 'full',
-    maturity: 'experimental',
-    description:
-      'Build/extend a style corpus manifest from INSPIRE search results (incremental + deterministic; network).',
-    zodSchema: StyleCorpusBuildManifestToolSchema,
-    handler: async params => {
-      const { buildStyleCorpusManifest } = await import('./writing/styleCorpusTools.js');
-      return buildStyleCorpusManifest(params);
-    },
-  },
-  {
-    name: INSPIRE_STYLE_CORPUS_DOWNLOAD,
-    tier: 'advanced',
-    exposure: 'full',
-    maturity: 'experimental',
-    description: 'Download style corpus papers from arXiv (LaTeX preferred, PDF fallback; checkpointable; network).',
-    zodSchema: StyleCorpusDownloadToolSchema,
-    handler: async params => {
-      const { downloadStyleCorpus } = await import('./writing/styleCorpusTools.js');
-      return downloadStyleCorpus(params);
-    },
-  },
-  {
-    name: INSPIRE_STYLE_CORPUS_BUILD_EVIDENCE,
-    tier: 'advanced',
-    exposure: 'full',
-    maturity: 'experimental',
-    description:
-      'Build Docling-like LaTeX evidence catalogs for a style corpus (local compute; optional INSPIRE citation mapping when enabled; network optional).',
-    zodSchema: StyleCorpusBuildEvidenceToolSchema,
-    handler: async params => {
-      const { buildStyleCorpusEvidence } = await import('./writing/styleCorpusTools.js');
-      return buildStyleCorpusEvidence(params);
-    },
-  },
-  {
-    name: INSPIRE_STYLE_CORPUS_BUILD_INDEX,
-    tier: 'advanced',
-    exposure: 'full',
-    maturity: 'experimental',
-    description: 'Build hybrid retrieval index for a style corpus (local-only)',
-    zodSchema: StyleCorpusBuildIndexToolSchema,
-    handler: async params => {
-      const { buildStyleCorpusIndex } = await import('./writing/styleCorpusTools.js');
-      return buildStyleCorpusIndex(params);
-    },
-  },
-  {
-    name: INSPIRE_STYLE_CORPUS_EXPORT_PACK,
-    tier: 'advanced',
-    exposure: 'full',
-    maturity: 'experimental',
-    description: 'Export a style corpus pack (zip + sha256 manifest) for transfer to another machine (local-only)',
-    zodSchema: StyleCorpusExportPackToolSchema,
-    handler: async params => {
-      const { exportStyleCorpusPack } = await import('./writing/styleCorpusTools.js');
-      return exportStyleCorpusPack(params);
-    },
-  },
-  {
-    name: INSPIRE_STYLE_CORPUS_IMPORT_PACK,
-    tier: 'advanced',
-    exposure: 'full',
-    maturity: 'experimental',
-    description: 'Import a style corpus pack (zip + sha256 manifest) into HEP_DATA_DIR/corpora (local-only)',
-    zodSchema: StyleCorpusImportPackToolSchema,
-    handler: async params => {
-      const { importStyleCorpusPack } = await import('./writing/styleCorpusTools.js');
-      return importStyleCorpusPack(params);
-    },
-  },
   // NOTE: PDG tool specs are imported from `@autoresearch/pdg-mcp/tooling` (built output).
   // Keep a lightweight normalization here so the tool list remains clear even if the PDG package
   // has not been rebuilt yet in a workspace setting.
