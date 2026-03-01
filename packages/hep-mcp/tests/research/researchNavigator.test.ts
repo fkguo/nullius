@@ -285,10 +285,8 @@ describe('Research navigator facade', () => {
 
   it('getTools exposes maturity prefixes and NOT FOR clauses', () => {
     const standardDescriptions = getTools('standard').map(t => t.description);
-    const fullDescriptions = getTools('full').map(t => t.description);
 
     expect(standardDescriptions.some(d => d.startsWith('[Deprecated]'))).toBe(false);
-    expect(fullDescriptions.some(d => d.startsWith('[Experimental]'))).toBe(true);
     expect(standardDescriptions.some(d => /NOT FOR\b/i.test(d))).toBe(true);
 
     const facade = getToolSpecs('standard').find(s => s.name === 'inspire_research_navigator');

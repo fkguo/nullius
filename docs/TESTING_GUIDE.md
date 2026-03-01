@@ -102,7 +102,7 @@ EOF
 **预期**
 
 - 输出是一个数组，包含 `standard/full` 两种模式的 `tool_count` 与 `bad`。
-- `tool_count` 为正数（当前实现：`standard=72`，`full=84`；`HEP_ENABLE_ZOTERO=0` 时：`standard=64`，`full=76`；以后如有变化，以代码为准）。
+- `tool_count` 为正数（当前实现：`standard=56`，`full=72`；`HEP_ENABLE_ZOTERO=0` 时：`standard=48`，`full=64`；以后如有变化，以代码为准）。
 - 每个对象的 `bad` 都应为空数组（所有 tool 的 `inputSchema.type` 都应为 `"object"`）。
 
 ### 0.2 Zotero Local API（可选，但建议验收）
@@ -772,7 +772,7 @@ node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "
 
 **前提**
 
-- run 下已有 `writing_integrated.tex`（通常来自第 5 节的 `hep_run_writing_integrate_sections_v1`）。
+- run 下已有 `writing_integrated.tex`。
 - run 下已有 `writing_master.bib`（并且覆盖 `\\cite{...}` 需要的 citekeys；否则会 fail-fast）。
 
 **调用**
@@ -947,65 +947,18 @@ node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "
 ["1238419", "1258603", "627760", "1221245", "897836"]
 ```
 
-### 8.6 vNext 写作（推荐：`hep_*` 写作链）
+### 8.6 Draft Path 写作（`hep_render_latex` → `hep_export_project`）
 
-> 写作统一走 run artifacts（Evidence-first），不再提供 legacy 的非 run 写作入口。
+> 写作统一走 run artifacts（Evidence-first）。Draft Path 直接渲染 + 导出。
 
-最小 smoke test（Client Path）：
+最小 smoke test：
 
 1) 创建 project/run（见第 3 节）
-2) 生成写作 packets（`inspire_deep_research`，mode=`write`，必须带 `run_id`，`llm_mode=client`）：
+2) 准备 `SectionDraft` JSON（structured draft with sentences + recids）
+3) 渲染 LaTeX：`hep_render_latex`（传 draft + allowed_citations + cite_mapping）
+4) 导出：`hep_export_project`（生成 research_pack.zip + notebooklm_pack）
 
-```json
-{
-  "identifiers": ["1238419", "1258603", "627760", "1221245", "897836"],
-  "mode": "write",
-  "run_id": "<run_id>",
-  "options": { "topic": "X(3872) mini-review", "target_length": "short", "llm_mode": "client" }
-}
-```
-
-3) 为每个 section 生成并提交 N-best 候选（每节至少 2 个）：
-
-```json
-{
-  "tool": "hep_run_writing_create_section_candidates_packet_v1",
-  "args": { "run_id": "<run_id>", "section_index": 1 }
-}
-```
-
-按返回的 `next_actions`：
-- 用 `hep_run_stage_content(content_type='section_output')` 写入每个候选的 `SectionOutputSubmission` JSON
-- 用 `hep_run_writing_submit_section_candidates_v1` 提交候选集
-
-然后为该 section 进行 judge 选择（同样按 next_actions；通常是）：
-- `hep_run_writing_create_section_judge_packet_v1`
-- Host LLM 产出 `JudgeDecision` JSON（建议用 `hep_run_stage_content(content_type='judge_decision')` 写入）
-- `hep_run_writing_submit_section_judge_decision_v1`
-
-对 `writing_packets_sections.json` 中的每个 `section_index` 重复上述流程，直到所有 sections 都完成 judge 选择（生成 `writing_section_###.json`）。
-
-4) 推进 run-based 写作流水线（生成审稿 prompt / 等待审稿报告）：
-
-再次调用 `inspire_deep_research`（同一 `run_id`；可不传 `resume_from`，系统会自动从未完成的 step 继续）：
-
-```json
-{
-  "identifiers": ["1238419", "1258603", "627760", "1221245", "897836"],
-  "mode": "write",
-  "run_id": "<run_id>",
-  "options": { "topic": "X(3872) mini-review", "llm_mode": "client", "target_length": "short" }
-}
-```
-
-**预期**
-
-- 若返回里出现 `client_continuation.next_actions`，按其中提示执行（通常包含 `hep_run_writing_submit_review`）。
-- 审稿 prompt/context 会写入 run artifacts（如 `writing_reviewer_prompt.md`、`writing_reviewer_context.md`）；用任意 LLM 跑完后，把 reviewer JSON 通过 `hep_run_writing_submit_review` 提交到 run。
-
-5) 集成并导出：
-- `hep_run_writing_integrate_sections_v1`（生成 `writing_integrated.tex` + `writing_integrate_diagnostics.json`）
-- `hep_export_project`（通常把 `rendered_latex_artifact_name` 指向 `writing_integrated.tex`）
+如需端到端写作流水线，见 §8.7 `inspire_deep_research`（mode=write）。
 
 ### 8.7 深度研究（`inspire_deep_research`，建议：先 analyze/synthesize，再 write）
 
@@ -1198,62 +1151,3 @@ node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "
 - 写作 evidence step 返回的 `artifacts[]` 中包含 `latex_evidence_catalog.jsonl` / `latex_evidence_embeddings.jsonl` / `latex_evidence_enrichment.jsonl`（默认名；以 `writing_evidence_meta.json` 为准）
 - `hep_project_query_evidence_semantic.summary.semantic.implemented=true`（embeddings 可用；无 embeddings 会直接报错）
 
-### 10.5 Style Corpus（RMP/PRL/NatPhys/PhysRep；full 模式）
-
-> 说明：`standard` 模式默认只暴露 `inspire_style_corpus_query`（安全、只读）；构建/下载/打包等重操作在 `full` 模式。
-
-**前提**
-
-- 在 MCP server env 把 `HEP_TOOL_MODE` 设为 `full`
-- `HEP_DATA_DIR` 是一个你愿意写入语料的目录（语料默认落到 `<HEP_DATA_DIR>/corpora/<style_id>/...`）
-
-**最小 smoke（以 RMP 为例，压小预算）**
-
-1) 初始化 profile：
-
-```json
-{ "style_id": "rmp", "overwrite": false }
-```
-
-2) 生成/扩充 manifest：
-
-```json
-{ "style_id": "rmp", "target_papers": 10, "max_results_per_category": 200 }
-```
-
-3) 下载（只下载前 3 篇做 smoke）：
-
-```json
-{ "style_id": "rmp", "force": false, "limit": 3, "concurrency": 2 }
-```
-
-4) 构建 evidence（只处理前 2 篇做 smoke）：
-
-```json
-{
-  "style_id": "rmp",
-  "force": false,
-  "limit": 2,
-  "concurrency": 2,
-  "include_inline_math": false,
-  "max_paragraph_length": 800,
-  "map_citations_to_inspire": true
-}
-```
-
-5) 构建 index：
-
-```json
-{ "style_id": "rmp", "embedding_dim": 256 }
-```
-
-6) 查询（返回 URI + summary；详细 hits 在 artifact 内）：
-
-```json
-{ "style_id": "rmp", "query": "experimental setup", "top_k": 5, "mode": "lite", "retrieval": "paragraph" }
-```
-
-**预期**
-
-- `profile_uri` / `manifest_uri` / `artifact.uri` 都是 `hep://corpora/rmp/...`
-- 下载/构建/查询的详细结果都落在 `<HEP_DATA_DIR>/corpora/rmp/artifacts/` 下（可审计）

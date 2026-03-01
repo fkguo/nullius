@@ -147,7 +147,7 @@ describe('Docs tool drift guard', () => {
     const { getTools } = await import('../../src/tools/index.js');
     const full = new Set(getTools('full').map(t => t.name));
 
-    for (const p of ['docs/WRITING_RECIPE_CLIENT_PATH.md', 'docs/WRITING_RECIPE_DRAFT_PATH.md']) {
+    for (const p of ['docs/WRITING_RECIPE_DRAFT_PATH.md']) {
       const md = readText(root, p);
       const referenced = Array.from(new Set([...extractToolNamesFromHeadings(md), ...extractToolNamesFromToolJsonExamples(md)]));
       assertAllExist({ referenced, allowed: full, label: p });

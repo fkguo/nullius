@@ -8,9 +8,6 @@ import {
   HEP_PROJECT_CREATE,
   HEP_PROJECT_QUERY_EVIDENCE,
   HEP_RUN_CREATE,
-  HEP_RUN_READ_ARTIFACT_CHUNK,
-  HEP_RUN_WRITING_SUBMIT_REVIEW,
-  HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
   INSPIRE_PARSE_LATEX,
   INSPIRE_SEARCH,
   INSPIRE_SEARCH_NEXT,
@@ -31,7 +28,7 @@ import { getDataDir } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { writeRunJsonArtifact } from '../core/citations.js';
 import { getRun } from '../core/runs.js';
-import { assertSafePathSegment } from '../core/paths.js';
+
 import { getToolSpec, isToolExposed, type ToolExposureMode } from './registry.js';
 import { recordToolUsage } from './utils/toolUsageTelemetry.js';
 
@@ -132,115 +129,11 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
         return Boolean(missingRunIdIssue);
       })();
 
-      const runId = (() => {
-        if (!argsObj) return null;
-        const raw = argsObj.run_id;
-        if (typeof raw !== 'string') return null;
-        const trimmed = raw.trim();
-        if (!trimmed) return null;
-        try {
-          assertSafePathSegment(trimmed, 'run_id');
-        } catch {
-          return null;
-        }
-        try {
-          getRun(trimmed);
-        } catch {
-          return null;
-        }
-        return trimmed;
-      })();
-
-      const parseError = (() => {
-        if (!runId) return null;
-
-        if (toolName === HEP_RUN_WRITING_SUBMIT_REVIEW) {
-          const ref = writeRunJsonArtifact(runId, 'writing_parse_error_reviewer_report_v2.json', {
-            version: 1,
-            generated_at: new Date().toISOString(),
-            run_id: runId,
-            tool: toolName,
-            issues: err.issues,
-            received: {
-              reviewer_report: (args as any)?.reviewer_report,
-            },
-          });
-
-          return {
-            parse_error_uri: ref.uri,
-            parse_error_artifact: ref.name,
-            next_actions: [
-              {
-                tool: HEP_RUN_READ_ARTIFACT_CHUNK,
-                args: { run_id: runId, artifact_name: 'writing_reviewer_prompt.md', offset: 0, length: 4096 },
-                reason: 'Read reviewer prompt (ReviewerReport v2 JSON contract).',
-              },
-              {
-                tool: HEP_RUN_READ_ARTIFACT_CHUNK,
-                args: { run_id: runId, artifact_name: 'writing_reviewer_context.md', offset: 0, length: 4096 },
-                reason: 'Read reviewer context; then regenerate ReviewerReport v2 JSON with an LLM.',
-              },
-              {
-                tool: HEP_RUN_WRITING_SUBMIT_REVIEW,
-                args: {
-                  run_id: runId,
-                  reviewer_report: {
-                    version: 2,
-                    severity: 'minor',
-                    summary: '(fill reviewer summary)',
-                    major_issues: [],
-                    minor_issues: [],
-                    notation_changes: [],
-                    asset_pointer_issues: [],
-                    follow_up_evidence_queries: [],
-                    structure_issues: [],
-                    grounding_risks: [],
-                  },
-                },
-                reason: 'Submit a valid ReviewerReport v2 JSON.',
-              },
-            ],
-          };
-        }
-
-        if (toolName === HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1) {
-          const ref = writeRunJsonArtifact(runId, 'writing_parse_error_revision_plan_v1.json', {
-            version: 1,
-            generated_at: new Date().toISOString(),
-            run_id: runId,
-            tool: toolName,
-            issues: err.issues,
-            received: {
-              revision_plan: (args as any)?.revision_plan,
-              revision_plan_uri: (args as any)?.revision_plan_uri,
-            },
-          });
-
-          return {
-            parse_error_uri: ref.uri,
-            parse_error_artifact: ref.name,
-            next_actions: [
-              {
-                tool: HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1,
-                args: { run_id: runId, revision_plan: '<paste RevisionPlan v1 JSON here or use revision_plan_uri>' },
-                reason: 'Submit a valid RevisionPlan v1 JSON.',
-              },
-            ],
-          };
-        }
-
-        return null;
-      })();
-
       const data: Record<string, unknown> = {
         issues: err.issues,
       };
 
-      if (parseError) {
-        data.parse_error_uri = parseError.parse_error_uri;
-        data.parse_error_artifact = parseError.parse_error_artifact;
-        data.next_actions = parseError.next_actions;
-      } else if (missingRunIdForProjectSemanticQuery) {
+      if (missingRunIdForProjectSemanticQuery) {
         const projectId = argsObj && typeof argsObj.project_id === 'string' ? argsObj.project_id : '<project_id>';
         const query = argsObj && typeof argsObj.query === 'string' ? argsObj.query : '<query>';
         data.next_actions = [

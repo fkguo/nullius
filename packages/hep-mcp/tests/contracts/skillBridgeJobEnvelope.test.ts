@@ -91,17 +91,18 @@ describe('Contract: Skill↔MCP bridge job envelope', () => {
     });
     const run = parsePayload<{ run_id: string }>(runRes);
 
-    const budgetRes = await handleToolCall('hep_run_writing_create_token_budget_plan_v1', {
+    const stageRes = await handleToolCall('hep_run_stage_content', {
       run_id: run.run_id,
-      model_context_tokens: 32000,
+      content_type: 'section_output',
+      content: '{"hello":"world"}',
     });
-    expect(budgetRes.isError).not.toBe(true);
+    expect(stageRes.isError).not.toBe(true);
 
-    const budget = parsePayload<{ run_id: string; manifest_uri: string; job: JobEnvelope }>(budgetRes);
-    expect(budget.run_id).toBe(run.run_id);
-    expect(budget.job.job_id).toBe(run.run_id);
-    expect(budget.job.status_uri).toBe(budget.manifest_uri);
-    expect(budget.job.polling.strategy).toBe('manifest_resource');
-    expect(budget.job.polling.resource_uri).toBe(budget.manifest_uri);
+    const staged = parsePayload<{ run_id: string; job: JobEnvelope }>(stageRes);
+    expect(staged.run_id).toBe(run.run_id);
+    expect(staged.job.job_id).toBe(run.run_id);
+    expect(staged.job.status_uri).toBeTruthy();
+    expect(staged.job.polling.strategy).toBe('manifest_resource');
+    expect(staged.job.polling.resource_uri).toBeTruthy();
   });
 });

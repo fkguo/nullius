@@ -21,8 +21,8 @@ node --input-type=module -e "import('./packages/hep-research-mcp/dist/tools/inde
 ```
 
 Current (after build):
-- `standard=79`, `full=102`
-- `HEP_ENABLE_ZOTERO=0` → `standard=71`, `full=94`
+- `standard=56`, `full=72`
+- `HEP_ENABLE_ZOTERO=0` → `standard=48`, `full=64`
 
 Workspace vitest summary:
 - `packages/shared`: 15 passed
@@ -52,19 +52,9 @@ Workspace vitest summary:
 
 - `hep_project_create` → `hep_run_create`
 - `hep_render_latex` (hard verifier)
-- Export: `hep_export_project` (research pack)
-- Publication round-trip: `hep_export_paper_scaffold` (scaffold) → *(external editing / research-writer)* → `hep_import_paper_bundle` (paper_bundle.zip + paper_final.pdf)
+- Draft Path: `hep_render_latex` → `hep_export_project`
+- Publication round-trip: `hep_export_paper_scaffold` → *(external editing / research-writer)* → `hep_import_paper_bundle`
 
 See: `docs/WRITING_RECIPE_DRAFT_PATH.md`
-
-### Client Path (host LLM writes candidates → MCP judge/verify → integrate/export)
-
-- Run setup/orchestration (recommended): `inspire_deep_research(mode=write, run_id=..., llm_mode=client)` and follow `next_actions`
-- Section submission (canonical): `hep_run_writing_submit_section_candidates_v1` → `hep_run_writing_submit_section_judge_decision_v1`
-- Integration: `hep_run_writing_integrate_sections_v1` → `writing_integrated.tex` + `writing_integrate_diagnostics.json`
-- Export:
-  - `hep_export_project` (typically using `writing_integrated.tex` as `rendered_latex_artifact_name`)
-  - `hep_export_paper_scaffold` (writes `paper_manifest.json` + `paper_scaffold.zip`)
-  - `hep_import_paper_bundle` (imports finalized `paper/` back into run artifacts)
 
 See: `docs/WRITING_RECIPE_CLIENT_PATH.md`

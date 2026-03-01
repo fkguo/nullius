@@ -143,21 +143,9 @@ Run (版本化执行上下文)
 ├── status: 'running' | 'done' | 'failed'
 ├── steps: RunStep[]           # 执行步骤审计
 └── artifacts/                 # 产出文件目录
-    ├── evidence_index_v1.json          # M03: SerializedIndex（chunks + BM25）
-    ├── evidence_index_metrics_v1.json  # M03: 统计/缓存命中信息
-    ├── writing_retrieval_candidates_section_001_v1.json  # M04: 候选 chunks + BM25/trace（可回放）
-    ├── writing_rerank_prompt_section_001_v1.txt          # M04: rerank prompt（审计）
-    ├── writing_rerank_packet_section_001_v1.json         # M04: client prompt_packet（等待回填）
-    ├── writing_rerank_result_section_001_v1.json         # M04: ranked_indices（提交后）
-    ├── writing_evidence_packet_section_001_v2.json       # M04: EvidencePacketV2（allowlist+budgets+trace）
-    ├── writing_token_budget_plan_v1.json                 # M05: TokenBudgetPlan（context hint + per-step budgets；overflow_policy=fail_fast）
-    ├── token_gate_pass_outline_v1.json                   # M05: TokenGate pass（按 step/section 写入审计）
-    ├── writing_token_overflow_outline_v1.json            # M05: TokenGate overflow（fail-fast + next_actions；largest_contributors）
-    ├── writing_section_write_packet_section_001_v1.json  # M06: per-section write packet（prompt_packet + cohesion hints；TokenGate-gated）
-    ├── writing_section_prompt_section_001_v1.txt         # M06: client prompt text（system+user）
-    ├── writing_section_evidence_context_section_001_v1.md # M06: evidence context（chunks; untrusted）
-    ├── writing_attributions_derivation_section_001_v1.json # M06: deterministic attributions derivation metadata（when client omits attributions）
     ├── latex_evidence_catalog.jsonl
+    ├── latex_evidence_embeddings.jsonl
+    ├── latex_evidence_enrichment.jsonl
     ├── hep_measurements_<hash>.jsonl
     ├── hep_compare_measurements_<hash>.json
     ├── writing_section_001.json
@@ -193,9 +181,6 @@ interface RunArtifactRef {
 | `hep://runs` | Runs index |
 | `hep://runs/{run_id}/manifest` | Run manifest（步骤 + artifacts） |
 | `hep://runs/{run_id}/artifact/{name}` | 具体 artifact 内容 |
-| `hep://corpora` | Style corpora index |
-| `hep://corpora/{style_id}` | Style corpus overview |
-| `hep://corpora/{style_id}/artifact/{name}` | Style corpus artifact |
 | `pdg://info` | PDG MCP info |
 | `pdg://artifacts` | PDG artifacts index |
 | `pdg://artifacts/{artifact_name}` | PDG artifact by name |
@@ -228,7 +213,7 @@ run-scoped tool result（包含 `run_id`）会自动补充：
 
 ## 4. 数据流
 
-### 4.1 写作工作流（Client Path）
+### 4.1 写作工作流（Draft Path）
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -238,74 +223,25 @@ run-scoped tool result（包含 `run_id`）会自动补充：
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Phase 1: PaperSet Curation (INSPIRE-first; fail-fast gating)     │
-│   inspire_deep_research(mode='write', llm_mode='client', run_id) │
-│   → artifacts: writing_candidate_pool_v1.json                    │
-│              : writing_candidate_pool_expanded_v1.json           │
-│              : writing_paperset_curation_packet.json             │
-│   → next_actions:                                                │
-│     hep_run_stage_content(content_type='paperset_curation')      │
-│     hep_run_writing_submit_paperset_curation                     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Phase 2: Evidence Building                                       │
+│ Phase 1: Evidence Building                                       │
 │   hep_run_build_writing_evidence    → LaTeX evidence catalog    │
-│   hep_run_build_evidence_index_v1   → EvidenceChunk + BM25      │
 │   hep_run_build_pdf_evidence        → PDF text/visual evidence  │
 │   hep_run_build_citation_mapping    → BibTeX ↔ INSPIRE mapping  │
+│   hep_run_build_measurements        → numeric extraction        │
+│   hep_project_compare_measurements  → cross-run tension flags   │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Phase 2b: Evidence Selection (M04; fail-fast, no BM25 fallback)  │
-│   hep_run_writing_build_evidence_packet_section_v2               │
-│     (llm_mode='client' → prompt_packet + next_actions)           │
-│   hep_run_writing_submit_rerank_result_v1                         │
-│     → writing_evidence_packet_section_###_v2.json (allowlist)     │
+│ Phase 2: Rendering                                               │
+│   hep_render_latex                                               │
+│   → rendered_latex.tex + rendered_section_output.json            │
+│   → citation verification + allowed_citations enforcement        │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Phase 3: Critical Analysis                                       │
-│   hep_run_build_writing_critical    → conflicts/stance/grades   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Phase 4: Section Writing Packet (M06; client-side LLM)           │
-│   hep_run_writing_create_section_write_packet_v1                 │
-│     → writing_section_write_packet_section_###_v1.json           │
-│     → writing_section_prompt_section_###_v1.txt                  │
-│     → writing_section_evidence_context_section_###_v1.md         │
-│     → token_gate_pass_section_write_section_###_v1.json          │
-│   → Client LLM reads hep:// artifact URIs and writes SectionOutput│
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Phase 5: Section Submission & Verification                       │
-│ Phase 5: Section Candidates + Judge (M13; fail-fast)             │
-│   hep_run_writing_submit_section_candidates_v1                   │
-│   hep_run_writing_create_section_judge_packet_v1                 │
-│     → Client submits judge_decision (staged)                     │
-│     hep_run_writing_submit_section_judge_decision_v1             │
-│   → hard gates + verifier/originality                            │
-│   → artifacts: writing_section_###.json + diagnostics            │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Phase 6: Integration & Rendering                                 │
-│   hep_run_writing_integrate_sections_v1                          │
-│   → writing_integrated.tex + writing_integrate_diagnostics.json  │
-│   → optional LaTeX compile gate (quality policy)                 │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Phase 7: Export / Publication                                    │
+│ Phase 3: Export / Publication                                    │
 │   hep_export_project                                             │
 │   → master.bib, report.tex, report.md, research_pack.zip         │
 │   hep_export_paper_scaffold                                      │
@@ -358,15 +294,9 @@ interface WriteResult {
 1. **Artifact URI 间接提交**：`hep_run_stage_content`（写入 staging artifact）+ submit tools 接收 `*_uri`
 2. **无内建“分块提交”工具**：输入过大时，必须通过 staging + 拆分任务/缩小输入解决；禁止静默截断继续跑
 
-### 5.3 M05：TokenBudgetPlan + TokenGate（输入端预算 fail-fast）
+### 5.3 Token 管理
 
-**变更**：
-- 新增 `writing_token_budget_plan_v1.json`（预算计划 SSOT，`overflow_policy='fail_fast'`）
-- 新增 `hep_run_writing_token_gate_v1`：每个 LLM 驱动 step 前进行预算检查；超限写 `writing_token_overflow_*.json` 并 fail-fast
-- EvidencePacketV2 `budgets` 记录 `max_context_tokens/reserved_output_tokens/safety_margin_tokens/overflow_policy/max_evidence_tokens/selected_evidence_tokens_estimate`
-
-**影响范围**：
-- `packages/hep-research-mcp/src/vnext/writing/*`（预算解析、TokenGate、internal rerank 预算 gate）
+大输出通过 staging artifact（`hep_run_stage_content`）提交；输入过大时必须拆分任务或缩小输入，禁止静默截断。
 - `packages/hep-research-mcp/src/tools/registry.ts`（新增 run tools 注册）
 - `packages/hep-research-mcp/tests/vnext/*`（预算/门控相关回归）
 
@@ -515,18 +445,9 @@ hep_run_stage_content({
   run_id: "run_xxx",
   content_type: "section_output",
   content: JSON.stringify({ section_number: "1", title: "Introduction", content: "Test content." }),
-  artifact_suffix: "section_001_candidate_00_v1"
+  artifact_suffix: "section_001_v1"
 })
 // 返回：{ staging_uri: "hep://runs/run_xxx/artifact/staged_section_output_....json", ... }
-
-// 后续用 *_uri 提交（示例：提交某一候选；实际需 N-best 候选集）
-hep_run_writing_submit_section_candidates_v1({
-  run_id: "run_xxx",
-  section_index: 1,
-  candidates: [
-    { candidate_index: 0, section_output_uri: "<staging_uri>", client_model: null, temperature: null, seed: null }
-  ]
-})
 ```
 
 > 备注：当前没有 server-side 的“分块提交”工具；输入超限必须通过 staging + 拆分任务/缩小输入解决，禁止静默截断继续跑。
@@ -735,11 +656,6 @@ body: {
 | 2026-01-14 | Milestone 3：Fail-fast 核心违约点清理（LaTeX 解析无回退；semantic query 需 embeddings；export citekey 全覆盖；严格 env 校验） | AI Agent |
 | 2026-01-10 | v0.3.1：Quality-First Improvements（evidence limits, asset scaling, citation targets, section titles） | AI Agent |
 | 2026-01-10 | v0.3.0：RAG Enhancement (LLM Rerank), Token Overflow Prevention, Writing Quality Fix, Quality-First 原则 | AI Agent |
-| 2026-01-12 | M03：Run EvidenceIndex v1（hep_run_build_evidence_index_v1；EvidenceChunk + BM25；artifact-first + fail-fast） | AI Agent |
-| 2026-01-12 | M04：Evidence Selection（retrieve candidates + client rerank闭环 + EvidencePacketV2 allowlist；禁止 BM25 静默回退） | AI Agent |
-| 2026-01-12 | M05：TokenBudgetPlan + TokenGate（预算计划 artifact；超限写 overflow artifact 并 INVALID_PARAMS fail-fast；禁止 silent trim） | AI Agent |
-| 2026-01-12 | M06：Section Writing + Cohesion（per-section write packet + TokenGate gate；submitSection 可确定性派生 attributions，失败则 fail-fast） | AI Agent |
-| 2026-01-12 | vNext：PaperSetCuration（taxonomy+quotas）与 paperset gating（run artifacts + staging-aware submit） | AI Agent |
 | 2026-01-09 | 初始版本：核心架构、数据流、Token 管理 | AI Agent |
 
 ---

@@ -18,14 +18,6 @@
     "pdf_included": false,
     "max_evidence_items_hit": false
   },
-  "citations": {
-    "verification_artifact": "rendered_latex_verification.json",
-    "pass": true,
-    "total_citations": 0,
-    "orphan_count": 0,
-    "unauthorized_count": 0,
-    "missing_count": 0,
-    "issues_total": 0
-  },
-  "human_summary": "Dataset unknown; Evidence 1/1 sources (100.0%); Verifier pass."
+  "citations": {},
+  "human_summary": "Dataset unknown; Evidence 1/1 sources (100.0%); Verifier: N/A."
 }

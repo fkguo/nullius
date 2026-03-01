@@ -133,7 +133,6 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     expect(getUri('writing_master.bib')).toBeTruthy();
     expect(getUri('report.tex')).toBeTruthy();
     expect(getUri('report.md')).toBeTruthy();
-    expect(getUri('rendered_latex_verification.json')).toBeTruthy();
     expect(getUri('coverage_report.json')).toBeTruthy();
     expect(getUri('run_manifest.json')).toBeTruthy();
     expect(getUri('research_pack.zip')).toBeTruthy();
@@ -156,8 +155,10 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     expect(masterBib).not.toContain('Placeholder reference');
 
     const coverage = JSON.parse(String((readHepResource(getUri('coverage_report.json')!) as any).text)) as any;
-    expect(coverage.citations?.verification_artifact).toBe('rendered_latex_verification.json');
-    expect(coverage.citations?.pass).toBe(true);
+    // rendered_latex_verification.json is no longer produced (writing pipeline removed),
+    // so citations coverage is N/A.
+    expect(coverage.citations?.verification_artifact).toBeUndefined();
+    expect(coverage.citations?.pass).toBeUndefined();
     expect(coverage.sources?.source_status_artifact).toBe('writing_evidence_source_status.json');
     expect(coverage.sources?.attempted).toBe(2);
     expect(coverage.sources?.succeeded).toBe(1);
@@ -189,7 +190,6 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     expect(Object.keys(files)).toContain('master.bib');
     expect(Object.keys(files)).toContain('report.tex');
     expect(Object.keys(files)).toContain('report.md');
-    expect(Object.keys(files)).toContain('rendered_latex_verification.json');
     expect(Object.keys(files)).toContain('coverage_report.json');
     expect(Object.keys(files)).toContain('writing_master.bib');
     expect(Object.keys(files)).toContain('run_manifest.json');

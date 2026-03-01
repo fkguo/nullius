@@ -56,13 +56,11 @@ describe('deepResearchAnalyzeNextActions', () => {
     expect(deepResearchAnalyzeNextActions([])).toHaveLength(0);
   });
 
-  it('suggests synthesize and write with identifiers', () => {
+  it('suggests synthesize with identifiers', () => {
     const actions = deepResearchAnalyzeNextActions(['1', '2']);
-    expect(actions).toHaveLength(2);
+    expect(actions).toHaveLength(1);
     expect(actions[0].args).toHaveProperty('mode', 'synthesize');
     expect(actions[0].args).toHaveProperty('identifiers', ['1', '2']);
-    expect(actions[1].args).toHaveProperty('mode', 'write');
-    expect(actions[1].args).toHaveProperty('identifiers', ['1', '2']);
   });
 });
 

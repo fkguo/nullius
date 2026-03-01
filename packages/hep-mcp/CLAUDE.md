@@ -53,8 +53,6 @@ pnpm -r lint    # 或 pnpm lint
 - 资源读取通过 `hep://...`（实现：`packages/hep-mcp/src/core/resources.ts`）。
 - 写作入口统一走 `hep_*` 写作链：
   - Draft Path：`hep_render_latex` → `hep_export_project`
-  - Client Path：`hep_run_writing_submit_section_candidates_v1` → `hep_run_writing_submit_section_judge_decision_v1` → `hep_run_writing_integrate_sections_v1` → `hep_export_project`
-  - （可选）审稿：`hep_run_writing_submit_review`
   - 不要再暴露/维护 `inspire_writing` 等旧写作工具面。
 
 ## 文档与分支卫生（强约束）

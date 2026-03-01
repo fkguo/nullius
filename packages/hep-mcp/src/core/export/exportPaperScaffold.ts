@@ -5,7 +5,6 @@ import {
   HEP_EXPORT_PAPER_SCAFFOLD,
   HEP_RUN_BUILD_CITATION_MAPPING,
   HEP_RUN_STAGE_CONTENT,
-  HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
   invalidParams,
 } from '@autoresearch/shared';
 import { zipSync } from 'fflate';
@@ -290,9 +289,9 @@ function failIfContainsHepUri(text: string, what: string, runId: string): void {
       what,
       next_actions: [
         {
-          tool: HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1,
+          tool: HEP_RUN_STAGE_CONTENT,
           args: { run_id: runId },
-          reason: 'Ensure the integrated LaTeX contains only local paths (no hep:// URIs), then re-run export.',
+          reason: 'Replace hep:// URIs with local paths in the LaTeX content, then re-run export.',
         },
       ],
     });

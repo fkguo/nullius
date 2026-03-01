@@ -6,19 +6,6 @@
  * Convention:
  * - Constants use SCREAMING_SNAKE_CASE matching the tool name
  * - Tool names use snake_case with prefix: hep_*, inspire_*, pdg_*, zotero_*
- * - Writing tools follow the pattern: hep_run_writing_{action}_{object}_v{N}
- *
- * Writing pipeline stages (for hep_run_writing_* tools):
- *   1. Evidence: build_writing_evidence, build_evidence_packet_section, submit_rerank_result
- *   2. Token Budget: create_token_budget_plan, token_gate
- *   3. Paperset Curation: create_paperset_curation_packet, submit_paperset_curation
- *   4. Outline: create_outline_candidates_packet, submit_outline_candidates,
- *              create_outline_judge_packet, submit_outline_judge_decision
- *   5. Section: create_section_write_packet, create_section_candidates_packet,
- *              submit_section_candidates, create_section_judge_packet,
- *              submit_section_judge_decision
- *   6. Integration: integrate_sections, refinement_orchestrator
- *   7. Review: submit_review, create_revision_plan_packet, submit_revision_plan
  */
 
 // ── Namespace Prefixes ──────────────────────────────────────────────────────
@@ -44,54 +31,14 @@ export const HEP_RUN_READ_ARTIFACT_CHUNK = 'hep_run_read_artifact_chunk' as cons
 export const HEP_RUN_CLEAR_MANIFEST_LOCK = 'hep_run_clear_manifest_lock' as const;
 export const HEP_RUN_STAGE_CONTENT = 'hep_run_stage_content' as const;
 export const HEP_RUN_BUILD_PDF_EVIDENCE = 'hep_run_build_pdf_evidence' as const;
-export const HEP_RUN_BUILD_EVIDENCE_INDEX_V1 = 'hep_run_build_evidence_index_v1' as const;
 export const HEP_RUN_INGEST_SKILL_ARTIFACTS = 'hep_run_ingest_skill_artifacts' as const;
 export const HEP_RUN_CREATE_FROM_IDEA = 'hep_run_create_from_idea' as const;
 
-// ── HEP Run Writing: Token Budget (Stage 2) ────────────────────────────────
-
-export const HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1 = 'hep_run_writing_create_token_budget_plan_v1' as const;
-export const HEP_RUN_WRITING_TOKEN_GATE_V1 = 'hep_run_writing_token_gate_v1' as const;
-
-// ── HEP Run Writing: Paperset Curation (Stage 3) ───────────────────────────
-
-export const HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET = 'hep_run_writing_create_paperset_curation_packet' as const;
-export const HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION = 'hep_run_writing_submit_paperset_curation' as const;
-
-// ── HEP Run Writing: Outline Pipeline (Stage 4) ────────────────────────────
-
-export const HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1 = 'hep_run_writing_create_outline_candidates_packet_v1' as const;
-export const HEP_RUN_WRITING_SUBMIT_OUTLINE_CANDIDATES_V1 = 'hep_run_writing_submit_outline_candidates_v1' as const;
-export const HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1 = 'hep_run_writing_create_outline_judge_packet_v1' as const;
-export const HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1 = 'hep_run_writing_submit_outline_judge_decision_v1' as const;
-
-// ── HEP Run Writing: Section Pipeline (Stage 5) ────────────────────────────
-
-export const HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1 = 'hep_run_writing_create_section_write_packet_v1' as const;
-export const HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1 = 'hep_run_writing_create_section_candidates_packet_v1' as const;
-export const HEP_RUN_WRITING_SUBMIT_SECTION_CANDIDATES_V1 = 'hep_run_writing_submit_section_candidates_v1' as const;
-export const HEP_RUN_WRITING_CREATE_SECTION_JUDGE_PACKET_V1 = 'hep_run_writing_create_section_judge_packet_v1' as const;
-export const HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1 = 'hep_run_writing_submit_section_judge_decision_v1' as const;
-
-// ── HEP Run Writing: Evidence (Stage 1) ─────────────────────────────────────
+// ── HEP Run Evidence & Citation Mapping ─────────────────────────────────────
 
 export const HEP_RUN_BUILD_WRITING_EVIDENCE = 'hep_run_build_writing_evidence' as const;
 export const HEP_RUN_BUILD_MEASUREMENTS = 'hep_run_build_measurements' as const;
-export const HEP_RUN_BUILD_WRITING_CRITICAL = 'hep_run_build_writing_critical' as const;
 export const HEP_RUN_BUILD_CITATION_MAPPING = 'hep_run_build_citation_mapping' as const;
-export const HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2 = 'hep_run_writing_build_evidence_packet_section_v2' as const;
-export const HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1 = 'hep_run_writing_submit_rerank_result_v1' as const;
-
-// ── HEP Run Writing: Review & Revision (Stage 7) ───────────────────────────
-
-export const HEP_RUN_WRITING_SUBMIT_REVIEW = 'hep_run_writing_submit_review' as const;
-export const HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1 = 'hep_run_writing_create_revision_plan_packet_v1' as const;
-export const HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1 = 'hep_run_writing_submit_revision_plan_v1' as const;
-
-// ── HEP Run Writing: Integration (Stage 6) ─────────────────────────────────
-
-export const HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1 = 'hep_run_writing_refinement_orchestrator_v1' as const;
-export const HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1 = 'hep_run_writing_integrate_sections_v1' as const;
 
 // ── HEP Render & Export ─────────────────────────────────────────────────────
 
@@ -127,17 +74,6 @@ export const INSPIRE_FIND_CROSSOVER_TOPICS = 'inspire_find_crossover_topics' as 
 export const INSPIRE_ANALYZE_CITATION_STANCE = 'inspire_analyze_citation_stance' as const;
 export const INSPIRE_CLEANUP_DOWNLOADS = 'inspire_cleanup_downloads' as const;
 export const INSPIRE_VALIDATE_BIBLIOGRAPHY = 'inspire_validate_bibliography' as const;
-
-// ── INSPIRE Style Corpus ────────────────────────────────────────────────────
-
-export const INSPIRE_STYLE_CORPUS_QUERY = 'inspire_style_corpus_query' as const;
-export const INSPIRE_STYLE_CORPUS_INIT_PROFILE = 'inspire_style_corpus_init_profile' as const;
-export const INSPIRE_STYLE_CORPUS_BUILD_MANIFEST = 'inspire_style_corpus_build_manifest' as const;
-export const INSPIRE_STYLE_CORPUS_DOWNLOAD = 'inspire_style_corpus_download' as const;
-export const INSPIRE_STYLE_CORPUS_BUILD_EVIDENCE = 'inspire_style_corpus_build_evidence' as const;
-export const INSPIRE_STYLE_CORPUS_BUILD_INDEX = 'inspire_style_corpus_build_index' as const;
-export const INSPIRE_STYLE_CORPUS_EXPORT_PACK = 'inspire_style_corpus_export_pack' as const;
-export const INSPIRE_STYLE_CORPUS_IMPORT_PACK = 'inspire_style_corpus_import_pack' as const;
 
 // ── HEPData Tools ────────────────────────────────────────────────────────────
 
@@ -218,33 +154,11 @@ export type HepToolName =
   | typeof HEP_RUN_CLEAR_MANIFEST_LOCK
   | typeof HEP_RUN_STAGE_CONTENT
   | typeof HEP_RUN_BUILD_PDF_EVIDENCE
-  | typeof HEP_RUN_BUILD_EVIDENCE_INDEX_V1
   | typeof HEP_RUN_INGEST_SKILL_ARTIFACTS
   | typeof HEP_RUN_CREATE_FROM_IDEA
-  | typeof HEP_RUN_WRITING_CREATE_TOKEN_BUDGET_PLAN_V1
-  | typeof HEP_RUN_WRITING_TOKEN_GATE_V1
-  | typeof HEP_RUN_WRITING_CREATE_PAPERSET_CURATION_PACKET
-  | typeof HEP_RUN_WRITING_SUBMIT_PAPERSET_CURATION
-  | typeof HEP_RUN_WRITING_CREATE_OUTLINE_CANDIDATES_PACKET_V1
-  | typeof HEP_RUN_WRITING_SUBMIT_OUTLINE_CANDIDATES_V1
-  | typeof HEP_RUN_WRITING_CREATE_OUTLINE_JUDGE_PACKET_V1
-  | typeof HEP_RUN_WRITING_SUBMIT_OUTLINE_JUDGE_DECISION_V1
-  | typeof HEP_RUN_WRITING_CREATE_SECTION_WRITE_PACKET_V1
-  | typeof HEP_RUN_WRITING_CREATE_SECTION_CANDIDATES_PACKET_V1
-  | typeof HEP_RUN_WRITING_SUBMIT_SECTION_CANDIDATES_V1
-  | typeof HEP_RUN_WRITING_CREATE_SECTION_JUDGE_PACKET_V1
-  | typeof HEP_RUN_WRITING_SUBMIT_SECTION_JUDGE_DECISION_V1
   | typeof HEP_RUN_BUILD_WRITING_EVIDENCE
   | typeof HEP_RUN_BUILD_MEASUREMENTS
-  | typeof HEP_RUN_BUILD_WRITING_CRITICAL
   | typeof HEP_RUN_BUILD_CITATION_MAPPING
-  | typeof HEP_RUN_WRITING_BUILD_EVIDENCE_PACKET_SECTION_V2
-  | typeof HEP_RUN_WRITING_SUBMIT_RERANK_RESULT_V1
-  | typeof HEP_RUN_WRITING_SUBMIT_REVIEW
-  | typeof HEP_RUN_WRITING_CREATE_REVISION_PLAN_PACKET_V1
-  | typeof HEP_RUN_WRITING_SUBMIT_REVISION_PLAN_V1
-  | typeof HEP_RUN_WRITING_REFINEMENT_ORCHESTRATOR_V1
-  | typeof HEP_RUN_WRITING_INTEGRATE_SECTIONS_V1
   | typeof HEP_RENDER_LATEX
   | typeof HEP_EXPORT_PROJECT
   | typeof HEP_EXPORT_PAPER_SCAFFOLD
@@ -266,15 +180,7 @@ export type InspireToolName =
   | typeof INSPIRE_FIND_CROSSOVER_TOPICS
   | typeof INSPIRE_ANALYZE_CITATION_STANCE
   | typeof INSPIRE_CLEANUP_DOWNLOADS
-  | typeof INSPIRE_VALIDATE_BIBLIOGRAPHY
-  | typeof INSPIRE_STYLE_CORPUS_QUERY
-  | typeof INSPIRE_STYLE_CORPUS_INIT_PROFILE
-  | typeof INSPIRE_STYLE_CORPUS_BUILD_MANIFEST
-  | typeof INSPIRE_STYLE_CORPUS_DOWNLOAD
-  | typeof INSPIRE_STYLE_CORPUS_BUILD_EVIDENCE
-  | typeof INSPIRE_STYLE_CORPUS_BUILD_INDEX
-  | typeof INSPIRE_STYLE_CORPUS_EXPORT_PACK
-  | typeof INSPIRE_STYLE_CORPUS_IMPORT_PACK;
+  | typeof INSPIRE_VALIDATE_BIBLIOGRAPHY;
 
 export type PdgToolName =
   | typeof PDG_INFO

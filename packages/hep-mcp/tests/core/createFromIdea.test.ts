@@ -132,11 +132,10 @@ describe('createFromIdea (NEW-CONN-04)', () => {
 
     const result = createFromIdea({ handoff_uri: handoffPath });
 
-    expect(result.next_actions).toHaveLength(3);
+    expect(result.next_actions).toHaveLength(2);
     const toolNames = result.next_actions.map(a => a.tool);
     expect(toolNames).toContain('inspire_search');
     expect(toolNames).toContain('hep_project_build_evidence');
-    expect(toolNames).toContain('hep_run_build_evidence_index_v1');
 
     // next_actions are hint-only: tool + reason, no args
     for (const action of result.next_actions) {

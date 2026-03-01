@@ -44,13 +44,9 @@
 - 若缺少该步骤，后续依赖 evidence/embeddings 的流程会 fail-fast。
 
 4) `inspire_deep_research`（`mode=write`, `options.llm_mode=client`）
-- 读取返回中的 `next_actions`，按步骤执行 packet 生成、候选提交、judge 与验证流程。
+- 读取返回中的 `next_actions`，按步骤执行。
 
-5) `hep_run_build_writing_critical`（推荐；通常在已有 `writing_claims_table.json` 后执行）
-- 关键前置：`recids`（必填）+ `writing_claims_table.json`（默认 claims artifact）
-- 生成 `writing_conflicts.json` / `writing_stance.jsonl` / `writing_evidence_grades.json` / `writing_critical_summary.json`
-
-6) `hep_export_project`
+5) `hep_export_project`
 - 在通过验证与集成后导出完整项目成果。
 
 ## 常见提示
