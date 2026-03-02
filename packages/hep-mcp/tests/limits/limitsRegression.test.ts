@@ -51,9 +51,22 @@ describe('Limits regression guard (P0 silent truncation)', () => {
   });
 
   it('keeps critical research assumption depth explicitly configurable', () => {
-    const registryPath = path.resolve(pkgRoot, 'src/tools/registry.ts');
-    const registry = readUtf8(registryPath);
-    expect(registry).toContain('assumption_max_depth');
+    const registryEntryPath = path.resolve(pkgRoot, 'src/tools/registry.ts');
+    const registryEntry = readUtf8(registryEntryPath);
+
+    if (registryEntry.includes("export * from './registry/index.js'")) {
+      const candidates = [
+        path.resolve(pkgRoot, 'src/tools/registry/shared.ts'),
+        path.resolve(pkgRoot, 'src/tools/registry/inspireSchemas.ts'),
+      ];
+      const contents = candidates
+        .filter(p => fs.existsSync(p))
+        .map(p => readUtf8(p));
+      expect(contents.some(content => content.includes('assumption_max_depth'))).toBe(true);
+      return;
+    }
+
+    expect(registryEntry).toContain('assumption_max_depth');
   });
 
   it('prevents author list truncation from biasing author-count logic', () => {
