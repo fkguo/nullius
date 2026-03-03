@@ -63,13 +63,16 @@ def _normalize_pass_fail(token: str, pass_tokens: tuple[str, ...], fail_tokens: 
 
 
 def _extract_section(text: str, heading: str) -> str:
-    """Extract content between ## {heading} and the next ## heading."""
-    pat = re.compile(rf"^##\s+{re.escape(heading)}\s*$", re.MULTILINE | re.IGNORECASE)
+    """Extract content between ## {heading} and the next ## heading.
+
+    Tolerates 0-3 leading spaces per CommonMark ATX heading spec.
+    """
+    pat = re.compile(rf"^\s{{0,3}}##\s+{re.escape(heading)}\s*$", re.MULTILINE | re.IGNORECASE)
     m = pat.search(text)
     if not m:
         return ""
     start = m.end()
-    m2 = re.compile(r"^##\s+", re.MULTILINE).search(text, start)
+    m2 = re.compile(r"^\s{0,3}##\s+", re.MULTILINE).search(text, start)
     end = m2.start() if m2 else len(text)
     return text[start:end]
 
@@ -172,7 +175,7 @@ def _parse_sweep_semantics(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 _STEP_VERDICT_RE = re.compile(
-    r"^##\s+Step\s+(\d+):\s*(.+?)$(?:(?!^#{2,}\s)[\s\S])*?\*{0,2}Step\s+verdict:?\*{0,2}\s*(CONFIRMED|CHALLENGED|UNVERIFIABLE)",
+    r"^\s{0,3}##\s+Step\s+(\d+):\s*(.+?)$(?:(?!^\s{0,3}#{2,}\s)[\s\S])*?\*{0,2}Step\s+verdict:?\*{0,2}\s*(CONFIRMED|CHALLENGED|UNVERIFIABLE)",
     re.MULTILINE | re.IGNORECASE,
 )
 

@@ -89,9 +89,10 @@ def _redact_critical_steps(packet_text: str, critical_steps: list[str]) -> str:
 
     # Pattern: ## Step N: title\n<body until next ## or end>
     # Use .* (not .+) so blank lines within a step body are captured.
+    # Tolerates 0-3 leading spaces per CommonMark ATX heading spec.
     pattern = re.compile(
-        r"(?P<heading>^##\s+Step\s+(?P<num>\d+)\s*:\s*(?P<title>[^\n]*))\n"
-        r"(?P<body>(?:(?!^##\s).*\n?)*)",
+        r"(?P<heading>^\s{0,3}##\s+Step\s+(?P<num>\d+)\s*:\s*(?P<title>[^\n]*))\n"
+        r"(?P<body>(?:(?!^\s{0,3}##\s).*\n?)*)",
         flags=re.MULTILINE,
     )
     return pattern.sub(_replacer, packet_text)
@@ -109,11 +110,12 @@ def _redact_headline_numbers(packet_text: str) -> str:
     in_capsule_headlines = False
     for ln in lines:
         # Detect capsule headline section (Section E)
-        if re.match(r"^###\s+E\)\s+Headline numbers", ln, re.IGNORECASE):
+        # Tolerates 0-3 leading spaces per CommonMark ATX heading spec.
+        if re.match(r"^\s{0,3}###\s+E\)\s+Headline numbers", ln, re.IGNORECASE):
             in_capsule_headlines = True
             out.append(ln)
             continue
-        if in_capsule_headlines and re.match(r"^###\s+", ln):
+        if in_capsule_headlines and re.match(r"^\s{0,3}###\s+", ln):
             in_capsule_headlines = False
 
         # Redact H-lines and capsule headline section lines
@@ -198,8 +200,9 @@ def _parse_innovation_leads(log_path: Path) -> list[dict]:
 
     leads: list[dict] = []
     # Use .* (not .+) so blank lines within a lead body are captured.
+    # Tolerates 0-3 leading spaces per CommonMark ATX heading spec.
     pattern = re.compile(
-        r"^##\s+Lead\s+\d+\s*:\s*(?P<title>[^\n]+)\n(?P<body>(?:(?!^##\s).*\n?)*)",
+        r"^\s{0,3}##\s+Lead\s+\d+\s*:\s*(?P<title>[^\n]+)\n(?P<body>(?:(?!^\s{0,3}##\s).*\n?)*)",
         flags=re.MULTILINE,
     )
     for m in pattern.finditer(text):
