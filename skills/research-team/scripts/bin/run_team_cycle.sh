@@ -895,8 +895,8 @@ ISOLATION_STRATEGY="separate_worktrees"
 REVIEW_SETTINGS_SCRIPT="${SCRIPT_DIR}/team_cycle_get_review_settings.py"
 if [[ -f "${REVIEW_SETTINGS_SCRIPT}" ]]; then
   read -r REVIEW_ACCESS_MODE ISOLATION_STRATEGY CONFIG_WORKFLOW_MODE <<<"$(python3 "${REVIEW_SETTINGS_SCRIPT}" --notes "${NOTEBOOK_PATH}" 2>/dev/null || echo "packet_only separate_worktrees ")"
-  # RT-01: resolve workflow_mode from config if not set via CLI
-  if [[ ${WORKFLOW_MODE_FROM_CLI} -eq 0 && -n "${CONFIG_WORKFLOW_MODE}" ]]; then
+  # RT-01: resolve workflow_mode from config if not set via CLI and --blind-numerics didn't force asymmetric
+  if [[ ${WORKFLOW_MODE_FROM_CLI} -eq 0 && ${BLIND_NUMERICS} -eq 0 && -n "${CONFIG_WORKFLOW_MODE}" ]]; then
     WORKFLOW_MODE="${CONFIG_WORKFLOW_MODE}"
   fi
 fi

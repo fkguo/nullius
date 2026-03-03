@@ -43,7 +43,7 @@ AUDIT_END = "<!-- AUDIT_SLICES_END -->"
 # ---------------------------------------------------------------------------
 
 _HEADLINE_NUMBER_RE = re.compile(
-    r"(?<![A-Za-z_])"                         # avoid alphanumeric identifiers like T1/H1
+    r"(?<![A-Za-z_\d.])"                     # not preceded by alpha/digit/dot (prevents mid-number/identifier match)
     r"[+-]?"                                  # optional sign
     r"(?:\d+(?:\.\d*)?|\.\d+)"               # mantissa
     r"(?:"                                     # exponent / scientific notation (optional)
@@ -54,7 +54,7 @@ _HEADLINE_NUMBER_RE = re.compile(
     r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
     r"(?:[eE][+-]?\d+)?"
     r")?"
-    r"(?![A-Za-z_])",
+    r"(?!\d)",                                # not followed by digit (prevents partial-number match)
 )
 
 REDACTED_TAG = "[REDACTED — verifier must derive independently]"
@@ -82,9 +82,13 @@ def _redact_critical_steps(packet_text: str, critical_steps: list[str]) -> str:
         step_title = m.group("title").strip().lower()
         body = m.group("body")
         for crit in step_set:
-            if crit == step_num or crit in step_title:
-                # Preserve the heading, replace body
-                return m.group("heading") + "\n" + REDACTED_TAG + "\n"
+            # Numeric selectors match step number only; text selectors match title substring
+            if crit.isdigit():
+                if crit == step_num:
+                    return m.group("heading") + "\n" + REDACTED_TAG + "\n"
+            else:
+                if crit in step_title:
+                    return m.group("heading") + "\n" + REDACTED_TAG + "\n"
         return m.group(0)  # no match → keep original
 
     # Pattern: ## Step N: title\n<body until next ## or end>

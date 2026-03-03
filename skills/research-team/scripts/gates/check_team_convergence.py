@@ -175,7 +175,7 @@ def _parse_sweep_semantics(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 _STEP_VERDICT_RE = re.compile(
-    r"^\s{0,3}##\s+Step\s+(\d+):\s*(.+?)$(?:(?!^\s{0,3}#{2,}\s)[\s\S])*?\*{0,2}Step\s+verdict:?\*{0,2}\s*(CONFIRMED|CHALLENGED|UNVERIFIABLE)",
+    r"^\s{0,3}##\s+Step\s+(\d+):\s*(.+?)$(?:(?!^\s{0,3}#{2,}\s)[\s\S])*?^\s*\*{0,2}Step\s+verdict:?\*{0,2}\s*(CONFIRMED|CHALLENGED|UNVERIFIABLE)",
     re.MULTILINE | re.IGNORECASE,
 )
 
