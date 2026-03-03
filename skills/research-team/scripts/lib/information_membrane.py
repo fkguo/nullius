@@ -54,7 +54,9 @@ _BLOCK_RULES: list[tuple[str, list[re.Pattern[str]]]] = [
         # "comes out to/as / evaluates to / reduces to / simplifies to [adverb?] <number>"
         re.compile(r"(?:comes?\s+out\s+(?:to|as)|(?:evaluates?|reduces?|simplifies?)\s+(?:\w+\s+)?to|turns?\s+out\s+to\s+be)(?:\s+\w+)?\s+\$?[+-]?[\d.]+", re.I),
         # Standalone number + physics unit (e.g. "42 pb", "$42$ pb")
-        re.compile(r"\$?[+-]?[\d.]+\$?\s*(?:GeV|MeV|keV|eV|pb|fb|nb|mb)\b", re.I),
+        re.compile(r"\$?[+-]?[\d.]+\$?\s*(?:GeV|MeV|keV|eV|TeV|pb|fb|nb|mb|fb\^[{-]|pb\^[{-])\b", re.I),
+        # Dimensionless observable "is/= <number>" (e.g. "branching ratio is 0.034")
+        re.compile(r"(?:ratio|fraction|branching|coefficient|factor|index|exponent|constant|phase|angle)\s+(?:is|are|was|equals?)\s+\$?[+-]?[\d.]+", re.I),
     ]),
     # 2. Symbolic results (final expressions)
     ("SYM_RESULT", [
@@ -64,10 +66,10 @@ _BLOCK_RULES: list[tuple[str, list[re.Pattern[str]]]] = [
         re.compile(r"\$[^$]*\\?[A-Za-z]+\s*=\s*[^$]+\$"),
         # "the amplitude/matrix element is" followed by math (LaTeX macro or plain text)
         re.compile(r"(?:amplitude|matrix\s+element|propagator|self.energy)\s+(?:is|equals?)\s+(?:\$|\\[A-Za-z]|[A-Z])", re.I),
-        # Plain-text symbolic assignment: "is/equals X = expr"
-        re.compile(r"(?:is|are|equals?)\s+[A-Z]\w*\s*=\s*\S", re.I),
-        # Standalone symbolic assignment: "X = expr" (uppercase variable at word boundary)
-        re.compile(r"\b[A-Z]\w*\s*=\s*[a-zA-Z\\(]", re.I),
+        # Plain-text symbolic assignment: "is/equals X = expr" (NO re.I — [A-Z] must be case-sensitive)
+        re.compile(r"(?:is|are|equals?)\s+[A-Z]\w*\s*=\s*\S"),
+        # Standalone symbolic assignment: "X = expr" (uppercase variable at word boundary, NO re.I)
+        re.compile(r"\b[A-Z]\w*\s*=\s*[a-zA-Z\\(]"),
         # LaTeX macro result: "\mathcal{M} = ..." or "\Gamma = ..."
         re.compile(r"\\math[a-z]+\s*(?:\{[^}]+\})?\s*=\s*\S"),
     ]),
@@ -95,10 +97,12 @@ _BLOCK_RULES: list[tuple[str, list[re.Pattern[str]]]] = [
         re.compile(r"(?:looks|seems|appears)\s+(?:\w+\s+)?(?:correct|incorrect|wrong|right|valid|invalid|fine|good|ok(?:ay)?)\b", re.I),
         # "validates/confirms your result"
         re.compile(r"(?:validates?|verifies?|confirms?)\s+(?:your|the|this)\s+(?:result|answer|calculation|derivation)", re.I),
+        # "checks out" / "I/We approve"
+        re.compile(r"(?:checks?\s+out|(?:I|[Ww]e)\s+approve)\b", re.I),
     ]),
     # 5. Code output
     ("CODE_OUTPUT", [
-        re.compile(r"```(?:output|result|console)", re.I),
+        re.compile(r"```(?:output|result|console|text)\b", re.I),
         re.compile(r"(?:running|executing)\s+(?:the\s+)?(?:code|script|program)\s+(?:gives?|yields?|returns?|produces?|output)", re.I),
         re.compile(r"(?:program|code)\s+output\s*:", re.I),
     ]),

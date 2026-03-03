@@ -719,3 +719,99 @@ class TestR4BypassRegressions:
         text = "Consider using scipy.integrate for the numerical integration."
         result = filter_message(text)
         assert result.blocked_count == 0
+
+
+class TestR5BypassRegressions:
+    """R5 bypass regressions: SYM_RESULT false positives, unitless numerics,
+    verdict phrasings, fenced code with 'text' tag."""
+
+    # --- SYM_RESULT false positive fix (Gemini #1: re.I on [A-Z]) ---
+
+    def test_lowercase_a_equals_b_not_blocked(self):
+        """'where a = b + c' must NOT be blocked (lowercase variable)."""
+        text = "where a = b + c"
+        result = filter_message(text)
+        assert result.blocked_count == 0
+
+    def test_mass_equals_symbolic_not_blocked(self):
+        """'mass = m_1 + m_2' must NOT be blocked (lowercase variable, symbolic not numeric)."""
+        text = "mass = m_1 + m_2"
+        result = filter_message(text)
+        # After re.I fix: SYM_RESULT [A-Z] patterns no longer match lowercase 'mass'.
+        # NUM_RESULT observable pattern requires digits after '=', not letters.
+        assert result.blocked_count == 0
+
+    def test_the_equals_sign_not_blocked(self):
+        """'the = sign is used here' must NOT be blocked (grammar, not assignment)."""
+        text = "the = sign is used here"
+        result = filter_message(text)
+        assert result.blocked_count == 0
+
+    def test_where_variable_lowercase_pass(self):
+        """'where x = some_function(t)' must NOT be blocked (lowercase x)."""
+        text = "where x = some_function(t)"
+        result = filter_message(text)
+        assert result.blocked_count == 0
+
+    def test_uppercase_A_still_blocked(self):
+        """'A = g^2/(16*pi^2)' must still be blocked (uppercase variable)."""
+        text = "A = g^2/(16*pi^2)."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- Unitless numerics (Codex #1) ---
+
+    def test_branching_ratio_is_number(self):
+        """'The branching ratio is 0.034' must be blocked (dimensionless observable)."""
+        text = "The branching ratio is 0.034 for this channel."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_coefficient_is_number(self):
+        """'The coefficient is 2.5' must be blocked (dimensionless observable)."""
+        text = "The coefficient is 2.5 in this approximation."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_phase_angle_is_number(self):
+        """'The phase angle is 1.57' must be blocked."""
+        text = "The phase angle is 1.57."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- Verdict phrasings (Codex #3) ---
+
+    def test_checks_out_blocked(self):
+        """'Your approach checks out.' must be blocked (VERDICT)."""
+        text = "Your approach checks out."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_i_approve_blocked(self):
+        """'I approve this result.' must be blocked (VERDICT)."""
+        text = "I approve this result."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- CODE_OUTPUT with 'text' fence label (Codex #2) ---
+
+    def test_text_fenced_code_blocked(self):
+        """'```text\\n42\\n```' must be blocked (CODE_OUTPUT)."""
+        text = "```text\n42\n```"
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- TeV and inverse units (Gemini NON-BLOCKING #1) ---
+
+    def test_tev_unit_blocked(self):
+        """'14 TeV' must be blocked (standalone number + TeV)."""
+        text = "The center-of-mass energy is 14 TeV."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_fb_inverse_blocked(self):
+        """'137 fb^-1' must be blocked (standalone number + fb^-1)."""
+        text = "The integrated luminosity is 137 fb^-1."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
