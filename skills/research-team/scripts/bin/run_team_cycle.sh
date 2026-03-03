@@ -57,6 +57,11 @@ WORKFLOW_MODE=""
 WORKFLOW_MODE_FROM_CLI=0
 BLIND_NUMERICS=0
 CRITICAL_STEPS=""
+
+# RT-05: collaboration phases (comma-separated list of phase numbers)
+# Default "1" = Phase 1 only (backward compatible).
+COLLABORATION_PHASES="1"
+COLLABORATION_PHASES_FROM_CLI=0
 MAX_STEP_RETRIES=3
 REQUIRE_SWEEP=1  # default: require sweep_semantics=pass
 IDEA_SOURCE=""
@@ -661,6 +666,7 @@ while [[ $# -gt 0 ]]; do
     --workflow-mode) WORKFLOW_MODE="${2:-}"; WORKFLOW_MODE_FROM_CLI=1; shift 2 ;;
     --blind-numerics) BLIND_NUMERICS=1; shift ;;
     --critical-steps) CRITICAL_STEPS="${2:-}"; shift 2 ;;
+    --collaboration-phases) COLLABORATION_PHASES="${2:-1}"; COLLABORATION_PHASES_FROM_CLI=1; shift 2 ;;
     --max-step-retries) MAX_STEP_RETRIES="${2:-3}"; shift 2 ;;
     --require-sweep) REQUIRE_SWEEP=1; shift ;;
     --no-require-sweep) REQUIRE_SWEEP=0; shift ;;
@@ -751,6 +757,36 @@ if [[ ${BLIND_NUMERICS} -eq 1 && ${WORKFLOW_MODE_FROM_CLI} -eq 0 ]]; then
   WORKFLOW_MODE="asymmetric"
 fi
 
+# RT-05: Collaboration phases validation.
+# Parse comma-separated phases into a helper function.
+has_phase() {
+  local target="$1"
+  local IFS=","
+  for p in ${COLLABORATION_PHASES}; do
+    if [[ "${p}" == "${target}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Validate each phase number is in the allowed set {0,1,2,3,5}.
+_OLD_IFS="${IFS}"
+IFS=","
+for _p in ${COLLABORATION_PHASES}; do
+  case "${_p}" in
+    0|1|2|3|5) ;;
+    *) echo "ERROR: invalid collaboration phase: ${_p} (allowed: 0,1,2,3,5)" >&2; exit 2 ;;
+  esac
+done
+IFS="${_OLD_IFS}"
+
+# asymmetric mode: Phase 2 is hard-disabled (conflicts with blinding).
+if [[ "${WORKFLOW_MODE}" == "asymmetric" ]] && has_phase 2; then
+  echo "WARNING: Phase 2 (consultation) is incompatible with asymmetric mode — auto-disabling Phase 2." >&2
+  COLLABORATION_PHASES="$(echo "${COLLABORATION_PHASES}" | sed 's/2//g; s/,,*/,/g; s/^,//; s/,$//')"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILL_ROOT="$(cd "${SCRIPTS_DIR}/.." && pwd)"
@@ -782,6 +818,13 @@ CLAIM_AUTO_SCRIPT="${SCRIPT_DIR}/auto_enable_claim_gates.py"
 CLAIM_RENDER_SCRIPT="${SCRIPT_DIR}/render_claim_graph.py"
 PACKET_COMPLETENESS_SCRIPT="${GATES_DIR}/check_packet_completeness.py"
 PACKET_BUILD_SCRIPT="${SCRIPT_DIR}/build_team_packet.py"
+# RT-05: Information Membrane / collaboration phase scripts
+COMPILE_LANDSCAPE_SCRIPT="${SCRIPT_DIR}/compile_method_landscape.py"
+EXTRACT_FLAGS_SCRIPT="${SCRIPT_DIR}/extract_consultation_flags.py"
+FILTER_RESPONSE_SCRIPT="${SCRIPT_DIR}/filter_consultation_response.py"
+SYSTEM_ALIGNMENT="${SKILL_ROOT}/assets/system_alignment.txt"
+SYSTEM_CONSULTATION="${SKILL_ROOT}/assets/system_consultation.txt"
+SYSTEM_DIVERGENCE="${SKILL_ROOT}/assets/system_divergence.txt"
 TRAJ_SCRIPT="${SCRIPT_DIR}/update_trajectory_index.py"
 EXTRACT_NOTEBOOK_FROM_PACKET_SCRIPT="${SCRIPT_DIR}/team_cycle_extract_primary_notebook.py"
 FIND_CONFIG_PATH_SCRIPT="${SCRIPT_DIR}/team_cycle_find_config_path.py"
@@ -1508,6 +1551,10 @@ if [[ -z "${PACKET}" ]]; then
   if [[ -n "${EXPORT_LEADS_TO}" ]]; then
     build_args+=( --export-leads-to "${EXPORT_LEADS_TO}" )
   fi
+  # RT-05: method landscape injection
+  if [[ -n "${method_landscape_path}" && -f "${method_landscape_path}" ]]; then
+    build_args+=( --method-landscape "${method_landscape_path}" )
+  fi
   python3 "${PACKET_BUILD_SCRIPT}" "${build_args[@]}"
 fi
 
@@ -2182,6 +2229,76 @@ if [[ -n "${sidecar_lines}" ]]; then
   done <<<"${sidecar_lines}"
 fi
 
+# ---------------------------------------------------------------------------
+# RT-05: Phase 0 — Method Alignment (if enabled)
+# ---------------------------------------------------------------------------
+method_landscape_path=""
+if has_phase 0; then
+  echo "[RT-05] Phase 0: Method Alignment (collaboration-phases=${COLLABORATION_PHASES})"
+  cycle_state_update "phase_0" "running" "running" ""
+  phase0_dir="${run_dir}/phase_0"
+  mkdir -p "${phase0_dir}"
+  method_a_phase0="${phase0_dir}/method_a.md"
+  method_b_phase0="${phase0_dir}/method_b.md"
+
+  # Run Member A Phase 0 (alignment — no computation)
+  echo "[RT-05]   Running Member A Phase 0 alignment..."
+  if [[ -f "${MEMBER_A_RUNNER}" ]]; then
+    "${MEMBER_A_RUNNER}" \
+      --system "${SYSTEM_ALIGNMENT}" \
+      --prompt "${packet_for_run}" \
+      --output "${method_a_phase0}" \
+      --model "${MEMBER_A_MODEL:-}" \
+      2>/dev/null || {
+        echo "[RT-05]   WARNING: Member A Phase 0 failed (non-fatal; continuing without A's alignment)" >&2
+        touch "${method_a_phase0}"
+      }
+  else
+    echo "[RT-05]   WARNING: Member A runner not available for Phase 0" >&2
+    touch "${method_a_phase0}"
+  fi
+
+  # Run Member B Phase 0 (alignment — no computation)
+  echo "[RT-05]   Running Member B Phase 0 alignment..."
+  if [[ -f "${MEMBER_B_RUNNER}" ]]; then
+    _p0_b_system="${SYSTEM_ALIGNMENT}"
+    _p0_b_extra_args=()
+    "${MEMBER_B_RUNNER}" \
+      --system "${_p0_b_system}" \
+      --prompt "${packet_for_run}" \
+      --output "${method_b_phase0}" \
+      --model "${MEMBER_B_MODEL_EFFECTIVE:-}" \
+      2>/dev/null || {
+        echo "[RT-05]   WARNING: Member B Phase 0 failed (non-fatal; continuing without B's alignment)" >&2
+        touch "${method_b_phase0}"
+      }
+  else
+    echo "[RT-05]   WARNING: Member B runner not available for Phase 0" >&2
+    touch "${method_b_phase0}"
+  fi
+
+  # Compile Method Landscape (with Membrane filtering)
+  method_landscape_path="${phase0_dir}/method_landscape.md"
+  membrane_audit_dir="${run_dir}/membrane_audit"
+  echo "[RT-05]   Compiling Method Landscape..."
+  python3 "${COMPILE_LANDSCAPE_SCRIPT}" \
+    --member-a "${method_a_phase0}" \
+    --member-b "${method_b_phase0}" \
+    --output "${method_landscape_path}" \
+    --audit-dir "${membrane_audit_dir}" || {
+      echo "[RT-05]   WARNING: Method Landscape compilation failed (continuing without)" >&2
+      method_landscape_path=""
+    }
+
+  # Append Method Landscape to the team packet so Phase 1 members can see it
+  if [[ -n "${method_landscape_path}" && -f "${method_landscape_path}" ]]; then
+    echo "" >> "${packet_for_run}"
+    cat "${method_landscape_path}" >> "${packet_for_run}"
+    echo "[RT-05]   Method Landscape injected into team packet."
+  fi
+  cycle_state_update "phase_0" "done" "running" ""
+fi
+
 # Run Member A + Member B.
 pid_a=""
 pid_b=""
@@ -2582,6 +2699,100 @@ for entry in "${post_gates[@]}"; do
   fi
 done
 
+# ---------------------------------------------------------------------------
+# RT-05: Phase 2 — Targeted Consultation (if enabled + flags found)
+# ---------------------------------------------------------------------------
+if has_phase 2; then
+  echo "[RT-05] Phase 2: Targeted Consultation (extracting flags from Phase 1 reports)"
+  cycle_state_update "phase_2" "running" "running" ""
+  phase2_dir="${run_dir}/phase_2"
+  mkdir -p "${phase2_dir}"
+  membrane_audit_dir="${run_dir}/membrane_audit"
+
+  # Extract consultation flags
+  set +e
+  python3 "${EXTRACT_FLAGS_SCRIPT}" \
+    --member-a "${member_a_out}" \
+    --member-b "${member_b_out}" \
+    --output-dir "${phase2_dir}"
+  extract_code=$?
+  set -e
+
+  if [[ ${extract_code} -eq 2 ]]; then
+    echo "[RT-05]   No FLAG markers found — skipping Phase 2 consultation."
+    cycle_state_update "phase_2" "skipped_no_flags" "running" ""
+  elif [[ ${extract_code} -eq 0 ]]; then
+    # Process consultations: A's questions → B answers, B's questions → A answers
+    for pair in "A:B" "B:A"; do
+      questioner="${pair%%:*}"
+      responder="${pair##*:}"
+      q_lower="$(echo "${questioner}" | tr 'A-Z' 'a-z')"
+      r_lower="$(echo "${responder}" | tr 'A-Z' 'a-z')"
+      questions_file="${phase2_dir}/questions_${q_lower}.json"
+
+      if [[ -f "${questions_file}" ]] && python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get('questions') else 1)" "${questions_file}" 2>/dev/null; then
+        echo "[RT-05]   ${questioner}'s questions → ${responder} responds"
+        raw_response="${phase2_dir}/response_${r_lower}_raw.md"
+        filtered_response="${phase2_dir}/response_${r_lower}_filtered.md"
+
+        # Build consultation prompt from questions
+        consultation_prompt="${phase2_dir}/consultation_prompt_for_${r_lower}.md"
+        python3 -c "
+import json, sys
+q = json.load(open(sys.argv[1]))
+lines = ['## Consultation Questions\n']
+for i, qq in enumerate(q.get('questions', []), 1):
+    lines.append(f'{i}. [{qq[\"flag_type\"]}] {qq[\"question\"]}\n')
+    lines.append(f'   Context: {qq[\"context\"]}\n')
+open(sys.argv[2], 'w').write('\n'.join(lines))
+" "${questions_file}" "${consultation_prompt}"
+
+        # Run responder with consultation system prompt
+        if [[ "${r_lower}" == "a" && -f "${MEMBER_A_RUNNER}" ]]; then
+          "${MEMBER_A_RUNNER}" \
+            --system "${SYSTEM_CONSULTATION}" \
+            --prompt "${consultation_prompt}" \
+            --output "${raw_response}" \
+            --model "${MEMBER_A_MODEL:-}" \
+            2>/dev/null || {
+              echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
+              touch "${raw_response}"
+            }
+        elif [[ "${r_lower}" == "b" && -f "${MEMBER_B_RUNNER}" ]]; then
+          "${MEMBER_B_RUNNER}" \
+            --system "${SYSTEM_CONSULTATION}" \
+            --prompt "${consultation_prompt}" \
+            --output "${raw_response}" \
+            --model "${MEMBER_B_MODEL_EFFECTIVE:-}" \
+            2>/dev/null || {
+              echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
+              touch "${raw_response}"
+            }
+        else
+          echo "[RT-05]   WARNING: ${responder} runner not available for consultation" >&2
+          touch "${raw_response}"
+        fi
+
+        # Filter response through Information Membrane
+        python3 "${FILTER_RESPONSE_SCRIPT}" \
+          --input "${raw_response}" \
+          --output "${filtered_response}" \
+          --phase "phase_2" \
+          --source-member "${responder}" \
+          --target-member "${questioner}" \
+          --audit-dir "${membrane_audit_dir}" || {
+            echo "[RT-05]   WARNING: Membrane filtering failed for ${responder}'s response" >&2
+          }
+      fi
+    done
+    echo "[RT-05]   Phase 2 consultation complete."
+    cycle_state_update "phase_2" "done" "running" ""
+  else
+    echo "[RT-05]   WARNING: Flag extraction failed (exit ${extract_code}); skipping Phase 2." >&2
+    cycle_state_update "phase_2" "error" "running" ""
+  fi
+fi
+
 # Record member reports.
 if [[ -f "${TRAJ_SCRIPT}" ]]; then
   python3 "${TRAJ_SCRIPT}" --notes "${NOTEBOOK_PATH}" --out-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --stage "member_reports" --packet "${packet_for_run}" --member-a "${member_a_out}" --member-b "${member_b_out}" >/dev/null 2>&1 || true
@@ -2599,8 +2810,16 @@ if [[ -f "${GATE_SCRIPT}" ]]; then
     gate_sweep_flag="--no-require-sweep"
   fi
   set +e
+  # Build optional RT-05 context flags
+  gate_rt05_flags=""
+  if [[ -n "${method_landscape_path}" && -f "${method_landscape_path}" ]]; then
+    gate_rt05_flags="${gate_rt05_flags} --phase0-landscape ${method_landscape_path}"
+  fi
+  if [[ -d "${run_dir}/phase_2" ]]; then
+    gate_rt05_flags="${gate_rt05_flags} --phase2-responses ${run_dir}/phase_2"
+  fi
   python3 "${GATE_SCRIPT}" --member-a "${member_a_out}" --member-b "${member_b_out}" \
-    --workflow-mode "${WORKFLOW_MODE}" ${gate_sweep_flag}
+    --workflow-mode "${WORKFLOW_MODE}" ${gate_sweep_flag} ${gate_rt05_flags}
   gate_code=$?
   set -e
   if [[ ${gate_code} -eq 3 ]]; then
@@ -2651,6 +2870,67 @@ if [[ -f "${GATE_SCRIPT}" ]]; then
 
     CYCLE_FINAL_STATUS="not_converged"
     cycle_state_update "convergence" "not_converged" "${CYCLE_FINAL_STATUS}" ""
+
+    # -------------------------------------------------------------------
+    # RT-05: Phase 5 — Divergence Resolution (if enabled + not early-stop)
+    # -------------------------------------------------------------------
+    if has_phase 5; then
+      echo "[RT-05] Phase 5: Divergence Resolution"
+      cycle_state_update "phase_5" "running" "running" ""
+      phase5_dir="${run_dir}/phase_5"
+      mkdir -p "${phase5_dir}"
+      membrane_audit_dir="${run_dir}/membrane_audit"
+
+      # Extract CHALLENGED verdicts from both reports and filter through Membrane
+      for pair in "A:B" "B:A"; do
+        source_m="${pair%%:*}"
+        target_m="${pair##*:}"
+        s_lower="$(echo "${source_m}" | tr 'A-Z' 'a-z')"
+        t_lower="$(echo "${target_m}" | tr 'A-Z' 'a-z')"
+
+        if [[ "${s_lower}" == "a" ]]; then
+          source_report="${member_a_out}"
+        else
+          source_report="${member_b_out}"
+        fi
+
+        # Extract CHALLENGED reasons from source report
+        challenge_raw="${phase5_dir}/challenges_from_${s_lower}_raw.md"
+        python3 -c "
+import re, sys
+text = open(sys.argv[1]).read()
+# Find CHALLENGED verdict lines and their surrounding context
+lines = text.split('\n')
+challenges = []
+for i, line in enumerate(lines):
+    if re.search(r'CHALLENGED', line, re.I):
+        start = max(0, i-2)
+        end = min(len(lines), i+3)
+        challenges.append('\n'.join(lines[start:end]))
+if challenges:
+    open(sys.argv[2], 'w').write('\n\n---\n\n'.join(challenges))
+else:
+    open(sys.argv[2], 'w').write('')
+" "${source_report}" "${challenge_raw}" 2>/dev/null || touch "${challenge_raw}"
+
+        # Filter through Membrane
+        if [[ -s "${challenge_raw}" ]]; then
+          filtered_challenges="${phase5_dir}/challenges_from_${s_lower}_filtered.md"
+          python3 "${FILTER_RESPONSE_SCRIPT}" \
+            --input "${challenge_raw}" \
+            --output "${filtered_challenges}" \
+            --phase "phase_5" \
+            --source-member "${source_m}" \
+            --target-member "${target_m}" \
+            --audit-dir "${membrane_audit_dir}" || true
+          echo "[RT-05]   Filtered challenge reasons from ${source_m} → ${target_m}"
+        fi
+      done
+
+      cycle_state_update "phase_5" "done" "running" ""
+      echo "[RT-05]   Phase 5 divergence packets prepared in ${phase5_dir}/"
+      echo "[RT-05]   Re-run with --tag <next_tag> to continue resolution."
+    fi
 
     # Sidecars are non-blocking with respect to convergence accounting and trajectory updates.
     finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "0" || true

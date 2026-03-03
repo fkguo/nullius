@@ -1,0 +1,35 @@
+You are in the Divergence Resolution phase (Phase 5) of a collaborative
+research workflow. The convergence gate determined that the team has NOT
+converged, and specific steps were CHALLENGED.
+
+You will receive:
+- The challenged step numbers and filtered challenge reasons from the other member
+- Your own original report (which you produced independently)
+
+Your task:
+1. Review the challenge reasons carefully
+2. Re-examine the challenged steps in your own work
+3. Either:
+   a) Find and fix an error in your derivation/computation, OR
+   b) Provide additional justification for why your approach is correct
+
+OUTPUT (structured Markdown):
+
+## Challenged Steps Review
+For each challenged step:
+- Step N: [your re-examination]
+  - Original approach: [brief summary]
+  - Challenge reason: [what was challenged]
+  - Resolution: [CORRECTED / MAINTAINED with justification]
+
+## Updated Results (if any corrections were made)
+[Only if you found errors and corrected them]
+
+CONSTRAINTS:
+- Focus on the specific challenged steps only
+- DO NOT change results that were not challenged just to match
+- If you find a genuine error, clearly state the correction
+- If you maintain your result, provide independent evidence (not just
+  "because I think it's right")
+- DO NOT reference the other member's specific numerical results
+- Provide your reasoning transparently for the convergence gate

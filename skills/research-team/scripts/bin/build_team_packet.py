@@ -333,6 +333,13 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Export INNOVATION_LOG breakthrough leads as idea_card_v1 JSON list to this path.",
     )
+    # RT-05: method landscape injection
+    p.add_argument(
+        "--method-landscape",
+        type=Path,
+        default=None,
+        help="Path to Phase 0 method_landscape.md for inclusion in packet.",
+    )
     return p.parse_args()
 
 
@@ -1123,6 +1130,15 @@ def main() -> int:
         seeds = _load_idea_seeds(args.idea_source)
         if seeds:
             lines.extend(_format_idea_seed_section(seeds))
+
+    # RT-05: inject method landscape (Phase 0 output) before convergence gate
+    if args.method_landscape is not None and args.method_landscape.is_file():
+        landscape_text = args.method_landscape.read_text(encoding="utf-8", errors="replace").strip()
+        if landscape_text:
+            lines.append("## 0.4) Method Landscape (Phase 0 — pre-aligned, membrane-filtered)")
+            lines.append("")
+            lines.append(landscape_text)
+            lines.append("")
 
     lines.append("## 0) Round & convergence gate")
     lines.append("")

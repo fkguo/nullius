@@ -404,6 +404,19 @@ def main() -> int:
         help="Require sweep_semantics=pass for convergence (default: True). "
              "Use --no-require-sweep for theory milestones.",
     )
+    # RT-05: optional context display (does NOT change convergence logic)
+    p.add_argument(
+        "--phase0-landscape",
+        type=Path,
+        default=None,
+        help="Path to Phase 0 method_landscape.md (informational display only).",
+    )
+    p.add_argument(
+        "--phase2-responses",
+        type=Path,
+        default=None,
+        help="Path to Phase 2 consultation responses directory (informational display only).",
+    )
     args = p.parse_args()
 
     if not args.member_a.is_file():
@@ -438,6 +451,14 @@ def main() -> int:
             print(f"- Member {label} nontriviality: validated (reason={reason})")
         else:
             print(f"- Member {label} nontriviality: not validated (TRIVIAL or missing fields)")
+
+    # RT-05: display Phase 0/2 context (informational only — does not affect convergence)
+    if args.phase0_landscape and args.phase0_landscape.is_file():
+        landscape_size = args.phase0_landscape.stat().st_size
+        print(f"- Phase 0 method landscape: {args.phase0_landscape} ({landscape_size} bytes)")
+    if args.phase2_responses and args.phase2_responses.is_dir():
+        response_files = list(args.phase2_responses.glob("*.md"))
+        print(f"- Phase 2 consultation responses: {len(response_files)} files in {args.phase2_responses}")
 
     rc = check_convergence(member_a, member_b, mode, require_sweep)
 
