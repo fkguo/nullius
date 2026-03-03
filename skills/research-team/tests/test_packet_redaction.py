@@ -32,6 +32,19 @@ class TestRedactCriticalSteps:
         "Using the above, we compute sigma = 1.23 pb.\n"
     )
 
+    # Step body with blank lines (regression for R1 BLOCKING #1)
+    SAMPLE_BLANK_LINES = (
+        "## Step 1: Setup\n"
+        "Line one.\n"
+        "\n"
+        "Line after blank.\n"
+        "\n"
+        "Still in step 1.\n"
+        "\n"
+        "## Step 2: Next\n"
+        "Step 2 body.\n"
+    )
+
     def test_redact_by_number(self):
         result = _redact_critical_steps(self.SAMPLE_PACKET, ["2"])
         assert "## Step 2: Derive amplitude" in result
@@ -64,6 +77,16 @@ class TestRedactCriticalSteps:
     def test_case_insensitive_title(self):
         result = _redact_critical_steps(self.SAMPLE_PACKET, ["AMPLITUDE"])
         assert REDACTED_TAG in result
+
+    def test_redact_body_with_blank_lines(self):
+        """Blank lines within a step body must be fully redacted (R1 fix)."""
+        result = _redact_critical_steps(self.SAMPLE_BLANK_LINES, ["1"])
+        assert REDACTED_TAG in result
+        assert "Line one" not in result
+        assert "Line after blank" not in result
+        assert "Still in step 1" not in result
+        # Step 2 preserved
+        assert "Step 2 body" in result
 
 
 class TestRedactHeadlineNumbers:
@@ -101,6 +124,17 @@ class TestRedactHeadlineNumbers:
         text = "Regular text with x = 42 and y = 3.14\n"
         result = _redact_headline_numbers(text)
         assert result == text
+
+    def test_redact_approx_equal(self):
+        """Headlines with ≈ or : must also be redacted (R1 fix)."""
+        text = (
+            "- H1: [T1] sigma ≈ 3.14\n"
+            "- H2: [T2] rate: 2.71\n"
+        )
+        result = _redact_headline_numbers(text)
+        assert "3.14" not in result
+        assert "2.71" not in result
+        assert HIDDEN_TAG in result
 
 
 class TestSidecarAutoDetection:

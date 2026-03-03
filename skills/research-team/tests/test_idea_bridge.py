@@ -161,7 +161,8 @@ class TestLeadsToIdeaCards:
         assert "candidate_formalisms" in card
         assert "minimal_compute_plan" in card
         assert "claims" in card
-        assert card["thesis_statement"] == "Novel approach to X"
+        assert "Novel approach to X" in card["thesis_statement"]
+        assert len(card["thesis_statement"]) >= 20  # idea_card_v1 minLength
         assert card["testable_hypotheses"][0] == "Measurable difference in Y"
         assert card["required_observables"][0] == "Compute Y at point P"
         # Should have 2 claims: main + baseline
@@ -174,6 +175,20 @@ class TestLeadsToIdeaCards:
         assert len(cards) == 1
         # Only 1 claim (no baseline claim)
         assert len(cards[0]["claims"]) == 1
+
+    def test_short_title_padded_to_minlength(self):
+        """Short lead titles must be padded to meet idea_card_v1 minLength 20 (R1 fix)."""
+        leads = [{"title": "Short", "baseline": "", "discriminant": "D", "minimal_test": "T", "kill_criterion": "K"}]
+        cards = _leads_to_idea_cards(leads)
+        assert len(cards[0]["thesis_statement"]) >= 20
+        assert "Short" in cards[0]["thesis_statement"]
+
+    def test_long_title_not_padded(self):
+        """Titles already >= 20 chars should not be modified."""
+        long_title = "This is a sufficiently long lead title for testing"
+        leads = [{"title": long_title, "baseline": "", "discriminant": "D", "minimal_test": "T", "kill_criterion": "K"}]
+        cards = _leads_to_idea_cards(leads)
+        assert cards[0]["thesis_statement"] == long_title
 
     def test_roundtrip_export(self, tmp_path):
         """Test that exported cards can be loaded back as idea seeds."""
@@ -193,4 +208,5 @@ class TestLeadsToIdeaCards:
         # Reload
         reloaded = _load_idea_seeds(export_path)
         assert len(reloaded) == 1
-        assert reloaded[0]["thesis_statement"] == "Test lead"
+        assert "Test lead" in reloaded[0]["thesis_statement"]
+        assert len(reloaded[0]["thesis_statement"]) >= 20

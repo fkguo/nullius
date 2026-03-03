@@ -43,13 +43,18 @@ AUDIT_END = "<!-- AUDIT_SLICES_END -->"
 # ---------------------------------------------------------------------------
 
 _HEADLINE_NUMBER_RE = re.compile(
-    r"(=\s*)"                           # "=" with optional space
-    r"([+-]?"                           # optional sign
-    r"(?:\d+(?:\.\d*)?|\.\d+)"          # mantissa
-    r"(?:[eE][+-]?\d+)?)"               # optional exponent
-    r"(\s*(?:[±×]\s*"                   # optional ± or × separator
-    r"(?:\d+(?:\.\d*)?|\.\d+)"          # error mantissa
-    r"(?:[eE][+-]?\d+)?)?)",            # error exponent
+    r"(?<![A-Za-z_])"                         # avoid alphanumeric identifiers like T1/H1
+    r"[+-]?"                                  # optional sign
+    r"(?:\d+(?:\.\d*)?|\.\d+)"               # mantissa
+    r"(?:"                                     # exponent / scientific notation (optional)
+    r"(?:[eE][+-]?\d+)"
+    r"|(?:\s*(?:\*|×|\\times)\s*10\^?\{?[+-]?\d+\}?)"
+    r")?"
+    r"(?:\s*(?:±|\+/-|\\pm)\s*"              # optional uncertainty term
+    r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
+    r"(?:[eE][+-]?\d+)?"
+    r")?"
+    r"(?![A-Za-z_])",
 )
 
 REDACTED_TAG = "[REDACTED — verifier must derive independently]"
@@ -83,9 +88,10 @@ def _redact_critical_steps(packet_text: str, critical_steps: list[str]) -> str:
         return m.group(0)  # no match → keep original
 
     # Pattern: ## Step N: title\n<body until next ## or end>
+    # Use .* (not .+) so blank lines within a step body are captured.
     pattern = re.compile(
         r"(?P<heading>^##\s+Step\s+(?P<num>\d+)\s*:\s*(?P<title>[^\n]*))\n"
-        r"(?P<body>(?:(?!^##\s).+\n?)*)",
+        r"(?P<body>(?:(?!^##\s).*\n?)*)",
         flags=re.MULTILINE,
     )
     return pattern.sub(_replacer, packet_text)
@@ -112,7 +118,7 @@ def _redact_headline_numbers(packet_text: str) -> str:
 
         # Redact H-lines and capsule headline section lines
         if re.match(r"^\s*-\s*H\d+\s*:", ln) or in_capsule_headlines:
-            out.append(_HEADLINE_NUMBER_RE.sub(r"\1" + HIDDEN_TAG + r"\3", ln))
+            out.append(_HEADLINE_NUMBER_RE.sub(HIDDEN_TAG, ln))
         else:
             out.append(ln)
     return "".join(out)
@@ -138,11 +144,11 @@ def _load_idea_seeds(path: Path) -> list[dict]:
 
     if isinstance(data, dict):
         if "ideas" in data and isinstance(data["ideas"], list):
-            return data["ideas"]
+            return [x for x in data["ideas"] if isinstance(x, dict)]
         # Single idea card
         return [data]
     if isinstance(data, list):
-        return data
+        return [x for x in data if isinstance(x, dict)]
     return []
 
 
@@ -191,8 +197,9 @@ def _parse_innovation_leads(log_path: Path) -> list[dict]:
         return []
 
     leads: list[dict] = []
+    # Use .* (not .+) so blank lines within a lead body are captured.
     pattern = re.compile(
-        r"^##\s+Lead\s+\d+\s*:\s*(?P<title>[^\n]+)\n(?P<body>(?:(?!^##\s).+\n?)*)",
+        r"^##\s+Lead\s+\d+\s*:\s*(?P<title>[^\n]+)\n(?P<body>(?:(?!^##\s).*\n?)*)",
         flags=re.MULTILINE,
     )
     for m in pattern.finditer(text):
@@ -200,7 +207,7 @@ def _parse_innovation_leads(log_path: Path) -> list[dict]:
         body = m.group("body")
 
         def _field(name: str) -> str:
-            fm = re.search(rf"^\s*-\s*{re.escape(name)}\s*:\s*(.+)$", body, re.MULTILINE | re.IGNORECASE)
+            fm = re.search(rf"^\s*[-*]\s*{re.escape(name)}\s*:\s*(.+)$", body, re.MULTILINE | re.IGNORECASE)
             return fm.group(1).strip() if fm else ""
 
         lead = {
@@ -215,11 +222,19 @@ def _parse_innovation_leads(log_path: Path) -> list[dict]:
 
 
 def _leads_to_idea_cards(leads: list[dict]) -> list[dict]:
-    """Map INNOVATION_LOG leads to idea_card_v1 schema (best-effort)."""
+    """Map INNOVATION_LOG leads to idea_card_v1 schema (best-effort).
+
+    Ensures thesis_statement meets the schema minLength (20 chars).
+    """
+    _THESIS_MIN_LEN = 20
     cards: list[dict] = []
     for lead in leads:
+        title = lead.get("title") or "Untitled lead"
+        # Pad short titles to meet idea_card_v1 minLength requirement
+        if len(title) < _THESIS_MIN_LEN:
+            title = title + " — innovation lead from research-team"
         card = {
-            "thesis_statement": lead.get("title", "Untitled lead"),
+            "thesis_statement": title,
             "testable_hypotheses": [
                 lead.get("discriminant") or "Hypothesis TBD from lead",
             ],

@@ -87,8 +87,11 @@ def _parse_pass_fail_from_table(text: str, row_name: str, pass_tokens: tuple[str
 
 
 def _parse_comparison(section_text: str) -> str:
-    """Parse 'Comparison: ...' line. mismatch checked before match to avoid substring collision."""
-    m = re.search(r"^\s*Comparison:\s*([^\n]+)$", section_text, flags=re.IGNORECASE | re.MULTILINE)
+    """Parse 'Comparison: ...' line. mismatch checked before match to avoid substring collision.
+
+    Tolerates markdown decoration (bold, bullets) around the label.
+    """
+    m = re.search(r"^\s*[-*]?\s*\*{0,2}Comparison:?\*{0,2}\s*([^\n]+)$", section_text, flags=re.IGNORECASE | re.MULTILINE)
     if not m:
         return "unknown"
     value = m.group(1).strip().lower()
@@ -133,7 +136,7 @@ def _parse_sweep_semantics(text: str) -> str:
     sec = _extract_section(text, "Sweep Semantics / Parameter Dependence")
     if not sec:
         return "unknown"
-    m = re.search(r"^\s*.*Consistency verdict\s*:\s*(.+?)\s*$", sec, flags=re.IGNORECASE | re.MULTILINE)
+    m = re.search(r"^\s*[-*]?\s*\*{0,2}Consistency verdict:?\*{0,2}\s*(.+?)\s*$", sec, flags=re.IGNORECASE | re.MULTILINE)
     if not m:
         return "unknown"
     tail = m.group(1)
@@ -169,8 +172,8 @@ def _parse_sweep_semantics(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 _STEP_VERDICT_RE = re.compile(
-    r"^##\s+Step\s+(\d+):\s*(.+?)$.*?Step\s+verdict:\s*(CONFIRMED|CHALLENGED|UNVERIFIABLE)",
-    re.MULTILINE | re.DOTALL | re.IGNORECASE,
+    r"^##\s+Step\s+(\d+):\s*(.+?)$(?:(?!^##\s)[\s\S])*?\*{0,2}Step\s+verdict:?\*{0,2}\s*(CONFIRMED|CHALLENGED|UNVERIFIABLE)",
+    re.MULTILINE | re.IGNORECASE,
 )
 
 
@@ -201,7 +204,7 @@ def _validate_nontriviality(text: str) -> bool:
       - Triviality classification is NONTRIVIAL AND
       - Falsification pathway is present and non-empty AND
       - Failure mode targeted is present and non-empty AND
-      - Nontriviality reason is present and parseable
+      - Nontriviality reason is present and matches the controlled vocabulary
 
     If classification is TRIVIAL or absent, returns False (no downgrade needed).
     """
@@ -209,22 +212,30 @@ def _validate_nontriviality(text: str) -> bool:
     if not comp_sec:
         return False
 
+    # Helper: match a "Label: value" line tolerating bullets/bold prefixes
+    def _field(label: str) -> re.Match | None:
+        return re.search(
+            rf"^\s*[-*]?\s*\*{{0,2}}{re.escape(label)}:?\*{{0,2}}[ \t]*(\S[^\n]*)$",
+            comp_sec, re.IGNORECASE | re.MULTILINE,
+        )
+
     # Check classification tag
-    m_class = re.search(r"Triviality classification:\s*(NONTRIVIAL|TRIVIAL)", comp_sec, re.IGNORECASE)
+    m_class = re.search(r"\*{0,2}Triviality classification:?\*{0,2}\s*(NONTRIVIAL|TRIVIAL)", comp_sec, re.IGNORECASE)
     if not m_class or m_class.group(1).upper() != "NONTRIVIAL":
         return False
 
     # Require all three supporting fields
-    # Use [^\n] patterns to stay on the same line; require at least one non-space char
-    m_fp = re.search(r"^Falsification pathway:[ \t]*(\S[^\n]*)$", comp_sec, re.IGNORECASE | re.MULTILINE)
-    m_fm = re.search(r"^Failure mode targeted:[ \t]*(\S[^\n]*)$", comp_sec, re.IGNORECASE | re.MULTILINE)
-    m_nr = re.search(r"^Nontriviality reason:[ \t]*(\S[^\n]*)$", comp_sec, re.IGNORECASE | re.MULTILINE)
+    m_fp = _field("Falsification pathway")
+    m_fm = _field("Failure mode targeted")
 
     if not m_fp or not m_fp.group(1).strip():
         return False
     if not m_fm or not m_fm.group(1).strip():
         return False
-    if not m_nr or not m_nr.group(1).strip():
+
+    # Enforce controlled vocabulary for nontriviality reason
+    reason = _parse_nontriviality_reason(text)
+    if reason is None:
         return False
 
     return True
@@ -235,7 +246,10 @@ def _parse_nontriviality_reason(text: str) -> str | None:
     comp_sec = _extract_section(text, "Computation Replication")
     if not comp_sec:
         return None
-    m = re.search(r"^Nontriviality reason:[ \t]*(\S[^\n]*)$", comp_sec, re.IGNORECASE | re.MULTILINE)
+    m = re.search(
+        r"^\s*[-*]?\s*\*{0,2}Nontriviality reason:?\*{0,2}[ \t]*(\S[^\n]*)$",
+        comp_sec, re.IGNORECASE | re.MULTILINE,
+    )
     if not m:
         return None
     raw = m.group(1).strip()

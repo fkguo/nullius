@@ -1,25 +1,26 @@
 {
   "mcpServers": {
-    "hep-research-mcp": {
+    "hep-mcp": {
       "command": "node",
       "args": [
-        "/absolute/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js"
+        "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "/absolute/path/to/hep-research-mcp/tmp/hep_data",
+        "HEP_DATA_DIR": "/absolute/path/to/autoresearch-lab/tmp/hep_data",
         "HEP_TOOL_MODE": "standard",
         "HEP_ENABLE_ZOTERO": "",
-        "HEP_DOWNLOAD_DIR": "/absolute/path/to/hep-research-mcp/tmp/hep_data/downloads",
+        "HEP_DOWNLOAD_DIR": "/absolute/path/to/autoresearch-lab/tmp/hep_data/downloads",
         "HEP_DEBUG": "",
+        "PDG_DB_PATH": "/absolute/path/to/pdg-data/pdgall-2024-v0.0.5.sqlite",
         "ZOTERO_BASE_URL": "http://127.0.0.1:23119",
         "ZOTERO_DATA_DIR": "/absolute/path/to/Zotero",
-        "WRITING_PROGRESS_DIR": "/absolute/path/to/hep-research-mcp/tmp/research_progress"
+        "WRITING_PROGRESS_DIR": "/absolute/path/to/autoresearch-lab/tmp/research_progress"
       }
     },
     "zotero-mcp": {
       "command": "node",
       "args": [
-        "/absolute/path/to/hep-research-mcp/packages/zotero-mcp/dist/index.js"
+        "/absolute/path/to/autoresearch-lab/packages/zotero-mcp/dist/index.js"
       ],
       "env": {
         "ZOTERO_TOOL_MODE": "standard",

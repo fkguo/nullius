@@ -174,6 +174,14 @@ class TestFixture3MismatchBug:
         assert result != "unknown"
         assert result == "fail"
 
+    def test_bold_comparison(self):
+        """Markdown-decorated **Comparison:** must still parse (R2 fix)."""
+        assert _parse_comparison("**Comparison:** match within 0.1%\n") == "pass"
+
+    def test_bullet_comparison(self):
+        """Bullet-prefixed comparison must still parse (R2 fix)."""
+        assert _parse_comparison("- Comparison: mismatch\n") == "fail"
+
 
 # ===========================================================================
 # Fixture 4: Comparison: match within tolerance
@@ -446,6 +454,50 @@ Step verdict: CHALLENGED
         )
         assert check_convergence(a, b, "leader", require_sweep=True) == 0
 
+    def test_cross_step_verdict_no_bleed(self):
+        """Step without verdict must NOT capture the next step's verdict (R1 fix)."""
+        text = """\
+## Step 1: Setup
+Some setup text.
+
+## Step 2: Calculation
+The calculation gives...
+Step verdict: CHALLENGED
+"""
+        verdicts = _parse_step_verdicts(text)
+        # Step 1 has NO verdict → should not steal Step 2's verdict
+        for name, v in verdicts:
+            if "Step 1" in name:
+                assert False, f"Step 1 should not have a verdict but got: {v}"
+        # Step 2 should have CHALLENGED
+        step2 = [v for name, v in verdicts if "Step 2" in name]
+        assert step2 == ["CHALLENGED"]
+
+    def test_markdown_decorated_verdict(self):
+        """Step verdict with markdown decoration must still be parsed."""
+        text = """\
+## Step 1: Setup
+Some text.
+**Step verdict:** CONFIRMED
+"""
+        verdicts = _parse_step_verdicts(text)
+        assert len(verdicts) == 1
+        assert verdicts[0][1] == "CONFIRMED"
+
+    def test_verdict_in_non_step_section_no_bleed(self):
+        """Verdict in a non-step ## section must not be attributed to the last step (R2 fix)."""
+        text = """\
+## Step 1: Setup
+Some analysis.
+Step verdict: CONFIRMED
+
+## Major Gaps
+There is a gap. Step verdict: CHALLENGED
+"""
+        verdicts = _parse_step_verdicts(text)
+        assert len(verdicts) == 1
+        assert verdicts[0] == ("Step 1: Setup", "CONFIRMED")
+
 
 # ===========================================================================
 # Asymmetric mode — Fixture 16-17
@@ -542,6 +594,22 @@ class TestNontrivialityValidation:
     def test_parse_reason_invalid(self):
         text = _make_report(nontriviality_reason="FOOBAR")
         assert _parse_nontriviality_reason(text) is None
+
+    def test_invalid_reason_blocks_validation(self):
+        """An invalid nontriviality reason must fail _validate_nontriviality (R1 fix)."""
+        text = _make_report(nontriviality_reason="FOOBAR")
+        # Even though all other fields are present, invalid reason must block
+        assert _validate_nontriviality(text) is False
+
+    def test_valid_reason_passes_validation(self):
+        """A valid controlled-vocabulary reason passes validation."""
+        text = _make_report(nontriviality_reason="INDEPENDENT_PATH")
+        assert _validate_nontriviality(text) is True
+
+    def test_other_reason_passes_validation(self):
+        """OTHER:* pattern passes validation."""
+        text = _make_report(nontriviality_reason="OTHER: custom check")
+        assert _validate_nontriviality(text) is True
 
 
 # ===========================================================================
