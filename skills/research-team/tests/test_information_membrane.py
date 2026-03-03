@@ -479,3 +479,55 @@ class TestR1BypassRegressions:
         result = filter_message(text)
         assert result.blocked_count > 0
         assert result.blocked_spans[0].block_type == "NUM_RESULT"
+
+
+# ===========================================================================
+# Regression: R2 review-swarm bypass vectors (Codex-identified)
+# ===========================================================================
+
+class TestR2BypassRegressions:
+    """Regression tests for bypass vectors found in review-swarm R2."""
+
+    def test_plain_text_symbolic_result(self):
+        """'The amplitude is A = g^2/(16*pi^2).' must be blocked (SYM_RESULT) without $...$."""
+        text = "The amplitude is A = g^2/(16*pi^2)."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_positive_signed_numeric(self):
+        """'The cross section is +42 pb.' must be blocked (NUM_RESULT)."""
+        text = "The cross section is +42 pb."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_positive_signed_width(self):
+        """'The width is +4.07 MeV.' must be blocked (NUM_RESULT)."""
+        text = "The width is +4.07 MeV."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_looks_correct_verdict(self):
+        """'Looks correct to me.' must be blocked (VERDICT)."""
+        text = "Looks correct to me."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "VERDICT"
+
+    def test_seems_wrong_verdict(self):
+        """'This seems wrong.' must be blocked (VERDICT)."""
+        text = "This seems wrong."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "VERDICT"
+
+    def test_appears_valid_verdict(self):
+        """'Appears valid.' must be blocked (VERDICT)."""
+        text = "The calculation appears valid in this regime."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_positive_equals_assignment(self):
+        """'= +3.14' must be blocked (NUM_RESULT)."""
+        text = "The coupling constant = +3.14."
+        result = filter_message(text)
+        assert result.blocked_count > 0

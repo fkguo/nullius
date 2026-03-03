@@ -2267,7 +2267,7 @@ if has_phase 0; then
       [[ -n "${MEMBER_A_API_BASE_URL:-}" ]] && _p0_a_args+=( --api-base-url "${MEMBER_A_API_BASE_URL}" )
       [[ -n "${MEMBER_A_API_KEY_ENV:-}" ]]  && _p0_a_args+=( --api-key-env  "${MEMBER_A_API_KEY_ENV}" )
     fi
-    "${MEMBER_A_RUNNER}" "${_p0_a_args[@]}" 2>/dev/null || {
+    bash "${MEMBER_A_RUNNER}" "${_p0_a_args[@]}" 2>/dev/null || {
       echo "[RT-05]   WARNING: Member A Phase 0 failed (non-fatal; continuing without A's alignment)" >&2
       touch "${method_a_phase0}"
     }
@@ -2291,7 +2291,9 @@ if has_phase 0; then
       } > "${_p0_b_tmp}"
       _p0_b_args=( --prompt-file "${_p0_b_tmp}" --out "${method_b_phase0}" )
       [[ -n "${MEMBER_B_MODEL_EFFECTIVE:-}" ]] && _p0_b_args+=( --model "${MEMBER_B_MODEL_EFFECTIVE}" )
-      "${MEMBER_B_RUNNER}" "${_p0_b_args[@]}" 2>/dev/null || {
+      [[ -n "${MEMBER_B_API_BASE_URL:-}" ]] && _p0_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
+      [[ -n "${MEMBER_B_API_KEY_ENV:-}" ]]  && _p0_b_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
+      bash "${MEMBER_B_RUNNER}" "${_p0_b_args[@]}" 2>/dev/null || {
         echo "[RT-05]   WARNING: Member B Phase 0 failed (non-fatal; continuing without B's alignment)" >&2
         touch "${method_b_phase0}"
       }
@@ -2308,7 +2310,7 @@ if has_phase 0; then
         [[ -n "${MEMBER_B_API_BASE_URL:-}" ]] && _p0_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
         [[ -n "${MEMBER_B_API_KEY_ENV:-}" ]]  && _p0_b_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
       fi
-      "${MEMBER_B_RUNNER}" "${_p0_b_args[@]}" 2>/dev/null || {
+      bash "${MEMBER_B_RUNNER}" "${_p0_b_args[@]}" 2>/dev/null || {
         echo "[RT-05]   WARNING: Member B Phase 0 failed (non-fatal; continuing without B's alignment)" >&2
         touch "${method_b_phase0}"
       }
@@ -2800,7 +2802,7 @@ open(sys.argv[2], 'w').write('\n'.join(lines))
             [[ -n "${MEMBER_A_API_BASE_URL:-}" ]] && _p2_a_args+=( --api-base-url "${MEMBER_A_API_BASE_URL}" )
             [[ -n "${MEMBER_A_API_KEY_ENV:-}" ]]  && _p2_a_args+=( --api-key-env  "${MEMBER_A_API_KEY_ENV}" )
           fi
-          "${MEMBER_A_RUNNER}" "${_p2_a_args[@]}" 2>/dev/null || {
+          bash "${MEMBER_A_RUNNER}" "${_p2_a_args[@]}" 2>/dev/null || {
             echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
             touch "${raw_response}"
           }
@@ -2817,7 +2819,9 @@ open(sys.argv[2], 'w').write('\n'.join(lines))
             } > "${_p2_b_tmp}"
             _p2_b_args=( --prompt-file "${_p2_b_tmp}" --out "${raw_response}" )
             [[ -n "${MEMBER_B_MODEL_EFFECTIVE:-}" ]] && _p2_b_args+=( --model "${MEMBER_B_MODEL_EFFECTIVE}" )
-            "${MEMBER_B_RUNNER}" "${_p2_b_args[@]}" 2>/dev/null || {
+            [[ -n "${MEMBER_B_API_BASE_URL:-}" ]] && _p2_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
+            [[ -n "${MEMBER_B_API_KEY_ENV:-}" ]]  && _p2_b_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
+            bash "${MEMBER_B_RUNNER}" "${_p2_b_args[@]}" 2>/dev/null || {
               echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
               touch "${raw_response}"
             }
@@ -2834,7 +2838,7 @@ open(sys.argv[2], 'w').write('\n'.join(lines))
               [[ -n "${MEMBER_B_API_BASE_URL:-}" ]] && _p2_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
               [[ -n "${MEMBER_B_API_KEY_ENV:-}" ]]  && _p2_b_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
             fi
-            "${MEMBER_B_RUNNER}" "${_p2_b_args[@]}" 2>/dev/null || {
+            bash "${MEMBER_B_RUNNER}" "${_p2_b_args[@]}" 2>/dev/null || {
               echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
               touch "${raw_response}"
             }
