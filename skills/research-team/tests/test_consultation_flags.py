@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "bin"))
 
@@ -19,6 +20,32 @@ from extract_consultation_flags import (
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "lib"))
 
 from filter_consultation_response import filter_response
+from information_membrane import MembraneConfig
+
+
+def _mock_llm_classify(segments, pass_indices=None):
+    """Helper: build a mock _call_llm that PASSes specified indices, BLOCKs the rest."""
+    if pass_indices is None:
+        pass_indices = set()
+
+    def _mock_call(messages, *, config, use_structured=True):
+        # Extract segment count from user message (JSON-encoded segments)
+        user_msg = messages[-1]["content"]
+        count = user_msg.count('"segment_index"')
+        classifications = []
+        for i in range(1, count + 1):
+            if i in pass_indices:
+                classifications.append({
+                    "segment_index": i, "decision": "PASS",
+                    "block_type": None, "pass_type": "METHOD", "reason": "ok",
+                })
+            else:
+                classifications.append({
+                    "segment_index": i, "decision": "BLOCK",
+                    "block_type": "NUM_RESULT", "pass_type": None, "reason": "blocked",
+                })
+        return {"classifications": classifications}
+    return _mock_call
 
 
 # ===========================================================================
@@ -122,34 +149,49 @@ class TestFlagsToQuestions:
 class TestFilterResponse:
     """Test consultation response filtering through Information Membrane."""
 
-    def test_clean_methodological_answer(self):
+    @patch("information_membrane._call_llm")
+    def test_clean_methodological_answer(self, mock_llm):
+        mock_llm.side_effect = _mock_llm_classify(None, pass_indices={1})
+        config = MembraneConfig(api_key="test-key")
         text = "For this type of integral, I recommend Gauss-Kronrod quadrature."
-        result = filter_response(text)
+        result = filter_response(text, config=config)
         assert "Gauss-Kronrod" in result
         assert "[REDACTED" not in result
 
-    def test_blocks_numerical_result(self):
+    @patch("information_membrane._call_llm")
+    def test_blocks_numerical_result(self, mock_llm):
+        mock_llm.side_effect = _mock_llm_classify(None, pass_indices=set())
+        config = MembraneConfig(api_key="test-key")
         text = "The integral gives 3.14159 after numerical evaluation."
-        result = filter_response(text)
+        result = filter_response(text, config=config)
         assert "3.14159" not in result
         assert "REDACTED" in result
         assert "Information Membrane" in result
 
-    def test_blocks_verdict(self):
+    @patch("information_membrane._call_llm")
+    def test_blocks_verdict(self, mock_llm):
+        mock_llm.side_effect = _mock_llm_classify(None, pass_indices=set())
+        config = MembraneConfig(api_key="test-key")
         text = "I think your approach is correct and the derivation is valid."
-        result = filter_response(text)
+        result = filter_response(text, config=config)
         assert "REDACTED" in result
 
-    def test_mixed_response(self):
+    @patch("information_membrane._call_llm")
+    def test_mixed_response(self, mock_llm):
+        mock_llm.side_effect = _mock_llm_classify(None, pass_indices={1})
+        config = MembraneConfig(api_key="test-key")
         text = (
             "I recommend using the Vegas algorithm for this.\n\n"
             "My result for the same integral is sigma = 42 pb."
         )
-        result = filter_response(text)
+        result = filter_response(text, config=config)
         assert "Vegas" in result
         assert "42" not in result
 
-    def test_audit_dir(self, tmp_path):
+    @patch("information_membrane._call_llm")
+    def test_audit_dir(self, mock_llm, tmp_path):
+        mock_llm.side_effect = _mock_llm_classify(None, pass_indices=set())
+        config = MembraneConfig(api_key="test-key")
         audit_dir = tmp_path / "membrane_audit"
         text = "The final result is 3.14."
         filter_response(
@@ -158,6 +200,7 @@ class TestFilterResponse:
             source_member="B",
             target_member="A",
             audit_dir=audit_dir,
+            config=config,
         )
         assert audit_dir.exists()
         audit_files = list(audit_dir.glob("*.jsonl"))

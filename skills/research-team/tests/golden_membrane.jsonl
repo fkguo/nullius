@@ -1,0 +1,50 @@
+{"segment": "The cross-section = 42.7 pb", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "The mass ≈ 125.3 GeV", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "I obtain a branching ratio of 0.034", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "therefore $\\Gamma$ = \\alpha^2 m / 4", "expected_decision": "BLOCK", "expected_type": "SYM_RESULT"}
+{"segment": "The final result for the amplitude is given by $\\mathcal{M} = g^2/(16\\pi^2)$", "expected_decision": "BLOCK", "expected_type": "SYM_RESULT"}
+{"segment": "Step 1: expand → Step 2: integrate → result", "expected_decision": "BLOCK", "expected_type": "DERIV_CHAIN"}
+{"segment": "Substituting the propagator into the loop integral, we obtain the expression", "expected_decision": "BLOCK", "expected_type": "DERIV_CHAIN"}
+{"segment": "I agree with the conclusion drawn above", "expected_decision": "BLOCK", "expected_type": "VERDICT"}
+{"segment": "This derivation is correct in the limit", "expected_decision": "BLOCK", "expected_type": "VERDICT"}
+{"segment": "CONFIRMED", "expected_decision": "BLOCK", "expected_type": "VERDICT"}
+{"segment": "```output\n42.7\n```", "expected_decision": "BLOCK", "expected_type": "CODE_OUTPUT"}
+{"segment": "Running the code gives a cross-section of 42 pb", "expected_decision": "BLOCK", "expected_type": "CODE_OUTPUT"}
+{"segment": "I agree with Member B's numerical analysis", "expected_decision": "BLOCK", "expected_type": "AGREEMENT"}
+{"segment": "We get the same result for the integral", "expected_decision": "BLOCK", "expected_type": "AGREEMENT"}
+{"segment": "Our results differ by approximately 2%", "expected_decision": "BLOCK", "expected_type": "COMPARISON"}
+{"segment": "Compared to your calculation, the phase space factor is larger", "expected_decision": "BLOCK", "expected_type": "COMPARISON"}
+{"segment": "I suggest using adaptive Monte Carlo integration", "expected_decision": "PASS", "expected_type": "METHOD"}
+{"segment": "Gauss-Kronrod quadrature is more suitable here", "expected_decision": "PASS", "expected_type": "METHOD"}
+{"segment": "See [Smith 2023] for the detailed treatment", "expected_decision": "PASS", "expected_type": "REFERENCE"}
+{"segment": "The technique from arXiv:2301.12345 is relevant", "expected_decision": "PASS", "expected_type": "REFERENCE"}
+{"segment": "I use the MS-bar renormalization scheme", "expected_decision": "PASS", "expected_type": "CONVENTION"}
+{"segment": "Watch out for the infrared divergence at q=0", "expected_decision": "PASS", "expected_type": "PITFALL"}
+{"segment": "There is a branch cut along the negative real axis", "expected_decision": "PASS", "expected_type": "PITFALL"}
+{"segment": "The convergence criterion requires at least 6 significant digits", "expected_decision": "PASS", "expected_type": "CRITERION"}
+{"segment": "LoopTools provides a reliable implementation of PV functions", "expected_decision": "PASS", "expected_type": "TOOL"}
+{"segment": "I assume massless quarks in the chiral limit", "expected_decision": "PASS", "expected_type": "ASSUMPTION"}
+{"segment": "Neglecting higher-order QED corrections", "expected_decision": "PASS", "expected_type": "ASSUMPTION"}
+{"segment": "The Lagrangian density includes both gauge and matter fields.", "expected_decision": "PASS", "expected_type": null}
+{"segment": "forty-two picobarns", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "The Higgs mass is 125 GeV", "expected_decision": "PASS", "expected_type": "REFERENCE"}
+{"segment": "Our calculated mass is 125.3 GeV", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "The PDG value is 125.25 ± 0.17 GeV", "expected_decision": "PASS", "expected_type": "REFERENCE"}
+{"segment": "I can confirm your approach works", "expected_decision": "BLOCK", "expected_type": "VERDICT"}
+{"segment": "Consider trying a different approach for the loop integral", "expected_decision": "PASS", "expected_type": "METHOD"}
+{"segment": "The integral converges to 3.14", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "The integral should converge for Re(s) > 0", "expected_decision": "PASS", "expected_type": "PITFALL"}
+{"segment": "sigma = 0.35 pb for the total cross section", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "The width is 4.07 MeV", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "Looks correct to me", "expected_decision": "BLOCK", "expected_type": "VERDICT"}
+{"segment": "This seems wrong", "expected_decision": "BLOCK", "expected_type": "VERDICT"}
+{"segment": "A = g^2/(16*pi^2).", "expected_decision": "BLOCK", "expected_type": "SYM_RESULT"}
+{"segment": "The cross section is exactly 42 pb.", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "Your approach checks out.", "expected_decision": "BLOCK", "expected_type": "VERDICT"}
+{"segment": "Use dimensional regularization in d=4-2ε", "expected_decision": "PASS", "expected_type": "CONVENTION"}
+{"segment": "In d=4-2ε, the pole term is 1/ε × 42", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "The typical cross section for this process is O(pb)", "expected_decision": "PASS", "expected_type": null}
+{"segment": "First expand the propagator, then integrate the loop momentum, then simplify using Feynman parameters.", "expected_decision": "BLOCK", "expected_type": "DERIV_CHAIN"}
+{"segment": "Be careful about UV divergences", "expected_decision": "PASS", "expected_type": "PITFALL"}
+{"segment": "a value in the low forties", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "Refer to Eq.(3.14) in Peskin & Schroeder", "expected_decision": "PASS", "expected_type": "REFERENCE"}

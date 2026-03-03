@@ -9,7 +9,10 @@ Usage:
         --member-a method_a.md \
         --member-b method_b.md \
         --output method_landscape.md \
-        [--audit-dir <run_dir>/membrane_audit]
+        [--audit-dir <run_dir>/membrane_audit] \
+        [--membrane-api-key-env DEEPSEEK_API_KEY] \
+        [--membrane-api-base-url https://api.deepseek.com] \
+        [--membrane-model deepseek-chat]
 """
 from __future__ import annotations
 
@@ -22,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 from information_membrane import (
     FilterResult,
+    MembraneConfig,
     build_audit_record,
     filter_message,
     write_audit_log,
@@ -73,14 +77,15 @@ def compile_landscape(
     member_b_text: str,
     *,
     audit_dir: Path | None = None,
+    config: MembraneConfig | None = None,
 ) -> tuple[str, FilterResult, FilterResult]:
     """Compile two Phase 0 outputs into a method_landscape.md.
 
     Returns (landscape_md, filter_result_a, filter_result_b).
     """
     # Apply Information Membrane to each member's output
-    fr_a = filter_message(member_a_text)
-    fr_b = filter_message(member_b_text)
+    fr_a = filter_message(member_a_text, config=config)
+    fr_b = filter_message(member_b_text, config=config)
 
     # Write audit logs if requested
     if audit_dir is not None:
@@ -140,6 +145,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--member-b", required=True, type=Path, help="Member B Phase 0 output")
     parser.add_argument("--output", required=True, type=Path, help="Output method_landscape.md")
     parser.add_argument("--audit-dir", type=Path, default=None, help="Membrane audit log directory")
+    # Membrane V2 LLM config
+    parser.add_argument("--membrane-api-key-env", default=None,
+                        help="Env var name holding the API key (default: DEEPSEEK_API_KEY)")
+    parser.add_argument("--membrane-api-base-url", default=None,
+                        help="API base URL (default: https://api.deepseek.com)")
+    parser.add_argument("--membrane-model", default=None,
+                        help="Model name (default: deepseek-chat)")
     args = parser.parse_args(argv)
 
     if not args.member_a.is_file():
@@ -149,11 +161,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: Member B file not found: {args.member_b}", file=sys.stderr)
         return 1
 
+    # Build config: CLI args override env vars
+    import os
+    if args.membrane_api_key_env:
+        os.environ["MEMBRANE_API_KEY_ENV"] = args.membrane_api_key_env
+    if args.membrane_api_base_url:
+        os.environ["MEMBRANE_API_BASE_URL"] = args.membrane_api_base_url
+    if args.membrane_model:
+        os.environ["MEMBRANE_MODEL"] = args.membrane_model
+    config = MembraneConfig.from_env()
+
     text_a = args.member_a.read_text(encoding="utf-8", errors="replace")
     text_b = args.member_b.read_text(encoding="utf-8", errors="replace")
 
     landscape, fr_a, fr_b = compile_landscape(
-        text_a, text_b, audit_dir=args.audit_dir,
+        text_a, text_b, audit_dir=args.audit_dir, config=config,
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

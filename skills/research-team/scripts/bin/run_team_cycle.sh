@@ -826,6 +826,11 @@ PACKET_BUILD_SCRIPT="${SCRIPT_DIR}/build_team_packet.py"
 COMPILE_LANDSCAPE_SCRIPT="${SCRIPT_DIR}/compile_method_landscape.py"
 EXTRACT_FLAGS_SCRIPT="${SCRIPT_DIR}/extract_consultation_flags.py"
 FILTER_RESPONSE_SCRIPT="${SCRIPT_DIR}/filter_consultation_response.py"
+# RT-05 V2: Membrane LLM configuration (env vars, indirect key expansion)
+MEMBRANE_API_KEY_ENV="${MEMBRANE_API_KEY_ENV:-DEEPSEEK_API_KEY}"
+MEMBRANE_API_BASE_URL="${MEMBRANE_API_BASE_URL:-https://api.deepseek.com}"
+MEMBRANE_MODEL="${MEMBRANE_MODEL:-deepseek-chat}"
+export MEMBRANE_API_KEY_ENV MEMBRANE_API_BASE_URL MEMBRANE_MODEL
 SYSTEM_ALIGNMENT="${SKILL_ROOT}/assets/system_alignment.txt"
 SYSTEM_CONSULTATION="${SKILL_ROOT}/assets/system_consultation.txt"
 SYSTEM_DIVERGENCE="${SKILL_ROOT}/assets/system_divergence.txt"
@@ -2327,7 +2332,10 @@ if has_phase 0; then
     --member-a "${method_a_phase0}" \
     --member-b "${method_b_phase0}" \
     --output "${method_landscape_path}" \
-    --audit-dir "${membrane_audit_dir}" || {
+    --audit-dir "${membrane_audit_dir}" \
+    --membrane-api-key-env "${MEMBRANE_API_KEY_ENV}" \
+    --membrane-api-base-url "${MEMBRANE_API_BASE_URL}" \
+    --membrane-model "${MEMBRANE_MODEL}" || {
       echo "[RT-05]   WARNING: Method Landscape compilation failed (continuing without)" >&2
       method_landscape_path=""
     }
@@ -2854,7 +2862,10 @@ open(sys.argv[2], 'w').write('\n'.join(lines))
           --phase "phase_2" \
           --source-member "${responder}" \
           --target-member "${questioner}" \
-          --audit-dir "${membrane_audit_dir}" || {
+          --audit-dir "${membrane_audit_dir}" \
+          --membrane-api-key-env "${MEMBRANE_API_KEY_ENV}" \
+          --membrane-api-base-url "${MEMBRANE_API_BASE_URL}" \
+          --membrane-model "${MEMBRANE_MODEL}" || {
             echo "[RT-05]   WARNING: Membrane filtering failed for ${responder}'s response" >&2
           }
       fi
@@ -3017,7 +3028,10 @@ else:
             --phase "phase_5" \
             --source-member "${source_m}" \
             --target-member "${target_m}" \
-            --audit-dir "${membrane_audit_dir}" || true
+            --audit-dir "${membrane_audit_dir}" \
+            --membrane-api-key-env "${MEMBRANE_API_KEY_ENV}" \
+            --membrane-api-base-url "${MEMBRANE_API_BASE_URL}" \
+            --membrane-model "${MEMBRANE_MODEL}" || true
           echo "[RT-05]   Filtered challenge reasons from ${source_m} → ${target_m}"
         fi
       done

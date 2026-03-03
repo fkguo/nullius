@@ -11,7 +11,10 @@ Usage:
         --phase phase_2 \
         --source-member B \
         --target-member A \
-        [--audit-dir <run_dir>/membrane_audit]
+        [--audit-dir <run_dir>/membrane_audit] \
+        [--membrane-api-key-env DEEPSEEK_API_KEY] \
+        [--membrane-api-base-url https://api.deepseek.com] \
+        [--membrane-model deepseek-chat]
 """
 from __future__ import annotations
 
@@ -22,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 from information_membrane import (
+    MembraneConfig,
     build_audit_record,
     filter_message,
     write_audit_log,
@@ -35,12 +39,13 @@ def filter_response(
     source_member: str = "",
     target_member: str = "",
     audit_dir: Path | None = None,
+    config: MembraneConfig | None = None,
 ) -> str:
     """Apply Information Membrane to a consultation response.
 
     Returns the filtered text with BLOCK content replaced by [REDACTED] markers.
     """
-    fr = filter_message(text)
+    fr = filter_message(text, config=config)
 
     if audit_dir is not None:
         record = build_audit_record(
@@ -77,11 +82,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-member", default="")
     parser.add_argument("--target-member", default="")
     parser.add_argument("--audit-dir", type=Path, default=None)
+    # Membrane V2 LLM config
+    parser.add_argument("--membrane-api-key-env", default=None,
+                        help="Env var name holding the API key (default: DEEPSEEK_API_KEY)")
+    parser.add_argument("--membrane-api-base-url", default=None,
+                        help="API base URL (default: https://api.deepseek.com)")
+    parser.add_argument("--membrane-model", default=None,
+                        help="Model name (default: deepseek-chat)")
     args = parser.parse_args(argv)
 
     if not args.input.is_file():
         print(f"ERROR: Input file not found: {args.input}", file=sys.stderr)
         return 1
+
+    # Build config: CLI args override env vars
+    import os
+    if args.membrane_api_key_env:
+        os.environ["MEMBRANE_API_KEY_ENV"] = args.membrane_api_key_env
+    if args.membrane_api_base_url:
+        os.environ["MEMBRANE_API_BASE_URL"] = args.membrane_api_base_url
+    if args.membrane_model:
+        os.environ["MEMBRANE_MODEL"] = args.membrane_model
+    config = MembraneConfig.from_env()
 
     text = args.input.read_text(encoding="utf-8", errors="replace")
     filtered = filter_response(
@@ -90,6 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         source_member=args.source_member,
         target_member=args.target_member,
         audit_dir=args.audit_dir,
+        config=config,
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
