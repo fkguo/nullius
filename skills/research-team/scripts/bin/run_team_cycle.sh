@@ -944,6 +944,13 @@ if [[ -f "${REVIEW_SETTINGS_SCRIPT}" ]]; then
   fi
 fi
 
+# RT-05: re-check Phase 2 compatibility after config-driven workflow mode is loaded.
+# The initial check at parse time only covers CLI-set modes; config may set asymmetric later.
+if [[ "${WORKFLOW_MODE}" == "asymmetric" ]] && has_phase 2; then
+  echo "WARNING: Phase 2 (consultation) is incompatible with asymmetric mode — auto-disabling Phase 2." >&2
+  COLLABORATION_PHASES="$(echo "${COLLABORATION_PHASES}" | sed 's/2//g; s/,,*/,/g; s/^,//; s/,$//')"
+fi
+
 # Member B runner settings (config-based defaults; CLI overrides).
 MEMBER_B_SETTINGS_SCRIPT="${SCRIPT_DIR}/team_cycle_get_member_b_runner.py"
 CONFIG_MEMBER_B_KIND="gemini"
@@ -2244,15 +2251,20 @@ if has_phase 0; then
   # Run Member A Phase 0 (alignment — no computation)
   echo "[RT-05]   Running Member A Phase 0 alignment..."
   if [[ -f "${MEMBER_A_RUNNER}" ]]; then
-    "${MEMBER_A_RUNNER}" \
-      --system "${SYSTEM_ALIGNMENT}" \
-      --prompt "${packet_for_run}" \
-      --output "${method_a_phase0}" \
-      --model "${MEMBER_A_MODEL:-}" \
-      2>/dev/null || {
-        echo "[RT-05]   WARNING: Member A Phase 0 failed (non-fatal; continuing without A's alignment)" >&2
-        touch "${method_a_phase0}"
-      }
+    _p0_a_args=(
+      --system-prompt-file "${SYSTEM_ALIGNMENT}"
+      --prompt-file "${packet_for_run}"
+      --out "${method_a_phase0}"
+    )
+    [[ -n "${MEMBER_A_MODEL:-}" ]] && _p0_a_args+=( --model "${MEMBER_A_MODEL}" )
+    if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] || [[ -n "${MEMBER_A_RUNNER_PATH}" ]]; then
+      [[ -n "${MEMBER_A_API_BASE_URL:-}" ]] && _p0_a_args+=( --api-base-url "${MEMBER_A_API_BASE_URL}" )
+      [[ -n "${MEMBER_A_API_KEY_ENV:-}" ]]  && _p0_a_args+=( --api-key-env  "${MEMBER_A_API_KEY_ENV}" )
+    fi
+    "${MEMBER_A_RUNNER}" "${_p0_a_args[@]}" 2>/dev/null || {
+      echo "[RT-05]   WARNING: Member A Phase 0 failed (non-fatal; continuing without A's alignment)" >&2
+      touch "${method_a_phase0}"
+    }
   else
     echo "[RT-05]   WARNING: Member A runner not available for Phase 0" >&2
     touch "${method_a_phase0}"
@@ -2261,17 +2273,40 @@ if has_phase 0; then
   # Run Member B Phase 0 (alignment — no computation)
   echo "[RT-05]   Running Member B Phase 0 alignment..."
   if [[ -f "${MEMBER_B_RUNNER}" ]]; then
-    _p0_b_system="${SYSTEM_ALIGNMENT}"
-    _p0_b_extra_args=()
-    "${MEMBER_B_RUNNER}" \
-      --system "${_p0_b_system}" \
-      --prompt "${packet_for_run}" \
-      --output "${method_b_phase0}" \
-      --model "${MEMBER_B_MODEL_EFFECTIVE:-}" \
-      2>/dev/null || {
+    if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "gemini" ]]; then
+      # Gemini: concatenate system + prompt into single temp file (no --system-prompt-file support)
+      _p0_b_tmp="$(mktemp)"
+      {
+        echo "SYSTEM (follow strictly):"
+        cat "${SYSTEM_ALIGNMENT}"
+        echo
+        echo "USER TEAM PACKET:"
+        cat "${packet_for_run}"
+      } > "${_p0_b_tmp}"
+      _p0_b_args=( --prompt-file "${_p0_b_tmp}" --out "${method_b_phase0}" )
+      [[ -n "${MEMBER_B_MODEL_EFFECTIVE:-}" ]] && _p0_b_args+=( --model "${MEMBER_B_MODEL_EFFECTIVE}" )
+      "${MEMBER_B_RUNNER}" "${_p0_b_args[@]}" 2>/dev/null || {
         echo "[RT-05]   WARNING: Member B Phase 0 failed (non-fatal; continuing without B's alignment)" >&2
         touch "${method_b_phase0}"
       }
+      rm -f "${_p0_b_tmp}" 2>/dev/null || true
+    else
+      # Claude/Codex: standard flags
+      _p0_b_args=(
+        --system-prompt-file "${SYSTEM_ALIGNMENT}"
+        --prompt-file "${packet_for_run}"
+        --out "${method_b_phase0}"
+      )
+      [[ -n "${MEMBER_B_MODEL_EFFECTIVE:-}" ]] && _p0_b_args+=( --model "${MEMBER_B_MODEL_EFFECTIVE}" )
+      if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] || [[ -n "${MEMBER_B_RUNNER_PATH}" ]]; then
+        [[ -n "${MEMBER_B_API_BASE_URL:-}" ]] && _p0_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
+        [[ -n "${MEMBER_B_API_KEY_ENV:-}" ]]  && _p0_b_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
+      fi
+      "${MEMBER_B_RUNNER}" "${_p0_b_args[@]}" 2>/dev/null || {
+        echo "[RT-05]   WARNING: Member B Phase 0 failed (non-fatal; continuing without B's alignment)" >&2
+        touch "${method_b_phase0}"
+      }
+    fi
   else
     echo "[RT-05]   WARNING: Member B runner not available for Phase 0" >&2
     touch "${method_b_phase0}"
@@ -2749,25 +2784,55 @@ open(sys.argv[2], 'w').write('\n'.join(lines))
 
         # Run responder with consultation system prompt
         if [[ "${r_lower}" == "a" && -f "${MEMBER_A_RUNNER}" ]]; then
-          "${MEMBER_A_RUNNER}" \
-            --system "${SYSTEM_CONSULTATION}" \
-            --prompt "${consultation_prompt}" \
-            --output "${raw_response}" \
-            --model "${MEMBER_A_MODEL:-}" \
-            2>/dev/null || {
-              echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
-              touch "${raw_response}"
-            }
+          _p2_a_args=(
+            --system-prompt-file "${SYSTEM_CONSULTATION}"
+            --prompt-file "${consultation_prompt}"
+            --out "${raw_response}"
+          )
+          [[ -n "${MEMBER_A_MODEL:-}" ]] && _p2_a_args+=( --model "${MEMBER_A_MODEL}" )
+          if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] || [[ -n "${MEMBER_A_RUNNER_PATH}" ]]; then
+            [[ -n "${MEMBER_A_API_BASE_URL:-}" ]] && _p2_a_args+=( --api-base-url "${MEMBER_A_API_BASE_URL}" )
+            [[ -n "${MEMBER_A_API_KEY_ENV:-}" ]]  && _p2_a_args+=( --api-key-env  "${MEMBER_A_API_KEY_ENV}" )
+          fi
+          "${MEMBER_A_RUNNER}" "${_p2_a_args[@]}" 2>/dev/null || {
+            echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
+            touch "${raw_response}"
+          }
         elif [[ "${r_lower}" == "b" && -f "${MEMBER_B_RUNNER}" ]]; then
-          "${MEMBER_B_RUNNER}" \
-            --system "${SYSTEM_CONSULTATION}" \
-            --prompt "${consultation_prompt}" \
-            --output "${raw_response}" \
-            --model "${MEMBER_B_MODEL_EFFECTIVE:-}" \
-            2>/dev/null || {
+          if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "gemini" ]]; then
+            # Gemini: concatenate system + prompt into single temp file
+            _p2_b_tmp="$(mktemp)"
+            {
+              echo "SYSTEM (follow strictly):"
+              cat "${SYSTEM_CONSULTATION}"
+              echo
+              echo "CONSULTATION QUESTIONS:"
+              cat "${consultation_prompt}"
+            } > "${_p2_b_tmp}"
+            _p2_b_args=( --prompt-file "${_p2_b_tmp}" --out "${raw_response}" )
+            [[ -n "${MEMBER_B_MODEL_EFFECTIVE:-}" ]] && _p2_b_args+=( --model "${MEMBER_B_MODEL_EFFECTIVE}" )
+            "${MEMBER_B_RUNNER}" "${_p2_b_args[@]}" 2>/dev/null || {
               echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
               touch "${raw_response}"
             }
+            rm -f "${_p2_b_tmp}" 2>/dev/null || true
+          else
+            # Claude/Codex: standard flags
+            _p2_b_args=(
+              --system-prompt-file "${SYSTEM_CONSULTATION}"
+              --prompt-file "${consultation_prompt}"
+              --out "${raw_response}"
+            )
+            [[ -n "${MEMBER_B_MODEL_EFFECTIVE:-}" ]] && _p2_b_args+=( --model "${MEMBER_B_MODEL_EFFECTIVE}" )
+            if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] || [[ -n "${MEMBER_B_RUNNER_PATH}" ]]; then
+              [[ -n "${MEMBER_B_API_BASE_URL:-}" ]] && _p2_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
+              [[ -n "${MEMBER_B_API_KEY_ENV:-}" ]]  && _p2_b_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
+            fi
+            "${MEMBER_B_RUNNER}" "${_p2_b_args[@]}" 2>/dev/null || {
+              echo "[RT-05]   WARNING: ${responder} consultation response failed" >&2
+              touch "${raw_response}"
+            }
+          fi
         else
           echo "[RT-05]   WARNING: ${responder} runner not available for consultation" >&2
           touch "${raw_response}"
@@ -2786,6 +2851,27 @@ open(sys.argv[2], 'w').write('\n'.join(lines))
       fi
     done
     echo "[RT-05]   Phase 2 consultation complete."
+    # Inject filtered consultation responses into the team packet so convergence
+    # gate and any subsequent re-runs (next tag) can see them.
+    _p2_responses_injected=0
+    for _p2_resp in "${phase2_dir}"/response_*_filtered.md; do
+      if [[ -s "${_p2_resp}" ]]; then
+        if [[ ${_p2_responses_injected} -eq 0 ]]; then
+          echo "" >> "${packet_for_run}"
+          echo "## Phase 2 Consultation Responses (membrane-filtered)" >> "${packet_for_run}"
+          echo "" >> "${packet_for_run}"
+          _p2_responses_injected=1
+        fi
+        _p2_resp_label="$(basename "${_p2_resp}" .md)"
+        echo "### ${_p2_resp_label}" >> "${packet_for_run}"
+        echo "" >> "${packet_for_run}"
+        cat "${_p2_resp}" >> "${packet_for_run}"
+        echo "" >> "${packet_for_run}"
+      fi
+    done
+    if [[ ${_p2_responses_injected} -eq 1 ]]; then
+      echo "[RT-05]   Consultation responses injected into team packet."
+    fi
     cycle_state_update "phase_2" "done" "running" ""
   else
     echo "[RT-05]   WARNING: Flag extraction failed (exit ${extract_code}); skipping Phase 2." >&2
@@ -2929,6 +3015,25 @@ else:
 
       cycle_state_update "phase_5" "done" "running" ""
       echo "[RT-05]   Phase 5 divergence packets prepared in ${phase5_dir}/"
+
+      # Build divergence context file for next run: contains system prompt path + filtered challenges
+      _divergence_ctx="${phase5_dir}/divergence_context.md"
+      {
+        echo "# Divergence Resolution Context (Phase 5)"
+        echo ""
+        echo "System prompt for divergence resolution: ${SYSTEM_DIVERGENCE}"
+        echo ""
+        for _dc_file in "${phase5_dir}"/challenges_from_*_filtered.md; do
+          if [[ -s "${_dc_file}" ]]; then
+            echo "## $(basename "${_dc_file}" .md)"
+            echo ""
+            cat "${_dc_file}"
+            echo ""
+          fi
+        done
+      } > "${_divergence_ctx}"
+      echo "[RT-05]   Divergence context saved to ${_divergence_ctx}"
+      echo "[RT-05]   Next run: members will receive filtered challenge reasons via --member-a-system / --member-b-system overrides."
       echo "[RT-05]   Re-run with --tag <next_tag> to continue resolution."
     fi
 

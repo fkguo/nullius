@@ -45,24 +45,40 @@ _BLOCK_RULES: list[tuple[str, list[re.Pattern[str]]]] = [
         re.compile(r"(?:result|answer|value|output)\s+(?:is|=|:)\s+", re.I),
         re.compile(r"(?:I\s+(?:get|obtain|find|calculate|compute))\s+", re.I),
         re.compile(r"(?:gives?|yields?|returns?|produces?)\s+[\d.$\\]", re.I),
+        # Broader: "is <number>" pattern (e.g. "The cross section is 42 pb")
+        re.compile(r"(?:is|are|was)\s+-?[\d.]+(?:\s*[×x]\s*10\s*\^?\s*[+-]?\d+)?\s*(?:GeV|MeV|keV|eV|pb|fb|nb|mb|cm|mm|m\b|s\b|kg|%)", re.I),
+        # "Result: <number>" pattern
+        re.compile(r"(?:result|answer|output|total)\s*:\s*-?[\d.]+", re.I),
+        # "sigma/mass/width/... = <number>" (physics observable assignment)
+        re.compile(r"(?:sigma|mass|width|lifetime|branching|cross.section|amplitude|coupling|Gamma)\s*=\s*-?[\d.]+", re.I),
     ]),
     # 2. Symbolic results (final expressions)
     ("SYM_RESULT", [
         re.compile(r"(?:therefore|thus|hence|so)\s+\$[^$]+\$\s*=", re.I),
         re.compile(r"(?:final|main)\s+(?:result|expression|answer)", re.I),
+        # LaTeX math assignment: "$X = expr$" patterns
+        re.compile(r"\$[^$]*\\?[A-Za-z]+\s*=\s*[^$]+\$"),
+        # "the amplitude/matrix element is" followed by math
+        re.compile(r"(?:amplitude|matrix\s+element|propagator|self.energy)\s+(?:is|equals?)\s+\$", re.I),
     ]),
     # 3. Derivation chains
     ("DERIV_CHAIN", [
         re.compile(r"Step\s+\d+:.*→"),
         re.compile(r"→.*→.*→"),
         re.compile(r"(?:substitut(?:e|ing)).*(?:get|obtain|find)", re.I),
+        # Comma/semicolon-separated step chains
+        re.compile(r"[Ss]tep\s+1\s*:.*[Ss]tep\s+2\s*:", re.I),
+        # "expand ... integrate ... simplify" derivation flow
+        re.compile(r"(?:expand|integrate|simplify|differentiate|evaluate).*(?:expand|integrate|simplify|differentiate|evaluate).*(?:expand|integrate|simplify|differentiate|evaluate)", re.I),
     ]),
     # 4. Verdicts / judgments
     ("VERDICT", [
-        re.compile(r"I\s+(?:agree|disagree|think|believe|conclude)\b", re.I),
-        re.compile(r"\b(?:correct|incorrect|wrong)\b", re.I),
+        re.compile(r"I\s+(?:agree|disagree|conclude)\b", re.I),
+        re.compile(r"\b(?:correct|incorrect|wrong)\s+(?:in\s+the|result|derivation|calculation|approach|answer|method)", re.I),
+        re.compile(r"(?:your|the)\s+(?:result|answer|calculation|derivation)\s+is\s+(?:correct|incorrect|wrong|right|valid|invalid)", re.I),
         re.compile(r"my\s+(?:result|answer|calculation)\s+(?:matches|agrees|is consistent)", re.I),
         re.compile(r"\b(?:CONFIRMED|CHALLENGED)\b"),
+        re.compile(r"(?:this|the)\s+(?:derivation|proof|calculation|approach)\s+is\s+(?:correct|valid|sound)", re.I),
     ]),
     # 5. Code output
     ("CODE_OUTPUT", [

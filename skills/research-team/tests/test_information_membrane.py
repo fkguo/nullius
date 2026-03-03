@@ -373,3 +373,109 @@ class TestEdgeCases:
         text = "I use dimensional regularization with the on-shell renormalization scheme."
         result = filter_message(text)
         assert result.blocked_count == 0
+
+
+# ===========================================================================
+# Regression: R1 review-swarm bypass vectors (Codex-identified)
+# ===========================================================================
+
+class TestR1BypassRegressions:
+    """Regression tests for bypass vectors found in review-swarm R1.
+
+    These specific strings were identified by Codex as passing through the
+    Membrane unblocked when they should be blocked.
+    """
+
+    def test_cross_section_is_42_pb(self):
+        """'The cross section is 42 pb.' must be blocked (NUM_RESULT)."""
+        text = "The cross section is 42 pb."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "NUM_RESULT"
+
+    def test_result_colon_42(self):
+        """'Result: 42' must be blocked (NUM_RESULT)."""
+        text = "Result: 42"
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "NUM_RESULT"
+
+    def test_amplitude_latex_assignment(self):
+        r"""'The amplitude is $A = g^2/(16\pi^2)$.' must be blocked (SYM_RESULT)."""
+        text = r"The amplitude is $A = g^2/(16\pi^2)$."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "SYM_RESULT"
+
+    def test_step_chain_without_arrows(self):
+        """'Step 1: expand, step 2: integrate, step 3: simplify.' must be blocked (DERIV_CHAIN)."""
+        text = "Step 1: expand the amplitude, step 2: integrate over loop momenta."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "DERIV_CHAIN"
+
+    def test_multi_verb_derivation_flow(self):
+        """'expand ... integrate ... simplify' derivation flow must be blocked."""
+        text = "First expand the propagator, then integrate the loop momentum, then simplify using Feynman parameters."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "DERIV_CHAIN"
+
+    def test_sigma_equals_number(self):
+        """'sigma = 0.35' must be blocked (NUM_RESULT)."""
+        text = "sigma = 0.35 pb for the total cross section."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "NUM_RESULT"
+
+    def test_mass_equals_number(self):
+        """'mass = 125.1' must be blocked (NUM_RESULT)."""
+        text = "The Higgs mass = 125.1 GeV."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_latex_math_variable_assignment(self):
+        r"""'$\Gamma = 4.07$ MeV' must be blocked (SYM_RESULT)."""
+        text = r"We obtain $\Gamma = 4.07$ MeV for the total width."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_think_not_blocked_after_fix(self):
+        """'I think we should use Monte Carlo' should NOT be blocked (VERDICT removed 'think')."""
+        text = "I think we should use Monte Carlo integration for this calculation."
+        result = filter_message(text)
+        assert result.blocked_count == 0
+
+    def test_believe_not_blocked_after_fix(self):
+        """'I believe MS-bar is best' should NOT be blocked (VERDICT removed 'believe')."""
+        text = "I believe the MS-bar scheme is best for this problem."
+        result = filter_message(text)
+        assert result.blocked_count == 0
+
+    def test_derivation_is_correct_blocked(self):
+        """'This derivation is correct' should still be blocked (VERDICT)."""
+        text = "This derivation is correct and matches the expected form."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "VERDICT"
+
+    def test_your_result_is_wrong_blocked(self):
+        """'Your result is wrong' should be blocked (VERDICT or NUM_RESULT)."""
+        text = "Your result is wrong — the sign should be negative."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        # May match NUM_RESULT ("result is") before VERDICT — either is correct
+
+    def test_output_total_colon_number(self):
+        """'Total: 3.14159' must be blocked (NUM_RESULT)."""
+        text = "Total: 3.14159"
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "NUM_RESULT"
+
+    def test_width_is_number_gev(self):
+        """'The width is 4.07 MeV' must be blocked (NUM_RESULT)."""
+        text = "The width is 4.07 MeV."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "NUM_RESULT"
