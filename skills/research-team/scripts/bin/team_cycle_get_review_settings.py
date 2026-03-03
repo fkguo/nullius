@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Print effective review_access_mode and isolation_strategy from config.")
+    ap = argparse.ArgumentParser(description="Print effective review_access_mode, isolation_strategy, and workflow_mode from config.")
     ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
     args = ap.parse_args()
 
@@ -22,10 +22,13 @@ def main() -> int:
         strat = str(cfg.data.get("isolation_strategy", "separate_worktrees")).strip().lower()
         if strat not in ("separate_worktrees", "sequential_with_acl"):
             strat = "separate_worktrees"
-        print(f"{mode} {strat}")
+        wf = str(cfg.data.get("workflow_mode", "")).strip().lower()
+        if wf not in ("peer", "leader", "asymmetric"):
+            wf = ""  # empty = not set in config, shell script uses its own default
+        print(f"{mode} {strat} {wf}")
         return 0
     except Exception:
-        print("packet_only separate_worktrees")
+        print("packet_only separate_worktrees ")
         return 0
 
 

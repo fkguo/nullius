@@ -172,7 +172,7 @@ def _parse_sweep_semantics(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 _STEP_VERDICT_RE = re.compile(
-    r"^##\s+Step\s+(\d+):\s*(.+?)$(?:(?!^##\s)[\s\S])*?\*{0,2}Step\s+verdict:?\*{0,2}\s*(CONFIRMED|CHALLENGED|UNVERIFIABLE)",
+    r"^##\s+Step\s+(\d+):\s*(.+?)$(?:(?!^#{2,}\s)[\s\S])*?\*{0,2}Step\s+verdict:?\*{0,2}\s*(CONFIRMED|CHALLENGED|UNVERIFIABLE)",
     re.MULTILINE | re.IGNORECASE,
 )
 
@@ -256,8 +256,8 @@ def _parse_nontriviality_reason(text: str) -> str | None:
     # Check controlled vocabulary
     if raw in NONTRIVIALITY_REASONS:
         return raw
-    # Check OTHER:* pattern
-    if raw.startswith("OTHER:"):
+    # Check OTHER:* pattern (require non-empty suffix)
+    if raw.startswith("OTHER:") and raw[6:].strip():
         return raw
     return None
 

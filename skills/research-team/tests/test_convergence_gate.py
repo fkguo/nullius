@@ -498,6 +498,19 @@ There is a gap. Step verdict: CHALLENGED
         assert len(verdicts) == 1
         assert verdicts[0] == ("Step 1: Setup", "CONFIRMED")
 
+    def test_verdict_in_subsection_no_bleed(self):
+        """Verdict in a ### sub-section must not be attributed to the previous step (R3 fix)."""
+        text = """\
+## Step 1: Setup
+Some text.
+
+### Major Gaps
+There is a gap. Step verdict: CHALLENGED
+"""
+        verdicts = _parse_step_verdicts(text)
+        # Step 1 has NO verdict — the CHALLENGED is under ###, outside step scope
+        assert len(verdicts) == 0
+
 
 # ===========================================================================
 # Asymmetric mode — Fixture 16-17
@@ -610,6 +623,12 @@ class TestNontrivialityValidation:
         """OTHER:* pattern passes validation."""
         text = _make_report(nontriviality_reason="OTHER: custom check")
         assert _validate_nontriviality(text) is True
+
+    def test_empty_other_reason_fails(self):
+        """Empty OTHER: (no suffix) must fail validation (R3 fix)."""
+        text = _make_report(nontriviality_reason="OTHER:")
+        assert _parse_nontriviality_reason(text) is None
+        assert _validate_nontriviality(text) is False
 
 
 # ===========================================================================
