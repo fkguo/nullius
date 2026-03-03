@@ -785,6 +785,9 @@ IFS="${_OLD_IFS}"
 if [[ "${WORKFLOW_MODE}" == "asymmetric" ]] && has_phase 2; then
   echo "WARNING: Phase 2 (consultation) is incompatible with asymmetric mode — auto-disabling Phase 2." >&2
   COLLABORATION_PHASES="$(echo "${COLLABORATION_PHASES}" | sed 's/2//g; s/,,*/,/g; s/^,//; s/,$//')"
+  if [[ -z "${COLLABORATION_PHASES}" ]]; then
+    COLLABORATION_PHASES="1"
+  fi
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -949,6 +952,9 @@ fi
 if [[ "${WORKFLOW_MODE}" == "asymmetric" ]] && has_phase 2; then
   echo "WARNING: Phase 2 (consultation) is incompatible with asymmetric mode — auto-disabling Phase 2." >&2
   COLLABORATION_PHASES="$(echo "${COLLABORATION_PHASES}" | sed 's/2//g; s/,,*/,/g; s/^,//; s/,$//')"
+  if [[ -z "${COLLABORATION_PHASES}" ]]; then
+    COLLABORATION_PHASES="1"
+  fi
 fi
 
 # Member B runner settings (config-based defaults; CLI overrides).
@@ -2896,16 +2902,16 @@ if [[ -f "${GATE_SCRIPT}" ]]; then
     gate_sweep_flag="--no-require-sweep"
   fi
   set +e
-  # Build optional RT-05 context flags
-  gate_rt05_flags=""
+  # Build optional RT-05 context flags (array for safe quoting)
+  gate_rt05_flags=()
   if [[ -n "${method_landscape_path}" && -f "${method_landscape_path}" ]]; then
-    gate_rt05_flags="${gate_rt05_flags} --phase0-landscape ${method_landscape_path}"
+    gate_rt05_flags+=( --phase0-landscape "${method_landscape_path}" )
   fi
   if [[ -d "${run_dir}/phase_2" ]]; then
-    gate_rt05_flags="${gate_rt05_flags} --phase2-responses ${run_dir}/phase_2"
+    gate_rt05_flags+=( --phase2-responses "${run_dir}/phase_2" )
   fi
   python3 "${GATE_SCRIPT}" --member-a "${member_a_out}" --member-b "${member_b_out}" \
-    --workflow-mode "${WORKFLOW_MODE}" ${gate_sweep_flag} ${gate_rt05_flags}
+    --workflow-mode "${WORKFLOW_MODE}" ${gate_sweep_flag} "${gate_rt05_flags[@]}"
   gate_code=$?
   set -e
   if [[ ${gate_code} -eq 3 ]]; then
