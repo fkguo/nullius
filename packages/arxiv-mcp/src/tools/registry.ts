@@ -77,7 +77,7 @@ const ArxivPaperSourceSchema = z.object({
     .describe('Preferred content format (content mode only)'),
   extract: z.boolean().optional().default(true)
     .describe('Extract tar.gz archive (content mode only)'),
-  max_content_kb: z.number().int().positive().max(2048).optional()
+  max_content_kb: z.number().int().positive().optional()
     .describe('Content size limit in KB'),
   check_availability: z.boolean().optional().default(false)
     .describe('Check source availability via HEAD request (urls/auto mode)'),

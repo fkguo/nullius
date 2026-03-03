@@ -531,3 +531,119 @@ class TestR2BypassRegressions:
         text = "The coupling constant = +3.14."
         result = filter_message(text)
         assert result.blocked_count > 0
+
+
+# ===========================================================================
+# Regression: R3 review-swarm bypass vectors (Codex + Gemini)
+# ===========================================================================
+
+class TestR3BypassRegressions:
+    """Regression tests for bypass vectors found in review-swarm R3."""
+
+    # --- Plural pronoun "We" bypasses (Gemini #1, Codex #4) ---
+
+    def test_we_find_cross_section(self):
+        """'We find a cross section of 42 pb' must be blocked."""
+        text = "We find a cross section of 42 pb."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_we_agree_with_member(self):
+        """'We agree with Member B' must be blocked (AGREEMENT or NUM_RESULT via 'result')."""
+        text = "We agree with Member B's approach."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        # May match via "result" in NUM_RESULT or AGREEMENT — either is correct blocking
+
+    def test_we_obtain_result(self):
+        """'We obtain a cross section of 42 pb' must be blocked."""
+        text = "We obtain a cross section of 42 pb from the numerical integration."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_we_conclude_blocked(self):
+        """'We conclude that...' must be blocked (VERDICT)."""
+        text = "We conclude that the leading-order result is sufficient."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+        # May match NUM_RESULT ("result is") before VERDICT — either is correct blocking
+
+    # --- "of" / "equals" assignment bypasses (Gemini #2, Codex #3) ---
+
+    def test_mass_equals_125_gev(self):
+        """'The mass equals 125.1 GeV' must be blocked (NUM_RESULT)."""
+        text = "The mass equals 125.1 GeV."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_comes_out_to_42_pb(self):
+        """'cross section comes out to 42 pb' must be blocked (NUM_RESULT)."""
+        text = "The cross section comes out to 42 pb."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_width_comes_out_as_4_mev(self):
+        """'width comes out as 4.07 MeV' must be blocked (NUM_RESULT)."""
+        text = "The width comes out as 4.07 MeV."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_result_equals_scientific_notation(self):
+        """'Result equals +4.2e-3' must be blocked (NUM_RESULT)."""
+        text = "The result equals 4.2e-3."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- Math-mode number shielding (Gemini #3) ---
+
+    def test_math_mode_number_blocked(self):
+        """'The cross section is $42$ pb' must be blocked (NUM_RESULT)."""
+        text = "The cross section is $42$ pb."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- LaTeX macro symbolic result (Codex #2) ---
+
+    def test_mathcal_M_assignment(self):
+        r"""'The amplitude is \mathcal{M} = ...' must be blocked (SYM_RESULT)."""
+        text = r"The amplitude is \mathcal{M} = g^2/(16 pi^2)."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_matrix_element_equals_mathcal(self):
+        r"""'The matrix element equals \mathcal M = ...' must be blocked."""
+        text = r"The matrix element equals \mathcal{M} = e^2."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- Verdict/agreement synonyms (Codex #4) ---
+
+    def test_i_concur_blocked(self):
+        """'I concur with your conclusion' must be blocked (VERDICT or AGREEMENT)."""
+        text = "I concur with your conclusion."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_compared_with_calculation(self):
+        """'Compared with your calculation, mine is larger' must be blocked (COMPARISON)."""
+        text = "Compared with your calculation, mine is larger."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_validates_your_result(self):
+        """'This validates your result' must be blocked (VERDICT)."""
+        text = "This validates your result from the previous step."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_we_concur_with(self):
+        """'We concur with your approach' must be blocked (AGREEMENT)."""
+        text = "We concur with your approach on this matter."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_of_value_with_unit(self):
+        """'a cross section of 42 pb' must be blocked (NUM_RESULT)."""
+        text = "We measure a cross section of 42 pb."
+        result = filter_message(text)
+        assert result.blocked_count > 0
