@@ -38,6 +38,222 @@ AUDIT_START = "<!-- AUDIT_SLICES_START -->"
 AUDIT_END = "<!-- AUDIT_SLICES_END -->"
 
 
+# ---------------------------------------------------------------------------
+# RT-01: asymmetric-mode redaction helpers
+# ---------------------------------------------------------------------------
+
+_HEADLINE_NUMBER_RE = re.compile(
+    r"(=\s*)"                           # "=" with optional space
+    r"([+-]?"                           # optional sign
+    r"(?:\d+(?:\.\d*)?|\.\d+)"          # mantissa
+    r"(?:[eE][+-]?\d+)?)"               # optional exponent
+    r"(\s*(?:[±×]\s*"                   # optional ± or × separator
+    r"(?:\d+(?:\.\d*)?|\.\d+)"          # error mantissa
+    r"(?:[eE][+-]?\d+)?)?)",            # error exponent
+)
+
+REDACTED_TAG = "[REDACTED — verifier must derive independently]"
+HIDDEN_TAG = "[HIDDEN — compute independently]"
+
+
+def _redact_critical_steps(packet_text: str, critical_steps: list[str]) -> str:
+    """Replace the body of specified steps with REDACTED_TAG.
+
+    Recognised step markers:
+      ## Step N: <title>
+    where N is in *critical_steps* (matches on N or on the title substring).
+    The replacement covers everything between the matched heading and the next
+    heading of the same or higher level.
+    """
+    if not critical_steps:
+        return packet_text
+
+    step_set = {s.strip().lower() for s in critical_steps if s.strip()}
+    if not step_set:
+        return packet_text
+
+    def _replacer(m: re.Match) -> str:
+        step_num = m.group("num").strip().lower()
+        step_title = m.group("title").strip().lower()
+        body = m.group("body")
+        for crit in step_set:
+            if crit == step_num or crit in step_title:
+                # Preserve the heading, replace body
+                return m.group("heading") + "\n" + REDACTED_TAG + "\n"
+        return m.group(0)  # no match → keep original
+
+    # Pattern: ## Step N: title\n<body until next ## or end>
+    pattern = re.compile(
+        r"(?P<heading>^##\s+Step\s+(?P<num>\d+)\s*:\s*(?P<title>[^\n]*))\n"
+        r"(?P<body>(?:(?!^##\s).+\n?)*)",
+        flags=re.MULTILINE,
+    )
+    return pattern.sub(_replacer, packet_text)
+
+
+def _redact_headline_numbers(packet_text: str) -> str:
+    """Redact numeric values in headline_numbers / Capsule Section E for blind verification.
+
+    Targets:
+      - Lines like "- H1: [T1] Q = 1.23 ± 0.04"
+      - The "headline_numbers" subsection in the Reproducibility Capsule
+    """
+    lines = packet_text.splitlines(keepends=True)
+    out: list[str] = []
+    in_capsule_headlines = False
+    for ln in lines:
+        # Detect capsule headline section (Section E)
+        if re.match(r"^###\s+E\)\s+Headline numbers", ln, re.IGNORECASE):
+            in_capsule_headlines = True
+            out.append(ln)
+            continue
+        if in_capsule_headlines and re.match(r"^###\s+", ln):
+            in_capsule_headlines = False
+
+        # Redact H-lines and capsule headline section lines
+        if re.match(r"^\s*-\s*H\d+\s*:", ln) or in_capsule_headlines:
+            out.append(_HEADLINE_NUMBER_RE.sub(r"\1" + HIDDEN_TAG + r"\3", ln))
+        else:
+            out.append(ln)
+    return "".join(out)
+
+
+# ---------------------------------------------------------------------------
+# RT-04: idea-source injection + lead export helpers
+# ---------------------------------------------------------------------------
+
+def _load_idea_seeds(path: Path) -> list[dict]:
+    """Load idea seeds from a JSON file.
+
+    Accepted formats:
+      - {"ideas": [idea_card_v1, ...]}  (idea pack)
+      - [idea_card_v1, ...]             (bare array)
+      - idea_card_v1                    (single card)
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[warn] failed to load idea-source {path}: {e}", file=sys.stderr)
+        return []
+
+    if isinstance(data, dict):
+        if "ideas" in data and isinstance(data["ideas"], list):
+            return data["ideas"]
+        # Single idea card
+        return [data]
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def _format_idea_seed_section(seeds: list[dict]) -> list[str]:
+    """Format idea seeds into packet lines."""
+    lines: list[str] = []
+    lines.append("## 0.3) External Idea Seeds (injected via --idea-source)")
+    lines.append("")
+    lines.append("The following structured research ideas are provided as seeds for this cycle.")
+    lines.append("Evaluate their relevance to the current milestone and incorporate if appropriate.")
+    lines.append("")
+    for i, seed in enumerate(seeds[:10], 1):
+        thesis = seed.get("thesis_statement", "(no thesis)")
+        hypotheses = seed.get("testable_hypotheses", [])
+        observables = seed.get("required_observables", [])
+        lines.append(f"### Seed {i}")
+        lines.append(f"- Thesis: {thesis}")
+        if hypotheses:
+            lines.append(f"- Hypotheses: {'; '.join(str(h) for h in hypotheses[:5])}")
+        if observables:
+            lines.append(f"- Observables: {'; '.join(str(o) for o in observables[:5])}")
+        claims = seed.get("claims", [])
+        if claims:
+            lines.append(f"- Claims ({len(claims)}):")
+            for c in claims[:3]:
+                ct = c.get("claim_text", "?")
+                st = c.get("support_type", "?")
+                lines.append(f"  - [{st}] {ct}")
+        lines.append("")
+    return lines
+
+
+def _parse_innovation_leads(log_path: Path) -> list[dict]:
+    """Parse INNOVATION_LOG.md and extract breakthrough leads.
+
+    Expected format in the log:
+      ## Lead N: <title>
+      - Baseline it must beat: ...
+      - Discriminant: ...
+      - Minimal test: ...
+      - Kill criterion: ...
+    """
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return []
+
+    leads: list[dict] = []
+    pattern = re.compile(
+        r"^##\s+Lead\s+\d+\s*:\s*(?P<title>[^\n]+)\n(?P<body>(?:(?!^##\s).+\n?)*)",
+        flags=re.MULTILINE,
+    )
+    for m in pattern.finditer(text):
+        title = m.group("title").strip()
+        body = m.group("body")
+
+        def _field(name: str) -> str:
+            fm = re.search(rf"^\s*-\s*{re.escape(name)}\s*:\s*(.+)$", body, re.MULTILINE | re.IGNORECASE)
+            return fm.group(1).strip() if fm else ""
+
+        lead = {
+            "title": title,
+            "baseline": _field("Baseline it must beat"),
+            "discriminant": _field("Discriminant"),
+            "minimal_test": _field("Minimal test"),
+            "kill_criterion": _field("Kill criterion"),
+        }
+        leads.append(lead)
+    return leads
+
+
+def _leads_to_idea_cards(leads: list[dict]) -> list[dict]:
+    """Map INNOVATION_LOG leads to idea_card_v1 schema (best-effort)."""
+    cards: list[dict] = []
+    for lead in leads:
+        card = {
+            "thesis_statement": lead.get("title", "Untitled lead"),
+            "testable_hypotheses": [
+                lead.get("discriminant") or "Hypothesis TBD from lead",
+            ],
+            "required_observables": [
+                lead.get("minimal_test") or "Observable TBD",
+            ],
+            "candidate_formalisms": ["research-team/innovation-lead"],
+            "minimal_compute_plan": [
+                {
+                    "step": lead.get("minimal_test") or "Implement minimal test",
+                    "method": "TBD",
+                    "estimated_difficulty": "moderate",
+                }
+            ],
+            "claims": [
+                {
+                    "claim_text": lead.get("title", "Lead claim"),
+                    "support_type": "llm_inference",
+                    "evidence_uris": [],
+                    "verification_plan": lead.get("kill_criterion") or "Apply kill criterion",
+                }
+            ],
+        }
+        if lead.get("baseline"):
+            card["claims"].append({
+                "claim_text": f"Must beat baseline: {lead['baseline']}",
+                "support_type": "assumption",
+                "evidence_uris": [],
+                "verification_plan": "Compare against stated baseline",
+            })
+        cards.append(card)
+    return cards
+
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--tag", required=True, help="Round tag (e.g. M2-r1).")
@@ -62,6 +278,38 @@ def _parse_args() -> argparse.Namespace:
             "Optional Python command used by pointer lint to resolve code pointers in the notebook. "
             'Example: --pointer-import-cmd "conda run -n plasma python"'
         ),
+    )
+    # RT-01: mode-aware packet construction
+    p.add_argument(
+        "--workflow-mode",
+        choices=["peer", "leader", "asymmetric"],
+        default="leader",
+        help="Workflow mode (default: leader).",
+    )
+    p.add_argument(
+        "--critical-steps",
+        type=str,
+        default="",
+        help="Comma-separated step names/numbers for asymmetric redaction.",
+    )
+    p.add_argument(
+        "--blind-numerics",
+        action="store_true",
+        default=False,
+        help="Redact ALL headline numbers for blind verification.",
+    )
+    # RT-04: idea-source injection
+    p.add_argument(
+        "--idea-source",
+        type=Path,
+        default=None,
+        help="Path to seed_pack_v1 or {ideas: [idea_card_v1, ...]} JSON for external idea seeds.",
+    )
+    p.add_argument(
+        "--export-leads-to",
+        type=Path,
+        default=None,
+        help="Export INNOVATION_LOG breakthrough leads as idea_card_v1 JSON list to this path.",
     )
     return p.parse_args()
 
@@ -683,6 +931,11 @@ def main() -> int:
         lines.append(f"Primary notebook: {args.notes[0]}")
     lang_value = args.language.strip() if args.language.strip() else "(inherit from packet content)"
     lines.append(f"Preferred reply language: {lang_value}")
+    # RT-01: workflow mode metadata
+    wf_mode = args.workflow_mode or "leader"
+    lines.append(f"Workflow mode: {wf_mode}")
+    if wf_mode == "asymmetric" and args.blind_numerics:
+        lines.append("Blind numerics: active (all headline numbers redacted)")
     if innovation_log is not None:
         lines.append(f"Innovation log (optional): {innovation_log}")
     lines.append("")
@@ -842,6 +1095,12 @@ def main() -> int:
         else:
             lines.append("- Snapshot: (not found; add '## Problem Framing Snapshot' to PREWORK.md)")
         lines.append("")
+
+    # RT-04: inject idea seeds before the convergence gate section
+    if args.idea_source is not None and args.idea_source.is_file():
+        seeds = _load_idea_seeds(args.idea_source)
+        if seeds:
+            lines.extend(_format_idea_seed_section(seeds))
 
     lines.append("## 0) Round & convergence gate")
     lines.append("")
@@ -1122,8 +1381,33 @@ def main() -> int:
         lines.append(f"`{CAPSULE_END}`")
         lines.append("")
 
-    out.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    packet_text = "\n".join(lines).rstrip() + "\n"
+
+    # RT-01: asymmetric-mode redaction
+    if wf_mode == "asymmetric":
+        critical = [s.strip() for s in (args.critical_steps or "").split(",") if s.strip()]
+        if critical:
+            packet_text = _redact_critical_steps(packet_text, critical)
+        if args.blind_numerics:
+            packet_text = _redact_headline_numbers(packet_text)
+
+    out.write_text(packet_text, encoding="utf-8")
     print("Wrote:", out)
+
+    # RT-04: export leads to idea_card_v1 JSON
+    if args.export_leads_to is not None and innovation_log is not None:
+        leads = _parse_innovation_leads(innovation_log)
+        if leads:
+            cards = _leads_to_idea_cards(leads)
+            args.export_leads_to.parent.mkdir(parents=True, exist_ok=True)
+            args.export_leads_to.write_text(
+                json.dumps({"ideas": cards}, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            print(f"Exported {len(cards)} leads as idea_card_v1 to: {args.export_leads_to}")
+        else:
+            print(f"[info] No leads found in {innovation_log}; skipping export.", file=sys.stderr)
+
     return 0
 
 

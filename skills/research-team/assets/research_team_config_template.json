@@ -1,6 +1,9 @@
 {
   "version": 1,
   "mode": "theory_numerics",
+  "workflow_mode": "leader",
+  "_workflow_mode_options": ["peer", "leader", "asymmetric"],
+  "_note_workflow_mode": "Workflow mode controls the team interaction pattern. peer: symmetric review (both members audit independently). leader: leader produces step-by-step analysis, verifier checks each step. asymmetric: leader analysis with blind verification (critical steps redacted for verifier).",
   "profile": "<PROFILE>",
   "project_stage": "development",
   "_project_stage_options": ["exploration", "development", "publication"],

@@ -52,6 +52,16 @@ SIDECAR_TIMEOUT_OVERRIDE=""
 SIDECAR_TIMEOUT_OVERRIDE_PROVIDED=0
 RESUME=0
 
+# RT-01: workflow mode (peer|leader|asymmetric)
+WORKFLOW_MODE=""
+WORKFLOW_MODE_FROM_CLI=0
+BLIND_NUMERICS=0
+CRITICAL_STEPS=""
+MAX_STEP_RETRIES=3
+REQUIRE_SWEEP=1  # default: require sweep_semantics=pass
+IDEA_SOURCE=""
+EXPORT_LEADS_TO=""
+
 # Team-cycle runtime state (for audit + optional resume).
 cycle_state_path=""
 run_dir_abs=""
@@ -291,6 +301,8 @@ cycle_state_update() {
   CYCLE_MEMBER_B_FALLBACK_REASON="${MEMBER_B_FALLBACK_REASON:-}" \
   CYCLE_MEMBER_B_MODEL_REQUESTED="${MEMBER_B_MODEL:-}" \
   CYCLE_MEMBER_B_MODEL_EFFECTIVE="${MEMBER_B_MODEL_EFFECTIVE:-}" \
+  CYCLE_WORKFLOW_MODE="${WORKFLOW_MODE:-}" \
+  CYCLE_BLIND_NUMERICS="${BLIND_NUMERICS:-0}" \
   python3 - "${cycle_state_path}" <<'PY'
 from __future__ import annotations
 
@@ -356,6 +368,14 @@ if isinstance(runners, dict):
         set_mb_if("fallback_reason", "CYCLE_MEMBER_B_FALLBACK_REASON")
         set_mb_if("model_requested", "CYCLE_MEMBER_B_MODEL_REQUESTED")
         set_mb_if("model_effective", "CYCLE_MEMBER_B_MODEL_EFFECTIVE")
+
+# RT-01: workflow_mode + blind_numerics
+wm = os.environ.get("CYCLE_WORKFLOW_MODE", "").strip()
+if wm:
+    data["workflow_mode"] = wm
+bn = os.environ.get("CYCLE_BLIND_NUMERICS", "").strip()
+if bn == "1":
+    data["blind_numerics"] = True
 
 paths = data.setdefault("paths", {})
 if isinstance(paths, dict):
@@ -638,6 +658,14 @@ while [[ $# -gt 0 ]]; do
     --resume) RESUME=1; shift ;;
     --sidecar) SIDECAR_MODE="force_on"; shift ;;
     --no-sidecar) SIDECAR_MODE="force_off"; shift ;;
+    --workflow-mode) WORKFLOW_MODE="${2:-}"; WORKFLOW_MODE_FROM_CLI=1; shift 2 ;;
+    --blind-numerics) BLIND_NUMERICS=1; shift ;;
+    --critical-steps) CRITICAL_STEPS="${2:-}"; shift 2 ;;
+    --max-step-retries) MAX_STEP_RETRIES="${2:-3}"; shift 2 ;;
+    --require-sweep) REQUIRE_SWEEP=1; shift ;;
+    --no-require-sweep) REQUIRE_SWEEP=0; shift ;;
+    --idea-source) IDEA_SOURCE="${2:-}"; shift 2 ;;
+    --export-leads-to) EXPORT_LEADS_TO="${2:-}"; shift 2 ;;
     --sidecar-timeout)
       if [[ $# -lt 2 ]]; then
         echo "ERROR: --sidecar-timeout requires a value" >&2
@@ -698,6 +726,29 @@ if [[ -z "${MEMBER_B_FALLBACK_ORDER}" ]]; then
 fi
 if [[ -z "${MEMBER_B_FALLBACK_CLAUDE_MODEL}" ]]; then
   MEMBER_B_FALLBACK_CLAUDE_MODEL="sonnet"
+fi
+
+# RT-01: Workflow mode resolution.
+# Priority: --workflow-mode CLI > config workflow_mode > "leader" (default).
+if [[ ${WORKFLOW_MODE_FROM_CLI} -eq 0 ]]; then
+  # Will be resolved from config after config is loaded; for now set default.
+  if [[ -z "${WORKFLOW_MODE}" ]]; then
+    WORKFLOW_MODE="leader"
+  fi
+fi
+if [[ -n "${WORKFLOW_MODE}" ]]; then
+  case "${WORKFLOW_MODE}" in
+    peer|leader|asymmetric) ;;
+    *)
+      echo "ERROR: invalid --workflow-mode: ${WORKFLOW_MODE}" >&2
+      echo "  allowed: peer|leader|asymmetric" >&2
+      exit 2
+      ;;
+  esac
+fi
+# --blind-numerics implies asymmetric if no explicit --workflow-mode
+if [[ ${BLIND_NUMERICS} -eq 1 && ${WORKFLOW_MODE_FROM_CLI} -eq 0 ]]; then
+  WORKFLOW_MODE="asymmetric"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1436,6 +1487,23 @@ if [[ -z "${PACKET}" ]]; then
     # Back-compat fallback (if a project still keeps adjudication notes at the team root).
     build_args+=( --adjudication "${OUT_DIR}/${safe_tag}_adjudication.md" )
   fi
+  # RT-01: pass workflow-mode and related flags
+  if [[ -n "${WORKFLOW_MODE}" ]]; then
+    build_args+=( --workflow-mode "${WORKFLOW_MODE}" )
+  fi
+  if [[ -n "${CRITICAL_STEPS}" ]]; then
+    build_args+=( --critical-steps "${CRITICAL_STEPS}" )
+  fi
+  if [[ ${BLIND_NUMERICS} -eq 1 ]]; then
+    build_args+=( --blind-numerics )
+  fi
+  # RT-04: idea-source and export-leads
+  if [[ -n "${IDEA_SOURCE}" ]]; then
+    build_args+=( --idea-source "${IDEA_SOURCE}" )
+  fi
+  if [[ -n "${EXPORT_LEADS_TO}" ]]; then
+    build_args+=( --export-leads-to "${EXPORT_LEADS_TO}" )
+  fi
   python3 "${PACKET_BUILD_SCRIPT}" "${build_args[@]}"
 fi
 
@@ -1925,7 +1993,7 @@ if [[ "${SIDECAR_MODE}" != "force_off" ]]; then
   sidecar_probe_code=0
   set +e
   sidecar_lines="$(
-    SIDECAR_FORCE="${SIDECAR_MODE}" python3 "${SIDECAR_PROBE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
+    SIDECAR_FORCE="${SIDECAR_MODE}" SIDECAR_MODE="${SIDECAR_MODE}" python3 "${SIDECAR_PROBE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
   )"
   sidecar_probe_code=$?
   set -e
@@ -2521,11 +2589,29 @@ SUMMARY_SCRIPT="${SCRIPT_DIR}/summarize_team_reports.py"
 next_tag=""
 
 if [[ -f "${GATE_SCRIPT}" ]]; then
-  echo "[gate] running convergence gate: ${GATE_SCRIPT}"
+  echo "[gate] running convergence gate: ${GATE_SCRIPT} (mode=${WORKFLOW_MODE}, require_sweep=${REQUIRE_SWEEP})"
+  gate_sweep_flag="--require-sweep"
+  if [[ ${REQUIRE_SWEEP} -eq 0 ]]; then
+    gate_sweep_flag="--no-require-sweep"
+  fi
   set +e
-  python3 "${GATE_SCRIPT}" --member-a "${member_a_out}" --member-b "${member_b_out}"
+  python3 "${GATE_SCRIPT}" --member-a "${member_a_out}" --member-b "${member_b_out}" \
+    --workflow-mode "${WORKFLOW_MODE}" ${gate_sweep_flag}
   gate_code=$?
   set -e
+  if [[ ${gate_code} -eq 3 ]]; then
+    # Leader early stop: >=2 CHALLENGED steps
+    echo "" >&2
+    echo "[gate] Leader early stop: verifier CHALLENGED >=2 steps. Apply targeted fixes and re-run." >&2
+    if [[ -f "${SUMMARY_SCRIPT}" ]]; then
+      echo "" >&2
+      python3 "${SUMMARY_SCRIPT}" --member-a "${member_a_out}" --member-b "${member_b_out}" >&2 || true
+    fi
+    CYCLE_FINAL_STATUS="early_stop"
+    cycle_state_update "convergence" "early_stop" "${CYCLE_FINAL_STATUS}" ""
+    finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "0" || true
+    exit ${gate_code}
+  fi
   if [[ ${gate_code} -ne 0 ]]; then
     if [[ -f "${NEXT_TAG_SCRIPT}" ]]; then
       set +e
