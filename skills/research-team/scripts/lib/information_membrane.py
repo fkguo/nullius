@@ -40,21 +40,21 @@ BLOCK_TYPES = frozenset({
 _BLOCK_RULES: list[tuple[str, list[re.Pattern[str]]]] = [
     # 1. Numerical results
     ("NUM_RESULT", [
-        re.compile(r"=\s*[+-]?[\d.]+(?:\s*[×x]\s*10\s*\^?\s*[+-]?\d+)?", re.I),
+        re.compile(r"=\s*[+-]?[\d.]+(?:[eE][+-]?\d+)?(?:\s*[×x]\s*10\s*\^?\s*[+-]?\d+)?", re.I),
         re.compile(r"[≈≃≅~]\s*[+-]?\$?[\d.]+\$?"),
         re.compile(r"(?:result|answer|value|output)\s+(?:is|=|:|equals?)\s+", re.I),
-        re.compile(r"(?:(?:I|[Ww]e)\s+(?:get|obtain|find|calculate|compute))\s+", re.I),
+        re.compile(r"(?:(?:I|[Ww]e)\s+(?:get|got|obtain|find|calculate|compute))\s+", re.I),
         re.compile(r"(?:gives?|yields?|returns?|produces?)\s+[\d.$\\]", re.I),
-        # Broader: "is/equals/of <number>[unit]" pattern (e.g. "The cross section is 42 pb")
-        re.compile(r"(?:is|are|was|equals?|of)\s+\$?[+-]?[\d.]+\$?(?:\s*[×x]\s*10\s*\^?\s*[+-]?\d+)?\s*(?:GeV|MeV|keV|eV|pb|fb|nb|mb|cm|mm|m\b|s\b|kg|%)", re.I),
+        # "is/equals/of [adverb?] <number>[unit]" (e.g. "The cross section is exactly 42 pb")
+        re.compile(r"(?:is|are|was|equals?|of)(?:\s+\w+)?\s+\$?[+-]?[\d.]+\$?(?:[eE][+-]?\d+)?(?:\s*[×x]\s*10\s*\^?\s*[+-]?\d+)?\s*(?:GeV|MeV|keV|eV|pb|fb|nb|mb|cm|mm|m\b|s\b|kg|%)", re.I),
         # "Result: <number>" pattern
         re.compile(r"(?:result|answer|output|total)\s*:\s*[+-]?[\d.]+", re.I),
         # "sigma/mass/width/... = <number>" (physics observable assignment)
         re.compile(r"(?:sigma|mass|width|lifetime|branching|cross.section|amplitude|coupling|Gamma)\s*=\s*[+-]?[\d.]+", re.I),
-        # "comes out to/as <number>" pattern
-        re.compile(r"(?:comes?\s+out\s+(?:to|as)|evaluates?\s+to|turns?\s+out\s+to\s+be)\s+\$?[+-]?[\d.]+", re.I),
-        # Scientific notation: "4.2e-3", "+1.5E6"
-        re.compile(r"(?:is|are|was|equals?|of)\s+[+-]?[\d.]+[eE][+-]?\d+", re.I),
+        # "comes out to/as / evaluates to / reduces to / simplifies to [adverb?] <number>"
+        re.compile(r"(?:comes?\s+out\s+(?:to|as)|(?:evaluates?|reduces?|simplifies?)\s+(?:\w+\s+)?to|turns?\s+out\s+to\s+be)(?:\s+\w+)?\s+\$?[+-]?[\d.]+", re.I),
+        # Standalone number + physics unit (e.g. "42 pb", "$42$ pb")
+        re.compile(r"\$?[+-]?[\d.]+\$?\s*(?:GeV|MeV|keV|eV|pb|fb|nb|mb)\b", re.I),
     ]),
     # 2. Symbolic results (final expressions)
     ("SYM_RESULT", [
@@ -64,10 +64,12 @@ _BLOCK_RULES: list[tuple[str, list[re.Pattern[str]]]] = [
         re.compile(r"\$[^$]*\\?[A-Za-z]+\s*=\s*[^$]+\$"),
         # "the amplitude/matrix element is" followed by math (LaTeX macro or plain text)
         re.compile(r"(?:amplitude|matrix\s+element|propagator|self.energy)\s+(?:is|equals?)\s+(?:\$|\\[A-Za-z]|[A-Z])", re.I),
-        # Plain-text symbolic assignment: "X = expr" where X is a single uppercase variable
+        # Plain-text symbolic assignment: "is/equals X = expr"
         re.compile(r"(?:is|are|equals?)\s+[A-Z]\w*\s*=\s*\S", re.I),
+        # Standalone symbolic assignment: "X = expr" (uppercase variable at word boundary)
+        re.compile(r"\b[A-Z]\w*\s*=\s*[a-zA-Z\\(]", re.I),
         # LaTeX macro result: "\mathcal{M} = ..." or "\Gamma = ..."
-        re.compile(r"\\(?:mathcal|mathrm|mathbf|mathbb|operatorname)\s*\{[^}]+\}\s*=\s*\S"),
+        re.compile(r"\\math[a-z]+\s*(?:\{[^}]+\})?\s*=\s*\S"),
     ]),
     # 3. Derivation chains
     ("DERIV_CHAIN", [
@@ -83,12 +85,14 @@ _BLOCK_RULES: list[tuple[str, list[re.Pattern[str]]]] = [
     ("VERDICT", [
         re.compile(r"(?:I|[Ww]e)\s+(?:agree|disagree|conclude|concur)\b", re.I),
         re.compile(r"\b(?:correct|incorrect|wrong)\s+(?:in\s+the|result|derivation|calculation|approach|answer|method)", re.I),
-        re.compile(r"(?:your|the)\s+(?:result|answer|calculation|derivation)\s+is\s+(?:correct|incorrect|wrong|right|valid|invalid)", re.I),
+        # "your/the result is [adverb?] correct/wrong"
+        re.compile(r"(?:your|the)\s+(?:result|answer|calculation|derivation)\s+is\s+(?:\w+\s+)?(?:correct|incorrect|wrong|right|valid|invalid)", re.I),
         re.compile(r"(?:my|our)\s+(?:result|answer|calculation)\s+(?:matches|agrees|is consistent)", re.I),
-        re.compile(r"\b(?:CONFIRMED|CHALLENGED)\b"),
-        re.compile(r"(?:this|the)\s+(?:derivation|proof|calculation|approach)\s+is\s+(?:correct|valid|sound)", re.I),
-        # Hedged verdict phrasing: "looks correct", "seems wrong", "appears valid"
-        re.compile(r"(?:looks|seems|appears)\s+(?:correct|incorrect|wrong|right|valid|invalid|fine|good|ok(?:ay)?)\b", re.I),
+        re.compile(r"\b(?:CONFIRMED|CHALLENGED)\b", re.I),
+        # "the derivation is [adverb?] correct/valid"
+        re.compile(r"(?:this|the)\s+(?:derivation|proof|calculation|approach)\s+is\s+(?:\w+\s+)?(?:correct|valid|sound)", re.I),
+        # Hedged: "looks [adverb?] correct", "seems wrong", "appears valid"
+        re.compile(r"(?:looks|seems|appears)\s+(?:\w+\s+)?(?:correct|incorrect|wrong|right|valid|invalid|fine|good|ok(?:ay)?)\b", re.I),
         # "validates/confirms your result"
         re.compile(r"(?:validates?|verifies?|confirms?)\s+(?:your|the|this)\s+(?:result|answer|calculation|derivation)", re.I),
     ]),

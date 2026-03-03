@@ -1565,10 +1565,8 @@ if [[ -z "${PACKET}" ]]; then
   if [[ -n "${EXPORT_LEADS_TO}" ]]; then
     build_args+=( --export-leads-to "${EXPORT_LEADS_TO}" )
   fi
-  # RT-05: method landscape injection
-  if [[ -n "${method_landscape_path}" && -f "${method_landscape_path}" ]]; then
-    build_args+=( --method-landscape "${method_landscape_path}" )
-  fi
+  # NOTE: RT-05 method landscape is injected AFTER Phase 0 completes (via cat append)
+  # rather than here — method_landscape_path is still empty at packet-build time.
   python3 "${PACKET_BUILD_SCRIPT}" "${build_args[@]}"
 fi
 

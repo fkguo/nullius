@@ -647,3 +647,75 @@ class TestR3BypassRegressions:
         text = "We measure a cross section of 42 pb."
         result = filter_message(text)
         assert result.blocked_count > 0
+
+
+# ===========================================================================
+# Regression: R4 review-swarm bypass vectors (Codex + Gemini)
+# ===========================================================================
+
+class TestR4BypassRegressions:
+    """Regression tests for bypass vectors found in review-swarm R4."""
+
+    # --- Standalone numeric payloads (Codex #1) ---
+
+    def test_standalone_42_pb(self):
+        """'42 pb' alone must be blocked (NUM_RESULT)."""
+        text = "42 pb"
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_we_got_42_pb(self):
+        """'We got 42 pb.' must be blocked (NUM_RESULT)."""
+        text = "We got 42 pb."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- Plain X = expr symbolic (Codex #2) ---
+
+    def test_plain_symbolic_A_equals(self):
+        """'A = g^2/(16*pi^2).' must be blocked (SYM_RESULT)."""
+        text = "A = g^2/(16*pi^2)."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- Lowercase confirmed/challenged (Codex #3) ---
+
+    def test_lowercase_confirmed(self):
+        """'step verdict: confirmed' must be blocked (VERDICT)."""
+        text = "step verdict: confirmed"
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- Adverb injection bypasses (Gemini #2) ---
+
+    def test_is_exactly_42_pb(self):
+        """'The cross section is exactly 42 pb.' must be blocked (NUM_RESULT)."""
+        text = "The cross section is exactly 42 pb."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_looks_completely_correct(self):
+        """'looks completely correct.' must be blocked (VERDICT)."""
+        text = "This looks completely correct."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_derivation_is_perfectly_correct(self):
+        """'The derivation is perfectly correct.' must be blocked (VERDICT)."""
+        text = "The derivation is perfectly correct."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    def test_evaluates_asymptotically_to(self):
+        """'evaluates asymptotically to 42' must be blocked (NUM_RESULT)."""
+        text = "The integral evaluates asymptotically to 42."
+        result = filter_message(text)
+        assert result.blocked_count > 0
+
+    # --- Method suggestion NOT falsely blocked ---
+
+    def test_method_suggestion_not_blocked(self):
+        """Pure method suggestion should still pass through."""
+        text = "Consider using scipy.integrate for the numerical integration."
+        result = filter_message(text)
+        assert result.blocked_count == 0
