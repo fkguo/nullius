@@ -519,21 +519,38 @@ def _classify_segments(
             if not isinstance(classifications, list):
                 raise RuntimeError("'classifications' is not a list")
 
-            # Validate and index by segment_index
+            # Validate and index by segment_index.
+            # Duplicate indices are treated as ambiguous → forced to BLOCK
+            # (prevents fail-open if LLM returns BLOCK then PASS for same segment).
             valid: dict[int, dict] = {}
             seen_indices: set[int] = set()
+            duplicate_indices: set[int] = set()
             for cls in classifications:
                 idx = cls.get("segment_index")
                 if isinstance(idx, int):
+                    if idx in seen_indices:
+                        duplicate_indices.add(idx)
                     seen_indices.add(idx)
                 if _validate_classification(cls, len(segments)):
                     valid[cls["segment_index"]] = cls
 
-            # Build complete list — missing/invalid segments default to BLOCK
+            # Remove duplicates from valid — they're ambiguous
+            for dup_idx in duplicate_indices:
+                valid.pop(dup_idx, None)
+
+            # Build complete list — missing/invalid/duplicate segments default to BLOCK
             out: list[dict] = []
             for i in range(1, len(segments) + 1):
                 if i in valid:
                     out.append(valid[i])
+                elif i in duplicate_indices:
+                    out.append({
+                        "segment_index": i,
+                        "decision": "BLOCK",
+                        "block_type": "LLM_INVALID",
+                        "pass_type": None,
+                        "reason": f"Segment {i} has duplicate entries in LLM response (ambiguous → BLOCK)",
+                    })
                 else:
                     # Distinguish: LLM returned but invalid vs completely missing
                     bt = "LLM_INVALID" if i in seen_indices else "LLM_INCOMPLETE"

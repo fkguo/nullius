@@ -218,6 +218,16 @@ class TestBlockAllFallback:
         assert result.blocked_count > 0
         assert result.blocked_spans[0].block_type == "NO_API_KEY"
 
+    @patch("information_membrane._call_llm")
+    def test_non_retriable_error_maps_to_auth_error(self, mock_llm):
+        """401/403 _NonRetriableError → filter_message returns AUTH_ERROR reason."""
+        from information_membrane import _NonRetriableError
+        mock_llm.side_effect = _NonRetriableError("HTTP 401 Unauthorized")
+        config = MembraneConfig(api_key="test-key")
+        result = filter_message("Some content here.", config=config)
+        assert result.blocked_count > 0
+        assert result.blocked_spans[0].block_type == "AUTH_ERROR"
+
 
 # ===========================================================================
 # Malformed response tests
@@ -307,6 +317,44 @@ class TestPartialResponse:
         assert result[1]["block_type"] == "LLM_INVALID"  # Returned but invalid
         assert result[2]["decision"] == "BLOCK"
         assert result[2]["block_type"] == "LLM_INCOMPLETE"  # Not returned at all
+
+    @patch("information_membrane._call_llm")
+    @patch("information_membrane._load_system_prompt", return_value="test prompt")
+    def test_duplicate_index_forced_to_block(self, mock_prompt, mock_llm):
+        """Duplicate segment_index entries → forced to BLOCK (ambiguous, fail-closed)."""
+        from information_membrane import _classify_segments
+        # LLM returns BLOCK then PASS for segment 1 — must NOT let PASS win
+        mock_llm.return_value = {"classifications": [
+            {"segment_index": 1, "decision": "BLOCK", "block_type": "NUM_RESULT",
+             "pass_type": None, "reason": "number"},
+            {"segment_index": 1, "decision": "PASS", "pass_type": "METHOD",
+             "block_type": None, "reason": "method"},
+            {"segment_index": 2, "decision": "PASS", "pass_type": "TOOL",
+             "block_type": None, "reason": "ok"},
+        ]}
+        config = MembraneConfig(api_key="test-key")
+        result = _classify_segments(["Seg A", "Seg B"], config=config)
+
+        # Segment 1: duplicate → BLOCK (fail-closed)
+        assert result[0]["decision"] == "BLOCK"
+        assert result[0]["block_type"] == "LLM_INVALID"
+        assert "duplicate" in result[0]["reason"].lower()
+        # Segment 2: no duplicate → PASS preserved
+        assert result[1]["decision"] == "PASS"
+
+    @patch("information_membrane._call_llm")
+    def test_duplicate_index_filter_message_blocks(self, mock_llm):
+        """End-to-end: duplicate index in filter_message → content blocked."""
+        mock_llm.return_value = {"classifications": [
+            {"segment_index": 1, "decision": "BLOCK", "block_type": "NUM_RESULT",
+             "pass_type": None, "reason": "num"},
+            {"segment_index": 1, "decision": "PASS", "pass_type": "METHOD",
+             "block_type": None, "reason": "oops"},
+        ]}
+        config = MembraneConfig(api_key="test-key")
+        result = filter_message("The result is 42 pb.", config=config)
+        assert result.blocked_count == 1
+        assert "[REDACTED" in result.passed_text
 
 
 # ===========================================================================
@@ -451,6 +499,13 @@ class TestConfigFromEnv:
                                       "MEMBRANE_API_BASE_URL": "http://127.0.0.1:11434"}, clear=True):
             config = MembraneConfig.from_env()
         assert config.api_base_url == "http://127.0.0.1:11434"
+
+    def test_ipv6_loopback_http_accepted(self):
+        """http://[::1]:port is accepted for local dev (IPv6 loopback)."""
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "sk-test",
+                                      "MEMBRANE_API_BASE_URL": "http://[::1]:8000"}, clear=True):
+            config = MembraneConfig.from_env()
+        assert config.api_base_url == "http://[::1]:8000"
 
     def test_localhost_evil_rejected(self):
         """http://localhost.evil.com is NOT accepted (hostname mismatch)."""
