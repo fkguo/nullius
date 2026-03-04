@@ -124,6 +124,20 @@ export const ORCH_RUN_RESUME = 'orch_run_resume' as const;
 export const ORCH_RUN_APPROVALS_LIST = 'orch_run_approvals_list' as const;
 export const ORCH_POLICY_QUERY = 'orch_policy_query' as const;
 
+// ── OpenAlex Tools ──────────────────────────────────────────────────────────
+
+export const OPENALEX_SEARCH = 'openalex_search' as const;
+export const OPENALEX_SEMANTIC_SEARCH = 'openalex_semantic_search' as const;
+export const OPENALEX_GET = 'openalex_get' as const;
+export const OPENALEX_FILTER = 'openalex_filter' as const;
+export const OPENALEX_GROUP = 'openalex_group' as const;
+export const OPENALEX_REFERENCES = 'openalex_references' as const;
+export const OPENALEX_CITATIONS = 'openalex_citations' as const;
+export const OPENALEX_BATCH = 'openalex_batch' as const;
+export const OPENALEX_AUTOCOMPLETE = 'openalex_autocomplete' as const;
+export const OPENALEX_CONTENT = 'openalex_content' as const;
+export const OPENALEX_RATE_LIMIT = 'openalex_rate_limit' as const;
+
 // ── Idea Tools (NEW-IDEA-01) ─────────────────────────────────────────────────
 
 export const IDEA_PREFIX = 'idea_' as const;
@@ -224,6 +238,19 @@ export type IdeaToolName =
   | typeof IDEA_SEARCH_STEP
   | typeof IDEA_EVAL_RUN;
 
+export type OpenAlexToolName =
+  | typeof OPENALEX_SEARCH
+  | typeof OPENALEX_SEMANTIC_SEARCH
+  | typeof OPENALEX_GET
+  | typeof OPENALEX_FILTER
+  | typeof OPENALEX_GROUP
+  | typeof OPENALEX_REFERENCES
+  | typeof OPENALEX_CITATIONS
+  | typeof OPENALEX_BATCH
+  | typeof OPENALEX_AUTOCOMPLETE
+  | typeof OPENALEX_CONTENT
+  | typeof OPENALEX_RATE_LIMIT;
+
 export type HepDataToolName =
   | typeof HEPDATA_SEARCH
   | typeof HEPDATA_GET_RECORD
@@ -236,4 +263,4 @@ export type ArxivToolName =
   | typeof ARXIV_PAPER_SOURCE;
 
 /** Union of all tool names across the ecosystem */
-export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | OrchToolName | IdeaToolName | HepDataToolName | ArxivToolName;
+export type ToolName = HepToolName | InspireToolName | PdgToolName | ZoteroToolName | OrchToolName | IdeaToolName | HepDataToolName | ArxivToolName | OpenAlexToolName;

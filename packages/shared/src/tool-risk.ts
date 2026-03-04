@@ -52,7 +52,7 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.HEP_INSPIRE_RESOLVE_IDENTIFIERS]: 'read',
 
   // ── INSPIRE Search & Navigation ───────────────────────────────────────
-  [T.INSPIRE_SEARCH]: 'read',
+  [T.INSPIRE_SEARCH]: 'write',
   [T.INSPIRE_SEARCH_NEXT]: 'read',
   [T.INSPIRE_RESEARCH_NAVIGATOR]: 'read',
   [T.INSPIRE_DEEP_RESEARCH]: 'write',
@@ -121,6 +121,19 @@ export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
   [T.HEPDATA_GET_RECORD]: 'read',
   [T.HEPDATA_GET_TABLE]: 'read',
   [T.HEPDATA_DOWNLOAD]: 'destructive',
+
+  // ── OpenAlex Tools ────────────────────────────────────────────────────
+  [T.OPENALEX_SEARCH]: 'read',
+  [T.OPENALEX_SEMANTIC_SEARCH]: 'read',
+  [T.OPENALEX_GET]: 'read',
+  [T.OPENALEX_FILTER]: 'read',
+  [T.OPENALEX_GROUP]: 'read',
+  [T.OPENALEX_REFERENCES]: 'read',
+  [T.OPENALEX_CITATIONS]: 'read',
+  [T.OPENALEX_BATCH]: 'read',
+  [T.OPENALEX_AUTOCOMPLETE]: 'read',
+  [T.OPENALEX_CONTENT]: 'destructive',
+  [T.OPENALEX_RATE_LIMIT]: 'read',
 };
 
 // ── H-11b: Permission Composition ────────────────────────────────────────
