@@ -93,3 +93,72 @@ describe('Rate limiter URL construction via openalexFetch', () => {
     expect(calledUrl).toContain('filter=is_oa');
   });
 });
+
+describe('withSlot queue/release semantics', () => {
+  // These tests disable the isTestEnv() bypass so the real slot logic runs.
+  const fetchSpy = vi.fn();
+  let savedVitest: string | undefined;
+  let savedNodeEnv: string | undefined;
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.resetModules();
+    // Temporarily defeat isTestEnv() so withSlot runs real serialization logic
+    savedVitest = process.env.VITEST;
+    savedNodeEnv = process.env.NODE_ENV;
+    delete process.env.VITEST;
+    process.env.NODE_ENV = 'production';
+    // Skip interval delays so tests run immediately
+    process.env.OPENALEX_MIN_INTERVAL_MS = '0';
+  });
+
+  afterEach(() => {
+    if (savedVitest !== undefined) { process.env.VITEST = savedVitest; } else { delete process.env.VITEST; }
+    if (savedNodeEnv !== undefined) { process.env.NODE_ENV = savedNodeEnv; } else { delete process.env.NODE_ENV; }
+    delete process.env.OPENALEX_MIN_INTERVAL_MS;
+    fetchSpy.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('releases slot after fn() error — subsequent request is not blocked', async () => {
+    // First call: fetch throws a network error
+    fetchSpy.mockRejectedValueOnce(new TypeError('network failure'));
+    // Second call: succeeds
+    fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    // First call fails
+    await expect(openalexFetch('/works')).rejects.toThrow();
+
+    // Slot was released in finally — second call proceeds without deadlock
+    const response = await openalexFetch('/works');
+    expect(response.status).toBe(200);
+  });
+
+  it('serializes concurrent callers — second fetch starts only after first completes', async () => {
+    let firstFetchDone = false;
+
+    fetchSpy
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>(resolve =>
+            setTimeout(() => {
+              firstFetchDone = true;
+              resolve(new Response('{}', { status: 200 }));
+            }, 10),
+          ),
+      )
+      .mockImplementationOnce(async () => {
+        // withSlot guarantees this runs after the first fetch's slot is released
+        expect(firstFetchDone).toBe(true);
+        return new Response('{}', { status: 200 });
+      });
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    await Promise.all([openalexFetch('/works?q=1'), openalexFetch('/works?q=2')]);
+    expect(fetchSpy.mock.calls).toHaveLength(2);
+  });
+});

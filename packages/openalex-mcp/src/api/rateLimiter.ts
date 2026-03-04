@@ -151,6 +151,7 @@ class OpenAlexRateLimiter {
         : undefined;
       try {
         const response = await this.fetchWithRetry(url, init, controller.signal, 0, startTime);
+        this.parseRateLimitHeaders(response.headers);
         this.requestCount++;
         return response;
       } finally {

@@ -115,6 +115,8 @@ async function paginatedFetch<T>(
   opts: PaginationOptions,
 ): Promise<PaginatedResult<T>> {
   const { perPage, page, cursor: initialCursor, maxResults, dataDir } = opts;
+  // isInteractive = true when no explicit maxResults, or maxResults fits in a single page
+  // (maxResults === perPage also uses single-page to avoid a needless second request)
   const isInteractive = !maxResults || maxResults <= perPage;
 
   // Build base params
@@ -295,7 +297,6 @@ export async function handleGet(
   const normalized = detected?.normalized ?? args.id;
 
   const qs = new URLSearchParams();
-  if (args.select) qs.set('filter', `ids.openalex:${normalized}`);
   // Use the direct entity lookup for OpenAlex IDs; filter for others
   let path: string;
   if (detected?.type === 'openalex' || detected?.type === 'openalex_url') {
