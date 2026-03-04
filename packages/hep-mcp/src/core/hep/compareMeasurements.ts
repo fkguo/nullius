@@ -335,6 +335,7 @@ function buildNextActions(params: {
   if (missingUncertainty > 0) {
     for (const rid of params.inputRunIds) {
       if (suggestedReExtractRunIds.has(rid)) continue;
+      suggestedReExtractRunIds.add(rid);
       actions.push({
         tool: HEP_RUN_BUILD_MEASUREMENTS,
         args: { run_id: rid },

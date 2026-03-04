@@ -221,7 +221,8 @@ After all sections are drafted:
    hep_export_project({
      run_id: "<run_id>",
      rendered_latex_artifact_name: "rendered_latex.tex",
-     include_evidence_digests: true
+     include_evidence_digests: true,
+     _confirm: true
    })
    ```
 
