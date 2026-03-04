@@ -97,7 +97,7 @@ Advanced flags (optional; see `--help` for full surface):
 
 ## Evidence-grounded writing via hep-mcp (recommended)
 
-When hep-mcp is available, the writing workflow should use evidence catalog tools to ground every section in source material before drafting. This eliminates hallucinated claims and ensures citation accuracy.
+When hep-mcp is available, the writing workflow should use evidence catalog tools to ground every section in source material before drafting. This greatly reduces hallucinated claims and improves citation accuracy.
 
 ### Prerequisites
 
