@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 import {
   HEP_RUN_BUILD_MEASUREMENTS,
+  HEP_PROJECT_QUERY_EVIDENCE,
   invalidParams,
 } from '@autoresearch/shared';
 
@@ -57,6 +58,12 @@ interface NotComparablePair {
   reason: 'unit_mismatch' | 'missing_unit' | 'missing_uncertainty' | 'non_positive_combined_sigma' | 'duplicate_source';
   lhs: CompareMeasurementEndpoint;
   rhs: CompareMeasurementEndpoint;
+}
+
+interface NextAction {
+  tool: string;
+  args: Record<string, unknown>;
+  reason: string;
 }
 
 interface MeasurementArtifactRow {
@@ -287,6 +294,50 @@ function makeArtifactName(params: {
   return `hep_compare_measurements_${sha256Hex(material).slice(0, 16)}.json`;
 }
 
+function buildNextActions(params: {
+  flags: CompareMeasurementFlag[];
+  notComparablePairs: number;
+  reasonCounts: Map<string, number>;
+  runId: string;
+  projectId: string;
+}): NextAction[] {
+  const actions: NextAction[] = [];
+
+  if (params.flags.length > 0) {
+    const topQuantities = [...new Set(params.flags.slice(0, 5).map(f => f.quantity_normalized))];
+    actions.push({
+      tool: HEP_PROJECT_QUERY_EVIDENCE,
+      args: {
+        project_id: params.projectId,
+        query: topQuantities.join(' '),
+        mode: 'lexical',
+        limit: 10,
+      },
+      reason: `Review source evidence for ${params.flags.length} flagged tension(s). Top quantities: ${topQuantities.join(', ')}.`,
+    });
+
+    const strongFlags = params.flags.filter(f => f.interpretation === 'strong_tension' || f.interpretation === 'very_strong_tension');
+    if (strongFlags.length > 0) {
+      actions.push({
+        tool: HEP_RUN_BUILD_MEASUREMENTS,
+        args: { run_id: params.runId },
+        reason: `Re-extract measurements to check systematic uncertainties for ${strongFlags.length} strong/very-strong tension(s).`,
+      });
+    }
+  }
+
+  const missingUncertainty = params.reasonCounts.get('missing_uncertainty') ?? 0;
+  if (missingUncertainty > 0) {
+    actions.push({
+      tool: HEP_RUN_BUILD_MEASUREMENTS,
+      args: { run_id: params.runId },
+      reason: `${missingUncertainty} pair(s) skipped due to missing uncertainty. Re-extract with improved extraction to enable comparison.`,
+    });
+  }
+
+  return actions;
+}
+
 export async function compareProjectMeasurements(params: {
   run_id: string;
   input_runs: CompareInputRun[];
@@ -316,6 +367,7 @@ export async function compareProjectMeasurements(params: {
     warnings_total: number;
     warnings: string[];
   };
+  next_actions: NextAction[];
 }> {
   const runId = params.run_id;
   const outputRun = getRun(runId);
@@ -541,6 +593,14 @@ export async function compareProjectMeasurements(params: {
       min_tension_sigma: params.min_tension_sigma,
     });
 
+    const nextActions = buildNextActions({
+      flags,
+      notComparablePairs,
+      reasonCounts,
+      runId,
+      projectId: outputRun.project_id,
+    });
+
     const compareRef = writeRunJsonArtifact(runId, artifactName, {
       version: 1,
       generated_at: nowIso(),
@@ -580,6 +640,7 @@ export async function compareProjectMeasurements(params: {
         warnings: warnings.slice(0, 20),
       },
       flags,
+      next_actions: nextActions,
       not_comparable: params.include_not_comparable ? notComparable : undefined,
     });
     artifacts.push(compareRef);
@@ -622,6 +683,7 @@ export async function compareProjectMeasurements(params: {
         warnings_total: warnings.length,
         warnings: warnings.slice(0, 20),
       },
+      next_actions: nextActions,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

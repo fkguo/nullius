@@ -95,6 +95,156 @@ Advanced flags (optional; see `--help` for full surface):
 - Evidence gate: `--evidence-scan=all|macros` (default `all`); if `macros`, set one or more `--evidence-macro` (e.g. `revadd`)
 - Testing: `--stub-models` (no external calls), `--stub-variant=safe|unsafe` (`unsafe` should fail the evidence gate by design)
 
+## Evidence-grounded writing via hep-mcp (recommended)
+
+When hep-mcp is available, the writing workflow should use evidence catalog tools to ground every section in source material before drafting. This eliminates hallucinated claims and ensures citation accuracy.
+
+### Prerequisites
+
+- A hep-mcp project with at least one paper's LaTeX source ingested.
+- A run with evidence artifacts built (catalog + embeddings).
+
+### Step 1: Build evidence corpus
+
+Before any writing, build the evidence catalog and embeddings for your source papers:
+
+```
+hep_run_build_writing_evidence({
+  run_id: "<run_id>",
+  latex_sources: [
+    { identifier: "<arXiv_id_or_DOI>", include_inline_math: true, include_cross_refs: false }
+  ],
+  latex_types: ["paragraph", "equation", "figure", "table", "citation_context"],
+  max_evidence_items: 2000,
+  embedding_dim: 256,
+  continue_on_error: false
+})
+```
+
+This produces:
+- `latex_evidence_catalog.jsonl` — evidence items (paragraphs, equations, figures, etc.)
+- `latex_evidence_embeddings.jsonl` — sparse vector embeddings for semantic search
+- `latex_evidence_enrichment.jsonl` — importance scores and labels
+
+### Step 2: Build citation mapping
+
+Map bibliography entries to INSPIRE recids for citation rendering:
+
+```
+hep_run_build_citation_mapping({
+  run_id: "<run_id>",
+  identifier: "<arXiv_id_or_DOI>",
+  allowed_citations_primary: [],
+  include_mapped_references: true
+})
+```
+
+This produces `citekey_to_inspire_v1.json` (used later by `hep_render_latex`).
+
+### Step 3: Section-by-section drafting with evidence retrieval
+
+For each section in the outline, **before writing any prose**:
+
+1. **Query evidence** (lexical or semantic) to gather relevant source material:
+
+   ```
+   hep_project_query_evidence({
+     project_id: "<project_id>",
+     query: "<section topic keywords>",
+     mode: "lexical",         // or "semantic" (requires run_id)
+     run_id: "<run_id>",      // required for semantic mode
+     types: ["paragraph", "equation", "citation_context"],
+     limit: 10
+   })
+   ```
+
+   For concept-level queries (not exact keywords), prefer semantic mode:
+
+   ```
+   hep_project_query_evidence_semantic({
+     run_id: "<run_id>",
+     project_id: "<project_id>",
+     query: "<conceptual description of section content>",
+     types: ["paragraph", "equation"],
+     limit: 10
+   })
+   ```
+
+2. **Use retrieved evidence** to ground the draft. Each sentence referencing a specific claim should carry:
+   - `evidence_ids` — linking back to the evidence catalog items used
+   - `recids` — INSPIRE record IDs for citation generation
+   - `is_grounded: true` — confirming the claim is evidence-backed
+
+3. **Structure output as SectionDraft**:
+
+   ```json
+   {
+     "version": 1,
+     "title": "Section Title",
+     "paragraphs": [
+       {
+         "sentences": [
+           {
+             "sentence": "Plain text sentence.",
+             "sentence_latex": "LaTeX-formatted sentence with $\\alpha_s$.",
+             "type": "fact",
+             "is_grounded": true,
+             "claim_ids": [],
+             "evidence_ids": ["ev_abc123"],
+             "recids": ["1234567"]
+           }
+         ]
+       }
+     ]
+   }
+   ```
+
+### Step 4: Render LaTeX + export
+
+After all sections are drafted:
+
+1. **Render** the structured draft to LaTeX with proper citations:
+
+   ```
+   hep_render_latex({
+     run_id: "<run_id>",
+     draft: <ReportDraft>,
+     cite_mapping: <citekey_to_inspire_v1.json contents>,
+     latex_artifact_name: "rendered_latex.tex",
+     section_output_artifact_name: "rendered_section_output.json"
+   })
+   ```
+
+2. **Export** the full research pack:
+
+   ```
+   hep_export_project({
+     run_id: "<run_id>",
+     rendered_latex_artifact_name: "rendered_latex.tex",
+     include_evidence_digests: true
+   })
+   ```
+
+   This produces: `master.bib`, `report.tex`, `report.md`, `research_pack.zip`, and NotebookLM-friendly chunks.
+
+### End-to-end flow summary
+
+```
+evidence catalog ──→ evidence query (per section) ──→ grounded draft ──→ render LaTeX ──→ export
+      ↑                                                     │
+      │                                                     ↓
+  source papers                                    citation mapping
+  (arXiv LaTeX)                                   (INSPIRE recids)
+```
+
+### Integration with existing research-writer paths
+
+The evidence-grounded workflow complements the existing scaffold and draft-sections paths:
+
+- **Scaffold path** (`research_writer_scaffold.sh`): Use for initial `paper/` directory creation from a research-team project. The evidence-grounded path is an alternative when working directly with hep-mcp projects.
+- **Draft-sections path** (`research_writer_draft_sections.sh`): The `--run-models` writer/auditor pair can consume evidence query results as additional context. Pass evidence hits as part of the writer system prompt.
+- **Consume path** (`research_writer_consume_paper_manifest.sh`): Use after `hep_export_paper_scaffold` to validate and compile the MCP-exported paper.
+
 ## Consume an MCP-exported paper scaffold (deterministic publisher)
 
 If `hep-research-mcp` (or another agent pipeline) already produced a `paper/` directory, this skill can validate + apply deterministic hygiene + (optionally) compile it using `paper/paper_manifest.json` as the only entrypoint.

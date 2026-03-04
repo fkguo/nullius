@@ -274,4 +274,153 @@ describe('vNext Phase4: hep_project_compare_measurements', () => {
     expect((artifact.summary.reason_counts.unit_mismatch ?? 0)).toBeGreaterThan(0);
     expect(artifact.not_comparable?.[0]?.reason).toBe('unit_mismatch');
   });
+
+  it('returns next_actions when tensions are flagged', async () => {
+    const p1Res = await handleToolCall('hep_project_create', { name: 'cmp-na-a', description: 'next_actions test' });
+    const p1 = JSON.parse(p1Res.content[0].text) as { project_id: string };
+    const r1Res = await handleToolCall('hep_run_create', { project_id: p1.project_id });
+    const r1 = JSON.parse(r1Res.content[0].text) as { run_id: string };
+
+    const p2Res = await handleToolCall('hep_project_create', { name: 'cmp-na-b', description: 'next_actions test' });
+    const p2 = JSON.parse(p2Res.content[0].text) as { project_id: string };
+    const r2Res = await handleToolCall('hep_run_create', { project_id: p2.project_id });
+    const r2 = JSON.parse(r2Res.content[0].text) as { run_id: string };
+
+    writeMeasurementsArtifact({
+      run_id: r1.run_id,
+      project_id: p1.project_id,
+      artifact_name: 'hep_measurements_na_a.jsonl',
+      value: 125.0,
+      uncertainty: 0.2,
+      unit: 'GeV',
+    });
+    writeMeasurementsArtifact({
+      run_id: r2.run_id,
+      project_id: p2.project_id,
+      artifact_name: 'hep_measurements_na_b.jsonl',
+      value: 127.0,
+      uncertainty: 0.2,
+      unit: 'GeV',
+    });
+
+    const res = await handleToolCall('hep_project_compare_measurements', {
+      run_id: r1.run_id,
+      input_runs: [
+        { run_id: r1.run_id, measurements_artifact_name: 'hep_measurements_na_a.jsonl' },
+        { run_id: r2.run_id, measurements_artifact_name: 'hep_measurements_na_b.jsonl' },
+      ],
+      min_tension_sigma: 2,
+      max_flags: 20,
+      include_not_comparable: false,
+    });
+    expect(res.isError).not.toBe(true);
+
+    const payload = JSON.parse(res.content[0].text) as {
+      summary: { flagged_pairs: number };
+      next_actions: Array<{ tool: string; args: Record<string, unknown>; reason: string }>;
+    };
+    expect(payload.summary.flagged_pairs).toBe(1);
+    expect(payload.next_actions.length).toBeGreaterThan(0);
+
+    const evidenceAction = payload.next_actions.find(a => a.tool === 'hep_project_query_evidence');
+    expect(evidenceAction).toBeDefined();
+    expect(evidenceAction!.reason).toContain('flagged tension');
+    expect(evidenceAction!.args.query).toContain('higgs mass');
+  });
+
+  it('returns empty next_actions when no tensions are found', async () => {
+    const p1Res = await handleToolCall('hep_project_create', { name: 'cmp-nona-a', description: 'no tension test' });
+    const p1 = JSON.parse(p1Res.content[0].text) as { project_id: string };
+    const r1Res = await handleToolCall('hep_run_create', { project_id: p1.project_id });
+    const r1 = JSON.parse(r1Res.content[0].text) as { run_id: string };
+
+    const p2Res = await handleToolCall('hep_project_create', { name: 'cmp-nona-b', description: 'no tension test' });
+    const p2 = JSON.parse(p2Res.content[0].text) as { project_id: string };
+    const r2Res = await handleToolCall('hep_run_create', { project_id: p2.project_id });
+    const r2 = JSON.parse(r2Res.content[0].text) as { run_id: string };
+
+    writeMeasurementsArtifact({
+      run_id: r1.run_id,
+      project_id: p1.project_id,
+      artifact_name: 'hep_measurements_nona_a.jsonl',
+      value: 125.0,
+      uncertainty: 0.5,
+      unit: 'GeV',
+    });
+    writeMeasurementsArtifact({
+      run_id: r2.run_id,
+      project_id: p2.project_id,
+      artifact_name: 'hep_measurements_nona_b.jsonl',
+      value: 125.1,
+      uncertainty: 0.5,
+      unit: 'GeV',
+    });
+
+    const res = await handleToolCall('hep_project_compare_measurements', {
+      run_id: r1.run_id,
+      input_runs: [
+        { run_id: r1.run_id, measurements_artifact_name: 'hep_measurements_nona_a.jsonl' },
+        { run_id: r2.run_id, measurements_artifact_name: 'hep_measurements_nona_b.jsonl' },
+      ],
+      min_tension_sigma: 2,
+      max_flags: 20,
+      include_not_comparable: false,
+    });
+    expect(res.isError).not.toBe(true);
+
+    const payload = JSON.parse(res.content[0].text) as {
+      summary: { flagged_pairs: number };
+      next_actions: Array<{ tool: string }>;
+    };
+    expect(payload.summary.flagged_pairs).toBe(0);
+    expect(payload.next_actions).toEqual([]);
+  });
+
+  it('includes re-extract suggestion for strong tensions', async () => {
+    const p1Res = await handleToolCall('hep_project_create', { name: 'cmp-strong-a', description: 'strong tension test' });
+    const p1 = JSON.parse(p1Res.content[0].text) as { project_id: string };
+    const r1Res = await handleToolCall('hep_run_create', { project_id: p1.project_id });
+    const r1 = JSON.parse(r1Res.content[0].text) as { run_id: string };
+
+    const p2Res = await handleToolCall('hep_project_create', { name: 'cmp-strong-b', description: 'strong tension test' });
+    const p2 = JSON.parse(p2Res.content[0].text) as { project_id: string };
+    const r2Res = await handleToolCall('hep_run_create', { project_id: p2.project_id });
+    const r2 = JSON.parse(r2Res.content[0].text) as { run_id: string };
+
+    // Create a very large tension (|delta| / sigma_combined >> 3)
+    writeMeasurementsArtifact({
+      run_id: r1.run_id,
+      project_id: p1.project_id,
+      artifact_name: 'hep_measurements_strong_a.jsonl',
+      value: 100.0,
+      uncertainty: 0.1,
+      unit: 'GeV',
+    });
+    writeMeasurementsArtifact({
+      run_id: r2.run_id,
+      project_id: p2.project_id,
+      artifact_name: 'hep_measurements_strong_b.jsonl',
+      value: 110.0,
+      uncertainty: 0.1,
+      unit: 'GeV',
+    });
+
+    const res = await handleToolCall('hep_project_compare_measurements', {
+      run_id: r1.run_id,
+      input_runs: [
+        { run_id: r1.run_id, measurements_artifact_name: 'hep_measurements_strong_a.jsonl' },
+        { run_id: r2.run_id, measurements_artifact_name: 'hep_measurements_strong_b.jsonl' },
+      ],
+      min_tension_sigma: 2,
+      max_flags: 20,
+      include_not_comparable: false,
+    });
+    expect(res.isError).not.toBe(true);
+
+    const payload = JSON.parse(res.content[0].text) as {
+      next_actions: Array<{ tool: string; reason: string }>;
+    };
+    const reExtractAction = payload.next_actions.find(a => a.tool === 'hep_run_build_measurements' && a.reason.includes('systematic uncertainties'));
+    expect(reExtractAction).toBeDefined();
+  });
 });
