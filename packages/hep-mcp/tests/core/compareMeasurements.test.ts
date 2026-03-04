@@ -418,9 +418,67 @@ describe('vNext Phase4: hep_project_compare_measurements', () => {
     expect(res.isError).not.toBe(true);
 
     const payload = JSON.parse(res.content[0].text) as {
-      next_actions: Array<{ tool: string; reason: string }>;
+      next_actions: Array<{ tool: string; args: Record<string, unknown>; reason: string }>;
     };
     const reExtractAction = payload.next_actions.find(a => a.tool === 'hep_run_build_measurements' && a.reason.includes('systematic uncertainties'));
     expect(reExtractAction).toBeDefined();
+    // Verify the suggested run_id is one of the source input runs (not the output run)
+    expect([r1.run_id, r2.run_id]).toContain(reExtractAction!.args.run_id);
+  });
+
+  it('suggests re-extraction for missing uncertainty pairs', async () => {
+    const p1Res = await handleToolCall('hep_project_create', { name: 'cmp-missunc-a', description: 'missing uncertainty test' });
+    const p1 = JSON.parse(p1Res.content[0].text) as { project_id: string };
+    const r1Res = await handleToolCall('hep_run_create', { project_id: p1.project_id });
+    const r1 = JSON.parse(r1Res.content[0].text) as { run_id: string };
+
+    const p2Res = await handleToolCall('hep_project_create', { name: 'cmp-missunc-b', description: 'missing uncertainty test' });
+    const p2 = JSON.parse(p2Res.content[0].text) as { project_id: string };
+    const r2Res = await handleToolCall('hep_run_create', { project_id: p2.project_id });
+    const r2 = JSON.parse(r2Res.content[0].text) as { run_id: string };
+
+    // One measurement has uncertainty=0 → triggers missing_uncertainty
+    writeMeasurementsArtifact({
+      run_id: r1.run_id,
+      project_id: p1.project_id,
+      artifact_name: 'hep_measurements_missunc_a.jsonl',
+      value: 125.0,
+      uncertainty: 0,
+      unit: 'GeV',
+    });
+    writeMeasurementsArtifact({
+      run_id: r2.run_id,
+      project_id: p2.project_id,
+      artifact_name: 'hep_measurements_missunc_b.jsonl',
+      value: 126.0,
+      uncertainty: 0.2,
+      unit: 'GeV',
+    });
+
+    const res = await handleToolCall('hep_project_compare_measurements', {
+      run_id: r1.run_id,
+      input_runs: [
+        { run_id: r1.run_id, measurements_artifact_name: 'hep_measurements_missunc_a.jsonl' },
+        { run_id: r2.run_id, measurements_artifact_name: 'hep_measurements_missunc_b.jsonl' },
+      ],
+      min_tension_sigma: 2,
+      max_flags: 20,
+      include_not_comparable: true,
+    });
+    expect(res.isError).not.toBe(true);
+
+    const payload = JSON.parse(res.content[0].text) as {
+      summary: { not_comparable_pairs: number; reason_counts: Record<string, number> };
+      next_actions: Array<{ tool: string; args: Record<string, unknown>; reason: string }>;
+    };
+    expect(payload.summary.reason_counts.missing_uncertainty).toBe(1);
+
+    const reExtractActions = payload.next_actions.filter(a => a.tool === 'hep_run_build_measurements' && a.reason.includes('missing uncertainty'));
+    expect(reExtractActions.length).toBeGreaterThan(0);
+    // Verify suggested run_ids are source input runs
+    const suggestedRunIds = reExtractActions.map(a => a.args.run_id);
+    for (const rid of suggestedRunIds) {
+      expect([r1.run_id, r2.run_id]).toContain(rid);
+    }
   });
 });

@@ -298,10 +298,11 @@ function buildNextActions(params: {
   flags: CompareMeasurementFlag[];
   notComparablePairs: number;
   reasonCounts: Map<string, number>;
-  runId: string;
+  inputRunIds: string[];
   projectId: string;
 }): NextAction[] {
   const actions: NextAction[] = [];
+  const suggestedReExtractRunIds = new Set<string>();
 
   if (params.flags.length > 0) {
     const topQuantities = [...new Set(params.flags.slice(0, 5).map(f => f.quantity_normalized))];
@@ -318,21 +319,28 @@ function buildNextActions(params: {
 
     const strongFlags = params.flags.filter(f => f.interpretation === 'strong_tension' || f.interpretation === 'very_strong_tension');
     if (strongFlags.length > 0) {
-      actions.push({
-        tool: HEP_RUN_BUILD_MEASUREMENTS,
-        args: { run_id: params.runId },
-        reason: `Re-extract measurements to check systematic uncertainties for ${strongFlags.length} strong/very-strong tension(s).`,
-      });
+      const affectedRunIds = [...new Set(strongFlags.flatMap(f => [f.lhs.run_id, f.rhs.run_id]))];
+      for (const rid of affectedRunIds) {
+        suggestedReExtractRunIds.add(rid);
+        actions.push({
+          tool: HEP_RUN_BUILD_MEASUREMENTS,
+          args: { run_id: rid },
+          reason: `Re-extract measurements for run ${rid} to check systematic uncertainties for ${strongFlags.length} strong/very-strong tension(s).`,
+        });
+      }
     }
   }
 
   const missingUncertainty = params.reasonCounts.get('missing_uncertainty') ?? 0;
   if (missingUncertainty > 0) {
-    actions.push({
-      tool: HEP_RUN_BUILD_MEASUREMENTS,
-      args: { run_id: params.runId },
-      reason: `${missingUncertainty} pair(s) skipped due to missing uncertainty. Re-extract with improved extraction to enable comparison.`,
-    });
+    for (const rid of params.inputRunIds) {
+      if (suggestedReExtractRunIds.has(rid)) continue;
+      actions.push({
+        tool: HEP_RUN_BUILD_MEASUREMENTS,
+        args: { run_id: rid },
+        reason: `${missingUncertainty} pair(s) skipped due to missing uncertainty. Re-extract with improved extraction to enable comparison.`,
+      });
+    }
   }
 
   return actions;
@@ -597,7 +605,7 @@ export async function compareProjectMeasurements(params: {
       flags,
       notComparablePairs,
       reasonCounts,
-      runId,
+      inputRunIds: resolvedInputs.map(item => item.run_id),
       projectId: outputRun.project_id,
     });
 
