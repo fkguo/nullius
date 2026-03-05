@@ -1,0 +1,130 @@
+{
+  "name": "demo_retrieval",
+  "version": 1,
+  "description": "Demo retrieval eval set for eval framework acceptance and SEM track G1 gate.",
+  "module": "SEM-00",
+  "cases": [
+    {
+      "id": "normal_001",
+      "input": {
+        "query": "molecular near threshold",
+        "retrieved_ids": ["ev_paper_250eecd8512019b7_paragraph_1c71d16cf49c5f3d", "ev_decoy_a", "ev_decoy_b"]
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_1c71d16cf49c5f3d"]
+      },
+      "tags": ["normal"]
+    },
+    {
+      "id": "normal_002",
+      "input": {
+        "query": "diquark-antidiquark tetraquark picture",
+        "retrieved_ids": ["ev_paper_250eecd8512019b7_paragraph_19755297890f148a", "ev_decoy_c", "ev_decoy_d"]
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_19755297890f148a"]
+      },
+      "tags": ["normal"]
+    },
+    {
+      "id": "normal_003",
+      "input": {
+        "query": "hybrid gluonic excitation",
+        "retrieved_ids": ["ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69", "ev_decoy_e", "ev_decoy_f"]
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69"]
+      },
+      "tags": ["normal"]
+    },
+    {
+      "id": "normal_004",
+      "input": {
+        "query": "molecule interpretation evidence",
+        "retrieved_ids": ["ev_decoy_g", "ev_decoy_h", "ev_paper_250eecd8512019b7_paragraph_1c71d16cf49c5f3d", "ev_decoy_i"]
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_1c71d16cf49c5f3d"]
+      },
+      "tags": ["normal"]
+    },
+    {
+      "id": "hard_001",
+      "input": {
+        "query": "compact tetraquark with ambiguity",
+        "retrieved_ids": ["ev_decoy_j", "ev_decoy_k", "ev_decoy_l"]
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_19755297890f148a"]
+      },
+      "tags": ["hard-case"]
+    },
+    {
+      "id": "hard_002",
+      "input": {
+        "query": "hybrid scenario weak signal",
+        "retrieved_ids": [
+          "ev_decoy_m",
+          "ev_decoy_n",
+          "ev_decoy_o",
+          "ev_decoy_p",
+          "ev_decoy_q",
+          "ev_decoy_r",
+          "ev_decoy_s",
+          "ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69"
+        ]
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69"]
+      },
+      "tags": ["hard-case"]
+    },
+    {
+      "id": "hard_003",
+      "input": {
+        "query": "near-threshold but noisy terms",
+        "retrieved_ids": ["ev_decoy_t", "ev_decoy_u", "ev_decoy_v", "ev_decoy_w"]
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_1c71d16cf49c5f3d"]
+      },
+      "tags": ["hard-case"]
+    },
+    {
+      "id": "empty_001",
+      "input": {
+        "query": "unrelated cosmology signal",
+        "retrieved_ids": []
+      },
+      "expected": {
+        "expected_evidence_ids": []
+      },
+      "tags": ["empty-result"]
+    },
+    {
+      "id": "empty_002",
+      "input": {
+        "query": "string theory compactification",
+        "retrieved_ids": ["ev_decoy_x", "ev_decoy_y"]
+      },
+      "expected": {
+        "expected_evidence_ids": []
+      },
+      "tags": ["empty-result"]
+    },
+    {
+      "id": "normal_005",
+      "input": {
+        "query": "multiple valid evidence ids",
+        "retrieved_ids": ["ev_decoy_z", "ev_paper_250eecd8512019b7_paragraph_19755297890f148a", "ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69"]
+      },
+      "expected": {
+        "expected_evidence_ids": [
+          "ev_paper_250eecd8512019b7_paragraph_19755297890f148a",
+          "ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69"
+        ]
+      },
+      "tags": ["normal"]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "coverage_report_eval",
+  "version": 1,
+  "description": "Coverage report completeness checks for export artifacts.",
+  "module": "SEM-09",
+  "cases": [
+    {
+      "id": "coverage_001",
+      "input": {
+        "draft_fixture": "draft_minimal.json"
+      },
+      "expected": {
+        "snapshot": "coverage_report_minimal"
+      },
+      "tags": ["local"]
+    }
+  ]
+}

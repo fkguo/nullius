@@ -1,0 +1,18 @@
+{
+  "name": "writing_evidence_source_status",
+  "version": 1,
+  "description": "Writing evidence build quality checks (continue_on_error + source status).",
+  "module": "SEM-08",
+  "cases": [
+    {
+      "id": "evidence_001",
+      "input": {
+        "continue_on_error": true
+      },
+      "expected": {
+        "snapshot": "writing_evidence_source_status"
+      },
+      "tags": ["local"]
+    }
+  ]
+}

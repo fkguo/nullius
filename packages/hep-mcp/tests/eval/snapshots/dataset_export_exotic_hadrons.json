@@ -8,11 +8,7 @@
   "pages_fetched": 2,
   "has_more": false,
   "warnings": [],
-  "control_numbers": [
-    101,
-    102,
-    103
-  ],
+  "control_numbers": [],
   "export_artifact_name": "inspire_search_export_a4e160faa46b0fcc.jsonl",
   "meta_artifact_name": "inspire_search_export_a4e160faa46b0fcc_meta.json"
 }

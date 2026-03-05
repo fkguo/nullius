@@ -1,17 +1,38 @@
 {
-  "name": "retrieval_demo_v1",
+  "name": "retrieval_demo",
+  "version": 1,
+  "description": "Local retrieval regression set for recall@10 and MRR@10.",
+  "module": "SEM-06",
   "cases": [
     {
-      "query": "molecular near threshold",
-      "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_1c71d16cf49c5f3d"]
+      "id": "retrieval_001",
+      "input": {
+        "query": "molecular near threshold"
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_1c71d16cf49c5f3d"]
+      },
+      "tags": ["normal"]
     },
     {
-      "query": "diquark-antidiquark tetraquark picture",
-      "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_19755297890f148a"]
+      "id": "retrieval_002",
+      "input": {
+        "query": "diquark-antidiquark tetraquark picture"
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_19755297890f148a"]
+      },
+      "tags": ["normal"]
     },
     {
-      "query": "hybrid gluonic excitation",
-      "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69"]
+      "id": "retrieval_003",
+      "input": {
+        "query": "hybrid gluonic excitation"
+      },
+      "expected": {
+        "expected_evidence_ids": ["ev_paper_250eecd8512019b7_paragraph_6c071b7bdc5c0b69"]
+      },
+      "tags": ["normal"]
     }
   ]
 }

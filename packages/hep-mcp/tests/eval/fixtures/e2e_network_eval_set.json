@@ -1,0 +1,20 @@
+{
+  "name": "network_smoke_eval",
+  "version": 1,
+  "description": "Opt-in network sanity check against INSPIRE search endpoint.",
+  "module": "SEM-E2E",
+  "cases": [
+    {
+      "id": "network_001",
+      "input": {
+        "query": "t:exotic hadrons",
+        "size": 2,
+        "sort": "mostcited"
+      },
+      "expected": {
+        "status": "ok"
+      },
+      "tags": ["online"]
+    }
+  ]
+}
