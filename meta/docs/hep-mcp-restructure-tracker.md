@@ -2,7 +2,7 @@
 
 > **Created**: 2026-03-01
 > **Source**: `meta/docs/hep-mcp-restructuring-proposal.md` (R8 converged)
-> **Status**: BATCH 2 COMPLETE
+> **Status**: BATCH 4 COMPLETE (CONVERGED)
 
 ## Baseline Snapshot
 
@@ -43,7 +43,7 @@
 ## Batch 2: Writing Pipeline Deletion (medium risk)
 
 **Session**: 2026-03-01
-**Commit**: `16b32be`
+**Commit**: `16b32be` (历史分支) / `33c2448` (main branch equivalent)
 
 - [x] 1. Remove `mode='write'` from `deepResearch.ts` + ~50 writing imports
 - [x] 2. Delete `llm/deepWriterAgent.ts` + remove re-export from `llm/index.ts`
@@ -66,54 +66,59 @@
 
 ## Batch 3: LLM Client Migration + Final Cleanup (low-medium risk)
 
-**Session**: _not started_
-**Commit**: _pending_
+**Session**: 2026-03-01
+**Commit**: `7b0ebb7` (main branch)
 
-- [ ] 1. Plumb MCP sampling: `sendRequest`/`createMessage` into `ToolHandlerContext` (index.ts → dispatcher.ts → handlers)
-- [ ] 2. Migrate `theoreticalConflicts.ts` to `ctx.createMessage()` (thread ctx: registry handler → performCriticalResearch → performTheoreticalConflicts)
-- [ ] 3. Delete `tools/writing/llm/` (clients/, config.ts, types.ts, index.ts)
-- [ ] 4. Delete `tools/writing/types.ts`
-- [ ] 5. Delete remaining `tools/writing/` directory
-- [ ] 6. Clean stale `next_actions` hints (exportPaperScaffold, create-from-idea, latexCompileGate)
-- [ ] 7. `pnpm -r build && pnpm -r test` passes
+- [x] 1. Plumb MCP sampling: `sendRequest`/`createMessage` into `ToolHandlerContext` (index.ts → dispatcher.ts → handlers)
+- [x] 2. Migrate `theoreticalConflicts.ts` to `ctx.createMessage()` (thread ctx: registry handler → performCriticalResearch → performTheoreticalConflicts)
+- [x] 3. Delete `tools/writing/llm/` (clients/, config.ts, types.ts, index.ts)
+- [x] 4. Delete `tools/writing/types.ts`
+- [x] 5. Delete remaining `tools/writing/` directory
+- [x] 6. Clean stale `next_actions` hints (exportPaperScaffold, create-from-idea, latexCompileGate)
+- [x] 7. `pnpm -r build && pnpm -r test` passes
 
-**Build gate**: _pending_
-**Review**: _pending_
-**Deviations**: _none_
+**Build gate**: PASS (`pnpm -r build` + `pnpm -r test`)
+**Review**: R2 CONVERGED — Codex 0 BLOCKING / 0 NON-BLOCKING, Gemini 0 BLOCKING / 0 NON-BLOCKING
+**Deviations**:
+- Added stricter unsupported-sampling detection: `llm_mode='internal'` now returns `INVALID_PARAMS` when MCP sampling exists but method is unsupported (`Method not found` / `-32601` path).
+- Hardened sampling text extraction to handle MCP array content blocks (`content: [{type:'text',...}]`).
+- Added/updated regression tests in `tests/research/theoreticalConflicts.test.ts` for unsupported method + array content parsing.
 
 ---
 
 ## Batch 4: Test Cleanup + Verification (low risk)
 
-**Session**: _not started_
-**Commit**: _pending_
+**Session**: 2026-03-01
+**Commit**: `095887e` (main branch)
 
-- [ ] 1. Delete test files for removed modules (~38 files, ~260 tests)
-- [ ] 2. Update `toolContracts.test.ts` — verify tool count
-- [ ] 3. `pnpm -r test` passes (target: ~470 tests)
-- [ ] 4. Verify: `getTools('standard')` = 56, `getTools('full')` = 72
-- [ ] 5. `make smoke` passes
-- [ ] 6. Update `docs/ARCHITECTURE.md`
-- [ ] 7. Delete writing recipe docs
-- [ ] 8. Update `packages/hep-mcp/CLAUDE.md`
+- [x] 1. Delete test files for removed modules (~38 files, ~260 tests)
+- [x] 2. Update `toolContracts.test.ts` — verify tool count
+- [x] 3. `pnpm -r test` passes (actual: hep-mcp 491 passed, 2 skipped)
+- [x] 4. Verify: `getTools('standard')` = 56, `getTools('full')` = 72
+- [x] 5. `make smoke` passes
+- [x] 6. Update `docs/ARCHITECTURE.md`
+- [x] 7. Delete writing recipe docs
+- [x] 8. Update `packages/hep-mcp/CLAUDE.md`
 
-**Build gate**: _pending_
-**Review**: _pending_
-**Deviations**: _none_
+**Build gate**: PASS (`pnpm -r build` + `pnpm -r test`)
+**Review**: included in NEW-06 convergence flow (final state: 0 BLOCKING)
+**Deviations**:
+- Test total after cleanup stabilizes at current baseline (not legacy target in proposal): `packages/hep-mcp` now 491 passed + 2 skipped.
+- Additional docs cleanup performed beyond minimum list to remove stale write-pipeline references.
 
 ---
 
 ## Final Acceptance
 
-- [ ] `getTools('full')` = 72
-- [ ] `getTools('standard')` = 56
-- [ ] `pnpm -r build` 0 errors
-- [ ] `pnpm -r test` ~470 tests pass
-- [ ] `make smoke` passes
-- [ ] No `createLLMClient` calls in codebase
-- [ ] No `tools/writing/` directory
-- [ ] No `corpora/` directory
-- [ ] `deepResearch.ts` has no `mode='write'`
-- [ ] `theoreticalConflicts.ts` uses MCP sampling
-- [ ] `docs/ARCHITECTURE.md` updated
-- [ ] `packages/hep-mcp/CLAUDE.md` updated
+- [x] `getTools('full')` = 72
+- [x] `getTools('standard')` = 56
+- [x] `pnpm -r build` 0 errors
+- [x] `pnpm -r test` current baseline passes (`packages/hep-mcp`: 491 passed, 2 skipped)
+- [x] `make smoke` passes
+- [x] No `createLLMClient` calls in codebase
+- [x] No `tools/writing/` directory
+- [x] No `corpora/` directory
+- [x] `deepResearch.ts` has no `mode='write'`
+- [x] `theoreticalConflicts.ts` uses MCP sampling
+- [x] `docs/ARCHITECTURE.md` updated
+- [x] `packages/hep-mcp/CLAUDE.md` updated
