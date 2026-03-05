@@ -288,7 +288,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - **Phase 0**: 0/8 完成 — 全部 pending，NEW-05 (monorepo) 建议最先执行
 - **Phase 1**: 0/17 完成 — blocked by Phase 0
 - **Phase 2**: 0/19 完成 — blocked by Phase 1
-- **Phase 3**: 1/13 完成 — Batch 8 `NEW-RT-05` ✅（G1: eval framework + demo eval set 已满足）
+- **Phase 3**: 2/13 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足）
 - **Phase 4**: 0/8 完成 — blocked by Phase 3
 - **Phase 5**: 0/16 完成 — blocked by Phase 4
 - **R4 双模型审核**: ✅ 收敛 (Gemini CONVERGED + Codex CONVERGED_WITH_AMENDMENTS, 0 blocking)
@@ -411,7 +411,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **autoresearch-lab** (12922 symbols, 27485 relationships, 300 execution flows).
+This project is indexed by GitNexus as **autoresearch-lab** (12269 symbols, 24319 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 

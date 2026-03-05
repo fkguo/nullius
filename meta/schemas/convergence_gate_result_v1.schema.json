@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/convergence_gate_result_v1.schema.json",
+  "title": "Convergence Gate Result V1",
+  "description": "Structured machine-readable output contract for research-team convergence gates.",
+  "type": "object",
+  "required": ["status", "exit_code", "reasons", "report_status", "meta"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["converged", "not_converged", "parse_error", "early_stop"]
+    },
+    "exit_code": {
+      "type": "integer",
+      "enum": [0, 1, 2, 3]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "report_status": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "type": "object",
+          "required": ["verdict", "blocking_count", "parse_ok"],
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "enum": ["ready", "needs_revision", "unknown"]
+            },
+            "blocking_count": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "parse_ok": {
+              "type": "boolean"
+            },
+            "derivation": {
+              "type": "string",
+              "enum": ["pass", "fail", "unknown"]
+            },
+            "computation": {
+              "type": "string",
+              "enum": ["pass", "fail", "unknown"]
+            },
+            "sweep_semantics": {
+              "type": "string",
+              "enum": ["pass", "fail", "unknown"]
+            },
+            "challenged_steps": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "confirmed_steps": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unverifiable_steps": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "independent_derivation": {
+              "type": "boolean"
+            },
+            "nontriviality_validated": {
+              "type": "boolean"
+            },
+            "source_path": {
+              "type": "string"
+            },
+            "errors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "required": ["gate_id", "generated_at", "parser_version", "schema_id", "schema_version"],
+      "properties": {
+        "gate_id": {
+          "type": "string",
+          "enum": ["team_convergence", "draft_convergence"]
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parser_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_id": {
+          "type": "string",
+          "const": "convergence_gate_result_v1"
+        },
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "workflow_mode": {
+          "type": "string",
+          "enum": ["peer", "leader", "asymmetric"]
+        },
+        "require_sweep": {
+          "type": "boolean"
+        },
+        "tag": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "converged"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "not_converged"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "parse_error"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 2
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "early_stop"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 3
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

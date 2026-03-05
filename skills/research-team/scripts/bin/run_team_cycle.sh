@@ -2908,6 +2908,7 @@ fi
 GATE_SCRIPT="${GATES_DIR}/check_team_convergence.py"
 SUMMARY_SCRIPT="${SCRIPT_DIR}/summarize_team_reports.py"
 next_tag=""
+gate_json=""
 
 if [[ -f "${GATE_SCRIPT}" ]]; then
   echo "[gate] running convergence gate: ${GATE_SCRIPT} (mode=${WORKFLOW_MODE}, require_sweep=${REQUIRE_SWEEP})"
@@ -2924,11 +2925,53 @@ if [[ -f "${GATE_SCRIPT}" ]]; then
   if [[ -d "${run_dir}/phase_2" ]]; then
     gate_rt05_flags+=( --phase2-responses "${run_dir}/phase_2" )
   fi
+  gate_json="${run_dir}/convergence_gate_result_v1.json"
   python3 "${GATE_SCRIPT}" --member-a "${member_a_out}" --member-b "${member_b_out}" \
-    --workflow-mode "${WORKFLOW_MODE}" ${gate_sweep_flag} "${gate_rt05_flags[@]}"
+    --workflow-mode "${WORKFLOW_MODE}" ${gate_sweep_flag} "${gate_rt05_flags[@]}" \
+    --out-json "${gate_json}"
   gate_code=$?
   set -e
-  if [[ ${gate_code} -eq 3 ]]; then
+  gate_status=""
+  gate_exit_code_json=""
+  if [[ -f "${gate_json}" ]]; then
+    mapfile -t gate_fields < <(python3 - "${gate_json}" <<'PY'
+import json
+import sys
+
+try:
+    data = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
+except Exception:
+    print("")
+    print("")
+    raise SystemExit(0)
+
+status = data.get("status", "")
+exit_code = data.get("exit_code", "")
+print(status if isinstance(status, str) else "")
+print(exit_code if isinstance(exit_code, int) else "")
+PY
+)
+    gate_status="${gate_fields[0]:-}"
+    gate_exit_code_json="${gate_fields[1]:-}"
+  fi
+
+  if [[ -z "${gate_status}" || -z "${gate_exit_code_json}" ]]; then
+    echo "[gate] ERROR: missing/invalid structured gate result: ${gate_json}" >&2
+    gate_status="parse_error"
+    gate_code=2
+  elif [[ "${gate_exit_code_json}" != "${gate_code}" ]]; then
+    echo "[gate] ERROR: gate exit mismatch (process=${gate_code}, json=${gate_exit_code_json}); forcing parse_error." >&2
+    gate_status="parse_error"
+    gate_code=2
+  fi
+
+  if [[ "${gate_status}" != "converged" && "${gate_status}" != "not_converged" && "${gate_status}" != "early_stop" && "${gate_status}" != "parse_error" ]]; then
+    echo "[gate] ERROR: unknown gate status '${gate_status}' in ${gate_json}; forcing parse_error." >&2
+    gate_status="parse_error"
+    gate_code=2
+  fi
+
+  if [[ "${gate_status}" == "early_stop" ]]; then
     # Leader early stop: >=2 CHALLENGED steps
     echo "" >&2
     echo "[gate] Leader early stop: verifier CHALLENGED >=2 steps. Apply targeted fixes and re-run." >&2
@@ -2941,7 +2984,27 @@ if [[ -f "${GATE_SCRIPT}" ]]; then
     finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "0" || true
     exit ${gate_code}
   fi
-  if [[ ${gate_code} -ne 0 ]]; then
+
+  if [[ "${gate_status}" == "parse_error" ]]; then
+    echo "" >&2
+    echo "[gate] Parse error: convergence gate result is invalid. Fix report contract drift before retry." >&2
+    echo "[gate] Structured result: ${gate_json}" >&2
+    if [[ -f "${TRAJ_SCRIPT}" ]]; then
+      python3 "${TRAJ_SCRIPT}" --notes "${NOTEBOOK_PATH}" --out-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --stage "convergence_error" --packet "${packet_for_run}" --member-a "${member_a_out}" --member-b "${member_b_out}" --gate "parse_error" >/dev/null 2>&1 || true
+    fi
+    if [[ -f "${PLAN_UPDATE_SCRIPT}" ]]; then
+      python3 "${PLAN_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --status "error" >/dev/null 2>&1 || true
+    fi
+    if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
+      python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "convergence_error" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
+    fi
+    CYCLE_FINAL_STATUS="convergence_error"
+    cycle_state_update "convergence" "error" "${CYCLE_FINAL_STATUS}" ""
+    finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "0" || true
+    exit 2
+  fi
+
+  if [[ "${gate_status}" != "converged" ]]; then
     if [[ -f "${NEXT_TAG_SCRIPT}" ]]; then
       set +e
       next_tag="$(python3 "${NEXT_TAG_SCRIPT}" --tag "${RESOLVED_TAG}" --out-dir "${OUT_DIR}" 2>/dev/null)"

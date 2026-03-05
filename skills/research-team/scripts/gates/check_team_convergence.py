@@ -22,10 +22,16 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
+from convergence_schema import (
+    build_gate_meta,
+    default_member_status,
+    emit_convergence_result,
+    validate_convergence_result,
+)
 from team_config import get_language_tokens, load_team_config  # type: ignore
 
 # Controlled vocabulary for nontriviality reasons
@@ -387,6 +393,94 @@ def check_convergence(a: ReportStatus, b: ReportStatus, mode: str, require_sweep
 # CLI
 # ---------------------------------------------------------------------------
 
+def _collect_parse_errors(status: ReportStatus, member: str, require_sweep: bool) -> list[str]:
+    errors: list[str] = []
+    if status.derivation == "unknown":
+        errors.append(f"{member}: failed to parse derivation replication status")
+    if status.computation == "unknown":
+        errors.append(f"{member}: failed to parse computation replication status")
+    if status.verdict == "unknown":
+        errors.append(f"{member}: failed to parse verdict section/value")
+    if require_sweep and status.sweep_semantics == "unknown":
+        errors.append(f"{member}: failed to parse sweep semantics consistency verdict")
+    return errors
+
+
+def _summarize_member(status: ReportStatus, parse_errors: list[str]) -> dict[str, Any]:
+    challenged = sum(1 for _, verdict in status.step_verdicts if verdict == "CHALLENGED")
+    confirmed = sum(1 for _, verdict in status.step_verdicts if verdict == "CONFIRMED")
+    unverifiable = sum(1 for _, verdict in status.step_verdicts if verdict == "UNVERIFIABLE")
+    return {
+        "verdict": status.verdict if status.verdict in {"ready", "needs_revision"} else "unknown",
+        "blocking_count": None,
+        "parse_ok": len(parse_errors) == 0,
+        "derivation": status.derivation,
+        "computation": status.computation,
+        "sweep_semantics": status.sweep_semantics,
+        "challenged_steps": challenged,
+        "confirmed_steps": confirmed,
+        "unverifiable_steps": unverifiable,
+        "independent_derivation": status.has_independent_derivation,
+        "nontriviality_validated": status.nontriviality_validated,
+        "source_path": str(status.path),
+        "errors": parse_errors,
+    }
+
+
+def _collect_not_converged_reasons(a: ReportStatus, b: ReportStatus, mode: str, require_sweep: bool) -> list[str]:
+    reasons: list[str] = []
+    for member, status in (("member_a", a), ("member_b", b)):
+        if status.derivation != "pass":
+            reasons.append(f"{member}: derivation={status.derivation}")
+        if status.computation != "pass":
+            reasons.append(f"{member}: computation={status.computation}")
+        if status.verdict != "ready":
+            reasons.append(f"{member}: verdict={status.verdict}")
+        if require_sweep and status.sweep_semantics != "pass":
+            reasons.append(f"{member}: sweep_semantics={status.sweep_semantics}")
+        if not require_sweep and status.sweep_semantics == "fail":
+            reasons.append(f"{member}: sweep_semantics=fail")
+    if mode == "asymmetric" and not b.has_independent_derivation:
+        reasons.append("member_b: missing non-empty ## Independent Derivation section")
+    if not reasons:
+        reasons.append("convergence criteria not satisfied")
+    return reasons
+
+
+def _emit_result_or_fallback(
+    *,
+    status: str,
+    exit_code: int,
+    reasons: list[str],
+    report_status: dict[str, Any],
+    meta: dict[str, Any],
+    out_json: Path | None,
+) -> int:
+    result: dict[str, Any] = {
+        "status": status,
+        "exit_code": exit_code,
+        "reasons": reasons,
+        "report_status": report_status,
+        "meta": meta,
+    }
+
+    schema_errors = validate_convergence_result(result)
+    if schema_errors:
+        result = {
+            "status": "parse_error",
+            "exit_code": 2,
+            "reasons": ["schema validation failed", *schema_errors],
+            "report_status": {
+                k: {**v, "parse_ok": False}
+                for k, v in report_status.items()
+            },
+            "meta": meta,
+        }
+        exit_code = 2
+
+    emit_convergence_result(result, out_json=out_json)
+    return exit_code
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--member-a", type=Path, required=True, help="Member A report path (md/txt).")
@@ -417,61 +511,80 @@ def main() -> int:
         default=None,
         help="Path to Phase 2 consultation responses directory (informational display only).",
     )
+    p.add_argument(
+        "--out-json",
+        type=Path,
+        default=None,
+        help="Optional file path to persist the structured convergence result JSON.",
+    )
     args = p.parse_args()
 
+    mode = args.workflow_mode
+    require_sweep = args.require_sweep
+    base_meta = build_gate_meta("team_convergence")
+    base_meta["workflow_mode"] = mode
+    base_meta["require_sweep"] = require_sweep
+
+    missing_reasons: list[str] = []
     if not args.member_a.is_file():
-        raise SystemExit(f"ERROR: not found: {args.member_a}")
+        missing_reasons.append(f"member_a report not found: {args.member_a}")
     if not args.member_b.is_file():
-        raise SystemExit(f"ERROR: not found: {args.member_b}")
+        missing_reasons.append(f"member_b report not found: {args.member_b}")
+    if missing_reasons:
+        return _emit_result_or_fallback(
+            status="parse_error",
+            exit_code=2,
+            reasons=missing_reasons,
+            report_status={
+                "member_a": default_member_status(args.member_a),
+                "member_b": default_member_status(args.member_b),
+            },
+            meta=base_meta,
+            out_json=args.out_json,
+        )
 
     member_a = _parse_report(args.member_a)
     member_b = _parse_report(args.member_b)
 
-    mode = args.workflow_mode
-    require_sweep = args.require_sweep
+    parse_errors_a = _collect_parse_errors(member_a, "member_a", require_sweep=require_sweep)
+    parse_errors_b = _collect_parse_errors(member_b, "member_b", require_sweep=require_sweep)
 
-    print(f"Team convergence check (mode={mode}, require_sweep={require_sweep})")
-    print(
-        f"- Member A: derivation={member_a.derivation}, computation={member_a.computation}, "
-        f"verdict={member_a.verdict}, sweep={member_a.sweep_semantics} ({member_a.path})"
-    )
-    print(
-        f"- Member B: derivation={member_b.derivation}, computation={member_b.computation}, "
-        f"verdict={member_b.verdict}, sweep={member_b.sweep_semantics} ({member_b.path})"
-    )
-    if member_b.step_verdicts:
-        print(f"- Member B step verdicts: {member_b.step_verdicts}")
-    if mode == "asymmetric":
-        print(f"- Member B independent derivation: {member_b.has_independent_derivation}")
+    report_status: dict[str, Any] = {
+        "member_a": _summarize_member(member_a, parse_errors_a),
+        "member_b": _summarize_member(member_b, parse_errors_b),
+    }
 
-    # Nontriviality audit (informational)
-    for label, status in [("A", member_a), ("B", member_b)]:
-        if status.nontriviality_validated:
-            reason = _parse_nontriviality_reason(status.path.read_text(encoding="utf-8", errors="replace"))
-            print(f"- Member {label} nontriviality: validated (reason={reason})")
-        else:
-            print(f"- Member {label} nontriviality: not validated (TRIVIAL or missing fields)")
-
-    # RT-05: display Phase 0/2 context (informational only — does not affect convergence)
-    if args.phase0_landscape and args.phase0_landscape.is_file():
-        landscape_size = args.phase0_landscape.stat().st_size
-        print(f"- Phase 0 method landscape: {args.phase0_landscape} ({landscape_size} bytes)")
-    if args.phase2_responses and args.phase2_responses.is_dir():
-        response_files = list(args.phase2_responses.glob("*.md"))
-        print(f"- Phase 2 consultation responses: {len(response_files)} files in {args.phase2_responses}")
+    parse_errors = [*parse_errors_a, *parse_errors_b]
+    if parse_errors:
+        return _emit_result_or_fallback(
+            status="parse_error",
+            exit_code=2,
+            reasons=parse_errors,
+            report_status=report_status,
+            meta=base_meta,
+            out_json=args.out_json,
+        )
 
     rc = check_convergence(member_a, member_b, mode, require_sweep)
-
     if rc == 0:
-        print("[ok] Converged: both reviewers pass and verdict is ready.")
+        status = "converged"
+        reasons = []
     elif rc == 3:
-        challenged = [(name, v) for name, v in member_b.step_verdicts if v == "CHALLENGED"]
-        print(f"[early-stop] Leader mode: verifier CHALLENGED {len(challenged)} steps: "
-              f"{[name for name, _ in challenged]}. Apply fixes before re-running.")
+        status = "early_stop"
+        challenged = [name for name, verdict in member_b.step_verdicts if verdict == "CHALLENGED"]
+        reasons = [f"member_b challenged steps: {len(challenged)}", *challenged]
     else:
-        print("[fail] Not converged: apply fixes and re-run team cycle (e.g. tag M2-r1).")
+        status = "not_converged"
+        reasons = _collect_not_converged_reasons(member_a, member_b, mode=mode, require_sweep=require_sweep)
 
-    return rc
+    return _emit_result_or_fallback(
+        status=status,
+        exit_code=rc,
+        reasons=reasons,
+        report_status=report_status,
+        meta=base_meta,
+        out_json=args.out_json,
+    )
 
 
 if __name__ == "__main__":

@@ -22,9 +22,16 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
+from convergence_schema import (
+    build_gate_meta,
+    default_member_status,
+    emit_convergence_result,
+    validate_convergence_result,
+)
 from team_config import get_language_tokens, load_team_config  # type: ignore
 
 
@@ -273,6 +280,74 @@ def _write_summary(
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _member_key(name: str) -> str:
+    lowered = name.lower()
+    if lowered.startswith("member a"):
+        return "member_a"
+    if lowered.startswith("member b"):
+        return "member_b"
+    if lowered.startswith("member c"):
+        return "member_c"
+    return re.sub(r"[^a-z0-9]+", "_", lowered).strip("_")
+
+
+def _summarize_member(st: DraftReportStatus) -> dict[str, Any]:
+    return {
+        "verdict": st.verdict if st.verdict in {"ready", "needs_revision"} else "unknown",
+        "blocking_count": st.blocking_declared,
+        "parse_ok": len(st.errors) == 0,
+        "source_path": str(st.path),
+        "errors": list(st.errors),
+    }
+
+
+def _collect_not_converged_reasons(statuses: tuple[DraftReportStatus, ...]) -> list[str]:
+    reasons: list[str] = []
+    for st in statuses:
+        key = _member_key(st.name)
+        if st.verdict != "ready":
+            reasons.append(f"{key}: verdict={st.verdict}")
+        declared = st.blocking_declared if st.blocking_declared is not None else -1
+        if declared != 0:
+            reasons.append(f"{key}: blocking_count={declared}")
+    if not reasons:
+        reasons.append("convergence criteria not satisfied")
+    return reasons
+
+
+def _emit_result_or_fallback(
+    *,
+    status: str,
+    exit_code: int,
+    reasons: list[str],
+    report_status: dict[str, Any],
+    meta: dict[str, Any],
+    out_json: Path | None,
+) -> int:
+    result: dict[str, Any] = {
+        "status": status,
+        "exit_code": exit_code,
+        "reasons": reasons,
+        "report_status": report_status,
+        "meta": meta,
+    }
+    schema_errors = validate_convergence_result(result)
+    if schema_errors:
+        result = {
+            "status": "parse_error",
+            "exit_code": 2,
+            "reasons": ["schema validation failed", *schema_errors],
+            "report_status": {
+                k: {**v, "parse_ok": False}
+                for k, v in report_status.items()
+            },
+            "meta": meta,
+        }
+        exit_code = 2
+    emit_convergence_result(result, out_json=out_json)
+    return exit_code
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--tag", default="", help="Draft round tag (optional, for logs).")
@@ -281,12 +356,29 @@ def main() -> int:
     p.add_argument("--member-c", type=Path, required=True, help="Draft Member C (leader audit) report path.")
     p.add_argument("--out-log", type=Path, default=None, help="Write a Markdown convergence log (optional).")
     p.add_argument("--out-summary", type=Path, default=None, help="Write a Markdown converged summary (optional).")
+    p.add_argument("--out-json", type=Path, default=None, help="Write structured convergence JSON (optional).")
     args = p.parse_args()
 
+    meta = build_gate_meta("draft_convergence")
+    meta["tag"] = args.tag
+
+    missing_reasons: list[str] = []
     for name, path in (("Member A", args.member_a), ("Member B", args.member_b), ("Member C", args.member_c)):
         if not path.is_file():
-            print(f"[error] {name} report not found: {path}")
-            return 2
+            missing_reasons.append(f"{name} report not found: {path}")
+    if missing_reasons:
+        return _emit_result_or_fallback(
+            status="parse_error",
+            exit_code=2,
+            reasons=missing_reasons,
+            report_status={
+                "member_a": default_member_status(args.member_a),
+                "member_b": default_member_status(args.member_b),
+                "member_c": default_member_status(args.member_c),
+            },
+            meta=meta,
+            out_json=args.out_json,
+        )
 
     statuses = (
         _parse_report("Member A", args.member_a),
@@ -299,23 +391,26 @@ def main() -> int:
         for e in st.errors:
             parse_errors.append(f"{st.name}: {e} ({st.path})")
 
+    report_status: dict[str, Any] = {
+        _member_key(st.name): _summarize_member(st)
+        for st in statuses
+    }
+
     if parse_errors:
-        print("Draft convergence check (parse errors)")
-        for e in parse_errors:
-            print(f"- {e}")
         if args.out_log is not None:
             _write_log(args.out_log, args.tag, statuses, converged=False)
         if args.out_summary is not None:
             _write_summary(args.out_summary, args.tag, statuses, converged=False)
-        return 2
+        return _emit_result_or_fallback(
+            status="parse_error",
+            exit_code=2,
+            reasons=parse_errors,
+            report_status=report_status,
+            meta=meta,
+            out_json=args.out_json,
+        )
 
     converged = all(st.verdict == "ready" and (st.blocking_declared or 0) == 0 for st in statuses)
-
-    print("Draft convergence check")
-    for st in statuses:
-        print(
-            f"- {st.name}: verdict={st.verdict}, blocking={st.blocking_declared} ({st.path})"
-        )
 
     if args.out_log is not None:
         _write_log(args.out_log, args.tag, statuses, converged=converged)
@@ -323,10 +418,22 @@ def main() -> int:
         _write_summary(args.out_summary, args.tag, statuses, converged=converged)
 
     if converged:
-        print("[ok] Converged: all reviewers are ready and blocking count is 0.")
-        return 0
-    print("[fail] Not converged: apply fixes and rerun with a new tag.")
-    return 1
+        return _emit_result_or_fallback(
+            status="converged",
+            exit_code=0,
+            reasons=[],
+            report_status=report_status,
+            meta=meta,
+            out_json=args.out_json,
+        )
+    return _emit_result_or_fallback(
+        status="not_converged",
+        exit_code=1,
+        reasons=_collect_not_converged_reasons(statuses),
+        report_status=report_status,
+        meta=meta,
+        out_json=args.out_json,
+    )
 
 
 if __name__ == "__main__":

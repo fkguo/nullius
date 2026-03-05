@@ -418,6 +418,7 @@ if [[ "${REQUIRE_CONVERGENCE}" == "1" ]]; then
   fi
   conv_log="${run_dir}/${safe_tag}_draft_convergence_log.md"
   conv_summary="${run_dir}/${safe_tag}_draft_converged_summary.md"
+  conv_json="${run_dir}/convergence_gate_result_v1.json"
 
   echo "[gate] running draft convergence gate ..."
   set +e
@@ -427,16 +428,57 @@ if [[ "${REQUIRE_CONVERGENCE}" == "1" ]]; then
     --member-b "${member_b_out}" \
     --member-c "${member_c_out}" \
     --out-log "${conv_log}" \
-    --out-summary "${conv_summary}"
+    --out-summary "${conv_summary}" \
+    --out-json "${conv_json}"
   conv_code=$?
   set -e
 
+  conv_status=""
+  conv_exit_code_json=""
+  if [[ -f "${conv_json}" ]]; then
+    mapfile -t conv_fields < <(python3 - "${conv_json}" <<'PY'
+import json
+import sys
+
+try:
+    data = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
+except Exception:
+    print("")
+    print("")
+    raise SystemExit(0)
+
+status = data.get("status", "")
+exit_code = data.get("exit_code", "")
+print(status if isinstance(status, str) else "")
+print(exit_code if isinstance(exit_code, int) else "")
+PY
+)
+    conv_status="${conv_fields[0]:-}"
+    conv_exit_code_json="${conv_fields[1]:-}"
+  fi
+
+  if [[ -z "${conv_status}" || -z "${conv_exit_code_json}" ]]; then
+    echo "[gate] ERROR: missing/invalid structured draft convergence result: ${conv_json}" >&2
+    conv_status="parse_error"
+    conv_code=2
+  elif [[ "${conv_exit_code_json}" != "${conv_code}" ]]; then
+    echo "[gate] ERROR: draft gate exit mismatch (process=${conv_code}, json=${conv_exit_code_json}); forcing parse_error." >&2
+    conv_status="parse_error"
+    conv_code=2
+  fi
+
+  if [[ "${conv_status}" != "converged" && "${conv_status}" != "not_converged" && "${conv_status}" != "parse_error" ]]; then
+    echo "[gate] ERROR: unknown draft gate status '${conv_status}' in ${conv_json}; forcing parse_error." >&2
+    conv_status="parse_error"
+    conv_code=2
+  fi
+
   stage="draft_not_converged"
   gate_summary="draft_convergence:fail"
-  if [[ "${conv_code}" -eq 0 ]]; then
+  if [[ "${conv_status}" == "converged" ]]; then
     stage="draft_converged"
     gate_summary="draft_convergence:ok"
-  elif [[ "${conv_code}" -eq 2 ]]; then
+  elif [[ "${conv_status}" == "parse_error" ]]; then
     stage="draft_convergence_error"
     gate_summary="draft_convergence:error"
   fi
@@ -449,11 +491,16 @@ if [[ "${REQUIRE_CONVERGENCE}" == "1" ]]; then
     python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "${stage}" --run-dir "${run_dir}" >/dev/null 2>&1 || true
   fi
 
-  if [[ "${conv_code}" -eq 0 ]]; then
+  if [[ "${conv_status}" == "converged" ]]; then
     echo "[ok] draft cycle converged"
     exit 0
   fi
-  echo "[fail] draft cycle not converged: revise and rerun with a new tag (e.g. D0-r2)" >&2
+  if [[ "${conv_status}" == "parse_error" ]]; then
+    echo "[fail] draft cycle convergence parse error: fix report format drift and rerun." >&2
+    echo "[gate] Structured result: ${conv_json}" >&2
+    exit 2
+  fi
+  echo "[fail] draft cycle not converged: revise and rerun with a new tag (e.g. D0-r2)." >&2
   exit "${conv_code}"
 fi
 
