@@ -1,0 +1,40 @@
+{
+  "recipe_id": "derivation_cycle",
+  "name": "Derivation Cycle",
+  "description": "Construct evidence, generate measurements, and compare tension across runs.",
+  "entry_tool": "hep_run_build_writing_evidence",
+  "steps": [
+    {
+      "id": "build_writing_evidence",
+      "tool": "hep_run_build_writing_evidence",
+      "purpose": "Build reusable writing evidence artifacts",
+      "params": {
+        "run_id": "<run_id>",
+        "latex_sources": []
+      }
+    },
+    {
+      "id": "extract_measurements",
+      "tool": "hep_run_build_measurements",
+      "purpose": "Extract numeric measurements from evidence",
+      "depends_on": [
+        "build_writing_evidence"
+      ],
+      "params": {
+        "run_id": "<run_id>"
+      }
+    },
+    {
+      "id": "compare_measurements",
+      "tool": "hep_project_compare_measurements",
+      "purpose": "Compare extracted measurements and flag tensions",
+      "depends_on": [
+        "extract_measurements"
+      ],
+      "params": {
+        "run_id": "<run_id>",
+        "input_runs": []
+      }
+    }
+  ]
+}

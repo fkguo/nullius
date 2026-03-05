@@ -21,6 +21,12 @@ REQUIRED_HEADERS = [
     "## Specific patch suggestions",
 ]
 
+# Optional headers recognized by the contract but not required.
+# Reviews that include these get proper parsing.
+OPTIONAL_HEADERS = [
+    "## Methodology",
+]
+
 # --- JSON contract constants ---
 JSON_REQUIRED_FIELDS = {"blocking_issues", "verdict", "summary"}
 JSON_VALID_VERDICTS = {"PASS", "FAIL"}

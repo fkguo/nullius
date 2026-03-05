@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { z } from 'zod';
 import { TimeRangeSchema } from '../research/schemas.js';
 import { ResearchNavigatorToolSchema } from '../research/researchNavigator.js';
-import { SafePathSegmentSchema } from './projectSchemas.js';
+import { SafePathSegmentSchema, SearchExportFormatSchema } from './projectSchemas.js';
 
 const SortSchema = z.enum(['mostrecent', 'mostcited']);
 const JsonMarkdownSchema = z.enum(['json', 'markdown']);
@@ -14,6 +14,11 @@ export const InspireSearchToolSchema = z.object({
   page: z.number().int().optional().default(1),
   format: JsonMarkdownSchema.optional().default('json'),
   review_mode: z.enum(['mixed', 'separate', 'deprioritize', 'exclude']).optional().default('mixed'),
+  run_id: SafePathSegmentSchema.optional(),
+  output_format: SearchExportFormatSchema.optional().default('jsonl'),
+  artifact_name: SafePathSegmentSchema.optional(),
+  meta_artifact_name: SafePathSegmentSchema.optional(),
+  max_results: z.number().int().positive().optional().default(100),
 });
 
 export const InspireSearchNextToolSchema = z.object({

@@ -1,0 +1,45 @@
+{
+  "recipe_id": "review_cycle",
+  "name": "Review Cycle",
+  "description": "Run critical analysis, render manuscript latex, and export final research assets.",
+  "entry_tool": "inspire_critical_research",
+  "steps": [
+    {
+      "id": "critical_review",
+      "tool": "inspire_critical_research",
+      "purpose": "Generate evidence/conflict analysis for target recids",
+      "params": {
+        "mode": "analysis",
+        "recids": [
+          "<recid>"
+        ]
+      }
+    },
+    {
+      "id": "render_latex",
+      "tool": "hep_render_latex",
+      "purpose": "Render section/report draft into latex artifacts",
+      "depends_on": [
+        "critical_review"
+      ],
+      "params": {
+        "run_id": "<run_id>",
+        "draft": {
+          "version": 1,
+          "sections": []
+        }
+      }
+    },
+    {
+      "id": "export_project",
+      "tool": "hep_export_project",
+      "purpose": "Export report/bib/research pack artifacts",
+      "depends_on": [
+        "render_latex"
+      ],
+      "params": {
+        "run_id": "<run_id>"
+      }
+    }
+  ]
+}

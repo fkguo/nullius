@@ -13,6 +13,7 @@
   "references": [
     { "path": "../shared" },
     { "path": "../hepdata-mcp" },
-    { "path": "../arxiv-mcp" }
+    { "path": "../arxiv-mcp" },
+    { "path": "../openalex-mcp" }
   ]
 }

@@ -179,8 +179,8 @@ describe('Tool Handlers (current exposure)', () => {
           project_id: 'proj_test',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          status: 'active',
-          artifacts: [],
+          status: 'pending',
+          steps: [],
         },
         null,
         2
@@ -208,19 +208,50 @@ describe('Tool Handlers (current exposure)', () => {
     );
   });
 
-  it('inspire_search should reject review_mode="none" (compat removed)', async () => {
-    const res = await handleToolCall('inspire_search', { query: 'recid:1', review_mode: 'none' });
-    expect(res.isError).toBe(true);
-    expect(api.search).not.toHaveBeenCalled();
-    expect(paperClassifier.classifyPapers).not.toHaveBeenCalled();
+  it('inspire_search should export artifacts when run_id is provided', async () => {
+    const papers = [
+      { recid: '1', title: 'T1', authors: [] },
+      { recid: '2', title: 'T2', authors: [] },
+      { recid: '3', title: 'T3', authors: [] },
+    ];
+
+    vi.mocked(api.search).mockResolvedValueOnce({
+      total: 3,
+      papers: papers.slice(0, 2),
+      has_more: true,
+      next_url: 'https://inspirehep.net/api/literature?q=x&size=2&page=2',
+    } as any);
+
+    vi.mocked(api.searchByUrl).mockResolvedValueOnce({
+      total: 3,
+      papers: papers.slice(2),
+      has_more: false,
+    } as any);
+
+    const res = await handleToolCall('inspire_search', {
+      query: 't:qcd',
+      run_id: 'run_test',
+      size: 2,
+      max_results: 10,
+      output_format: 'jsonl',
+    });
+
+    expect(res.isError).not.toBe(true);
 
     const payload = JSON.parse(readTextBlock(res)) as {
-      error?: { code?: string; data?: { issues?: unknown[] } };
+      export_uri: string;
+      meta_uri: string;
+      summary: { total: number; exported: number; pages_fetched: number };
     };
-    expect(payload.error?.code).toBe('INVALID_PARAMS');
-    expect(payload.error?.data?.issues).toEqual(
-      expect.arrayContaining([expect.objectContaining({ path: ['review_mode'] })])
-    );
+
+    expect(payload.export_uri).toMatch(/^hep:\/\/runs\/run_test\/artifact\//);
+    expect(payload.meta_uri).toMatch(/^hep:\/\/runs\/run_test\/artifact\//);
+    expect(payload.summary.total).toBe(3);
+    expect(payload.summary.exported).toBe(3);
+    expect(payload.summary.pages_fetched).toBe(2);
+
+    expect(api.search).toHaveBeenCalledWith('t:qcd', expect.objectContaining({ size: 2 }));
+    expect(api.searchByUrl).toHaveBeenCalledTimes(1);
   });
 
   it('inspire_search_next should reject review_mode="none" (compat removed)', async () => {

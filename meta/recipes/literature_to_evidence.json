@@ -1,0 +1,30 @@
+{
+  "recipe_id": "literature_to_evidence",
+  "name": "Literature to Evidence",
+  "description": "Search INSPIRE literature and materialize a run-level export artifact for downstream evidence indexing.",
+  "entry_tool": "inspire_search",
+  "steps": [
+    {
+      "id": "search_export",
+      "tool": "inspire_search",
+      "purpose": "Run search and write export artifacts",
+      "params": {
+        "query": "<query>",
+        "run_id": "<run_id>",
+        "output_format": "jsonl"
+      }
+    },
+    {
+      "id": "build_evidence",
+      "tool": "hep_project_build_evidence",
+      "purpose": "Build evidence catalog from selected papers",
+      "depends_on": [
+        "search_export"
+      ],
+      "params": {
+        "project_id": "<project_id>",
+        "paper_id": "<paper_id>"
+      }
+    }
+  ]
+}

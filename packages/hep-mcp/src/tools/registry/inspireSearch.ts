@@ -5,6 +5,7 @@ import {
   INSPIRE_LITERATURE,
   INSPIRE_RESOLVE_CITEKEY,
 } from '@autoresearch/shared';
+import { hepInspireSearchExport } from '../../core/inspire/searchExport.js';
 import * as api from '../../api/client.js';
 import { extractKeyFromBibtex } from '../../utils/bibtex.js';
 import { discoveryNextActions, withNextActions } from '../utils/discoveryHints.js';
@@ -59,7 +60,27 @@ Review paper handling via \`review_mode\`:
 
 Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
     zodSchema: InspireSearchToolSchema,
-    handler: async params => {
+    handler: async (params, ctx) => {
+      if (params.run_id) {
+        const raw = ctx.rawArgs ?? {};
+        const sizeProvided = Object.prototype.hasOwnProperty.call(raw, 'size');
+        const maxResultsProvided = Object.prototype.hasOwnProperty.call(raw, 'max_results');
+        return hepInspireSearchExport({
+          run_id: params.run_id,
+          query: params.query,
+          max_results: params.max_results,
+          output_format: params.output_format,
+          artifact_name: params.artifact_name,
+          meta_artifact_name: params.meta_artifact_name,
+          size: params.size,
+          sort: params.sort,
+          budget_hints: {
+            size_provided: sizeProvided,
+            max_results_provided: maxResultsProvided,
+          },
+        });
+      }
+
       const query = preprocessQuery(params.query);
       const result = await api.search(query, {
         sort: params.sort,

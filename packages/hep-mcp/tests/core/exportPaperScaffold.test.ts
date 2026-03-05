@@ -76,7 +76,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
     expect(zipUri).toBeTruthy();
 
     const paperManifest = JSON.parse(String((readHepResource(manifestUri!) as any).text)) as any;
-    expect(paperManifest.schemaVersion).toBe('1.0');
+    expect(paperManifest.schemaVersion).toBe(1);
     expect(paperManifest.source?.hepRunId).toBe(run.run_id);
     expect(paperManifest.latex?.mainTex).toBe('main.tex');
     expect(paperManifest.bibliography?.generated).toBe('references_generated.bib');
@@ -118,8 +118,156 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
     expect(fs.existsSync(path.join(paperDir, 'paper_manifest.json'))).toBe(true);
   });
 
+  it('supports versioned paper output and emits a cross-version diff for v2+', async () => {
+    const projectRes = await handleToolCall('hep_project_create', { name: 'M3 paper scaffold (versioned)', description: 'm3' });
+    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
+    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    fs.writeFileSync(
+      getRunArtifactPath(run.run_id, 'writing_master.bib'),
+      [
+        '@misc{Doe:2020ab,',
+        '  title = {Demo Reference},',
+        '  author = {Doe, John},',
+        '  year = {2020}',
+        '}',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      getRunArtifactPath(run.run_id, 'writing_integrated.tex'),
+      [
+        '\\section{Introduction}',
+        'Version one content with \\cite{Doe:2020ab}.',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const v1Res = await handleToolCall('hep_export_paper_scaffold', {
+      _confirm: true,
+      run_id: run.run_id,
+      version: 1,
+      overwrite: true,
+    });
+    expect(v1Res.isError).not.toBe(true);
+
+    const v1Payload = JSON.parse(v1Res.content[0].text) as {
+      summary?: { paper_dir?: string };
+    };
+    const v1PaperDir = String(v1Payload.summary?.paper_dir ?? '');
+    expect(v1PaperDir).toContain(`/runs/${run.run_id}/paper/v1`);
+    expect(fs.existsSync(path.join(v1PaperDir, 'changes_v1_to_v2.diff'))).toBe(false);
+
+    fs.writeFileSync(
+      getRunArtifactPath(run.run_id, 'writing_integrated.tex'),
+      [
+        '\\section{Introduction}',
+        'Version two content with updated wording and \\cite{Doe:2020ab}.',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const v2Res = await handleToolCall('hep_export_paper_scaffold', {
+      _confirm: true,
+      run_id: run.run_id,
+      version: 2,
+      overwrite: true,
+    });
+    expect(v2Res.isError).not.toBe(true);
+
+    const v2Payload = JSON.parse(v2Res.content[0].text) as {
+      summary?: { paper_dir?: string };
+      artifacts: Array<{ name: string; uri: string }>;
+    };
+
+    const v2PaperDir = String(v2Payload.summary?.paper_dir ?? '');
+    expect(v2PaperDir).toContain(`/runs/${run.run_id}/paper/v2`);
+
+    const diffPath = path.join(v2PaperDir, 'changes_v1_to_v2.diff');
+    expect(fs.existsSync(diffPath)).toBe(true);
+    const diffText = fs.readFileSync(diffPath, 'utf-8');
+    expect(diffText).toContain('--- paper/v1/paper_manifest.json');
+    expect(diffText).toContain('+++ paper/v2/paper_manifest.json');
+
+    const manifestUri = v2Payload.artifacts.find(a => a.name === 'paper_manifest.json')?.uri;
+    expect(manifestUri).toBeTruthy();
+    const paperManifest = JSON.parse(String((readHepResource(manifestUri!) as any).text)) as any;
+    expect(paperManifest.schemaVersion).toBe(2);
+    expect(paperManifest.version).toBe(2);
+    expect(paperManifest.parent_version).toBe(1);
+    expect(paperManifest.review_ref).toBe('paper/v2/UNVERIFIED.md');
+
+    const zipUri = v2Payload.artifacts.find(a => a.name === 'paper_scaffold.zip')?.uri;
+    expect(zipUri).toBeTruthy();
+    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as { file_path: string };
+    const zipBytes = fs.readFileSync(zipMeta.file_path);
+    const files = unzipSync(new Uint8Array(zipBytes));
+    expect(Object.keys(files)).toContain('paper/changes_v1_to_v2.diff');
+  });
+
+  it('fails unversioned overwrite when versioned history already exists', async () => {
+    const projectRes = await handleToolCall('hep_project_create', {
+      name: 'M3 paper scaffold (overwrite history guard)',
+      description: 'm3',
+    });
+    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
+    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    fs.writeFileSync(
+      getRunArtifactPath(run.run_id, 'writing_master.bib'),
+      [
+        '@misc{Doe:2020ab,',
+        '  title = {Demo Reference},',
+        '  author = {Doe, John},',
+        '  year = {2020}',
+        '}',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+    fs.writeFileSync(
+      getRunArtifactPath(run.run_id, 'writing_integrated.tex'),
+      [
+        '\\section{Introduction}',
+        'Version one content with \\cite{Doe:2020ab}.',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const v1Res = await handleToolCall('hep_export_paper_scaffold', {
+      _confirm: true,
+      run_id: run.run_id,
+      version: 1,
+      overwrite: true,
+    });
+    expect(v1Res.isError).not.toBe(true);
+
+    const unversionedOverwriteRes = await handleToolCall('hep_export_paper_scaffold', {
+      _confirm: true,
+      run_id: run.run_id,
+      overwrite: true,
+    });
+    expect(unversionedOverwriteRes.isError).toBe(true);
+
+    const err = JSON.parse(unversionedOverwriteRes.content[0].text) as {
+      error?: { code?: string; message?: string };
+    };
+    expect(err.error?.code).toBe('INVALID_PARAMS');
+    expect(err.error?.message ?? '').toContain('Refusing unversioned overwrite');
+  });
+
   it('rewrites includegraphics hep://run artifacts to paper/figures/', async () => {
-    const projectRes = await handleToolCall('hep_project_create', { name: 'M3 paper scaffold (fig)', description: 'm3' });
+    const projectRes = await handleToolCall('hep_project_create', {
+      name: 'M3 paper scaffold (includegraphics rewrite)',
+      description: 'm3',
+    });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
     const run = JSON.parse(runRes.content[0].text) as { run_id: string };

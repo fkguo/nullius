@@ -144,4 +144,54 @@ describe('Open Roadmap R5: INSPIRE API export + mapping (Evidence-first)', () =>
     const meta = JSON.parse(metaContent.text) as { matched: number; not_found: number; errors: number; total: number };
     expect(meta).toMatchObject({ total: 4, matched: 3, not_found: 1, errors: 0 });
   });
+
+  it('inspire_search export path matches wrapper semantics', async () => {
+    const projectRes = await handleToolCall('hep_project_create', { name: 'R5 merged inspire_search project' });
+    const projectPayload = JSON.parse(projectRes.content[0].text) as { project_id: string };
+
+    const runRes = await handleToolCall('hep_run_create', { project_id: projectPayload.project_id });
+    const runPayload = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    const papers = [
+      { recid: '11', title: 'U1', authors: [] },
+      { recid: '22', title: 'U2', authors: [] },
+      { recid: '33', title: 'U3', authors: [] },
+    ];
+
+    vi.mocked(api.search).mockResolvedValueOnce({
+      total: 3,
+      papers: papers.slice(0, 2),
+      has_more: true,
+      next_url: 'https://inspirehep.net/api/literature?q=merged&size=2&page=2',
+    } as any);
+
+    vi.mocked(api.searchByUrl).mockResolvedValueOnce({
+      total: 3,
+      papers: papers.slice(2),
+      has_more: false,
+    } as any);
+
+    const exportRes = await handleToolCall('inspire_search', {
+      run_id: runPayload.run_id,
+      query: 't:merged',
+      size: 2,
+      max_results: 10,
+      output_format: 'jsonl',
+    });
+
+    const payload = JSON.parse(exportRes.content[0].text) as {
+      export_uri: string;
+      meta_uri: string;
+      summary: { total: number; exported: number; pages_fetched: number };
+    };
+
+    expect(payload.export_uri).toMatch(/^hep:\/\/runs\//);
+    expect(payload.meta_uri).toMatch(/^hep:\/\/runs\//);
+    expect(payload.summary).toMatchObject({ total: 3, exported: 3, pages_fetched: 2 });
+
+    const exportContent = readHepResource(payload.export_uri) as any;
+    const lines = (exportContent.text as string).trim().split('\n').map((l: string) => JSON.parse(l));
+    expect(lines).toEqual(papers);
+  });
+
 });

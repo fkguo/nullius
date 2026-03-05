@@ -116,12 +116,14 @@ export const HepExportPaperScaffoldToolSchema = z.object({
   bibliography_raw_artifact_name: SafePathSegmentSchema.optional().default('bibliography_raw_v1.json'),
   zip_artifact_name: SafePathSegmentSchema.optional().default('paper_scaffold.zip'),
   paper_manifest_artifact_name: SafePathSegmentSchema.optional().default('paper_manifest.json'),
+  version: z.number().int().min(1).optional(),
   _confirm: z.boolean().optional(),
 });
 
 export const HepImportPaperBundleToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   paper_dir_name: SafePathSegmentSchema.optional().default('paper'),
+  version: z.number().int().min(1).optional(),
   zip_artifact_name: SafePathSegmentSchema.optional().default('paper_bundle.zip'),
   bundle_manifest_artifact_name: SafePathSegmentSchema.optional().default('paper_bundle_manifest.json'),
   pdf_artifact_name: SafePathSegmentSchema.optional().default('paper_final.pdf'),
@@ -181,7 +183,7 @@ export const HepRunCreateFromIdeaToolSchema = z.object({
   run_label: z.string().optional().describe('Optional label for the new run'),
 });
 
-const SearchExportFormatSchema = z.enum(['jsonl', 'json']);
+export const SearchExportFormatSchema = z.enum(['jsonl', 'json']);
 
 export const HepInspireSearchExportToolSchema = z.object({
   run_id: SafePathSegmentSchema,

@@ -302,6 +302,30 @@ else
   grep_re '\"event\": \"compile_skipped\"' "${pm_ok}/paper/build_trace.jsonl"
 fi
 
+echo "[smoke] consume paper manifest: versioned fixture (paper/v2 preferred)"
+pm_ver="${tmp_root}/paper_manifest_versioned"
+cp -R "scripts/dev/fixtures/paper_manifest/versioned_root" "${pm_ver}"
+(cd "${pm_ver}" && bash "${ROOT_DIR}/scripts/bin/research_writer_consume_paper_manifest.sh" --run-card "${run_card}" >/dev/null)
+test -f "${pm_ver}/paper/v2/build_trace.jsonl"
+test -f "${pm_ver}/paper/v2/export_manifest.json"
+test -f "${pm_ver}/paper/v2/run_card.json"
+grep_re '\"manifest\": ".*paper/v2/paper_manifest.json\"' "${pm_ver}/paper/v2/build_trace.jsonl"
+grep_re '\"schemaVersion\": 2' "${pm_ver}/paper/v2/export_manifest.json"
+grep_re 'Fixture paper v2' "${pm_ver}/paper/v2/main.tex"
+
+echo "[smoke] consume paper manifest: dual-manifest fixture prefers highest v*"
+pm_dual="${tmp_root}/paper_manifest_dual"
+cp -R "scripts/dev/fixtures/paper_manifest/dual_manifest_root" "${pm_dual}"
+(cd "${pm_dual}" && bash "${ROOT_DIR}/scripts/bin/research_writer_consume_paper_manifest.sh" --run-card "${run_card}" >/dev/null)
+test -f "${pm_dual}/paper/v2/build_trace.jsonl"
+test -f "${pm_dual}/paper/v2/export_manifest.json"
+grep_re '\"manifest\": ".*paper/v2/paper_manifest.json\"' "${pm_dual}/paper/v2/build_trace.jsonl"
+grep_re '\"schemaVersion\": 2' "${pm_dual}/paper/v2/export_manifest.json"
+if [[ -e "${pm_dual}/paper/export_manifest.json" ]]; then
+  echo "ERROR: expected dual-manifest run to consume paper/v2, not paper/ root" >&2
+  exit 1
+fi
+
 echo "[smoke] consume paper manifest: FAIL on hep:// in .tex"
 pm_hep="${tmp_root}/paper_manifest_bad_hep"
 cp -R "scripts/dev/fixtures/paper_manifest/bad_hep_uri_root" "${pm_hep}"

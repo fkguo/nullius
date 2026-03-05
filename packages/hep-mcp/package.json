@@ -17,7 +17,7 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:eval": "vitest run tests/eval",
-    "test:eval:update": "EVAL_UPDATE_SNAPSHOTS=1 vitest run tests/eval",
+    "test:eval:update": "EVAL_UPDATE_SNAPSHOTS=1 EVAL_UPDATE_BASELINES=1 vitest run tests/eval",
     "test:watch": "vitest",
     "catalog": "tsx scripts/generate_tool_catalog.ts",
     "docs:tool-counts:sync": "tsx scripts/sync_tool_counts.ts",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@autoresearch/arxiv-mcp": "workspace:*",
+    "@autoresearch/openalex-mcp": "workspace:*",
     "@autoresearch/pdg-mcp": "workspace:*",
     "@autoresearch/shared": "workspace:*",
     "@autoresearch/hepdata-mcp": "workspace:*",

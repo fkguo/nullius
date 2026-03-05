@@ -81,6 +81,90 @@ describe('vNext M4: hep_import_paper_bundle (paper_bundle.zip)', () => {
     expect(Object.keys(files)).toContain('paper/main.pdf');
   });
 
+  it('imports versioned paper directory when version is provided', async () => {
+    const projectRes = await handleToolCall('hep_project_create', {
+      name: 'M4 paper import (versioned)',
+      description: 'm4',
+    });
+    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
+    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    fs.writeFileSync(
+      getRunArtifactPath(run.run_id, 'writing_master.bib'),
+      [
+        '@misc{Doe:2020ab,',
+        '  title = {Demo Reference},',
+        '  author = {Doe, John},',
+        '  year = {2020}',
+        '}',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+    fs.writeFileSync(
+      getRunArtifactPath(run.run_id, 'writing_integrated.tex'),
+      [
+        '\\section{Introduction}',
+        'Version one content with \\cite{Doe:2020ab}.',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const v1Res = await handleToolCall('hep_export_paper_scaffold', {
+      _confirm: true,
+      run_id: run.run_id,
+      version: 1,
+      overwrite: true,
+    });
+    expect(v1Res.isError).not.toBe(true);
+
+    fs.writeFileSync(
+      getRunArtifactPath(run.run_id, 'writing_integrated.tex'),
+      [
+        '\\section{Introduction}',
+        'Version two content with \\cite{Doe:2020ab}.',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const v2ScaffoldRes = await handleToolCall('hep_export_paper_scaffold', {
+      _confirm: true,
+      run_id: run.run_id,
+      version: 2,
+      overwrite: true,
+    });
+    expect(v2ScaffoldRes.isError).not.toBe(true);
+
+    const versionedDir = path.join(getRunDir(run.run_id), 'paper', 'v2');
+    fs.writeFileSync(path.join(versionedDir, 'main.pdf'), Buffer.from('%PDF-1.4\n% demo\n', 'utf-8'));
+
+    const importRes = await handleToolCall('hep_import_paper_bundle', {
+      run_id: run.run_id,
+      version: 2,
+      overwrite: true,
+    });
+    expect(importRes.isError).not.toBe(true);
+
+    const payload = JSON.parse(importRes.content[0].text) as {
+      artifacts: Array<{ name: string; uri: string }>;
+      summary?: { paper_dir?: string };
+    };
+    const zipUri = payload.artifacts.find(a => a.name === 'paper_bundle.zip')?.uri;
+    expect(zipUri).toBeTruthy();
+
+    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as { file_path: string };
+    const zipBytes = fs.readFileSync(zipMeta.file_path);
+    const files = unzipSync(new Uint8Array(zipBytes));
+    expect(Object.keys(files)).toContain('paper/main.tex');
+    expect(Object.keys(files)).toContain('paper/paper_manifest.json');
+    expect(Object.keys(files)).toContain('paper/changes_v1_to_v2.diff');
+
+    expect(String(payload.summary?.paper_dir ?? '')).toContain(`/runs/${run.run_id}/paper/v2`);
+  });
+
   it('dereferences directory symlinks when dereference_symlinks=true', async () => {
     const projectRes = await handleToolCall('hep_project_create', { name: 'M4 paper import (symlink)', description: 'm4' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };

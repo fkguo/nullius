@@ -397,6 +397,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       bibliography_raw_artifact_name: params.bibliography_raw_artifact_name,
       zip_artifact_name: params.zip_artifact_name,
       paper_manifest_artifact_name: params.paper_manifest_artifact_name,
+      version: params.version,
     }),
   },
   {
@@ -409,6 +410,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     handler: async params => importPaperBundleForRun({
       run_id: params.run_id,
       paper_dir_name: params.paper_dir_name,
+      version: params.version,
       zip_artifact_name: params.zip_artifact_name,
       bundle_manifest_artifact_name: params.bundle_manifest_artifact_name,
       pdf_artifact_name: params.pdf_artifact_name,

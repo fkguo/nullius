@@ -9,8 +9,11 @@ Principles:
 - Does not generate new physics content; only validate/hygiene/compile/audit.
 
 Entry point:
-- `paper/paper_manifest.json` is the only entrypoint (can be overridden via
-  `--paper-manifest`).
+- Default resolution order for manifest path:
+  1) highest `paper/v*/paper_manifest.json`
+  2) `paper/paper_manifest.json`
+  3) `paper_manifest.json`
+- `--paper-manifest` overrides the default resolution.
 
 What it does:
 1) Validate (fail-fast):
@@ -194,6 +197,35 @@ def _bib_dbname(path_rel: str) -> str:
     return p.as_posix()
 
 
+def _discover_default_manifest() -> Path | None:
+    versioned_candidates: list[tuple[int, Path]] = []
+    versioned_root = Path("paper")
+    if versioned_root.is_dir():
+        for entry in versioned_root.iterdir():
+            if not entry.is_dir():
+                continue
+            m = re.fullmatch(r"v(\d+)", entry.name)
+            if not m:
+                continue
+            manifest_candidate = entry / "paper_manifest.json"
+            if manifest_candidate.is_file():
+                versioned_candidates.append((int(m.group(1)), manifest_candidate))
+
+    if versioned_candidates:
+        versioned_candidates.sort(key=lambda item: item[0], reverse=True)
+        return versioned_candidates[0][1]
+
+    legacy_in_paper = Path("paper") / "paper_manifest.json"
+    if legacy_in_paper.is_file():
+        return legacy_in_paper
+
+    legacy_root = Path("paper_manifest.json")
+    if legacy_root.is_file():
+        return legacy_root
+
+    return None
+
+
 def _parse_manifest_v1(path: Path) -> PaperManifestV1:
     paper_root = path.parent
     obj = _load_json(path)
@@ -201,8 +233,8 @@ def _parse_manifest_v1(path: Path) -> PaperManifestV1:
     schema = obj.get("schemaVersion")
     if not isinstance(schema, int):
         raise ValueError("manifest.schemaVersion must be an integer")
-    if schema != 1:
-        raise ValueError(f"unsupported schemaVersion={schema} (supported: 1)")
+    if schema not in (1, 2):
+        raise ValueError(f"unsupported schemaVersion={schema} (supported: 1 or 2)")
 
     main_tex_rel = _first_present(obj, ["mainTex", "main_tex", "main"]) or "main.tex"
     if not isinstance(main_tex_rel, str):
@@ -373,7 +405,7 @@ def main() -> int:
         "--paper-manifest",
         type=Path,
         default=None,
-        help="Path to paper_manifest.json (default: ./paper/paper_manifest.json, then ./paper_manifest.json).",
+        help="Path to paper_manifest.json (default: highest ./paper/v*/paper_manifest.json, then ./paper/paper_manifest.json, then ./paper_manifest.json).",
     )
     ap.add_argument(
         "--dry-run",
@@ -386,14 +418,13 @@ def main() -> int:
 
     manifest_path: Path | None = args.paper_manifest
     if manifest_path is None:
-        cand1 = Path("paper") / "paper_manifest.json"
-        cand2 = Path("paper_manifest.json")
-        if cand1.is_file():
-            manifest_path = cand1
-        elif cand2.is_file():
-            manifest_path = cand2
-        else:
-            print("ERROR: --paper-manifest not provided and no default manifest found (paper/paper_manifest.json)", file=sys.stderr)
+        manifest_path = _discover_default_manifest()
+        if manifest_path is None:
+            print(
+                "ERROR: --paper-manifest not provided and no default manifest found "
+                "(paper/v*/paper_manifest.json, paper/paper_manifest.json, paper_manifest.json)",
+                file=sys.stderr,
+            )
             return 2
 
     manifest_path = manifest_path.expanduser()
@@ -697,7 +728,7 @@ def main() -> int:
 
     if not args.dry_run:
         export_manifest = {
-            "schemaVersion": 1,
+            "schemaVersion": manifest.schema_version,
             "tool": "research-writer",
             "entrypoint": "consume_paper_manifest",
             "generated_at_utc": _utc_now(),

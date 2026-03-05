@@ -131,6 +131,7 @@ function ensureNoHepUrisInTexFiles(paperDir: string, files: string[]): void {
 export interface ImportPaperBundleParams {
   run_id: string;
   paper_dir_name?: string;
+  version?: number;
   zip_artifact_name?: string;
   bundle_manifest_artifact_name?: string;
   pdf_artifact_name?: string;
@@ -166,13 +167,22 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
   const overwrite = Boolean(params.overwrite);
   const dereferenceSymlinks = Boolean(params.dereference_symlinks);
   const allowExternalSymlinkTargets = Boolean(params.allow_external_symlink_targets);
+  const version = params.version;
+  if (version !== undefined) {
+    if (!Number.isInteger(version) || version < 1) {
+      throw invalidParams('version must be an integer >= 1', { run_id: runId, version });
+    }
+  }
 
   const { manifestStart, stepIndex, step } = await startRunStep(runId, 'import_paper_bundle');
   const artifacts: RunArtifactRef[] = [];
 
   try {
     const runDir = getRunDir(runId);
-    const paperDir = resolvePathWithinParent(runDir, path.join(runDir, paperDirName), 'paper_dir');
+    const basePaperDir = resolvePathWithinParent(runDir, path.join(runDir, paperDirName), 'paper_dir');
+    const paperDir = version === undefined
+      ? basePaperDir
+      : resolvePathWithinParent(basePaperDir, path.join(basePaperDir, `v${version}`), 'paper_version_dir');
 
     if (!fs.existsSync(paperDir)) {
       throw invalidParams('paper_dir does not exist (fail-fast)', {
@@ -208,8 +218,13 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
     }
 
     const paperManifest = readJsonFileOrFail(paperManifestPath, 'paper_manifest.json');
-    const schemaVersion = typeof paperManifest?.schemaVersion === 'string' ? paperManifest.schemaVersion : null;
-    if (!schemaVersion) {
+    const rawSchemaVersion = paperManifest?.schemaVersion;
+    const schemaVersion =
+      (typeof rawSchemaVersion === 'number' && Number.isInteger(rawSchemaVersion))
+      || (typeof rawSchemaVersion === 'string' && rawSchemaVersion.trim().length > 0)
+        ? rawSchemaVersion
+        : null;
+    if (schemaVersion === null) {
       throw invalidParams('paper_manifest.json missing schemaVersion (fail-fast)', { run_id: runId, paper_dir: paperDir });
     }
     const mainTexRel = typeof paperManifest?.latex?.mainTex === 'string' ? paperManifest.latex.mainTex : 'main.tex';
