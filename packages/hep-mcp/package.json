@@ -19,7 +19,9 @@
     "test:eval": "vitest run tests/eval",
     "test:eval:update": "EVAL_UPDATE_SNAPSHOTS=1 vitest run tests/eval",
     "test:watch": "vitest",
-    "catalog": "tsx scripts/generate_tool_catalog.ts"
+    "catalog": "tsx scripts/generate_tool_catalog.ts",
+    "docs:tool-counts:sync": "tsx scripts/sync_tool_counts.ts",
+    "docs:tool-counts:check": "tsx scripts/sync_tool_counts.ts --check"
   },
   "dependencies": {
     "@autoresearch/arxiv-mcp": "workspace:*",

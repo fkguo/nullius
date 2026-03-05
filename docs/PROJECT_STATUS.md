@@ -21,8 +21,8 @@ node --input-type=module -e "import('./packages/hep-research-mcp/dist/tools/inde
 ```
 
 Current (after build):
-- `standard=56`, `full=72`
-- `HEP_ENABLE_ZOTERO=0` → `standard=48`, `full=64`
+- `standard=66`, `full=83`
+- `HEP_ENABLE_ZOTERO=0` → `standard=58`, `full=75`
 
 Workspace vitest summary:
 - `packages/shared`: 15 passed

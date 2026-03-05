@@ -19,6 +19,14 @@
 ```bash
 pnpm install
 pnpm -r build
+pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
+```
+
+若提示文档计数漂移，可一键同步后再检查：
+
+```bash
+pnpm --filter @autoresearch/hep-mcp docs:tool-counts:sync
+pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 ```
 
 可选：运行自动化测试（默认不触发联网 smoke）：
@@ -102,7 +110,7 @@ EOF
 **预期**
 
 - 输出是一个数组，包含 `standard/full` 两种模式的 `tool_count` 与 `bad`。
-- `tool_count` 为正数（当前实现：`standard=56`，`full=72`；`HEP_ENABLE_ZOTERO=0` 时：`standard=48`，`full=64`；以后如有变化，以代码为准）。
+- `tool_count` 为正数（当前实现：`standard=66`，`full=83`；`HEP_ENABLE_ZOTERO=0` 时：`standard=58`，`full=75`；以后如有变化，以代码与 `docs:tool-counts:check` 为准）。
 - 每个对象的 `bad` 都应为空数组（所有 tool 的 `inputSchema.type` 都应为 `"object"`）。
 
 ### 0.2 Zotero Local API（可选，但建议验收）
@@ -1150,4 +1158,3 @@ node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "
 
 - 写作 evidence step 返回的 `artifacts[]` 中包含 `latex_evidence_catalog.jsonl` / `latex_evidence_embeddings.jsonl` / `latex_evidence_enrichment.jsonl`（默认名；以 `writing_evidence_meta.json` 为准）
 - `hep_project_query_evidence_semantic.summary.semantic.implemented=true`（embeddings 可用；无 embeddings 会直接报错）
-
