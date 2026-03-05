@@ -236,10 +236,14 @@ interface Adapter {
 }
 ```
 
-The CLI entrypoint (`bin/graph-viz.ts`) maintains a registry of `Adapter` instances
-and dispatches to the selected adapter. The `Adapter` interface lives in
-`packages/shared/src/graph-viz/types.ts` (domain-agnostic); concrete adapter
-implementations live in `packages/shared/` (see §5.1 for exact placement).
+The `Adapter` interface lives in `packages/shared/src/graph-viz/types.ts`
+(domain-agnostic); concrete adapter implementations live in `packages/shared/`
+(see §5.1 for exact placement).
+
+This repo intentionally ships **graph-viz as a library** (no committed
+CLI/Skill wrapper). Call sites can keep a small adapter registry (e.g. a future
+TS-only wrapper or an orchestrator command) without forcing cross-language
+coupling during the in-flight TS migration.
 
 ### 3.5 Operational Contracts
 
@@ -651,7 +655,7 @@ This follows the same pattern as Claim DAG's `requires → "enables"` reversal.
 
 ## 5. Architecture Placement
 
-### 5.1 Decision: Core + JSON adapters in `packages/shared/`, CLI at monorepo root
+### 5.1 Decision: Core + adapters in `packages/shared/` (library-first)
 
 The visualization **core** (types + renderer + graphviz wrapper) and **JSON-parsing
 adapters** (claim, progress, literature, idea-map) live in `packages/shared/`.
@@ -659,9 +663,11 @@ These adapters have **zero TypeScript imports from domain packages** — they pa
 plain JSON/JSONL files and map fields, with no compile-time dependency on domain
 modules.
 
-The **CLI entrypoint** (with adapter registry) lives at the monorepo root
-(`bin/graph-viz.ts`), which imports from `shared` only — no cross-layer boundary
-violations.
+Rather than committing a standalone CLI entrypoint, we keep **invocation at the
+call site** (agent scripts, future TS orchestrator commands). This avoids
+introducing a stable CLI contract (and cross-language bridging from Python)
+mid-migration, while still enabling deterministic rendering via the shared
+library API.
 
 **Dependency direction rule**: `packages/shared/src/graph-viz/` (including adapters)
 must have **zero imports** from any domain module outside `packages/shared/`. The
@@ -669,9 +675,6 @@ Memory Graph adapter is colocated with the MemoryGraph service (also in `shared`
 
 **Dependency direction**:
 ```
-bin/graph-viz.ts  (CLI entrypoint — monorepo root)
-  └── imports packages/shared/src/graph-viz/   (types + renderer + all adapters)
-
 packages/shared/src/graph-viz/
   ├── core: types.ts, render.ts, graphviz.ts   (zero external imports)
   └── adapters/: claim-dag.ts, progress.ts,    (zero external imports — parse JSON only)
@@ -706,12 +709,6 @@ packages/shared/src/memory-graph/
 └── viz-adapter.ts              -- Memory Graph adapter + stylesheet (~100 eLOC)
 ```
 
-**CLI entrypoint** (monorepo root — composes adapters, parses args):
-```
-bin/
-└── graph-viz.ts                -- arg parsing, adapter registry, invoke render (~120 eLOC)
-```
-
 **Estimated total**: ~950 eLOC across 11 implementation files, all ≤200 eLOC.
 
 ### 5.3 REDESIGN_PLAN Placement
@@ -725,10 +722,10 @@ bin/
 > - **Depends on**: NEW-05 (monorepo), EVO-20 (Memory Graph types)
 > - **Description**: Extract domain-agnostic graph renderer from `render_claim_graph.py`,
 >   define universal node/edge schema. Core + adapters in `packages/shared/src/graph-viz/`.
->   CLI entrypoint at `bin/graph-viz.ts`.
 > - **eLOC budget**: ≤ 950 (11 files)
 > - **Acceptance**: All 5 adapters produce valid DOT; existing claim graph rendering
->   uses the new adapter with identical output (snapshot test parity).
+>   has parity snapshots for the claim adapter. (Call-site wiring is deferred while
+>   legacy Python pipelines are still authoritative.)
 
 ## 6. Rendering Strategy
 
@@ -858,139 +855,48 @@ The JSONL format matches the JSON schemas already defined:
                                                  DOT / PNG / SVG
 ```
 
-## 8. Invocation Model: CLI + Skill
+## 8. Invocation Model: Library-first (optional wrapper)
 
-### 8.1 Decision: Adapter-aware CLI, wrapped by Skill
+### 8.1 Decision
 
-The graph-viz layer is invoked via a **CLI tool** (`graph-viz render`) that knows
-about all registered adapters. Agents learn when/how to call it via a **Skill**.
-There is **no MCP wrapping** — graph rendering is a batch operation (input files →
-output images), not a real-time stateful service.
+graph-viz is a **stateless, file-oriented rendering library** shipped from
+`packages/shared/src/graph-viz/`. This repo intentionally does **not** commit a
+standalone CLI (`bin/graph-viz.ts`) or a dedicated Skill wrapper (`skills/graph-viz/*`)
+at this stage: agent-driven workflows either (a) call the legacy producer pipeline
+directly, or (b) render from a TS consumer when that pipeline is already in TS.
 
-**Layer stack**:
+**Integration rule**: prefer wiring graph-viz at the *same language layer as the
+producer* (TS→TS). Avoid Python→TS CLI bridges while the TS migration is in-flight.
 
+### 8.2 Current render call sites (2026-03-05)
+
+- **Claim DAG**: `skills/research-team/scripts/bin/render_claim_graph.py` (called from `skills/research-team/scripts/bin/run_team_cycle.sh`)
+- **W_compute DAG**: `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py` (outputs mermaid/dot/text; has regression tests)
+
+### 8.3 TypeScript usage (example)
+
+```ts
+import { claimDagAdapter, renderGraph, runDot } from '@autoresearch/shared/graph-viz';
+
+const { graph, style } = await claimDagAdapter.adapt({
+  claims: 'knowledge_graph/claims.jsonl',
+  edges: 'knowledge_graph/edges.jsonl',
+});
+
+const dot = renderGraph(graph, style);
+await runDot(dot, { outSvg: 'artifacts/claim_graph.svg' });
 ```
-┌─────────────────────────────────────────────┐
-│  Skill (skills/graph-viz/skill.md)          │  ← agent reads this
-│  Teaches: when to render, which adapter,    │
-│  how to interpret output, integration points│
-└──────────────────────┬──────────────────────┘
-                       │ agent executes via bash
-                       ▼
-┌─────────────────────────────────────────────┐
-│  CLI  (bin/graph-viz.ts)                    │  ← monorepo root
-│  Adapter registry, arg parsing, dispatch    │
-└──────────────────────┬──────────────────────┘
-                       │ imports (single package)
-                       ▼
-┌─────────────────────────────────────────────┐
-│  packages/shared/src/graph-viz/             │
-│  ├── core: types + render + graphviz        │
-│  └── adapters/: claim, progress, lit, idea  │
-│                                             │
-│  packages/shared/src/memory-graph/          │
-│  └── viz-adapter.ts                         │
-└─────────────────────────────────────────────┘
-```
-
-### 8.2 CLI Contract
-
-**Command**:
-```bash
-graph-viz render --adapter <name> [adapter-specific flags] --out <path> [--format dot|png|svg|json]
-```
-
-**Adapter registry** (built-in, no plugin discovery; lazy-loaded via dynamic `import()`
-to avoid pulling all domain dependencies when only one adapter is needed):
-
-| `--adapter` name | Adapter module | Required flags |
-|---|---|---|
-| `claim` | claim-dag.ts | `--claims <path>` `--edges <path>` |
-| `memory-graph` | viz-adapter.ts | `--db <sqlite-path>` or `--nodes <jsonl>` `--edges <jsonl>` |
-| `literature` | literature.ts | `--input <inspire-json>` |
-| `idea-map` | idea-map.ts | `--nodes <path>` `--evidence <path>` |
-| `progress` | progress.ts | `--plan <path>` (ProgressItem JSON or RESEARCH_PLAN.md) |
-
-**Common flags**:
-
-| Flag | Default | Description |
-|---|---|---|
-| `--out <path>` | (required) | Output file path |
-| `--format <fmt>` | inferred from `--out` extension | `dot`, `png`, `svg`, `json` |
-| `--rank-dir <dir>` | `LR` | Graph direction: `LR` or `TB` |
-| `--layout <engine>` | `dot` | Graphviz layout engine |
-| `--no-color` | false | Grayscale output |
-| `--legend <mode>` | `auto` | `auto`, `embedded`, `separate`, `none` |
-| `--max-label <n>` | 80 | Max label length |
-
-**Exit codes**:
-
-| Code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | Invalid arguments or missing required flags |
-| 2 | Input file not found or parse error |
-| 3 | Adapter error (mapping failure, invalid data) |
-| 4 | Graphviz not installed (DOT file still written) |
-
-**Example invocations**:
-```bash
-# Claim DAG
-graph-viz render --adapter claim \
-  --claims knowledge_graph/claims.jsonl \
-  --edges knowledge_graph/edges.jsonl \
-  --out artifacts/claim_graph.svg
-
-# Memory Graph (from live DB)
-graph-viz render --adapter memory-graph \
-  --db data/memory_graph.sqlite \
-  --out artifacts/memory_graph.png
-
-# Memory Graph (from exported JSONL)
-graph-viz render --adapter memory-graph \
-  --nodes mg_nodes.jsonl --edges mg_edges.jsonl \
-  --out artifacts/memory_graph.png
-
-# Literature graph
-graph-viz render --adapter literature \
-  --input artifacts/inspire_network.json \
-  --out artifacts/literature.svg
-
-# Progress graph
-graph-viz render --adapter progress \
-  --plan artifacts/progress_items.json \
-  --out artifacts/progress.svg --rank-dir TB
-```
-
-### 8.3 Skill Specification
-
-The Skill (`skills/graph-viz/skill.md`) teaches agents:
-
-1. **When to render**: After claim convergence milestones, after memory graph updates,
-   after literature discovery runs, after idea evaluation cycles, after progress
-   board changes.
-
-2. **Which adapter**: Maps research-team workflow stages to adapter names.
-
-3. **Data preparation**: How to produce the input files each adapter expects
-   (e.g., "export RESEARCH_PLAN.md task board to `progress_items.json` first").
-
-4. **Output interpretation**: What to look for in the rendered graph (e.g., red
-   octagon = refuted claim, thick blue edges = high-confidence links).
-
-5. **Integration points**: Where to place output files in the artifact directory
-   structure, how to embed in Markdown reports.
 
 ### 8.4 Why Not MCP
 
-| Criterion | MCP tool | CLI + Skill |
+| Criterion | MCP tool | Library (optional wrapper) |
 |---|---|---|
 | Statefulness | Requires running server | Stateless, one-shot |
-| Infrastructure | MCP server process | None (just a binary/script) |
+| Infrastructure | MCP server process | None (just code + optional script) |
 | Input size | Must fit in tool call params | Reads files directly |
-| Batch rendering | Awkward (one call per graph) | Natural (one command) |
+| Batch rendering | Awkward (one call per graph) | Natural (one function call) |
 | CI/testing | Needs server mock | Direct invocation |
-| Agent integration | Structured params | Skill teaches CLI flags |
+| Agent integration | Structured params | Agent runs producer / TS consumer |
 
 Graph rendering is batch, stateless, and file-oriented. MCP adds server overhead
 with no compensating benefit. If a future real-time dashboard requires live graph
@@ -1021,8 +927,8 @@ the renderer core and adapters remain unchanged.
 | Aspect | Decision |
 |---|---|
 | Core model | `UniversalNode` + `UniversalEdge` (with `id`) + `StyleSheet` + `Adapter` interface |
-| Architecture | Core + JSON adapters in `packages/shared/src/graph-viz/`; MG adapter in `memory-graph/`; CLI at `bin/graph-viz.ts` |
-| Invocation | Adapter-aware CLI (`graph-viz render --adapter <name>`) wrapped by Skill; no MCP |
+| Architecture | Core + JSON adapters in `packages/shared/src/graph-viz/`; MG adapter in `memory-graph/`; library-first (no committed CLI wrapper) |
+| Invocation | Library-first; wire at producer layer (TS→TS). Legacy Python renderers remain authoritative until migration; no MCP |
 | Rendering | Static only: DOT → PNG/SVG via Graphviz |
 | Memory Graph | Via atomic `exportGraph()` API (DEFERRED transaction), JSONL fallback |
 | Progress Graph | Parsed from `RESEARCH_PLAN.md` task board + progress log; `ProgressItem` schema |
