@@ -35,6 +35,13 @@ Thumbs.db
 # Temp / review artifacts
 .tmp/
 .review/
+meta/docs/prompts/
+.serena/memories/
+.claude/
+.npm/
+tmp/
+packages/hep-autoresearch/.autopilot/
+packages/hep-autoresearch/uv.lock
 
 # Runtime data (never in repo)
 runs/
