@@ -43,7 +43,7 @@ Autoresearch 是一个 evidence-first 自动化研究平台，面向高能物理
 - **Phase 0 (止血)**: 9 项。Monorepo 迁移 + TS 编排层增量迁移 + 安全漏洞 + 治理绕过。NEW-05 最先执行，NEW-05a 紧随。
 - **Phase 1 (统一抽象)**: 17 项。AutoresearchError, RunState, GateSpec, ArtifactRef, trace_id, risk_level 等共享抽象 + 代码生成基础设施。
 - **Phase 2 (深度集成)**: 19 项。原子写入, 文件锁, 幂等性, JSONL 日志, 审批 UX 三件套, 报告生成。
-- **Phase 3 (扩展性)**: 13 项。Schema 扩展, 凭据管理, 网络治理, AST lint 升级, MCP 工具整合。
+- **Phase 3 (扩展性)**: 21 项（原 13 + 7 个 SOTA retrieval/discovery/runtime follow-up + `NEW-LOOP-01`）。Schema 扩展, 凭据管理, 网络治理, AST lint 升级, MCP 工具整合 + federated discovery / retrieval backbone / routing registry + 单研究者非线性 research loop 前置运行时。
 - **Phase 4 (长期演进)**: 8 项。文档, 低优先级缺陷, 发布冻结产物, A2A 适配层。
 - **Phase 5 (社区化与端到端闭环)**: 19 项。理论计算执行闭环, 结果反馈循环, Agent 注册表, Domain Pack, 科学诚信, 可复现性验证, 跨实例同步, 失败库生成时查询, 进化提案自动闭环, Bandit 分发策略运行时接入, 技能生命周期自动化, 统一编排引擎 (TS), 跨 Run 并行调度, Agent-arXiv 基础设施, Agent 社区自主运行实验, REP 协议核心 (Track A), REP 信号引擎 (Track A), GEP/Evolver Track B 集成。
 
@@ -283,14 +283,14 @@ Agent 在代码审查和自检时必须检测以下反模式：
 
 ## 当前进度
 
-> **SSOT**: `autoresearch-meta/remediation_tracker_v1.json`（机器可读，agent 执行时更新）
+> **SSOT**: `meta/remediation_tracker_v1.json`（机器可读，agent 执行时更新）
 
-- **Phase 0**: 0/8 完成 — 全部 pending，NEW-05 (monorepo) 建议最先执行
-- **Phase 1**: 0/17 完成 — blocked by Phase 0
-- **Phase 2**: 0/19 完成 — blocked by Phase 1
-- **Phase 3**: 2/13 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足）
+- **Phase 0**: 14/14 完成 ✅
+- **Phase 1**: 19/23 完成
+- **Phase 2**: 25/44 完成
+- **Phase 3**: 18/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足）+ Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking）+ Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅；`NEW-DISC-01` 已 kickoff（D1/D2/D3 完成，D4/D5 仍留在 Batch 13–14）+ Batch 11 代码实现已完成 `Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审，0 blocking，amendments integrated + SOTA follow-up queue 继续按 parallel infra lane `Batch 11–14`（`NEW-DISC-01`, `NEW-RT-06/07`, `NEW-SEM-06-INFRA`）→ loop precursor `Batch 15–16`（`NEW-LOOP-01`）→ retrieval lane `Batch 17–19`（`NEW-SEM-06b/d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
 - **Phase 4**: 0/8 完成 — blocked by Phase 3
-- **Phase 5**: 0/16 完成 — blocked by Phase 4
+- **Phase 5**: 0/22 完成 — blocked by Phase 4
 - **R4 双模型审核**: ✅ 收敛 (Gemini CONVERGED + Codex CONVERGED_WITH_AMENDMENTS, 0 blocking)
 - **R5 双模型审核**: ✅ 收敛 (Gemini CONVERGED_WITH_AMENDMENTS + Codex CONVERGED_WITH_AMENDMENTS, 0 blocking, amendments integrated)
 
@@ -411,7 +411,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **autoresearch-lab** (12269 symbols, 24319 relationships, 300 execution flows).
+This project is indexed by GitNexus as **autoresearch-lab** (12303 symbols, 24444 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 
