@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "@autoresearch/shared": "workspace:^"
+    "@autoresearch/shared": "workspace:^",
+    "zod": "^4.3.5"
   }
 }
