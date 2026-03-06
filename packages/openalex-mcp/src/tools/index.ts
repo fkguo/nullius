@@ -1,6 +1,7 @@
 export { handleToolCall } from './dispatcher.js';
 export {
   TOOL_SPECS,
+  OPENALEX_DISCOVERY_DESCRIPTOR,
   getToolSpec,
   getToolSpecs,
   getTools,

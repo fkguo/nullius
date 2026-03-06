@@ -8,6 +8,7 @@ export const IdentifierTypeSchema = z.enum([
   'recid',
   'arxiv',
   'doi',
+  'openalex',
   'zotero_key',
   'texkey',
   'unknown',
@@ -23,6 +24,7 @@ export const PaperIdentifiersSchema = z.object({
   recid: z.string().optional(),
   arxiv_id: z.string().optional(),
   doi: z.string().optional(),
+  openalex_id: z.string().optional(),
   zotero_key: z.string().optional(),
   texkey: z.string().optional(),
 });

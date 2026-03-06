@@ -148,10 +148,17 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'Unified query over a project Evidence Catalog (mode=lexical|semantic; semantic requires run embeddings and writes run artifact; local-only).',
+      'Unified query over a project Evidence Catalog (defaults to semantic when run_id is provided; lexical otherwise; local-only).',
     zodSchema: HepProjectQueryEvidenceToolSchema,
     handler: async (params, ctx) => {
-      if (params.mode === 'semantic') {
+      const raw = ctx.rawArgs ?? {};
+      const modeProvided = Object.prototype.hasOwnProperty.call(raw, 'mode');
+      const effectiveMode =
+        !modeProvided && params.run_id
+          ? 'semantic'
+          : params.mode;
+
+      if (effectiveMode === 'semantic') {
         const { queryProjectEvidenceSemantic } = await import('../../core/evidenceSemantic.js');
         return queryProjectEvidenceSemantic({
           run_id: params.run_id!,
@@ -164,7 +171,6 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         });
       }
 
-      const raw = ctx.rawArgs ?? {};
       const concurrencyProvided = Object.prototype.hasOwnProperty.call(raw, 'concurrency');
       return queryProjectEvidence({
         project_id: params.project_id,
@@ -337,6 +343,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         max_flags: params.max_flags,
         include_not_comparable: params.include_not_comparable,
         output_artifact_name: params.output_artifact_name,
+        createMessage: ctx.createMessage,
         budget_hints: { max_flags_provided: maxFlagsProvided },
       });
     },

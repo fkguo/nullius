@@ -1,0 +1,21 @@
+{
+  "evalSetName": "sem06_evidence_retrieval",
+  "module": "SEM-06",
+  "timestamp": "2026-03-05T00:00:00.000Z",
+  "metrics": {
+    "precision_at_5_overall": 0.2,
+    "precision_at_10_overall": 0.1,
+    "recall_at_5_overall": 1,
+    "recall_at_10_overall": 1,
+    "mrr_at_10_overall": 1,
+    "fallback_rate_overall": 0,
+    "latency_p50_ms_overall": 10,
+    "latency_p95_ms_overall": 11.049999999999997,
+    "noise_gold_hit_rate_at_10_overall": 0,
+    "recall_at_10_long_tail": 1,
+    "mrr_at_10_long_tail": 1,
+    "recall_at_10_ood": 0,
+    "mrr_at_10_ood": 0
+  },
+  "evalSetVersion": 1
+}

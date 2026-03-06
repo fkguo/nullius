@@ -10,6 +10,8 @@ import {
   ARXIV_SEARCH,
   ARXIV_GET_METADATA,
   ARXIV_PAPER_SOURCE,
+  DiscoveryProviderDescriptorSchema,
+  type DiscoveryProviderDescriptor,
 } from '@autoresearch/shared';
 import { ARXIV_ID_REGEX, normalizeArxivId } from '../source/arxivSource.js';
 import { searchArxiv, fetchArxivMetadata } from '../api/searchClient.js';
@@ -166,3 +168,18 @@ export function getTools(mode: ToolExposureMode = 'standard') {
 // Re-export schemas for external use
 export { ArxivIdSchema, ArxivSearchSchema, ArxivGetMetadataSchema, ArxivPaperSourceSchema };
 export { normalizeArxivId };
+
+export const ARXIV_DISCOVERY_DESCRIPTOR: DiscoveryProviderDescriptor = DiscoveryProviderDescriptorSchema.parse({
+  provider: 'arxiv',
+  display_name: 'arXiv',
+  capabilities: {
+    supports_keyword_search: true,
+    supports_semantic_search: false,
+    supports_citation_graph: false,
+    supports_fulltext: false,
+    supports_source_download: true,
+    supports_open_access_content: true,
+  },
+  supported_intents: ['known_item', 'keyword_search', 'fulltext_search'],
+  notes: 'Kickoff descriptor for NEW-DISC-01; source download is supported, canonical broker artifacts come later.',
+});

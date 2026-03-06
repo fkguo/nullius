@@ -1,0 +1,16 @@
+{
+  "name": "sem06_evidence_retrieval_holdout",
+  "version": 1,
+  "description": "Locked holdout (do not tune on this set). Focus: long-tail/OOD retrieval + fallback behavior.",
+  "module": "SEM-06",
+  "cases": [
+    { "id": "hretr_051", "input": { "query": "topic051 effective coupling" }, "expected": { "relevant_phrases": ["GOLD051"] }, "tags": ["long_tail"] },
+    { "id": "hretr_052", "input": { "query": "topic052 effective coupling" }, "expected": { "relevant_phrases": ["GOLD052"] }, "tags": ["long_tail"] },
+    { "id": "hretr_053", "input": { "query": "topic053 effective coupling" }, "expected": { "relevant_phrases": ["GOLD053"] }, "tags": ["long_tail"] },
+    { "id": "hretr_054", "input": { "query": "topic054 effective coupling" }, "expected": { "relevant_phrases": ["GOLD054"] }, "tags": ["ood", "long_tail"] },
+    { "id": "hretr_055", "input": { "query": "topic055 effective coupling" }, "expected": { "relevant_phrases": ["GOLD055"] }, "tags": ["ood", "long_tail"] },
+    { "id": "hretr_056", "input": { "query": "topic056 effective coupling" }, "expected": { "relevant_phrases": ["GOLD056"] }, "tags": ["ood", "long_tail"] },
+    { "id": "hretr_irr_011", "input": { "query": "noise011 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "hretr_irr_012", "input": { "query": "noise012 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] }
+  ]
+}

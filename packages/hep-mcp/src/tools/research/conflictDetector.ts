@@ -15,6 +15,8 @@ import { getToolSpec as getPdgToolSpec } from '@autoresearch/pdg-mcp/tooling';
 import {
   PDG_GET_PROPERTY,
 } from '@autoresearch/shared';
+import { clusterByQuantity } from '../../core/semantics/quantityClustering.js';
+import type { QuantitySamplingContext } from '../../core/semantics/quantityAdjudicator.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -100,16 +102,6 @@ export interface ConflictDetectionResult {
 // - softConflictThreshold (default 3.0): 3-5σ
 // Below 3σ is considered compatible or "apparent" conflict
 
-// Common physical quantity synonyms for grouping
-const QUANTITY_SYNONYMS: Record<string, string[]> = {
-  'mass': ['mass', 'm', 'mh', 'mw', 'mz', 'mt', 'mb', 'mc', 'ms'],
-  'width': ['width', 'gamma', 'decay width', 'total width'],
-  'lifetime': ['lifetime', 'tau', 'mean life', 'half-life'],
-  'coupling': ['coupling', 'g', 'alpha', 'constant', 'strength'],
-  'branching': ['branching', 'br', 'branching ratio', 'fraction'],
-  'cross section': ['cross section', 'sigma', 'xs', 'production'],
-};
-
 function wantsPdgWmassBaseline(targetQuantities?: string[]): boolean {
   if (!Array.isArray(targetQuantities) || targetQuantities.length === 0) return false;
   return targetQuantities.some(t => {
@@ -129,6 +121,28 @@ function symmetricUncertaintyFromAsymmetric(errPos: unknown, errNeg: unknown): n
   if (Number.isFinite(p)) return p;
   if (Number.isFinite(n)) return n;
   return null;
+}
+
+function pickQuantityDisplayLabel(measurements: MeasurementWithSource[], fallback: string): string {
+  const counts = new Map<string, number>();
+  for (const m of measurements) {
+    const candidate = typeof m.quantity_hint === 'string' ? m.quantity_hint.trim() : '';
+    if (!candidate) continue;
+    counts.set(candidate, (counts.get(candidate) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = -1;
+  for (const [candidate, count] of counts.entries()) {
+    if (count > bestCount) {
+      best = candidate;
+      bestCount = count;
+      continue;
+    }
+    if (count === bestCount && best !== null && candidate.localeCompare(best) < 0) {
+      best = candidate;
+    }
+  }
+  return best ?? fallback;
 }
 
 type PdgGetPropertyOutput = {
@@ -152,7 +166,7 @@ async function tryGetPdgWmassBaseline(): Promise<{ measurement: MeasurementWithS
       property: 'mass',
     });
 
-    const out = (await spec.handler(parsed as any, {} as any)) as PdgGetPropertyOutput;
+    const out = (await spec.handler(parsed, {})) as PdgGetPropertyOutput;
     const value = Number(out?.value?.value);
     if (!Number.isFinite(value)) {
       return { measurement: null, warning: 'pdg_baseline_skipped:missing_value' };
@@ -231,38 +245,31 @@ function classifyConflict(tension: number): ConflictType {
 /**
  * Normalize quantity hint to a standard form
  */
-function normalizeQuantity(hint: string): string {
-  const hintLower = hint.toLowerCase().trim();
+async function groupByQuantitySemantic(
+  measurements: MeasurementWithSource[],
+  ctx: QuantitySamplingContext,
+  warnings: string[]
+): Promise<Map<string, MeasurementWithSource[]>> {
+  const clustered = await clusterByQuantity({
+    items: measurements.map(m => ({
+      item: m,
+      mention: {
+        quantity: m.quantity_hint,
+        context: m.source_context,
+        unit: m.unit,
+      },
+    })),
+    ctx,
+    max_comparisons: 250,
+    min_match_confidence: 0.6,
+    prompt_version: 'v1',
+  });
 
-  for (const [standard, synonyms] of Object.entries(QUANTITY_SYNONYMS)) {
-    for (const synonym of synonyms) {
-      if (hintLower.includes(synonym)) {
-        return standard;
-      }
-    }
+  if (clustered.stats.budget_exhausted) {
+    warnings.push('quantity_semantic_budget_exhausted:max_comparisons=250');
   }
 
-  return hintLower;
-}
-
-/**
- * Group measurements by quantity
- */
-function groupByQuantity(
-  measurements: MeasurementWithSource[]
-): Map<string, MeasurementWithSource[]> {
-  const groups = new Map<string, MeasurementWithSource[]>();
-
-  for (const m of measurements) {
-    const normalizedQuantity = normalizeQuantity(m.quantity_hint);
-
-    if (!groups.has(normalizedQuantity)) {
-      groups.set(normalizedQuantity, []);
-    }
-    groups.get(normalizedQuantity)!.push(m);
-  }
-
-  return groups;
+  return clustered.groups;
 }
 
 /**
@@ -341,7 +348,8 @@ function formatMeasurement(value: number, uncertainty: number): string {
  * Detect conflicts between measurements in a set of papers
  */
 export async function detectConflicts(
-  params: ConflictDetectionParams
+  params: ConflictDetectionParams,
+  ctx: QuantitySamplingContext = {}
 ): Promise<ConflictDetectionResult> {
   const {
     recids,
@@ -427,14 +435,15 @@ export async function detectConflicts(
     if (pdg.warning) warnings.push(pdg.warning);
   }
 
-  // Group measurements by quantity
-  const groups = groupByQuantity(allMeasurements);
+  // Group measurements by semantic quantity
+  const groups = await groupByQuantitySemantic(allMeasurements, ctx, warnings);
 
   // Detect conflicts and compatible groups
   const conflicts: ConflictAnalysis[] = [];
   const compatibleGroups: CompatibleGroup[] = [];
 
-  for (const [quantity, measurements] of groups.entries()) {
+  for (const [quantityKey, measurements] of groups.entries()) {
+    const quantity = pickQuantityDisplayLabel(measurements, quantityKey);
     // Skip if only one measurement
     if (measurements.length < 2) continue;
 

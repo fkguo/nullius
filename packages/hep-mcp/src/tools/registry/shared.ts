@@ -1,4 +1,9 @@
-import { HEP_RENDER_LATEX, HEP_RUN_BUILD_PDF_EVIDENCE } from '@autoresearch/shared';
+import {
+  DiscoveryProviderDescriptorSchema,
+  HEP_RENDER_LATEX,
+  HEP_RUN_BUILD_PDF_EVIDENCE,
+  type DiscoveryProviderDescriptor,
+} from '@autoresearch/shared';
 import { zodToMcpInputSchema } from '../mcpSchema.js';
 import {
   type ToolExposure,
@@ -13,7 +18,8 @@ import {
 import { INSPIRE_TOOL_SPECS } from './inspire.js';
 import { ZOTERO_TOOL_SPECS } from './zotero.js';
 import { PDG_TOOL_SPECS } from './pdg.js';
-import { OPENALEX_TOOL_SPECS } from './openalex.js';
+import { ARXIV_DISCOVERY_DESCRIPTOR } from '@autoresearch/arxiv-mcp/tooling';
+import { OPENALEX_DISCOVERY_DESCRIPTOR, OPENALEX_TOOL_SPECS } from './openalex.js';
 import {
   PROJECT_CORE_TOOL_SPECS,
   PROJECT_CITATION_TOOL_SPECS,
@@ -30,6 +36,28 @@ export type {
 };
 
 export { isAdvancedToolSpec, isToolExposed };
+
+
+export const INSPIRE_DISCOVERY_DESCRIPTOR: DiscoveryProviderDescriptor = DiscoveryProviderDescriptorSchema.parse({
+  provider: 'inspire',
+  display_name: 'INSPIRE-HEP',
+  capabilities: {
+    supports_keyword_search: true,
+    supports_semantic_search: false,
+    supports_citation_graph: true,
+    supports_fulltext: true,
+    supports_source_download: true,
+    supports_open_access_content: true,
+  },
+  supported_intents: ['known_item', 'keyword_search', 'citation_expansion', 'fulltext_search'],
+  notes: 'Kickoff descriptor for NEW-DISC-01. Canonical identity, dedup, and search-log artifacts remain Batch 13–14 work.',
+});
+
+export const DISCOVERY_PROVIDER_DESCRIPTORS: DiscoveryProviderDescriptor[] = [
+  INSPIRE_DISCOVERY_DESCRIPTOR,
+  OPENALEX_DISCOVERY_DESCRIPTOR,
+  ARXIV_DISCOVERY_DESCRIPTOR,
+];
 
 const projectCoreRenderLatexIndex = PROJECT_CORE_TOOL_SPECS.findIndex(spec => spec.name === HEP_RENDER_LATEX);
 const projectCoreBuildPdfIndex = PROJECT_CORE_TOOL_SPECS.findIndex(spec => spec.name === HEP_RUN_BUILD_PDF_EVIDENCE);

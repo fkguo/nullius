@@ -1,6 +1,6 @@
 {
-  "evalSetName": "demo_retrieval",
-  "module": "SEM-00",
+  "evalSetName": "retrieval_demo",
+  "module": "SEM-06",
   "timestamp": "2026-03-04T00:00:00.000Z",
   "metrics": {
     "recall_at_10": 0.75,
@@ -8,3 +8,4 @@
   },
   "evalSetVersion": 1
 }
+

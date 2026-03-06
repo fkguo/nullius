@@ -78,6 +78,15 @@ export interface QueryEvidenceHit {
   score: number;
   text_preview: string;
   locator: LatexLocatorV1 | PdfLocatorV1;
+  /** Optional retrieval metadata (SEM track). */
+  retrieval_mode?: string;
+  rank?: number;
+  /** Optional semantic signals (SEM-06). */
+  semantic_score?: number;
+  token_overlap_ratio?: number;
+  importance_score?: number;
+  /** Optional explanation fields. */
+  matched_tokens?: string[];
 }
 
 export interface QueryEvidenceResult {

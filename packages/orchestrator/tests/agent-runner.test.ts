@@ -104,6 +104,124 @@ describe('AgentRunner', () => {
     expect(createFn).toHaveBeenCalledTimes(2);
   });
 
+  it('routing config: direct route key resolves to backend model', async () => {
+    const createFn = vi.fn().mockResolvedValue(textResponse('routed'));
+    const runner = new AgentRunner({
+      model: 'fast',
+      runId: 'run-route-direct',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      routingConfig: {
+        version: 1,
+        default_route: 'fast',
+        routes: {
+          fast: { backend: 'anthropic', model: 'claude-sonnet-4-6', max_tokens: 2048 },
+        },
+        use_cases: {},
+      },
+      _messagesCreate: createFn,
+    });
+
+    await collectEvents(runner.run([{ role: 'user', content: 'route me' }], TOOLS));
+
+    expect(createFn).toHaveBeenCalledTimes(1);
+    expect(createFn.mock.calls[0]?.[0]).toMatchObject({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+    });
+  });
+
+
+
+  it('default routing config uses the shared default max token budget', async () => {
+    const createFn = vi.fn().mockResolvedValue(textResponse('default-route'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-route-default-budget',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    await collectEvents(runner.run([{ role: 'user', content: 'default budget' }], TOOLS));
+
+    expect(createFn.mock.calls[0]?.[0]).toMatchObject({
+      model: 'claude-opus-4-6',
+      max_tokens: 8192,
+    });
+  });
+
+  it('routing config: use-case alias resolves via JSON loader', async () => {
+    const createFn = vi.fn().mockResolvedValue(textResponse('aliased'));
+    const runner = new AgentRunner({
+      model: 'analysis',
+      runId: 'run-route-alias',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      routingConfig: JSON.stringify({
+        version: 1,
+        default_route: 'balanced',
+        routes: {
+          balanced: { backend: 'anthropic', model: 'claude-opus-4-6', max_tokens: 4096 },
+        },
+        use_cases: { analysis: 'balanced' },
+      }),
+      _messagesCreate: createFn,
+    });
+
+    await collectEvents(runner.run([{ role: 'user', content: 'alias me' }], TOOLS));
+
+    expect(createFn.mock.calls[0]?.[0]).toMatchObject({
+      model: 'claude-opus-4-6',
+      max_tokens: 4096,
+    });
+  });
+
+  it('routing config: unknown route key fails closed', async () => {
+    expect(() => new AgentRunner({
+      model: 'missing',
+      runId: 'run-route-missing',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      routingConfig: {
+        version: 1,
+        default_route: 'default',
+        routes: {
+          default: { backend: 'anthropic', model: 'claude-sonnet-4-6' },
+        },
+        use_cases: {},
+      },
+      _messagesCreate: vi.fn(),
+    })).toThrow(/Unknown route key/);
+  });
+
+  it('routing config: invalid JSON and unknown backend fail closed', async () => {
+    expect(() => new AgentRunner({
+      model: 'default',
+      runId: 'run-route-json',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      routingConfig: '{bad json',
+      _messagesCreate: vi.fn(),
+    })).toThrow(/Invalid routing config JSON/);
+
+    expect(() => new AgentRunner({
+      model: 'default',
+      runId: 'run-route-backend',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      routingConfig: {
+        version: 1,
+        default_route: 'default',
+        routes: {
+          default: { backend: 'unknown', model: 'x' },
+        },
+        use_cases: {},
+      },
+      _messagesCreate: vi.fn(),
+    })).toThrow();
+  });
+
   it('maxTurns enforcement: emits done with max_turns stopReason', async () => {
     // Always return a tool_use so the loop never terminates on its own
     const createFn = vi.fn().mockResolvedValue(toolUseResponse('tu_x', 'do_thing'));

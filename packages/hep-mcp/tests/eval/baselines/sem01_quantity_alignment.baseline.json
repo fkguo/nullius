@@ -1,0 +1,20 @@
+{
+  "evalSetName": "sem01_quantity_alignment",
+  "module": "SEM-01",
+  "timestamp": "2026-03-05T00:00:00.000Z",
+  "metrics": {
+    "wrong_merge_rate_overall": 0.043478260869565216,
+    "false_split_rate_overall": 0.13793103448275862,
+    "pairwise_f1_overall": 0.6046511627906977,
+    "abstention_rate_overall": 0.41379310344827586,
+    "wrong_merge_rate_long_tail": 0,
+    "false_split_rate_long_tail": 0.18181818181818182,
+    "pairwise_f1_long_tail": 0.5333333333333333,
+    "abstention_rate_long_tail": 0.45454545454545453,
+    "wrong_merge_rate_ood": 0,
+    "false_split_rate_ood": 0,
+    "pairwise_f1_ood": 1,
+    "abstention_rate_ood": 0
+  },
+  "evalSetVersion": 1
+}

@@ -1,0 +1,507 @@
+{
+  "name": "sem01_quantity_alignment",
+  "version": 1,
+  "description": "Quantity/entity alignment regression set (pairs). Tags include long_tail/ood; locked holdout lives in a separate fixture.",
+  "module": "SEM-01",
+  "cases": [
+    {
+      "id": "qpair_001",
+      "input": {
+        "a": { "quantity": "mass of X(3872)", "context": "We measure the mass of X(3872): 3871.69 ± 0.17 MeV.", "unit": "MeV" },
+        "b": { "quantity": "m_{X(3872)}", "context": "The value of m_{X(3872)} is 3871.69 ± 0.17 MeV.", "unit": "MeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "mass:X(3872)" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_002",
+      "input": {
+        "a": { "quantity": "m_{X(3872)}", "context": "We quote m_{X(3872)} = 3.87169 ± 0.00017 GeV.", "unit": "GeV" },
+        "b": { "quantity": "mass of X(3872)", "context": "The mass of X(3872) is 3871.69 ± 0.17 MeV.", "unit": "MeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "mass:X(3872)" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_003",
+      "input": {
+        "a": { "quantity": "decay width of X(3872)", "context": "We obtain the decay width of X(3872): 1.2 ± 0.3 MeV.", "unit": "MeV" },
+        "b": { "quantity": "\\Gamma_{X(3872)}", "context": "The total width \\Gamma_{X(3872)} is constrained to 1.2 ± 0.3 MeV.", "unit": "MeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "width:X(3872)" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_004",
+      "input": {
+        "a": { "quantity": "lifetime of B^0", "context": "The lifetime of B^0 is 1.520 ± 0.004 ps.", "unit": "ps" },
+        "b": { "quantity": "\\tau_{B^0}", "context": "We use \\tau_{B^0} = 1.520 ± 0.004 ps.", "unit": "ps" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "lifetime:B0" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_005",
+      "input": {
+        "a": { "quantity": "branching ratio", "context": "We measure the branching ratio B(B\\to K^*\\mu^+\\mu^-) = (1.1 ± 0.2)×10^{-6}.", "unit": "" },
+        "b": { "quantity": "\\mathcal{B}(B\\to K^*\\mu^+\\mu^-)", "context": "The branching fraction \\mathcal{B}(B\\to K^*\\mu^+\\mu^-) is (1.1 ± 0.2)×10^{-6}.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "branching_ratio:B->K*mu+mu-" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_006",
+      "input": {
+        "a": { "quantity": "cross section", "context": "The inclusive cross section for pp→H at 13 TeV is 55.0 ± 2.0 pb.", "unit": "pb" },
+        "b": { "quantity": "\\sigma(pp\\to H)", "context": "We take \\sigma(pp\\to H) = 55.0 ± 2.0 pb.", "unit": "pb" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "cross_section:pp->H" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_007",
+      "input": {
+        "a": { "quantity": "strong coupling", "context": "We extract the strong coupling α_s(m_Z) = 0.1181(11).", "unit": "" },
+        "b": { "quantity": "\\alpha_s(m_Z)", "context": "The value \\alpha_s(m_Z)=0.1181(11) is used throughout.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "coupling:alpha_s(mZ)" },
+      "tags": ["normal", "long_tail"]
+    },
+    {
+      "id": "qpair_008",
+      "input": {
+        "a": { "quantity": "weak mixing angle", "context": "The weak mixing angle is sin^2\\theta_W = 0.23122 ± 0.00003.", "unit": "" },
+        "b": { "quantity": "sin^2 theta_W", "context": "We report sin^2 theta_W = 0.23122 ± 0.00003.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "mixing_angle:theta_W" },
+      "tags": ["normal", "long_tail"]
+    },
+
+    {
+      "id": "qpair_010",
+      "input": {
+        "a": { "quantity": "mass of X(3872)", "context": "m_{X(3872)} = 3871.69 ± 0.17 MeV.", "unit": "MeV" },
+        "b": { "quantity": "mass of J/psi", "context": "m_{J/\\psi} = 3096.90 ± 0.006 MeV.", "unit": "MeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "mass:X(3872)" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_011",
+      "input": {
+        "a": { "quantity": "m_H", "context": "The Higgs boson mass is m_H = 125.10 ± 0.14 GeV.", "unit": "GeV" },
+        "b": { "quantity": "m_Z", "context": "The Z boson mass is m_Z = 91.1876 ± 0.0021 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "mass:H" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_012",
+      "input": {
+        "a": { "quantity": "width of Higgs", "context": "The Higgs total width is \\Gamma_H = 4.07 ± 0.16 MeV.", "unit": "MeV" },
+        "b": { "quantity": "mass of Higgs", "context": "The Higgs mass is m_H = 125.10 ± 0.14 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "width:H" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_013",
+      "input": {
+        "a": { "quantity": "\\Gamma_{X(3872)}", "context": "We constrain \\Gamma_{X(3872)} = 1.2 ± 0.3 MeV.", "unit": "MeV" },
+        "b": { "quantity": "\\tau_{X(3872)}", "context": "Assuming a lifetime \\tau_{X(3872)} = 0.5 ± 0.1 ps.", "unit": "ps" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "width:X(3872)" },
+      "tags": ["normal", "long_tail"]
+    },
+    {
+      "id": "qpair_014",
+      "input": {
+        "a": { "quantity": "cross section", "context": "We measure the cross section σ(pp→Z) = 2.0 ± 0.1 nb.", "unit": "nb" },
+        "b": { "quantity": "cross section", "context": "We measure the cross section σ(pp→H) = 55.0 ± 2.0 pb.", "unit": "pb" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "cross_section:pp->Z" },
+      "tags": ["normal", "long_tail"]
+    },
+    {
+      "id": "qpair_015",
+      "input": {
+        "a": { "quantity": "branching ratio", "context": "BR(H→bb) = 0.58 ± 0.02.", "unit": "" },
+        "b": { "quantity": "branching ratio", "context": "BR(H→\\gamma\\gamma) = (2.27 ± 0.07)×10^{-3}.", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "branching_ratio:H->bb" },
+      "tags": ["normal", "long_tail"]
+    },
+
+    {
+      "id": "qpair_020",
+      "input": {
+        "a": { "quantity": "magnetic moment", "context": "The magnetic moment of the proton is 2.792847 ± 0.000001 \\mu_N.", "unit": "\\mu_N" },
+        "b": { "quantity": "\\mu_p", "context": "We use \\mu_p = 2.792847 \\mu_N.", "unit": "\\mu_N" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "magnetic_moment:proton" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_021",
+      "input": {
+        "a": { "quantity": "neutron EDM", "context": "The neutron electric dipole moment is d_n < 1.0×10^{-26} e·cm.", "unit": "e·cm" },
+        "b": { "quantity": "electric dipole moment of neutron", "context": "We set an upper bound on the electric dipole moment of the neutron: d_n < 1.0×10^{-26} e·cm.", "unit": "e·cm" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "electric_dipole_moment:neutron" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_022",
+      "input": {
+        "a": { "quantity": "temperature", "context": "The detector temperature is 120 ± 5 K during operation.", "unit": "K" },
+        "b": { "quantity": "mass", "context": "The mass is 125.10 ± 0.14 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "temperature:detector" },
+      "tags": ["ood"]
+    },
+    {
+      "id": "qpair_023",
+      "input": {
+        "a": { "quantity": "classification accuracy", "context": "The classification accuracy is 92.3 ± 0.4%.", "unit": "%" },
+        "b": { "quantity": "precision", "context": "The precision is 0.88 ± 0.02.", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "accuracy:model" },
+      "tags": ["ood"]
+    },
+    {
+      "id": "qpair_024",
+      "input": {
+        "a": { "quantity": "loss", "context": "The validation loss decreases to 0.031 ± 0.004.", "unit": "" },
+        "b": { "quantity": "perplexity", "context": "The perplexity is 23.1 ± 0.5.", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "loss:model" },
+      "tags": ["ood"]
+    },
+
+    {
+      "id": "qpair_030",
+      "input": {
+        "a": { "quantity": "m", "context": "We report m = 1.23 ± 0.04.", "unit": "" },
+        "b": { "quantity": "m", "context": "We report m = 4.56 ± 0.07.", "unit": "" }
+      },
+      "expected": { "relation": "uncertain", "canonical_quantity": "unknown" },
+      "tags": ["long_tail", "ambiguous"]
+    },
+    {
+      "id": "qpair_031",
+      "input": {
+        "a": { "quantity": "ratio", "context": "The ratio is 0.91 ± 0.03.", "unit": "" },
+        "b": { "quantity": "fraction", "context": "The fraction is 0.91 ± 0.03.", "unit": "" }
+      },
+      "expected": { "relation": "uncertain", "canonical_quantity": "unknown" },
+      "tags": ["long_tail", "ambiguous"]
+    },
+    {
+      "id": "qpair_032",
+      "input": {
+        "a": { "quantity": "coupling", "context": "We find g = 0.12 ± 0.01.", "unit": "" },
+        "b": { "quantity": "coupling", "context": "We find g = 0.13 ± 0.01.", "unit": "" }
+      },
+      "expected": { "relation": "uncertain", "canonical_quantity": "unknown" },
+      "tags": ["ambiguous"]
+    },
+
+    {
+      "id": "qpair_033",
+      "input": {
+        "a": { "quantity": "anomalous magnetic moment of the muon", "context": "We discuss the muon anomalous magnetic moment a_μ = (g-2)_μ/2.", "unit": "" },
+        "b": { "quantity": "(g-2)_μ", "context": "The muon (g-2) is reported as (g-2)_μ = 0.00233184 ± 0.00000008.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "anomalous_magnetic_moment:muon" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_034",
+      "input": {
+        "a": { "quantity": "a_mu", "context": "We use a_μ = (g-2)_μ/2 in the fit.", "unit": "" },
+        "b": { "quantity": "muon anomalous magnetic moment", "context": "The muon anomalous magnetic moment a_μ is a precision test of the SM.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "anomalous_magnetic_moment:muon" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_035",
+      "input": {
+        "a": { "quantity": "electron EDM", "context": "We set a limit on the electron electric dipole moment: d_e < 1.1×10^{-29} e·cm.", "unit": "e·cm" },
+        "b": { "quantity": "electric dipole moment of the electron", "context": "The electric dipole moment of the electron d_e is constrained at the 10^{-29} e·cm level.", "unit": "e·cm" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "electric_dipole_moment:electron" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_036",
+      "input": {
+        "a": { "quantity": "proton charge radius", "context": "The proton charge radius is r_p = 0.8409 ± 0.0004 fm.", "unit": "fm" },
+        "b": { "quantity": "r_p", "context": "We quote r_p = 0.8409 ± 0.0004 fm for the proton charge radius.", "unit": "fm" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "charge_radius:proton" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_037",
+      "input": {
+        "a": { "quantity": "proton charge radius", "context": "r_p = 0.8409 ± 0.0004 fm.", "unit": "fm" },
+        "b": { "quantity": "neutron charge radius", "context": "The neutron charge radius is r_n^2 = -0.1161 ± 0.0022 fm^2.", "unit": "fm^2" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "charge_radius:proton" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_038",
+      "input": {
+        "a": { "quantity": "pion decay constant", "context": "We use the pion decay constant f_π = 92.28 ± 0.03 MeV.", "unit": "MeV" },
+        "b": { "quantity": "f_pi", "context": "The value f_π = 92.28 ± 0.03 MeV is taken as input.", "unit": "MeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "decay_constant:pion" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_039",
+      "input": {
+        "a": { "quantity": "kaon decay constant", "context": "The kaon decay constant is f_K = 155.7 ± 0.3 MeV.", "unit": "MeV" },
+        "b": { "quantity": "f_K", "context": "We use f_K = 155.7 ± 0.3 MeV.", "unit": "MeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "decay_constant:kaon" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_040",
+      "input": {
+        "a": { "quantity": "pion decay constant", "context": "f_π = 92.28 MeV.", "unit": "MeV" },
+        "b": { "quantity": "kaon decay constant", "context": "f_K = 155.7 MeV.", "unit": "MeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "decay_constant:pion" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_041",
+      "input": {
+        "a": { "quantity": "CKM element V_cb", "context": "We extract |V_cb| = (42.2 ± 0.8)×10^{-3}.", "unit": "" },
+        "b": { "quantity": "|V_cb|", "context": "The magnitude |V_cb| is a key CKM input.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "ckm:Vcb" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_042",
+      "input": {
+        "a": { "quantity": "|V_cb|", "context": "We quote |V_cb| = 0.0422 ± 0.0008.", "unit": "" },
+        "b": { "quantity": "|V_ub|", "context": "We quote |V_ub| = 0.0037 ± 0.0001.", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "ckm:Vcb" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_043",
+      "input": {
+        "a": { "quantity": "sigma_{pi N}", "context": "The pion-nucleon sigma term σ_{πN} is found to be 45 ± 6 MeV.", "unit": "MeV" },
+        "b": { "quantity": "pion-nucleon sigma term", "context": "We adopt σ_{πN} = 45 ± 6 MeV for the pion-nucleon sigma term.", "unit": "MeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "sigma_term:piN" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_044",
+      "input": {
+        "a": { "quantity": "sigma_{pi N}", "context": "σ_{πN} = 45 ± 6 MeV.", "unit": "MeV" },
+        "b": { "quantity": "sigma(pp->H)", "context": "The production cross section σ(pp→H) = 55.0 ± 2.0 pb at 13 TeV.", "unit": "pb" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "sigma_term:piN" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_045",
+      "input": {
+        "a": { "quantity": "Weinberg angle", "context": "We use the weak mixing angle sin^2θ_W = 0.23122 ± 0.00003.", "unit": "" },
+        "b": { "quantity": "sin^2 theta_W", "context": "The value sin^2 theta_W = 0.23122 ± 0.00003 is used.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "mixing_angle:theta_W" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_046",
+      "input": {
+        "a": { "quantity": "fine-structure constant", "context": "We take α = 1/137.035999.", "unit": "" },
+        "b": { "quantity": "alpha_s(mZ)", "context": "We use α_s(m_Z) = 0.1181(11).", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "coupling:alpha_em" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_047",
+      "input": {
+        "a": { "quantity": "integrated luminosity", "context": "The dataset corresponds to an integrated luminosity of 140 fb^{-1}.", "unit": "/fb" },
+        "b": { "quantity": "L_int", "context": "We use L_int = 140 fb^{-1} for the integrated luminosity.", "unit": "/fb" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "luminosity:integrated" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_048",
+      "input": {
+        "a": { "quantity": "integrated luminosity", "context": "L_int = 140 fb^{-1}.", "unit": "/fb" },
+        "b": { "quantity": "instantaneous luminosity", "context": "The instantaneous luminosity reaches 2×10^{34} cm^{-2}s^{-1}.", "unit": "cm^-2" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "luminosity:integrated" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_049",
+      "input": {
+        "a": { "quantity": "sigma_tot", "context": "The total cross section is σ_tot = 100 ± 5 mb.", "unit": "mb" },
+        "b": { "quantity": "total cross section", "context": "We quote the total cross section σ_tot = 100 ± 5 mb.", "unit": "mb" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "cross_section:total" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_050",
+      "input": {
+        "a": { "quantity": "sigma(pp->H)", "context": "σ(pp→H) = 55.0 ± 2.0 pb at 13 TeV.", "unit": "pb" },
+        "b": { "quantity": "sigma(e+e-->ZH)", "context": "σ(e^+e^-→ZH) = 0.2 ± 0.01 pb at √s=250 GeV.", "unit": "pb" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "cross_section:pp->H" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_051",
+      "input": {
+        "a": { "quantity": "BR(B->Xs gamma)", "context": "We use BR(B→X_sγ) = (3.32 ± 0.15)×10^{-4}.", "unit": "" },
+        "b": { "quantity": "branching fraction B->Xs gamma", "context": "The branching fraction for B→X_sγ is (3.32 ± 0.15)×10^{-4}.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "branching_ratio:B->Xs_gamma" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_052",
+      "input": {
+        "a": { "quantity": "BR(B->Xs gamma)", "context": "BR(B→X_sγ) = 3.3×10^{-4}.", "unit": "" },
+        "b": { "quantity": "BR(B->K* mu mu)", "context": "BR(B→K^*μ^+μ^-) = 1.1×10^{-6}.", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "branching_ratio:B->Xs_gamma" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_053",
+      "input": {
+        "a": { "quantity": "\\\\mathcal{B}(B\\\\to X_s\\\\gamma)", "context": "We take \\\\mathcal{B}(B→X_sγ) = (3.32 ± 0.15)×10^{-4}.", "unit": "" },
+        "b": { "quantity": "branching ratio", "context": "The branching ratio BR(B→X_sγ) is (3.32 ± 0.15)×10^{-4}.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "branching_ratio:B->Xs_gamma" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_054",
+      "input": {
+        "a": { "quantity": "solar mass-squared splitting", "context": "We use the solar splitting Δm^2_21 = 7.4×10^{-5} eV^2.", "unit": "eV^2" },
+        "b": { "quantity": "Δm^2_21", "context": "The parameter Δm^2_21 is taken as 7.4×10^{-5} eV^2.", "unit": "eV^2" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "mass_squared_difference:nu_21" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_055",
+      "input": {
+        "a": { "quantity": "Δm^2_21", "context": "Δm^2_21 = 7.4×10^{-5} eV^2.", "unit": "eV^2" },
+        "b": { "quantity": "Δm^2_31", "context": "Δm^2_31 = 2.5×10^{-3} eV^2.", "unit": "eV^2" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "mass_squared_difference:nu_21" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_056",
+      "input": {
+        "a": { "quantity": "baryon-to-photon ratio", "context": "We use the baryon-to-photon ratio η_B = 6.1×10^{-10}.", "unit": "" },
+        "b": { "quantity": "eta_B", "context": "The baryon asymmetry parameter η_B is about 6×10^{-10}.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "baryon_asymmetry:eta_B" },
+      "tags": ["long_tail", "ood"]
+    },
+    {
+      "id": "qpair_057",
+      "input": {
+        "a": { "quantity": "eta_B", "context": "η_B = 6×10^{-10}.", "unit": "" },
+        "b": { "quantity": "A_CP", "context": "We measure a direct CP asymmetry A_CP = -0.08 ± 0.02.", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "baryon_asymmetry:eta_B" },
+      "tags": ["long_tail", "ood"]
+    },
+    {
+      "id": "qpair_058",
+      "input": {
+        "a": { "quantity": "CP asymmetry", "context": "The direct CP asymmetry A_CP(B→Kπ) = -0.08 ± 0.02.", "unit": "" },
+        "b": { "quantity": "A_CP", "context": "We quote A_CP(B→Kπ) = -0.08 ± 0.02.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "cp_asymmetry:B->Kpi" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_059",
+      "input": {
+        "a": { "quantity": "A_CP(B->Kpi)", "context": "A_CP(B→Kπ) = -0.08 ± 0.02.", "unit": "" },
+        "b": { "quantity": "A_CP(B->K*gamma)", "context": "A_CP(B→K^*γ) = 0.01 ± 0.03.", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "cp_asymmetry:B->Kpi" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_060",
+      "input": {
+        "a": { "quantity": "QCD scale parameter", "context": "We take the QCD scale Λ_QCD ≈ 200 MeV.", "unit": "MeV" },
+        "b": { "quantity": "Lambda_QCD", "context": "The parameter Λ_QCD is around 0.2 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "scale:Lambda_QCD" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_061",
+      "input": {
+        "a": { "quantity": "Lambda_QCD", "context": "Λ_QCD ≈ 200 MeV.", "unit": "MeV" },
+        "b": { "quantity": "electroweak scale", "context": "The electroweak scale is v = 246 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "scale:Lambda_QCD" },
+      "tags": ["long_tail", "ood"]
+    },
+    {
+      "id": "qpair_062",
+      "input": {
+        "a": { "quantity": "top quark mass", "context": "We use the top quark mass m_t = 172.5 ± 0.7 GeV.", "unit": "GeV" },
+        "b": { "quantity": "m_t", "context": "The parameter m_t is set to 172.5 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "mass:top" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_063",
+      "input": {
+        "a": { "quantity": "top quark mass", "context": "m_t = 172.5 GeV.", "unit": "GeV" },
+        "b": { "quantity": "bottom quark mass", "context": "m_b = 4.18 ± 0.03 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "mass:top" },
+      "tags": ["normal"]
+    },
+    {
+      "id": "qpair_064",
+      "input": {
+        "a": { "quantity": "m_t", "context": "m_t = 172.5 ± 0.7 GeV.", "unit": "GeV" },
+        "b": { "quantity": "pole mass of the top quark", "context": "The top pole mass is m_t^{pole} = 172.5 ± 0.7 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "mass:top" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "qpair_065",
+      "input": {
+        "a": { "quantity": "pole mass of the top quark", "context": "m_t^{pole} = 172.5 GeV.", "unit": "GeV" },
+        "b": { "quantity": "MSbar mass of the top quark", "context": "The MS̄ mass is m_t(\\u0305MS) = 163.0 ± 1.0 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "mass:top_pole" },
+      "tags": ["long_tail", "ambiguous"]
+    }
+  ]
+}

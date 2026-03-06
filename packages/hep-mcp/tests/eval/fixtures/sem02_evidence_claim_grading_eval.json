@@ -1,0 +1,120 @@
+{
+  "name": "SEM-02 evidence claim grading",
+  "version": 1,
+  "description": "Offline eval set for claim → evidence → stance grading with hard semantic cases.",
+  "module": "sem02_evidence_claim_grading",
+  "cases": [
+    {
+      "id": "strong_support",
+      "input": {
+        "claim_text": "The branching ratio agrees with the Standard Model prediction.",
+        "evidence_items": [
+          { "evidence_ref": "paper:1:abstract", "evidence_text": "Our updated determination agrees with the Standard Model prediction." }
+        ],
+        "mock_responses": [
+          { "stance": "supported", "confidence": 0.96, "reason_code": "direct_support" }
+        ]
+      },
+      "expected": { "stance": "supported" },
+      "tags": ["overall"]
+    },
+    {
+      "id": "negation_flip",
+      "input": {
+        "claim_text": "The observed mass excludes values above 126 GeV.",
+        "evidence_items": [
+          { "evidence_ref": "paper:2:abstract", "evidence_text": "Our measurement is not inconsistent with a mass near 125 GeV and therefore does not contradict the exclusion claim." }
+        ],
+        "mock_responses": [
+          { "stance": "supported", "confidence": 0.88, "reason_code": "negated_claim" }
+        ]
+      },
+      "expected": { "stance": "supported" },
+      "tags": ["overall", "hard", "negation"]
+    },
+    {
+      "id": "hedged_support",
+      "input": {
+        "claim_text": "The lattice result favors a small positive asymmetry.",
+        "evidence_items": [
+          { "evidence_ref": "paper:3:abstract", "evidence_text": "The updated fit may be consistent with a small positive asymmetry, although uncertainties remain sizable." }
+        ],
+        "mock_responses": [
+          { "stance": "weak_support", "confidence": 0.67, "reason_code": "hedged_support" }
+        ]
+      },
+      "expected": { "stance": "weak_support" },
+      "tags": ["overall", "hard", "hedge"]
+    },
+    {
+      "id": "neutral_not_supported",
+      "input": {
+        "claim_text": "The cross section increases near threshold.",
+        "evidence_items": [
+          { "evidence_ref": "paper:4:abstract", "evidence_text": "We discuss detector calibration and event selection for the same process without quoting the threshold behavior." }
+        ],
+        "mock_responses": [
+          { "stance": "not_supported", "confidence": 0.22, "reason_code": "no_relevant_evidence" }
+        ]
+      },
+      "expected": { "stance": "not_supported" },
+      "tags": ["overall", "hard"]
+    },
+    {
+      "id": "conflicting_evidence",
+      "input": {
+        "claim_text": "The form factor is consistent with vector-meson dominance.",
+        "evidence_items": [
+          { "evidence_ref": "paper:5:abstract", "evidence_text": "Our dispersive fit is in strong tension with vector-meson dominance for the quoted form factor." }
+        ],
+        "mock_responses": [
+          { "stance": "conflicting", "confidence": 0.91, "reason_code": "conflicting_evidence" }
+        ]
+      },
+      "expected": { "stance": "conflicting" },
+      "tags": ["overall", "hard", "conflict"]
+    },
+    {
+      "id": "same_topic_different_claim",
+      "input": {
+        "claim_text": "The mass of X(3872) is below 3872 MeV.",
+        "evidence_items": [
+          { "evidence_ref": "paper:6:abstract", "evidence_text": "We present a new determination of the width of X(3872) with improved systematics." }
+        ],
+        "mock_responses": [
+          { "stance": "not_supported", "confidence": 0.18, "reason_code": "same_topic_different_claim" }
+        ]
+      },
+      "expected": { "stance": "not_supported" },
+      "tags": ["overall", "hard", "topic_confusion"]
+    },
+    {
+      "id": "mixed_bundle",
+      "input": {
+        "claim_text": "The decay rate is compatible with the HQET expectation.",
+        "evidence_items": [
+          { "evidence_ref": "paper:7:abstract", "evidence_text": "Our update is compatible with the HQET expectation within errors." },
+          { "evidence_ref": "paper:8:abstract", "evidence_text": "A lattice reanalysis finds a significant disagreement with the quoted decay rate." }
+        ],
+        "mock_responses": [
+          { "stance": "supported", "confidence": 0.84, "reason_code": "direct_support" },
+          { "stance": "conflicting", "confidence": 0.82, "reason_code": "conflicting_evidence" }
+        ]
+      },
+      "expected": { "stance": "mixed" },
+      "tags": ["overall", "hard", "conflict"]
+    },
+    {
+      "id": "invalid_response_fallback",
+      "input": {
+        "claim_text": "The resonance can be interpreted as a hadronic molecule.",
+        "evidence_items": [
+          { "evidence_ref": "paper:9:abstract", "evidence_text": "The review discusses multiple interpretations of the resonance without endorsing one claim." }
+        ],
+        "mock_responses": ["INVALID"]
+      },
+      "expected": { "stance": "not_supported" },
+      "tags": ["overall", "hard", "fallback"]
+    }
+  ]
+}

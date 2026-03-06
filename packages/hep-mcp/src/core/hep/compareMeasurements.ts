@@ -13,6 +13,8 @@ import { writeRunJsonArtifact } from '../citations.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
 import { startRunStep, completeRunStep } from '../zotero/runSteps.js';
 import { canonicalizeUnit } from '../../tools/research/config.js';
+import { clusterByQuantity } from '../semantics/quantityClustering.js';
+import type { QuantitySamplingContext } from '../semantics/quantityAdjudicator.js';
 
 interface CompareInputRun {
   run_id: string;
@@ -100,6 +102,28 @@ function nowIso(): string {
 
 function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');
+}
+
+function pickQuantityDisplayLabel(rows: CompareMeasurementEndpoint[]): string {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const candidate = (row.quantity_normalized || row.quantity_hint || '').trim();
+    if (!candidate) continue;
+    counts.set(candidate, (counts.get(candidate) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = -1;
+  for (const [candidate, count] of counts.entries()) {
+    if (count > bestCount) {
+      best = candidate;
+      bestCount = count;
+      continue;
+    }
+    if (count === bestCount && best !== null && candidate.localeCompare(best) < 0) {
+      best = candidate;
+    }
+  }
+  return best ?? 'unknown';
 }
 
 function asFiniteNumber(value: unknown): number | null {
@@ -354,6 +378,7 @@ export async function compareProjectMeasurements(params: {
   max_flags: number;
   include_not_comparable: boolean;
   output_artifact_name?: string;
+  createMessage?: QuantitySamplingContext['createMessage'];
   budget_hints?: {
     max_flags_provided?: boolean;
   };
@@ -434,12 +459,54 @@ export async function compareProjectMeasurements(params: {
     }
 
     const allMeasurements = resolvedInputs.flatMap(item => item.measurements);
-    const groups = new Map<string, CompareMeasurementEndpoint[]>();
-    for (const row of allMeasurements) {
-      const arr = groups.get(row.quantity_normalized) ?? [];
-      arr.push(row);
-      groups.set(row.quantity_normalized, arr);
+
+    const maxQuantityComparisons = budget.resolveInt({
+      key: 'hep.compare_measurements.quantity_semantic.max_comparisons',
+      dimension: 'budget',
+      unit: 'comparisons',
+      default_value: 400,
+      min: 0,
+      max: 20_000,
+    });
+
+    const clustered = await clusterByQuantity({
+      items: allMeasurements.map(endpoint => ({
+        item: endpoint,
+        mention: {
+          quantity: endpoint.quantity_hint || endpoint.quantity_normalized,
+          context: endpoint.source_text_preview ?? '',
+          unit: endpoint.unit,
+        },
+      })),
+      ctx: { createMessage: params.createMessage },
+      max_comparisons: maxQuantityComparisons,
+      min_match_confidence: 0.6,
+      prompt_version: 'v1',
+    });
+
+    if (clustered.stats.budget_exhausted) {
+      const message = `Quantity semantic budget exhausted at max_comparisons=${maxQuantityComparisons}; remaining items were conservatively split.`;
+      warnings.push(message);
+      budget.recordHit({
+        key: 'hep.compare_measurements.quantity_semantic.max_comparisons',
+        dimension: 'budget',
+        unit: 'comparisons',
+        limit: maxQuantityComparisons,
+        observed: clustered.stats.comparisons,
+        action: 'cap',
+        message,
+        data: clustered.stats,
+      });
+    } else {
+      budget.warn({
+        severity: 'info',
+        code: 'quantity_semantic',
+        message: `Quantity semantic clustering: groups=${clustered.groups.size}, comparisons=${clustered.stats.comparisons}, llm_used=${clustered.stats.llm_used}.`,
+        data: clustered.stats,
+      });
     }
+
+    const groups = clustered.groups;
 
     const flagCandidates: CompareMeasurementFlag[] = [];
     const flags: CompareMeasurementFlag[] = [];
@@ -467,7 +534,8 @@ export async function compareProjectMeasurements(params: {
       }
     };
 
-    for (const [quantity, rows] of groups.entries()) {
+    for (const [quantityKey, rows] of groups.entries()) {
+      const quantityDisplay = pickQuantityDisplayLabel(rows);
       for (let i = 0; i < rows.length; i += 1) {
         for (let j = i + 1; j < rows.length; j += 1) {
           const lhs = rows[i]!;
@@ -479,7 +547,7 @@ export async function compareProjectMeasurements(params: {
 
           if (lhs.paper_id === rhs.paper_id && lhs.measurement_id === rhs.measurement_id) {
             pushNotComparable({
-              quantity_normalized: quantity,
+              quantity_normalized: quantityDisplay,
               reason: 'duplicate_source',
               lhs,
               rhs,
@@ -489,7 +557,7 @@ export async function compareProjectMeasurements(params: {
 
           if (!lhs.unit || !rhs.unit) {
             pushNotComparable({
-              quantity_normalized: quantity,
+              quantity_normalized: quantityDisplay,
               reason: 'missing_unit',
               lhs,
               rhs,
@@ -499,7 +567,7 @@ export async function compareProjectMeasurements(params: {
 
           if (lhs.unit !== rhs.unit) {
             pushNotComparable({
-              quantity_normalized: quantity,
+              quantity_normalized: quantityDisplay,
               reason: 'unit_mismatch',
               lhs,
               rhs,
@@ -511,7 +579,7 @@ export async function compareProjectMeasurements(params: {
           const rhsSigma = rhs.uncertainty;
           if (!(typeof lhsSigma === 'number' && lhsSigma > 0) || !(typeof rhsSigma === 'number' && rhsSigma > 0)) {
             pushNotComparable({
-              quantity_normalized: quantity,
+              quantity_normalized: quantityDisplay,
               reason: 'missing_uncertainty',
               lhs,
               rhs,
@@ -522,7 +590,7 @@ export async function compareProjectMeasurements(params: {
           const sigmaCombined = Math.hypot(lhsSigma, rhsSigma);
           if (!(sigmaCombined > 0)) {
             pushNotComparable({
-              quantity_normalized: quantity,
+              quantity_normalized: quantityDisplay,
               reason: 'non_positive_combined_sigma',
               lhs,
               rhs,
@@ -540,7 +608,7 @@ export async function compareProjectMeasurements(params: {
           const roundedDelta = Number(absDelta.toFixed(6));
           const roundedCombined = Number(sigmaCombined.toFixed(6));
           const flagId = `f_${sha256Hex(JSON.stringify({
-            quantity,
+            quantity: quantityKey,
             lhs: lhs.measurement_id,
             rhs: rhs.measurement_id,
             z: roundedZScore,
@@ -549,7 +617,7 @@ export async function compareProjectMeasurements(params: {
           flagCandidates.push({
             flag_id: flagId,
             reason: 'pairwise_tension',
-            quantity_normalized: quantity,
+            quantity_normalized: quantityDisplay,
             unit: lhs.unit,
             z_score: roundedZScore,
             abs_delta: roundedDelta,
@@ -623,7 +691,7 @@ export async function compareProjectMeasurements(params: {
         notes: [
           'This tool is a flagging mechanism, not a world-average combiner.',
           'Pairwise z-scores can miss correlated systematic effects; treat flags as review triggers.',
-          'Quantity matching is lexical on quantity_normalized; semantically equivalent symbols may need manual harmonization.',
+          'Quantity grouping uses semantic adjudication (MCP sampling when available) with conservative fallback that avoids merging on low confidence.',
           'Duplicate-source guard uses paper_id + measurement_id; aliasing across extraction pipelines may require manual review.',
         ],
       },

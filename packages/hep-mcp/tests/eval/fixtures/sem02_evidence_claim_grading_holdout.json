@@ -1,0 +1,62 @@
+{
+  "name": "SEM-02 evidence claim grading holdout",
+  "version": 1,
+  "description": "Locked holdout for SEM-02 claim → evidence → stance grading.",
+  "module": "sem02_evidence_claim_grading",
+  "cases": [
+    {
+      "id": "holdout_negation",
+      "input": {
+        "claim_text": "The anomaly is not compatible with the baseline fit.",
+        "evidence_items": [
+          { "evidence_ref": "paper:h1:abstract", "evidence_text": "The updated combination does not remove the anomaly and remains inconsistent with the baseline fit." }
+        ],
+        "mock_responses": [
+          { "stance": "supported", "confidence": 0.86, "reason_code": "negated_claim" }
+        ]
+      },
+      "expected": { "stance": "supported" },
+      "tags": ["hard", "negation"]
+    },
+    {
+      "id": "holdout_hedge",
+      "input": {
+        "claim_text": "The EFT coefficient is positive.",
+        "evidence_items": [
+          { "evidence_ref": "paper:h2:abstract", "evidence_text": "The fit may prefer a positive EFT coefficient, but the credible interval still overlaps zero." }
+        ],
+        "mock_responses": [
+          { "stance": "weak_support", "confidence": 0.61, "reason_code": "hedged_support" }
+        ]
+      },
+      "expected": { "stance": "weak_support" },
+      "tags": ["hard", "hedge"]
+    },
+    {
+      "id": "holdout_conflict",
+      "input": {
+        "claim_text": "The phase shift is smooth across threshold.",
+        "evidence_items": [
+          { "evidence_ref": "paper:h3:abstract", "evidence_text": "The coupled-channel solution shows a sharp cusp and therefore conflicts with the smooth-threshold claim." }
+        ],
+        "mock_responses": [
+          { "stance": "conflicting", "confidence": 0.9, "reason_code": "conflicting_evidence" }
+        ]
+      },
+      "expected": { "stance": "conflicting" },
+      "tags": ["hard", "conflict"]
+    },
+    {
+      "id": "holdout_fallback",
+      "input": {
+        "claim_text": "The coupling remains perturbative up to the cutoff.",
+        "evidence_items": [
+          { "evidence_ref": "paper:h4:abstract", "evidence_text": "The discussion surveys several UV completions without testing perturbativity up to the cutoff." }
+        ],
+        "mock_responses": ["INVALID"]
+      },
+      "expected": { "stance": "not_supported" },
+      "tags": ["hard", "fallback"]
+    }
+  ]
+}

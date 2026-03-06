@@ -43,6 +43,14 @@ describe('Stance Detection', () => {
 
         expect(result.stance).toBe('confirming');
       });
+
+
+      it('should not flip confirming stance when negation is outside the local guard window', () => {
+        const abstract = 'The result is not in any simple way consistent with earlier measurements of the Higgs mass.';
+        const result = analyzeCitationStance(abstract, claimKeywords);
+
+        expect(result.stance).toBe('confirming');
+      });
     });
 
     describe('contradicting patterns', () => {

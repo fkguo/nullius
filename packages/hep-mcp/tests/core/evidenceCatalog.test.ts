@@ -103,7 +103,7 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
     expect(queryPayload.total_hits).toBeGreaterThan(0);
     expect(queryPayload.hits.some(h => h.text_preview.includes('Content from subfile'))).toBe(true);
 
-    // Semantic query is fail-fast: requires embeddings built in the run.
+    // Semantic query falls back to lexical when embeddings are missing (SEM-06 policy).
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
     const run = JSON.parse(runRes.content[0].text) as { run_id: string };
 
@@ -114,13 +114,21 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
       limit: 3,
       types: ['paragraph'],
     });
-    expect(semanticRes.isError).toBe(true);
-    const semanticErr = JSON.parse(semanticRes.content[0].text) as {
-      error: { code: string; message: string; data?: any };
+    const semanticPayload = JSON.parse(semanticRes.content[0].text) as { artifacts?: Array<{ uri?: string }> };
+    const semanticArtifactUri = semanticPayload.artifacts?.[0]?.uri;
+    expect(semanticArtifactUri).toBeTruthy();
+    const semanticArtifact = JSON.parse(String((readHepResource(semanticArtifactUri!) as any).text)) as {
+      semantic?: { implemented?: boolean };
+      fallback?: { used?: boolean; reason?: string; data?: { next_actions?: Array<{ tool: string }> } };
+      result?: { hits?: Array<{ text_preview?: string }> };
     };
-    expect(semanticErr.error.code).toBe('INVALID_PARAMS');
-    expect(semanticErr.error.message).toContain('Semantic query requires embeddings.');
-    expect(semanticErr.error.message).toContain('hep_project_query_evidence (lexical)');
+    expect(semanticArtifact.semantic?.implemented).toBe(false);
+    expect(semanticArtifact.fallback?.used).toBe(true);
+    expect(semanticArtifact.fallback?.reason).toBe('missing_semantic_prerequisites');
+    const nextTools = (semanticArtifact.fallback?.data?.next_actions ?? []).map(a => a.tool);
+    expect(nextTools).toContain('hep_run_build_writing_evidence');
+    expect(nextTools).toContain('hep_project_query_evidence');
+    expect(semanticArtifact.result?.hits?.some(h => (h.text_preview ?? '').includes('Content from subfile'))).toBe(true);
   });
 
   it('regression: hep_project_query_evidence lexical mode matches default lexical path', async () => {
@@ -202,24 +210,30 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
       ...queryArgs,
       mode: 'semantic',
     });
-    expect(unifiedRes.isError).toBe(true);
-
-    const unifiedErr = JSON.parse(unifiedRes.content[0].text) as {
-      error: { code: string; message: string; data?: { next_actions?: Array<{ tool: string }> } };
+    const unifiedPayload = JSON.parse(unifiedRes.content[0].text) as { artifacts?: Array<{ uri?: string }> };
+    const unifiedArtifactUri = unifiedPayload.artifacts?.[0]?.uri;
+    expect(unifiedArtifactUri).toBeTruthy();
+    const unifiedArtifact = JSON.parse(String((readHepResource(unifiedArtifactUri!) as any).text)) as {
+      semantic?: { implemented?: boolean };
+      fallback?: { used?: boolean; reason?: string; data?: { next_actions?: Array<{ tool: string }> } };
     };
-    expect(unifiedErr.error.code).toBe('INVALID_PARAMS');
-    expect(unifiedErr.error.message).toContain('hep_run_build_writing_evidence');
-    expect(unifiedErr.error.message).toContain('hep_project_query_evidence (lexical)');
-    const nextTools = (unifiedErr.error.data?.next_actions ?? []).map(a => a.tool);
-    expect(nextTools).toContain('hep_run_build_writing_evidence');
+    expect(unifiedArtifact.semantic?.implemented).toBe(false);
+    expect(unifiedArtifact.fallback?.used).toBe(true);
+    expect(unifiedArtifact.fallback?.reason).toBe('missing_semantic_prerequisites');
+    const unifiedNextTools = (unifiedArtifact.fallback?.data?.next_actions ?? []).map(a => a.tool);
+    expect(unifiedNextTools).toContain('hep_run_build_writing_evidence');
 
     const legacyRes = await handleToolCall('hep_project_query_evidence_semantic', queryArgs);
-    expect(legacyRes.isError).toBe(true);
-    const legacyErr = JSON.parse(legacyRes.content[0].text) as {
-      error: { code: string; message: string };
+    const legacyPayload = JSON.parse(legacyRes.content[0].text) as { artifacts?: Array<{ uri?: string }> };
+    const legacyArtifactUri = legacyPayload.artifacts?.[0]?.uri;
+    expect(legacyArtifactUri).toBeTruthy();
+    const legacyArtifact = JSON.parse(String((readHepResource(legacyArtifactUri!) as any).text)) as {
+      semantic?: { implemented?: boolean };
+      fallback?: { used?: boolean; reason?: string };
     };
-    expect(legacyErr.error.code).toBe('INVALID_PARAMS');
-    expect(legacyErr.error.message).toBe(unifiedErr.error.message);
+    expect(legacyArtifact.semantic?.implemented).toBe(false);
+    expect(legacyArtifact.fallback?.used).toBe(true);
+    expect(legacyArtifact.fallback?.reason).toBe(unifiedArtifact.fallback?.reason);
   });
 
   it('mode=semantic without run_id returns actionable error and next_actions', async () => {

@@ -112,6 +112,8 @@ export async function performCriticalResearch(
         recid: recids[0],
         search_confirmations: options.search_confirmations,
         max_search_results: options.max_search_results,
+      }, {
+        createMessage: ctx.createMessage,
       });
       break;
     }
@@ -122,6 +124,8 @@ export async function performCriticalResearch(
         target_quantities: options.target_quantities,
         min_tension_sigma: options.min_tension_sigma,
         include_tables: options.include_tables,
+      }, {
+        createMessage: ctx.createMessage,
       });
       break;
     }

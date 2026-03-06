@@ -1,0 +1,78 @@
+{
+  "name": "sem06_evidence_retrieval",
+  "version": 1,
+  "description": "Semantic-first retrieval regression set. Gold is identified via GOLD### markers; decoys share query tokens to stress reranking.",
+  "module": "SEM-06",
+  "cases": [
+    { "id": "retr_001", "input": { "query": "topic001 effective coupling" }, "expected": { "relevant_phrases": ["GOLD001"] }, "tags": ["normal"] },
+    { "id": "retr_002", "input": { "query": "topic002 effective coupling" }, "expected": { "relevant_phrases": ["GOLD002"] }, "tags": ["normal"] },
+    { "id": "retr_003", "input": { "query": "topic003 effective coupling" }, "expected": { "relevant_phrases": ["GOLD003"] }, "tags": ["normal"] },
+    { "id": "retr_004", "input": { "query": "topic004 effective coupling" }, "expected": { "relevant_phrases": ["GOLD004"] }, "tags": ["normal"] },
+    { "id": "retr_005", "input": { "query": "topic005 effective coupling" }, "expected": { "relevant_phrases": ["GOLD005"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_006", "input": { "query": "topic006 effective coupling" }, "expected": { "relevant_phrases": ["GOLD006"] }, "tags": ["normal"] },
+    { "id": "retr_007", "input": { "query": "topic007 effective coupling" }, "expected": { "relevant_phrases": ["GOLD007"] }, "tags": ["normal"] },
+    { "id": "retr_008", "input": { "query": "topic008 effective coupling" }, "expected": { "relevant_phrases": ["GOLD008"] }, "tags": ["normal"] },
+    { "id": "retr_009", "input": { "query": "topic009 effective coupling" }, "expected": { "relevant_phrases": ["GOLD009"] }, "tags": ["normal"] },
+    { "id": "retr_010", "input": { "query": "topic010 effective coupling" }, "expected": { "relevant_phrases": ["GOLD010"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_011", "input": { "query": "topic011 effective coupling" }, "expected": { "relevant_phrases": ["GOLD011"] }, "tags": ["normal"] },
+    { "id": "retr_012", "input": { "query": "topic012 effective coupling" }, "expected": { "relevant_phrases": ["GOLD012"] }, "tags": ["normal"] },
+    { "id": "retr_013", "input": { "query": "topic013 effective coupling" }, "expected": { "relevant_phrases": ["GOLD013"] }, "tags": ["normal"] },
+    { "id": "retr_014", "input": { "query": "topic014 effective coupling" }, "expected": { "relevant_phrases": ["GOLD014"] }, "tags": ["normal"] },
+    { "id": "retr_015", "input": { "query": "topic015 effective coupling" }, "expected": { "relevant_phrases": ["GOLD015"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_016", "input": { "query": "topic016 effective coupling" }, "expected": { "relevant_phrases": ["GOLD016"] }, "tags": ["normal"] },
+    { "id": "retr_017", "input": { "query": "topic017 effective coupling" }, "expected": { "relevant_phrases": ["GOLD017"] }, "tags": ["normal"] },
+    { "id": "retr_018", "input": { "query": "topic018 effective coupling" }, "expected": { "relevant_phrases": ["GOLD018"] }, "tags": ["normal"] },
+    { "id": "retr_019", "input": { "query": "topic019 effective coupling" }, "expected": { "relevant_phrases": ["GOLD019"] }, "tags": ["normal"] },
+    { "id": "retr_020", "input": { "query": "topic020 effective coupling" }, "expected": { "relevant_phrases": ["GOLD020"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_021", "input": { "query": "topic021 effective coupling" }, "expected": { "relevant_phrases": ["GOLD021"] }, "tags": ["normal"] },
+    { "id": "retr_022", "input": { "query": "topic022 effective coupling" }, "expected": { "relevant_phrases": ["GOLD022"] }, "tags": ["normal"] },
+    { "id": "retr_023", "input": { "query": "topic023 effective coupling" }, "expected": { "relevant_phrases": ["GOLD023"] }, "tags": ["normal"] },
+    { "id": "retr_024", "input": { "query": "topic024 effective coupling" }, "expected": { "relevant_phrases": ["GOLD024"] }, "tags": ["normal"] },
+    { "id": "retr_025", "input": { "query": "topic025 effective coupling" }, "expected": { "relevant_phrases": ["GOLD025"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_026", "input": { "query": "topic026 effective coupling" }, "expected": { "relevant_phrases": ["GOLD026"] }, "tags": ["normal"] },
+    { "id": "retr_027", "input": { "query": "topic027 effective coupling" }, "expected": { "relevant_phrases": ["GOLD027"] }, "tags": ["normal"] },
+    { "id": "retr_028", "input": { "query": "topic028 effective coupling" }, "expected": { "relevant_phrases": ["GOLD028"] }, "tags": ["normal"] },
+    { "id": "retr_029", "input": { "query": "topic029 effective coupling" }, "expected": { "relevant_phrases": ["GOLD029"] }, "tags": ["normal"] },
+    { "id": "retr_030", "input": { "query": "topic030 effective coupling" }, "expected": { "relevant_phrases": ["GOLD030"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_031", "input": { "query": "topic031 effective coupling" }, "expected": { "relevant_phrases": ["GOLD031"] }, "tags": ["normal"] },
+    { "id": "retr_032", "input": { "query": "topic032 effective coupling" }, "expected": { "relevant_phrases": ["GOLD032"] }, "tags": ["normal"] },
+    { "id": "retr_033", "input": { "query": "topic033 effective coupling" }, "expected": { "relevant_phrases": ["GOLD033"] }, "tags": ["normal"] },
+    { "id": "retr_034", "input": { "query": "topic034 effective coupling" }, "expected": { "relevant_phrases": ["GOLD034"] }, "tags": ["normal"] },
+    { "id": "retr_035", "input": { "query": "topic035 effective coupling" }, "expected": { "relevant_phrases": ["GOLD035"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_036", "input": { "query": "topic036 effective coupling" }, "expected": { "relevant_phrases": ["GOLD036"] }, "tags": ["normal"] },
+    { "id": "retr_037", "input": { "query": "topic037 effective coupling" }, "expected": { "relevant_phrases": ["GOLD037"] }, "tags": ["normal"] },
+    { "id": "retr_038", "input": { "query": "topic038 effective coupling" }, "expected": { "relevant_phrases": ["GOLD038"] }, "tags": ["normal"] },
+    { "id": "retr_039", "input": { "query": "topic039 effective coupling" }, "expected": { "relevant_phrases": ["GOLD039"] }, "tags": ["normal"] },
+    { "id": "retr_040", "input": { "query": "topic040 effective coupling" }, "expected": { "relevant_phrases": ["GOLD040"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_041", "input": { "query": "topic041 effective coupling" }, "expected": { "relevant_phrases": ["GOLD041"] }, "tags": ["normal"] },
+    { "id": "retr_042", "input": { "query": "topic042 effective coupling" }, "expected": { "relevant_phrases": ["GOLD042"] }, "tags": ["normal"] },
+    { "id": "retr_043", "input": { "query": "topic043 effective coupling" }, "expected": { "relevant_phrases": ["GOLD043"] }, "tags": ["normal"] },
+    { "id": "retr_044", "input": { "query": "topic044 effective coupling" }, "expected": { "relevant_phrases": ["GOLD044"] }, "tags": ["normal"] },
+    { "id": "retr_045", "input": { "query": "topic045 effective coupling" }, "expected": { "relevant_phrases": ["GOLD045"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_046", "input": { "query": "topic046 effective coupling" }, "expected": { "relevant_phrases": ["GOLD046"] }, "tags": ["normal"] },
+    { "id": "retr_047", "input": { "query": "topic047 effective coupling" }, "expected": { "relevant_phrases": ["GOLD047"] }, "tags": ["normal"] },
+    { "id": "retr_048", "input": { "query": "topic048 effective coupling" }, "expected": { "relevant_phrases": ["GOLD048"] }, "tags": ["normal"] },
+    { "id": "retr_049", "input": { "query": "topic049 effective coupling" }, "expected": { "relevant_phrases": ["GOLD049"] }, "tags": ["normal"] },
+    { "id": "retr_050", "input": { "query": "topic050 effective coupling" }, "expected": { "relevant_phrases": ["GOLD050"] }, "tags": ["long_tail"] },
+
+    { "id": "retr_irr_001", "input": { "query": "noise001 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_002", "input": { "query": "noise002 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_003", "input": { "query": "noise003 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_004", "input": { "query": "noise004 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_005", "input": { "query": "noise005 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_006", "input": { "query": "noise006 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_007", "input": { "query": "noise007 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_008", "input": { "query": "noise008 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_009", "input": { "query": "noise009 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] },
+    { "id": "retr_irr_010", "input": { "query": "noise010 effective coupling" }, "expected": { "relevant_phrases": [] }, "tags": ["ood"] }
+  ]
+}

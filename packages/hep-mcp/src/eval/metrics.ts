@@ -4,6 +4,26 @@ function safeDivide(numerator: number, denominator: number): number {
   return denominator > 0 ? numerator / denominator : 0;
 }
 
+export function mean(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sum = values.reduce((acc, v) => acc + v, 0);
+  return sum / values.length;
+}
+
+export function percentile(values: number[], p: number): number {
+  if (values.length === 0) return 0;
+  const pp = Math.min(Math.max(p, 0), 1);
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = (sorted.length - 1) * pp;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo] ?? 0;
+  const a = sorted[lo] ?? 0;
+  const b = sorted[hi] ?? 0;
+  const t = idx - lo;
+  return a + (b - a) * t;
+}
+
 export function precision(tp: number, fp: number): number {
   return safeDivide(tp, tp + fp);
 }

@@ -31,6 +31,9 @@ export { type Span, type SpanStatus, type SpanHandle, type SpanSink, generateSpa
 // Retry Policy (H-19)
 export { type RetryPolicy, DEFAULT_RETRY_POLICY } from './retry-policy.js';
 
+// Discovery (NEW-DISC-01 kickoff)
+export * from './discovery/index.js';
+
 // Utils
 export * from './utils/index.js';
 

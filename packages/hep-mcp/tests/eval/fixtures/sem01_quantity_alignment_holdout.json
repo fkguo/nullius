@@ -1,0 +1,81 @@
+{
+  "name": "sem01_quantity_alignment_holdout",
+  "version": 1,
+  "description": "Locked holdout (do not tune on this set). Focus: long-tail/OOD robustness for quantity/entity alignment.",
+  "module": "SEM-01",
+  "cases": [
+    {
+      "id": "hqpair_001",
+      "input": {
+        "a": { "quantity": "proton magnetic moment", "context": "The proton magnetic moment is μ_p = 2.792847 μ_N.", "unit": "\\mu_N" },
+        "b": { "quantity": "\\\\mu_p", "context": "We use μ_p = 2.792847 μ_N.", "unit": "\\mu_N" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "magnetic_moment:proton" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "hqpair_002",
+      "input": {
+        "a": { "quantity": "(g-2)_mu", "context": "We quote (g-2)_μ = 0.00233184.", "unit": "" },
+        "b": { "quantity": "(g-2)_e", "context": "We quote (g-2)_e = 0.00231930.", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "anomalous_magnetic_moment:muon" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "hqpair_003",
+      "input": {
+        "a": { "quantity": "Hubble constant", "context": "We use H0 = 70 ± 2 km s^{-1} Mpc^{-1}.", "unit": "" },
+        "b": { "quantity": "H_0", "context": "The Hubble constant H_0 is taken to be 70 km s^{-1} Mpc^{-1}.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "hubble_constant:H0" },
+      "tags": ["ood"]
+    },
+    {
+      "id": "hqpair_004",
+      "input": {
+        "a": { "quantity": "Hubble constant", "context": "H0 = 70 km s^{-1} Mpc^{-1}.", "unit": "" },
+        "b": { "quantity": "Higgs mass", "context": "m_H = 125.10 ± 0.14 GeV.", "unit": "GeV" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "hubble_constant:H0" },
+      "tags": ["ood"]
+    },
+    {
+      "id": "hqpair_005",
+      "input": {
+        "a": { "quantity": "tensor-to-scalar ratio", "context": "We constrain the tensor-to-scalar ratio r < 0.05.", "unit": "" },
+        "b": { "quantity": "r", "context": "We report r < 0.05 for the tensor-to-scalar ratio.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "tensor_to_scalar_ratio:r" },
+      "tags": ["ood", "long_tail"]
+    },
+    {
+      "id": "hqpair_006",
+      "input": {
+        "a": { "quantity": "σ", "context": "We denote σ as a generic observable.", "unit": "" },
+        "b": { "quantity": "sigma", "context": "The symbol σ appears throughout.", "unit": "" }
+      },
+      "expected": { "relation": "uncertain", "canonical_quantity": "unknown" },
+      "tags": ["ambiguous", "long_tail"]
+    },
+    {
+      "id": "hqpair_007",
+      "input": {
+        "a": { "quantity": "F1(Q^2)", "context": "We study the Dirac form factor F_1(Q^2).", "unit": "" },
+        "b": { "quantity": "Dirac form factor", "context": "The Dirac form factor F_1(Q^2) is analyzed.", "unit": "" }
+      },
+      "expected": { "relation": "match", "canonical_quantity": "form_factor:dirac" },
+      "tags": ["long_tail"]
+    },
+    {
+      "id": "hqpair_008",
+      "input": {
+        "a": { "quantity": "Dirac form factor", "context": "We analyze the Dirac form factor F_1(Q^2).", "unit": "" },
+        "b": { "quantity": "Pauli form factor", "context": "We analyze the Pauli form factor F_2(Q^2).", "unit": "" }
+      },
+      "expected": { "relation": "split", "canonical_quantity": "form_factor:dirac" },
+      "tags": ["long_tail"]
+    }
+  ]
+}
+

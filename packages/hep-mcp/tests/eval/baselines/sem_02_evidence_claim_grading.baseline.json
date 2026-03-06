@@ -1,0 +1,17 @@
+{
+  "evalSetName": "SEM-02 evidence claim grading",
+  "module": "sem02_evidence_claim_grading",
+  "timestamp": "2026-03-06T05:43:11.612Z",
+  "note": "These metrics are from a mock-response eval harness and represent idealized semantic adjudication behavior, not a guaranteed production LLM score.",
+  "metrics": {
+    "stance_accuracy_overall": 1,
+    "macro_f1_overall": 1,
+    "fallback_rate_overall": 0.125,
+    "abstention_rate_overall": 0.375,
+    "stance_accuracy_hard": 1,
+    "macro_f1_hard": 1,
+    "stance_accuracy_negation": 1,
+    "stance_accuracy_hedge": 1
+  },
+  "evalSetVersion": 1
+}

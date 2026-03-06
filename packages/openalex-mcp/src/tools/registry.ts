@@ -11,6 +11,8 @@ import {
   OPENALEX_AUTOCOMPLETE,
   OPENALEX_CONTENT,
   OPENALEX_RATE_LIMIT,
+  DiscoveryProviderDescriptorSchema,
+  type DiscoveryProviderDescriptor,
 } from '@autoresearch/shared';
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import {
@@ -251,3 +253,18 @@ export function getTools(mode: ToolExposureMode = 'standard') {
     inputSchema: zodToMcpInputSchema(spec.zodSchema),
   }));
 }
+
+export const OPENALEX_DISCOVERY_DESCRIPTOR: DiscoveryProviderDescriptor = DiscoveryProviderDescriptorSchema.parse({
+  provider: 'openalex',
+  display_name: 'OpenAlex',
+  capabilities: {
+    supports_keyword_search: true,
+    supports_semantic_search: true,
+    supports_citation_graph: true,
+    supports_fulltext: true,
+    supports_source_download: false,
+    supports_open_access_content: true,
+  },
+  supported_intents: ['known_item', 'keyword_search', 'semantic_search', 'citation_expansion', 'fulltext_search'],
+  notes: 'Kickoff descriptor for NEW-DISC-01; canonicalization and broker eval land in Batch 13–14.',
+});

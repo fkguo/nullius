@@ -1,5 +1,6 @@
 export {
   TOOL_SPECS,
+  OPENALEX_DISCOVERY_DESCRIPTOR,
   getTools,
   getToolSpecs,
   type ToolExposureMode,

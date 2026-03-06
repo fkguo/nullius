@@ -22,6 +22,10 @@
     "./graph-viz": {
       "import": "./dist/graph-viz/index.js",
       "types": "./dist/graph-viz/index.d.ts"
+    },
+    "./discovery": {
+      "import": "./dist/discovery/index.js",
+      "types": "./dist/discovery/index.d.ts"
     }
   },
   "scripts": {
