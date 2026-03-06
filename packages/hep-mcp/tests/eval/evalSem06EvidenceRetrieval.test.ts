@@ -5,6 +5,7 @@ import * as path from 'path';
 
 import type { EvalResult } from '../../src/eval/index.js';
 import {
+  absoluteDelta,
   compareWithBaseline,
   fallbackRate,
   loadBaseline,
@@ -12,6 +13,7 @@ import {
   percentile,
   precisionAtK,
   recallAtK,
+  relativeGain,
   runEvalSet,
   saveBaseline,
 } from '../../src/eval/index.js';
@@ -324,10 +326,12 @@ describe('eval: SEM-06 evidence retrieval upgrade (local-only)', () => {
       expect(improved.aggregateMetrics.latency_p95_ms_overall ?? 1e9).toBeLessThanOrEqual(500);
       expect(improved.aggregateMetrics.noise_gold_hit_rate_at_10_overall ?? 1).toBeLessThanOrEqual(0.1);
 
-      const recallImprovement = improvedRecall10 - baselineRecall10;
-      const mrrImprovement = improvedMrr10 - baselineMrr10;
-      expect(recallImprovement).toBeGreaterThanOrEqual(Math.max(0.3, baselineRecall10 * 0.3));
-      expect(mrrImprovement).toBeGreaterThanOrEqual(Math.max(0.2, baselineMrr10 * 0.3));
+      const recallImprovement = absoluteDelta(improvedRecall10, baselineRecall10);
+      const mrrImprovement = absoluteDelta(improvedMrr10, baselineMrr10);
+      expect(recallImprovement).toBeGreaterThanOrEqual(Math.max(0.3, Math.abs(baselineRecall10) * 0.3));
+      expect(mrrImprovement).toBeGreaterThanOrEqual(Math.max(0.2, Math.abs(baselineMrr10) * 0.3));
+      expect(relativeGain(improvedRecall10, baselineRecall10)).toBeGreaterThanOrEqual(0.3);
+      expect(relativeGain(improvedMrr10, baselineMrr10)).toBeGreaterThanOrEqual(0.3);
 
       if (process.env.EVAL_UPDATE_BASELINES === '1') {
         saveBaseline(improved, BASELINES_DIR);

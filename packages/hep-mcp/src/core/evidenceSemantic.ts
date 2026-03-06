@@ -11,6 +11,7 @@ import { getRun, type RunArtifactRef } from './runs.js';
 import { getRunArtifactPath } from './paths.js';
 import { writeRunJsonArtifact } from './citations.js';
 import { queryProjectEvidence, type EvidenceType, type QueryEvidenceHit, type QueryEvidenceResult } from './evidence.js';
+import { buildRetrievalSubstrateSnapshot } from './evidenceRetrievalSubstrate.js';
 import { parseEmbeddingsJsonl, queryEvidenceByEmbeddings } from './writing/evidence.js';
 import { rerankEvidenceCandidates } from './semantics/evidenceRerank.js';
 
@@ -143,6 +144,11 @@ export async function queryProjectEvidenceSemantic(params: {
   const enrichmentText = safeReadText(enrichmentPath);
 
   const runLexicalFallback = async (reason: string, data: Record<string, unknown>) => {
+    const substrate = buildRetrievalSubstrateSnapshot({
+      active_model: 'lexical_fallback',
+      embedding_dim: 0,
+      semantic_implemented: false,
+    });
     const lexical = await queryProjectEvidence({
       project_id: params.project_id,
       paper_id: params.paper_id,
@@ -177,6 +183,7 @@ export async function queryProjectEvidenceSemantic(params: {
         implemented: false,
         source: 'lexical_fallback',
         notes: reason,
+        substrate,
       },
       fallback: { used: true, reason, data },
       query: {
@@ -369,6 +376,11 @@ export async function queryProjectEvidenceSemantic(params: {
     model,
     source: 'run_artifacts',
     notes: 'Semantic-first retrieval with deterministic rerank (local-only).',
+    substrate: buildRetrievalSubstrateSnapshot({
+      active_model: model,
+      embedding_dim: dim,
+      semantic_implemented: true,
+    }),
   } as const;
 
   const artifactName = makeArtifactName({

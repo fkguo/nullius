@@ -73,3 +73,12 @@ export function fallbackRate(results: Array<{ usedFallback: boolean }>): number 
   const fallbackCount = results.filter(result => result.usedFallback).length;
   return fallbackCount / results.length;
 }
+
+export function absoluteDelta(improved: number, baseline: number): number {
+  return improved - baseline;
+}
+
+export function relativeGain(improved: number, baseline: number): number {
+  if (baseline === 0) return improved > 0 ? 1 : 0;
+  return (improved - baseline) / Math.abs(baseline);
+}

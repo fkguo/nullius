@@ -16,9 +16,14 @@ import { getRun, type RunArtifactRef } from '../../core/runs.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
 import { classifyAxisPosition, mutualExclusionRuleHits, type DebateAxis } from './theoreticalConflict/lexicon.js';
 import {
+  defaultRationaleForRelation,
+  parseAdjudication,
+  type ConflictRationaleV1,
+  type ParsedAdjudication,
+} from './theoreticalConflict/adjudication.js';
+import {
   buildAdjudicateEdgePrompt,
   isAdjudicateEdgePromptVersion,
-  isEdgeRelation,
   type AdjudicateEdgePromptVersion,
 } from './theoreticalConflict/prompts.js';
 
@@ -84,6 +89,8 @@ type ConflictEdgeV1 = {
   confidence: number;
   reasoning?: string;
   compatibility_note?: string;
+  adjudication_category?: ConflictRationaleV1['category'];
+  rationale?: ConflictRationaleV1;
   evidence_strength: EvidenceStrength;
   claim_ids: string[];
 };
@@ -113,13 +120,6 @@ type ClientLlmResponseInput = {
   model?: string;
   created_at?: string;
   [key: string]: unknown;
-};
-
-type ParsedAdjudication = {
-  relation: EdgeRelation;
-  confidence: number;
-  reasoning: string;
-  compatibility_note?: string;
 };
 
 type SparseVector = { dim: number; indices: number[]; values: number[] };
@@ -363,43 +363,6 @@ function extractEntityHint(text: string): string | undefined {
   return undefined;
 }
 
-function parseClientJsonResponse(input: unknown): unknown {
-  if (typeof input === 'string') {
-    const trimmed = input.trim();
-    if (!trimmed) return null;
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      const start = trimmed.indexOf('{');
-      const end = trimmed.lastIndexOf('}');
-      if (start !== -1 && end !== -1 && end > start) {
-        try {
-          return JSON.parse(trimmed.slice(start, end + 1));
-        } catch {
-          return input;
-        }
-      }
-      return input;
-    }
-  }
-  return input;
-}
-
-function parseAdjudication(input: unknown): ParsedAdjudication | null {
-  const obj = parseClientJsonResponse(input);
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
-  const o = obj as Record<string, unknown>;
-  const relationRaw = String(o.relation ?? '').trim();
-  if (!isEdgeRelation(relationRaw)) return null;
-  const relation = relationRaw as EdgeRelation;
-  const confidence = Number(o.confidence);
-  const reasoning = String(o.reasoning ?? '').trim();
-  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) return null;
-  if (!reasoning) return null;
-  const compatibility_note = typeof o.compatibility_note === 'string' && o.compatibility_note.trim() ? o.compatibility_note.trim() : undefined;
-  return { relation, confidence, reasoning, compatibility_note };
-}
-
 function stableSort<T>(items: T[], key: (t: T) => string): T[] {
   const copy = [...items];
   copy.sort((a, b) => key(a).localeCompare(key(b)));
@@ -435,7 +398,7 @@ export async function performTheoreticalConflicts(params: {
   const llmMode: LlmMode = params.options.llm_mode ?? 'passthrough';
   const strictLlm = params.options.strict_llm ?? false;
 
-  const promptVersionRaw = params.options.prompt_version ?? 'v1';
+  const promptVersionRaw = params.options.prompt_version ?? 'v2';
   if (!isAdjudicateEdgePromptVersion(promptVersionRaw)) {
     throw invalidParams('Unknown prompt_version for theoretical adjudication', {
       prompt_version: promptVersionRaw,
@@ -730,6 +693,8 @@ export async function performTheoreticalConflicts(params: {
       position_b: c.position_b,
       relation: c.baseline_relation,
       confidence: c.baseline_confidence,
+      adjudication_category: defaultRationaleForRelation(c.baseline_relation).category,
+      rationale: defaultRationaleForRelation(c.baseline_relation),
       evidence_strength: c.evidence_strength,
       claim_ids: c.claim_ids,
     }));
@@ -948,6 +913,8 @@ export async function performTheoreticalConflicts(params: {
       confidence: adjudicated.confidence,
       reasoning: adjudicated.reasoning,
       compatibility_note: adjudicated.compatibility_note,
+      adjudication_category: adjudicated.rationale.category,
+      rationale: adjudicated.rationale,
     };
   });
 
@@ -1082,7 +1049,7 @@ export async function performTheoreticalConflicts(params: {
           ...params.options,
           llm_mode: 'client',
           prompt_version: promptVersion,
-          client_llm_responses: [{ request_id: '<from theoretical_llm_requests.jsonl>', json_response: { relation: '...', confidence: 0.9, reasoning: '...' } }],
+          client_llm_responses: [{ request_id: '<from theoretical_llm_requests.jsonl>', json_response: { relation: '...', confidence: 0.9, reasoning: '...', rationale: { summary: '...', assumption_differences: [], observable_differences: [], scope_notes: [] } } }],
         },
       },
       reason: 'Phase B: submit client LLM responses to produce adjudicated Conflict Edges.',

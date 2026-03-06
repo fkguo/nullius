@@ -1,11 +1,11 @@
 import type { DebateAxis } from './lexicon.js';
 
-type EdgeRelation = 'contradict' | 'compatible' | 'different_scope' | 'unclear';
+export type EdgeRelation = 'contradict' | 'compatible' | 'different_scope' | 'unclear';
 
-export type AdjudicateEdgePromptVersion = 'v1';
+export type AdjudicateEdgePromptVersion = 'v1' | 'v2';
 
 export function isAdjudicateEdgePromptVersion(v: string): v is AdjudicateEdgePromptVersion {
-  return v === 'v1';
+  return v === 'v1' || v === 'v2';
 }
 
 export function isEdgeRelation(v: unknown): v is EdgeRelation {
@@ -21,9 +21,11 @@ export function buildAdjudicateEdgePrompt(params: {
   claims_a: Array<{ recid: string; title?: string; year?: number; text: string }>;
   claims_b: Array<{ recid: string; title?: string; year?: number; text: string }>;
 }): string {
-  if (params.prompt_version !== 'v1') {
+  if (params.prompt_version !== 'v1' && params.prompt_version !== 'v2') {
     throw new Error(`Unsupported prompt_version: ${params.prompt_version}`);
   }
+
+  const includeStructuredRationale = params.prompt_version === 'v2';
 
   const header = [
     'You are a physics research assistant. You will be given two *positions* in a debate about a subject entity.',
@@ -42,8 +44,24 @@ export function buildAdjudicateEdgePrompt(params: {
     '  "confidence": number,   // 0..1',
     '  "reasoning": string,    // short, cite the key differences',
     '  "compatibility_note"?: string',
+    ...(includeStructuredRationale
+      ? [
+          '  "rationale": {',
+          '    "summary": string,',
+          '    "assumption_differences": string[],',
+          '    "observable_differences": string[],',
+          '    "scope_notes": string[]',
+          '  }',
+        ]
+      : []),
     '}',
     '',
+    ...(includeStructuredRationale
+      ? [
+          'When relation="different_scope", explain why the claims are not directly comparable.',
+          'Use rationale.assumption_differences / observable_differences / scope_notes for auditable evidence.',
+        ]
+      : []),
     `prompt_version: ${params.prompt_version}`,
     `subject_entity: ${params.subject_entity}`,
     `axis: ${params.axis}`,
@@ -80,4 +98,3 @@ function truncateForPrompt(s: string, maxChars: number): string {
   if (t.length <= maxChars) return t;
   return `${t.slice(0, Math.max(0, maxChars - 1))}…`;
 }
-

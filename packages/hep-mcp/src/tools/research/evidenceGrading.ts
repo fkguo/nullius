@@ -73,6 +73,7 @@ export async function gradeEvidence(
       });
       claimGrades.push(await gradeClaimAgainstEvidenceBundle(claim, evidenceBundle.evidenceItems, ctx, {
         prompt_version: 'sem02_claim_evidence_v1',
+        bundle_prompt_version: 'sem03_claim_bundle_v1',
       }));
     }
 

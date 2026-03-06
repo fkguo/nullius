@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
+import { adjudicateClaimBundle } from './claimBundleAdjudicator.js';
 import { buildClaimAssessmentPrompt, extractSamplingText, parseClaimAssessmentResponse } from './claimSampling.js';
 import { analyzeCitationStance, extractTopicWords } from './citationStanceHeuristics.js';
 import type {
@@ -99,7 +100,7 @@ export async function gradeClaimAgainstEvidenceBundle(
   claim: ExtractedClaimV1,
   evidenceItems: ClaimEvidenceItem[],
   ctx: ClaimAssessmentContext = {},
-  options: { prompt_version?: string } = {},
+  options: { prompt_version?: string; bundle_prompt_version?: string } = {},
 ): Promise<ClaimSemanticGradeV1> {
   const promptVersion = options.prompt_version ?? 'sem02_claim_evidence_v1';
   const inputHash = sha256Hex(JSON.stringify({ claim, evidenceItems, promptVersion }));
@@ -148,5 +149,16 @@ export async function gradeClaimAgainstEvidenceBundle(
     }
   }));
 
-  return aggregateAssessments(claim, assessments, promptVersion, inputHash);
+  const heuristicAggregate = aggregateAssessments(claim, assessments, promptVersion, inputHash);
+  const bundlePromptVersion = options.bundle_prompt_version ?? 'sem03_claim_bundle_v1';
+  const bundleInputHash = sha256Hex(JSON.stringify({ claim, evidenceItems, assessments, promptVersion: bundlePromptVersion }));
+  return await adjudicateClaimBundle({
+    claim,
+    evidenceItems,
+    assessments,
+    ctx,
+    prompt_version: bundlePromptVersion,
+    input_hash: bundleInputHash,
+    fallback_grade: heuristicAggregate,
+  }) ?? heuristicAggregate;
 }

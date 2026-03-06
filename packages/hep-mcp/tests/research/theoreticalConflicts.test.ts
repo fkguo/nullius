@@ -107,7 +107,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       options: {
         subject_entity: 'X(3872)',
         llm_mode: 'passthrough',
-        prompt_version: 'v1',
+        prompt_version: 'v2',
         max_candidates_total: 10,
         max_llm_requests: 10,
       },
@@ -119,7 +119,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     expect(payload.theoretical.run_id).toBe(run_id);
 
     const meta = readJson<any>(getRunArtifactPath(run_id, 'theoretical_meta_v1.json'));
-    expect(meta.config_snapshot.prompt_version).toBe('v1');
+    expect(meta.config_snapshot.prompt_version).toBe('v2');
     expect(meta.config_snapshot.llm_mode).toBe('passthrough');
     expect(meta.counts.conflict_candidates).toBeGreaterThan(0);
 
@@ -153,7 +153,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       options: {
         subject_entity: 'X(3872)',
         llm_mode: 'client',
-        prompt_version: 'v1',
+        prompt_version: 'v2',
         max_candidates_total: 10,
         max_llm_requests: 10,
       },
@@ -174,13 +174,23 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       options: {
         subject_entity: 'X(3872)',
         llm_mode: 'client',
-        prompt_version: 'v1',
+        prompt_version: 'v2',
         max_candidates_total: 10,
         max_llm_requests: 10,
         client_llm_responses: [
           {
             request_id: firstRequestId,
-            json_response: { relation: 'different_scope', confidence: 0.8, reasoning: 'Different assumptions and observables.' },
+            json_response: {
+              relation: 'different_scope',
+              confidence: 0.8,
+              reasoning: 'Different assumptions and observables.',
+              rationale: {
+                summary: 'The claims probe different observables and are not directly comparable.',
+                assumption_differences: ['Different dynamical assumptions'],
+                observable_differences: ['Mass hierarchy vs decay pattern'],
+                scope_notes: ['Treat as not comparable'],
+              },
+            },
             model: 'unit-test',
             created_at: '2026-01-07T00:00:00.000Z',
           },
@@ -192,6 +202,9 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     const conflicts = readJson<any>(getRunArtifactPath(run_id, 'theoretical_conflicts_v1.json'));
     const updated = (conflicts.conflicts as any[]).some((e: any) => e.reasoning === 'Different assumptions and observables.');
     expect(updated).toBe(true);
+    const notComparable = (conflicts.conflicts as any[]).find((e: any) => e.reasoning === 'Different assumptions and observables.');
+    expect(notComparable?.adjudication_category).toBe('not_comparable');
+    expect(notComparable?.rationale?.observable_differences).toContain('Mass hierarchy vs decay pattern');
   });
 
   it('strict_llm hard-fails on invalid client response JSON', async () => {
@@ -202,7 +215,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       mode: 'theoretical',
       recids: ['101', '102', '103'],
       run_id,
-      options: { subject_entity: 'X(3872)', llm_mode: 'client', prompt_version: 'v1', max_llm_requests: 10 },
+      options: { subject_entity: 'X(3872)', llm_mode: 'client', prompt_version: 'v2', max_llm_requests: 10 },
     });
 
     const requests = readJsonl<any>(getRunArtifactPath(run_id, 'theoretical_llm_requests.jsonl'));
@@ -235,7 +248,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       mode: 'theoretical',
       recids: ['101', '102', '103'],
       run_id,
-      options: { subject_entity: 'X(3872)', llm_mode: 'internal', prompt_version: 'v1', max_llm_requests: 2 },
+      options: { subject_entity: 'X(3872)', llm_mode: 'internal', prompt_version: 'v2', max_llm_requests: 2 },
     });
 
     expect(res.isError).toBe(true);
@@ -257,7 +270,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       options: {
         subject_entity: 'X(3872)',
         llm_mode: 'internal',
-        prompt_version: 'v1',
+        prompt_version: 'v2',
         max_candidates_total: 10,
         max_llm_requests: 2,
       },
@@ -287,6 +300,12 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
             confidence: 0.78,
             reasoning: 'Different assumptions and observables across model classes.',
             compatibility_note: 'Can coexist in disjoint kinematic regions.',
+            rationale: {
+              summary: 'The claims rely on different assumptions and observables.',
+              assumption_differences: ['Compact tetraquark vs hadronic molecule'],
+              observable_differences: ['Mass spectrum vs decay fractions'],
+              scope_notes: ['Not directly comparable'],
+            },
           }),
         },
       ],
@@ -299,7 +318,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       options: {
         subject_entity: 'X(3872)',
         llm_mode: 'internal',
-        prompt_version: 'v1',
+        prompt_version: 'v2',
         max_candidates_total: 10,
         max_llm_requests: 2,
       },
@@ -321,5 +340,8 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
       edge.reasoning === 'Different assumptions and observables across model classes.'
     );
     expect(updated).toBe(true);
+    const notComparable = (conflicts.conflicts as any[]).find((edge: any) => edge.relation === 'different_scope');
+    expect(notComparable?.adjudication_category).toBe('not_comparable');
+    expect(notComparable?.rationale?.scope_notes).toContain('Not directly comparable');
   });
 });

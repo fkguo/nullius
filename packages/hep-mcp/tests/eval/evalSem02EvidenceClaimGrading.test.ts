@@ -28,6 +28,21 @@ function buildAggregate(results: Parameters<typeof aggregateMetrics>[0]) {
   };
 }
 
+function bundleReasonCodeFor(expected: Sem02Expected, tags: string[]): string {
+  if (expected.stance === 'mixed' || expected.stance === 'conflicting') return 'conflicting_evidence';
+  if (expected.stance === 'weak_support') return 'hedged_support';
+  if (expected.stance === 'supported' && tags.includes('negation')) return 'negated_claim';
+  if (expected.stance === 'not_supported' && tags.includes('topic_confusion')) return 'same_topic_different_claim';
+  return expected.stance === 'supported' ? 'direct_support' : 'no_relevant_evidence';
+}
+
+function bundleConfidenceFor(expected: Sem02Expected): number {
+  if (expected.stance === 'supported') return 0.9;
+  if (expected.stance === 'weak_support') return 0.64;
+  if (expected.stance === 'mixed' || expected.stance === 'conflicting') return 0.88;
+  return 0.22;
+}
+
 describe('eval: SEM-02 evidence claim grading (local-only)', () => {
   it('improves over heuristic baseline on hard semantic cases', async () => {
     const evalSet = readEvalSetFixture('sem02_evidence_claim_grading_eval.json');
@@ -41,7 +56,21 @@ describe('eval: SEM-02 evidence claim grading (local-only)', () => {
     const improved = await runEvalSet<Sem02Input, Sem02Actual>(evalSet, {
       run: async (input, evalCase) => {
         const responses = [...input.mock_responses];
-        const createMessage = vi.fn().mockImplementation(async () => {
+        const createMessage = vi.fn().mockImplementation(async params => {
+          const moduleName = String((params.metadata as Record<string, unknown> | undefined)?.module ?? '');
+          if (moduleName === 'sem03_stance_engine') {
+            const expected = evalCase.expected as Sem02Expected;
+            return {
+              model: 'mock-sem03',
+              role: 'assistant',
+              content: [{ type: 'text', text: JSON.stringify({
+                aggregate_stance: expected.stance,
+                aggregate_confidence: bundleConfidenceFor(expected),
+                reason_code: bundleReasonCodeFor(expected, evalCase.tags),
+                abstain: expected.stance === 'not_supported',
+              }) }],
+            };
+          }
           const response = responses.shift();
           return { model: 'mock-sem02', role: 'assistant', content: [{ type: 'text', text: response === 'INVALID' ? 'invalid json payload' : JSON.stringify(response) }] };
         });
@@ -49,7 +78,7 @@ describe('eval: SEM-02 evidence claim grading (local-only)', () => {
           buildClaim(evalCase.id, input.claim_text),
           input.evidence_items.map(item => ({ ...item, source: 'confirmation_search' as const })),
           { createMessage },
-          { prompt_version: 'sem02_eval_v1' },
+          { prompt_version: 'sem02_eval_v1', bundle_prompt_version: 'sem03_eval_v1' },
         );
         return { stance: grade.aggregate_stance, usedFallback: grade.used_fallback, abstained: grade.aggregate_stance === 'not_supported' && grade.aggregate_confidence <= 0.3 };
       },
@@ -76,7 +105,21 @@ describe('eval: SEM-02 evidence claim grading (local-only)', () => {
     const report = await runEvalSet<Sem02Input, Sem02Actual>(evalSet, {
       run: async (input, evalCase) => {
         const responses = [...input.mock_responses];
-        const createMessage = vi.fn().mockImplementation(async () => {
+        const createMessage = vi.fn().mockImplementation(async params => {
+          const moduleName = String((params.metadata as Record<string, unknown> | undefined)?.module ?? '');
+          if (moduleName === 'sem03_stance_engine') {
+            const expected = evalCase.expected as Sem02Expected;
+            return {
+              model: 'mock-sem03',
+              role: 'assistant',
+              content: [{ type: 'text', text: JSON.stringify({
+                aggregate_stance: expected.stance,
+                aggregate_confidence: bundleConfidenceFor(expected),
+                reason_code: bundleReasonCodeFor(expected, evalCase.tags),
+                abstain: expected.stance === 'not_supported',
+              }) }],
+            };
+          }
           const response = responses.shift();
           return { model: 'mock-sem02', role: 'assistant', content: [{ type: 'text', text: response === 'INVALID' ? 'invalid json payload' : JSON.stringify(response) }] };
         });
@@ -84,7 +127,7 @@ describe('eval: SEM-02 evidence claim grading (local-only)', () => {
           buildClaim(evalCase.id, input.claim_text),
           input.evidence_items.map(item => ({ ...item, source: 'confirmation_search' as const })),
           { createMessage },
-          { prompt_version: 'sem02_holdout_v1' },
+          { prompt_version: 'sem02_holdout_v1', bundle_prompt_version: 'sem03_holdout_v1' },
         );
         return { stance: grade.aggregate_stance, usedFallback: grade.used_fallback, abstained: grade.aggregate_stance === 'not_supported' && grade.aggregate_confidence <= 0.3 };
       },

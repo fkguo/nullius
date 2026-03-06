@@ -288,7 +288,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - **Phase 0**: 14/14 完成 ✅
 - **Phase 1**: 19/23 完成
 - **Phase 2**: 25/44 完成
-- **Phase 3**: 18/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足）+ Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking）+ Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅；`NEW-DISC-01` 已 kickoff（D1/D2/D3 完成，D4/D5 仍留在 Batch 13–14）+ Batch 11 代码实现已完成 `Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审，0 blocking，amendments integrated + SOTA follow-up queue 继续按 parallel infra lane `Batch 11–14`（`NEW-DISC-01`, `NEW-RT-06/07`, `NEW-SEM-06-INFRA`）→ loop precursor `Batch 15–16`（`NEW-LOOP-01`）→ retrieval lane `Batch 17–19`（`NEW-SEM-06b/d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
+- **Phase 3**: 21/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足）+ Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking）+ Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅ + Batch 12 `NEW-SEM-03` ✅ `NEW-SEM-04` ✅ `NEW-SEM-06-INFRA` ✅（`NEW-SEM-06b` 尚未启动；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated）；`NEW-DISC-01` 仍为 kickoff/in_progress（D1/D2/D3 完成，D4/D5 仍留在 Batch 13–14）+ SOTA follow-up queue 继续按 parallel infra lane `Batch 11–14`（`NEW-DISC-01`, `NEW-RT-06/07`, `NEW-SEM-06-INFRA`）→ loop precursor `Batch 15–16`（`NEW-LOOP-01`）→ retrieval lane `Batch 17–19`（`NEW-SEM-06b/d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
 - **Phase 4**: 0/8 完成 — blocked by Phase 3
 - **Phase 5**: 0/22 完成 — blocked by Phase 4
 - **R4 双模型审核**: ✅ 收敛 (Gemini CONVERGED + Codex CONVERGED_WITH_AMENDMENTS, 0 blocking)
@@ -411,7 +411,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **autoresearch-lab** (12303 symbols, 24444 relationships, 300 execution flows).
+This project is indexed by GitNexus as **autoresearch-lab** (12451 symbols, 24832 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 
