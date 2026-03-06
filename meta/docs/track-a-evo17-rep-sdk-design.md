@@ -51,17 +51,21 @@ REP borrows proven design patterns from GEP (Genome Evolution Protocol) while ad
 
 ### 1.3 Relationship to MCP
 
+> **Scope clarification (2026-03-06)**: REP is a **Phase 5 Track A evolution/publication layer**.
+> It is not the near-term execution kernel for the monorepo’s single-user product.
+> Near/mid-term execution is owned by the orchestrator + single-user research-loop substrate; REP consumes the resulting research assets/events later for publication, sharing, and evolution.
+
 ```
-MCP (Interface Layer)      -- "What tools are available?"
+MCP (Interface Layer)                    -- "What tools are available?"
   |
-REP (Evolution Layer)      -- "Why does this strategy work? How to evolve?"
+ResearchLoopRuntime / Orchestrator       -- "Run the near-term single-user research loop"
   |
-Orchestrator (Execution)   -- "Execute the chosen strategy"
+REP (Evolution / Publication Layer)      -- "Record, publish, review, and evolve research assets"
   |
-Agent-arXiv (Publication)  -- "Publish and cite verified results"
+Agent-arXiv (Phase 5+ Community Layer)   -- "Operate a research community over published results"
 ```
 
-REP does not replace MCP. Agents use MCP to call tools for computation, and REP to record and share the evolution of research strategies across cycles.
+REP does not replace MCP. Agents use MCP to call tools for computation, the orchestrator/research-loop runtime to execute the current research workflow, and REP to record and share the evolution of research strategies across cycles once Track A is active.
 
 ### 1.4 PLUG-01 Constraint
 
@@ -1321,7 +1325,7 @@ RDI (Research Desirability Index) replaces GEP's GDI (Global Desirability Index)
 
 1. **Fail-closed gate**: No override mechanism. If the gate fails, the asset cannot be published or reused, period.
 2. **Ranking score only for gated assets**: The ranking score is irrelevant for assets that have not passed the gate.
-3. **Locally computable**: All RDI inputs must be computable from local data (no dependency on external ranking services).
+3. **Locally computable**: All RDI inputs must be computable from local data (no dependency on external ranking services). This constraint applies to REP's publication/reuse gate and Track A ranking only; it does **not** constrain the near/mid-term single-user research loop to avoid higher-quality networked evidence when making evidence-quality decisions.
 4. **Deterministic**: Given the same inputs, RDI always produces the same output.
 
 ### 4.2 Fail-Closed Gate (Binary Pass/Fail)
@@ -1430,6 +1434,8 @@ where (default weights):
   w_s = 0.20  (problem significance weight)
   w_c = 0.20  (local citation impact weight)
 ```
+
+For early single-user runs, `citation_impact` may be dormant or degenerate until `agent-arxiv` or another meaningful local research corpus exists. That is acceptable because RDI is a Track A / publication-layer ranking signal, not the v1 single-user runtime's core decision policy.
 
 **Design rationale (four orthogonal dimensions)**:
 
