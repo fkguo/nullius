@@ -1,7 +1,9 @@
 import { createHash } from 'crypto';
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
+import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
 import { adjudicateClaimBundle } from './claimBundleAdjudicator.js';
 import { buildClaimAssessmentPrompt, extractSamplingText, parseClaimAssessmentResponse } from './claimSampling.js';
+import { buildToolSamplingMetadata } from '../sampling-metadata.js';
 import { analyzeCitationStance, extractTopicWords } from './citationStanceHeuristics.js';
 import type {
   ClaimEvidenceItem,
@@ -116,11 +118,13 @@ export async function gradeClaimAgainstEvidenceBundle(
       const response = await ctx.createMessage({
         messages: [{ role: 'user', content: { type: 'text', text: buildClaimAssessmentPrompt({ prompt_version: promptVersion, claim_text: claim.claim_text, evidence_ref: evidence.evidence_ref, evidence_text: evidence.evidence_text }) } }],
         maxTokens: 500,
-        metadata: {
+        metadata: buildToolSamplingMetadata({
+          tool: INSPIRE_CRITICAL_RESEARCH,
           module: 'sem02_claim_evidence_grading',
-          prompt_version: promptVersion,
-          evidence_ref: evidence.evidence_ref,
-        },
+          promptVersion,
+          costClass: 'medium',
+          context: { evidence_ref: evidence.evidence_ref },
+        }),
       });
       const parsed = parseClaimAssessmentResponse(extractSamplingText(response.content));
       if (!parsed) {

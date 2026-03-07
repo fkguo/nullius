@@ -346,3 +346,19 @@
 - Future sessions should stop debating those two files as routine dirty-state noise.
 - If Serena setup changes are desired, update `.serena/project.example.yml` and let each worktree keep its own `.serena/project.yml`.
 - If an old prompt says “read root `CLAUDE.md`”, interpret that as “read `AGENTS.md` first”, then use the shim only as a redirect.
+
+
+### [2026-03-07] NEW-RT-07 closeout: host-side MCP sampling routing stays on the host
+
+**Context**: `NEW-MCP-SAMPLING` had already landed the server-side `ctx.createMessage` foundation in `hep-mcp`, but host-side routing governance was still missing. The standalone `NEW-RT-07` prompt explicitly required finishing Plane 2 without reopening `NEW-RT-06`, pulling in `NEW-LOOP-01`, or starting the discovery / retrieval follow-up lanes.
+**Decision**:
+- Plane 2 routing authority now lives on the MCP host (`packages/orchestrator/src/mcp-client.ts`, `mcp-jsonrpc.ts`, `mcp-server-request-handler.ts`, `sampling-handler.ts`, `routing/sampling-{types,schema,loader}.ts`). MCP servers still emit only stable metadata; they do not read routing config and do not self-select models.
+- The shared metadata contract is centralized in `packages/shared/src/sampling-metadata.ts` with strict validation over `module`, `tool`, `prompt_version`, `risk_level`, and `cost_class`, and it explicitly rejects route/model/backend hints in metadata context.
+- `hep-mcp` consumers now use `packages/hep-mcp/src/core/sampling-metadata.ts::buildToolSamplingMetadata(...)` so claim extraction, evidence grading, bundle adjudication, quantity adjudication, and theoretical conflicts all emit the same host-routable metadata shape.
+- Route resolution, chosen route, fallback attempts, and terminal failure are part of the structured audit surface through `mcp_client.sampling_*` ledger events.
+**Validation / governance**:
+- Acceptance passed: `pnpm --filter @autoresearch/shared test`, `pnpm --filter @autoresearch/shared build`, `pnpm --filter @autoresearch/orchestrator test`, `pnpm --filter @autoresearch/orchestrator build`, `pnpm --filter @autoresearch/hep-mcp test`, `pnpm --filter @autoresearch/hep-mcp build`, `pnpm lint`, `pnpm -r test`, `pnpm -r build`.
+- GitNexus post-change gate was refreshed with `npx gitnexus analyze --force`; `detect_changes` reported low risk, and `context`/`impact` checks on `McpClient`, `extractClaimsFromAbstract`, `gradeClaimAgainstEvidenceBundle`, and `performTheoreticalConflicts` matched the intended call graph with no unexpected upstream blast radius.
+- Formal external review used the required pair `Opus` + `OpenCode(kimi-for-coding/k2p5)` and converged in one round with 0 blocking. Formal self-review also passed with 0 blocking. Deferred non-blocking amendments: extra negative-path JSON-RPC handler tests, broader forbidden-context-key coverage, and future metadata size/redaction hardening.
+**Scope guard**:
+- `NEW-DISC-01` D4/D5, `NEW-SEM-06b/d/e`, `NEW-LOOP-01`, and `EVO-13` remain untouched in this closeout.

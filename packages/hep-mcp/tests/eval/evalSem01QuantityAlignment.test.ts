@@ -118,6 +118,15 @@ describe('eval: SEM-01 quantity alignment (local-only)', () => {
     );
 
     expect(createMessage).toHaveBeenCalled();
+    expect(createMessage.mock.calls[0]?.[0]).toMatchObject({
+      metadata: {
+        module: 'sem01_quantity_adjudicator',
+        tool: 'hep_project_compare_measurements',
+        prompt_version: 'v1',
+        risk_level: 'read',
+        cost_class: 'medium',
+      },
+    });
     expect(adjudication.provenance.backend).toBe('mcp_sampling');
     expect(adjudication.decision).toBe('match');
   });

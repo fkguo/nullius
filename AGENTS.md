@@ -4,8 +4,9 @@
 
 ## 根级入口与本地工具文件
 
-- `AGENTS.md` 是仓库级 agent 规则的唯一 SSOT；根级治理规则只在这里维护。
-- 根目录 `CLAUDE.md` 仅作为兼容旧 prompt / 旧工具发现逻辑的稳定 shim，不能再维护第二套根级规则，也不要再放动态 GitNexus 统计。
+- `AGENTS.md` 是仓库级 agent 规则的唯一 SSOT；这里的人类编写治理规则仍是根级唯一权威来源。
+- 根目录 `CLAUDE.md` 仍是兼容旧 prompt / 旧工具发现逻辑的稳定 shim；根级不在其中维护第二套人类编写规则。
+- GitNexus generated appendix 允许进入根 `AGENTS.md` 与根 `CLAUDE.md` 的提交面；该 appendix 属于工具生成上下文而非根级治理 SSOT，可随 `npx gitnexus analyze` 漂移并与业务改动一同提交。
 - `.serena/project.yml` 是单机 / 单 worktree 的本地 Serena 配置，故意不纳入 Git 跟踪；仓库模板固定为 `.serena/project.example.yml`。
 - 若旧文档要求“读取根 `CLAUDE.md`”，应解释为：先读 `AGENTS.md`，再读根 `CLAUDE.md` shim，最后按作用域读更具体的 `packages/*/CLAUDE.md` / `AGENTS.md`。
 
@@ -137,6 +138,7 @@ v1.1.0 起，所有重大文档变更需经 GPT-5.3-Codex (xhigh) 和 Gemini-3-P
 > 适用于 `meta/docs/prompts/prompt-*-impl-*.md` 以及任何要求"按之前惯例执行"的实现任务。通用 checklist 见 `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`。
 
 - **GitNexus 开工前对齐是硬要求**：实现前必须先读 `gitnexus://repo/{name}/context`；若 index stale，先运行 `npx gitnexus analyze`，再继续。禁止带 stale index 开工。
+- **本仓 GitNexus generated appendix 约束**：当前 GitNexus 版本会无条件向根 `AGENTS.md` / `CLAUDE.md` upsert 动态 marker；本仓接受这些 generated appendix 进入提交面，但应将其视为非 SSOT 的工具生成上下文，不在 marker block 内手写根级治理规则。
 - **GitNexus 审核前再对齐是条件性硬要求**：若实现新增/重命名符号、改变关键调用链、或当前 index 已不反映工作树，必须在正式审核前再次刷新，并用 `detect_changes` / `impact` / `context` 形成 post-change 证据。
 - **正式 `review-swarm` 为实现收尾必经步骤**：实现 prompt 默认必须在验收命令通过后执行正式双审；审核必须深入代码、调用链、测试、eval fixture、baseline、scope boundary，禁止只看 diff 摘要做表面判断。
 - **正式自审 (`self-review`) 也是实现收尾硬门禁**：外部双审收敛后，当前执行 agent 仍必须基于实际代码、调用链 / GitNexus 证据、tests / eval / holdout / baseline、scope boundary 再做一轮自审；blocking issue 必须先修复，自审结论与 adopted / deferred amendments 必须记录。
@@ -323,7 +325,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - **Phase 0**: 14/14 完成 ✅
 - **Phase 1**: 19/23 完成
 - **Phase 2**: 26/44 完成 — `NEW-WF-01` ✅（2026-03-07 retro-closeout：batch10 已交付 `research_workflow_v1` schema + templates，本轮补专项回归测试并修正 tracker drift）
-- **Phase 3**: 26/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足）+ Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking）+ Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅ + Batch 12 `NEW-SEM-03` ✅ `NEW-SEM-04` ✅ `NEW-SEM-06-INFRA` ✅（`NEW-SEM-06b` 尚未启动；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated）+ Batch 13 `NEW-SEM-05` ✅ `NEW-SEM-09` ✅（统一 paper/review/content classifier + section-role semantic labeling 已落地；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated）+ Batch 14 `NEW-SEM-10` ✅ `NEW-SEM-13` ✅（topic/method grouping 与 synthesis challenge extraction 现已由共享语义 authority 驱动；Batch 14 开工前先独立修复 orchestrator `zod` 直依赖 CI 回归，commit `a4e1ad0`，GitHub Actions run `22768970963` ✅；实现 acceptance 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `7bd21bc`，low-risk amendments 已吸收）+ Batch 15–16 `NEW-LOOP-01` ✅（`packages/orchestrator/src/research-loop/` 单用户/单项目 substrate 已落地；workspace/task/event graph + explicit backtracks + typed handoff seams + delegated-task injection 均已锁测试；`Opus + OpenCode(kimi-for-coding/k2p5)` 两轮正式双审最终 `CONVERGED`，agent `self-review` 0 blocking，全部 acceptance commands 全绿，implementation commit `d00147d`；同轮补齐 `NEW-WF-01` regression closeout；未启动 `NEW-RT-07` / `NEW-DISC-01` D4/D5 / `NEW-SEM-06b/d/e` / `EVO-13`）; `NEW-DISC-01` 仍为 kickoff/in_progress（D1/D2/D3 完成，D4/D5 仍留在 Batch 13–14；本批未内联启动）+ SOTA follow-up queue 继续按 parallel infra lane `Batch 11–14`（`NEW-DISC-01`, `NEW-RT-06/07`, `NEW-SEM-06-INFRA`）→ retrieval lane `Batch 17–19`（`NEW-SEM-06b/d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
+- **Phase 3**: 27/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足） + Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking） + Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅ + Batch 12 `NEW-SEM-03` ✅ `NEW-SEM-04` ✅ `NEW-SEM-06-INFRA` ✅（`NEW-SEM-06b` 尚未启动；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated） + Batch 13 `NEW-SEM-05` ✅ `NEW-SEM-09` ✅（统一 paper/review/content classifier + section-role semantic labeling 已落地；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated） + Batch 14 `NEW-SEM-10` ✅ `NEW-SEM-13` ✅（topic/method grouping 与 synthesis challenge extraction 现已由共享语义 authority 驱动；Batch 14 开工前先独立修复 orchestrator `zod` 直依赖 CI 回归，commit `a4e1ad0`，GitHub Actions run `22768970963` ✅；实现 acceptance 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `7bd21bc`，low-risk amendments 已吸收） + Batch 15–16 `NEW-LOOP-01` ✅（`packages/orchestrator/src/research-loop/` 单用户/单项目 substrate 已落地；workspace/task/event graph + explicit backtracks + typed handoff seams + delegated-task injection 均已锁测试；`Opus + OpenCode(kimi-for-coding/k2p5)` 两轮正式双审最终 `CONVERGED`，agent `self-review` 0 blocking，全部 acceptance commands 全绿，implementation commit `d00147d`；同轮补齐 `NEW-WF-01` regression closeout） + Standalone `NEW-RT-07` ✅（host-side MCP sampling routing registry / typed metadata contract / auditable fallback + fail-closed path 已落地；`packages/orchestrator/src/{mcp-client,mcp-jsonrpc,mcp-server-request-handler,sampling-handler,routing/sampling-*}`、`packages/shared/src/sampling-metadata.ts` 与 `packages/hep-mcp/src/core/sampling-metadata.ts` 为 authority；全部 acceptance commands 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `f7f0851`；未启动 `NEW-DISC-01` D4/D5 / `NEW-SEM-06b/d/e` / `EVO-13`）; `NEW-DISC-01` 仍为 kickoff/in_progress（D1/D2/D3 完成，D4/D5 仍留在后续 retrieval/discovery lane；本批未内联启动） + SOTA follow-up queue 继续按 retrieval lane `Batch 17–19`（`NEW-DISC-01` closeout, `NEW-SEM-06b/d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
 - **Phase 4**: 0/8 完成 — blocked by Phase 3
 - **Phase 5**: 0/22 完成 — blocked by Phase 4
 - **R4 双模型审核**: ✅ 收敛 (Gemini CONVERGED + Codex CONVERGED_WITH_AMENDMENTS, 0 blocking)
@@ -492,3 +494,65 @@ hepar report render --run-ids <...> --out md|tex
 - **Nodes**: `File`, `Function`, `Class`, `Interface`, `Method`, `Community`, `Process`
 - **Edges** (`CodeRelation.type`): `CALLS`, `IMPORTS`, `EXTENDS`, `IMPLEMENTS`, `DEFINES`, `MEMBER_OF`, `STEP_IN_PROCESS`
 
+<!-- gitnexus:start -->
+# GitNexus MCP
+
+This project is indexed by GitNexus as **autoresearch-lab-rt07** (10390 symbols, 22980 relationships, 300 execution flows).
+
+GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
+
+## Always Start Here
+
+For any task involving code understanding, debugging, impact analysis, or refactoring, you must:
+
+1. **Read `gitnexus://repo/{name}/context`** — codebase overview + check index freshness
+2. **Match your task to a skill below** and **read that skill file**
+3. **Follow the skill's workflow and checklist**
+
+> If step 1 warns the index is stale, run `npx gitnexus analyze` in the terminal first.
+
+## Skills
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/refactoring/SKILL.md` |
+
+## Tools Reference
+
+| Tool | What it gives you |
+|------|-------------------|
+| `query` | Process-grouped code intelligence — execution flows related to a concept |
+| `context` | 360-degree symbol view — categorized refs, processes it participates in |
+| `impact` | Symbol blast radius — what breaks at depth 1/2/3 with confidence |
+| `detect_changes` | Git-diff impact — what do your current changes affect |
+| `rename` | Multi-file coordinated rename with confidence-tagged edits |
+| `cypher` | Raw graph queries (read `gitnexus://repo/{name}/schema` first) |
+| `list_repos` | Discover indexed repos |
+
+## Resources Reference
+
+Lightweight reads (~100-500 tokens) for navigation:
+
+| Resource | Content |
+|----------|---------|
+| `gitnexus://repo/{name}/context` | Stats, staleness check |
+| `gitnexus://repo/{name}/clusters` | All functional areas with cohesion scores |
+| `gitnexus://repo/{name}/cluster/{clusterName}` | Area members |
+| `gitnexus://repo/{name}/processes` | All execution flows |
+| `gitnexus://repo/{name}/process/{processName}` | Step-by-step trace |
+| `gitnexus://repo/{name}/schema` | Graph schema for Cypher |
+
+## Graph Schema
+
+**Nodes:** File, Function, Class, Interface, Method, Community, Process
+**Edges (via CodeRelation.type):** CALLS, IMPORTS, EXTENDS, IMPLEMENTS, DEFINES, MEMBER_OF, STEP_IN_PROCESS
+
+```cypher
+MATCH (caller)-[:CodeRelation {type: 'CALLS'}]->(f:Function {name: "myFunc"})
+RETURN caller.name, caller.filePath
+```
+
+<!-- gitnexus:end -->

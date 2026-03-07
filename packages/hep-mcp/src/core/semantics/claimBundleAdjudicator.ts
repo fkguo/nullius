@@ -1,7 +1,9 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
+import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
 
 import { buildClaimBundleAssessmentPrompt, parseClaimBundleAssessmentResponse } from './claimBundleSampling.js';
 import { extractSamplingText } from './claimSampling.js';
+import { buildToolSamplingMetadata } from '../sampling-metadata.js';
 import type {
   ClaimEvidenceItem,
   ClaimSemanticGradeV1,
@@ -50,12 +52,13 @@ export async function adjudicateClaimBundle(params: {
         },
       }],
       maxTokens: 700,
-      metadata: {
+      metadata: buildToolSamplingMetadata({
+        tool: INSPIRE_CRITICAL_RESEARCH,
         module: 'sem03_stance_engine',
-        prompt_version: params.prompt_version,
-        claim_id: params.claim.claim_id,
-        evidence_count: params.evidenceItems.length,
-      },
+        promptVersion: params.prompt_version,
+        costClass: 'medium',
+        context: { claim_id: params.claim.claim_id, evidence_count: params.evidenceItems.length },
+      }),
     });
     const parsed = parseClaimBundleAssessmentResponse(extractSamplingText(response.content));
     if (!parsed) {

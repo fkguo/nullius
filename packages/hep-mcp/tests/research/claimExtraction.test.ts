@@ -34,6 +34,18 @@ describe('extractClaimsFromAbstract', () => {
 
     expect(first[0]?.used_fallback).toBe(true);
     expect(createMessage).toHaveBeenCalledTimes(1);
+    const samplingRequest = createMessage.mock.calls[0]?.[0] as { metadata?: Record<string, unknown> } | undefined;
+    expect(samplingRequest).toMatchObject({
+      metadata: {
+        module: 'sem02_claim_extraction',
+        tool: 'inspire_critical_research',
+        prompt_version: 'sem02_claim_extraction_cache_switch_v1',
+        risk_level: 'read',
+        cost_class: 'low',
+      },
+    });
+    expect(samplingRequest?.metadata).not.toHaveProperty('route');
+    expect(samplingRequest?.metadata).not.toHaveProperty('model');
     expect(second[0]?.used_fallback).toBe(false);
     expect(second[0]?.claim_text).toBe('LLM extracted claim for channel A.');
   });

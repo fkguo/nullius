@@ -10,6 +10,9 @@ export * from './tool-names.js';
 // Tool risk classification (H-11a)
 export * from './tool-risk.js';
 
+// Sampling routing metadata (NEW-RT-07)
+export * from './sampling-metadata.js';
+
 // EcosystemID (H-15a)
 export * from './ecosystem-id.js';
 

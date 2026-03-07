@@ -1,11 +1,13 @@
 import { createHash } from 'crypto';
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
+import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
 import {
   buildClaimExtractionPrompt,
   extractSamplingText,
   parseClaimExtractionResponse,
 } from './claimSampling.js';
 import { determineEvidenceLevel, extractSigmaLevel, heuristicExtractClaimCandidates } from './citationStanceHeuristics.js';
+import { buildToolSamplingMetadata } from '../sampling-metadata.js';
 import type { ExtractedClaimV1 } from './claimTypes.js';
 
 export type ClaimSamplingContext = {
@@ -78,10 +80,12 @@ export async function extractClaimsFromAbstract(
     const response = await ctx.createMessage({
       messages: [{ role: 'user', content: { type: 'text', text: buildClaimExtractionPrompt({ prompt_version: promptVersion, abstract, max_claims: maxClaims }) } }],
       maxTokens: 900,
-      metadata: {
+      metadata: buildToolSamplingMetadata({
+        tool: INSPIRE_CRITICAL_RESEARCH,
         module: 'sem02_claim_extraction',
-        prompt_version: promptVersion,
-      },
+        promptVersion,
+        costClass: 'low',
+      }),
     });
     const parsed = parseClaimExtractionResponse(extractSamplingText(response.content));
     if (!parsed || parsed.length === 0) {

@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
+import { HEP_PROJECT_COMPARE_MEASUREMENTS } from '@autoresearch/shared';
 import { canonicalQuantityKey } from './quantityCanonical.js';
 import { heuristicAdjudicateQuantityPair } from './quantityHeuristicModel.js';
 import { normalizeUnitsForPair, unitPairIncompatible } from './quantityUnits.js';
@@ -10,6 +11,7 @@ import {
   parseQuantityAdjudicationResponse,
 } from './quantitySampling.js';
 import type { QuantityDecisionV1, QuantityMentionV1, QuantityReasonCodeV1, UnitNormalizationV1 } from './quantityTypes.js';
+import { buildToolSamplingMetadata } from '../sampling-metadata.js';
 
 export type QuantityAdjudicationV1 = {
   version: 1;
@@ -100,10 +102,12 @@ export async function adjudicateQuantityPair(
     const response = await ctx.createMessage({
       messages: [{ role: 'user', content: { type: 'text', text: prompt } }],
       maxTokens: 400,
-      metadata: {
+      metadata: buildToolSamplingMetadata({
+        tool: HEP_PROJECT_COMPARE_MEASUREMENTS,
         module: 'sem01_quantity_adjudicator',
-        prompt_version: promptVersion,
-      },
+        promptVersion,
+        costClass: 'medium',
+      }),
     });
 
     const rawText = extractSamplingText(response.content);

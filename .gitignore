@@ -35,7 +35,6 @@ Thumbs.db
 # Temp / review artifacts
 .tmp/
 .review/
-.serena/memories/
 .claude/
 .npm/
 tmp/

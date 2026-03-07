@@ -14,6 +14,7 @@ import { writeRunJsonArtifact } from '../../core/citations.js';
 import { getRunArtifactPath } from '../../core/paths.js';
 import { getRun, type RunArtifactRef } from '../../core/runs.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
+import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { classifyAxisPosition, mutualExclusionRuleHits, type DebateAxis } from './theoreticalConflict/lexicon.js';
 import {
   defaultRationaleForRelation,
@@ -784,13 +785,13 @@ export async function performTheoreticalConflicts(params: {
             content: { type: 'text', text: req.prompt },
           }],
           maxTokens: 800,
-          metadata: {
+          metadata: buildToolSamplingMetadata({
             tool: INSPIRE_CRITICAL_RESEARCH,
-            mode: 'theoretical',
-            request_id: req.request_id,
-            prompt_version: req.prompt_version,
-            run_id: params.run_id,
-          },
+            module: 'sem04_theoretical_conflicts',
+            promptVersion: req.prompt_version,
+            costClass: 'high',
+            context: { mode: 'theoretical', request_id: req.request_id, run_id: params.run_id },
+          }),
         };
 
         const response = await createMessage(samplingRequest);

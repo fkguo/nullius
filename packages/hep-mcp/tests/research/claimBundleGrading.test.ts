@@ -54,6 +54,18 @@ describe('claim bundle grading', () => {
     expect(grade.provenance.prompt_version).toBe('sem03_test_v1');
     expect(grade.used_fallback).toBe(false);
     expect(createMessage).toHaveBeenCalledTimes(3);
+    const bundleRequest = createMessage.mock.calls
+      .map(call => call[0] as { metadata?: Record<string, unknown> })
+      .find(call => call.metadata?.module === 'sem03_stance_engine');
+    expect(bundleRequest).toMatchObject({
+      metadata: {
+        module: 'sem03_stance_engine',
+        tool: 'inspire_critical_research',
+        prompt_version: 'sem03_test_v1',
+        risk_level: 'read',
+        cost_class: 'medium',
+      },
+    });
   });
 
   it('records fallback when bundle adjudication is invalid', async () => {

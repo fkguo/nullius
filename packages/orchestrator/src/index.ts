@@ -21,7 +21,10 @@ export {
 export { createChatBackend, type ChatBackendFactory } from './backends/backend-factory.js';
 export { type ChatBackend } from './backends/chat-backend.js';
 export { loadRoutingConfig, resolveChatRoute } from './routing/loader.js';
+export { loadSamplingRoutingConfig, resolveSamplingRoute } from './routing/sampling-loader.js';
 export { type ChatRoutingConfig, type ResolvedChatRoute } from './routing/types.js';
+export { type SamplingRoutingConfig, type ResolvedSamplingRoute } from './routing/sampling-types.js';
+export { executeSamplingRequest, type HostSamplingRequest, type SamplingExecutionAudit, type SamplingExecutionResult } from './sampling-handler.js';
 export {
   RunManifestManager,
   type RunManifest,

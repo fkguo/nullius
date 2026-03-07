@@ -42,6 +42,15 @@ describe('gradeClaimAgainstEvidenceBundle', () => {
     const grade = await gradeClaimAgainstEvidenceBundle(CLAIM, EVIDENCE, { createMessage });
 
     expect(createMessage).toHaveBeenCalledTimes(1);
+    expect(createMessage.mock.calls[0]?.[0]).toMatchObject({
+      metadata: {
+        module: 'sem02_claim_evidence_grading',
+        tool: 'inspire_critical_research',
+        prompt_version: 'sem02_claim_evidence_v1',
+        risk_level: 'read',
+        cost_class: 'medium',
+      },
+    });
     expect(grade.aggregate_stance).toBe('supported');
     expect(grade.used_fallback).toBe(false);
     expect(grade.evidence_assessments[0]?.provenance.backend).toBe('mcp_sampling');
