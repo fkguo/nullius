@@ -244,6 +244,32 @@
 - Defer refactor/documentation amendments (`parseJsonPayload` dedup, fallback logging, baseline README, deterministic prior year injection) because they do not change Batch 13 correctness and would add unrelated churn to a closed semantic batch.
 **Artifacts**: Formal review artifacts live in `.review/batch13-impl-review-2026-03-06/` (gitignored), with normalized summary in `normalized_review_summary.json`.
 
+
+
+### [2026-03-07] EVO-13 formal implementation prompt should wait for NEW-LOOP-01 stabilization
+
+**Context**: After clarifying the three-layer architecture (`NEW-LOOP-01` substrate → `EVO-13` team runtime → `EVO-15/16` community), the next risk is procedural: drafting an `EVO-13` implementation prompt too early would force the team runtime to target unstable substrate contracts, while waiting too long could cause the design memo to be forgotten.
+**Decision**:
+- Keep `meta/docs/2026-03-07-evo13-single-project-multi-agent-runtime-memo.md` as the design SSOT for future `EVO-13` prompt authoring.
+- Do **not** draft the full `EVO-13` implementation prompt until `NEW-LOOP-01` has passed full closeout (acceptance + review-swarm + self-review + sync) and its substrate contract is stable enough for team-runtime consumption.
+- Treat the following as the minimum prompt-activation trigger: stable `ResearchWorkspace` / `ResearchTask` / `ResearchEvent` / `ResearchCheckpoint`, plus finalized `source` / `actor_id`, typed handoff stubs, and task injection seam.
+- Future `NEW-LOOP-01` closeout and future `EVO-13` prompt must both backlink this memo so the design is not lost across sessions.
+**Design linkage**: `meta/docs/2026-03-07-evo13-single-project-multi-agent-runtime-memo.md`; `meta/docs/2026-03-07-openclaw-loop01-research-outline.md`; `meta/docs/2026-03-07-single-user-multi-agent-runtime-sota.md`.
+
+### [2026-03-07] `single-user` means single governing user, not single agent
+
+**Context**: Follow-up clarification while deepening the `NEW-LOOP-01` OpenClaw runtime research outline. The phrase `single-user research loop first` was at risk of being misread as “the system should stay single-agent until community-scale Agent-arXiv arrives”. That reading is too restrictive and conflicts with both the existing `research-team` capability and the intended Phase 5 evolution toward team execution.
+**Decision**:
+- Interpret `single-user` as **single human owner / principal investigator / governing control plane**, not “exactly one active agent”.
+- Keep `NEW-LOOP-01` focused on the **single-user, single-project runtime substrate**: `ResearchWorkspace`, task/event graph, checkpoint, intervention, and shared interactive/autonomous loop semantics.
+- Treat **multi-agent collaboration inside one research project** as the next layer up, not as a distant community-only concern. A single project may later host multiple collaborating agents (for example literature scout, compute delegate, reviewer, draft improver) under one user’s governance.
+- Reserve the **full team-execution runtime**—nested delegation, A2A/session messaging, team checkpoints, cascade stop, structured delegation—for `EVO-13` rather than pulling it into `NEW-LOOP-01`.
+- Reserve **community-scale multi-team infrastructure**—Agent-arXiv, registry/reputation/publication/evolution layers—for `EVO-15/16`.
+**Implication**:
+- Architecture should now be read as a three-layer progression: `NEW-LOOP-01` (single-user project substrate) → `EVO-13` (multi-agent team execution inside a project) → `EVO-15/16` (community of multiple agent research teams).
+- Future prompts and reviews must not conflate `single-user` with `single-agent`, but they also must not use that clarification to smuggle `EVO-13` runtime scope into `NEW-LOOP-01`.
+**Design linkage**: `meta/docs/2026-03-07-openclaw-loop01-research-outline.md` §13–§15; `meta/REDESIGN_PLAN.md` `NEW-LOOP-01`, `EVO-13`, `EVO-15`, `EVO-16`.
+
 ### [2026-03-06] Implementation prompts inherit hard gates: GitNexus freshness first, deep review-swarm required
 
 **Context**: Batch 14 prompt tightening exposed a recurring failure mode: implementation prompts and follow-up sessions could mention GitNexus and review-swarm, but the requirements were not yet institutionalized as project-wide default gates. That forced repeated human reminders about when to refresh GitNexus, how deep final review must be, and when version-control finalization is allowed.

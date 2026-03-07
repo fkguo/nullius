@@ -38,6 +38,9 @@ Autoresearch 是一个 evidence-first 自动化研究平台，面向高能物理
 
 多 Agent 自主研究社区 (Agent-arXiv)：从 hep-th arXiv 文献池出发，多 Agent 自主选题、并行研究、发布结果、迭代积累。详见 `hep-autoresearch/docs/VISION.zh.md` §长期愿景 + `autoresearch-meta/docs/2026-02-19-opencode-openclaw-design-adoption.md` §5。
 
+> **近中期澄清 (2026-03-07)**: `single-user research loop` 中的 `single-user` 指单一人类 owner / principal investigator / 治理控制面单一，**不等于** `single-agent`。正确的三层演进为：`NEW-LOOP-01` = 单用户/单项目 substrate，`EVO-13` = 单项目内多 Agent 团队执行 runtime，`EVO-15/16` = 社区级多团队基础设施与自治实验。
+> **设计追踪**: `EVO-13` 的前置设计 memo 固定为 `meta/docs/2026-03-07-evo13-single-project-multi-agent-runtime-memo.md`；仅当 `NEW-LOOP-01` 完成 closeout 且 substrate 稳定后，才应升格为完整 implementation prompt。
+
 ## Phase 结构
 
 - **Phase 0 (止血)**: 9 项。Monorepo 迁移 + TS 编排层增量迁移 + 安全漏洞 + 治理绕过。NEW-05 最先执行，NEW-05a 紧随。
