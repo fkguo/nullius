@@ -302,3 +302,47 @@
 - Self-review must inspect actual code, key callers / flows, post-change GitNexus evidence (`detect_changes`, plus `impact` / `context` when relevant), tests / eval / holdout / baseline coverage, and scope discipline.
 - If self-review finds a blocking issue, it must be fixed before completion; external review convergence alone is not enough to declare done.
 - Project-level governance is recorded in both `AGENTS.md` and `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md` so future implementation prompts inherit the rule automatically.
+
+
+### [2026-03-07] NEW-WF-01 retro-closeout: workflow schema is a real substrate prerequisite
+
+**Context**: `NEW-LOOP-01` hard-gate investigation found that `meta/remediation_tracker_v1.json` still marked `NEW-WF-01` as `pending`, which blocked legal start of the single-user loop runtime. However, Batch 10 had already landed `meta/schemas/research_workflow_v1.schema.json` plus the three workflow templates in commit `c63697d`.
+**Decision**:
+- Treat `NEW-WF-01` as a legitimate completed prerequisite after backfilling dedicated regression coverage instead of re-implementing the item.
+- Add `packages/hep-mcp/tests/core/researchWorkflowSchema.test.ts` to lock the draft-2020 schema, the three shipped workflow templates, all four documented entry-point variants, and graph-reference integrity.
+- Record the tracker state as a retro-closeout on 2026-03-07 rather than leaving `NEW-LOOP-01` blocked on stale bookkeeping.
+**Implication**:
+- Future `NEW-LOOP-01` work can rely on `research_workflow_v1` / workflow-template artifacts as an already-landed prerequisite.
+- Do not reopen `NEW-WF-01` unless the workflow schema contract itself changes; the follow-up work belongs in the runtime substrate (`NEW-LOOP-01`), not in re-litigating the schema baseline.
+
+
+### [2026-03-07] NEW-LOOP-01 closeout: single-user research substrate lands before EVO-13
+
+**Context**: `NEW-LOOP-01` was promoted as the near-term execution kernel for the product, but the branch still lacked a concrete workspace/task/event substrate in `packages/orchestrator/`. The implementation prompt also required a strict boundary: land a reusable single-user / single-project substrate now, but do **not** prematurely pull in `EVO-13` multi-agent runtime scope.
+**Decision**:
+- Land `packages/orchestrator/src/research-loop/` as the substrate authority with explicit `ResearchWorkspace`, `ResearchNode`, `ResearchEdge`, `ResearchTask`, `ResearchEvent`, `ResearchCheckpoint`, `LoopIntervention`, and typed `ResearchHandoff` abstractions.
+- Use one in-memory `ResearchLoopRuntime` for both interactive and autonomous modes; mode differences are policy-only (`ResearchLoopPolicy`), not a forked state model.
+- Make nonlinear loop semantics first-class via explicit allowed follow-ups/backtracks (`compute -> literature|idea`, `review -> evidence_search`, `finding -> draft_update`) rather than mutating a stage enum.
+- Leave future extension seams in place (`appendDelegatedTask`, typed handoffs for compute/feedback/literature/review/writing) without implementing `EVO-13` session lifecycle, multi-agent coordination, or A2A execution.
+- Keep `UX-06` stage labels as UX taxonomy only; execution truth now lives in workspace/task/event state.
+**Validation / governance**:
+- Acceptance passed: `pnpm --filter @autoresearch/hep-mcp test -- tests/core/researchWorkflowSchema.test.ts`, `pnpm --filter @autoresearch/orchestrator test`, `pnpm --filter @autoresearch/orchestrator build`, `pnpm -r test`, `pnpm -r build`.
+- GitNexus post-change gate was executed (`npx gitnexus analyze --force`, `detect_changes`, `context`, Cypher spot checks). The graph still failed to surface newly added unstaged `research-loop/*` files, so closeout relied on both GitNexus evidence for the tracked entry surface and direct source inspection for the new substrate files.
+- Formal external review used the user-fixed pair `Opus` + `OpenCode(kimi-for-coding/k2p5)` and converged in two rounds (`R1 CONVERGED_WITH_AMENDMENTS`, `R2 CONVERGED`, both 0 blocking). The low-risk API-contract amendments from R1 were integrated before the final rerun.
+- Formal self-review also passed with 0 blocking.
+**Scope guard**:
+- `NEW-RT-07`, `NEW-DISC-01` D4/D5, `NEW-SEM-06b/d/e`, and `EVO-13` remain out of scope.
+- The substrate is now stable enough for future consumers (`EVO-01/02/03`, eventually `EVO-13`) to extend it instead of inventing a parallel project-state model.
+
+### [2026-03-07] Root instruction consolidation: AGENTS is SSOT, root CLAUDE is shim, Serena project config is local-only
+
+**Context**: Root `CLAUDE.md` and `.serena/project.yml` were producing repeated worktree noise. `CLAUDE.md` duplicated root policy and also carried GitNexus auto-managed metadata; `.serena/project.yml` is inherently machine/worktree-specific Serena state rather than shared product code.
+**Decision**:
+- `AGENTS.md` is now the only root-level SSOT for repository-wide agent rules.
+- Root `CLAUDE.md` is reduced to a stable compatibility shim for older prompts / Claude-oriented discovery. It no longer carries dynamic GitNexus markers or a second root rulebook.
+- `.serena/project.yml` is treated as local-only configuration and removed from Git tracking; the tracked template is `.serena/project.example.yml`.
+- GitNexus guidance in root policy files is now static/human-maintained text; do not reintroduce auto-managed marker blocks into root `AGENTS.md` / `CLAUDE.md`.
+**Implication**:
+- Future sessions should stop debating those two files as routine dirty-state noise.
+- If Serena setup changes are desired, update `.serena/project.example.yml` and let each worktree keep its own `.serena/project.yml`.
+- If an old prompt says “read root `CLAUDE.md`”, interpret that as “read `AGENTS.md` first”, then use the shim only as a redirect.
