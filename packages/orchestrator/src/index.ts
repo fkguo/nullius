@@ -27,3 +27,4 @@ export {
   type RunManifest,
   type StepCheckpoint,
 } from './run-manifest.js';
+export * from './research-loop/index.js';
