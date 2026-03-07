@@ -334,3 +334,15 @@
 - `NEW-RT-07`, `NEW-DISC-01` D4/D5, `NEW-SEM-06b/d/e`, and `EVO-13` remain out of scope.
 - The substrate is now stable enough for future consumers (`EVO-01/02/03`, eventually `EVO-13`) to extend it instead of inventing a parallel project-state model.
 
+### [2026-03-07] Root instruction consolidation: AGENTS is SSOT, root CLAUDE is shim, Serena project config is local-only
+
+**Context**: Root `CLAUDE.md` and `.serena/project.yml` were producing repeated worktree noise. `CLAUDE.md` duplicated root policy and also carried GitNexus auto-managed metadata; `.serena/project.yml` is inherently machine/worktree-specific Serena state rather than shared product code.
+**Decision**:
+- `AGENTS.md` is now the only root-level SSOT for repository-wide agent rules.
+- Root `CLAUDE.md` is reduced to a stable compatibility shim for older prompts / Claude-oriented discovery. It no longer carries dynamic GitNexus markers or a second root rulebook.
+- `.serena/project.yml` is treated as local-only configuration and removed from Git tracking; the tracked template is `.serena/project.example.yml`.
+- GitNexus guidance in root policy files is now static/human-maintained text; do not reintroduce auto-managed marker blocks into root `AGENTS.md` / `CLAUDE.md`.
+**Implication**:
+- Future sessions should stop debating those two files as routine dirty-state noise.
+- If Serena setup changes are desired, update `.serena/project.example.yml` and let each worktree keep its own `.serena/project.yml`.
+- If an old prompt says “read root `CLAUDE.md`”, interpret that as “read `AGENTS.md` first”, then use the shim only as a redirect.
