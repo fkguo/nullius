@@ -336,16 +336,28 @@
 
 ### [2026-03-07] Root instruction consolidation: AGENTS is SSOT, root CLAUDE is shim, Serena project config is local-only
 
-**Context**: Root `CLAUDE.md` and `.serena/project.yml` were producing repeated worktree noise. `CLAUDE.md` duplicated root policy and also carried GitNexus auto-managed metadata; `.serena/project.yml` is inherently machine/worktree-specific Serena state rather than shared product code.
+**Context**: Root `CLAUDE.md` and `.serena/project.yml` were producing repeated worktree noise. `CLAUDE.md` must stay a compatibility shim rather than a second root rulebook, while `.serena/project.yml` is inherently machine/worktree-specific Serena state rather than shared product code. GitNexus also currently upserts generated appendix blocks into root instruction files, so the repository needs an explicit policy for those markers instead of relitigating them in every batch.
 **Decision**:
-- `AGENTS.md` is now the only root-level SSOT for repository-wide agent rules.
-- Root `CLAUDE.md` is reduced to a stable compatibility shim for older prompts / Claude-oriented discovery. It no longer carries dynamic GitNexus markers or a second root rulebook.
+- `AGENTS.md` remains the only root-level SSOT for repository-wide human-authored agent rules.
+- Root `CLAUDE.md` is reduced to a stable compatibility shim for older prompts / Claude-oriented discovery; it does not own a second human-maintained root rulebook.
 - `.serena/project.yml` is treated as local-only configuration and removed from Git tracking; the tracked template is `.serena/project.example.yml`.
-- GitNexus guidance in root policy files is now static/human-maintained text; do not reintroduce auto-managed marker blocks into root `AGENTS.md` / `CLAUDE.md`.
+- GitNexus-generated appendix blocks in root `AGENTS.md` / `CLAUDE.md` are accepted into the commit surface, but they are tool-generated non-SSOT context rather than authoritative governance text. Human-authored root policy should live outside those generated marker blocks.
 **Implication**:
-- Future sessions should stop debating those two files as routine dirty-state noise.
+- Future sessions should stop debating `CLAUDE.md` and `.serena/project.yml` as routine dirty-state noise, and should not treat generated appendix content as the authoritative rule source.
 - If Serena setup changes are desired, update `.serena/project.example.yml` and let each worktree keep its own `.serena/project.yml`.
 - If an old prompt says “read root `CLAUDE.md`”, interpret that as “read `AGENTS.md` first”, then use the shim only as a redirect.
+
+### [2026-03-07] Worktree cleanup requires Serena memory migration before removal
+
+**Context**: `gitignore` only controls Git tracking; it does not protect local Serena memories from being lost when an implementation worktree is deleted. Batch worktrees often accumulate useful `.serena/memories/*` context that is not yet promoted into tracked governance artifacts, so direct `git worktree remove` would silently discard it.
+**Decision**:
+- Before removing any non-main worktree, audit that worktree’s `.serena/memories/` contents explicitly.
+- Durable governance conclusions must be promoted into `.serena/memories/architecture-decisions.md` and committed as part of closeout.
+- Reusable but local-only memories that should remain available for future development must be copied into the surviving target worktree’s `.serena/memories/`.
+- Only scratch notes, cache-like artifacts, and one-off thoughts with no expected reuse may be discarded with the removed worktree.
+**Implication**:
+- Worktree cleanup checklists must treat Serena memory migration as a real closeout gate, not an optional courtesy.
+- The real risk is deleting the worktree directory, not `.gitignore`; memory preservation must therefore happen before merge cleanup.
 
 
 ### [2026-03-07] NEW-RT-07 closeout: host-side MCP sampling routing stays on the host

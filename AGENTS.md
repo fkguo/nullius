@@ -144,6 +144,7 @@ v1.1.0 起，所有重大文档变更需经 GPT-5.3-Codex (xhigh) 和 Gemini-3-P
 - **正式自审 (`self-review`) 也是实现收尾硬门禁**：外部双审收敛后，当前执行 agent 仍必须基于实际代码、调用链 / GitNexus 证据、tests / eval / holdout / baseline、scope boundary 再做一轮自审；blocking issue 必须先修复，自审结论与 adopted / deferred amendments 必须记录。
 - **完成态门禁**：只有当验收命令通过、`review-swarm` 收敛且双审 `blocking_issues = 0`、`self-review` 通过、tracker / memory / `AGENTS.md` 已同步后，实施项才可标记 `done`。
 - **版本控制门禁**：`git commit` / `git push` 仍需人类在当前任务中明确授权；若已授权，也只能在上述完成态门禁满足后执行，并在 push 前确认工作树只包含本批应交付内容。`.review/` 审核产物保持 gitignored，不进入提交。
+- **worktree 清理前 Serena memory 迁移是硬门禁**：删除任何非主 `worktree`（含 `git worktree remove` 或等价目录清理）前，必须先盘点该 `worktree` 下的 `.serena/memories/`；可复用的长期结论迁入并提交 `.serena/memories/architecture-decisions.md`，仅本地保留但对后续开发仍有帮助的记忆复制到保留的目标 `worktree` 的 `.serena/memories/`，只有临时 scratch / cache / 不可复用思路才允许随 `worktree` 删除。未完成迁移前不得清理 `worktree`。
 
 ### Tracker 更新协议
 
