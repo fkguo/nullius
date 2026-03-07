@@ -4,17 +4,7 @@
  */
 
 import type { DeepPaperAnalysis } from '../deepAnalyze.js';
-import { tokenize, calculateTFIDF, extractTopTerms } from './tfidf.js';
-
-// Common methodology keywords in physics (fallback terms)
-const METHOD_TERMS = [
-  'perturbation', 'lattice', 'monte carlo', 'effective theory', 'eft',
-  'unitarity', 'dispersion', 'bootstrap', 'holography', 'ads/cft',
-  'sum rules', 'quark model', 'potential model', 'chiral',
-  'phenomenology', 'phenomenological', 'qcd', 'qed', 'electroweak',
-  'renormalization', 'resummation', 'factorization', 'amplitude',
-  'scattering', 'decay', 'cross section', 'form factor',
-];
+import { groupCollectionSemantics, humanizeSemanticLabel, toGroupingPaper } from './collectionSemanticGrouping.js';
 
 export interface PaperGroup {
   name: string;
@@ -25,26 +15,6 @@ export interface PaperGroup {
     contribution: string;
   }>;
   key_insights: string[];
-}
-
-/**
- * Extract methodology keywords from paper (fallback method)
- */
-function extractMethodKeywords(paper: DeepPaperAnalysis): string[] {
-  const keywords: string[] = [];
-
-  const searchText = [
-    paper.methodology || '',
-    paper.structure?.abstract || '',
-  ].join(' ').toLowerCase();
-
-  for (const term of METHOD_TERMS) {
-    if (searchText.includes(term.toLowerCase())) {
-      keywords.push(term);
-    }
-  }
-
-  return keywords;
 }
 
 /**
@@ -70,27 +40,9 @@ function extractContribution(paper: DeepPaperAnalysis): string {
 /**
  * Extract group-level insights
  */
-function extractGroupInsights(papers: DeepPaperAnalysis[]): string[] {
+function extractGroupInsights(label: string, papers: DeepPaperAnalysis[]): string[] {
   const insights: string[] = [];
-
-  // Count common keywords
-  const keywordCounts = new Map<string, number>();
-  for (const paper of papers) {
-    const keywords = extractMethodKeywords(paper);
-    for (const kw of keywords) {
-      keywordCounts.set(kw, (keywordCounts.get(kw) || 0) + 1);
-    }
-  }
-
-  // Find common themes
-  const common = [...keywordCounts.entries()]
-    .filter(([_, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
-
-  if (common.length > 0) {
-    insights.push(`Common approaches: ${common.map(c => c[0]).join(', ')}`);
-  }
+  if (label !== 'uncertain') insights.push(`Shared semantic grouping: ${humanizeSemanticLabel(label)}`);
 
   // Count theorems
   const totalTheorems = papers.reduce((sum, p) => sum + (p.theorems?.length || 0), 0);
@@ -99,67 +51,6 @@ function extractGroupInsights(papers: DeepPaperAnalysis[]): string[] {
   }
 
   return insights;
-}
-
-/**
- * Cluster papers by TF-IDF semantic similarity
- */
-function clusterByTFIDF(
-  papers: DeepPaperAnalysis[]
-): Map<string, DeepPaperAnalysis[]> {
-  if (papers.length === 0) return new Map();
-
-  // Tokenize methodology sections
-  const documents = papers.map(paper => {
-    const text = [
-      paper.methodology || '',
-      paper.conclusions || '',
-    ].join(' ');
-    return tokenize(text);
-  });
-
-  // Calculate TF-IDF
-  const recids = papers.map(p => p.recid);
-  const tfidfScores = calculateTFIDF(documents, recids);
-  const topTerms = extractTopTerms(tfidfScores, 3);
-
-  // Find common cluster labels
-  const termCounts = new Map<string, number>();
-  for (const terms of topTerms.values()) {
-    for (const term of terms) {
-      termCounts.set(term, (termCounts.get(term) || 0) + 1);
-    }
-  }
-
-  // Select cluster labels (terms that appear in at least 2 papers)
-  const clusterLabels = [...termCounts.entries()]
-    .filter(([_, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([term]) => term);
-
-  // Assign papers to clusters
-  const clusters = new Map<string, DeepPaperAnalysis[]>();
-
-  for (const paper of papers) {
-    const paperTerms = topTerms.get(paper.recid) || [];
-
-    // Find best matching cluster
-    let bestCluster = 'general';
-    for (const label of clusterLabels) {
-      if (paperTerms.includes(label)) {
-        bestCluster = label;
-        break;
-      }
-    }
-
-    if (!clusters.has(bestCluster)) {
-      clusters.set(bestCluster, []);
-    }
-    clusters.get(bestCluster)!.push(paper);
-  }
-
-  return clusters;
 }
 
 /**
@@ -202,51 +93,17 @@ export function groupByMethodology(
   maxPerGroup: number
 ): PaperGroup[] {
   if (papers.length === 0) return [];
-
-  // Use TF-IDF clustering for semantic grouping
-  const clusters = clusterByTFIDF(papers);
-
-  // If TF-IDF clustering produces meaningful groups, use them
-  if (clusters.size > 1 || (clusters.size === 1 && !clusters.has('general'))) {
-    return [...clusters.entries()]
-      .filter(([_, clusterPapers]) => clusterPapers.length > 0)
-      .map(([clusterName, clusterPapers]) => ({
-        name: clusterName.charAt(0).toUpperCase() + clusterName.slice(1),
-        description: `Papers focusing on ${clusterName} methods`,
-        papers: clusterPapers.slice(0, maxPerGroup).map(p => ({
-          recid: p.recid,
-          title: p.title,
-          contribution: extractContribution(p),
-        })),
-        key_insights: extractGroupInsights(clusterPapers),
-      }));
-  }
-
-  // Fallback to fixed keyword matching if TF-IDF doesn't produce good clusters
-  const methodGroups = new Map<string, DeepPaperAnalysis[]>();
-
-  for (const paper of papers) {
-    const keywords = extractMethodKeywords(paper);
-    const primaryMethod = keywords[0] || 'general';
-
-    if (!methodGroups.has(primaryMethod)) {
-      methodGroups.set(primaryMethod, []);
-    }
-    methodGroups.get(primaryMethod)!.push(paper);
-  }
-
-  return [...methodGroups.entries()]
-    .filter(([_, groupPapers]) => groupPapers.length > 0)
-    .map(([method, groupPapers]) => ({
-      name: method.charAt(0).toUpperCase() + method.slice(1),
-      description: `Papers using ${method} approach`,
-      papers: groupPapers.slice(0, maxPerGroup).map(p => ({
-        recid: p.recid,
-        title: p.title,
-        contribution: extractContribution(p),
-      })),
-      key_insights: extractGroupInsights(groupPapers),
-    }));
+  const clusters = groupCollectionSemantics(papers.map(toGroupingPaper)).method_groups;
+  const paperMap = new Map(papers.map(paper => [paper.recid, paper]));
+  return clusters.map(cluster => {
+    const members = cluster.paper_ids.map(recid => paperMap.get(recid)).filter((paper): paper is DeepPaperAnalysis => !!paper);
+    return {
+      name: humanizeSemanticLabel(cluster.label),
+      description: `Papers grouped under ${humanizeSemanticLabel(cluster.label)}.`,
+      papers: members.slice(0, maxPerGroup).map(paper => ({ recid: paper.recid, title: paper.title, contribution: extractContribution(paper) })),
+      key_insights: extractGroupInsights(cluster.label, members),
+    };
+  });
 }
 
 /**

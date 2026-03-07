@@ -7,6 +7,7 @@ import type { DeepPaperAnalysis } from '../deepAnalyze.js';
 import type { CriticalAnalysisResult } from '../criticalAnalysis.js';
 import type { ConflictAnalysis } from '../conflictDetector.js';
 import type { PaperGroup } from './grouping.js';
+import { extractMethodologyChallenges, renderMethodologyChallenges } from './challengeExtraction.js';
 
 export type NarrativeStructure = 'dialectic' | 'progressive' | 'convergent';
 
@@ -196,36 +197,9 @@ function generateDebates(
  */
 function generateMethodologyChallenges(
   papers: DeepPaperAnalysis[],
-  _criticalResults?: CriticalAnalysisResult[]
+  criticalResults?: CriticalAnalysisResult[]
 ): string | undefined {
-  const challenges: string[] = [];
-
-  // Look for methodology-related text in papers
-  for (const paper of papers.slice(0, 5)) {
-    const methodText = (paper.methodology || '').toLowerCase();
-    if (methodText.includes('systematic') || methodText.includes('uncertainty')) {
-      challenges.push('systematic uncertainty estimation');
-    }
-    if (methodText.includes('background') || methodText.includes('contamination')) {
-      challenges.push('background control');
-    }
-    if (methodText.includes('extrapolation') || methodText.includes('model-dependent')) {
-      challenges.push('model dependence');
-    }
-  }
-
-  // Unique challenges
-  const uniqueChallenges = [...new Set(challenges)].slice(0, 3);
-
-  if (uniqueChallenges.length === 0) {
-    return undefined;
-  }
-
-  let text = 'Methodological challenges in this field include ';
-  text += uniqueChallenges.join(', ') + '. ';
-  text += 'These issues require careful attention when interpreting results and comparing across different analyses.';
-
-  return text;
+  return renderMethodologyChallenges(extractMethodologyChallenges(papers, criticalResults));
 }
 
 /**

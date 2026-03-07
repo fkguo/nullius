@@ -96,6 +96,13 @@ packages/
 │       │       ├── inspire/    # INSPIRE API 相关
 │       │       ├── stance/     # 立场分析 / 冲突检测
 │       │       └── writing/    # 写作辅助
+│       ├── core/
+│       │   └── semantics/      # LLM-first 语义裁决核心（quantity / claim / stance / paper / section-role）
+│       │       ├── paperSemantic*.ts   # SEM-05: 统一 paper/review/content 分类器
+│       │       └── sectionRole*.ts     # SEM-09: section-role 语义标注 + legacy slot 映射
+│       ├── tools/research/synthesis/
+│       │   ├── collectionSemantic*.ts # SEM-10: 统一 topic/method grouping authority
+│       │   └── challenge*.ts          # SEM-13: 结构化 methodological challenge taxonomy + narrative consumer
 │       ├── vnext/              # vNext 本地工作流（核心）
 │       │   ├── projects.ts     # Project CRUD
 │       │   ├── runs.ts         # Run 管理 + manifest

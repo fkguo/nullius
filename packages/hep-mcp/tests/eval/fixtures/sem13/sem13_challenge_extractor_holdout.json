@@ -1,0 +1,56 @@
+{
+  "name": "sem13_challenge_extractor_holdout",
+  "version": 1,
+  "description": "Locked holdout for Batch 14 SEM-13 structured challenge extraction.",
+  "module": "sem13_challenge_extractor",
+  "cases": [
+    {
+      "id": "holdout_theoretical_only",
+      "tags": ["negative"],
+      "input": {
+        "papers": [
+          { "recid": "h1", "title": "Theory note", "methodology": "The ultraviolet completion remains unclear, but the numerical procedure is standard." }
+        ]
+      },
+      "expected": {
+        "status": "no_challenge_detected",
+        "challenge_types": []
+      }
+    },
+    {
+      "id": "holdout_acceptance_and_background",
+      "tags": [],
+      "input": {
+        "papers": [
+          { "recid": "h2", "title": "Coverage study", "methodology": "Limited detector coverage and residual backgrounds remain the dominant analysis limitations." }
+        ]
+      },
+      "expected": {
+        "status": "detected",
+        "challenge_types": ["background_control", "acceptance_or_coverage_limit"]
+      }
+    },
+    {
+      "id": "holdout_evidentiary_not_methodological",
+      "tags": ["negative"],
+      "input": {
+        "papers": [
+          { "recid": "h3", "title": "Evidence note", "methodology": "The analysis pipeline follows the standard reconstruction and fit procedure." }
+        ],
+        "critical_results": [
+          {
+            "paper_recid": "h3",
+            "integrated_assessment": {
+              "key_concerns": ["independent confirmation is still limited"],
+              "recommendations": ["wait for more data"]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "no_challenge_detected",
+        "challenge_types": []
+      }
+    }
+  ]
+}

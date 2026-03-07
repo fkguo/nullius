@@ -42,5 +42,27 @@ describe('Research Tools', () => {
       expect(result.date_range.earliest).toBe('2020');
       expect(result.date_range.latest).toBe('2021');
     });
+
+    it('builds multiple semantic topic clusters instead of a single keyword pile', async () => {
+      const summaries = [
+        { recid: '1', title: 'HNL detector study', authors: ['Author A'], year: 2024, citation_count: 30 },
+        { recid: '2', title: 'Sterile-neutrino reinterpretation', authors: ['Author B'], year: 2025, citation_count: 25 },
+        { recid: '3', title: 'Dispersive tetraquark amplitudes', authors: ['Author C'], year: 2025, citation_count: 21 },
+      ];
+
+      vi.mocked(api.batchGetPapers).mockResolvedValueOnce(summaries);
+      vi.mocked(api.getPaper)
+        .mockResolvedValueOnce({ ...summaries[0], abstract: 'Heavy neutral lepton search', keywords: ['lifetime frontier'] })
+        .mockResolvedValueOnce({ ...summaries[1], abstract: 'Sterile neutrino sensitivity', keywords: ['long-lived leptons'] })
+        .mockResolvedValueOnce({ ...summaries[2], abstract: 'Exotic hadron spectroscopy', keywords: ['tetraquark'] });
+
+      const { analyzePapers } = await import('../../src/tools/research/analyzePapers.js');
+      const result = await analyzePapers({ recids: ['1', '2', '3'], analysis_type: ['topics'] });
+
+      expect(result.topics).toHaveLength(2);
+      expect(result.topics?.map(group => group.paper_count).sort((a, b) => b - a)).toEqual([2, 1]);
+      expect(result.topics?.some(group => group.keywords[0] === 'heavy_neutral_lepton')).toBe(true);
+      expect(result.topics?.some(group => group.keywords[0] === 'exotic_hadron_spectroscopy')).toBe(true);
+    });
   });
 });

@@ -1,0 +1,15 @@
+{
+  "evalSetName": "sem10_topic_method_grouping",
+  "module": "sem10_topic_method_grouping",
+  "timestamp": "2026-03-06T15:00:00.000Z",
+  "metrics": {
+    "topic_pairwise_f1": 0.5,
+    "method_pairwise_f1": 0.5555555555555555,
+    "grouping_f1_overall": 0.5277777777777777,
+    "exact_assignment_accuracy": 0.20833333333333334,
+    "hard_subset_f1": 0.6666666666666666,
+    "permutation_stability_overall": 1,
+    "fallback_rate_overall": 0.34722222222222227
+  },
+  "evalSetVersion": 1
+}

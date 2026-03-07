@@ -108,6 +108,17 @@ v1.1.0 起，所有重大文档变更需经 GPT-5.3-Codex (xhigh) 和 Gemini-3-P
 - 禁止仅凭"看起来对了"就标记完成
 - 网络搜索：如果 WebFetch 失败，使用 `curl --proxy` 或直接 `curl` 重试
 
+### Implementation Prompt 硬门禁
+
+> 适用于 `meta/docs/prompts/prompt-*-impl-*.md` 以及任何要求"按之前惯例执行"的实现任务。通用 checklist 见 `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`。
+
+- **GitNexus 开工前对齐是硬要求**：实现前必须先读 `gitnexus://repo/{name}/context`；若 index stale，先运行 `npx gitnexus analyze`，再继续。禁止带 stale index 开工。
+- **GitNexus 审核前再对齐是条件性硬要求**：若实现新增/重命名符号、改变关键调用链、或当前 index 已不反映工作树，必须在正式审核前再次刷新，并用 `detect_changes` / `impact` / `context` 形成 post-change 证据。
+- **正式 `review-swarm` 为实现收尾必经步骤**：实现 prompt 默认必须在验收命令通过后执行正式双审；审核必须深入代码、调用链、测试、eval fixture、baseline、scope boundary，禁止只看 diff 摘要做表面判断。
+- **正式自审 (`self-review`) 也是实现收尾硬门禁**：外部双审收敛后，当前执行 agent 仍必须基于实际代码、调用链 / GitNexus 证据、tests / eval / holdout / baseline、scope boundary 再做一轮自审；blocking issue 必须先修复，自审结论与 adopted / deferred amendments 必须记录。
+- **完成态门禁**：只有当验收命令通过、`review-swarm` 收敛且双审 `blocking_issues = 0`、`self-review` 通过、tracker / memory / `AGENTS.md` 已同步后，实施项才可标记 `done`。
+- **版本控制门禁**：`git commit` / `git push` 仍需人类在当前任务中明确授权；若已授权，也只能在上述完成态门禁满足后执行，并在 push 前确认工作树只包含本批应交付内容。`.review/` 审核产物保持 gitignored，不进入提交。
+
 ### Tracker 更新协议
 
 - 开始工作前：`status: "in_progress"`, `assignee: "opus-4.6"` (或实际模型)
@@ -288,7 +299,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - **Phase 0**: 14/14 完成 ✅
 - **Phase 1**: 19/23 完成
 - **Phase 2**: 25/44 完成
-- **Phase 3**: 21/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足）+ Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking）+ Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅ + Batch 12 `NEW-SEM-03` ✅ `NEW-SEM-04` ✅ `NEW-SEM-06-INFRA` ✅（`NEW-SEM-06b` 尚未启动；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated）；`NEW-DISC-01` 仍为 kickoff/in_progress（D1/D2/D3 完成，D4/D5 仍留在 Batch 13–14）+ SOTA follow-up queue 继续按 parallel infra lane `Batch 11–14`（`NEW-DISC-01`, `NEW-RT-06/07`, `NEW-SEM-06-INFRA`）→ loop precursor `Batch 15–16`（`NEW-LOOP-01`）→ retrieval lane `Batch 17–19`（`NEW-SEM-06b/d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
+- **Phase 3**: 25/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足）+ Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking）+ Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅ + Batch 12 `NEW-SEM-03` ✅ `NEW-SEM-04` ✅ `NEW-SEM-06-INFRA` ✅（`NEW-SEM-06b` 尚未启动；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated）+ Batch 13 `NEW-SEM-05` ✅ `NEW-SEM-09` ✅（统一 paper/review/content classifier + section-role semantic labeling 已落地；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated）+ Batch 14 `NEW-SEM-10` ✅ `NEW-SEM-13` ✅（topic/method grouping 与 synthesis challenge extraction 现已由共享语义 authority 驱动；Batch 14 开工前先独立修复 orchestrator `zod` 直依赖 CI 回归，commit `a4e1ad0`，GitHub Actions run `22768970963` ✅；实现 acceptance 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `7bd21bc`，low-risk amendments 已吸收）; `NEW-DISC-01` 仍为 kickoff/in_progress（D1/D2/D3 完成，D4/D5 仍留在 Batch 13–14；本批未内联启动）+ SOTA follow-up queue 继续按 parallel infra lane `Batch 11–14`（`NEW-DISC-01`, `NEW-RT-06/07`, `NEW-SEM-06-INFRA`）→ loop precursor `Batch 15–16`（`NEW-LOOP-01`）→ retrieval lane `Batch 17–19`（`NEW-SEM-06b/d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
 - **Phase 4**: 0/8 完成 — blocked by Phase 3
 - **Phase 5**: 0/22 完成 — blocked by Phase 4
 - **R4 双模型审核**: ✅ 收敛 (Gemini CONVERGED + Codex CONVERGED_WITH_AMENDMENTS, 0 blocking)
@@ -411,7 +422,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **autoresearch-lab** (12451 symbols, 24832 relationships, 300 execution flows).
+This project is indexed by GitNexus as **autoresearch-lab** (12566 symbols, 25099 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 
@@ -420,10 +431,11 @@ GitNexus provides a knowledge graph over this codebase — call chains, blast ra
 For any task involving code understanding, debugging, impact analysis, or refactoring, you must:
 
 1. **Read `gitnexus://repo/{name}/context`** — codebase overview + check index freshness
-2. **Match your task to a skill below** and **read that skill file**
-3. **Follow the skill's workflow and checklist**
+2. **If the index is stale, run `npx gitnexus analyze` before implementation work starts**
+3. **Match your task to a skill below** and **read that skill file**
+4. **Follow the skill's workflow and checklist**
 
-> If step 1 warns the index is stale, run `npx gitnexus analyze` in the terminal first.
+> For code-changing tasks, refresh GitNexus again before final review whenever symbol topology / callers / execution flows have materially changed, and use `detect_changes` / `impact` / `context` as review evidence instead of relying on stale index state.
 
 ## Skills
 

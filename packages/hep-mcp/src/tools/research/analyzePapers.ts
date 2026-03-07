@@ -12,6 +12,7 @@ import {
   type Paper,
   AnalyzePapersParamsSchema,
 } from '@autoresearch/shared';
+import { groupCollectionSemantics, toGroupingPaper } from './synthesis/collectionSemanticGrouping.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -126,39 +127,11 @@ function buildTimeline(papers: PaperSummary[]): { year: number; count: number; k
 }
 
 function extractTopics(papers: Paper[]): { keywords: string[]; paper_count: number; representative_papers: string[] }[] {
-  // Simple keyword extraction from paper keywords
-  const keywordMap = new Map<string, { count: number; papers: string[] }>();
-
-  for (const paper of papers) {
-    if (!paper.recid) continue; // Skip papers without recid
-    for (const kw of paper.keywords || []) {
-      const existing = keywordMap.get(kw);
-      if (existing) {
-        existing.count++;
-        existing.papers.push(paper.recid);
-      } else {
-        keywordMap.set(kw, { count: 1, papers: [paper.recid] });
-      }
-    }
-  }
-
-  // Group related keywords (simple approach: top keywords)
-  const topKeywords = [...keywordMap.entries()]
-    .sort(([, a], [, b]) => b.count - a.count)
-    .slice(0, 10);
-
-  if (topKeywords.length === 0) return [];
-
-  // Return as single topic cluster for now
-  return [{
-    keywords: topKeywords.map(([kw]) => kw),
-    paper_count: papers.length,
-    representative_papers: papers
-      .sort((a, b) => (b.citation_count || 0) - (a.citation_count || 0))
-      .slice(0, 5)
-      .map(p => p.recid)
-      .filter((id): id is string => !!id),
-  }];
+  return groupCollectionSemantics(papers.map(toGroupingPaper)).topic_groups.map(group => ({
+    keywords: group.keywords,
+    paper_count: group.paper_ids.length,
+    representative_papers: group.representative_papers,
+  }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
