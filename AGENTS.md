@@ -91,6 +91,13 @@ v1.1.0 起，所有重大文档变更需经 GPT-5.3-Codex (xhigh) 和 Gemini-3-P
 
 使用 `gemini-cli-runner` 和 `codex-cli-runner` skills 并行执行。prompt 文件存放在 `.review/` 目录。
 
+## Superpowers 使用约定
+
+- **默认不使用 `superpowers` 通用 skills 作为执行依据**。本仓库的权威执行依据始终是：`AGENTS.md`、batch prompt、`meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`、GitNexus 证据、`review-swarm` 与 `self-review` 门禁。
+- **worktree 默认使用与主仓平行的本地路径**，例如主仓为 `/home/user/Coding/Agents/autoresearch-lab` 时，优先使用 `/home/user/Coding/Agents/autoresearch-lab-<branch-or-batch>`；除非人类明确要求，否则不默认使用 `~/.config/superpowers/worktrees/...`。
+- **通用 skill 不得覆盖项目级硬门禁**：不得覆盖实现 prompt、GitNexus freshness / post-change evidence、正式 `review-swarm`、正式 `self-review`、tracker / memory / `AGENTS.md` 同步、以及版本控制门禁。
+- 若某个通用 skill 与本仓库规则冲突，**一律以本仓库规则为准**；必要时直接忽略该 skill 的默认建议。
+
 ## Agent 执行纪律
 
 ### 全盘思考要求
