@@ -4,6 +4,7 @@
 > **目标项**: `EVO-13` — 统一编排引擎 / 单项目内多 Agent 团队执行 runtime  
 > **定位**: 设计研究 memo，不是 implementation prompt  
 > **目的**: 让未来 `EVO-13` 的 implementation prompt 建立在 `NEW-LOOP-01` 的真实 substrate 之上，避免届时遗忘当前研究结论或重新发明平行状态系统。
+> **2026-03-08 amendment**: runtime governance / control-plane refinements inspired by `edict` are tracked in `meta/docs/2026-03-08-evo13-runtime-governance-control-plane-amendment.md` and should be read together with this memo when drafting future `EVO-13` implementation prompts.
 
 ## 1. 结论先行
 
@@ -217,7 +218,7 @@
 
 未来 `prompt-phase5-impl-evo13.md` 至少应包含：
 
-1. 必读材料（包含本 memo 与 `NEW-LOOP-01` closeout 结果）
+1. 必读材料（包含本 memo、`meta/docs/2026-03-08-evo13-runtime-governance-control-plane-amendment.md`、`meta/docs/prompts/prompt-phase5-impl-evo13-skeleton.md` 与 `NEW-LOOP-01` closeout 结果）
 2. 范围边界：单项目团队 runtime，不碰社区层
 3. 先补 tests / checkpoint fixtures / recovery smoke
 4. 子任务拆分：
