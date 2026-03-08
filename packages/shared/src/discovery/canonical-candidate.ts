@@ -8,6 +8,7 @@ export const CanonicalCandidateSchema = z.object({
   title: z.string().min(1),
   authors: z.array(z.string()).default([]),
   year: z.number().int().optional(),
+  citation_count: z.number().int().nonnegative().optional(),
   score: z.number().min(0).max(1).optional(),
   matched_by: z.array(z.string()).default([]),
   provenance: z.object({

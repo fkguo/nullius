@@ -25,10 +25,10 @@
   },
   "dependencies": {
     "@autoresearch/arxiv-mcp": "workspace:*",
+    "@autoresearch/hepdata-mcp": "workspace:*",
     "@autoresearch/openalex-mcp": "workspace:*",
     "@autoresearch/pdg-mcp": "workspace:*",
     "@autoresearch/shared": "workspace:*",
-    "@autoresearch/hepdata-mcp": "workspace:*",
     "@autoresearch/zotero-mcp": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@napi-rs/canvas": "^0.1.80",
@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
+    "ajv": "^8.18.0",
     "pdf-lib": "^1.17.1",
     "tsx": "^4.21.0",
     "typescript": "^5.4.0",

@@ -1,0 +1,14 @@
+{
+  "evalSetName": "disc01_broker",
+  "module": "NEW-DISC-01",
+  "timestamp": "2026-03-07T00:00:00.000Z",
+  "metrics": {
+    "provider_recall_overall": 1,
+    "provider_precision_overall": 1,
+    "known_item_hit_rate_overall": 1,
+    "canonicalization_accuracy_overall": 1,
+    "dedup_accuracy_overall": 1,
+    "uncertain_preservation_rate_overall": 1
+  },
+  "evalSetVersion": 1
+}

@@ -17,22 +17,38 @@ interface NextAction {
   reason: string;
 }
 
+function extractNestedIdentifiers(paper: Record<string, unknown>): string[] {
+  const identifiers = paper.identifiers;
+  if (!identifiers || typeof identifiers !== 'object') return [];
+  return [
+    (identifiers as Record<string, unknown>).doi,
+    (identifiers as Record<string, unknown>).arxiv_id,
+    (identifiers as Record<string, unknown>).recid,
+    (identifiers as Record<string, unknown>).openalex_id,
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+}
+
 /**
- * Extract identifiers (recids) from a result that contains papers with `recid` fields.
+ * Extract identifiers from a result that contains either direct paper ids or canonical paper identifiers.
  * Caps at `limit` identifiers. Returns strings suitable for `inspire_deep_research.identifiers`.
  */
 function extractIdentifiers(papers: unknown, limit = 10): string[] {
   if (!Array.isArray(papers)) return [];
   const ids: string[] = [];
-  for (const p of papers) {
-    if (ids.length >= limit) break;
-    if (p && typeof p === 'object') {
-      const recid = (p as Record<string, unknown>).recid ?? (p as Record<string, unknown>).id;
-      if (typeof recid === 'string' && recid.trim()) {
-        ids.push(recid.trim());
-      } else if (typeof recid === 'number') {
-        ids.push(String(recid));
-      }
+  for (const paper of papers) {
+    if (ids.length >= limit || !paper || typeof paper !== 'object') break;
+    const direct = (paper as Record<string, unknown>).recid ?? (paper as Record<string, unknown>).id;
+    if (typeof direct === 'string' && direct.trim()) {
+      ids.push(direct.trim());
+      continue;
+    }
+    if (typeof direct === 'number') {
+      ids.push(String(direct));
+      continue;
+    }
+    for (const identifier of extractNestedIdentifiers(paper as Record<string, unknown>)) {
+      if (ids.length >= limit) break;
+      ids.push(identifier.trim());
     }
   }
   return ids;
@@ -73,16 +89,20 @@ export function discoveryNextActions(papers: unknown): NextAction[] {
 function extractRecids(papers: unknown): number[] {
   if (!Array.isArray(papers)) return [];
   const recids: number[] = [];
-  for (const p of papers) {
-    if (recids.length >= 5) break;
-    if (p && typeof p === 'object') {
-      const recid = (p as Record<string, unknown>).recid ?? (p as Record<string, unknown>).id;
-      if (typeof recid === 'number') {
-        recids.push(recid);
-      } else if (typeof recid === 'string' && /^\d+$/.test(recid)) {
-        recids.push(Number(recid));
-      }
+  for (const paper of papers) {
+    if (recids.length >= 5 || !paper || typeof paper !== 'object') break;
+    const direct = (paper as Record<string, unknown>).recid ?? (paper as Record<string, unknown>).id;
+    if (typeof direct === 'number') {
+      recids.push(direct);
+      continue;
     }
+    if (typeof direct === 'string' && /^\d+$/.test(direct)) {
+      recids.push(Number(direct));
+      continue;
+    }
+    const nested = (paper as Record<string, unknown>).identifiers;
+    const nestedRecid = nested && typeof nested === 'object' ? (nested as Record<string, unknown>).recid : undefined;
+    if (typeof nestedRecid === 'string' && /^\d+$/.test(nestedRecid)) recids.push(Number(nestedRecid));
   }
   return recids;
 }

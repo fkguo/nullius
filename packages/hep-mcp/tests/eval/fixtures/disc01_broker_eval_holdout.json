@@ -1,0 +1,88 @@
+{
+  "name": "disc01_broker_holdout",
+  "version": 1,
+  "description": "Holdout broker eval set for NEW-DISC-01 D5 closeout.",
+  "module": "NEW-DISC-01",
+  "cases": [
+    {
+      "id": "holdout_doi_known_item",
+      "input": {
+        "query": "10.2000/holdout",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            {
+              "provider": "inspire",
+              "identifiers": { "recid": "99901", "doi": "10.2000/holdout" },
+              "title": "Holdout canonical broker case",
+              "authors": ["H. Author"],
+              "year": 2026,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "inspire_fixture", "query": "10.2000/holdout" }
+            }
+          ],
+          "openalex": [
+            {
+              "provider": "openalex",
+              "identifiers": { "openalex_id": "W99901", "doi": "10.2000/holdout" },
+              "title": "Holdout canonical broker case",
+              "authors": ["H. Author"],
+              "year": 2026,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "openalex_fixture", "query": "10.2000/holdout" }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "selected_providers": ["inspire", "openalex", "arxiv"],
+        "provider_hit_providers": ["inspire", "openalex"],
+        "canonical_count": 1,
+        "confident_merges": 1,
+        "uncertain_groups": 0,
+        "primary_identifier": "10.2000/holdout"
+      },
+      "tags": ["holdout", "known-item"]
+    },
+    {
+      "id": "holdout_ambiguous_title",
+      "input": {
+        "query": "holdout near-threshold",
+        "intent": "keyword_search",
+        "providers": {
+          "inspire": [
+            {
+              "provider": "inspire",
+              "identifiers": { "recid": "99911" },
+              "title": "Holdout near-threshold spectroscopy",
+              "authors": ["H. Author"],
+              "year": 2025,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "inspire_fixture", "query": "holdout near-threshold" }
+            }
+          ],
+          "openalex": [
+            {
+              "provider": "openalex",
+              "identifiers": { "openalex_id": "W99911" },
+              "title": "Holdout near threshold spectroscopy",
+              "authors": ["H. Author", "X. Different"],
+              "year": 2025,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "openalex_fixture", "query": "holdout near-threshold" }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "selected_providers": ["inspire", "openalex", "arxiv"],
+        "provider_hit_providers": ["inspire", "openalex"],
+        "canonical_count": 2,
+        "confident_merges": 0,
+        "uncertain_groups": 1,
+        "primary_identifier": null
+      },
+      "tags": ["holdout", "ambiguous"]
+    }
+  ]
+}

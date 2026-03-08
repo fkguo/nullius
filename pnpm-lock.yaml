@@ -98,6 +98,9 @@ importers:
       '@types/node':
         specifier: ^25.0.3
         version: 25.3.0
+      ajv:
+        specifier: ^8.18.0
+        version: 8.18.0
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
