@@ -42,6 +42,7 @@ import { normalizeTextPreserveUnits } from '../utils/textNormalization.js';
 // The generated types come from meta/schemas/evidence_catalog_item_v1.schema.json
 import type {
   EvidenceType,
+  EvidenceLocalizationHit,
   LatexLocatorV1,
   PdfLocatorV1,
   EvidenceCatalogItemV1,
@@ -87,6 +88,8 @@ export interface QueryEvidenceHit {
   importance_score?: number;
   /** Optional explanation fields. */
   matched_tokens?: string[];
+  /** Optional structure-aware localization metadata (SEM-06e). */
+  localization?: EvidenceLocalizationHit;
 }
 
 export interface QueryEvidenceResult {

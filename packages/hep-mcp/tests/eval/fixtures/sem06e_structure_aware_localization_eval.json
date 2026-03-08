@@ -1,0 +1,14 @@
+{
+  "name": "sem06e_structure_aware_localization",
+  "version": 1,
+  "description": "Structure-aware within-document localization across page/chunk/table/figure/equation/citation-context.",
+  "module": "sem06e_structure_aware_localization",
+  "cases": [
+    { "id": "sem06e_page_001", "input": { "query": "what page contains the branching fractions evidence?" }, "expected": { "top_unit": "page", "expected_status": "localized", "marker": "PAGE_GOLD_002" }, "tags": ["page", "easy"] },
+    { "id": "sem06e_chunk_001", "input": { "query": "which passage explains the benchmark signal?" }, "expected": { "top_unit": "chunk", "expected_status": "localized", "marker": "CHUNK_GOLD" }, "tags": ["chunk", "easy"] },
+    { "id": "sem06e_table_001", "input": { "query": "which table reports the branching fractions?" }, "expected": { "top_unit": "table", "expected_status": "localized", "marker": "TABLE_GOLD" }, "tags": ["table", "structured"] },
+    { "id": "sem06e_figure_001", "input": { "query": "which figure shows the threshold cusp?" }, "expected": { "top_unit": "figure", "expected_status": "localized", "marker": "FIGURE_GOLD" }, "tags": ["figure", "structured"] },
+    { "id": "sem06e_equation_001", "input": { "query": "which equation gives the beta function?" }, "expected": { "top_unit": "equation", "expected_status": "localized", "marker": "EQUATION_GOLD" }, "tags": ["equation", "structured"] },
+    { "id": "sem06e_citation_001", "input": { "query": "which citation context supports the threshold enhancement?" }, "expected": { "top_unit": "citation_context", "expected_status": "localized", "marker": "CITATION_GOLD" }, "tags": ["citation_context", "structured"] }
+  ]
+}
