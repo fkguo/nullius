@@ -1,0 +1,14 @@
+{
+  "evalSetName": "sem06e_structure_aware_localization",
+  "module": "sem06e_structure_aware_localization",
+  "timestamp": "2026-03-08T07:09:38.600Z",
+  "metrics": {
+    "exact_unit_hit_rate": 1,
+    "availability_match_rate": 1,
+    "page_hit_rate": 1,
+    "structured_hit_rate": 1,
+    "easy_pass_rate": 1,
+    "avg_structure_scans": 14.666666666666666
+  },
+  "evalSetVersion": 1
+}

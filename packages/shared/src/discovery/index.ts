@@ -1,4 +1,23 @@
 export {
+  EvidenceLocalizationUnitSchema,
+  EvidenceLocalizationStatusSchema,
+  EvidenceLocalizationSurfaceSchema,
+  EvidenceLocalizationCrossSurfaceStatusSchema,
+  EvidenceLocalizationReasonCodeSchema,
+  EvidenceLocalizationHitSchema,
+  EvidenceLocalizationTelemetrySchema,
+  EvidenceLocalizationArtifactSchema,
+  type EvidenceLocalizationUnit,
+  type EvidenceLocalizationStatus,
+  type EvidenceLocalizationSurface,
+  type EvidenceLocalizationCrossSurfaceStatus,
+  type EvidenceLocalizationReasonCode,
+  type EvidenceLocalizationHit,
+  type EvidenceLocalizationTelemetry,
+  type EvidenceLocalizationArtifact,
+} from './evidence-localization.js';
+
+export {
   DiscoveryProviderIdSchema,
   DiscoveryCapabilityNameSchema,
   DiscoveryProviderCapabilitiesSchema,

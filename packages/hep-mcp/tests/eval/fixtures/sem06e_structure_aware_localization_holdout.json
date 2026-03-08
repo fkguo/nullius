@@ -1,0 +1,11 @@
+{
+  "name": "sem06e_structure_aware_localization_holdout",
+  "version": 1,
+  "description": "Holdout phrasing variants for structure-aware localization.",
+  "module": "sem06e_structure_aware_localization",
+  "cases": [
+    { "id": "sem06e_holdout_page", "input": { "query": "on what page is the benchmark evidence located?" }, "expected": { "top_unit": "page", "expected_status": "localized", "marker": "PAGE_GOLD_002" }, "tags": ["page", "holdout"] },
+    { "id": "sem06e_holdout_table", "input": { "query": "locate the table of benchmark branching fractions" }, "expected": { "top_unit": "table", "expected_status": "localized", "marker": "TABLE_GOLD" }, "tags": ["table", "holdout"] },
+    { "id": "sem06e_holdout_citation", "input": { "query": "find the citation context that argues for threshold enhancement" }, "expected": { "top_unit": "citation_context", "expected_status": "localized", "marker": "CITATION_GOLD" }, "tags": ["citation_context", "holdout"] }
+  ]
+}

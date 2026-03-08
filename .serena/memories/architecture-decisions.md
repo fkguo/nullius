@@ -453,3 +453,19 @@
 - Formal external review converged with `Opus` + `OpenCode(kimi-for-coding/k2p5)` at 0 blocking after the user explicitly approved fallback from a hanging local Gemini agentic review. Formal self-review also passed with 0 blocking, and the adopted low-risk amendments were absorbed in-batch.
 **Scope guard**:
 - `NEW-SEM-06d` does not introduce page/chunk/table/figure/equation/citation-context localization (`NEW-SEM-06e`), late-interaction substrate migration, or unconditional multi-query expansion.
+
+### [2026-03-08] NEW-SEM-06e closeout: structure-aware evidence localization stays layered on the retrieval backbone
+
+**Context**: After `NEW-DISC-01` D4/D5 landed canonical paper / query-plan / dedup / search-log substrate, `NEW-SEM-06b` landed hybrid candidate generation + strong reranker, and `NEW-SEM-06d` added QPP / triggered reformulation, Batch 19 had to upgrade retrieval from document/chunk hits to within-document typed localization without reopening discovery-server or runtime-substrate scope.
+**Decision**:
+- `NEW-SEM-06e` remains a typed localization layer on top of existing retrieval. It does not replace canonical-paper discovery, reranking, or QPP infrastructure.
+- Shared authority now includes `EvidenceLocalization{Unit,Status,Surface,CrossSurfaceStatus,ReasonCode,Hit,Telemetry,Artifact}` in `packages/shared/src/discovery/evidence-localization.ts`, and hep-mcp `QueryEvidenceHit` now carries optional localization metadata.
+- `queryProjectEvidenceSemantic` now loads both LaTeX and PDF writing-evidence surfaces, merges them into one semantic candidate pool, and records typed localization artifacts with strict `localized` / `fallback_available` / `unavailable` / `abstained` semantics.
+- Localization prioritizes exact requested units over coarse fallbacks, uses paper-aware PDF support matching (`paper_id` filter when available), and keeps missing/ambiguous cross-surface support fail-closed instead of fabricating precision.
+- Named localization policy constants now live in `packages/hep-mcp/src/core/evidence-localization/scoring.ts`; end-to-end failure-path coverage now includes `evalSem06eFailureModes.test.ts` for the unavailable-without-PDF-page path in addition to the main eval baseline + holdout.
+**Validation / governance**:
+- Acceptance passed: `pnpm --filter @autoresearch/shared test/build`, `pnpm --filter @autoresearch/openalex-mcp test/build`, `pnpm --filter @autoresearch/arxiv-mcp test/build`, `pnpm --filter @autoresearch/hep-mcp test -- tests/research/latex/locator.test.ts`, `pnpm --filter @autoresearch/hep-mcp test`, `pnpm --filter @autoresearch/hep-mcp test:eval`, `pnpm --filter @autoresearch/hep-mcp build`, `pnpm lint`, `pnpm -r test`, `pnpm -r build`, plus targeted SEM-06e revalidation and holdout reruns after adopted review amendments.
+- GitNexus post-change evidence stayed narrow: `detect_changes` highlighted `queryProjectEvidenceSemantic`; `context(queryProjectEvidenceSemantic)` confirmed the intended projectCore entrypoint and semantic-query dependencies; upstream `impact(queryProjectEvidenceSemantic)` stayed `LOW`.
+- Formal external review used the required trio `Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)` and returned 0 blocking (`CONVERGED` / `CONVERGED_WITH_AMENDMENTS`). Adopted low-risk amendments: named scoring constants, `paper_id`-aware PDF support filtering, typed reason-code union, clarified `unavailable_hits` semantics, and explicit end-to-end unavailable-path coverage. Formal self-review also passed with 0 blocking.
+**Scope guard**:
+- `NEW-SEM-06e` still does not introduce a new discovery MCP server, late-interaction substrate, runtime productization, or `agent-arxiv` search-heavy behavior.
