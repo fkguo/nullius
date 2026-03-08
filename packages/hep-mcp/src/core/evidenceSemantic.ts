@@ -4,6 +4,7 @@ import {
   HEP_PROJECT_QUERY_EVIDENCE,
   HEP_RUN_BUILD_WRITING_EVIDENCE,
   invalidParams,
+  type EvidenceMultimodalArtifact,
 } from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef } from './runs.js';
@@ -12,6 +13,8 @@ import { writeRunJsonArtifact } from './citations.js';
 import { queryProjectEvidence, type EvidenceType, type QueryEvidenceHit, type QueryEvidenceResult } from './evidence.js';
 import { buildRetrievalSubstrateSnapshot } from './evidenceRetrievalSubstrate.js';
 import { buildEvidenceLocalization, type LocalizationCandidate, type LocalizationCatalogItem } from './evidence-localization/localize.js';
+import { applyMultimodalFusion } from './evidence-multimodal/fusion.js';
+import { buildMultimodalPolicy, buildSemanticFallbackMultimodalArtifact } from './evidence-multimodal/policy.js';
 import { parseEmbeddingsJsonl, queryEvidenceByEmbeddings } from './writing/evidence.js';
 import { rerankEvidenceCandidates } from './semantics/evidenceRerank.js';
 
@@ -138,6 +141,16 @@ function resolvePdfPaperId(sourceStatus: WritingEvidenceSourceStatusV1 | null): 
   return latexPapers.length === 1 ? latexPapers[0] : undefined;
 }
 
+function summarizeMultimodal(multimodal: EvidenceMultimodalArtifact) {
+  return {
+    status: multimodal.status,
+    requested_unit: multimodal.requested_unit,
+    visual_candidates_scanned: multimodal.telemetry.visual_candidates_scanned,
+    supplemented_candidates: multimodal.telemetry.supplemented_candidates,
+    boosted_hits: multimodal.telemetry.boosted_hits,
+  };
+}
+
 export async function queryProjectEvidenceSemantic(params: {
   run_id: string;
   project_id: string;
@@ -162,6 +175,13 @@ export async function queryProjectEvidenceSemantic(params: {
       localized_hits: number;
       fallback_hits: number;
       abstained_hits: number;
+    };
+    multimodal?: {
+      status: string;
+      requested_unit?: string;
+      visual_candidates_scanned: number;
+      supplemented_candidates: number;
+      boosted_hits: number;
     };
   };
 }> {
@@ -264,6 +284,12 @@ export async function queryProjectEvidenceSemantic(params: {
 
   const catalogById = new Map<string, CatalogItem>();
   for (const item of catalogItems) catalogById.set(item.evidence_id, item);
+  const scopedItems = catalogItems.filter(item => item.project_id === params.project_id && (!params.paper_id || item.paper_id === params.paper_id));
+  const multimodalPolicy = buildMultimodalPolicy({
+    query: params.query,
+    types,
+    allItems: scopedItems,
+  });
 
   const materializeLocalizationCandidates = (hits: QueryEvidenceHit[]): LocalizationCandidate[] => hits.map(hit => {
     const catalogItem = catalogById.get(hit.evidence_id);
@@ -286,6 +312,9 @@ export async function queryProjectEvidenceSemantic(params: {
   });
 
   const runLexicalFallback = async (reason: string, data: Record<string, unknown>) => {
+    const multimodal = multimodalPolicy.canApply
+      ? buildSemanticFallbackMultimodalArtifact(multimodalPolicy.requestedUnit)
+      : multimodalPolicy.artifact;
     const substrate = buildRetrievalSubstrateSnapshot({
       active_model: 'lexical_fallback',
       embedding_dim: 0,
@@ -302,7 +331,7 @@ export async function queryProjectEvidenceSemantic(params: {
       query: params.query,
       types,
       candidates: materializeLocalizationCandidates(lexical.hits),
-      allItems: catalogItems.length > 0 ? catalogItems : materializeLocalizationCandidates(lexical.hits).map(candidate => candidate.item),
+      allItems: scopedItems.length > 0 ? scopedItems : materializeLocalizationCandidates(lexical.hits).map(candidate => candidate.item),
       limit,
     });
     const localizationById = new Map(localization.selected.map(entry => [entry.candidate.item.evidence_id, entry.localization]));
@@ -333,6 +362,7 @@ export async function queryProjectEvidenceSemantic(params: {
         surfaces: surfaceStatuses,
       },
       localization: localization.artifact,
+      multimodal,
       fallback: { used: true, reason, data },
       query: {
         project_id: params.project_id,
@@ -362,6 +392,7 @@ export async function queryProjectEvidenceSemantic(params: {
           fallback_hits: localization.artifact.telemetry.fallback_hits,
           abstained_hits: localization.artifact.telemetry.abstained_hits,
         },
+        multimodal: summarizeMultimodal(multimodal),
       },
     };
   };
@@ -469,11 +500,20 @@ export async function queryProjectEvidenceSemantic(params: {
     }];
   });
 
+  const multimodal = multimodalPolicy.canApply && multimodalPolicy.requestedUnit
+    ? applyMultimodalFusion({
+        query: params.query,
+        requestedUnit: multimodalPolicy.requestedUnit,
+        visualItems: multimodalPolicy.visualItems,
+        candidates: localizationCandidates,
+      })
+    : { candidates: localizationCandidates, artifact: multimodalPolicy.artifact };
+
   const localization = buildEvidenceLocalization({
     query: params.query,
     types,
-    candidates: localizationCandidates,
-    allItems: catalogItems.filter(item => item.project_id === params.project_id),
+    candidates: multimodal.candidates,
+    allItems: scopedItems,
     limit,
   });
 
@@ -515,7 +555,7 @@ export async function queryProjectEvidenceSemantic(params: {
     implemented: true,
     model,
     source: 'run_artifacts',
-    notes: 'Semantic-first retrieval with deterministic rerank + structure-aware localization.',
+    notes: 'Semantic-first retrieval with deterministic rerank + structure-aware localization; page-native multimodal fusion is capability-gated.',
     substrate: buildRetrievalSubstrateSnapshot({
       active_model: model,
       embedding_dim: dim,
@@ -538,6 +578,7 @@ export async function queryProjectEvidenceSemantic(params: {
     run_id: params.run_id,
     semantic,
     localization: localization.artifact,
+    multimodal: multimodal.artifact,
     fallback: { used: false },
     query: {
       project_id: params.project_id,
@@ -568,6 +609,7 @@ export async function queryProjectEvidenceSemantic(params: {
         fallback_hits: localization.artifact.telemetry.fallback_hits,
         abstained_hits: localization.artifact.telemetry.abstained_hits,
       },
+      multimodal: summarizeMultimodal(multimodal.artifact),
     },
   };
 }

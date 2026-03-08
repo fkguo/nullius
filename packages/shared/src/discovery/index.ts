@@ -1,4 +1,15 @@
 export {
+  EvidenceMultimodalStatusSchema,
+  EvidenceMultimodalReasonCodeSchema,
+  EvidenceMultimodalTelemetrySchema,
+  EvidenceMultimodalArtifactSchema,
+  type EvidenceMultimodalStatus,
+  type EvidenceMultimodalReasonCode,
+  type EvidenceMultimodalTelemetry,
+  type EvidenceMultimodalArtifact,
+} from './evidence-multimodal.js';
+
+export {
   EvidenceLocalizationUnitSchema,
   EvidenceLocalizationStatusSchema,
   EvidenceLocalizationSurfaceSchema,

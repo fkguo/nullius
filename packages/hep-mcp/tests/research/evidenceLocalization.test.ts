@@ -18,7 +18,13 @@ function pdfLocator(page: number): PdfLocatorV1 {
   return { kind: 'pdf', page };
 }
 
-function item(type: EvidenceType, text: string, locator: LatexLocatorV1 | PdfLocatorV1, evidenceId: string): LocalizationCatalogItem {
+function item(
+  type: EvidenceType,
+  text: string,
+  locator: LatexLocatorV1 | PdfLocatorV1,
+  evidenceId: string,
+  meta?: Record<string, unknown>,
+): LocalizationCatalogItem {
   return {
     evidence_id: evidenceId,
     project_id: 'project_1',
@@ -26,6 +32,7 @@ function item(type: EvidenceType, text: string, locator: LatexLocatorV1 | PdfLoc
     type,
     text,
     locator,
+    meta,
   };
 }
 
@@ -44,6 +51,40 @@ describe('evidence localization', () => {
     expect(mapEvidenceTypeToLocalizationUnit('pdf_page')).toBe('page');
     expect(mapEvidenceTypeToLocalizationUnit('paragraph')).toBe('chunk');
     expect(mapEvidenceTypeToLocalizationUnit('citation_context')).toBe('citation_context');
+  });
+
+  it('promotes labeled pdf regions to structured units when visual artifacts exist', () => {
+    const figureRegion = item(
+      'pdf_region',
+      'VISFIG_GOLD mass spectrum anomaly.',
+      pdfLocator(2),
+      'ev_pdf_figure',
+      { label: 'picture', region_uri: 'hep://runs/run_1/artifact/figure.png' },
+    );
+    const result = buildEvidenceLocalization({
+      query: 'which figure shows the mass spectrum anomaly?',
+      candidates: [{ ...candidate(figureRegion, 0.82), preferred_unit: 'figure' }],
+      allItems: [figureRegion],
+      limit: 5,
+    });
+
+    expect(result.artifact.availability).toBe('localized');
+    expect(result.selected[0]?.localization.unit).toBe('figure');
+    expect(result.selected[0]?.localization.source_surfaces).toEqual(['pdf_region']);
+    expect(result.selected[0]?.localization.cross_surface_status).toBe('pdf_only');
+  });
+
+  it('keeps unlabeled or non-visual pdf regions as chunk results', () => {
+    const region = item('pdf_region', 'Fallback chunk GOLD discusses the benchmark signal.', pdfLocator(3), 'ev_pdf_chunk');
+    const result = buildEvidenceLocalization({
+      query: 'which figure shows the benchmark signal?',
+      candidates: [candidate(region, 0.75)],
+      allItems: [region],
+      limit: 5,
+    });
+
+    expect(result.selected[0]?.localization.unit).toBe('chunk');
+    expect(result.selected[0]?.localization.status).toBe('fallback_available');
   });
 
   it('infers requested units from filters and query text', () => {

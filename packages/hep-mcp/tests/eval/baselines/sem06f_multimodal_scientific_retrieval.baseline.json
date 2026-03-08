@@ -1,0 +1,15 @@
+{
+  "evalSetName": "sem06f_multimodal_scientific_retrieval",
+  "module": "sem06f_multimodal_scientific_retrieval",
+  "timestamp": "2026-03-08T11:49:15.715Z",
+  "metrics": {
+    "page_native_hit_rate": 1,
+    "failure_path_rate": 1,
+    "text_non_regression_rate": 1,
+    "applied_rate": 1,
+    "avg_visual_candidates_scanned": 3,
+    "avg_boosted_hits": 0.625,
+    "avg_supplemented_candidates": 0
+  },
+  "evalSetVersion": 1
+}

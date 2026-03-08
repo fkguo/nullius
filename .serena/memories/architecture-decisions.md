@@ -469,3 +469,19 @@
 - Formal external review used the required trio `Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)` and returned 0 blocking (`CONVERGED` / `CONVERGED_WITH_AMENDMENTS`). Adopted low-risk amendments: named scoring constants, `paper_id`-aware PDF support filtering, typed reason-code union, clarified `unavailable_hits` semantics, and explicit end-to-end unavailable-path coverage. Formal self-review also passed with 0 blocking.
 **Scope guard**:
 - `NEW-SEM-06e` still does not introduce a new discovery MCP server, late-interaction substrate, runtime productization, or `agent-arxiv` search-heavy behavior.
+
+### [2026-03-08] NEW-SEM-06f closeout: multimodal retrieval must stay a bounded page-native fusion layer
+
+**Context**: After `NEW-SEM-06e` landed typed structure-aware localization, the optional `NEW-SEM-06f` follow-up was only justified if it could add real page-native uplift without reopening discovery substrate, parser/OCR, or runtime scope.
+**Decision**:
+- `NEW-SEM-06f` closes as a **query-triggered multimodal fusion layer** over existing `pdf_page` / `pdf_region` writing-evidence artifacts, not as a new multimodal index or discovery substrate.
+- Shared authority now includes `packages/shared/src/discovery/evidence-multimodal.ts` with typed `applied` / `skipped` / `unsupported` / `disabled` / `abstained` artifact semantics and auditable telemetry.
+- hep-mcp keeps multimodal routing bounded: `packages/hep-mcp/src/core/evidence-multimodal/policy.ts` gates on page-native query intent + `HEP_ENABLE_MULTIMODAL_RETRIEVAL`; `fusion.ts` supplements/boosts only exact requested visual units and uses `preferred_unit` only for explicitly promoted candidates.
+- We explicitly rejected a broader design where every `pdf_region` would be globally reinterpreted as `figure/table/equation` based on metadata label. That would have bypassed the capability gate and would have leaked `06f` semantics into the base `06e` localization layer.
+- The honest `SEM-06f` eval fixture must remain **page-native**. The final fixture removes unrelated exact-unit LaTeX structures so unavailable/disabled paths are tested against the intended PDF-native benchmark rather than passing because of generic LaTeX figure/table/equation environments.
+**Validation / governance**:
+- Acceptance passed: `pnpm --filter @autoresearch/shared test/build`, `pnpm --filter @autoresearch/openalex-mcp test/build`, `pnpm --filter @autoresearch/arxiv-mcp test/build`, `pnpm --filter @autoresearch/hep-mcp test -- tests/core/pdfEvidence.test.ts`, `pnpm --filter @autoresearch/hep-mcp test`, `pnpm --filter @autoresearch/hep-mcp test:eval`, `EVAL_INCLUDE_HOLDOUT=1 pnpm --filter @autoresearch/hep-mcp test -- tests/eval/evalSem06fMultimodalScientificRetrieval.test.ts`, `pnpm --filter @autoresearch/hep-mcp build`, `pnpm lint`, `pnpm -r test`, `pnpm -r build`.
+- GitNexus post-change evidence stayed narrow: `detect_changes` on repo `autoresearch-lab-sem06f` returned LOW risk; `context(queryProjectEvidenceSemantic)` preserved the existing semantic-query entrypoint/call graph; upstream `impact(queryProjectEvidenceSemantic)` stayed LOW.
+- Formal external review via `Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)` returned 0 blocking. One low-value non-blocking amendment (export/unit-test `parseEnabledFlag`) was declined/closed because disabled-path behavior is already covered end-to-end and exporting the helper would widen internal API surface without changing correctness. Formal self-review also passed with 0 blocking.
+**Scope guard**:
+- `NEW-SEM-06f` does not create a new multimodal retrieval substrate, new parser/OCR/indexing stack, or search-heavy `agent-arxiv` lane. Future work should only revisit heavier multimodal retrieval if a later prompt explicitly reopens that scope.

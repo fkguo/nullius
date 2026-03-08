@@ -1,0 +1,12 @@
+{
+  "name": "sem06f_multimodal_scientific_retrieval_holdout",
+  "version": 1,
+  "description": "Holdout phrasing for bounded multimodal/page-native retrieval.",
+  "module": "sem06f_multimodal_scientific_retrieval",
+  "cases": [
+    { "id": "sem06f_holdout_figure_001", "input": { "query": "what figure contains the mass spectrum anomaly?", "scenario": "visual_enabled" }, "expected": { "top_unit": "figure", "top_status": "localized", "availability": "localized", "marker": "VISFIG_GOLD", "multimodal_status": "applied" }, "tags": ["page_native", "holdout"] },
+    { "id": "sem06f_holdout_table_001", "input": { "query": "which table lists the branching fractions for the benchmark channel?", "scenario": "visual_enabled" }, "expected": { "top_unit": "table", "top_status": "localized", "availability": "localized", "marker": "VISTABLE_GOLD", "multimodal_status": "applied" }, "tags": ["page_native", "holdout"] },
+    { "id": "sem06f_holdout_equation_001", "input": { "query": "which formula region gives the beta function running?", "scenario": "visual_enabled" }, "expected": { "top_unit": "equation", "top_status": "localized", "availability": "localized", "marker": "VISEQ_GOLD", "multimodal_status": "applied" }, "tags": ["page_native", "holdout"] },
+    { "id": "sem06f_holdout_text_001", "input": { "query": "which passage discusses the threshold enhancement?", "scenario": "visual_enabled" }, "expected": { "top_unit": "chunk", "top_status": "localized", "availability": "localized", "marker": "TEXT_GOLD", "multimodal_status": "skipped" }, "tags": ["text", "holdout"] }
+  ]
+}

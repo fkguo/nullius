@@ -1,0 +1,16 @@
+{
+  "name": "sem06f_multimodal_scientific_retrieval",
+  "version": 1,
+  "description": "Bounded multimodal/page-native retrieval over existing pdf_page/pdf_region evidence surfaces.",
+  "module": "sem06f_multimodal_scientific_retrieval",
+  "cases": [
+    { "id": "sem06f_figure_001", "input": { "query": "which figure shows the mass spectrum anomaly?", "scenario": "visual_enabled" }, "expected": { "top_unit": "figure", "top_status": "localized", "availability": "localized", "marker": "VISFIG_GOLD", "multimodal_status": "applied" }, "tags": ["page_native", "uplift", "figure"] },
+    { "id": "sem06f_table_001", "input": { "query": "which table reports the branching fractions?", "scenario": "visual_enabled" }, "expected": { "top_unit": "table", "top_status": "localized", "availability": "localized", "marker": "VISTABLE_GOLD", "multimodal_status": "applied" }, "tags": ["page_native", "uplift", "table"] },
+    { "id": "sem06f_equation_001", "input": { "query": "which equation region gives the beta function?", "scenario": "visual_enabled" }, "expected": { "top_unit": "equation", "top_status": "localized", "availability": "localized", "marker": "VISEQ_GOLD", "multimodal_status": "applied" }, "tags": ["page_native", "uplift", "equation"] },
+    { "id": "sem06f_page_001", "input": { "query": "which page contains the phase diagram evidence?", "scenario": "visual_enabled" }, "expected": { "top_unit": "page", "top_status": "localized", "availability": "localized", "marker": "VISPAGE_GOLD_002", "multimodal_status": "applied" }, "tags": ["page_native", "page"] },
+    { "id": "sem06f_text_001", "input": { "query": "which passage explains the threshold enhancement?", "scenario": "visual_enabled" }, "expected": { "top_unit": "chunk", "top_status": "localized", "availability": "localized", "marker": "TEXT_GOLD", "multimodal_status": "skipped" }, "tags": ["text", "non_regression"] },
+    { "id": "sem06f_unavailable_001", "input": { "query": "which figure shows the mass spectrum anomaly?", "scenario": "visual_unavailable" }, "expected": { "top_unit": "chunk", "top_status": "fallback_available", "availability": "unavailable", "marker": "VISFIG_GOLD", "multimodal_status": "unsupported" }, "tags": ["failure", "unavailable"] },
+    { "id": "sem06f_disabled_001", "input": { "query": "which figure shows the mass spectrum anomaly?", "scenario": "visual_enabled", "disable_multimodal": true }, "expected": { "top_unit": "chunk", "top_status": "fallback_available", "availability": "unavailable", "marker": "VISFIG_GOLD", "multimodal_status": "disabled" }, "tags": ["failure", "disabled"] },
+    { "id": "sem06f_ambiguous_001", "input": { "query": "which figure shows the resonance anomaly in the benchmark channel?", "scenario": "visual_ambiguous" }, "expected": { "top_unit": "figure", "top_status": "abstained", "availability": "abstained", "multimodal_status": "abstained" }, "tags": ["failure", "ambiguous"] }
+  ]
+}

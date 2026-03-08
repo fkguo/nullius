@@ -38,7 +38,12 @@ export type LocalizationCandidate = {
   token_overlap_ratio: number;
   importance_score?: number;
   matched_tokens?: string[];
+  preferred_unit?: EvidenceLocalizationUnit;
 };
+
+function candidateUnit(candidate: LocalizationCandidate): EvidenceLocalizationUnit {
+  return candidate.preferred_unit ?? mapEvidenceTypeToLocalizationUnit(candidate.item.type);
+}
 
 export function inferRequestedLocalizationUnit(params: { query: string; types?: EvidenceType[] }): EvidenceLocalizationUnit | undefined {
   if (params.types?.length === 1) return mapEvidenceTypeToLocalizationUnit(params.types[0]!);
@@ -104,11 +109,11 @@ export function buildEvidenceLocalization(params: {
     : [];
   const filtered = [...params.candidates, ...supplemental].filter(candidate => {
     const allowed = allowedUnits(requestedUnit);
-    return !allowed || allowed.has(mapEvidenceTypeToLocalizationUnit(candidate.item.type));
+    return !allowed || allowed.has(candidateUnit(candidate));
   });
   filtered.sort((lhs, rhs) => {
-    const lhsUnit = mapEvidenceTypeToLocalizationUnit(lhs.item.type);
-    const rhsUnit = mapEvidenceTypeToLocalizationUnit(rhs.item.type);
+    const lhsUnit = candidateUnit(lhs);
+    const rhsUnit = candidateUnit(rhs);
     if (requestedUnit) {
       const lhsExact = lhsUnit === requestedUnit ? 0 : 1;
       const rhsExact = rhsUnit === requestedUnit ? 0 : 1;
@@ -117,17 +122,17 @@ export function buildEvidenceLocalization(params: {
     return rankLocalizedCandidate({ unit: rhsUnit, score: rhs.score, requestedUnit }) - rankLocalizedCandidate({ unit: lhsUnit, score: lhs.score, requestedUnit });
   });
 
-  const exact = requestedUnit ? filtered.filter(candidate => mapEvidenceTypeToLocalizationUnit(candidate.item.type) === requestedUnit) : [];
+  const exact = requestedUnit ? filtered.filter(candidate => candidateUnit(candidate) === requestedUnit) : [];
   const exactAmbiguous = Boolean(exact[1] && Math.abs(
-    rankLocalizedCandidate({ unit: mapEvidenceTypeToLocalizationUnit(exact[0]!.item.type), score: exact[0]!.score, requestedUnit }) -
-    rankLocalizedCandidate({ unit: mapEvidenceTypeToLocalizationUnit(exact[1]!.item.type), score: exact[1]!.score, requestedUnit })
+    rankLocalizedCandidate({ unit: candidateUnit(exact[0]!), score: exact[0]!.score, requestedUnit }) -
+    rankLocalizedCandidate({ unit: candidateUnit(exact[1]!), score: exact[1]!.score, requestedUnit })
   ) < AMBIGUITY_SCORE_DELTA);
   const indexedUnits = new Set(params.allItems.map(item => mapEvidenceTypeToLocalizationUnit(item.type)));
   const pdfItems = params.allItems.filter(item => item.locator.kind === 'pdf');
   let structureScans = 0;
 
   const selected = filtered.slice(0, params.limit).map(candidate => {
-    const unit = mapEvidenceTypeToLocalizationUnit(candidate.item.type);
+    const unit = candidateUnit(candidate);
     const status: EvidenceLocalizationStatus = !requestedUnit || unit === requestedUnit
       ? (exactAmbiguous && unit === requestedUnit ? 'abstained' : 'localized')
       : 'fallback_available';
@@ -184,3 +189,4 @@ export function buildEvidenceLocalization(params: {
 }
 
 export { mapEvidenceTypeToLocalizationUnit } from './scoring.js';
+export { hasPdfVisualArtifact, inferCatalogItemLocalizationUnit, pdfRegionLabelToUnit } from './units.js';

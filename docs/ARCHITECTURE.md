@@ -558,6 +558,29 @@ max_tokens = suggestedWordCount * 10;  // ~10 tokens/word (CJK 兼容)
 - `src/vnext/evidenceSemantic.ts`
 - `src/tools/writing/inputSchemas.ts`
 
+#### Bounded Multimodal Evidence Fusion (NEW-SEM-06f, 2026-03-08)
+
+**目标**：在现有 semantic retrieval + structure-aware localization backbone 之上，补一层 **page-native multimodal signal**，专门处理 `page` / `figure` / `table` / `equation` 型 query。
+
+**实现**：
+- shared contract：`packages/shared/src/discovery/evidence-multimodal.ts`
+- capability/query gate：`packages/hep-mcp/src/core/evidence-multimodal/policy.ts`
+- visual candidate fusion：`packages/hep-mcp/src/core/evidence-multimodal/fusion.ts`
+- visual label → preferred localization unit bridge：`packages/hep-mcp/src/core/evidence-localization/units.ts`
+- artifact integration：`packages/hep-mcp/src/core/evidenceSemantic.ts`
+
+**设计约束**：
+- 只在 page-native query 上触发；普通 prose/citation query 继续 text-first，并写出 `multimodal.status = skipped`
+- 只对显式 promoted candidates 注入 `preferred_unit`；禁止把所有 `pdf_region` 全局重释为 `figure/table/equation`
+- `HEP_ENABLE_MULTIMODAL_RETRIEVAL` 可显式关闭该层；disabled / unsupported / ambiguous 都必须 fail-closed 并可审计
+- 不新增 parser/OCR/index/server，也不改写 canonical-paper discovery substrate
+
+**评估面**：
+- `packages/hep-mcp/tests/eval/evalSem06fMultimodalScientificRetrieval.test.ts`
+- `packages/hep-mcp/tests/eval/fixtures/sem06f_multimodal_scientific_retrieval_eval.json`
+- `packages/hep-mcp/tests/eval/fixtures/sem06f_multimodal_scientific_retrieval_holdout.json`
+- `packages/hep-mcp/tests/eval/baselines/sem06f_multimodal_scientific_retrieval.baseline.json`
+
 #### Asset Injection Adaptive Scaling (v0.3.1)
 
 **目标**：资产注入（equations/figures/tables）预算随章节字数自适应缩放，与检索缩放保持一致，避免理论重章节公式不够、结果重章节图/表不够。

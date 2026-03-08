@@ -253,8 +253,13 @@ describe('vNext M9: hep_run_build_pdf_evidence (PDF→Evidence)', () => {
     const items = catalogText
       .split('\n')
       .filter(Boolean)
-      .map(line => JSON.parse(line)) as Array<{ type: string }>;
-    expect(items.some(i => i.type === 'pdf_region')).toBe(true);
+      .map(line => JSON.parse(line)) as Array<{ type: string; meta?: Record<string, unknown> }>;
+    const pageItem = items.find(i => i.type === 'pdf_page');
+    const regionItem = items.find(i => i.type === 'pdf_region');
+    expect(regionItem).toBeTruthy();
+    expect(typeof pageItem?.meta?.page_render_uri).toBe('string');
+    expect(typeof regionItem?.meta?.region_uri).toBe('string');
+    expect(typeof regionItem?.meta?.label).toBe('string');
   });
 
   it('zotero_attachment_key loads PDF via Local API and uses .zotero-ft-cache when available', async () => {
