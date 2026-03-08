@@ -52,3 +52,8 @@ paper/
 # Lock files are committed
 # !pnpm-lock.yaml
 .gitnexus
+
+# Serena memories: keep architectural decisions tracked, ignore local session notes
+.serena/memories/**
+!.serena/memories/
+!.serena/memories/architecture-decisions.md

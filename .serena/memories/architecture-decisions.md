@@ -424,3 +424,15 @@
 - Governance text updated in `AGENTS.md` and `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`.
 - Final wording was re-reviewed with the required owner-approved trio `Opus` + `Gemini` + `OpenCode(kimi-for-coding/k2p5)` and all three returned `CONVERGED` with 0 blocking in the final round.
 - This rule intentionally tightens closeout discipline without weakening scope control: low-value nits are not forced into backlog, and only high-value, in-scope, cheap-to-verify amendments are made mandatory in-batch.
+
+### [2026-03-08] Serena memory hygiene: only tracked architectural decisions stay in Git
+
+**Context**: The main worktree accumulated a backlog of local Serena memory files (project overview, style notes, historical review protocol notes, batch handoffs, and operator checklists). They were useful as local session aids, but only `architecture-decisions.md` had durable repo-wide value; the rest created persistent `git status` noise and some files were already stale after governance changes such as the move from dual-review to formal three-model review.
+**Decision**:
+- `.serena/memories/architecture-decisions.md` remains the **only tracked Serena memory file** in this repository.
+- Other Serena memory files under `.serena/memories/` are treated as **local-only working notes** by default and should be ignored by Git.
+- Before removing a non-main worktree, any durable/reusable conclusion must still be distilled into `architecture-decisions.md`; raw handoff notes, duplicated command checklists, stale model-protocol notes, and session-specific scratch files should not be promoted automatically.
+- When a local Serena memory becomes stale because repo governance changed, the correct action is to delete or rewrite the local note rather than relying on it as policy.
+**Validation**:
+- `.gitignore` now ignores local Serena memory files while keeping `architecture-decisions.md` tracked.
+- The main worktree cleanup removed obsolete local-only memory notes after their durable policy implication was recorded here.
