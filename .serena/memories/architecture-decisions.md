@@ -374,3 +374,18 @@
 - Formal external review used the required pair `Opus` + `OpenCode(kimi-for-coding/k2p5)` and converged in one round with 0 blocking. Formal self-review also passed with 0 blocking. Deferred non-blocking amendments: extra negative-path JSON-RPC handler tests, broader forbidden-context-key coverage, and future metadata size/redaction hardening.
 **Scope guard**:
 - `NEW-DISC-01` D4/D5, `NEW-SEM-06b/d/e`, `NEW-LOOP-01`, and `EVO-13` remain untouched in this closeout.
+
+### [2026-03-07] NEW-DISC-01 closeout: exact-ID-first canonical discovery substrate lands before `NEW-SEM-06b`
+
+**Context**: Batch 11 only shipped the `NEW-DISC-01` kickoff scaffold (`openalex_id`, provider capability SoT, planner/candidate scaffold). Before `NEW-SEM-06b` could legally start, the project still needed a real canonical identity / dedup / search-log contract plus broker-level eval slices that live in the existing shared-library + hep-mcp broker architecture.
+**Decision**:
+- Keep `NEW-DISC-01` library-first / broker-first: all discovery authority stays under `packages/shared/src/discovery/`, while hep-mcp only adds the consumer `packages/hep-mcp/src/tools/research/federatedDiscovery.ts`; no discovery MCP server is introduced.
+- Canonicalization follows an exact-ID-first fail-closed ladder: only shared `doi` / `arxiv_id` / `recid` / `openalex_id` evidence produces `confident_match`; normalized title + author/year agreement only produces `uncertain_match`; insufficient evidence stays unmerged.
+- Provenance is mandatory substrate, not optional metadata: canonical papers and dedup artifacts must preserve `source_candidates`, `match_reasons`, `provider_sources`, `merge_state`, and `uncertain_group_key`; search logs remain append-only with artifact locators.
+- D5 extends the existing `NEW-RT-05` eval plane rather than creating a parallel harness: deterministic fixtures + locked baseline + optional holdout guard canonicalization/dedup/provider-routing behavior.
+**Validation / governance**:
+- Acceptance passed on the final state: the full standalone prompt acceptance ladder (`pnpm --filter @autoresearch/shared test/build`, `pnpm --filter @autoresearch/openalex-mcp test/build`, `pnpm --filter @autoresearch/arxiv-mcp test/build`, `pnpm --filter @autoresearch/hep-mcp test`, `pnpm --filter @autoresearch/hep-mcp test:eval`, `pnpm --filter @autoresearch/hep-mcp build`, `pnpm lint`, `pnpm -r test`, `pnpm -r build`) plus explicit holdout verification with `EVAL_INCLUDE_HOLDOUT=1 pnpm --filter @autoresearch/hep-mcp test -- evalDisc01BrokerCloseout`.
+- GitNexus post-change evidence stayed low risk (`detect_changes` low risk, no affected processes; `context`/`impact` on `runFederatedDiscovery`, `canonicalizeDiscoveryCandidates`, `appendDiscoverySearchLogEntries`, `planDiscoveryProviders` all matched the intended narrow blast radius).
+- Formal external review used the required pair `Opus` + `OpenCode(kimi-for-coding/k2p5)` and converged in R2 with 0 blocking after fixing the holdout fixture and refreshing the INSPIRE descriptor note. Formal self-review also passed with 0 blocking.
+**Scope guard**:
+- `NEW-SEM-06b/d/e`, `NEW-RT-06/07`, `NEW-LOOP-01`, and `EVO-13` were not reopened; the closeout only delivers the canonical/discovery substrate those future items depend on.

@@ -28,7 +28,41 @@ export {
 } from './canonical-candidate.js';
 
 export {
-  planDiscoveryProviders,
+  CanonicalPaperSchema,
+  CanonicalPaperMergeStateSchema,
+  CanonicalPaperMergeConfidenceSchema,
+  DiscoveryCanonicalPapersArtifactSchema,
+  type CanonicalPaper,
+  type DiscoveryCanonicalPapersArtifact,
+} from './canonical-paper.js';
+
+export {
+  DiscoveryDedupArtifactSchema,
+  type DiscoveryDedupArtifact,
+} from './dedup-artifact.js';
+
+export {
+  DiscoveryQueryPlanSchema,
+  DiscoveryPlanStepSchema,
+  DiscoveryProviderDecisionSchema,
   type DiscoveryPlan,
   type DiscoveryPlanStep,
-} from './planner.js';
+  type DiscoveryProviderDecision,
+} from './query-plan.js';
+
+export {
+  DiscoveryArtifactLocatorSchema,
+  DiscoverySearchLogEntrySchema,
+  appendDiscoverySearchLogEntries,
+  type DiscoveryArtifactLocator,
+  type DiscoverySearchLogEntry,
+} from './search-log.js';
+
+export { planDiscoveryProviders } from './planner.js';
+export { canonicalizeDiscoveryCandidates } from './canonicalize.js';
+
+export {
+  normalizeDiscoveryName,
+  normalizeDiscoveryQuery,
+  normalizeDiscoveryTitle,
+} from './normalization.js';

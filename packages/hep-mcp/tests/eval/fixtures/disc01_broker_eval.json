@@ -1,0 +1,129 @@
+{
+  "name": "disc01_broker",
+  "version": 1,
+  "description": "Deterministic broker eval set for NEW-DISC-01 D5 closeout.",
+  "module": "NEW-DISC-01",
+  "cases": [
+    {
+      "id": "known_item_cross_provider",
+      "input": {
+        "query": "10.1000/example",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            {
+              "provider": "inspire",
+              "identifiers": { "recid": "12345", "doi": "10.1000/example", "arxiv_id": "2501.00001" },
+              "title": "Cross-provider canonical identity for HEP papers",
+              "authors": ["A. Author", "B. Author"],
+              "year": 2025,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "inspire_fixture", "query": "10.1000/example" }
+            }
+          ],
+          "openalex": [
+            {
+              "provider": "openalex",
+              "identifiers": { "openalex_id": "W2741809807", "doi": "10.1000/example" },
+              "title": "Cross-provider canonical identity for HEP papers",
+              "authors": ["A. Author", "B. Author"],
+              "year": 2025,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "openalex_fixture", "query": "10.1000/example" }
+            }
+          ],
+          "arxiv": [
+            {
+              "provider": "arxiv",
+              "identifiers": { "arxiv_id": "2501.00001" },
+              "title": "Cross-provider canonical identity for HEP papers",
+              "authors": ["A. Author", "B. Author"],
+              "year": 2025,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "arxiv_fixture", "query": "10.1000/example" }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "selected_providers": ["inspire", "openalex", "arxiv"],
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 1,
+        "confident_merges": 1,
+        "uncertain_groups": 0,
+        "primary_identifier": "10.1000/example"
+      },
+      "tags": ["known-item", "cross-provider"]
+    },
+    {
+      "id": "keyword_ambiguous_near_duplicate",
+      "input": {
+        "query": "near-threshold heavy flavor",
+        "intent": "keyword_search",
+        "providers": {
+          "inspire": [
+            {
+              "provider": "inspire",
+              "identifiers": { "recid": "1001" },
+              "title": "Heavy-flavor spectroscopy with near-threshold states",
+              "authors": ["A. Author", "B. Author"],
+              "year": 2024,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "inspire_fixture", "query": "near-threshold heavy flavor" }
+            }
+          ],
+          "openalex": [
+            {
+              "provider": "openalex",
+              "identifiers": { "openalex_id": "W1001" },
+              "title": "Heavy flavor spectroscopy with near threshold states",
+              "authors": ["A. Author", "C. Collaborator"],
+              "year": 2024,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "openalex_fixture", "query": "near-threshold heavy flavor" }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "selected_providers": ["inspire", "openalex", "arxiv"],
+        "provider_hit_providers": ["inspire", "openalex"],
+        "canonical_count": 2,
+        "confident_merges": 0,
+        "uncertain_groups": 1,
+        "primary_identifier": null
+      },
+      "tags": ["ambiguous", "dedup"]
+    },
+    {
+      "id": "known_item_openalex_only",
+      "input": {
+        "query": "W2741809807",
+        "intent": "known_item",
+        "preferred_providers": ["openalex"],
+        "providers": {
+          "openalex": [
+            {
+              "provider": "openalex",
+              "identifiers": { "openalex_id": "W2741809807", "doi": "10.1000/example" },
+              "title": "Cross-provider canonical identity for HEP papers",
+              "authors": ["A. Author", "B. Author"],
+              "year": 2025,
+              "matched_by": ["fixture"],
+              "provenance": { "source": "openalex_fixture", "query": "W2741809807" }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "selected_providers": ["openalex", "inspire", "arxiv"],
+        "provider_hit_providers": ["openalex"],
+        "canonical_count": 1,
+        "confident_merges": 0,
+        "uncertain_groups": 0,
+        "primary_identifier": "W2741809807"
+      },
+      "tags": ["known-item", "single-provider"]
+    }
+  ]
+}
