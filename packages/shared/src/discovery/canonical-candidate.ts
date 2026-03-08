@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PaperIdentifiersSchema } from '../types/identifiers.js';
 import { DiscoveryProviderIdSchema } from './capabilities.js';
+import { DiscoveryCandidateChannelSchema } from './candidate-channel.js';
 
 export const CanonicalCandidateSchema = z.object({
   provider: DiscoveryProviderIdSchema,
@@ -14,6 +15,9 @@ export const CanonicalCandidateSchema = z.object({
   provenance: z.object({
     source: z.string().min(1),
     query: z.string().optional(),
+    channel: DiscoveryCandidateChannelSchema.optional(),
+    provider_rank: z.number().int().positive().optional(),
+    provider_score: z.number().optional(),
   }),
 });
 

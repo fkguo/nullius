@@ -79,12 +79,16 @@ describe('runFederatedDiscovery', () => {
     expect(first.papers).toHaveLength(1);
     expect(first.dedup.confident_merges).toHaveLength(1);
     expect(path.basename(first.artifacts.query_plan.file_path)).toBe('discovery_query_plan_001_v1.json');
+    expect(path.basename(first.artifacts.candidate_generation.file_path)).toBe('discovery_candidate_generation_001_v1.json');
     expect(path.basename(first.artifacts.canonical_papers.file_path)).toBe('discovery_canonical_papers_001_v1.json');
     expect(path.basename(first.artifacts.dedup.file_path)).toBe('discovery_dedup_001_v1.json');
+    expect(path.basename(first.artifacts.rerank.file_path)).toBe('discovery_rerank_001_v1.json');
     expect(path.basename(first.artifacts.search_log.file_path)).toBe('discovery_search_log_v1.jsonl');
     expect(fs.existsSync(first.artifacts.query_plan.file_path)).toBe(true);
+    expect(fs.existsSync(first.artifacts.candidate_generation.file_path)).toBe(true);
     expect(fs.existsSync(first.artifacts.canonical_papers.file_path)).toBe(true);
     expect(fs.existsSync(first.artifacts.dedup.file_path)).toBe(true);
+    expect(fs.existsSync(first.artifacts.rerank.file_path)).toBe(true);
 
     const second = await runFederatedDiscovery({
       query: 'near-threshold heavy flavor',

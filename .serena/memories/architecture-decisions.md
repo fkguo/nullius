@@ -389,3 +389,38 @@
 - Formal external review used the required pair `Opus` + `OpenCode(kimi-for-coding/k2p5)` and converged in R2 with 0 blocking after fixing the holdout fixture and refreshing the INSPIRE descriptor note. Formal self-review also passed with 0 blocking.
 **Scope guard**:
 - `NEW-SEM-06b/d/e`, `NEW-RT-06/07`, `NEW-LOOP-01`, and `EVO-13` were not reopened; the closeout only delivers the canonical/discovery substrate those future items depend on.
+
+
+### [2026-03-08] NEW-SEM-06b closeout: Hybrid candidate generation + canonical-paper reranker
+
+**Context**: After `NEW-DISC-01` D4/D5 closed canonical paper / query-plan / dedup / search-log substrate and `NEW-SEM-06-INFRA` froze the retrieval baseline/eval protocol, Batch 17 had to land the first real retrieval-backbone upgrade without pulling `NEW-SEM-06d` (query reformulation) or `NEW-SEM-06e` (structure-aware localization) forward.
+**Decision**:
+- Extend shared discovery authority with three new contracts: `DiscoveryCandidateChannel`, `DiscoveryCandidateGenerationArtifact`, and `DiscoveryRerankArtifact`.
+- Keep provider-local retrieval as **evidence only**. `packages/hep-mcp/src/tools/research/discovery/candidateAdapters.ts` converts INSPIRE / OpenAlex / arXiv results into `CanonicalCandidate`, and all downstream ranking authority stays in canonical paper space.
+- `runFederatedDiscovery(...)` now writes five audited discovery artifacts per request (`query_plan`, `candidate_generation`, `canonical_papers`, `dedup`, `rerank`) plus append-only search log, all via atomic writes under `HEP_DATA_DIR/cache/discovery/`.
+- Candidate generation is exact-ID-first, then keyword search, plus optional provider-native semantic search only where the provider actually supports it (currently OpenAlex, gated by `OPENALEX_API_KEY` and suppressed for structured-ID queries).
+- Strong reranking is a bounded two-stage path: deterministic canonical-paper prerank followed by top-k MCP-sampling listwise rerank; when reranking cannot run, the artifact must say `unavailable` or `insufficient_candidates` rather than pretending a strong rerank happened.
+- `packages/hep-mcp/src/core/evidenceRetrievalSubstrate.ts` now records `strong_reranker_path = canonical_paper_llm_listwise_v1` while leaving `late_interaction_path` explicitly deferred.
+**Validation**:
+- Acceptance: `pnpm --filter @autoresearch/shared test/build`, `pnpm --filter @autoresearch/openalex-mcp test/build`, `pnpm --filter @autoresearch/arxiv-mcp test/build`, `pnpm --filter @autoresearch/hep-mcp test`, `pnpm --filter @autoresearch/hep-mcp test:eval`, `pnpm --filter @autoresearch/hep-mcp build`, `pnpm lint`, `pnpm -r test`, `pnpm -r build`.
+- Eval lock: `packages/hep-mcp/tests/eval/evalSem06bHybridDiscovery.test.ts` + fixtures/baseline/holdout.
+- Formal review: `Opus` + `OpenCode(kimi-for-coding/k2p5)` converged with 0 blocking; self-review also found 0 blocking.
+**Deferred / out of scope**:
+- No query reformulation / QPP trigger policy yet (`NEW-SEM-06d`).
+- No structure-aware evidence localization yet (`NEW-SEM-06e`).
+- No new discovery MCP server.
+- No follow-up cleanup for generic `precisionAtK()` semantics or provider-error neutral channel labels in this batch.
+
+### [2026-03-08] Governance closeout: high-value non-blocking amendments default to same-batch adoption
+
+**Context**: During `NEW-SEM-06b` closeout, external review surfaced several non-blocking amendments. Human feedback highlighted a governance gap: when high-value non-blocking findings are deferred without a strong rule, they are easy to forget across sessions, especially if they live only in temporary review/self-review artifacts.
+**Decision**:
+- For implementation closeout, any non-blocking amendment that is **current-batch related, high-value, low-risk, independently verifiable, and does not depend on later phase / lane work** now defaults to **same-batch adoption**.
+- `deferred` is now restricted to a narrow set of legal reasons: lane-external work, dependency on later phase / lane (or any later work outside the current batch), pre-existing unrelated debt, required human architecture arbitration, or cases where fix risk clearly outweighs benefit.
+- Only deferred items that still have future value may remain deferred, and they must be synced into a **persistent SSOT** (`meta/remediation_tracker_v1.json` entry or checked-in follow-up prompt file). Temporary chat prompts, review/self-review outputs, and scratch notes do **not** count as SSOT.
+- Low-value or explicitly rejected non-blocking amendments should be recorded as `declined/closed`, not `deferred`, so backlog hygiene is preserved.
+- Self-review recording obligations now explicitly cover all three dispositions: `adopted`, `deferred`, and `declined/closed`.
+**Validation / governance**:
+- Governance text updated in `AGENTS.md` and `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`.
+- Final wording was re-reviewed with the required owner-approved trio `Opus` + `Gemini` + `OpenCode(kimi-for-coding/k2p5)` and all three returned `CONVERGED` with 0 blocking in the final round.
+- This rule intentionally tightens closeout discipline without weakening scope control: low-value nits are not forced into backlog, and only high-value, in-scope, cheap-to-verify amendments are made mandatory in-batch.

@@ -9,6 +9,11 @@ export {
 } from './capabilities.js';
 
 export {
+  DiscoveryCandidateChannelSchema,
+  type DiscoveryCandidateChannel,
+} from './candidate-channel.js';
+
+export {
   DiscoveryQueryIntentSchema,
   DiscoveryPlannerRequestSchema,
   type DiscoveryQueryIntent,
@@ -40,6 +45,24 @@ export {
   DiscoveryDedupArtifactSchema,
   type DiscoveryDedupArtifact,
 } from './dedup-artifact.js';
+
+export {
+  DiscoveryCandidateBatchSchema,
+  DiscoveryCandidateGenerationArtifactSchema,
+  type DiscoveryCandidateBatch,
+  type DiscoveryCandidateGenerationArtifact,
+} from './candidate-generation-artifact.js';
+
+export {
+  DiscoveryRerankStatusSchema,
+  DiscoveryRerankMethodSchema,
+  DiscoveryRerankedPaperSchema,
+  DiscoveryRerankArtifactSchema,
+  type DiscoveryRerankStatus,
+  type DiscoveryRerankMethod,
+  type DiscoveryRerankedPaper,
+  type DiscoveryRerankArtifact,
+} from './rerank-artifact.js';
 
 export {
   DiscoveryQueryPlanSchema,

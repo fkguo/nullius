@@ -69,9 +69,9 @@ Autoresearch 是一个 evidence-first 自动化研究平台，面向高能物理
 
 ERR (4), ID (3), SYNC (6), CFG (4), GATE (5), LOG (4), ART (5), SEC (3), NET (1), RES (1), MIG (1), REL (2), CODE (1), LANG (1), PLUG (1)
 
-## 双模型审核流程
+## 三模型审核流程
 
-v1.1.0 起，所有重大文档变更需经 GPT-5.3-Codex (xhigh) 和 Gemini-3-Pro-Preview 独立审核，迭代至收敛。审核产物存放在 `autoresearch-meta/.review/`（已 gitignore）。
+自 2026-03-08 起，所有重大文档变更与实现 closeout 默认采用三模型独立审核：`Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)`。若其中任一模型本地不可用，必须记录失败原因并由人类明确确认 fallback reviewer；禁止静默降级。审核产物存放在 `autoresearch-meta/.review/`（已 gitignore）。
 
 ### 触发条件
 
@@ -80,16 +80,16 @@ v1.1.0 起，所有重大文档变更需经 GPT-5.3-Codex (xhigh) 和 Gemini-3-P
 - REDESIGN_PLAN Phase 级别变更（项移动、新增、删除）
 - 不可逆操作方案（monorepo 迁移、schema 破坏性变更）
 
-单组件内部修改、bug fix、文档 typo 等**不需要**双审核。
+单组件内部修改、bug fix、文档 typo 等**不需要**正式三模型审核。
 
 ### 收敛判定规则
 
-1. 两个模型独立审核，输出 strict JSON（含 `verdict`, `blocking_issues`, `amendments`）
-2. **CONVERGED**: 两模型均 0 blocking issues → 方案通过
-3. **CONVERGED_WITH_AMENDMENTS**: 0 blocking + 非阻塞修正建议 → 方案通过，修正建议按价值选择性采纳
+1. 三个模型独立审核，输出 strict JSON（含 `verdict`, `blocking_issues`, `amendments`）
+2. **CONVERGED**: 三个模型均 0 blocking issues → 方案通过
+3. **CONVERGED_WITH_AMENDMENTS**: 0 blocking + 非阻塞修正建议 → 方案通过；凡当前 batch 直接相关、高价值、低风险、可独立验证且不依赖后续 phase / lane 的 amendments，默认必须本轮吸收。仅当 amendment 属于 lane 外工作、依赖后续 phase / lane（或当前 batch 之外的后续工作）、属于 pre-existing unrelated debt、需要人类架构裁决、或修复风险明显大于收益时，才允许 deferred；仅仍有后续价值的 deferred 项必须同步到持久 SSOT（至少 `meta/remediation_tracker_v1.json` 条目或 checked-in 的后续 prompt 文件），临时 chat prompt、review/self-review 输出与 scratch notes 不算 SSOT，禁止只留在这些临时产物中。低价值或已判定不值得跟进的 non-blocking amendments 应记录为 declined/closed，而非 deferred。
 4. **NOT_CONVERGED**: 任一模型有 blocking issue → 必须修正后重新提交下一轮 (R+1)
 5. **最大轮次**: 5 轮。超过 5 轮未收敛 → 人类介入决策
-6. 每轮 prompt 必须包含：上一轮两模型的完整输出 + 已采纳/未采纳修正及理由
+6. 每轮 prompt 必须包含：上一轮三模型的完整输出 + 已采纳/未采纳修正及理由
 
 ### 审核输出 JSON schema
 
@@ -104,7 +104,7 @@ v1.1.0 起，所有重大文档变更需经 GPT-5.3-Codex (xhigh) 和 Gemini-3-P
 
 ### 执行方式
 
-使用 `gemini-cli-runner` 和 `codex-cli-runner` skills 并行执行。prompt 文件存放在 `.review/` 目录。
+使用 `claude-cli-runner`、`gemini-cli-runner` 与 `opencode-cli-runner` skills 并行执行。默认 reviewer 固定为 `Opus`、`Gemini-3.1-Pro-Preview` 与 `OpenCode(kimi-for-coding/k2p5)`；prompt 文件存放在 `.review/` 目录。
 
 ## Superpowers 使用约定
 
@@ -140,9 +140,9 @@ v1.1.0 起，所有重大文档变更需经 GPT-5.3-Codex (xhigh) 和 Gemini-3-P
 - **GitNexus 开工前对齐是硬要求**：实现前必须先读 `gitnexus://repo/{name}/context`；若 index stale，先运行 `npx gitnexus analyze`，再继续。禁止带 stale index 开工。
 - **本仓 GitNexus generated appendix 约束**：当前 GitNexus 版本会无条件向根 `AGENTS.md` / `CLAUDE.md` upsert 动态 marker；本仓接受这些 generated appendix 进入提交面，但应将其视为非 SSOT 的工具生成上下文，不在 marker block 内手写根级治理规则。
 - **GitNexus 审核前再对齐是条件性硬要求**：若实现新增/重命名符号、改变关键调用链、或当前 index 已不反映工作树，必须在正式审核前再次刷新，并用 `detect_changes` / `impact` / `context` 形成 post-change 证据。
-- **正式 `review-swarm` 为实现收尾必经步骤**：实现 prompt 默认必须在验收命令通过后执行正式双审；审核必须深入代码、调用链、测试、eval fixture、baseline、scope boundary，禁止只看 diff 摘要做表面判断。
-- **正式自审 (`self-review`) 也是实现收尾硬门禁**：外部双审收敛后，当前执行 agent 仍必须基于实际代码、调用链 / GitNexus 证据、tests / eval / holdout / baseline、scope boundary 再做一轮自审；blocking issue 必须先修复，自审结论与 adopted / deferred amendments 必须记录。
-- **完成态门禁**：只有当验收命令通过、`review-swarm` 收敛且双审 `blocking_issues = 0`、`self-review` 通过、tracker / memory / `AGENTS.md` 已同步后，实施项才可标记 `done`。
+- **正式 `review-swarm` 为实现收尾必经步骤**：实现 prompt 默认必须在验收命令通过后执行正式三审（`Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)`）；审核必须深入代码、调用链、测试、eval fixture、baseline、scope boundary，禁止只看 diff 摘要做表面判断。
+- **正式自审 (`self-review`) 也是实现收尾硬门禁**：外部三审收敛后，当前执行 agent 仍必须基于实际代码、调用链 / GitNexus 证据、tests / eval / holdout / baseline、scope boundary 再做一轮自审；blocking issue 必须先修复。自审结论与 adopted / deferred / declined/closed dispositions 必须记录，并明确哪些 amendment 因满足“当前 batch 直接相关 + 高价值 + 低风险 + 可独立验证 + 不依赖后续 phase / lane”而被本轮默认吸收；deferred 项必须给出合法理由，并把仍有后续价值的项同步到持久 SSOT；低价值或已判定不值得跟进的项应标记为 declined/closed，而非 deferred。
+- **完成态门禁**：只有当验收命令通过、`review-swarm` 收敛且三审 `blocking_issues = 0`、`self-review` 通过、tracker / memory / `AGENTS.md` 已同步后，实施项才可标记 `done`。
 - **版本控制门禁**：`git commit` / `git push` 仍需人类在当前任务中明确授权；若已授权，也只能在上述完成态门禁满足后执行，并在 push 前确认工作树只包含本批应交付内容。`.review/` 审核产物保持 gitignored，不进入提交。
 - **worktree 清理前 Serena memory 迁移是硬门禁**：删除任何非主 `worktree`（含 `git worktree remove` 或等价目录清理）前，必须先盘点该 `worktree` 下的 `.serena/memories/`；可复用的长期结论迁入并提交 `.serena/memories/architecture-decisions.md`，仅本地保留但对后续开发仍有帮助的记忆复制到保留的目标 `worktree` 的 `.serena/memories/`，只有临时 scratch / cache / 不可复用思路才允许随 `worktree` 删除。未完成迁移前不得清理 `worktree`。
 
@@ -207,7 +207,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 | 简单 | 1-2 文件, 明确范围 | 轻量问询→提出方案→执行 |
 | 重构 | 改变结构但保持行为 | 安全优先：先映射引用→确认测试覆盖→逐步修改 |
 | 新建 | 新功能/模块 | 发现优先：先探索现有模式→匹配约定→再动手 |
-| 架构 | 跨组件设计决策 | 战略优先：全局影响评估→双模型审核→方可执行 |
+| 架构 | 跨组件设计决策 | 战略优先：全局影响评估→三模型审核→方可执行 |
 
 ### 代码质量标准
 
@@ -225,9 +225,9 @@ Agent 在代码审查和自检时必须检测以下反模式：
 | Sisyphus 任务管理 | superpowers:executing-plans + tracker 协议 | ✅ 已覆盖 |
 | Prometheus 规划纪律 | superpowers:writing-plans + brainstorming | ✅ 已覆盖 |
 | Atlas 编排委派 | superpowers:dispatching-parallel-agents | ✅ 已覆盖 |
-| Momus 审查循环 | 双模型审核流程 | ✅ 已覆盖（更强） |
+| Momus 审查循环 | 三模型审核流程 | ✅ 已覆盖（更强） |
 | Metis 意图分类 | **无对应规则** | ⬆️ 本节补充 |
-| Oracle 战略顾问 | superpowers:brainstorming + 双模型审核 | ✅ 部分覆盖 |
+| Oracle 战略顾问 | superpowers:brainstorming + 三模型审核 | ✅ 部分覆盖 |
 | Librarian 外部文档搜索 | sci-hub + zotero-import + INSPIRE 工具 | ✅ 已覆盖（HEP 专用） |
 | Explore 代码搜索 | superpowers:dispatching-parallel-agents | ✅ 已覆盖 |
 | Hephaestus 深度自治执行 | Codex CLI runner | ✅ 已覆盖 |
@@ -283,8 +283,8 @@ Agent 在代码审查和自检时必须检测以下反模式：
 | **跨组件架构变更** | Opus 4.6 | GPT-5.2 (xhigh) | 需全局上下文理解 + agentic 工具调用链 |
 | **TS 迁移 (NEW-05a)** | Opus 4.6 | MiniMax M2.5 | 大规模代码重写，Opus 75.6% / MiniMax 75.8% 均为顶级 |
 | **单组件 complexity=low/medium** | Sonnet 4.6 | GLM-5, Kimi K2.5 | 成本效益，Sonnet ~71% 足够；国产模型成本更低 |
-| **双模型审核 (治理文档)** | GPT-5.2 (xhigh) + Gemini-3-Pro | GLM-5 替代任一 | 独立审核需不同厂商，避免同源偏见 |
-| **双模型审核 (代码/架构)** | GPT-5.3-Codex (xhigh) + Opus 4.6 | MiniMax M2.5 替代 Codex | 代码审核需代码专精 + 架构理解 |
+| **正式三模型审核 (治理文档)** | Opus 4.6 + Gemini-3.1-Pro-Preview + Kimi K2.5 | 若 `Gemini-3.1-Pro-Preview` 不可用，需人类确认 fallback | 三家厂商交叉，兼顾深度推理、长上下文与中文/工程视角 |
+| **正式三模型审核 (代码/架构/实现)** | Opus 4.6 + Gemini-3.1-Pro-Preview + Kimi K2.5 | 若 `Gemini-3.1-Pro-Preview` 不可用，需人类确认 fallback | 统一实现收尾 reviewer trio，避免模型单点偏见 |
 | **idea-engine 迁移 (阶段 3)** | Opus 4.6 | MiniMax M2.5 | ~6,800 行代码迁移，需顶级编码能力 |
 | **Agent-arXiv 设计 (EVO-15/16)** | Opus 4.6 | GPT-5.2 (xhigh) | 复杂系统设计需深度推理 + 长上下文 |
 | **科学诚信框架 (EVO-06)** | GPT-5.2 (xhigh) | Opus 4.6 | 科学推理 + 严谨性验证 |
@@ -297,7 +297,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 1. **顶级编码 → Opus 4.6 (75.6%) 或 MiniMax M2.5 (75.8%)**: 大规模代码迁移、复杂 bug 修复。MiniMax 成本更低但工具调用生态不如 Anthropic
 2. **深度推理 → Opus 4.6 或 GPT-5.2 (xhigh, 72.8%)**: 跨组件架构、科学推理。GPT-5.2 xhigh 延迟高但推理深度强
 3. **代码审查 → GPT-5.3-Codex (xhigh)**: Codex CLI 原生集成，代码专精。注意：无 SWE-bench 数据，实际能力待验证
-4. **独立审核 → 不同厂商模型交叉**: 避免同源偏见，至少 2 家厂商。推荐组合：Anthropic + OpenAI、Anthropic + Google、OpenAI + 国产
+4. **独立审核 → 默认三家厂商交叉**: 避免同源偏见，正式审核默认使用 Anthropic (`Opus`) + Google (`Gemini-3.1-Pro-Preview`) + Moonshot/OpenCode (`Kimi K2.5`)。
 5. **成本敏感 → Sonnet 4.6 (~71%)**: 单组件、低复杂度、日常开发。国产备选：GLM-5 (72.8%)、Kimi K2.5 (70.8%) 成本更低
 6. **超长上下文 (>200K) → Gemini-3-Pro (74.2%)**: 全代码库扫描、大规模文档分析，唯一 ≥1M 上下文
 
@@ -305,7 +305,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 
 国产模型 (MiniMax M2.5, GLM-5, Kimi K2.5) 在 SWE-bench 上表现出色，成本显著低于 Anthropic/OpenAI。适用场景：
 
-- **双模型审核的第三方验证**: 当 Anthropic + OpenAI 审核结果存疑时，引入国产模型作为 tiebreaker
+- **正式三模型审核中的国产视角**: `Kimi K2.5` 作为默认 reviewer trio 成员，提供中文/工程视角与第三厂商交叉验证，而非事后 tiebreaker。
 - **低复杂度日常任务**: 替代 Sonnet 4.6 进一步降低成本
 - **大规模代码迁移的并行验证**: MiniMax M2.5 (75.8%) 可与 Opus 4.6 并行执行同一迁移任务，交叉验证
 
@@ -316,7 +316,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - Agent 在开始工作前检查 tracker 中目标项的 `complexity` 字段
 - 如果当前模型与推荐不匹配，在输出中提示：`⚠️ 建议切换至 {model}（原因: {reason}）`
 - 人类决定是否切换，agent 不自动切换
-- **xhigh 推理深度仅在以下场景使用**: 双模型审核、架构级决策、大规模代码迁移。日常任务使用默认推理深度以控制成本
+- **高推理深度仅在以下场景使用**: 正式三模型审核、架构级决策、大规模代码迁移。日常任务使用默认推理深度以控制成本
 - **Benchmark 数据时效**: 本节数据基于 2026-02 SWE-bench Verified。GPT-5.3-Codex 提交评测后需更新推荐
 
 ## 当前进度
@@ -326,7 +326,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - **Phase 0**: 14/14 完成 ✅
 - **Phase 1**: 19/23 完成
 - **Phase 2**: 26/44 完成 — `NEW-WF-01` ✅（2026-03-07 retro-closeout：batch10 已交付 `research_workflow_v1` schema + templates，本轮补专项回归测试并修正 tracker drift）
-- **Phase 3**: 28/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足） + Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking） + Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅ + Batch 12 `NEW-SEM-03` ✅ `NEW-SEM-04` ✅ `NEW-SEM-06-INFRA` ✅（`NEW-SEM-06b` 尚未启动；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated） + Batch 13 `NEW-SEM-05` ✅ `NEW-SEM-09` ✅（统一 paper/review/content classifier + section-role semantic labeling 已落地；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated） + Batch 14 `NEW-SEM-10` ✅ `NEW-SEM-13` ✅（topic/method grouping 与 synthesis challenge extraction 现已由共享语义 authority 驱动；Batch 14 开工前先独立修复 orchestrator `zod` 直依赖 CI 回归，commit `a4e1ad0`，GitHub Actions run `22768970963` ✅；实现 acceptance 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `7bd21bc`，low-risk amendments 已吸收） + Batch 15–16 `NEW-LOOP-01` ✅（`packages/orchestrator/src/research-loop/` 单用户/单项目 substrate 已落地；workspace/task/event graph + explicit backtracks + typed handoff seams + delegated-task injection 均已锁测试；`Opus + OpenCode(kimi-for-coding/k2p5)` 两轮正式双审最终 `CONVERGED`，agent `self-review` 0 blocking，全部 acceptance commands 全绿，implementation commit `d00147d`；同轮补齐 `NEW-WF-01` regression closeout） + Standalone `NEW-RT-07` ✅（host-side MCP sampling routing registry / typed metadata contract / auditable fallback + fail-closed path 已落地；`packages/orchestrator/src/{mcp-client,mcp-jsonrpc,mcp-server-request-handler,sampling-handler,routing/sampling-*}`、`packages/shared/src/sampling-metadata.ts` 与 `packages/hep-mcp/src/core/sampling-metadata.ts` 为 authority；全部 acceptance commands 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `a7aeba0`；未启动 `NEW-DISC-01` D4/D5 / `NEW-SEM-06b/d/e` / `EVO-13`） + Standalone `NEW-DISC-01` ✅（D4/D5 已完成：shared canonical paper / query-plan / dedup / search-log authority 现位于 `packages/shared/src/discovery/`；broker consumer `packages/hep-mcp/src/tools/research/federatedDiscovery.ts` 将 discovery artifacts 写入 `HEP_DATA_DIR/cache/discovery/`；exact-ID-first + uncertain fail-closed canonicalization、append-only search-log 语义、broker eval fixtures/baseline/holdout 均已锁定；全部 acceptance commands 全绿，`Opus` + `OpenCode(kimi-for-coding/k2p5)` 两轮正式双审最终 0 blocking，agent `self-review` 0 blocking；未创建 implementation commit，因用户未授权 `git commit`） + SOTA follow-up queue 继续按 retrieval lane `Batch 17–19`（`NEW-SEM-06b/d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
+- **Phase 3**: 29/49 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足） + Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking） + Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅ + Batch 12 `NEW-SEM-03` ✅ `NEW-SEM-04` ✅ `NEW-SEM-06-INFRA` ✅（`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated） + Batch 13 `NEW-SEM-05` ✅ `NEW-SEM-09` ✅（统一 paper/review/content classifier + section-role semantic labeling 已落地；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated） + Batch 14 `NEW-SEM-10` ✅ `NEW-SEM-13` ✅（topic/method grouping 与 synthesis challenge extraction 现已由共享语义 authority 驱动；Batch 14 开工前先独立修复 orchestrator `zod` 直依赖 CI 回归，commit `a4e1ad0`，GitHub Actions run `22768970963` ✅；实现 acceptance 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `7bd21bc`，low-risk amendments 已吸收） + Batch 15–16 `NEW-LOOP-01` ✅（`packages/orchestrator/src/research-loop/` 单用户/单项目 substrate 已落地；workspace/task/event graph + explicit backtracks + typed handoff seams + delegated-task injection 均已锁测试；`Opus + OpenCode(kimi-for-coding/k2p5)` 两轮正式双审最终 `CONVERGED`，agent `self-review` 0 blocking，全部 acceptance commands 全绿，implementation commit `d00147d`；同轮补齐 `NEW-WF-01` regression closeout） + Standalone `NEW-RT-07` ✅（host-side MCP sampling routing registry / typed metadata contract / auditable fallback + fail-closed path 已落地；`packages/orchestrator/src/{mcp-client,mcp-jsonrpc,mcp-server-request-handler,sampling-handler,routing/sampling-*}`、`packages/shared/src/sampling-metadata.ts` 与 `packages/hep-mcp/src/core/sampling-metadata.ts` 为 authority；全部 acceptance commands 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `a7aeba0`；未启动 `NEW-DISC-01` D4/D5 / `NEW-SEM-06b/d/e` / `EVO-13`） + Standalone `NEW-DISC-01` ✅（D4/D5 已完成：shared canonical paper / query-plan / dedup / search-log authority 现位于 `packages/shared/src/discovery/`；broker consumer `packages/hep-mcp/src/tools/research/federatedDiscovery.ts` 将 discovery artifacts 写入 `HEP_DATA_DIR/cache/discovery/`；exact-ID-first + uncertain fail-closed canonicalization、append-only search-log 语义、broker eval fixtures/baseline/holdout 均已锁定；全部 acceptance commands 全绿，`Opus` + `OpenCode(kimi-for-coding/k2p5)` 两轮正式双审最终 0 blocking，agent `self-review` 0 blocking；未创建 implementation commit，因用户未授权 `git commit`） + Batch 17 `NEW-SEM-06b` ✅（hybrid candidate generation + strong reranker 已落地到 canonical paper substrate；shared discovery authority 现包含 candidate-channel / candidate-generation / rerank artifacts，hep-mcp broker 写入 audited `candidate_generation` + `rerank` artifacts 并执行 exact-ID-first + keyword + optional provider-native semantic generation + bounded canonical-paper rerank；锁定 eval plane 位于 `packages/hep-mcp/tests/eval/evalSem06bHybridDiscovery.test.ts` 与对应 fixtures/baseline/holdout，单测覆盖 `providerExecutors` / `paperReranker` / `federatedDiscovery`；全部 prompt acceptance commands 全绿，`SEM-06b` 专项 holdout 在 `EVAL_INCLUDE_HOLDOUT=1` 下通过；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking；未创建 implementation commit，因用户未授权 `git commit`） + SOTA follow-up queue 继续按 retrieval lane `Batch 18–19`（`NEW-SEM-06d/e`）；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated
 - **Phase 4**: 0/8 完成 — blocked by Phase 3
 - **Phase 5**: 0/22 完成 — blocked by Phase 4
 - **R4 双模型审核**: ✅ 收敛 (Gemini CONVERGED + Codex CONVERGED_WITH_AMENDMENTS, 0 blocking)
@@ -334,7 +334,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 
 ## 开发约定
 
-- **审核过程文件 (`autoresearch-meta/.review/`) 为临时产物，禁止 git push**。包括双模型审核的 prompt、输出、中间稿等。已在 `.gitignore` 中排除。
+- **审核过程文件 (`autoresearch-meta/.review/`) 为临时产物，禁止 git push**。包括三模型审核的 prompt、输出、中间稿等。已在 `.gitignore` 中排除。
 - 新代码必须遵守 ECOSYSTEM_DEV_CONTRACT.md 全部规则
 - 存量代码按 REDESIGN_PLAN.md 分阶段对齐
 - 豁免: `# CONTRACT-EXEMPT: {规则ID} {原因}`
@@ -498,7 +498,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **autoresearch-lab-disc01** (10436 symbols, 23114 relationships, 300 execution flows).
+This project is indexed by GitNexus as **autoresearch-lab-sem06b** (10429 symbols, 23104 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 

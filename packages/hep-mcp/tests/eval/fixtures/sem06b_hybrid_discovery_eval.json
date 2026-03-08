@@ -1,0 +1,157 @@
+{
+  "name": "sem06b_hybrid_discovery",
+  "version": 1,
+  "description": "Hybrid candidate generation + strong reranker on canonical paper space",
+  "module": "NEW-SEM-06b",
+  "cases": [
+    {
+      "id": "known-item-doi-exact",
+      "tags": ["known_item"],
+      "input": {
+        "query": "10.1000/exact-known-item",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            { "title": "Exact known-item retrieval across providers", "identifiers": { "doi": "10.1000/exact-known-item", "recid": "1001", "arxiv_id": "2501.00001" }, "authors": ["A. Exact"], "year": 2025, "citation_count": 12 }
+          ],
+          "openalex": [
+            { "title": "Exact known-item retrieval across providers", "identifiers": { "doi": "10.1000/exact-known-item", "openalex_id": "W1001" }, "authors": ["A. Exact"], "year": 2025, "citation_count": 24 },
+            { "title": "Cross-provider retrieval review", "identifiers": { "openalex_id": "W1002" }, "authors": ["N. Noise"], "year": 2024, "citation_count": 500 }
+          ],
+          "arxiv": [
+            { "title": "Exact known-item retrieval across providers", "identifiers": { "doi": "10.1000/exact-known-item", "arxiv_id": "2501.00001" }, "authors": ["A. Exact"], "year": 2025, "citation_count": 8 }
+          ]
+        },
+        "rerank": {
+          "mode": "applied",
+          "ranked_keys": ["paper:doi:10.1000/exact-known-item", "paper:openalex:w1002"]
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/exact-known-item",
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 2,
+        "expected_rerank_status": "applied",
+        "max_final_rank": 1
+      }
+    },
+    {
+      "id": "author-year-hard-query",
+      "tags": ["known_item", "hard_query", "rerank_gain"],
+      "input": {
+        "query": "Smith 2024 prompt photon anomalies",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "recid": "2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 20 }
+          ],
+          "openalex": [
+            { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "openalex_id": "W2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 30 },
+            { "title": "Photon detector anomalies in heavy ion runs", "identifiers": { "openalex_id": "W2002" }, "authors": ["C. Noise"], "year": 2024, "citation_count": 100 }
+          ],
+          "arxiv": [
+            { "title": "Prompt photon anomalies review", "identifiers": { "arxiv_id": "2502.00002" }, "authors": ["B. Brown"], "year": 2025, "citation_count": 500 }
+          ]
+        },
+        "rerank": {
+          "mode": "applied",
+          "ranked_keys": ["paper:doi:10.1000/prompt-photon-gold", "paper:arxiv:2502.00002", "paper:openalex:w2002"]
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/prompt-photon-gold",
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 3,
+        "expected_rerank_status": "applied",
+        "max_final_rank": 1,
+        "min_stage1_rank": 2
+      }
+    },
+    {
+      "id": "near-duplicate-hard-negative",
+      "tags": ["known_item", "hard_query", "rerank_gain"],
+      "input": {
+        "query": "canonical identity review hep",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            { "title": "Cross-provider canonical identity for HEP papers", "identifiers": { "doi": "10.1000/canonical-gold", "recid": "3001" }, "authors": ["D. Curator"], "year": 2025, "citation_count": 40 }
+          ],
+          "openalex": [
+            { "title": "Cross-provider canonical identity for HEP papers", "identifiers": { "doi": "10.1000/canonical-gold", "openalex_id": "W3001" }, "authors": ["D. Curator"], "year": 2025, "citation_count": 35 },
+            { "title": "Canonical corpora for HEP knowledge graphs", "identifiers": { "openalex_id": "W3002" }, "authors": ["K. Catalog"], "year": 2025, "citation_count": 150 }
+          ],
+          "arxiv": [
+            { "title": "Canonical identity review for HEP papers", "identifiers": { "arxiv_id": "2503.00003" }, "authors": ["R. Reviewer"], "year": 2025, "citation_count": 600 }
+          ]
+        },
+        "rerank": {
+          "mode": "applied",
+          "ranked_keys": ["paper:doi:10.1000/canonical-gold", "paper:arxiv:2503.00003", "paper:openalex:w3002"]
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/canonical-gold",
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 3,
+        "expected_rerank_status": "applied",
+        "max_final_rank": 1,
+        "min_stage1_rank": 2
+      }
+    },
+    {
+      "id": "reranker-unavailable-fail-closed",
+      "tags": ["known_item", "hard_query", "failure_path"],
+      "input": {
+        "query": "Smith 2024 prompt photon anomalies",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "recid": "2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 20 }
+          ],
+          "openalex": [
+            { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "openalex_id": "W2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 30 },
+            { "title": "Photon detector anomalies in heavy ion runs", "identifiers": { "openalex_id": "W2002" }, "authors": ["C. Noise"], "year": 2024, "citation_count": 100 }
+          ],
+          "arxiv": [
+            { "title": "Prompt photon anomalies review", "identifiers": { "arxiv_id": "2502.00002" }, "authors": ["B. Brown"], "year": 2025, "citation_count": 500 }
+          ]
+        },
+        "rerank": {
+          "mode": "unavailable"
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/prompt-photon-gold",
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 3,
+        "expected_rerank_status": "unavailable",
+        "max_final_rank": 2,
+        "min_stage1_rank": 2
+      }
+    },
+    {
+      "id": "insufficient-candidates-explicit",
+      "tags": ["known_item", "failure_path"],
+      "input": {
+        "query": "10.1000/solo-candidate",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            { "title": "Solo candidate retrieval evidence", "identifiers": { "doi": "10.1000/solo-candidate", "recid": "4001" }, "authors": ["S. Source"], "year": 2025, "citation_count": 5 }
+          ]
+        },
+        "rerank": {
+          "mode": "insufficient_candidates"
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/solo-candidate",
+        "provider_hit_providers": ["inspire"],
+        "canonical_count": 1,
+        "expected_rerank_status": "insufficient_candidates",
+        "max_final_rank": 1
+      }
+    }
+  ]
+}

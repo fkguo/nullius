@@ -7,6 +7,7 @@ import {
   compareWithBaseline,
   loadBaseline,
   mrrAtK,
+  ndcgAtK,
   recallAtK,
   runEvalSet,
   saveBaseline,
@@ -87,6 +88,11 @@ describe('eval framework: demo retrieval eval set', () => {
     expect(report.evalSetVersion).toBe(evalSet.version);
     expect(report.summary.total).toBe(evalSet.cases.length);
     expect(report.caseResults).toHaveLength(evalSet.cases.length);
+  });
+
+  it('computes nDCG@k for ranked binary relevance lists', () => {
+    expect(ndcgAtK([1, 0, 0], 10)).toBeCloseTo(1, 6);
+    expect(ndcgAtK([0, 1, 0], 10)).toBeCloseTo(1 / Math.log2(3), 6);
   });
 
   it('computes aggregate metrics (recall@10, MRR@10)', async () => {

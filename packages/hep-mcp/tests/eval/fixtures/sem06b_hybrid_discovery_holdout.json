@@ -1,0 +1,69 @@
+{
+  "name": "sem06b_hybrid_discovery_holdout",
+  "version": 1,
+  "description": "Holdout slice for hybrid candidate generation + strong reranker",
+  "module": "NEW-SEM-06b",
+  "cases": [
+    {
+      "id": "acronym-hnl-hard-query",
+      "tags": ["known_item", "hard_query", "rerank_gain"],
+      "input": {
+        "query": "HNL displaced vertex atlas 2025",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            { "title": "Displaced-vertex search for heavy neutral leptons at ATLAS", "identifiers": { "doi": "10.1000/hnl-atlas", "recid": "5001" }, "authors": ["A. Tracker"], "year": 2025, "citation_count": 25 }
+          ],
+          "openalex": [
+            { "title": "Displaced-vertex search for heavy neutral leptons at ATLAS", "identifiers": { "doi": "10.1000/hnl-atlas", "openalex_id": "W5001" }, "authors": ["A. Tracker"], "year": 2025, "citation_count": 20 }
+          ],
+          "arxiv": [
+            { "title": "ATLAS displaced vertex detector commissioning", "identifiers": { "arxiv_id": "2505.00005" }, "authors": ["D. Decoy"], "year": 2025, "citation_count": 450 }
+          ]
+        },
+        "rerank": {
+          "mode": "applied",
+          "ranked_keys": ["paper:doi:10.1000/hnl-atlas", "paper:arxiv:2505.00005"]
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/hnl-atlas",
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 2,
+        "expected_rerank_status": "applied",
+        "max_final_rank": 1,
+        "min_stage1_rank": 2
+      }
+    },
+    {
+      "id": "review-heavy-fallback",
+      "tags": ["known_item", "hard_query", "failure_path"],
+      "input": {
+        "query": "Lee 2023 lattice review",
+        "intent": "known_item",
+        "providers": {
+          "inspire": [
+            { "title": "Lattice determination of hadronic vacuum polarization", "identifiers": { "doi": "10.1000/hvp-gold", "recid": "6001" }, "authors": ["M. Lee"], "year": 2023, "citation_count": 18 }
+          ],
+          "openalex": [
+            { "title": "Lattice determination of hadronic vacuum polarization", "identifiers": { "doi": "10.1000/hvp-gold", "openalex_id": "W6001" }, "authors": ["M. Lee"], "year": 2023, "citation_count": 22 }
+          ],
+          "arxiv": [
+            { "title": "Lattice review of hadronic observables", "identifiers": { "arxiv_id": "2506.00006" }, "authors": ["R. Summary"], "year": 2024, "citation_count": 520 }
+          ]
+        },
+        "rerank": {
+          "mode": "unavailable"
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/hvp-gold",
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 2,
+        "expected_rerank_status": "unavailable",
+        "max_final_rank": 2,
+        "min_stage1_rank": 2
+      }
+    }
+  ]
+}

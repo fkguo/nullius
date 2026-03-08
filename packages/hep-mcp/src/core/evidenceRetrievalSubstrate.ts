@@ -24,7 +24,7 @@ export type RetrievalSubstrateDecisionV1 = {
     store: 'run_artifact_jsonl';
     vector_store: 'artifact_jsonl';
     late_interaction_path: 'planned_not_implemented';
-    strong_reranker_path: 'planned_not_implemented';
+    strong_reranker_path: 'canonical_paper_llm_listwise_v1';
   };
   dependencies: {
     canonical_identity: 'NEW-DISC-01';
@@ -53,7 +53,7 @@ export const EVIDENCE_RETRIEVAL_SUBSTRATE_DECISION_V1: RetrievalSubstrateDecisio
     store: 'run_artifact_jsonl',
     vector_store: 'artifact_jsonl',
     late_interaction_path: 'planned_not_implemented',
-    strong_reranker_path: 'planned_not_implemented',
+    strong_reranker_path: 'canonical_paper_llm_listwise_v1',
   },
   dependencies: {
     canonical_identity: 'NEW-DISC-01',
@@ -66,7 +66,7 @@ export const EVIDENCE_RETRIEVAL_SUBSTRATE_DECISION_V1: RetrievalSubstrateDecisio
     notes: [
       'Keep hashing_fnv1a32_dim*_v1 as the locked baseline until NEW-SEM-06b lands.',
       'Do not hard-fork provider-local identities before NEW-DISC-01 closeout.',
-      'Late-interaction and strong reranker remain planned slots only in this phase.',
+      'Late-interaction remains deferred, while the canonical-paper strong reranker lands in NEW-SEM-06b.',
     ],
   },
 };

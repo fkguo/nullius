@@ -22,6 +22,7 @@ describe('eval: SEM-06-INFRA substrate decision', () => {
     expect(snapshot.active_runtime.active_model).toBe('hashing_fnv1a32_dim256_v1');
     expect(snapshot.active_runtime.embedding_dim).toBe(256);
     expect(snapshot.index.late_interaction_path).toBe('planned_not_implemented');
+    expect(snapshot.index.strong_reranker_path).toBe('canonical_paper_llm_listwise_v1');
     expect(snapshot.eval_protocol.comparison_method).toBe('absolute_delta_and_relative_gain');
   });
 

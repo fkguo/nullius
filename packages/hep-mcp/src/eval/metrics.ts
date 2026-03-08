@@ -62,6 +62,20 @@ export function precisionAtK(ranks: Array<number | null>, k: number): number {
   return safeDivide(hitCount, ranks.length * k);
 }
 
+function dcgAtK(relevances: number[], k: number): number {
+  return relevances.slice(0, Math.max(k, 0)).reduce((sum, relevance, index) => {
+    if (relevance <= 0) return sum;
+    return sum + relevance / Math.log2(index + 2);
+  }, 0);
+}
+
+export function ndcgAtK(relevances: number[], k: number): number {
+  if (k <= 0 || relevances.length === 0) return 0;
+  const actual = dcgAtK(relevances, k);
+  const ideal = dcgAtK([...relevances].sort((left, right) => right - left), k);
+  return safeDivide(actual, ideal);
+}
+
 export function abstentionRate(results: Array<{ abstained: boolean }>): number {
   if (results.length === 0) return 0;
   const abstainedCount = results.filter(result => result.abstained).length;
