@@ -18,6 +18,11 @@ type RankedResponse = {
   ranked: Array<{ canonical_key: string; score: number; reason_codes?: string[] }>;
 };
 
+type PrerankedPaper = {
+  paper: CanonicalPaper;
+  stage1_score: number;
+};
+
 function tokenize(input: string): string[] {
   return normalizeDiscoveryTitle(input).split(' ').filter(Boolean);
 }
@@ -50,20 +55,15 @@ function parseRerankResponse(input: string): RankedResponse | null {
   }
 }
 
-export async function rerankCanonicalPapers(params: {
-  query: string;
-  papers: CanonicalPaper[];
-  limit: number;
-  createMessage?: SamplingFn;
-}): Promise<{ papers: CanonicalPaper[]; artifact: DiscoveryRerankArtifact }> {
-  const maxCitation = Math.max(1, ...params.papers.map(paper => paper.citation_count ?? 0));
-  const preranked = params.papers
-    .map(paper => ({ paper, stage1_score: stage1Score(params.query, paper, maxCitation) }))
+export function prerankCanonicalPapers(query: string, papers: CanonicalPaper[]): PrerankedPaper[] {
+  const maxCitation = Math.max(1, ...papers.map(paper => paper.citation_count ?? 0));
+  return papers
+    .map(paper => ({ paper, stage1_score: stage1Score(query, paper, maxCitation) }))
     .sort((left, right) => right.stage1_score - left.stage1_score || left.paper.canonical_key.localeCompare(right.paper.canonical_key));
-  const candidateCountOut = Math.min(params.limit, preranked.length);
-  const topK = Math.min(5, preranked.length);
+}
 
-  const fallbackRanked: DiscoveryRerankedPaper[] = preranked.map(({ paper, stage1_score }) => ({
+function fallbackRanked(preranked: PrerankedPaper[]): DiscoveryRerankedPaper[] {
+  return preranked.map(({ paper, stage1_score }) => ({
     canonical_key: paper.canonical_key,
     score: stage1_score,
     stage1_score,
@@ -71,6 +71,18 @@ export async function rerankCanonicalPapers(params: {
     provider_sources: paper.provider_sources,
     merge_state: paper.merge_state,
   }));
+}
+
+export async function rerankCanonicalPapers(params: {
+  query: string;
+  papers: CanonicalPaper[];
+  limit: number;
+  createMessage?: SamplingFn;
+}): Promise<{ papers: CanonicalPaper[]; artifact: DiscoveryRerankArtifact }> {
+  const preranked = prerankCanonicalPapers(params.query, params.papers);
+  const candidateCountOut = Math.min(params.limit, preranked.length);
+  const topK = Math.min(5, preranked.length);
+  const fallback = fallbackRanked(preranked);
 
   if (topK < 2) {
     const artifact = DiscoveryRerankArtifactSchema.parse({
@@ -78,18 +90,17 @@ export async function rerankCanonicalPapers(params: {
       query: params.query,
       status: 'insufficient_candidates',
       reranker: { name: 'canonical_paper_reranker', method: 'hybrid_feature_prerank', top_k: topK || 1, candidate_count_in: preranked.length, candidate_count_out: candidateCountOut, reason: 'insufficient_candidates' },
-      ranked_papers: fallbackRanked,
+      ranked_papers: fallback,
     });
     return { papers: preranked.map(item => item.paper), artifact };
   }
-
   if (!params.createMessage) {
     const artifact = DiscoveryRerankArtifactSchema.parse({
       version: 1,
       query: params.query,
       status: 'unavailable',
       reranker: { name: 'canonical_paper_reranker', method: 'llm_listwise_rerank', top_k: topK, candidate_count_in: preranked.length, candidate_count_out: candidateCountOut, reason: 'sampling_unavailable' },
-      ranked_papers: fallbackRanked,
+      ranked_papers: fallback,
     });
     return { papers: preranked.map(item => item.paper), artifact };
   }
@@ -104,21 +115,21 @@ export async function rerankCanonicalPapers(params: {
     if (!parsed || parsed.abstain) throw new Error(parsed?.reason ?? 'invalid_response');
 
     const rerankedTop = new Map(parsed.ranked.map(item => [item.canonical_key, item]));
-    const ranked = preranked.map(({ paper, stage1_score }) => {
-      const item = rerankedTop.get(paper.canonical_key);
-      const finalScore = item ? clamp01(0.75 * clamp01(item.score) + 0.25 * stage1_score) : stage1_score;
-      return {
-        paper,
-        ranked: {
-          canonical_key: paper.canonical_key,
-          score: finalScore,
-          stage1_score,
-          reason_codes: item?.reason_codes?.length ? item.reason_codes : ['stage1_prerank'],
-          provider_sources: paper.provider_sources,
-          merge_state: paper.merge_state,
-        },
-      };
-    }).sort((left, right) => right.ranked.score - left.ranked.score || left.paper.canonical_key.localeCompare(right.paper.canonical_key));
+    const ranked = preranked.map(({ paper, stage1_score }) => ({
+      paper,
+      ranked: {
+        canonical_key: paper.canonical_key,
+        score: rerankedTop.has(paper.canonical_key)
+          ? clamp01(0.75 * clamp01(rerankedTop.get(paper.canonical_key)!.score) + 0.25 * stage1_score)
+          : stage1_score,
+        stage1_score,
+        reason_codes: rerankedTop.get(paper.canonical_key)?.reason_codes?.length
+          ? rerankedTop.get(paper.canonical_key)!.reason_codes!
+          : ['stage1_prerank'],
+        provider_sources: paper.provider_sources,
+        merge_state: paper.merge_state,
+      },
+    })).sort((left, right) => right.ranked.score - left.ranked.score || left.paper.canonical_key.localeCompare(right.paper.canonical_key));
 
     const artifact = DiscoveryRerankArtifactSchema.parse({
       version: 1,
@@ -134,7 +145,7 @@ export async function rerankCanonicalPapers(params: {
       query: params.query,
       status: 'unavailable',
       reranker: { name: 'canonical_paper_reranker', method: 'llm_listwise_rerank', top_k: topK, candidate_count_in: preranked.length, candidate_count_out: candidateCountOut, reason: error instanceof Error ? error.message : String(error) },
-      ranked_papers: fallbackRanked,
+      ranked_papers: fallback,
     });
     return { papers: preranked.map(item => item.paper), artifact };
   }

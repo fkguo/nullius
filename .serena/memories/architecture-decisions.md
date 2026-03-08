@@ -436,3 +436,20 @@
 **Validation**:
 - `.gitignore` now ignores local Serena memory files while keeping `architecture-decisions.md` tracked.
 - The main worktree cleanup removed obsolete local-only memory notes after their durable policy implication was recorded here.
+
+
+### [2026-03-08] NEW-SEM-06d closeout: Triggered reformulation stays an explicit fail-closed planner layer
+
+**Context**: After `NEW-DISC-01` D4/D5 landed canonical paper / query-plan / dedup / search-log substrate and `NEW-SEM-06b` landed hybrid candidate generation + strong reranker, Batch 18 had to add query reformulation / QPP without skipping ahead to `NEW-SEM-06e` structure-aware localization.
+**Decision**:
+- Keep `NEW-SEM-06d` library-first / broker-first: no new discovery MCP server, and no retrieval-unit change beyond the existing canonical-paper backbone.
+- Discovery now runs an explicit, auditable sequence: probe round -> QPP assessment -> optional single-turn reformulation -> optional second retrieval round -> rerank.
+- QPP is policy-only and fail-closed. Exact/structured identifier queries stay on the baseline path by default; unavailable/invalid QPP, unavailable/invalid/abstained reformulation, and budget exhaustion all preserve the original query with explicit typed status + reason codes.
+- Shared discovery authority now includes `provider-result-counts` and `query-reformulation-artifact`; append-only search-log entries capture `qpp_status`, `trigger_decision`, `reformulation_status`, `reformulation_sampling_calls`, and `reformulation_count`.
+- Eval authority stays inside the existing hep-mcp eval plane: `evalSem06dTriggeredReformulation` plus fixtures/baseline/holdout now lock exact-ID/easy no-trigger, hard-query uplift, QPP unavailable, budget exhausted, invalid reformulation, and abstained reformulation failure paths.
+**Validation / governance**:
+- Acceptance passed on the final state: `pnpm --filter @autoresearch/shared test/build`, `pnpm --filter @autoresearch/openalex-mcp test/build`, `pnpm --filter @autoresearch/arxiv-mcp test/build`, `pnpm --filter @autoresearch/hep-mcp test`, `pnpm --filter @autoresearch/hep-mcp test:eval`, `pnpm --filter @autoresearch/hep-mcp build`, `EVAL_INCLUDE_HOLDOUT=1 pnpm --filter @autoresearch/hep-mcp test -- tests/eval/evalSem06dTriggeredReformulation.test.ts`, `pnpm lint`, `pnpm -r test`, `pnpm -r build`.
+- GitNexus post-change evidence stayed low risk (`detect_changes` LOW risk; `context`/`impact` on `runFederatedDiscovery` matched the intended narrow blast radius).
+- Formal external review converged with `Opus` + `OpenCode(kimi-for-coding/k2p5)` at 0 blocking after the user explicitly approved fallback from a hanging local Gemini agentic review. Formal self-review also passed with 0 blocking, and the adopted low-risk amendments were absorbed in-batch.
+**Scope guard**:
+- `NEW-SEM-06d` does not introduce page/chunk/table/figure/equation/citation-context localization (`NEW-SEM-06e`), late-interaction substrate migration, or unconditional multi-query expansion.

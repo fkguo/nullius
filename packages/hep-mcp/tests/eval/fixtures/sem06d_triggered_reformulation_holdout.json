@@ -1,0 +1,274 @@
+{
+  "name": "sem06d_triggered_reformulation_holdout",
+  "version": 1,
+  "description": "Holdout slice for triggered reformulation + QPP",
+  "module": "NEW-SEM-06d",
+  "cases": [
+    {
+      "id": "hnl-acronym-triggered",
+      "tags": [
+        "known_item",
+        "hard_query"
+      ],
+      "input": {
+        "query": "HNL displaced vertex atlas 2025",
+        "intent": "known_item",
+        "providers": {
+          "original": {
+            "inspire": [
+              {
+                "title": "Displaced-vertex search for heavy neutral leptons at ATLAS",
+                "identifiers": {
+                  "doi": "10.1000/hnl-atlas",
+                  "recid": "5001"
+                },
+                "authors": [
+                  "A. Tracker"
+                ],
+                "year": 2025,
+                "citation_count": 25
+              }
+            ],
+            "openalex": [
+              {
+                "title": "ATLAS displaced vertex detector commissioning",
+                "identifiers": {
+                  "openalex_id": "W5002"
+                },
+                "authors": [
+                  "D. Decoy"
+                ],
+                "year": 2025,
+                "citation_count": 450
+              },
+              {
+                "title": "Displaced-vertex search for heavy neutral leptons at ATLAS",
+                "identifiers": {
+                  "doi": "10.1000/hnl-atlas",
+                  "openalex_id": "W5001"
+                },
+                "authors": [
+                  "A. Tracker"
+                ],
+                "year": 2025,
+                "citation_count": 20
+              }
+            ]
+          },
+          "reformulated": {
+            "inspire": [
+              {
+                "title": "Displaced-vertex search for heavy neutral leptons at ATLAS",
+                "identifiers": {
+                  "doi": "10.1000/hnl-atlas",
+                  "recid": "5001"
+                },
+                "authors": [
+                  "A. Tracker"
+                ],
+                "year": 2025,
+                "citation_count": 25
+              }
+            ],
+            "openalex": [
+              {
+                "title": "Displaced-vertex search for heavy neutral leptons at ATLAS",
+                "identifiers": {
+                  "doi": "10.1000/hnl-atlas",
+                  "openalex_id": "W5001"
+                },
+                "authors": [
+                  "A. Tracker"
+                ],
+                "year": 2025,
+                "citation_count": 20
+              }
+            ]
+          }
+        },
+        "reformulation": {
+          "mode": "applied",
+          "query": "heavy neutral lepton displaced vertex atlas 2025"
+        },
+        "rerank": {
+          "mode": "applied",
+          "ranked_keys": [
+            "paper:doi:10.1000/hnl-atlas"
+          ]
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/hnl-atlas",
+        "provider_hit_providers": [
+          "inspire",
+          "openalex"
+        ],
+        "canonical_count": 1,
+        "expected_trigger_decision": "triggered",
+        "expected_qpp_status": "applied",
+        "expected_reformulation_status": "applied",
+        "expected_effective_query": "heavy neutral lepton displaced vertex atlas 2025",
+        "expected_rerank_status": "insufficient_candidates",
+        "max_final_rank": 1,
+        "min_probe_rank": 2,
+        "expected_sampling_calls": 1
+      }
+    },
+    {
+      "id": "reformulation-invalid-fail-closed",
+      "tags": [
+        "known_item",
+        "hard_query",
+        "failure_path"
+      ],
+      "input": {
+        "query": "threshold charm review 2025",
+        "intent": "known_item",
+        "providers": {
+          "original": {
+            "inspire": [
+              {
+                "title": "Threshold charm spectroscopy with prompt photons",
+                "identifiers": {
+                  "doi": "10.1000/threshold-charm",
+                  "recid": "7001"
+                },
+                "authors": [
+                  "L. Threshold"
+                ],
+                "year": 2025,
+                "citation_count": 15
+              }
+            ],
+            "openalex": [
+              {
+                "title": "Threshold charm review",
+                "identifiers": {
+                  "openalex_id": "W7002"
+                },
+                "authors": [
+                  "R. Review"
+                ],
+                "year": 2025,
+                "citation_count": 300
+              },
+              {
+                "title": "Threshold charm spectroscopy with prompt photons",
+                "identifiers": {
+                  "doi": "10.1000/threshold-charm",
+                  "openalex_id": "W7001"
+                },
+                "authors": [
+                  "L. Threshold"
+                ],
+                "year": 2025,
+                "citation_count": 15
+              }
+            ]
+          }
+        },
+        "reformulation": {
+          "mode": "invalid",
+          "query": "Threshold charm spectroscopy with prompt photons 2025"
+        },
+        "rerank": {
+          "mode": "unavailable"
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/threshold-charm",
+        "provider_hit_providers": [
+          "inspire",
+          "openalex"
+        ],
+        "canonical_count": 2,
+        "expected_trigger_decision": "triggered",
+        "expected_qpp_status": "applied",
+        "expected_reformulation_status": "invalid",
+        "expected_effective_query": "threshold charm review 2025",
+        "expected_rerank_status": "unavailable",
+        "max_final_rank": 2,
+        "min_probe_rank": 2,
+        "expected_sampling_calls": 1
+      }
+    },
+    {
+      "id": "reformulation-abstain-fail-closed",
+      "tags": [
+        "known_item",
+        "hard_query",
+        "failure_path"
+      ],
+      "input": {
+        "query": "threshold charm survey 2025",
+        "intent": "known_item",
+        "providers": {
+          "original": {
+            "inspire": [
+              {
+                "title": "Threshold charm spectroscopy with prompt photons",
+                "identifiers": {
+                  "doi": "10.1000/threshold-charm",
+                  "recid": "7001"
+                },
+                "authors": [
+                  "L. Threshold"
+                ],
+                "year": 2025,
+                "citation_count": 15
+              }
+            ],
+            "openalex": [
+              {
+                "title": "Threshold charm survey",
+                "identifiers": {
+                  "openalex_id": "W7003"
+                },
+                "authors": [
+                  "R. Survey"
+                ],
+                "year": 2025,
+                "citation_count": 280
+              },
+              {
+                "title": "Threshold charm spectroscopy with prompt photons",
+                "identifiers": {
+                  "doi": "10.1000/threshold-charm",
+                  "openalex_id": "W7001"
+                },
+                "authors": [
+                  "L. Threshold"
+                ],
+                "year": 2025,
+                "citation_count": 15
+              }
+            ]
+          }
+        },
+        "reformulation": {
+          "mode": "abstain",
+          "query": "Threshold charm spectroscopy with prompt photons 2025"
+        },
+        "rerank": {
+          "mode": "unavailable"
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/threshold-charm",
+        "provider_hit_providers": [
+          "inspire",
+          "openalex"
+        ],
+        "canonical_count": 2,
+        "expected_trigger_decision": "triggered",
+        "expected_qpp_status": "applied",
+        "expected_reformulation_status": "abstained",
+        "expected_effective_query": "threshold charm survey 2025",
+        "expected_rerank_status": "unavailable",
+        "max_final_rank": 2,
+        "min_probe_rank": 2,
+        "expected_sampling_calls": 1
+      }
+    }
+  ]
+}

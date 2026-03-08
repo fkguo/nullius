@@ -54,6 +54,30 @@ export {
 } from './candidate-generation-artifact.js';
 
 export {
+  DiscoveryProviderResultCountsSchema,
+  type DiscoveryProviderResultCounts,
+} from './provider-result-counts.js';
+
+export {
+  DiscoveryRiskLevelSchema,
+  DiscoveryQppStatusSchema,
+  DiscoveryTriggerDecisionSchema,
+  DiscoveryReformulationStatusSchema,
+  DiscoveryQueryProbeSchema,
+  DiscoveryQppAssessmentSchema,
+  DiscoveryReformulationTelemetrySchema,
+  DiscoveryQueryReformulationArtifactSchema,
+  type DiscoveryRiskLevel,
+  type DiscoveryQppStatus,
+  type DiscoveryTriggerDecision,
+  type DiscoveryReformulationStatus,
+  type DiscoveryQueryProbe,
+  type DiscoveryQppAssessment,
+  type DiscoveryReformulationTelemetry,
+  type DiscoveryQueryReformulationArtifact,
+} from './query-reformulation-artifact.js';
+
+export {
   DiscoveryRerankStatusSchema,
   DiscoveryRerankMethodSchema,
   DiscoveryRerankedPaperSchema,
