@@ -9,6 +9,7 @@ export type DiscoveryArtifactRef = { artifact_name: string; file_path: string };
 
 export type DiscoveryArtifactRefs = {
   query_plan: DiscoveryArtifactRef;
+  reformulation: DiscoveryArtifactRef;
   candidate_generation: DiscoveryArtifactRef;
   canonical_papers: DiscoveryArtifactRef;
   dedup: DiscoveryArtifactRef;
@@ -53,6 +54,10 @@ export function artifactRefs(dir: string, requestIndex: number): DiscoveryArtifa
     query_plan: {
       artifact_name: `discovery_query_plan_${suffix}_v1.json`,
       file_path: path.join(dir, `discovery_query_plan_${suffix}_v1.json`),
+    },
+    reformulation: {
+      artifact_name: `discovery_query_reformulation_${suffix}_v1.json`,
+      file_path: path.join(dir, `discovery_query_reformulation_${suffix}_v1.json`),
     },
     candidate_generation: {
       artifact_name: `discovery_candidate_generation_${suffix}_v1.json`,

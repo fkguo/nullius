@@ -1,160 +1,109 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
 import {
-  DiscoveryCandidateGenerationArtifactSchema,
   DiscoveryCanonicalPapersArtifactSchema,
+  DiscoveryQueryReformulationArtifactSchema,
   DiscoverySearchLogEntrySchema,
   appendDiscoverySearchLogEntries,
-  canonicalizeDiscoveryCandidates,
-  invalidParams,
   normalizeDiscoveryQuery,
   planDiscoveryProviders,
-  type CanonicalCandidate,
-  type CanonicalPaper,
-  type DiscoveryCandidateGenerationArtifact,
   type DiscoveryCapabilityName,
-  type DiscoveryDedupArtifact,
   type DiscoveryPlan,
-  type DiscoveryProviderId,
+  type DiscoveryQppAssessment,
   type DiscoveryQueryIntent,
+  type DiscoveryQueryProbe,
+  type DiscoveryQueryReformulationArtifact,
   type DiscoveryRerankArtifact,
   type DiscoverySearchLogEntry,
 } from '@autoresearch/shared';
-import { DISCOVERY_PROVIDER_DESCRIPTORS } from '../registry/shared.js';
-import {
-  artifactRefs,
-  discoveryDir,
-  readSearchLogEntries,
-  writeJsonArtifact,
-  writeSearchLog,
-  type DiscoveryArtifactRefs,
-} from './discovery/storage.js';
-import { rerankCanonicalPapers } from './discovery/paperReranker.js';
-import { runHybridCandidateGeneration } from './discovery/providerExecutors.js';
+import { DISCOVERY_PROVIDER_DESCRIPTORS } from './discovery/providerDescriptors.js';
+import { artifactRefs, discoveryDir, readSearchLogEntries, writeJsonArtifact, writeSearchLog, type DiscoveryArtifactRefs } from './discovery/storage.js';
+import { buildDiscoveryQueryProbe, defaultAssessDiscoveryQuery } from './discovery/queryAssessment.js';
+import { executeDiscoveryRound, type DiscoveryProviderExecutors, type DiscoveryProviderResult } from './discovery/queryExecution.js';
+import { prerankCanonicalPapers, rerankCanonicalPapers } from './discovery/paperReranker.js';
+import { runDiscoveryQueryReformulation } from './discovery/queryReformulator.js';
 
-export type DiscoveryProviderResult = {
-  provider: DiscoveryProviderId;
-  query: string;
-  candidates: CanonicalCandidate[];
-  result_count: number;
-};
-
-export type DiscoveryProviderExecutor = (request: {
-  provider: DiscoveryProviderId;
-  query: string;
-  normalized_query: string;
-  intent: DiscoveryQueryIntent;
-  limit: number;
-}) => Promise<DiscoveryProviderResult>;
-
-export type DiscoveryProviderExecutors = Record<DiscoveryProviderId, DiscoveryProviderExecutor>;
-
+export type { DiscoveryProviderExecutor, DiscoveryProviderExecutors, DiscoveryProviderResult } from './discovery/queryExecution.js';
+export type DiscoveryQppAssessor = (params: { query: string; intent: DiscoveryQueryIntent; probe: DiscoveryQueryProbe }) => DiscoveryQppAssessment;
 type SamplingFn = (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
 
 export type RunFederatedDiscoveryParams = {
   query: string;
   intent: DiscoveryQueryIntent;
-  preferred_providers?: DiscoveryProviderId[];
+  preferred_providers?: Array<DiscoveryPlan['selected_providers'][number]>;
   required_capabilities?: DiscoveryCapabilityName[];
   limit: number;
   executors?: Partial<DiscoveryProviderExecutors>;
   createMessage?: SamplingFn;
+  assessQuery?: DiscoveryQppAssessor;
+  maxReformulationSamplingCalls?: number;
 };
 
 export type FederatedDiscoveryResult = {
   query_plan: DiscoveryPlan;
+  reformulation: DiscoveryQueryReformulationArtifact;
   provider_results: DiscoveryProviderResult[];
-  candidate_generation: DiscoveryCandidateGenerationArtifact;
-  papers: CanonicalPaper[];
-  dedup: DiscoveryDedupArtifact;
+  candidate_generation: Awaited<ReturnType<typeof executeDiscoveryRound>>['candidate_generation'];
+  papers: Awaited<ReturnType<typeof rerankCanonicalPapers>>['papers'];
+  dedup: Awaited<ReturnType<typeof executeDiscoveryRound>>['dedup'];
   rerank: DiscoveryRerankArtifact;
   artifacts: DiscoveryArtifactRefs;
 };
 
-function aggregateProviderResults(batches: DiscoveryCandidateGenerationArtifact['batches']): DiscoveryProviderResult[] {
-  const providers: DiscoveryProviderId[] = ['inspire', 'openalex', 'arxiv'];
-  return providers.flatMap(provider => {
-    const matched = batches.filter(batch => batch.provider === provider && batch.executed);
-    if (matched.length === 0) return [];
-    return [{
-      provider,
-      query: matched[0]?.candidates[0]?.provenance.query ?? '',
-      candidates: matched.flatMap(batch => batch.candidates),
-      result_count: matched.reduce((sum, batch) => sum + batch.result_count, 0),
-    }];
+function buildReformulationArtifact(query: string, effectiveQuery: string, qpp: DiscoveryQppAssessment, probe: DiscoveryQueryProbe, reformulation: Awaited<ReturnType<typeof runDiscoveryQueryReformulation>>['reformulation'], telemetry: Awaited<ReturnType<typeof runDiscoveryQueryReformulation>>['telemetry']): DiscoveryQueryReformulationArtifact {
+  return DiscoveryQueryReformulationArtifactSchema.parse({
+    version: 1,
+    original_query: query,
+    effective_query: effectiveQuery,
+    normalized_effective_query: normalizeDiscoveryQuery(effectiveQuery),
+    qpp,
+    probe,
+    reformulation,
+    telemetry,
   });
 }
 
-async function overrideCandidateGeneration(
-  queryPlan: DiscoveryPlan,
-  params: Pick<RunFederatedDiscoveryParams, 'query' | 'intent' | 'limit' | 'executors'>,
-): Promise<DiscoveryCandidateGenerationArtifact> {
-  const normalizedQuery = normalizeDiscoveryQuery(params.query);
-  const batches = [] as DiscoveryCandidateGenerationArtifact['batches'];
-  for (const provider of queryPlan.selected_providers) {
-    const executor = params.executors?.[provider];
-    if (!executor) {
-      throw invalidParams(`Missing discovery executor for provider: ${provider}`, { provider, selected_providers: queryPlan.selected_providers });
-    }
-    const result = await executor({ provider, query: params.query, normalized_query: normalizedQuery, intent: params.intent, limit: params.limit });
-    batches.push({
-      provider,
-      channel: 'override',
-      executed: true,
-      reason: 'test_override_executor',
-      result_count: result.result_count,
-      candidates: result.candidates.slice(0, params.limit),
-    });
+function normalizeAssessorResult(qpp: unknown): DiscoveryQppAssessment {
+  if (qpp && typeof qpp === 'object' && 'status' in qpp) {
+    const typed = qpp as DiscoveryQppAssessment;
+    if (typed.status === 'applied' || typed.status === 'unavailable' || typed.status === 'invalid') return typed;
   }
-  return DiscoveryCandidateGenerationArtifactSchema.parse({
-    version: 1,
-    query: params.query,
-    normalized_query: normalizedQuery,
-    intent: params.intent,
-    batches,
-  });
+  return { status: 'invalid', difficulty: 'medium', ambiguity: 'medium', low_recall_risk: 'medium', trigger_decision: 'not_triggered', reason_codes: ['qpp_invalid'] };
 }
 
 export async function runFederatedDiscovery(params: RunFederatedDiscoveryParams): Promise<FederatedDiscoveryResult> {
-  const normalized_query = normalizeDiscoveryQuery(params.query);
-  const query_plan = planDiscoveryProviders({
+  const query_plan = planDiscoveryProviders({ query: params.query, intent: params.intent, preferred_providers: params.preferred_providers ?? [], required_capabilities: params.required_capabilities ?? [], limit: params.limit }, DISCOVERY_PROVIDER_DESCRIPTORS);
+  const probeRound = await executeDiscoveryRound({ plan: query_plan, query: params.query, intent: params.intent, limit: params.limit, executors: params.executors });
+  const probePrerank = prerankCanonicalPapers(params.query, probeRound.papers);
+  const probe = buildDiscoveryQueryProbe({
     query: params.query,
-    intent: params.intent,
-    preferred_providers: params.preferred_providers ?? [],
-    required_capabilities: params.required_capabilities ?? [],
-    limit: params.limit,
-  }, DISCOVERY_PROVIDER_DESCRIPTORS);
-
-  const candidate_generation = params.executors
-    ? await overrideCandidateGeneration(query_plan, params)
-    : DiscoveryCandidateGenerationArtifactSchema.parse({
-      version: 1,
-      query: params.query,
-      normalized_query,
-      intent: params.intent,
-      batches: await runHybridCandidateGeneration(query_plan, params.limit),
-    });
-
-  const provider_results = aggregateProviderResults(candidate_generation.batches);
-  const { papers: canonicalPapers, dedup } = canonicalizeDiscoveryCandidates({
-    query: params.query,
-    candidates: candidate_generation.batches.flatMap(batch => batch.candidates),
+    candidateGeneration: probeRound.candidate_generation,
+    papers: probeRound.papers,
+    preranked: probePrerank.map(item => ({ canonical_key: item.paper.canonical_key, score: item.stage1_score, stage1_score: item.stage1_score, reason_codes: ['stage1_prerank'], provider_sources: item.paper.provider_sources, merge_state: item.paper.merge_state })),
   });
-  const reranked = await rerankCanonicalPapers({
-    query: params.query,
-    papers: canonicalPapers,
-    limit: params.limit,
-    createMessage: params.createMessage,
-  });
+
+  let qpp: DiscoveryQppAssessment;
+  try {
+    qpp = normalizeAssessorResult(params.assessQuery ? params.assessQuery({ query: params.query, intent: params.intent, probe }) : defaultAssessDiscoveryQuery({ query: params.query, probe }));
+  } catch {
+    qpp = { status: 'unavailable', difficulty: 'medium', ambiguity: 'medium', low_recall_risk: 'medium', trigger_decision: 'not_triggered', reason_codes: ['qpp_unavailable'] };
+  }
+
+  const reformulationRun = await runDiscoveryQueryReformulation({ query: params.query, qpp, createMessage: params.createMessage, maxSamplingCalls: params.maxReformulationSamplingCalls ?? 1 });
+  const executionRound = reformulationRun.reformulation.status === 'applied'
+    ? await executeDiscoveryRound({ plan: query_plan, query: reformulationRun.effective_query, intent: params.intent, limit: params.limit, executors: params.executors })
+    : probeRound;
+  const reranked = await rerankCanonicalPapers({ query: reformulationRun.effective_query, papers: executionRound.papers, limit: params.limit, createMessage: params.createMessage });
+  const reformulation = buildReformulationArtifact(params.query, reformulationRun.effective_query, qpp, probe, reformulationRun.reformulation, reformulationRun.telemetry);
 
   const dir = discoveryDir();
   const existingEntries = readSearchLogEntries(artifactRefs(dir, 1).search_log.file_path);
   const requestIndex = existingEntries.length + 1;
   const artifacts = artifactRefs(dir, requestIndex);
-
   writeJsonArtifact(artifacts.query_plan.file_path, query_plan);
-  writeJsonArtifact(artifacts.candidate_generation.file_path, candidate_generation);
-  writeJsonArtifact(artifacts.canonical_papers.file_path, DiscoveryCanonicalPapersArtifactSchema.parse({ version: 1, query: params.query, papers: reranked.papers }));
-  writeJsonArtifact(artifacts.dedup.file_path, dedup);
+  writeJsonArtifact(artifacts.reformulation.file_path, reformulation);
+  writeJsonArtifact(artifacts.candidate_generation.file_path, executionRound.candidate_generation);
+  writeJsonArtifact(artifacts.canonical_papers.file_path, DiscoveryCanonicalPapersArtifactSchema.parse({ version: 1, query: reformulationRun.effective_query, papers: reranked.papers }));
+  writeJsonArtifact(artifacts.dedup.file_path, executionRound.dedup);
   writeJsonArtifact(artifacts.rerank.file_path, reranked.artifact);
 
   const entry = DiscoverySearchLogEntrySchema.parse({
@@ -162,28 +111,34 @@ export async function runFederatedDiscovery(params: RunFederatedDiscoveryParams)
     request_index: requestIndex,
     logged_at: new Date().toISOString(),
     query: params.query,
-    normalized_query,
+    normalized_query: query_plan.normalized_query,
+    effective_query: reformulation.effective_query,
     intent: params.intent,
     selected_providers: query_plan.selected_providers,
     provider_result_counts: {
-      inspire: provider_results.find(result => result.provider === 'inspire')?.result_count ?? 0,
-      openalex: provider_results.find(result => result.provider === 'openalex')?.result_count ?? 0,
-      arxiv: provider_results.find(result => result.provider === 'arxiv')?.result_count ?? 0,
+      inspire: executionRound.provider_results.find(result => result.provider === 'inspire')?.result_count ?? 0,
+      openalex: executionRound.provider_results.find(result => result.provider === 'openalex')?.result_count ?? 0,
+      arxiv: executionRound.provider_results.find(result => result.provider === 'arxiv')?.result_count ?? 0,
     },
     canonical_paper_count: reranked.papers.length,
-    uncertain_group_count: dedup.uncertain_groups.length,
+    uncertain_group_count: executionRound.dedup.uncertain_groups.length,
+    qpp_status: reformulation.qpp.status,
+    trigger_decision: reformulation.qpp.trigger_decision,
+    reformulation_status: reformulation.reformulation.status,
+    reformulation_sampling_calls: reformulation.telemetry.sampling_calls,
+    reformulation_count: reformulation.telemetry.reformulation_count,
     artifact_locators: Object.values(artifacts),
   });
-
   const appendedEntries: DiscoverySearchLogEntry[] = appendDiscoverySearchLogEntries(existingEntries, entry);
   writeSearchLog(artifacts.search_log.file_path, appendedEntries);
 
   return {
     query_plan,
-    provider_results,
-    candidate_generation,
+    reformulation,
+    provider_results: executionRound.provider_results,
+    candidate_generation: executionRound.candidate_generation,
     papers: reranked.papers,
-    dedup,
+    dedup: executionRound.dedup,
     rerank: reranked.artifact,
     artifacts,
   };

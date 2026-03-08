@@ -1,0 +1,212 @@
+{
+  "name": "sem06d_triggered_reformulation",
+  "version": 1,
+  "description": "Triggered reformulation + QPP on top of the SEM-06b discovery backbone",
+  "module": "NEW-SEM-06d",
+  "cases": [
+    {
+      "id": "doi-known-item-no-trigger",
+      "tags": ["known_item", "exact_id", "easy_query"],
+      "input": {
+        "query": "10.1000/exact-known-item",
+        "intent": "known_item",
+        "providers": {
+          "original": {
+            "inspire": [
+              { "title": "Exact known-item retrieval across providers", "identifiers": { "doi": "10.1000/exact-known-item", "recid": "1001", "arxiv_id": "2501.00001" }, "authors": ["A. Exact"], "year": 2025, "citation_count": 12 }
+            ],
+            "openalex": [
+              { "title": "Exact known-item retrieval across providers", "identifiers": { "doi": "10.1000/exact-known-item", "openalex_id": "W1001" }, "authors": ["A. Exact"], "year": 2025, "citation_count": 24 }
+            ],
+            "arxiv": [
+              { "title": "Exact known-item retrieval across providers", "identifiers": { "doi": "10.1000/exact-known-item", "arxiv_id": "2501.00001" }, "authors": ["A. Exact"], "year": 2025, "citation_count": 8 }
+            ]
+          }
+        },
+        "rerank": {
+          "mode": "applied",
+          "ranked_keys": ["paper:doi:10.1000/exact-known-item"]
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/exact-known-item",
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 1,
+        "expected_trigger_decision": "not_triggered",
+        "expected_qpp_status": "applied",
+        "expected_reformulation_status": "not_triggered",
+        "expected_effective_query": "10.1000/exact-known-item",
+        "expected_rerank_status": "insufficient_candidates",
+        "max_final_rank": 1,
+        "expected_sampling_calls": 0
+      }
+    },
+    {
+      "id": "exact-title-easy-no-trigger",
+      "tags": ["known_item", "easy_query"],
+      "input": {
+        "query": "Cross-provider canonical identity for HEP papers",
+        "intent": "known_item",
+        "providers": {
+          "original": {
+            "inspire": [
+              { "title": "Cross-provider canonical identity for HEP papers", "identifiers": { "doi": "10.1000/canonical-gold", "recid": "3001" }, "authors": ["D. Curator"], "year": 2025, "citation_count": 40 }
+            ],
+            "openalex": [
+              { "title": "Cross-provider canonical identity for HEP papers", "identifiers": { "doi": "10.1000/canonical-gold", "openalex_id": "W3001" }, "authors": ["D. Curator"], "year": 2025, "citation_count": 35 },
+              { "title": "Canonical corpora for HEP knowledge graphs", "identifiers": { "openalex_id": "W3002" }, "authors": ["K. Catalog"], "year": 2025, "citation_count": 150 }
+            ]
+          }
+        },
+        "rerank": {
+          "mode": "applied",
+          "ranked_keys": ["paper:doi:10.1000/canonical-gold", "paper:openalex:w3002"]
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/canonical-gold",
+        "provider_hit_providers": ["inspire", "openalex"],
+        "canonical_count": 2,
+        "expected_trigger_decision": "not_triggered",
+        "expected_qpp_status": "applied",
+        "expected_reformulation_status": "not_triggered",
+        "expected_effective_query": "Cross-provider canonical identity for HEP papers",
+        "expected_rerank_status": "applied",
+        "max_final_rank": 1,
+        "expected_sampling_calls": 0
+      }
+    },
+    {
+      "id": "author-year-hard-triggered",
+      "tags": ["known_item", "hard_query"],
+      "input": {
+        "query": "Smith 2024 prompt photon anomalies",
+        "intent": "known_item",
+        "providers": {
+          "original": {
+            "inspire": [
+              { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "recid": "2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 20 }
+            ],
+            "openalex": [
+              { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "openalex_id": "W2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 30 },
+              { "title": "Prompt photon anomalies review", "identifiers": { "openalex_id": "W2002" }, "authors": ["B. Brown"], "year": 2025, "citation_count": 500 }
+            ],
+            "arxiv": [
+              { "title": "Photon detector anomalies in heavy ion runs", "identifiers": { "arxiv_id": "2502.00003" }, "authors": ["C. Noise"], "year": 2024, "citation_count": 150 }
+            ]
+          },
+          "reformulated": {
+            "inspire": [
+              { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "recid": "2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 20 }
+            ],
+            "openalex": [
+              { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "openalex_id": "W2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 30 }
+            ],
+            "arxiv": [
+              { "title": "Prompt photon anomalies review", "identifiers": { "arxiv_id": "2502.00002" }, "authors": ["B. Brown"], "year": 2025, "citation_count": 500 }
+            ]
+          }
+        },
+        "reformulation": {
+          "mode": "applied",
+          "query": "Prompt photon constraints on exotic charm Smith 2024"
+        },
+        "rerank": {
+          "mode": "applied",
+          "ranked_keys": ["paper:doi:10.1000/prompt-photon-gold", "paper:arxiv:2502.00002"]
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/prompt-photon-gold",
+        "provider_hit_providers": ["inspire", "openalex", "arxiv"],
+        "canonical_count": 2,
+        "expected_trigger_decision": "triggered",
+        "expected_qpp_status": "applied",
+        "expected_reformulation_status": "applied",
+        "expected_effective_query": "Prompt photon constraints on exotic charm Smith 2024",
+        "expected_rerank_status": "applied",
+        "max_final_rank": 1,
+        "min_probe_rank": 2,
+        "expected_sampling_calls": 1
+      }
+    },
+    {
+      "id": "qpp-unavailable-fail-closed",
+      "tags": ["known_item", "hard_query", "failure_path"],
+      "input": {
+        "query": "Smith 2024 prompt photon anomalies",
+        "intent": "known_item",
+        "assessment": { "mode": "unavailable" },
+        "providers": {
+          "original": {
+            "inspire": [
+              { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "recid": "2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 20 }
+            ],
+            "openalex": [
+              { "title": "Prompt photon constraints on exotic charm", "identifiers": { "doi": "10.1000/prompt-photon-gold", "openalex_id": "W2001" }, "authors": ["J. Smith", "A. Lee"], "year": 2024, "citation_count": 30 },
+              { "title": "Prompt photon anomalies review", "identifiers": { "openalex_id": "W2002" }, "authors": ["B. Brown"], "year": 2025, "citation_count": 500 }
+            ]
+          }
+        },
+        "rerank": {
+          "mode": "unavailable"
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/prompt-photon-gold",
+        "provider_hit_providers": ["inspire", "openalex"],
+        "canonical_count": 2,
+        "expected_trigger_decision": "not_triggered",
+        "expected_qpp_status": "unavailable",
+        "expected_reformulation_status": "not_triggered",
+        "expected_effective_query": "Smith 2024 prompt photon anomalies",
+        "expected_rerank_status": "unavailable",
+        "max_final_rank": 2,
+        "min_probe_rank": 2,
+        "expected_sampling_calls": 0
+      }
+    },
+    {
+      "id": "reformulation-budget-exhausted",
+      "tags": ["known_item", "hard_query", "failure_path"],
+      "input": {
+        "query": "Lee 2023 lattice review",
+        "intent": "known_item",
+        "providers": {
+          "original": {
+            "inspire": [
+              { "title": "Lattice determination of hadronic vacuum polarization", "identifiers": { "doi": "10.1000/hvp-gold", "recid": "6001" }, "authors": ["M. Lee"], "year": 2023, "citation_count": 18 }
+            ],
+            "openalex": [
+              { "title": "Lattice review of hadronic observables", "identifiers": { "openalex_id": "W6002" }, "authors": ["R. Summary"], "year": 2024, "citation_count": 520 },
+              { "title": "Lattice determination of hadronic vacuum polarization", "identifiers": { "doi": "10.1000/hvp-gold", "openalex_id": "W6001" }, "authors": ["M. Lee"], "year": 2023, "citation_count": 22 }
+            ]
+          }
+        },
+        "budget": {
+          "max_sampling_calls": 0
+        },
+        "reformulation": {
+          "mode": "applied",
+          "query": "Lattice determination of hadronic vacuum polarization Lee 2023"
+        },
+        "rerank": {
+          "mode": "unavailable"
+        }
+      },
+      "expected": {
+        "gold_canonical_key": "paper:doi:10.1000/hvp-gold",
+        "provider_hit_providers": ["inspire", "openalex"],
+        "canonical_count": 2,
+        "expected_trigger_decision": "triggered",
+        "expected_qpp_status": "applied",
+        "expected_reformulation_status": "budget_exhausted",
+        "expected_effective_query": "Lee 2023 lattice review",
+        "expected_rerank_status": "unavailable",
+        "max_final_rank": 2,
+        "min_probe_rank": 2,
+        "expected_sampling_calls": 0
+      }
+    }
+  ]
+}
