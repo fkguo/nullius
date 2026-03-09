@@ -76,8 +76,8 @@ Supports:
 
 Examples:
   { query: "transformer attention mechanism", filter: "publication_year:>2020,is_oa:true" }
-  { query: "lattice QCD", sort: "cited_by_count:desc", per_page: 50 }
-  { query: "dark matter", max_results: 1000 } → writes results_file JSONL`,
+  { query: "topological phases of matter", sort: "cited_by_count:desc", per_page: 50 }
+  { query: "homological mirror symmetry", max_results: 1000 } → writes results_file JSONL`,
     zodSchema: OpenAlexSearchSchema,
     handler: async args => handleSearch(args),
   },

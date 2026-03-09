@@ -60,11 +60,11 @@ export const PaperSummarySchema = PaperIdentifiersSchema.extend({
   document_type: z.array(z.string()).optional(),
   // BibTeX key (e.g., 'Maldacena:1997re')
   texkey: z.string().optional(),
-  // arXiv primary category (e.g., 'hep-ph', 'hep-th', 'hep-ex')
+  // arXiv primary category (e.g., 'hep-th', 'cond-mat.str-el', 'cs.LG')
   // First element of arxiv_eprints[0].categories
   arxiv_primary_category: z.string().optional(),
   // All arXiv categories (primary + cross-list)
-  // e.g., ['hep-ph', 'hep-th', 'gr-qc']
+  // e.g., ['hep-th', 'gr-qc', 'cond-mat.str-el']
   arxiv_categories: z.array(z.string()).optional(),
 });
 

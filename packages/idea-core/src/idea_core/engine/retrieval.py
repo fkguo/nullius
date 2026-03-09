@@ -111,8 +111,8 @@ class LibrarianRecipeBook:
         hypothesis = _compact_text(operator_output.hypothesis, "testable hypothesis")
         rationale_title = _compact_text(operator_output.rationale_title, "untitled rationale")
         fields = {
-            "domain": _compact_text(domain, "hep-ph"),
-            "formalism_id": _compact_text(formalism_id, "hep/toy"),
+            "domain": _compact_text(domain, "research-domain"),
+            "formalism_id": _compact_text(formalism_id, "generic/toy"),
             "operator_family": _compact_text(operator_output.operator_family, "UnknownFamily"),
             "claim_text": claim_text,
             "hypothesis": hypothesis,
