@@ -18,7 +18,7 @@ class SubCheck(BaseModel):
     sub_check_id: Annotated[
         str,
         Field(
-            description="Sub-check suffix (e.g., 'ward_identity' for 'hep_cross_check.ward_identity')."
+            description="Sub-check suffix (e.g., 'invariant_consistency' for 'theory_cross_check.invariant_consistency')."
         ),
     ]
     name: str
@@ -287,7 +287,7 @@ class DomainpackmanifestV1(BaseModel):
     pack_id: Annotated[
         str,
         Field(
-            description="Unique identifier for this domain pack (e.g., 'hep-th-integrity').",
+            description="Unique identifier for this domain pack (e.g., 'cond-mat-integrity').",
             max_length=100,
             min_length=1,
             pattern='^[a-z][a-z0-9-]*$',
@@ -296,7 +296,7 @@ class DomainpackmanifestV1(BaseModel):
     name: Annotated[
         str,
         Field(
-            description="Human-readable name (e.g., 'HEP Theoretical Physics Integrity Pack').",
+            description="Human-readable name (e.g., 'Theory Research Integrity Pack').",
             max_length=200,
             min_length=1,
         ),
@@ -311,7 +311,7 @@ class DomainpackmanifestV1(BaseModel):
     domain: Annotated[
         str,
         Field(
-            description="Research domain this pack applies to (e.g., 'hep-th'). Must match ResearchStrategy.domain and IntegrityReport.domain.",
+            description="Research domain this pack applies to (e.g., 'hep-th', 'cond-mat', 'mathematics'). Must match ResearchStrategy.domain and IntegrityReport.domain.",
             min_length=1,
         ),
     ]

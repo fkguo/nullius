@@ -74,7 +74,7 @@
           "description": "Static or template args passed to the tool."
         },
         "gate_spec": {
-          "$ref": "#/$defs/GateSpec"
+          "$ref": "#/$defs/WorkflowGateSpec"
         },
         "children": {
           "type": "array",
@@ -99,7 +99,7 @@
         }
       ]
     },
-    "GateSpec": {
+    "WorkflowGateSpec": {
       "type": "object",
       "required": ["gate_type"],
       "properties": {

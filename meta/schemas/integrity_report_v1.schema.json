@@ -53,7 +53,7 @@
     },
     "domain": {
       "type": "string",
-      "description": "Domain of the checks (e.g., 'hep-th')."
+      "description": "Domain of the checks (e.g., 'hep-th', 'cond-mat', 'mathematics')."
     },
     "domain_pack_version": {
       "type": "string",
@@ -87,7 +87,7 @@
       "properties": {
         "check_id": {
           "type": "string",
-          "description": "Unique identifier of the check (e.g., 'hep_cross_check.ward_identity')."
+          "description": "Unique identifier of the check (e.g., 'theory_cross_check.invariant_consistency')."
         },
         "check_name": {
           "type": "string",

@@ -19,7 +19,7 @@
     "check_id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$",
-      "description": "Unique identifier. Format: '{domain}_{check_name}' or '{domain}_{check_name}.{sub_check}' (e.g., 'hep_cross_check.ward_identity')."
+      "description": "Unique identifier. Format: '{domain}_{check_name}' or '{domain}_{check_name}.{sub_check}' (e.g., 'theory_cross_check.invariant_consistency')."
     },
     "name": {
       "type": "string",
@@ -30,7 +30,7 @@
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Domain this check belongs to (e.g., 'hep-th'). Use '*' for domain-agnostic checks."
+      "description": "Domain this check belongs to (e.g., 'hep-th', 'cond-mat', 'mathematics'). Use '*' for domain-agnostic checks."
     },
     "severity": {
       "type": "string",
@@ -61,17 +61,17 @@
         "tools": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "MCP tools needed (e.g., ['inspire_search', 'inspire_deep_research'])."
+          "description": "MCP tools needed (e.g., ['literature_search', 'citation_lookup'])."
         },
         "databases": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Databases needed (e.g., ['inspire', 'pdg'])."
+          "description": "Databases needed (e.g., ['openalex', 'zotero'])."
         },
         "computation_packages": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Computation packages needed (e.g., ['FeynCalc', 'LoopTools'])."
+          "description": "Computation packages needed (e.g., ['Mathematica'], ['Lean4'], ['NumPy'])."
         }
       },
       "description": "External dependencies for this check."

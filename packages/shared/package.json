@@ -1,7 +1,7 @@
 {
   "name": "@autoresearch/shared",
   "version": "0.3.0",
-  "description": "Shared types, schemas, and utilities for HEP Research MCP servers",
+  "description": "Shared types, schemas, and utilities for the autoresearch ecosystem",
   "author": "Feng-Kun Guo",
   "type": "module",
   "main": "./dist/index.js",

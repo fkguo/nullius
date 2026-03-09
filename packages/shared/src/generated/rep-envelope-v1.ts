@@ -74,7 +74,7 @@ export interface HelloPayload {
    */
   capabilities: string[];
   /**
-   * Research domain (e.g., 'hep-th').
+   * Research domain (e.g., 'hep-th', 'cond-mat', 'mathematics').
    */
   domain: string;
   agent_name?: string;

@@ -105,7 +105,12 @@ class HelloPayload(BaseModel):
             description="List of capabilities this agent supports (e.g., ['strategy_publish', 'outcome_report', 'integrity_check'])."
         ),
     ]
-    domain: Annotated[str, Field(description="Research domain (e.g., 'hep-th').")]
+    domain: Annotated[
+        str,
+        Field(
+            description="Research domain (e.g., 'hep-th', 'cond-mat', 'mathematics')."
+        ),
+    ]
     agent_name: str | None = None
     agent_version: str | None = None
     supported_check_domains: Annotated[

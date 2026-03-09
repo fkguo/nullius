@@ -5,7 +5,7 @@
 export interface IntegrityCheckV1 {
   schema_version: 1;
   /**
-   * Unique identifier. Format: '{domain}_{check_name}' or '{domain}_{check_name}.{sub_check}' (e.g., 'hep_cross_check.ward_identity').
+   * Unique identifier. Format: '{domain}_{check_name}' or '{domain}_{check_name}.{sub_check}' (e.g., 'theory_cross_check.invariant_consistency').
    */
   check_id: string;
   /**
@@ -13,7 +13,7 @@ export interface IntegrityCheckV1 {
    */
   name: string;
   /**
-   * Domain this check belongs to (e.g., 'hep-th'). Use '*' for domain-agnostic checks.
+   * Domain this check belongs to (e.g., 'hep-th', 'cond-mat', 'mathematics'). Use '*' for domain-agnostic checks.
    */
   domain: string;
   /**
@@ -39,15 +39,15 @@ export interface IntegrityCheckV1 {
    */
   requires?: {
     /**
-     * MCP tools needed (e.g., ['inspire_search', 'inspire_deep_research']).
+     * MCP tools needed (e.g., ['literature_search', 'citation_lookup']).
      */
     tools?: string[];
     /**
-     * Databases needed (e.g., ['inspire', 'pdg']).
+     * Databases needed (e.g., ['openalex', 'zotero']).
      */
     databases?: string[];
     /**
-     * Computation packages needed (e.g., ['FeynCalc', 'LoopTools']).
+     * Computation packages needed (e.g., ['Mathematica'], ['Lean4'], ['NumPy']).
      */
     computation_packages?: string[];
     [k: string]: unknown;

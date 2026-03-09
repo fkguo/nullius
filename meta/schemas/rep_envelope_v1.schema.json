@@ -120,7 +120,7 @@
         },
         "domain": {
           "type": "string",
-          "description": "Research domain (e.g., 'hep-th')."
+          "description": "Research domain (e.g., 'hep-th', 'cond-mat', 'mathematics')."
         },
         "agent_name": {
           "type": "string"

@@ -34,7 +34,7 @@ export interface IntegrityReportV1 {
    */
   blocking_failures?: string[];
   /**
-   * Domain of the checks (e.g., 'hep-th').
+   * Domain of the checks (e.g., 'hep-th', 'cond-mat', 'mathematics').
    */
   domain: string;
   /**
@@ -64,7 +64,7 @@ export interface IntegrityReportV1 {
  */
 export interface IntegrityCheckResult {
   /**
-   * Unique identifier of the check (e.g., 'hep_cross_check.ward_identity').
+   * Unique identifier of the check (e.g., 'theory_cross_check.invariant_consistency').
    */
   check_id: string;
   /**

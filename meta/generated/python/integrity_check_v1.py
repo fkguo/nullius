@@ -24,17 +24,17 @@ class Requires(BaseModel):
     tools: Annotated[
         list[str] | None,
         Field(
-            description="MCP tools needed (e.g., ['inspire_search', 'inspire_deep_research'])."
+            description="MCP tools needed (e.g., ['literature_search', 'citation_lookup'])."
         ),
     ] = None
     databases: Annotated[
         list[str] | None,
-        Field(description="Databases needed (e.g., ['inspire', 'pdg'])."),
+        Field(description="Databases needed (e.g., ['openalex', 'zotero'])."),
     ] = None
     computation_packages: Annotated[
         list[str] | None,
         Field(
-            description="Computation packages needed (e.g., ['FeynCalc', 'LoopTools'])."
+            description="Computation packages needed (e.g., ['Mathematica'], ['Lean4'], ['NumPy'])."
         ),
     ] = None
 
@@ -47,7 +47,7 @@ class IntegritycheckV1(BaseModel):
     check_id: Annotated[
         str,
         Field(
-            description="Unique identifier. Format: '{domain}_{check_name}' or '{domain}_{check_name}.{sub_check}' (e.g., 'hep_cross_check.ward_identity').",
+            description="Unique identifier. Format: '{domain}_{check_name}' or '{domain}_{check_name}.{sub_check}' (e.g., 'theory_cross_check.invariant_consistency').",
             pattern='^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$',
         ),
     ]
@@ -57,7 +57,7 @@ class IntegritycheckV1(BaseModel):
     domain: Annotated[
         str,
         Field(
-            description="Domain this check belongs to (e.g., 'hep-th'). Use '*' for domain-agnostic checks.",
+            description="Domain this check belongs to (e.g., 'hep-th', 'cond-mat', 'mathematics'). Use '*' for domain-agnostic checks.",
             min_length=1,
         ),
     ]

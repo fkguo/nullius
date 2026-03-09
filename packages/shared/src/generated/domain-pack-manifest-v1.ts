@@ -5,11 +5,11 @@
 export interface DomainPackManifestV1 {
   schema_version: 1;
   /**
-   * Unique identifier for this domain pack (e.g., 'hep-th-integrity').
+   * Unique identifier for this domain pack (e.g., 'cond-mat-integrity').
    */
   pack_id: string;
   /**
-   * Human-readable name (e.g., 'HEP Theoretical Physics Integrity Pack').
+   * Human-readable name (e.g., 'Theory Research Integrity Pack').
    */
   name: string;
   /**
@@ -17,7 +17,7 @@ export interface DomainPackManifestV1 {
    */
   version: string;
   /**
-   * Research domain this pack applies to (e.g., 'hep-th'). Must match ResearchStrategy.domain and IntegrityReport.domain.
+   * Research domain this pack applies to (e.g., 'hep-th', 'cond-mat', 'mathematics'). Must match ResearchStrategy.domain and IntegrityReport.domain.
    */
   domain: string;
   /**
@@ -64,7 +64,7 @@ export interface DomainPackManifestV1 {
        */
       sub_checks?: {
         /**
-         * Sub-check suffix (e.g., 'ward_identity' for 'hep_cross_check.ward_identity').
+         * Sub-check suffix (e.g., 'invariant_consistency' for 'theory_cross_check.invariant_consistency').
          */
         sub_check_id: string;
         name: string;
@@ -99,7 +99,7 @@ export interface DomainPackManifestV1 {
        */
       sub_checks?: {
         /**
-         * Sub-check suffix (e.g., 'ward_identity' for 'hep_cross_check.ward_identity').
+         * Sub-check suffix (e.g., 'invariant_consistency' for 'theory_cross_check.invariant_consistency').
          */
         sub_check_id: string;
         name: string;

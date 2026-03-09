@@ -84,7 +84,7 @@ class IntegrityCheckResult(BaseModel):
     check_id: Annotated[
         str,
         Field(
-            description="Unique identifier of the check (e.g., 'hep_cross_check.ward_identity')."
+            description="Unique identifier of the check (e.g., 'theory_cross_check.invariant_consistency')."
         ),
     ]
     check_name: Annotated[str, Field(description='Human-readable name of the check.')]
@@ -148,7 +148,12 @@ class IntegrityreportV1(BaseModel):
             description="Check IDs of failed blocking checks. Empty array if overall_status is 'pass' or 'advisory_only'."
         ),
     ] = None
-    domain: Annotated[str, Field(description="Domain of the checks (e.g., 'hep-th').")]
+    domain: Annotated[
+        str,
+        Field(
+            description="Domain of the checks (e.g., 'hep-th', 'cond-mat', 'mathematics')."
+        ),
+    ]
     domain_pack_version: Annotated[
         str | None, Field(description='Version of the domain pack used for checks.')
     ] = None

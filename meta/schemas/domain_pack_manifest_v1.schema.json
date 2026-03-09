@@ -21,13 +21,13 @@
       "pattern": "^[a-z][a-z0-9-]*$",
       "minLength": 1,
       "maxLength": 100,
-      "description": "Unique identifier for this domain pack (e.g., 'hep-th-integrity')."
+      "description": "Unique identifier for this domain pack (e.g., 'cond-mat-integrity')."
     },
     "name": {
       "type": "string",
       "minLength": 1,
       "maxLength": 200,
-      "description": "Human-readable name (e.g., 'HEP Theoretical Physics Integrity Pack')."
+      "description": "Human-readable name (e.g., 'Theory Research Integrity Pack')."
     },
     "version": {
       "type": "string",
@@ -37,7 +37,7 @@
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Research domain this pack applies to (e.g., 'hep-th'). Must match ResearchStrategy.domain and IntegrityReport.domain."
+      "description": "Research domain this pack applies to (e.g., 'hep-th', 'cond-mat', 'mathematics'). Must match ResearchStrategy.domain and IntegrityReport.domain."
     },
     "description": {
       "type": "string",
@@ -89,7 +89,7 @@
               "properties": {
                 "sub_check_id": {
                   "type": "string",
-                  "description": "Sub-check suffix (e.g., 'ward_identity' for 'hep_cross_check.ward_identity')."
+                  "description": "Sub-check suffix (e.g., 'invariant_consistency' for 'theory_cross_check.invariant_consistency')."
                 },
                 "name": { "type": "string" },
                 "severity_default": {

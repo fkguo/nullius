@@ -16,19 +16,19 @@ class Method(BaseModel):
     approach: Annotated[
         str,
         Field(
-            description="Research method or technique. Examples: 'one-loop perturbative calculation', 'lattice Monte Carlo simulation', 'formal proof via cobordism', 'dispersive analysis'."
+            description="Research method or technique. Examples: 'symbolic perturbation analysis', 'variational simulation', 'formal proof via Lean', 'dispersive reconstruction'."
         ),
     ]
     tools: Annotated[
         list[str],
         Field(
-            description="Required computation or analysis tools (e.g., ['FeynCalc', 'LoopTools'], ['Lean4'], ['Mathematica'])."
+            description="Required computation or analysis tools (e.g., ['Mathematica'], ['Lean4'], ['NumPy', 'SciPy'])."
         ),
     ]
     model: Annotated[
         str | None,
         Field(
-            description="Theoretical framework or model (e.g., 'Standard Model', 'N=4 SYM', 'Ising model')."
+            description="Theoretical framework or model (e.g., 'effective field theory', 'Ising model', 'homotopy type theory')."
         ),
     ] = None
 
@@ -60,7 +60,7 @@ class Constraints(BaseModel):
     assumptions: Annotated[
         list[str] | None,
         Field(
-            description="Domain-specific assumptions. Examples: HEP: 'CP conservation', 'massless light quarks'; formal: 'excluded middle', 'axiom of choice'."
+            description="Domain-specific assumptions. Examples: theory: 'scale separation holds', 'symmetry is exact in this regime'; formal: 'excluded middle', 'axiom of choice'."
         ),
     ] = None
 
@@ -172,7 +172,7 @@ class ResearchstrategyV1(BaseModel):
     domain: Annotated[
         str,
         Field(
-            description="Research domain (e.g., 'hep-th', 'hep-ph', 'cond-mat').",
+            description="Research domain (e.g., 'hep-th', 'cond-mat', 'mathematics').",
             min_length=1,
         ),
     ]

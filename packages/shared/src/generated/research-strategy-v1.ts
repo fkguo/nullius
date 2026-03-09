@@ -25,15 +25,15 @@ export interface ResearchStrategyV1 {
   objective: string;
   method: {
     /**
-     * Research method or technique. Examples: 'one-loop perturbative calculation', 'lattice Monte Carlo simulation', 'formal proof via cobordism', 'dispersive analysis'.
+     * Research method or technique. Examples: 'symbolic perturbation analysis', 'variational simulation', 'formal proof via Lean', 'dispersive reconstruction'.
      */
     approach: string;
     /**
-     * Required computation or analysis tools (e.g., ['FeynCalc', 'LoopTools'], ['Lean4'], ['Mathematica']).
+     * Required computation or analysis tools (e.g., ['Mathematica'], ['Lean4'], ['NumPy', 'SciPy']).
      */
     tools: string[];
     /**
-     * Theoretical framework or model (e.g., 'Standard Model', 'N=4 SYM', 'Ising model').
+     * Theoretical framework or model (e.g., 'effective field theory', 'Ising model', 'homotopy type theory').
      */
     model?: string;
     [k: string]: unknown;
@@ -63,7 +63,7 @@ export interface ResearchStrategyV1 {
       [k: string]: unknown;
     }[];
     /**
-     * Domain-specific assumptions. Examples: HEP: 'CP conservation', 'massless light quarks'; formal: 'excluded middle', 'axiom of choice'.
+     * Domain-specific assumptions. Examples: theory: 'scale separation holds', 'symmetry is exact in this regime'; formal: 'excluded middle', 'axiom of choice'.
      */
     assumptions?: string[];
     [k: string]: unknown;
@@ -91,7 +91,7 @@ export interface ResearchStrategyV1 {
     [k: string]: unknown;
   };
   /**
-   * Research domain (e.g., 'hep-th', 'hep-ph', 'cond-mat').
+   * Research domain (e.g., 'hep-th', 'cond-mat', 'mathematics').
    */
   domain: string;
   /**
