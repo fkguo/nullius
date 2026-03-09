@@ -38,7 +38,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:bootstrap\", \"topic:gff\")."
+      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:constraint-guided-search\", \"topic:method-fidelity\")."
     },
     "created_at": { "type": "string", "format": "date-time" }
   },
