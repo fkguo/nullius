@@ -24,6 +24,7 @@
 
 - **Core 必须 domain-neutral**：`autoresearch` 的目标是面向理论研究的通用 substrate / control plane，而非任何单一学科、单一子领域或单一工具链的专用自动化器。当前以高能物理（尤其 hep-th）为首个高优先级落地方向，但这不是 scope 上限；后续应可扩展到其他理论物理方向及数学等理论研究方向。
 - **HEP-first 不等于 HEP-locked**：HEP 特定的 prompts、heuristics、package/tool mappings、工作流偏好与数据源假设，必须下沉到对应 domain pack / provider；禁止把这些假设固化进 root governance、shared contracts、orchestrator 内核或跨领域共享抽象。
+- **领域分类必须准确**：shared/generic 层可使用真实 domain/category 标签（如 `hep-th`、`cond-mat`、`mathematics`）作为示例或 pack 标识，但不得误写其学科归属，也不得把任何单一 domain 表述为 core 的默认推荐值。
 - **Compute 按 task/capability-first 建模**：计算/推导/验证运行时应优先表达研究任务类型、能力需求、artifact/evidence/provenance 契约与审批边界；package 名称、后端名称与现有工具链只可作为开放示例或 provider 实现，不得成为封闭枚举、唯一执行路径或 scope 边界。
 - **项目定边界，LLM 填内容**：仓库负责 typed contracts、approval/policy、artifact/evidence/provenance 语义、审计与可复现边界；具体问题的 decomposition、方法选择、backend 组合、参数化与 fallback 默认由 runtime LLM / agent 在这些治理边界内决定。
 - **只把稳定不变量写入 SSOT**：根级治理文本、长期 schema 与 tracker note 只应固定长期稳定的架构不变量；会随具体课题变化的 planning heuristics、prompt tactics、临时工具清单或局部最优策略，不应上升为根级治理规则。
@@ -510,7 +511,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **autoresearch-lab** (9789 symbols, 22847 relationships, 300 execution flows).
+This project is indexed by GitNexus as **autoresearch-lab** (9742 symbols, 22808 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 
