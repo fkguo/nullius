@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-02-15T12:00:00Z",
+  "scope": "preliminary_physics",
+  "non_citation_required": true,
+  "chosen_method": "adaptive_gauss_kronrod",
+  "convergence_sweeps": [
+    {
+      "axis": "rtol",
+      "tested_values": [
+        0.0001,
+        1e-06,
+        1e-08
+      ],
+      "observed_metric": "integral_stability",
+      "trend": "improving"
+    }
+  ],
+  "cross_checks": [
+    {
+      "check_type": "algorithm_swap",
+      "baseline_method": "adaptive_gauss_kronrod",
+      "comparison_method": "clenshaw_curtis",
+      "metric": "relative_difference",
+      "passed": true,
+      "notes": "Agreement within threshold"
+    }
+  ],
+  "estimated_error": {
+    "metric": "relative_error",
+    "value": 1e-06,
+    "units": "dimensionless"
+  },
+  "pass_thresholds": {
+    "relative_error_max": 1e-05
+  },
+  "failed_checks_count": 0,
+  "conclusion": "pass"
+}

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "campaign_slug": "theory-consistency-bootstrap",
+  "generated_at_utc": "2026-02-16T00:00:00Z",
+  "islands": [
+    {
+      "island_id": "island-consistency-core",
+      "title": "Consistency bootstrap for a symbolic target observable",
+      "status": "PLANNED",
+      "plan_artifact_path": "artifacts/islands/plans/island-consistency-core/idea_island_plan_v1.json",
+      "bootstrap_mechanism_tags": ["symmetry", "closure", "constraint-propagation"],
+      "tags": ["method:consistency-bootstrap", "topic:target-observable", "domain:theory", "island_id:island-consistency-core"],
+      "last_updated_at_utc": "2026-02-16T00:00:00Z"
+    },
+    {
+      "island_id": "island-assumption-audit",
+      "title": "Assumption sensitivity audit",
+      "status": "PLANNED",
+      "plan_artifact_path": "artifacts/islands/plans/island-assumption-audit/idea_island_plan_v1.json",
+      "bootstrap_mechanism_tags": ["assumption-audit", "normalization", "constraint-propagation"],
+      "tags": ["method:consistency-bootstrap", "topic:assumption-audit", "domain:theory", "island_id:island-assumption-audit"],
+      "last_updated_at_utc": "2026-02-16T00:00:00Z"
+    }
+  ],
+  "notes": "Example registry with a main island and one audit island. Checked-in fixtures stay generic and encode only contract structure."
+}

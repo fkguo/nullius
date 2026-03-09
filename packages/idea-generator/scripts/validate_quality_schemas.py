@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate quality-gate schemas and bundled example artifacts."""
+"""Validate quality-gate schemas and stable fixture artifacts."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def _read_json(path: Path) -> dict:
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     schema_root = repo_root / "schemas"
-    example_root = repo_root / "docs/plans/examples/2026-02-15-quality-gates"
+    example_root = repo_root / "docs/fixtures/quality-gates"
 
     errors: list[str] = []
 
@@ -95,7 +95,7 @@ def main() -> int:
             print(f" - {err}", file=sys.stderr)
         return 1
 
-    print("OK: quality-gate schemas and examples validated")
+    print("OK: quality-gate schemas and fixtures validated")
     return 0
 
 

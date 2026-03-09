@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-02-15T12:00:00Z",
+  "scope": "preliminary_physics",
+  "non_citation_required": true,
+  "problem_class": "quadrature",
+  "options_considered": [
+    {
+      "method_name": "trapezoid",
+      "method_family": "newton_cotes",
+      "complexity_tier": "baseline",
+      "error_control": "none",
+      "notes": "Fast baseline"
+    },
+    {
+      "method_name": "adaptive_gauss_kronrod",
+      "method_family": "adaptive_quadrature",
+      "complexity_tier": "intermediate",
+      "error_control": "rigorous",
+      "notes": "Target production method"
+    }
+  ],
+  "chosen_method": "adaptive_gauss_kronrod",
+  "chosen_is_simplest": false,
+  "rejection_reasons": [
+    "Baseline method lacks robust error control under oscillatory kernels."
+  ],
+  "implementation_plan": {
+    "libraries": [
+      "scipy",
+      "quadpack"
+    ],
+    "key_parameters": {
+      "rtol": 1e-8,
+      "atol": 1e-10
+    },
+    "stability_risks": [
+      "Cancellation near endpoint singularities"
+    ]
+  },
+  "references": [
+    "https://example.org/numerics-reference"
+  ]
+}

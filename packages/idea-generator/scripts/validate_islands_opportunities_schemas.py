@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Validate W6 island/opportunity schemas and bundled example artifacts.
-
-This repo is a design workspace; we keep schemas + examples machine-checkable.
-Runtime enforcement lives in idea-runs (validate-project).
-"""
+"""Validate island/opportunity schemas and stable fixture artifacts."""
 
 from __future__ import annotations
 
@@ -25,7 +21,7 @@ SCHEMA_FILES = [
     "bootstrap_opportunity_card_v1.schema.json",
 ]
 
-EXAMPLE_ROOT = Path("docs/plans/examples/2026-02-16-w6-01-islands-opportunities")
+EXAMPLE_ROOT = Path("docs/fixtures/islands-opportunities")
 
 JSON_EXAMPLES = {
     "idea_island_plan_v1.schema.json": ["idea_island_plan_v1.example.json"],
@@ -66,7 +62,7 @@ def main() -> int:
         for ex_name in JSON_EXAMPLES.get(schema_name, []):
             ex_path = example_root / ex_name
             if not ex_path.is_file():
-                errors.append(f"missing example: {ex_path}")
+                errors.append(f"missing fixture: {ex_path}")
                 continue
 
             instance = _read_json(ex_path)
@@ -77,7 +73,7 @@ def main() -> int:
         for ex_name in JSONL_EXAMPLES.get(schema_name, []):
             ex_path = example_root / ex_name
             if not ex_path.is_file():
-                errors.append(f"missing example: {ex_path}")
+                errors.append(f"missing fixture: {ex_path}")
                 continue
 
             for idx, line in enumerate(ex_path.read_text(encoding="utf-8").splitlines(), start=1):
@@ -93,15 +89,14 @@ def main() -> int:
                     errors.append(f"{schema_name} <- {ex_name}:{idx}: {loc} {err.message}")
 
     if errors:
-        print("ERROR: W6 island/opportunity schema validation failed", file=sys.stderr)
+        print("ERROR: island/opportunity schema validation failed", file=sys.stderr)
         for err in errors:
             print(f" - {err}", file=sys.stderr)
         return 1
 
-    print("OK: W6 island/opportunity schemas and examples validated")
+    print("OK: island/opportunity schemas and fixtures validated")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

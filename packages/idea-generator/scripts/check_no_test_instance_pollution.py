@@ -42,7 +42,7 @@ def _has_any_content(path: Path) -> bool:
 
 
 def main() -> int:
-    repo_root = Path.cwd().resolve()
+    repo_root = Path(__file__).resolve().parents[1]
     violations: list[str] = []
     for rel in FORBIDDEN_ROOTS:
         candidate = repo_root / rel

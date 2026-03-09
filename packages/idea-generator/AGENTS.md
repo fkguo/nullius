@@ -7,11 +7,12 @@ This repository is a **design / architecture workspace** for an `idea-generator`
 - **Do not leave `research-team` scaffolds** (projects/runs/artifacts trees) in this repo. If you must use `research-team`, create it in a temporary location (e.g. `/tmp/...`) and only copy back **summaries/design docs**.
 - Prefer **evidence-first**: capture claims as actionable design rules + link to primary sources (arXiv/ACL/etc.) in `docs/`.
 - Keep outputs **architecture-first** (interfaces/contracts/plugins) rather than model-specific prompt hacks.
-- Checked-in `docs/plans/examples/**` must stay **generic, minimal, and reusable**. Do not copy examples verbatim from `idea-runs`, prior campaigns, or local pilot artifacts.
+- Checked-in `docs/fixtures/**` is the only stable home for machine-checkable example artifacts. Fixtures must stay **generic, minimal, and reusable**; do not copy them verbatim from `idea-runs`, prior campaigns, or local pilot artifacts.
 
 ## Where to write things
 
 - Design iterations and durable checked-in summaries: `docs/plans/` (date-stamped Markdown)
+- Stable machine-checkable fixtures for schemas/validators: `docs/fixtures/`
 - Local multi-agent consultation outputs and review workflow files must stay outside the repo; distill durable conclusions back into `docs/plans/`.
 
 ## Progress tracking (rules)

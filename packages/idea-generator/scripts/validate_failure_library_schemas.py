@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate failure-library schemas and bundled example artifacts."""
+"""Validate failure-library schemas and stable fixture artifacts."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def _build_registry(schema_dir: Path) -> Registry:
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     schema_root = repo_root / "schemas"
-    example_root = repo_root / "docs/plans/examples/2026-02-15-failure-library"
+    example_root = repo_root / "docs/fixtures/failure-library"
 
     registry = _build_registry(schema_root)
 
@@ -94,7 +94,7 @@ def main() -> int:
             print(f" - {err}", file=sys.stderr)
         return 1
 
-    print("OK: failure library schemas and examples validated")
+    print("OK: failure library schemas and fixtures validated")
     return 0
 
 

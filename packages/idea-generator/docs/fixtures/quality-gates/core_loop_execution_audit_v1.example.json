@@ -1,0 +1,61 @@
+{
+  "generated_at": "2026-02-15T12:00:00Z",
+  "campaign_id": "123e4567-e89b-42d3-a456-426614174000",
+  "scope": "ecosystem_validation",
+  "non_citation_required": true,
+  "events": [
+    {
+      "step": "search.step",
+      "idempotency_key": "idem-search-001",
+      "status": "success",
+      "started_at": "2026-02-15T12:00:00Z",
+      "completed_at": "2026-02-15T12:00:02Z",
+      "input_artifact_refs": [
+        "file:///tmp/seed_pack.json"
+      ],
+      "output_artifact_refs": [
+        "file:///tmp/idea_candidates_v1.jsonl"
+      ]
+    },
+    {
+      "step": "eval.run",
+      "idempotency_key": "idem-eval-001",
+      "status": "success",
+      "started_at": "2026-02-15T12:00:02Z",
+      "completed_at": "2026-02-15T12:00:04Z",
+      "output_artifact_refs": [
+        "file:///tmp/idea_scorecards_v1.json"
+      ]
+    },
+    {
+      "step": "rank.compute",
+      "idempotency_key": "idem-rank-001",
+      "status": "success",
+      "started_at": "2026-02-15T12:00:04Z",
+      "completed_at": "2026-02-15T12:00:05Z",
+      "output_artifact_refs": [
+        "file:///tmp/ranking_result_v1.json"
+      ]
+    },
+    {
+      "step": "node.promote",
+      "idempotency_key": "idem-promote-001",
+      "status": "success",
+      "started_at": "2026-02-15T12:00:05Z",
+      "completed_at": "2026-02-15T12:00:06Z",
+      "output_artifact_refs": [
+        "file:///tmp/idea_selection_v1.json"
+      ]
+    }
+  ],
+  "artifact_refs": {
+    "idea_candidates_artifact_ref": "file:///tmp/idea_candidates_v1.jsonl",
+    "idea_scorecards_artifact_ref": "file:///tmp/idea_scorecards_v1.json",
+    "ranking_result_artifact_ref": "file:///tmp/ranking_result_v1.json",
+    "idea_selection_artifact_ref": "file:///tmp/idea_selection_v1.json",
+    "failed_approach_artifact_ref": "file:///tmp/failed_approach_v1.jsonl",
+    "idea_handoff_c2_artifact_ref": "file:///tmp/idea_handoff_c2_v1.json"
+  },
+  "failed_approach_count": 1,
+  "execution_complete": true
+}
