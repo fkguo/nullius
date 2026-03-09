@@ -1,12 +1,13 @@
 # idea-generator (design repo) — Agent Notes
 
-This repository is a **design / architecture workspace** for an `idea-generator` agent (HEP-first, extensible to broader theoretical physics). It is **not** a research-run project directory.
+This repository is a **design / architecture workspace** for an `idea-generator` substrate for theory research. Treat HEP as the **first domain-pack landing zone**, not as the scope boundary of the core abstractions. It is **not** a research-run project directory.
 
 ## Repo hygiene (important)
 
 - **Do not leave `research-team` scaffolds** (projects/runs/artifacts trees) in this repo. If you must use `research-team`, create it in a temporary location (e.g. `/tmp/...`) and only copy back **summaries/design docs**.
 - Prefer **evidence-first**: capture claims as actionable design rules + link to primary sources (arXiv/ACL/etc.) in `docs/`.
 - Keep outputs **architecture-first** (interfaces/contracts/plugins) rather than model-specific prompt hacks.
+- Keep core contracts/docs **domain-neutral**. HEP-specific heuristics, tool mappings, evidence sources, or examples belong under explicit `DomainPack` framing, not as implicit package-wide defaults.
 - Checked-in `docs/fixtures/**` is the only stable home for machine-checkable example artifacts. Fixtures must stay **generic, minimal, and reusable**; do not copy them verbatim from `idea-runs`, prior campaigns, or local pilot artifacts.
 
 ## Where to write things
