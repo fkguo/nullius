@@ -38,9 +38,6 @@
     "exclude": [
       "**/tests/**",
       "**/test/**",
-      "**/docs/reviews/**",
-      "**/reviews/**",
-      "**/agent-team-output/**",
       "**/tmp/**",
       "**/.pytest_cache/**",
       "**/__pycache__/**",
