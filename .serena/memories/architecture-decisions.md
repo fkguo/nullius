@@ -258,6 +258,31 @@
 
 ### [2026-03-07] `single-user` means single governing user, not single agent
 
+### [2026-03-09] Root ecosystem boundary: root ≠ product agent
+
+**Context**: After repo-wide de-instancing cleanup and a fresh architecture pass, the monorepo was still root-occupied by `hep-mcp` language while `packages/orchestrator/` had already become the runtime/control-plane nucleus. The key open question was whether the monorepo itself should be turned into a single “true agent” product now.
+**Decision**:
+- The repo root remains the **ecosystem/workbench/governance** entrypoint, not the product agent.
+- `packages/orchestrator/` remains the **runtime/control-plane nucleus**.
+- `packages/*-mcp` remain **independent capability providers**; do not build a root super-MCP.
+- A future single packaged end-user agent, if needed, must be introduced as a **leaf package** after `P5A` closure and stable provider boundaries; do **not** create that package yet.
+- `EVO-13` is runtime unification for a single project / team-local scope, **not** the packaged end-user agent.
+**Why**:
+- Current biggest risk is boundary drift (`shared` / core / provider path leakage), not missing top-level product packaging.
+- Premature root-level agentization would freeze HEP-first residue into long-lived generic abstractions.
+- Heavy registry/materializer work is also premature before `P5A` semantics and provider classes stabilize.
+**SSOT linkage**:
+- ADR: `meta/docs/2026-03-09-root-ecosystem-boundary-adr.md`
+- `NEW-05a` constraint: `meta/REDESIGN_PLAN.md`
+- `P5A/P5B` productization constraint: `meta/REDESIGN_PLAN.md`
+- `EVO-13` non-product-agent constraint: `meta/REDESIGN_PLAN.md`
+- `EVO-13` runtime memo: `meta/docs/2026-03-07-evo13-single-project-multi-agent-runtime-memo.md`
+**Immediate sequencing**:
+1. Re-baseline `shared` boundary (`tool-names`, `tool-risk`, `artifact-ref`)
+2. Re-baseline `idea-core` HEP compute/domain leakage before `NEW-05a Stage 3`
+3. Re-baseline runtime/provider/root HEP occupancy (env/path/root docs)
+4. Execution prompt pack: `meta/docs/prompts/prompt-2026-03-09-rebaseline-batches.md`
+
 **Context**: Follow-up clarification while deepening the `NEW-LOOP-01` OpenClaw runtime research outline. The phrase `single-user research loop first` was at risk of being misread as “the system should stay single-agent until community-scale Agent-arXiv arrives”. That reading is too restrictive and conflicts with both the existing `research-team` capability and the intended Phase 5 evolution toward team execution.
 **Decision**:
 - Interpret `single-user` as **single human owner / principal investigator / governing control plane**, not “exactly one active agent”.
