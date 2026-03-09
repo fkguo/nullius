@@ -10,9 +10,6 @@
       "$ref": "./rpc_error_data_v1.schema.json"
     },
     "known_reasons": {
-      "-32000": [
-        "method_not_implemented"
-      ],
       "-32001": [
         "dimension_exhausted"
       ],

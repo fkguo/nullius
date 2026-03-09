@@ -17,7 +17,7 @@
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Primary target domain for evaluation/constraints (HEP-first recommended: hep-ph | hep-th | nucl-th). Not a hard lock: cross-domain method/analogy operators may consult other domains as configured (typically via extensions), but must still satisfy target-domain constraints and grounding."
+      "description": "Primary target domain for evaluation/constraints. Not a hard lock: cross-domain method/analogy operators may consult other domains as configured (typically via extensions), but must still satisfy target-domain constraints and grounding."
     },
     "scope": {
       "type": "string",

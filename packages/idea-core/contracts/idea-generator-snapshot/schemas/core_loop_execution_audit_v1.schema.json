@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "core_loop_execution_audit_v1.schema.json",
+  "title": "CoreLoopExecutionAudit v1",
+  "description": "Execution audit proving search/eval/rank/promote loop and required artifacts were actually produced.",
+  "type": "object",
+  "required": [
+    "generated_at",
+    "campaign_id",
+    "scope",
+    "non_citation_required",
+    "events",
+    "artifact_refs",
+    "failed_approach_count",
+    "execution_complete"
+  ],
+  "properties": {
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "scope": {
+      "enum": [
+        "ecosystem_validation",
+        "preliminary_physics",
+        "publication_ready"
+      ]
+    },
+    "non_citation_required": {
+      "type": "boolean"
+    },
+    "events": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "required": [
+          "step",
+          "idempotency_key",
+          "status",
+          "started_at",
+          "completed_at"
+        ],
+        "properties": {
+          "step": {
+            "enum": [
+              "search.step",
+              "eval.run",
+              "rank.compute",
+              "node.promote"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "success",
+              "replay_hit",
+              "failed"
+            ]
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "input_artifact_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "output_artifact_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "artifact_refs": {
+      "type": "object",
+      "required": [
+        "idea_candidates_artifact_ref",
+        "idea_scorecards_artifact_ref",
+        "ranking_result_artifact_ref",
+        "idea_selection_artifact_ref",
+        "failed_approach_artifact_ref"
+      ],
+      "properties": {
+        "idea_candidates_artifact_ref": {
+          "type": "string",
+          "format": "uri"
+        },
+        "idea_scorecards_artifact_ref": {
+          "type": "string",
+          "format": "uri"
+        },
+        "ranking_result_artifact_ref": {
+          "type": "string",
+          "format": "uri"
+        },
+        "idea_selection_artifact_ref": {
+          "type": "string",
+          "format": "uri"
+        },
+        "failed_approach_artifact_ref": {
+          "type": "string",
+          "format": "uri"
+        },
+        "idea_handoff_c2_artifact_ref": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "additionalProperties": false
+    },
+    "failed_approach_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "execution_complete": {
+      "type": "boolean"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "publication_ready"
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "enum": [
+              "ecosystem_validation",
+              "preliminary_physics"
+            ]
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_complete": {
+            "const": true
+          }
+        },
+        "required": [
+          "execution_complete"
+        ]
+      },
+      "then": {
+        "allOf": [
+          {
+            "properties": {
+              "events": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "step": {
+                      "const": "search.step"
+                    },
+                    "status": {
+                      "enum": [
+                        "success",
+                        "replay_hit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "step",
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "events": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "step": {
+                      "const": "eval.run"
+                    },
+                    "status": {
+                      "enum": [
+                        "success",
+                        "replay_hit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "step",
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "events": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "step": {
+                      "const": "rank.compute"
+                    },
+                    "status": {
+                      "enum": [
+                        "success",
+                        "replay_hit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "step",
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "events": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "step": {
+                      "const": "node.promote"
+                    },
+                    "status": {
+                      "enum": [
+                        "success",
+                        "replay_hit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "step",
+                    "status"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -4,17 +4,42 @@
   "title": "FailedApproach v1",
   "description": "One structured negative-result record (one line in failed_approach_v1.jsonl).",
   "type": "object",
-  "required": ["approach_summary", "failure_mode", "failure_evidence_uris", "lessons", "reuse_potential"],
+  "required": [
+    "approach_summary",
+    "failure_mode",
+    "failure_modes",
+    "failure_evidence_uris",
+    "lessons",
+    "reuse_potential",
+    "tags"
+  ],
   "properties": {
     "approach_id": { "type": "string", "format": "uuid" },
     "campaign_id": { "type": "string", "format": "uuid" },
     "idea_id": { "type": "string", "format": "uuid" },
     "approach_summary": { "type": "string", "minLength": 1 },
     "failure_mode": { "type": "string", "minLength": 1 },
-    "failure_evidence_uris": { "type": "array", "items": { "type": "string", "format": "uri" } },
+    "failure_modes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Multi-label failure modes for retrieval/query. Should include failure_mode as the primary label."
+    },
+    "failure_evidence_uris": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "format": "uri" }
+    },
     "lessons": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
     "reuse_potential": { "enum": ["low", "medium", "high"] },
-    "tags": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:constraint-guided-search\", \"topic:method-fidelity\")."
+    },
     "created_at": { "type": "string", "format": "date-time" }
   },
   "additionalProperties": false

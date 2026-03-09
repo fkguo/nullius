@@ -1,0 +1,310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "literature_search_evidence_v2.schema.json",
+  "title": "LiteratureSearchEvidence v2",
+  "description": "Method-family aware literature evidence with relevance and coverage auditing.",
+  "type": "object",
+  "required": [
+    "generated_at",
+    "scope",
+    "non_citation_required",
+    "query_plan",
+    "records",
+    "coverage_report",
+    "seed_gap_analysis"
+  ],
+  "properties": {
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "enum": [
+        "ecosystem_validation",
+        "preliminary_physics",
+        "publication_ready"
+      ]
+    },
+    "non_citation_required": {
+      "type": "boolean"
+    },
+    "query_plan": {
+      "type": "object",
+      "required": [
+        "method_families",
+        "target_axes"
+      ],
+      "properties": {
+        "method_families": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "target_axes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "record_id",
+          "title",
+          "uri",
+          "evidence_role",
+          "method_family",
+          "decision",
+          "triage_reason"
+        ],
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "evidence_role": {
+            "enum": [
+              "method_foundation",
+              "method_application",
+              "baseline_constraint",
+              "comparison_result",
+              "review",
+              "background"
+            ]
+          },
+          "method_family": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision": {
+            "enum": [
+              "include",
+              "exclude",
+              "defer"
+            ]
+          },
+          "triage_reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quality_note": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "coverage_report": {
+      "type": "object",
+      "required": [
+        "global_status",
+        "method_family_coverage"
+      ],
+      "properties": {
+        "global_status": {
+          "enum": [
+            "covered",
+            "partial",
+            "missing"
+          ]
+        },
+        "method_family_coverage": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "method_family",
+              "roles_covered",
+              "coverage_status"
+            ],
+            "properties": {
+              "method_family": {
+                "type": "string",
+                "minLength": 1
+              },
+              "roles_covered": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "method_foundation",
+                    "method_application",
+                    "baseline_constraint",
+                    "comparison_result",
+                    "review",
+                    "background"
+                  ]
+                }
+              },
+              "coverage_status": {
+                "enum": [
+                  "covered",
+                  "partial",
+                  "missing"
+                ]
+              },
+              "missing_roles": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "method_foundation",
+                    "method_application",
+                    "baseline_constraint",
+                    "comparison_result",
+                    "review",
+                    "background"
+                  ]
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "observable_coverage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "observable",
+              "status"
+            ],
+            "properties": {
+              "observable": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "enum": [
+                  "covered",
+                  "partial",
+                  "missing"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "seed_gap_analysis": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "gap_id",
+          "description",
+          "severity",
+          "resolution_plan",
+          "waived"
+        ],
+        "properties": {
+          "gap_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "resolution_plan": {
+            "type": "string",
+            "minLength": 1
+          },
+          "waived": {
+            "type": "boolean"
+          },
+          "waiver_ref": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "publication_ready"
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": false
+          },
+          "coverage_report": {
+            "properties": {
+              "global_status": {
+                "enum": [
+                  "covered",
+                  "partial"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "enum": [
+              "ecosystem_validation",
+              "preliminary_physics"
+            ]
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": true
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

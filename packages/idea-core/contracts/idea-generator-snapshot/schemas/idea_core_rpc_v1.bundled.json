@@ -311,7 +311,7 @@
             "type": "object"
           },
           "domain": {
-            "description": "Primary target domain for evaluation/constraints (HEP-first recommended: hep-ph | hep-th | nucl-th). Not a hard lock: cross-domain method/analogy operators may consult other domains as configured (typically via extensions), but must still satisfy target-domain constraints and grounding.",
+            "description": "Primary target domain for evaluation/constraints. Not a hard lock: cross-domain method/analogy operators may consult other domains as configured (typically via extensions), but must still satisfy target-domain constraints and grounding.",
             "minLength": 1,
             "type": "string"
           },
@@ -3948,9 +3948,6 @@
   "x-bundle-note": "Generated artifact for tooling compatibility. Do not hand-edit.",
   "x-error-data-contract": {
     "known_reasons": {
-      "-32000": [
-        "method_not_implemented"
-      ],
       "-32001": [
         "dimension_exhausted"
       ],
