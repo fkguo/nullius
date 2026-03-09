@@ -19,12 +19,12 @@
       "title": "TALM — Parisi et al. (2022)"
     },
     {
-      "bytes": 2026,
+      "bytes": 1918,
       "kind": "literature",
       "lang": "en",
       "path": "knowledge_base/literature/arxiv-2210.03629-react.md",
       "refkey": "arxiv-2210.03629-react",
-      "sha256": "eeb12613cbf229a817a7e9b76d10551ae23c7ce58a1271d2a87164f1caa3099f",
+      "sha256": "767fe1604d46d7199f487f437eeaefdc3d56124d2c7a5aeec5400143689c73ea",
       "title": "ReAct — Yao et al. (2022)"
     },
     {
@@ -37,12 +37,12 @@
       "title": "Toolformer — Schick et al. (2023)"
     },
     {
-      "bytes": 2025,
+      "bytes": 1939,
       "kind": "literature",
       "lang": "en",
       "path": "knowledge_base/literature/arxiv-2303.11366-reflexion.md",
       "refkey": "arxiv-2303.11366-reflexion",
-      "sha256": "9744ac2c8cdbf6d00edad5d73e34b88033021a084deb97cd4fb175e3985d40c0",
+      "sha256": "82cca3efbbac6b6ac439eb09a5b75671b4dc6360fa79bfcd7a8d1b46b2f549b5",
       "title": "Reflexion: Language Agents with Verbal Reinforcement Learning — Shinn et al."
     },
     {
@@ -55,21 +55,21 @@
       "title": "Tree of Thoughts: Deliberate Problem Solving with Large Language Models — Yao et al."
     },
     {
-      "bytes": 2480,
+      "bytes": 2387,
       "kind": "literature",
       "lang": "en",
       "path": "knowledge_base/literature/arxiv-2305.13971-grammar-constrained-decoding.md",
       "refkey": "arxiv-2305.13971-grammar-constrained-decoding",
-      "sha256": "cf285ff1eb9e23ba99720565efbed83c396c909b6389f345fc12ea9395dc7dee",
+      "sha256": "53eeb40382c95f850503b8bb77e7214faab5737bc81ec8d1a23d31bdffc7dae3",
       "title": "Grammar-Constrained Decoding — Geng et al. (2023)"
     },
     {
-      "bytes": 1259,
+      "bytes": 1260,
       "kind": "literature",
       "lang": "en",
       "path": "knowledge_base/literature/arxiv-2305.14325-multiagent-debate.md",
       "refkey": "arxiv-2305.14325-multiagent-debate",
-      "sha256": "0e2ceae366516c2077e827adb4e951b842f8e30d0e459000bc164d1ea9d98814",
+      "sha256": "da7047cdd685a59c52ce0e6c85cc64a1a3faf7d6f076ed71df7bd4df7cfbf73d",
       "title": "Multiagent Debate — Du et al. (2023)"
     },
     {
@@ -91,12 +91,12 @@
       "title": "AgentBench: Evaluating LLMs as Agents — Liu et al."
     },
     {
-      "bytes": 2079,
+      "bytes": 1981,
       "kind": "literature",
       "lang": "en",
       "path": "knowledge_base/literature/arxiv-2308.08155-autogen.md",
       "refkey": "arxiv-2308.08155-autogen",
-      "sha256": "8942e13ca382ab1a36baf81fda7f81297be310975e4133c93b80eb4a5b2f6d28",
+      "sha256": "32962d8e77e1473bcd9f215d46ebabfafd61cd0c6f7762cc96bef4d25d899988",
       "title": "AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation — Wu et al."
     },
     {
@@ -109,12 +109,12 @@
       "title": "SWE-bench: Can Language Models Resolve Real-World GitHub Issues? — Jimenez et al."
     },
     {
-      "bytes": 2264,
+      "bytes": 2153,
       "kind": "literature",
       "lang": "en",
       "path": "knowledge_base/literature/arxiv-2405.15793-swe-agent.md",
       "refkey": "arxiv-2405.15793-swe-agent",
-      "sha256": "66b4b3d1fb37a31eb0809c29f451cd8cbad1546b95008a2ee13a67cf618bc67a",
+      "sha256": "70c282f1c1ca8f0859f04a3d44479938a9015e15fc0e84c954440e57e2be00d9",
       "title": "SWE-agent — Yang et al. (2024)"
     },
     {
@@ -136,183 +136,21 @@
       "title": "Survey on Evaluation of LLM-based Agents — Yehudai et al."
     },
     {
-      "bytes": 3467,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/arxiv-2512.19799-physmaster.md",
-      "refkey": "arxiv-2512.19799-physmaster",
-      "sha256": "356a3c66fc8e5903886d0e27ddf9036c4436864aa3f652a0692921f8450fb1e8",
-      "title": "PhysMaster — Miao et al. (2025)"
-    },
-    {
-      "bytes": 667,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-2623757-spin-flavor-su-6-symmetry-for-baryon-baryon-interactions.md",
-      "refkey": "recid-2623757-spin-flavor-su-6-symmetry-for-baryon-baryon-interactions",
-      "sha256": "acf1fb24774c435340c69bba82776e7011f12aed1fad9b7463032569a9ead44e",
-      "title": "Spin-Flavor SU(6) Symmetry for Baryon-Baryon Interactions — Oka (2023)"
-    },
-    {
-      "bytes": 873,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-2845259-the-role-of-intermediate-states-in-nucleon-nucleon-scattering-in-the-large-n-_-c-and-unitary-limits-and-and-scattering.md",
-      "refkey": "recid-2845259-the-role-of-intermediate-states-in-nucleon-nucleon-scattering-in-the-large-n-_-c-and-unitary-limits-and-and-scattering",
-      "sha256": "cc2be0358d96d7c00c2ec7ca7c0955e6fd56710aae4518a8ed8a39dee7da2143",
-      "title": "The role of intermediate ΔΔ states in nucleon–nucleon scattering in the large-N$_{c}$ and unitary limits, and ΔΔ and ΩΩ scattering — Richardson, Schindler, Springer (2024)"
-    },
-    {
-      "bytes": 3606,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-2968660-agents-of-discovery.md",
-      "refkey": "recid-2968660-agents-of-discovery",
-      "sha256": "a91176cc01578bcc8e1f9153c44fb32bfec9017e15ca3d91366fd781e89b3684",
-      "title": "Agents of Discovery — Diefenbacher et al. (2025)"
-    },
-    {
-      "bytes": 2664,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-3062816-argoloom.md",
-      "refkey": "recid-3062816-argoloom",
-      "sha256": "9f3368e08d81c3098b1a98dbe8ffb7917b52e1826d7c5ca68eaa5dfa61490c11",
-      "title": "ArgoLOOM — Bakshi et al. (2025)"
-    },
-    {
-      "bytes": 3844,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-3090360-llm-powered-hep-agents.md",
-      "refkey": "recid-3090360-llm-powered-hep-agents",
-      "sha256": "0c4308e6c81e2c8bec9ce37a1bc427a8e2d0168882bf554af5b8ab15a8a7076e",
-      "title": "Automating High Energy Physics Data Analysis with LLM-Powered Agents — Gendreau-Distler et al. (2025)"
-    },
-    {
-      "bytes": 3769,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-3093880-heptapod.md",
-      "refkey": "recid-3093880-heptapod",
-      "sha256": "4168f6e52a7a34b6f9333d2c48222162dd2b177e913e3c58eb95ee073a491c7f",
-      "title": "HEPTAPOD — Menzo et al. (2025)"
-    },
-    {
-      "bytes": 3511,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-3109742-h-dibaryon-and-its-cousins-from-su-6-constrained-baryon-baryon-interaction.md",
-      "refkey": "recid-3109742-h-dibaryon-and-its-cousins-from-su-6-constrained-baryon-baryon-interaction",
-      "sha256": "33e527eeaab78ce45cdc2c86d528b42dcbe925137c9dd740fd8919fb6ee3657c",
-      "title": "$H$ dibaryon and its cousins from SU(6)-constrained baryon-baryon interaction — Hu, Guo (2026)"
-    },
-    {
-      "bytes": 4763,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-3112995-madagants.md",
-      "refkey": "recid-3112995-madagants",
-      "sha256": "08b59e5c136ab5e83b4c3faff0f61f1ff41b3405512866bafa4cb82fd6642194",
-      "title": "MadAgents — Plehn, Schiller, Schmal (2026)"
-    },
-    {
-      "bytes": 704,
-      "kind": "literature",
-      "lang": "en",
-      "path": "knowledge_base/literature/recid-399783-the-spin-flavor-dependence-of-nuclear-forces-from-large-n-qcd.md",
-      "refkey": "recid-399783-the-spin-flavor-dependence-of-nuclear-forces-from-large-n-qcd",
-      "sha256": "b1e6124f8ef1420f717ccdff915a5a58cc14d63c133e9b32fef9127dea5be590",
-      "title": "The Spin flavor dependence of nuclear forces from large n QCD — Kaplan, Savage (1995)"
-    },
-    {
-      "bytes": 1370,
+      "bytes": 1371,
       "kind": "methodology_traces",
       "lang": "en",
       "path": "knowledge_base/methodology_traces/2026-02-01_autopilot_scope.md",
       "refkey": null,
-      "sha256": "ae65aefb922cf7c4106f8477549c27e401a034caef2c2c0e0526b0d7f76fb2a2",
+      "sha256": "dfc174fce323be4764985181566c1559d220067a34e4cd3fb837e43bb886d30f",
       "title": "2026-02-01 — Autopilot scope + build strategy"
     },
     {
-      "bytes": 2938,
-      "kind": "methodology_traces",
-      "lang": "en",
-      "path": "knowledge_base/methodology_traces/2026-02-01_madagants_agent_literature_survey.md",
-      "refkey": null,
-      "sha256": "02c583669be817f8c9f720b4adab1edb42553e3c3bcea16c8c7ad8f615c1902d",
-      "title": "Methodology trace — MadAgents references → agent literature shortlist (2026-02-01)"
-    },
-    {
-      "bytes": 2614,
-      "kind": "methodology_traces",
-      "lang": "en",
-      "path": "knowledge_base/methodology_traces/2026-02-01_w2_toy_reproduce_design.md",
-      "refkey": null,
-      "sha256": "09801b94853a7ed16719ed99d9564b68da253eec1d43abfac52420e7684cfa6a",
-      "title": "2026-02-01 — W2 toy reproduce design"
-    },
-    {
-      "bytes": 5554,
-      "kind": "methodology_traces",
-      "lang": "en",
-      "path": "knowledge_base/methodology_traces/2026-02-02_t10_baseline_recid-3109742.md",
-      "refkey": null,
-      "sha256": "d690fa1c41bb0cd2e9fe917b88854a770397344614597d311a75a73658ab4431",
-      "title": "Methodology trace — T10 baseline paper selection (recid 3109742) (2026-02-02)"
-    },
-    {
-      "bytes": 3946,
-      "kind": "methodology_traces",
-      "lang": "en",
-      "path": "knowledge_base/methodology_traces/2026-02-02_t16_lec_solve_eq_bsol.md",
-      "refkey": null,
-      "sha256": "2130589e8b639fd8c48ab17789129758f4b18c13ba597edc2e3fd00b9a2c2f4c",
-      "title": "2026-02-02 — T16: strategy-2 LEC solve (Eq.(bsol) → Table~4ch) design notes"
-    },
-    {
-      "bytes": 3178,
-      "kind": "methodology_traces",
-      "lang": "en",
-      "path": "knowledge_base/methodology_traces/2026-02-02_t18_scattering_lengths_table4ch.md",
-      "refkey": null,
-      "sha256": "ed6269a5e802e78e48be762b76b21532bc74165f908a437df6e7be2350e7a46f",
-      "title": "2026-02-02 — T18: Table~4ch scattering lengths (strategy-2) implementation notes"
-    },
-    {
-      "bytes": 3119,
-      "kind": "methodology_traces",
-      "lang": "en",
-      "path": "knowledge_base/methodology_traces/2026-02-02_t2_literature_coverage_matrix_update.md",
-      "refkey": null,
-      "sha256": "c5c0e486235b7acfae3958035b1d3d061a08e3056ee55a12f7e92f66a5148e5c",
-      "title": "Methodology trace — T2 literature coverage matrix update (2026-02-02)"
-    },
-    {
-      "bytes": 923,
-      "kind": "methodology_traces",
-      "lang": "en",
-      "path": "knowledge_base/methodology_traces/2026-02-03_t23_evolution_proposal_M17-t23-evolution-r1.md",
-      "refkey": null,
-      "sha256": "9b6139db7f9c244c61fdd200702fe7e894e0a59ac58974fa564fc384e2b8f04d",
-      "title": "Methodology trace — Evolution proposal (v0)"
-    },
-    {
-      "bytes": 3628,
-      "kind": "methodology_traces",
-      "lang": "en",
-      "path": "knowledge_base/methodology_traces/2026-02-03_t28_agent_literature_deep_read.md",
-      "refkey": null,
-      "sha256": "bc17a9184c00847a34825b5a304cc9f45fcc827f6f37eefe97aa880ee50b8be9",
-      "title": "Methodology trace — T28 agent literature deep-read (TeX-level) (2026-02-03)"
-    },
-    {
-      "bytes": 9382,
+      "bytes": 5746,
       "kind": "methodology_traces",
       "lang": "en",
       "path": "knowledge_base/methodology_traces/literature_queries.md",
       "refkey": null,
-      "sha256": "7d220ecbb3c0782f8789053d8ddf87899ffb3bb5fcce12766dcb853bb7fe1aff",
+      "sha256": "47e0352211b17f1e6834b9ff94017f1eeb20e280c97a856d7e153586655ac775",
       "title": "literature_queries.md"
     },
     {
@@ -342,16 +180,16 @@
   "schema_version": 1,
   "stats": {
     "by_kind": {
-      "literature": 25,
-      "methodology_traces": 10,
+      "literature": 15,
+      "methodology_traces": 2,
       "priors": 2
     },
     "by_lang": {
-      "en": 36,
+      "en": 18,
       "zh": 1
     },
-    "refkeys_missing": 10,
-    "refkeys_total": 27,
-    "total_entries": 37
+    "refkeys_missing": 2,
+    "refkeys_total": 17,
+    "total_entries": 19
   }
 }

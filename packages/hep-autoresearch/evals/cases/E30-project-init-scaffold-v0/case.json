@@ -23,8 +23,8 @@
       "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/knowledge_base/_index/kb_index.json",
       "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/knowledge_base/_index/kb_profiles/minimal.json",
       "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/knowledge_base/_index/kb_profiles/curated.json",
-      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-w2/approvals/A3-0001/packet.md",
-      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-w2/kb_profile/kb_profile.json"
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-reproduce/approvals/A3-0001/packet.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-reproduce/kb_profile/kb_profile.json"
     ],
     "json_numeric_checks": [
       {

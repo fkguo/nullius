@@ -6,13 +6,15 @@ Goal: upgrade an “agent = a pile of scripts” into an interactive automation 
 - force-stop at high-risk points and wait for approval (`approve`)
 - every step is auditable and rollbackable via artifacts
 
+All commands below assume you are inside a real scaffolded project root (or you pass `--project-root <dir>`). The package repo `packages/hep-autoresearch/` is the development home of the tool, not the project root you operate on day to day.
+
 Chinese version (legacy / detailed notes): `docs/ORCHESTRATOR_INTERACTION.zh.md`.
 
 ## 1) CLI commands (CLI-first)
 
 Suggested command set (names may evolve):
-- `init`: initialize the current directory as a project root (scaffold missing docs/KB/specs; create `.autoresearch/` state + ledger)
-- `run`: start a workflow (W1/W2/W3/W4 + adapter workflows; optional `--sandbox` for high-risk shell backends)
+- `init`: initialize your chosen project directory as a project root (scaffold missing docs/KB/specs; create `.autoresearch/` state + ledger)
+- `run`: start a workflow (for example `ingest`, `reproduce`, `draft`, `revision`, `derivation_check`, plus adapter workflows; optional `--sandbox` for high-risk shell backends)
 - `branch`: record branching decisions in the Plan SSOT (list/add/switch; safe backtracking)
 - `status`: show current run state (steps, artifacts, pending approvals, budget usage)
 - `pause`: pause the run (write stop files or update state)

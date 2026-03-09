@@ -4,7 +4,7 @@ Chinese version: [docs/EXAMPLES.zh.md](EXAMPLES.zh.md).
 
 This repo intentionally keeps the platform **domain-agnostic**. Any physics/domain logic should live in a **project plugin** (a self-contained directory), usually under [examples/](../examples/).
 
-W_compute runs a project plugin by executing its declared `run_card v2` phases.
+computation runs a project plugin by executing its declared `run_card v2` phases.
 
 ## Recommended layout
 
@@ -48,7 +48,7 @@ Use `run_card v2` to declare:
 
 Start from:
 - schema: [specs/run_card_v2.schema.json](../specs/run_card_v2.schema.json)
-- workflow overview: [workflows/W_compute.md](../workflows/W_compute.md)
+- workflow overview: [workflows/computation.md](../workflows/computation.md)
 
 Validate before running:
 
@@ -57,18 +57,18 @@ python3 scripts/orchestrator.py run-card validate \
   --run-card examples/<project_id>/run_cards/<card>.json
 ```
 
-## Running a plugin with W_compute
+## Running a plugin with computation
 
 ```bash
 python3 scripts/orchestrator.py run \
   --run-id M0-my-plugin-r1 \
-  --workflow-id W_compute \
+  --workflow-id computation \
   --run-card examples/<project_id>/run_cards/<card>.json \
   --trust-project
 ```
 
 Artifacts land under:
-- `artifacts/runs/<RUN_ID>/w_compute/` (see [docs/ARTIFACT_CONTRACT.md](ARTIFACT_CONTRACT.md))
+- `artifacts/runs/<RUN_ID>/computation/` (see [docs/ARTIFACT_CONTRACT.md](ARTIFACT_CONTRACT.md))
 
 ## Best practices
 

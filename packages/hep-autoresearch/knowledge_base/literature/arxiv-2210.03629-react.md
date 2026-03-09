@@ -4,7 +4,6 @@ RefKey: arxiv-2210.03629-react
 arXiv: 2210.03629 [cs.CL]
 Links:
 - arXiv: https://arxiv.org/abs/2210.03629
-- TeX snapshot (local): [abstract.tex](../../references/arxiv/2210.03629/source/iclr2023/text/abstract.tex)
 
 ## 为什么与本项目相关
 

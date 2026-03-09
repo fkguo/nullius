@@ -3,16 +3,24 @@
 Chinese version: `docs/WORKFLOWS.zh.md`.
 
 English workflow specs live under `workflows/`:
+
+## Naming boundary
+
+- Current user-facing workflow names are semantic: `ingest`, `reproduce`, `computation`, `draft`, `paper_reviser`, `revision`, `derivation_check`.
+- Do not introduce new `W1`/`W2`/`W3`/`W4` labels in active docs, scripts, tests, eval suffixes, or runtime payloads.
+- Historical compatibility surfaces may still retain legacy `W*` labels where they identify archived schema enums or old compatibility fixtures; treat those as historical records, not naming guidance.
+- Eval case numeric prefixes such as `E4`, `E6`, `E14` remain stable IDs; only the semantic suffixes should be normalized.
+
 - `workflows/README.md`
 - `workflows/C1_literature_gap.md`
 - `workflows/C2_method_design.md`
-- `workflows/W1_ingest.md`
-- `workflows/W2_reproduce.md`
-- `workflows/W_compute.md`
-- `workflows/W3_draft.md`
-- `workflows/W3_paper_reviser.md`
-- `workflows/W3_revision.md`
-- `workflows/W4_derivation_check.md`
+- `workflows/ingest.md`
+- `workflows/reproduce.md`
+- `workflows/computation.md`
+- `workflows/draft.md`
+- `workflows/paper_reviser.md`
+- `workflows/revision.md`
+- `workflows/derivation_check.md`
 
 ## Orchestrator operations (CLI)
 
@@ -37,9 +45,9 @@ Init scaffolds a starter template:
 - `.mcp.json.example` (valid JSON, tracked)
 - `.mcp.json` remains local/ignored by git.
 
-### `hepar status` (W3 display-layer reconcile)
+### `hepar status` (revision display-layer reconcile)
 
-- For `W3_paper_reviser`, status reads `artifacts/runs/<RUN_ID>/paper_reviser/manifest.json#steps` to show substeps:
+- For `paper_reviser`, status reads `artifacts/runs/<RUN_ID>/paper_reviser/manifest.json#steps` to show substeps:
   - `A/B/C/D/E/APPLY`
 - If manifest indicates completion but `.autoresearch/state.json` is stale, status shows reconciled view:
   - text mode: `run_status: completed [reconciled]`

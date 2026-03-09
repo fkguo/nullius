@@ -95,7 +95,7 @@ M0/M1 阶段的最低可行做法（可测试、可落地）：
 
 ## 2) 数据与状态模型（概念）
 
-- **Project**：一个长期研究/工具开发工程（当前目录下就是 project root）。
+- **Project**：一个长期研究/工具开发工程（在真实、已 scaffold 的研究项目目录中，这个目录就是 project root；`packages/hep-autoresearch/` 本身不是）。
 - **Run**：一次可复现执行（带 tag/run_id；所有产物归档）。
 - **Task**：可执行的最小单位（有输入/输出/验收标准）。
 - **Evidence**：支撑某个 claim 的引用与产物指针（文件路径/字段/截图/链接）。
@@ -113,7 +113,7 @@ M0/M1 阶段的最低可行做法（可测试、可落地）：
 
 `hep-research-mcp` 已经包含一些“更高层”的编排能力（例如写作闭环的 orchestrator 工具）。因此本项目的 Orchestrator 应定位为 **Meta-Orchestrator**：
 
-- 面向用户：提供统一入口（W1/W2/W3/W4）+ 审批/暂停/恢复/导出体验
+- 面向用户：提供统一入口（如 `ingest` / `reproduce` / `draft` / `revision` / `derivation_check`）+ 审批/暂停/恢复/导出体验
 - 面向工具：在合适粒度上**委托**给 MCP（例如把写作闭环交给 `hep_run_writing_refinement_orchestrator_v1` 这类工具），而不是重复实现同一状态机
 - 面向正确性：在委托前后做门禁（token gate / compile gate / evidence gate / reviewer convergence），并把 diff/产物/账本落盘
 

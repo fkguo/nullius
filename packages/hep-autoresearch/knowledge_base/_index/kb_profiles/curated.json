@@ -4,11 +4,10 @@
   "paths": [
     "knowledge_base/priors/research_automation_principles.md",
     "knowledge_base/methodology_traces/2026-02-01_autopilot_scope.md",
-    "knowledge_base/literature/recid-3112995-madagants.md",
-    "knowledge_base/literature/arxiv-2512.19799-physmaster.md",
-    "knowledge_base/literature/recid-2968660-agents-of-discovery.md",
-    "knowledge_base/literature/recid-3062816-argoloom.md"
+    "knowledge_base/literature/arxiv-2210.03629-react.md",
+    "knowledge_base/literature/arxiv-2303.11366-reflexion.md",
+    "knowledge_base/literature/arxiv-2310.06770-swe-bench.md",
+    "knowledge_base/literature/arxiv-2405.15793-swe-agent.md"
   ],
-  "notes": "curated profile: small, high-signal seed set (one per layer + key prior work)."
+  "notes": "curated profile: generic autoresearch seed set (priors + scope trace + broadly relevant agent/reproducibility literature)."
 }
-

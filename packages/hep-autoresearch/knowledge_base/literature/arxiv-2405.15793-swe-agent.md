@@ -4,7 +4,6 @@ RefKey: arxiv-2405.15793-swe-agent
 arXiv: 2405.15793 [cs.SE]
 Links:
 - arXiv: https://arxiv.org/abs/2405.15793
-- TeX snapshot (local): [00_abstract.tex](../../references/arxiv/2405.15793/source/sections/00_abstract.tex)
 
 ## 为什么与本项目相关
 

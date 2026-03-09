@@ -6,4 +6,4 @@ This project is early-stage and evolves quickly. This file is a lightweight, hum
 
 - Docs: beginner tutorial now recommends a dedicated venv (and optional `uv`) for reproducible installs.
 - Toolkit: `ShellAdapter` output copy-back hardening (stable POSIX relpaths in symlink refusal paths).
-- Proposal: evolution plan updated to v3.6 (path semantics corrections + W_compute workspace aligned with artifact contract + coupling stats refreshed).
+- Proposal: evolution plan updated to v3.6 (path semantics corrections + computation workspace aligned with artifact contract + coupling stats refreshed).

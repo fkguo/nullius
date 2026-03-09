@@ -9,7 +9,7 @@
 
 ## 1) 术语
 
-- **Meta-Orchestrator（本项目）**：面向用户的统一入口（W1/W2/W3/W4）+ 审批/暂停/恢复/导出/账本。
+- **Meta-Orchestrator（本项目）**：面向用户的统一入口（如 `ingest` / `reproduce` / `draft` / `revision` / `derivation_check`）+ 审批/暂停/恢复/导出/账本。
 - **MCP orchestrator tool**：一个 MCP 工具本身会推进一个内部循环/状态机（不只是单步 leaf action）。
 
 ## 2) “orchestrator-semantic tools” 识别（v0）
@@ -47,7 +47,7 @@
 
 ### 3.2 委托时的状态切换
 
-当进入一个“可委托阶段”（例如 W3 写作闭环）：
+当进入一个“可委托阶段”（例如 draft/revision 写作闭环）：
 
 1) Meta-Orchestrator 写入 state：
    - `run_status=running`

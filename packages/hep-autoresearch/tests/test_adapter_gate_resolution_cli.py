@@ -51,9 +51,9 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
         return {
             "schema_version": 1,
             "run_id": "IGNORED",
-            "workflow_id": "ADAPTER_shell_smoke",
+            "workflow_id": "shell_adapter_smoke",
             "adapter_id": "shell",
-            "artifact_step": "adapter_shell_smoke",
+            "artifact_step": "shell_adapter_smoke",
             "required_gates": list(gates),
             "gate_resolution_mode": mode,
             "budgets": {"timeout_seconds": 30},
@@ -98,7 +98,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
                     "--run-id",
                     "R-UNION",
                     "--workflow-id",
-                    "ADAPTER_shell_smoke",
+                    "shell_adapter_smoke",
                     "--run-card",
                     str(card_path),
                 ]
@@ -111,7 +111,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
             self.assertIn("Gate resolution trace", packet)
             self.assertIn("gate=A3", packet)
 
-            manifest_path = repo_root / "artifacts" / "runs" / "R-UNION" / "adapter_shell_smoke" / "manifest.json"
+            manifest_path = repo_root / "artifacts" / "runs" / "R-UNION" / "shell_adapter_smoke" / "manifest.json"
             self.assertTrue(manifest_path.exists())
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(manifest.get("gate_resolution_mode"), "union")
@@ -135,7 +135,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
                     "--run-id",
                     "R-POLICY",
                     "--workflow-id",
-                    "ADAPTER_shell_smoke",
+                    "shell_adapter_smoke",
                     "--run-card",
                     str(card_path),
                 ]
@@ -165,7 +165,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
                     "--run-id",
                     "R-RC",
                     "--workflow-id",
-                    "ADAPTER_shell_smoke",
+                    "shell_adapter_smoke",
                     "--run-card",
                     str(card_path),
                 ]
@@ -173,7 +173,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
             self.assertEqual(rc, 0, msg=out + err)
             self.assertIn("gate_resolution_policy_suppressed", err)
 
-            manifest_path = repo_root / "artifacts" / "runs" / "R-RC" / "adapter_shell_smoke" / "manifest.json"
+            manifest_path = repo_root / "artifacts" / "runs" / "R-RC" / "shell_adapter_smoke" / "manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(manifest.get("gate_resolution_mode"), "run_card_only")
             trace = manifest.get("gate_resolution_trace") or []
@@ -196,7 +196,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
                     "--run-id",
                     "R-RC-STRICT",
                     "--workflow-id",
-                    "ADAPTER_shell_smoke",
+                    "shell_adapter_smoke",
                     "--run-card",
                     str(card_path),
                     "--strict-gate-resolution",

@@ -87,7 +87,7 @@ Trigger A5 (or force `UNVERIFIED`) for outputs that contain:
 
 ### 2.5 Adapter run-card gate resolution (union/policy_only/run_card_only)
 
-For adapter workflows (for example `ADAPTER_shell_smoke`), gate resolution is controlled by run-card field:
+For adapter workflows (for example `shell_adapter_smoke`), gate resolution is controlled by run-card field:
 
 - `gate_resolution_mode: union` (default; safe-compatible)
   - effective gates = `run_card.required_gates ∪ policy floor ∪ CLI --gate`

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "run_id": "minimal-r1",
-  "workflow_id": "W_compute",
+  "workflow_id": "computation",
   "title": "Minimal valid run card",
   "phases": [
     {

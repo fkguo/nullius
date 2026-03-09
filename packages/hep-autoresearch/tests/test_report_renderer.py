@@ -18,7 +18,7 @@ from hep_autoresearch.toolkit.report_renderer import (
 def sample_result() -> RunResult:
     return RunResult(
         run_id="run-abc",
-        workflow_id="W1_ingest",
+        workflow_id="ingest",
         headline_numbers={"papers_found": 42, "accuracy": 0.95},
         artifacts=[
             {"path": "data.csv", "uri": "rep://run-abc/data.csv", "sha256": "a" * 64},
@@ -30,7 +30,7 @@ def sample_result() -> RunResult:
 def test_render_md_contains_run_info(sample_result: RunResult) -> None:
     text = render_md([sample_result])
     assert "run-abc" in text
-    assert "W1_ingest" in text
+    assert "ingest" in text
     assert "42 papers" in text
 
 
@@ -62,7 +62,7 @@ def test_collect_run_result_from_disk(tmp_path: Path) -> None:
 
     analysis = {
         "summary": "Test summary",
-        "workflow_id": "W_test",
+        "workflow_id": "ingest",
         "results": {"metric_a": 1.5},
     }
     (run_dir / "analysis.json").write_text(
@@ -74,7 +74,7 @@ def test_collect_run_result_from_disk(tmp_path: Path) -> None:
 
     result = collect_run_result(tmp_path, run_id)
     assert result.run_id == run_id
-    assert result.workflow_id == "W_test"
+    assert result.workflow_id == "ingest"
     assert result.summary == "Test summary"
     assert result.headline_numbers["metric_a"] == 1.5
     assert len(result.artifacts) == 2
@@ -105,16 +105,16 @@ def test_collect_run_result_prefers_run_level_analysis(tmp_path: Path) -> None:
     nested = run_dir / "a_workflow"
     nested.mkdir()
     (nested / "analysis.json").write_text(
-        json.dumps({"summary": "WRONG nested", "workflow_id": "W_nested", "results": {}}),
+        json.dumps({"summary": "WRONG nested", "workflow_id": "revision", "results": {}}),
         encoding="utf-8",
     )
 
     # Run-level analysis.json — this should win
     (run_dir / "analysis.json").write_text(
-        json.dumps({"summary": "CORRECT top-level", "workflow_id": "W_top", "results": {"x": 1}}),
+        json.dumps({"summary": "CORRECT top-level", "workflow_id": "reproduce", "results": {"x": 1}}),
         encoding="utf-8",
     )
 
     result = collect_run_result(tmp_path, run_id)
     assert result.summary == "CORRECT top-level"
-    assert result.workflow_id == "W_top"
+    assert result.workflow_id == "reproduce"

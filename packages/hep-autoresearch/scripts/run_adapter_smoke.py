@@ -48,8 +48,8 @@ def main() -> int:
     parser.add_argument("--tag", required=True, help="Run tag / run-id (artifacts/runs/<tag>/...).")
     parser.add_argument(
         "--workflow-id",
-        default="ADAPTER_shell_smoke",
-        help="Adapter workflow id to run (default: ADAPTER_shell_smoke).",
+        default="shell_adapter_smoke",
+        help="Adapter workflow id to run (default: shell_adapter_smoke).",
     )
     parser.add_argument(
         "--timeout-seconds",

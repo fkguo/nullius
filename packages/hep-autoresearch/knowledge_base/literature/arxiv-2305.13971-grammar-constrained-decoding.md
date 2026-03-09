@@ -4,7 +4,6 @@ RefKey: arxiv-2305.13971-grammar-constrained-decoding
 arXiv: 2305.13971 [cs.CL]
 Links:
 - arXiv: https://arxiv.org/abs/2305.13971
-- TeX snapshot (local): [acl2023.tex](../../references/arxiv_src/2305.13971/src/acl2023.tex)
 
 ## 为什么与本项目相关
 

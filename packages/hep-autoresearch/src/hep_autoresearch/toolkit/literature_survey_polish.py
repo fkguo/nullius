@@ -88,7 +88,7 @@ def literature_survey_polish_one(inps: LiteratureSurveyPolishInputs, repo_root: 
     run_card_rel, run_card_sha = ensure_run_card(
         repo_root=repo_root,
         run_id=tag,
-        workflow_id="W3_literature_survey_polish",
+        workflow_id="literature_survey_polish",
         params={"tag": tag, "compile_pdf": bool(inps.compile_pdf)},
         backend={"kind": "research-writer", "argv": ["bash", os.fspath(rw_script)], "cwd": ".", "env": {}},
         notes="auto-generated run-card (v0)",

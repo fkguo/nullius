@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,14 +21,14 @@ from .run_quality_metrics import build_run_quality_metrics
 @dataclass(frozen=True)
 class OrchestratorRegressionInputs:
     tag: str
-    scenarios: tuple[str, ...] = ("w2", "wcompute", "w3")  # project_init,plan,branching,sandbox,w2,wcompute,w3,survey_polish,bypass
+    scenarios: tuple[str, ...] = ("reproduce", "computation", "revision")  # project_init,plan,branching,sandbox,reproduce,computation,revision,survey_polish,bypass
     # Per-run isolated runtime dir for .autoresearch state/ledger (relative to repo_root by default).
     runtime_dir: str | None = None
-    w2_ns: tuple[int, ...] = (0, 1, 2)
-    w2_case: str = "toy"
-    wcompute_run_card: str = "examples/schrodinger_ho/run_cards/ho_groundstate.json"
-    w3_paper_root: str = "paper"
-    w3_tex_main: str = "main.tex"
+    reproduce_ns: tuple[int, ...] = (0, 1, 2)
+    reproduce_case: str = "toy"
+    computation_run_card: str = "examples/schrodinger_ho/run_cards/ho_groundstate.json"
+    revision_paper_root: str = "evals/fixtures/revision_project/paper"
+    revision_tex_main: str = "main.tex"
     timeout_seconds: int = 600
 
 
@@ -111,6 +112,33 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return os.fspath(p)
 
+    def reset_generated_dir(path: Path, *, label: str) -> None:
+        target = path.resolve()
+        allowed_roots = [
+            (repo_root / "artifacts" / "runs").resolve(),
+            out_dir.resolve(),
+        ]
+        within_allowed = False
+        for root in allowed_roots:
+            try:
+                target.relative_to(root)
+                within_allowed = True
+                break
+            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 containment check
+                continue
+        if not within_allowed:
+            errors.append(f"refusing to reset {label}: outside generated roots ({target})")
+            return
+        if not target.exists():
+            return
+        try:
+            shutil.rmtree(target)
+        except Exception as exc:
+            errors.append(f"failed to reset {label}: {exc}")
+
+    def reset_generated_run(run_id: str) -> None:
+        reset_generated_dir(repo_root / "artifacts" / "runs" / str(run_id), label=f"run artifacts for {run_id}")
+
     errors: list[str] = []
     env = dict(os.environ)
     env["HEP_AUTORESEARCH_DIR"] = runtime_rel
@@ -126,11 +154,11 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "tag": inps.tag,
             "scenarios": list(inps.scenarios),
             "runtime_dir": runtime_rel,
-            "w2_case": inps.w2_case,
-            "w2_ns": list(inps.w2_ns),
-            "wcompute_run_card": inps.wcompute_run_card,
-            "w3_paper_root": inps.w3_paper_root,
-            "w3_tex_main": inps.w3_tex_main,
+            "reproduce_case": inps.reproduce_case,
+            "reproduce_ns": list(inps.reproduce_ns),
+            "computation_run_card": inps.computation_run_card,
+            "revision_paper_root": inps.revision_paper_root,
+            "revision_tex_main": inps.revision_tex_main,
             "timeout_seconds": int(inps.timeout_seconds),
         },
         "versions": versions,
@@ -162,11 +190,11 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "tag": inps.tag,
             "scenarios": list(inps.scenarios),
             "runtime_dir": runtime_rel,
-            "w2_case": inps.w2_case,
-            "w2_ns": list(inps.w2_ns),
-            "wcompute_run_card": inps.wcompute_run_card,
-            "w3_paper_root": inps.w3_paper_root,
-            "w3_tex_main": inps.w3_tex_main,
+            "reproduce_case": inps.reproduce_case,
+            "reproduce_ns": list(inps.reproduce_ns),
+            "computation_run_card": inps.computation_run_card,
+            "revision_paper_root": inps.revision_paper_root,
+            "revision_tex_main": inps.revision_tex_main,
         },
         "results": {},
     }
@@ -175,7 +203,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     manifest["outputs"].append(rel(ledger_path))
 
     # init (isolated runtime dir)
-    init_cmd = ["python3", "scripts/orchestrator.py", "init", "--force"]
+    init_cmd = ["python3", "scripts/orchestrator.py", "init", "--force", "--runtime-only"]
     rc_init, out_init = _run(init_cmd, cwd=repo_root, env=env, timeout_seconds=min(120, int(inps.timeout_seconds)))
     (logs_dir / "init.txt").write_text(out_init, encoding="utf-8")
     manifest["outputs"].append(os.fspath((logs_dir / "init.txt").relative_to(repo_root)))
@@ -191,8 +219,9 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         # Intentionally do NOT add a matching approval_history record (simulates tampering).
         write_json(state_path, st)
 
-    def scenario_w2() -> dict[str, Any]:
-        run_id = f"{inps.tag}-w2"
+    def scenario_reproduce() -> dict[str, Any]:
+        run_id = f"{inps.tag}-reproduce"
+        reset_generated_run(run_id)
         cmd_run = [
             "python3",
             "scripts/orchestrator.py",
@@ -200,15 +229,15 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "W2_reproduce",
+            "reproduce",
             "--case",
-            str(inps.w2_case),
+            str(inps.reproduce_case),
             "--ns",
-            ",".join(str(x) for x in inps.w2_ns),
+            ",".join(str(x) for x in inps.reproduce_ns),
         ]
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "w2_gate.txt").write_text(out_gate, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "w2_gate.txt").relative_to(repo_root)))
+        (logs_dir / "reproduce_gate.txt").write_text(out_gate, encoding="utf-8")
+        manifest["outputs"].append(os.fspath((logs_dir / "reproduce_gate.txt").relative_to(repo_root)))
 
         pending = _read_pending_approval(state_path)
         approval_id = (pending or {}).get("approval_id")
@@ -224,12 +253,12 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / "w2_approve.txt").write_text(out_approve, encoding="utf-8")
-            manifest["outputs"].append(os.fspath((logs_dir / "w2_approve.txt").relative_to(repo_root)))
+            (logs_dir / "reproduce_approve.txt").write_text(out_approve, encoding="utf-8")
+            manifest["outputs"].append(os.fspath((logs_dir / "reproduce_approve.txt").relative_to(repo_root)))
 
         rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "w2_final.txt").write_text(out_final, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "w2_final.txt").relative_to(repo_root)))
+        (logs_dir / "reproduce_final.txt").write_text(out_final, encoding="utf-8")
+        manifest["outputs"].append(os.fspath((logs_dir / "reproduce_final.txt").relative_to(repo_root)))
 
         return {
             "run_id": run_id,
@@ -250,6 +279,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     def scenario_project_init() -> dict[str, Any]:
         """Init/scaffold in a fresh project dir and verify root discovery works from a subdir."""
         project_root = out_dir / "project_init_project"
+        reset_generated_dir(project_root, label="project_init_project")
         project_root.mkdir(parents=True, exist_ok=True)
 
         env_proj = dict(env)
@@ -317,7 +347,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         nested_state_exists = nested_state.exists()
 
         # Ensure the run path can build context pack + kb_profile and reach the A3 gate.
-        run_id = f"{inps.tag}-proj-w2"
+        run_id = f"{inps.tag}-proj-reproduce"
         cmd_run = [
             "python3",
             "-c",
@@ -326,15 +356,15 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "W2_reproduce",
+            "reproduce",
             "--case",
-            str(inps.w2_case),
+            str(inps.reproduce_case),
             "--ns",
-            ",".join(str(x) for x in inps.w2_ns),
+            ",".join(str(x) for x in inps.reproduce_ns),
         ]
         rc_gate, out_gate = _run(cmd_run, cwd=project_root, env=env_proj, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "project_init_w2_gate.txt").write_text(out_gate, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "project_init_w2_gate.txt").relative_to(repo_root)))
+        (logs_dir / "project_init_reproduce_gate.txt").write_text(out_gate, encoding="utf-8")
+        manifest["outputs"].append(os.fspath((logs_dir / "project_init_reproduce_gate.txt").relative_to(repo_root)))
 
         pending_category: str | None = None
         approval_id: str | None = None
@@ -352,12 +382,16 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                     packet_abs = project_root / approval_packet
 
         kb_profile_json = project_root / "artifacts" / "runs" / run_id / "kb_profile" / "kb_profile.json"
+        context_md = project_root / "artifacts" / "runs" / run_id / "context" / "context.md"
+        context_json = project_root / "artifacts" / "runs" / run_id / "context" / "context.json"
         plan_md = project_root / ".autoresearch" / "plan.md"
         expected_packet_abs = project_root / "artifacts" / "runs" / run_id / "approvals" / "A3-0001" / "packet.md"
         expected_outputs.update(
             {
                 "plan_md": rel(plan_md),
                 "kb_profile_json": rel(kb_profile_json),
+                "context_md": rel(context_md),
+                "context_json": rel(context_json),
                 "approval_packet": rel(expected_packet_abs),
             }
         )
@@ -366,6 +400,10 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             manifest["outputs"].append(rel(plan_md))
         if kb_profile_json.exists():
             manifest["outputs"].append(rel(kb_profile_json))
+        if context_md.exists():
+            manifest["outputs"].append(rel(context_md))
+        if context_json.exists():
+            manifest["outputs"].append(rel(context_json))
         if packet_abs and packet_abs.exists():
             manifest["outputs"].append(rel(packet_abs))
 
@@ -388,6 +426,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     def scenario_plan() -> dict[str, Any]:
         """Plan protocol: create plan, pause/resume, ensure approval packets reference plan steps."""
         run_id = f"{inps.tag}-plan"
+        reset_generated_run(run_id)
 
         cmd_start = [
             "python3",
@@ -396,7 +435,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "W2_reproduce",
+            "reproduce",
             "--force",
         ]
         rc_start, out_start = _run(cmd_start, cwd=repo_root, env=env, timeout_seconds=60)
@@ -442,11 +481,11 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "W2_reproduce",
+            "reproduce",
             "--case",
-            str(inps.w2_case),
+            str(inps.reproduce_case),
             "--ns",
-            ",".join(str(x) for x in inps.w2_ns),
+            ",".join(str(x) for x in inps.reproduce_ns),
         ]
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
         (logs_dir / "plan_gate.txt").write_text(out_gate, encoding="utf-8")
@@ -546,6 +585,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         import json as _json
 
         run_id = f"{inps.tag}-branching"
+        reset_generated_run(run_id)
 
         cmd_start = [
             "python3",
@@ -554,7 +594,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "W2_reproduce",
+            "reproduce",
             "--force",
         ]
         rc_start, out_start = _run(cmd_start, cwd=repo_root, env=env, timeout_seconds=60)
@@ -576,7 +616,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                 "branch",
                 "add",
                 "--decision-id",
-                "W2.S1",
+                "reproduce.main",
                 "--description",
                 f"candidate {i}",
             ]
@@ -593,7 +633,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "branch",
             "add",
             "--decision-id",
-            "W2.S1",
+            "reproduce.main",
             "--description",
             "candidate 6",
         ]
@@ -608,7 +648,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "branch",
             "add",
             "--decision-id",
-            "W2.S1",
+            "reproduce.main",
             "--description",
             "candidate 6",
             "--cap-override",
@@ -625,7 +665,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "branch",
             "switch",
             "--decision-id",
-            "W2.S1",
+            "reproduce.main",
             "--branch-id",
             "b3",
             "--previous-status",
@@ -645,7 +685,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         decision: dict[str, Any] | None = None
         if isinstance(branching, dict) and isinstance(branching.get("decisions"), list):
             for d in branching["decisions"]:
-                if isinstance(d, dict) and str(d.get("decision_id")) == "W2.S1":
+                if isinstance(d, dict) and str(d.get("decision_id")) == "reproduce.main":
                     decision = d
                     break
 
@@ -688,7 +728,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             and int(rc_over) != 0
             and int(rc_add6) == 0
             and int(rc_switch) == 0
-            and str(active_branch_id or "") == "W2.S1:b3"
+            and str(active_branch_id or "") == "reproduce.main:b3"
             and str(decision_active_branch_id or "") == "b3"
             and int(branches_total or 0) == 6
             and bool(ledger_has_add)
@@ -745,7 +785,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         run_card = {
             "schema_version": 1,
             "run_id": run_id,
-            "workflow_id": "ADAPTER_shell_smoke",
+            "workflow_id": "shell_adapter_smoke",
             "adapter_id": "shell",
             "artifact_step": step_dir,
             "required_gates": [],
@@ -765,7 +805,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "ADAPTER_shell_smoke",
+            "shell_adapter_smoke",
             "--force",
             "--run-card",
             os.fspath(run_card_path.relative_to(repo_root)),
@@ -849,8 +889,9 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             },
         }
 
-    def scenario_w3() -> dict[str, Any]:
-        run_id = f"{inps.tag}-w3"
+    def scenario_revision() -> dict[str, Any]:
+        run_id = f"{inps.tag}-revision"
+        reset_generated_run(run_id)
         cmd_run = [
             "python3",
             "scripts/orchestrator.py",
@@ -858,15 +899,15 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "W3_revision",
+            "revision",
             "--paper-root",
-            str(inps.w3_paper_root),
+            str(inps.revision_paper_root),
             "--tex-main",
-            str(inps.w3_tex_main),
+            str(inps.revision_tex_main),
         ]
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "w3_gate.txt").write_text(out_gate, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "w3_gate.txt").relative_to(repo_root)))
+        (logs_dir / "revision_gate.txt").write_text(out_gate, encoding="utf-8")
+        manifest["outputs"].append(os.fspath((logs_dir / "revision_gate.txt").relative_to(repo_root)))
 
         pending = _read_pending_approval(state_path)
         approval_id = (pending or {}).get("approval_id")
@@ -882,12 +923,12 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / "w3_approve.txt").write_text(out_approve, encoding="utf-8")
-            manifest["outputs"].append(os.fspath((logs_dir / "w3_approve.txt").relative_to(repo_root)))
+            (logs_dir / "revision_approve.txt").write_text(out_approve, encoding="utf-8")
+            manifest["outputs"].append(os.fspath((logs_dir / "revision_approve.txt").relative_to(repo_root)))
 
         rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "w3_final.txt").write_text(out_final, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "w3_final.txt").relative_to(repo_root)))
+        (logs_dir / "revision_final.txt").write_text(out_final, encoding="utf-8")
+        manifest["outputs"].append(os.fspath((logs_dir / "revision_final.txt").relative_to(repo_root)))
 
         return {
             "run_id": run_id,
@@ -907,6 +948,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
 
     def scenario_survey_polish() -> dict[str, Any]:
         run_id = f"{inps.tag}-survey-polish"
+        reset_generated_run(run_id)
         cmd_run = [
             "python3",
             "scripts/orchestrator.py",
@@ -914,7 +956,9 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "W3_literature_survey_polish",
+            "literature_survey_polish",
+            "--survey-refkeys",
+            "arxiv-2310.06770-swe-bench,arxiv-2405.15793-swe-agent",
         ]
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
         (logs_dir / "survey_polish_gate.txt").write_text(out_gate, encoding="utf-8")
@@ -976,9 +1020,10 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             if rc != 0:
                 errors.append(f"bypass start failed for {run_id} (exit_code={rc})")
 
-        # A3 bypass attempt (W2_reproduce)
+        # A3 bypass attempt (reproduce)
         run_id_a3 = f"{inps.tag}-bypass-a3"
-        start_run(run_id_a3, "W2_reproduce")
+        reset_generated_run(run_id_a3)
+        start_run(run_id_a3, "reproduce")
         inject_fake_gate_satisfied(category="A3", approval_id="A3-FAKE")
         cmd_run_a3 = [
             "python3",
@@ -987,20 +1032,21 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id_a3,
             "--workflow-id",
-            "W2_reproduce",
+            "reproduce",
             "--case",
-            str(inps.w2_case),
+            str(inps.reproduce_case),
             "--ns",
-            ",".join(str(x) for x in inps.w2_ns),
+            ",".join(str(x) for x in inps.reproduce_ns),
         ]
         rc_a3, out_a3 = _run(cmd_run_a3, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
         (logs_dir / "bypass_a3_run.txt").write_text(out_a3, encoding="utf-8")
         manifest["outputs"].append(os.fspath((logs_dir / "bypass_a3_run.txt").relative_to(repo_root)))
         pending_a3 = _read_pending_approval(state_path)
 
-        # A4 bypass attempt (W3_revision)
+        # A4 bypass attempt (revision)
         run_id_a4 = f"{inps.tag}-bypass-a4"
-        start_run(run_id_a4, "W3_revision")
+        reset_generated_run(run_id_a4)
+        start_run(run_id_a4, "revision")
         inject_fake_gate_satisfied(category="A4", approval_id="A4-FAKE")
         cmd_run_a4 = [
             "python3",
@@ -1009,11 +1055,11 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id_a4,
             "--workflow-id",
-            "W3_revision",
+            "revision",
             "--paper-root",
-            str(inps.w3_paper_root),
+            str(inps.revision_paper_root),
             "--tex-main",
-            str(inps.w3_tex_main),
+            str(inps.revision_tex_main),
         ]
         rc_a4, out_a4 = _run(cmd_run_a4, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
         (logs_dir / "bypass_a4_run.txt").write_text(out_a4, encoding="utf-8")
@@ -1033,9 +1079,10 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             },
         }
 
-    def scenario_wcompute() -> dict[str, Any]:
-        run_id = f"{inps.tag}-wcompute"
-        run_card = str(inps.wcompute_run_card)
+    def scenario_computation() -> dict[str, Any]:
+        run_id = f"{inps.tag}-computation"
+        reset_generated_run(run_id)
+        run_card = str(inps.computation_run_card)
         cmd_run = [
             "python3",
             "scripts/orchestrator.py",
@@ -1043,14 +1090,14 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "--run-id",
             run_id,
             "--workflow-id",
-            "W_compute",
+            "computation",
             "--run-card",
             run_card,
             "--trust-project",
         ]
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "wcompute_gate.txt").write_text(out_gate, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "wcompute_gate.txt").relative_to(repo_root)))
+        (logs_dir / "computation_gate.txt").write_text(out_gate, encoding="utf-8")
+        manifest["outputs"].append(os.fspath((logs_dir / "computation_gate.txt").relative_to(repo_root)))
 
         pending = _read_pending_approval(state_path)
         approval_id = (pending or {}).get("approval_id")
@@ -1066,12 +1113,12 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / "wcompute_approve.txt").write_text(out_approve, encoding="utf-8")
-            manifest["outputs"].append(os.fspath((logs_dir / "wcompute_approve.txt").relative_to(repo_root)))
+            (logs_dir / "computation_approve.txt").write_text(out_approve, encoding="utf-8")
+            manifest["outputs"].append(os.fspath((logs_dir / "computation_approve.txt").relative_to(repo_root)))
 
         rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "wcompute_final.txt").write_text(out_final, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "wcompute_final.txt").relative_to(repo_root)))
+        (logs_dir / "computation_final.txt").write_text(out_final, encoding="utf-8")
+        manifest["outputs"].append(os.fspath((logs_dir / "computation_final.txt").relative_to(repo_root)))
 
         return {
             "run_id": run_id,
@@ -1083,17 +1130,17 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "final_exit_code": int(rc_final),
             "expected_outputs": {
                 "run_card": f"artifacts/runs/{run_id}/run_card.json",
-                "analysis": f"artifacts/runs/{run_id}/w_compute/analysis.json",
-                "manifest": f"artifacts/runs/{run_id}/w_compute/manifest.json",
-                "summary": f"artifacts/runs/{run_id}/w_compute/summary.json",
-                "report": f"artifacts/runs/{run_id}/w_compute/report.md",
+                "analysis": f"artifacts/runs/{run_id}/computation/analysis.json",
+                "manifest": f"artifacts/runs/{run_id}/computation/manifest.json",
+                "summary": f"artifacts/runs/{run_id}/computation/summary.json",
+                "report": f"artifacts/runs/{run_id}/computation/report.md",
             },
         }
 
-    w2: dict[str, Any] = {}
-    w3: dict[str, Any] = {}
+    reproduce: dict[str, Any] = {}
+    revision: dict[str, Any] = {}
     survey_polish: dict[str, Any] = {}
-    wcompute: dict[str, Any] = {}
+    computation: dict[str, Any] = {}
     bypass: dict[str, Any] = {}
     sandbox: dict[str, Any] = {}
     plan: dict[str, Any] = {}
@@ -1108,12 +1155,12 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         branching = scenario_branching()
     if not errors and "sandbox" in scenarios:
         sandbox = scenario_sandbox()
-    if not errors and "w2" in scenarios:
-        w2 = scenario_w2()
-    if not errors and "wcompute" in scenarios:
-        wcompute = scenario_wcompute()
-    if not errors and "w3" in scenarios:
-        w3 = scenario_w3()
+    if not errors and "reproduce" in scenarios:
+        reproduce = scenario_reproduce()
+    if not errors and "computation" in scenarios:
+        computation = scenario_computation()
+    if not errors and "revision" in scenarios:
+        revision = scenario_revision()
     if not errors and "survey_polish" in scenarios:
         survey_polish = scenario_survey_polish()
     if not errors and "bypass" in scenarios:
@@ -1127,19 +1174,19 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         if not p.exists():
             errors.append(f"missing expected path: {rel}")
 
-    if w2:
-        if w2.get("pending_category") != "A3":
-            errors.append(f"W2 expected pending category A3, got {w2.get('pending_category')!r}")
-        if w2.get("gate_exit_code") != 3:
-            errors.append(f"W2 expected gate exit code 3, got {w2.get('gate_exit_code')}")
-        if w2.get("approve_exit_code") not in (0, None):
-            errors.append(f"W2 expected approve exit code 0, got {w2.get('approve_exit_code')}")
-        if w2.get("final_exit_code") != 0:
-            errors.append(f"W2 expected final exit code 0, got {w2.get('final_exit_code')}")
-        require_path(str(w2.get("approval_packet") or ""))
-        require_path(w2["expected_outputs"]["reproduce_manifest"])
-        require_path(w2["expected_outputs"]["reproduce_summary"])
-        require_path(w2["expected_outputs"]["reproduce_analysis"])
+    if reproduce:
+        if reproduce.get("pending_category") != "A3":
+            errors.append(f"reproduce expected pending category A3, got {reproduce.get('pending_category')!r}")
+        if reproduce.get("gate_exit_code") != 3:
+            errors.append(f"reproduce expected gate exit code 3, got {reproduce.get('gate_exit_code')}")
+        if reproduce.get("approve_exit_code") not in (0, None):
+            errors.append(f"reproduce expected approve exit code 0, got {reproduce.get('approve_exit_code')}")
+        if reproduce.get("final_exit_code") != 0:
+            errors.append(f"reproduce expected final exit code 0, got {reproduce.get('final_exit_code')}")
+        require_path(str(reproduce.get("approval_packet") or ""))
+        require_path(reproduce["expected_outputs"]["reproduce_manifest"])
+        require_path(reproduce["expected_outputs"]["reproduce_summary"])
+        require_path(reproduce["expected_outputs"]["reproduce_analysis"])
 
     if project_init:
         if project_init.get("init_exit_code") != 0:
@@ -1240,19 +1287,19 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         ]:
             require_path(str((sandbox.get("expected_outputs") or {}).get(key) or ""))
 
-    if w3:
-        if w3.get("pending_category") != "A4":
-            errors.append(f"W3 expected pending category A4, got {w3.get('pending_category')!r}")
-        if w3.get("gate_exit_code") != 3:
-            errors.append(f"W3 expected gate exit code 3, got {w3.get('gate_exit_code')}")
-        if w3.get("approve_exit_code") not in (0, None):
-            errors.append(f"W3 expected approve exit code 0, got {w3.get('approve_exit_code')}")
-        if w3.get("final_exit_code") != 0:
-            errors.append(f"W3 expected final exit code 0, got {w3.get('final_exit_code')}")
-        require_path(str(w3.get("approval_packet") or ""))
-        require_path(w3["expected_outputs"]["revision_manifest"])
-        require_path(w3["expected_outputs"]["revision_summary"])
-        require_path(w3["expected_outputs"]["revision_analysis"])
+    if revision:
+        if revision.get("pending_category") != "A4":
+            errors.append(f"revision expected pending category A4, got {revision.get('pending_category')!r}")
+        if revision.get("gate_exit_code") != 3:
+            errors.append(f"revision expected gate exit code 3, got {revision.get('gate_exit_code')}")
+        if revision.get("approve_exit_code") not in (0, None):
+            errors.append(f"revision expected approve exit code 0, got {revision.get('approve_exit_code')}")
+        if revision.get("final_exit_code") != 0:
+            errors.append(f"revision expected final exit code 0, got {revision.get('final_exit_code')}")
+        require_path(str(revision.get("approval_packet") or ""))
+        require_path(revision["expected_outputs"]["revision_manifest"])
+        require_path(revision["expected_outputs"]["revision_summary"])
+        require_path(revision["expected_outputs"]["revision_analysis"])
 
     if survey_polish:
         if survey_polish.get("pending_category") != "A4":
@@ -1278,21 +1325,21 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         ]:
             require_path(str((survey_polish.get("expected_outputs") or {}).get(key) or ""))
 
-    if wcompute:
-        if wcompute.get("pending_category") != "A3":
-            errors.append(f"W_compute expected pending category A3, got {wcompute.get('pending_category')!r}")
-        if wcompute.get("gate_exit_code") != 3:
-            errors.append(f"W_compute expected gate exit code 3, got {wcompute.get('gate_exit_code')}")
-        if wcompute.get("approve_exit_code") not in (0, None):
-            errors.append(f"W_compute expected approve exit code 0, got {wcompute.get('approve_exit_code')}")
-        if wcompute.get("final_exit_code") != 0:
-            errors.append(f"W_compute expected final exit code 0, got {wcompute.get('final_exit_code')}")
-        require_path(str(wcompute.get("approval_packet") or ""))
-        require_path(wcompute["expected_outputs"]["run_card"])
-        require_path(wcompute["expected_outputs"]["manifest"])
-        require_path(wcompute["expected_outputs"]["summary"])
-        require_path(wcompute["expected_outputs"]["analysis"])
-        require_path(wcompute["expected_outputs"]["report"])
+    if computation:
+        if computation.get("pending_category") != "A3":
+            errors.append(f"computation expected pending category A3, got {computation.get('pending_category')!r}")
+        if computation.get("gate_exit_code") != 3:
+            errors.append(f"computation expected gate exit code 3, got {computation.get('gate_exit_code')}")
+        if computation.get("approve_exit_code") not in (0, None):
+            errors.append(f"computation expected approve exit code 0, got {computation.get('approve_exit_code')}")
+        if computation.get("final_exit_code") != 0:
+            errors.append(f"computation expected final exit code 0, got {computation.get('final_exit_code')}")
+        require_path(str(computation.get("approval_packet") or ""))
+        require_path(computation["expected_outputs"]["run_card"])
+        require_path(computation["expected_outputs"]["manifest"])
+        require_path(computation["expected_outputs"]["summary"])
+        require_path(computation["expected_outputs"]["analysis"])
+        require_path(computation["expected_outputs"]["report"])
 
     quality_metrics_dir = out_dir / "quality_metrics"
     quality_metrics_dir.mkdir(parents=True, exist_ok=True)
@@ -1320,14 +1367,14 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         quality_metrics_paths[key] = rel_out
         quality_metrics[key] = payload
 
-    _maybe_write_metrics(key="plan", run_id=plan.get("run_id") if isinstance(plan, dict) else None, workflow_id="W2_reproduce")
-    _maybe_write_metrics(key="w2", run_id=w2.get("run_id") if isinstance(w2, dict) else None, workflow_id="W2_reproduce")
-    _maybe_write_metrics(key="wcompute", run_id=wcompute.get("run_id") if isinstance(wcompute, dict) else None, workflow_id="W_compute")
-    _maybe_write_metrics(key="w3", run_id=w3.get("run_id") if isinstance(w3, dict) else None, workflow_id="W3_revision")
+    _maybe_write_metrics(key="plan", run_id=plan.get("run_id") if isinstance(plan, dict) else None, workflow_id="reproduce")
+    _maybe_write_metrics(key="reproduce", run_id=reproduce.get("run_id") if isinstance(reproduce, dict) else None, workflow_id="reproduce")
+    _maybe_write_metrics(key="computation", run_id=computation.get("run_id") if isinstance(computation, dict) else None, workflow_id="computation")
+    _maybe_write_metrics(key="revision", run_id=revision.get("run_id") if isinstance(revision, dict) else None, workflow_id="revision")
     _maybe_write_metrics(
         key="survey_polish",
         run_id=survey_polish.get("run_id") if isinstance(survey_polish, dict) else None,
-        workflow_id="W3_literature_survey_polish",
+        workflow_id="literature_survey_polish",
     )
 
     ok = len(errors) == 0
@@ -1342,21 +1389,21 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         "plan": plan,
         "branching": branching,
         "sandbox": sandbox,
-        "w2": w2,
-        "wcompute": wcompute,
-        "w3": w3,
+        "reproduce": reproduce,
+        "computation": computation,
+        "revision": revision,
         "survey_polish": survey_polish,
         "bypass": bypass,
     }
     summary["stats"] = {
         "ok": ok,
         "errors": len(errors),
-        "w2_gate_exit_code": int(w2.get("gate_exit_code") or 0) if w2 else None,
-        "w2_final_exit_code": int(w2.get("final_exit_code") or 0) if w2 else None,
-        "wcompute_gate_exit_code": int(wcompute.get("gate_exit_code") or 0) if wcompute else None,
-        "wcompute_final_exit_code": int(wcompute.get("final_exit_code") or 0) if wcompute else None,
-        "w3_gate_exit_code": int(w3.get("gate_exit_code") or 0) if w3 else None,
-        "w3_final_exit_code": int(w3.get("final_exit_code") or 0) if w3 else None,
+        "reproduce_gate_exit_code": int(reproduce.get("gate_exit_code") or 0) if reproduce else None,
+        "reproduce_final_exit_code": int(reproduce.get("final_exit_code") or 0) if reproduce else None,
+        "computation_gate_exit_code": int(computation.get("gate_exit_code") or 0) if computation else None,
+        "computation_final_exit_code": int(computation.get("final_exit_code") or 0) if computation else None,
+        "revision_gate_exit_code": int(revision.get("gate_exit_code") or 0) if revision else None,
+        "revision_final_exit_code": int(revision.get("final_exit_code") or 0) if revision else None,
         "survey_polish_gate_exit_code": int(survey_polish.get("gate_exit_code") or 0) if survey_polish else None,
         "survey_polish_final_exit_code": int(survey_polish.get("final_exit_code") or 0) if survey_polish else None,
     }
@@ -1371,7 +1418,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         "errors": errors,
         "artifact_paths": artifact_paths,
         "artifact_dir": os.fspath(out_dir.relative_to(repo_root)),
-        "w2_run_id": w2.get("run_id") if isinstance(w2, dict) else None,
-        "wcompute_run_id": wcompute.get("run_id") if isinstance(wcompute, dict) else None,
-        "w3_run_id": w3.get("run_id") if isinstance(w3, dict) else None,
+        "reproduce_run_id": reproduce.get("run_id") if isinstance(reproduce, dict) else None,
+        "computation_run_id": computation.get("run_id") if isinstance(computation, dict) else None,
+        "revision_run_id": revision.get("run_id") if isinstance(revision, dict) else None,
     }

@@ -1,5 +1,0 @@
-python3 -B scripts/apply_kfactor_to_lhe.py \
-  --in-lhe  /output/dataset/output/proc_ufo_parton_ttbar/Events/ufo_parton/unweighted_events.lhe.gz \
-  --kjson   /output/dataset/output/kfactors_mtt.json \
-  --out-lhe /output/dataset/output/proc_ufo_parton_ttbar/Events/ufo_parton/events_reweighted.lhe.gz \
-  --out-csv /output/dataset/output/ufo_event_weights.csv

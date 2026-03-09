@@ -56,11 +56,11 @@ from .toolkit.orchestrator_state import (
 from .toolkit.approval_packet import ApprovalPacketData, write_trio
 from .toolkit.report_renderer import collect_run_result, render_md, render_tex
 from .toolkit.workflow_context import workflow_context
-from .toolkit.w1_ingest import IngestInputs, ingest_one
-from .toolkit.w2_reproduce import ReproduceInputs, reproduce_one
-from .toolkit.w3_paper_reviser import PaperReviserInputs, paper_reviser_one
-from .toolkit.w3_revision import RevisionInputs, revise_one
-from .toolkit.w_compute import WComputeInputs, w_compute_one
+from .toolkit.ingest import IngestInputs, ingest_one
+from .toolkit.reproduce import ReproduceInputs, reproduce_one
+from .toolkit.paper_reviser import PaperReviserInputs, paper_reviser_one
+from .toolkit.revision import RevisionInputs, revise_one
+from .toolkit.computation import ComputationInputs, computation_one
 from .toolkit.run_card import ensure_run_card
 from .toolkit.run_card_schema import load_run_card_v2, normalize_and_validate_run_card_v2
 from .toolkit.logging_config import configure_logging
@@ -268,7 +268,11 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     with state_lock(repo_root):
         ensure_runtime_dirs(repo_root)
-        scaffold = ensure_project_scaffold(repo_root=repo_root)
+        scaffold = (
+            {"created": [], "skipped": []}
+            if bool(getattr(args, "runtime_only", False))
+            else ensure_project_scaffold(repo_root=repo_root)
+        )
         st_path = state_path(repo_root)
         if st_path.exists() and not args.force:
             print(f"[ok] already initialized: {st_path}")
@@ -293,6 +297,8 @@ def cmd_init(args: argparse.Namespace) -> int:
         if not marker.exists():
             marker.write_text(utc_now_iso().replace("+00:00", "Z") + "\n", encoding="utf-8")
         print(f"[ok] runtime dir: {autoresearch_dir(repo_root)}")
+        if bool(getattr(args, "runtime_only", False)):
+            print("[ok] project scaffold skipped (--runtime-only)")
 
     created = scaffold.get("created") if isinstance(scaffold, dict) else None
     if isinstance(created, list) and created:
@@ -380,7 +386,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     return 0
 
 
-_W3_SUBSTEP_ORDER = ("A", "B", "C", "D", "E", "APPLY")
+_REVISION_SUBSTEP_ORDER = ("A", "B", "C", "D", "E", "APPLY")
 
 
 class GateResolutionError(ValueError):
@@ -437,9 +443,9 @@ def _status_effective_run_status(st: dict) -> tuple[str | None, list[dict[str, s
     return ("needs_recovery", warnings)
 
 
-def _status_w3_substeps_from_state(st: dict) -> dict[str, str]:
-    out: dict[str, str] = {k: "pending" for k in _W3_SUBSTEP_ORDER}
-    step_id_to_key = {f"W3.PAPER_REVISER.{k}": k for k in _W3_SUBSTEP_ORDER}
+def _status_revision_substeps_from_state(st: dict) -> dict[str, str]:
+    out: dict[str, str] = {k: "pending" for k in _REVISION_SUBSTEP_ORDER}
+    step_id_to_key = {"paper_reviser.round_01": "A", "paper_reviser.verification_plan": "B", "paper_reviser.retrieval": "C", "paper_reviser.evidence_synthesis": "D", "paper_reviser.round_02": "E", "paper_reviser.apply": "APPLY"}
 
     plan = st.get("plan") if isinstance(st.get("plan"), dict) else None
     steps = plan.get("steps") if isinstance(plan, dict) else None
@@ -463,13 +469,13 @@ def _status_w3_substeps_from_state(st: dict) -> dict[str, str]:
     return out
 
 
-def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tuple[dict[str, str] | None, list[dict[str, str]]]:
+def _status_revision_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tuple[dict[str, str] | None, list[dict[str, str]]]:
     warnings: list[dict[str, str]] = []
     rid = str(run_id or "").strip()
     if not rid:
         warnings.append(
             _status_warning(
-                code="w3_manifest_missing_run_id",
+                code="revision_manifest_missing_run_id",
                 message="run_id missing; cannot inspect artifacts/runs/<run_id>/paper_reviser/manifest.json",
             )
         )
@@ -484,7 +490,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
     if not manifest_path.exists():
         warnings.append(
             _status_warning(
-                code="w3_manifest_missing",
+                code="revision_manifest_missing",
                 message="paper_reviser manifest missing; fallback to .autoresearch/state.json",
                 path=rel_manifest,
             )
@@ -496,7 +502,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
     except Exception as exc:
         warnings.append(
             _status_warning(
-                code="w3_manifest_corrupt",
+                code="revision_manifest_corrupt",
                 message=f"failed to read/parse paper_reviser manifest ({exc}); fallback to .autoresearch/state.json",
                 path=rel_manifest,
             )
@@ -507,7 +513,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
     if not isinstance(steps, dict):
         warnings.append(
             _status_warning(
-                code="w3_manifest_steps_schema_invalid",
+                code="revision_manifest_steps_schema_invalid",
                 message="manifest.steps is missing or not an object; fallback to .autoresearch/state.json",
                 path=rel_manifest,
             )
@@ -515,12 +521,12 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
         return (None, warnings)
 
     parsed: dict[str, str] = {}
-    for key in _W3_SUBSTEP_ORDER:
+    for key in _REVISION_SUBSTEP_ORDER:
         item = steps.get(key)
         if not isinstance(item, dict):
             warnings.append(
                 _status_warning(
-                    code="w3_manifest_steps_schema_invalid",
+                    code="revision_manifest_steps_schema_invalid",
                     message=f"manifest.steps.{key} missing or not an object; fallback to .autoresearch/state.json",
                     path=rel_manifest,
                 )
@@ -530,7 +536,7 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
         if not isinstance(status, str) or not status.strip():
             warnings.append(
                 _status_warning(
-                    code="w3_manifest_steps_schema_invalid",
+                    code="revision_manifest_steps_schema_invalid",
                     message=f"manifest.steps.{key}.status missing/invalid; fallback to .autoresearch/state.json",
                     path=rel_manifest,
                 )
@@ -541,18 +547,18 @@ def _status_w3_substeps_from_manifest(repo_root: Path, run_id: str | None) -> tu
     return (parsed, warnings)
 
 
-def _status_w3_manifest_is_completed(substeps: dict[str, str]) -> bool:
+def _status_revision_manifest_is_completed(substeps: dict[str, str]) -> bool:
     if not isinstance(substeps, dict):
         return False
     success = {"completed", "skipped"}
-    for key in _W3_SUBSTEP_ORDER:
+    for key in _REVISION_SUBSTEP_ORDER:
         status = str(substeps.get(key) or "").strip()
         if status not in success:
             return False
     return True
 
 
-def _status_w3_manifest_derived_run_status(substeps: dict[str, str]) -> str:
+def _status_revision_manifest_derived_run_status(substeps: dict[str, str]) -> str:
     statuses = {str(v).strip() for v in substeps.values() if isinstance(v, str)}
     if "blocked_by_gate" in statuses:
         return "blocked_by_gate"
@@ -560,7 +566,7 @@ def _status_w3_manifest_derived_run_status(substeps: dict[str, str]) -> str:
         return "needs_manual_evidence"
     if "failed" in statuses or "needs_force" in statuses:
         return "failed"
-    if _status_w3_manifest_is_completed(substeps):
+    if _status_revision_manifest_is_completed(substeps):
         return "completed"
     if statuses and (statuses != {"pending"}):
         return "in_progress"
@@ -584,22 +590,22 @@ def cmd_status(args: argparse.Namespace) -> int:
         display_run_status = str(run_status_raw) if isinstance(run_status_raw, str) else None
 
     reconciled = False
-    w3_substeps: dict[str, str] | None = None
-    w3_substeps_source: str | None = None
-    if str(st.get("workflow_id") or "") == "W3_paper_reviser":
-        state_substeps = _status_w3_substeps_from_state(st)
-        manifest_substeps, manifest_warnings = _status_w3_substeps_from_manifest(repo_root, str(st.get("run_id") or ""))
+    revision_substeps: dict[str, str] | None = None
+    revision_substeps_source: str | None = None
+    if str(st.get("workflow_id") or "") == "paper_reviser":
+        state_substeps = _status_revision_substeps_from_state(st)
+        manifest_substeps, manifest_warnings = _status_revision_substeps_from_manifest(repo_root, str(st.get("run_id") or ""))
         warnings.extend(manifest_warnings)
         if manifest_substeps is None:
-            w3_substeps = state_substeps
-            w3_substeps_source = "state"
+            revision_substeps = state_substeps
+            revision_substeps_source = "state"
         else:
-            w3_substeps = manifest_substeps
-            w3_substeps_source = "manifest"
+            revision_substeps = manifest_substeps
+            revision_substeps_source = "manifest"
             prior_display_status = display_run_status
-            display_run_status = _status_w3_manifest_derived_run_status(manifest_substeps)
+            display_run_status = _status_revision_manifest_derived_run_status(manifest_substeps)
             state_statuses = {str(v).strip().lower() for v in state_substeps.values() if isinstance(v, str)}
-            manifest_completed = _status_w3_manifest_is_completed(manifest_substeps)
+            manifest_completed = _status_revision_manifest_is_completed(manifest_substeps)
             if manifest_completed and (
                 (str(prior_display_status or "") != "completed")
                 or ("pending" in state_statuses)
@@ -630,10 +636,10 @@ def cmd_status(args: argparse.Namespace) -> int:
             "reconciled": bool(reconciled),
             "warnings": warnings,
         }
-        if w3_substeps is not None:
-            payload["w3_substeps"] = {
-                "source": w3_substeps_source,
-                "statuses": {k: w3_substeps.get(k) for k in _W3_SUBSTEP_ORDER},
+        if revision_substeps is not None:
+            payload["revision_substeps"] = {
+                "source": revision_substeps_source,
+                "statuses": {k: revision_substeps.get(k) for k in _REVISION_SUBSTEP_ORDER},
             }
         print(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
         return 0
@@ -674,11 +680,11 @@ def cmd_status(args: argparse.Namespace) -> int:
                 desc = step.get("description")
                 print(f"  - {sid} [{status}]: {desc}")
 
-    if w3_substeps is not None:
-        print(f"w3_substeps_source: {w3_substeps_source}")
-        print("w3_substeps:")
-        for sid in _W3_SUBSTEP_ORDER:
-            print(f"  - {sid}: {w3_substeps.get(sid)}")
+    if revision_substeps is not None:
+        print(f"revision_substeps_source: {revision_substeps_source}")
+        print("revision_substeps:")
+        for sid in _REVISION_SUBSTEP_ORDER:
+            print(f"  - {sid}: {revision_substeps.get(sid)}")
 
     checkpoints = st.get("checkpoints") or {}
     if isinstance(checkpoints, dict):
@@ -1825,7 +1831,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
     wid = str(workflow_id)
     rid = str(run_id)
 
-    if wid == "W_compute":
+    if wid == "computation":
         return {
             "schema_version": 1,
             "created_at": now,
@@ -1833,15 +1839,15 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "plan_id": f"{rid}:{wid}",
             "run_id": rid,
             "workflow_id": wid,
-            "current_step_id": "W_compute.S1",
+            "current_step_id": "computation.S1",
             "steps": [
                 _plan_step(
-                    step_id="W_compute.S1",
+                    step_id="computation.S1",
                     description="Validate run_card v2 + execute phases (DAG) + write SSOT artifacts",
                     status="in_progress",
                     expected_approvals=["A3"],
                     expected_outputs=outs_all,
-                    recovery_notes="If awaiting approval, approve A3 then rerun. If failed, inspect w_compute/report.md and phase logs.",
+                    recovery_notes="If awaiting approval, approve A3 then rerun. If failed, inspect computation/report.md and phase logs.",
                     started_at=now,
                     completed_at=None,
                 )
@@ -1849,7 +1855,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "notes": "",
         }
 
-    if wid == "W2_reproduce":
+    if wid == "reproduce":
         return {
             "schema_version": 1,
             "created_at": now,
@@ -1857,10 +1863,10 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "plan_id": f"{rid}:{wid}",
             "run_id": rid,
             "workflow_id": wid,
-            "current_step_id": "W2.S1",
+            "current_step_id": "reproduce.main",
             "steps": [
                 _plan_step(
-                    step_id="W2.S1",
+                    step_id="reproduce.main",
                     description="Run reproduction (toy) and write artifacts",
                     status="in_progress",
                     expected_approvals=["A3"],
@@ -1873,7 +1879,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "notes": "",
         }
 
-    if wid == "W3_revision":
+    if wid == "revision":
         return {
             "schema_version": 1,
             "created_at": now,
@@ -1881,10 +1887,10 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "plan_id": f"{rid}:{wid}",
             "run_id": rid,
             "workflow_id": wid,
-            "current_step_id": "W3.S1",
+            "current_step_id": "revision.main",
             "steps": [
                 _plan_step(
-                    step_id="W3.S1",
+                    step_id="revision.main",
                     description="Compile gate + deterministic paper revision (v0)",
                     status="in_progress",
                     expected_approvals=["A4"],
@@ -1897,7 +1903,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "notes": "",
         }
 
-    if wid == "W3_paper_reviser":
+    if wid == "paper_reviser":
         return {
             "schema_version": 1,
             "created_at": now,
@@ -1905,10 +1911,10 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "plan_id": f"{rid}:{wid}",
             "run_id": rid,
             "workflow_id": wid,
-            "current_step_id": "W3.PAPER_REVISER.A",
+            "current_step_id": "paper_reviser.round_01",
             "steps": [
                 _plan_step(
-                    step_id="W3.PAPER_REVISER.A",
+                    step_id="paper_reviser.round_01",
                     description="Paper reviser round_01 (writer/auditor/deep verification) (no external retrieval)",
                     status="in_progress",
                     expected_approvals=[],
@@ -1918,7 +1924,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
                     completed_at=None,
                 ),
                 _plan_step(
-                    step_id="W3.PAPER_REVISER.B",
+                    step_id="paper_reviser.verification_plan",
                     description="Build verification plan (deterministic; routes retrieval outputs under artifacts/)",
                     status="pending",
                     expected_approvals=[],
@@ -1926,7 +1932,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
                     recovery_notes="If missing/invalid, rebuild from round_01/verification_requests.json or provide --verification-plan.",
                 ),
                 _plan_step(
-                    step_id="W3.PAPER_REVISER.C",
+                    step_id="paper_reviser.retrieval",
                     description="A1-gated retrieval tasks (research-team.literature_fetch) with per-task state/logs",
                     status="pending",
                     expected_approvals=["A1"],
@@ -1934,7 +1940,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
                     recovery_notes="If awaiting approval, approve A1 then rerun. If a task failed, inspect task_state + logs and rerun.",
                 ),
                 _plan_step(
-                    step_id="W3.PAPER_REVISER.D",
+                    step_id="paper_reviser.evidence_synthesis",
                     description="Evidence synthesis (fan-in): per-VR JSON SSOT + deterministic VR-*.md under verification/evidence/",
                     status="pending",
                     expected_approvals=[],
@@ -1942,7 +1948,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
                     recovery_notes="If manual evidence is enabled, write evidence/<VR-ID>.md then rerun. Otherwise inspect evidence_state + raw logs.",
                 ),
                 _plan_step(
-                    step_id="W3.PAPER_REVISER.E",
+                    step_id="paper_reviser.round_02",
                     description="Paper reviser round_02 with evidence context (max_rounds=1)",
                     status="pending",
                     expected_approvals=[],
@@ -1950,7 +1956,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
                     recovery_notes="If failed, inspect round_02/run.json and logs; rerun after fixing evidence or model config.",
                 ),
                 _plan_step(
-                    step_id="W3.PAPER_REVISER.APPLY",
+                    step_id="paper_reviser.apply",
                     description="(Optional) Apply final clean.tex back to the draft .tex (A4-gated if approval_policy requires)",
                     status="pending",
                     expected_approvals=["A4"],
@@ -1961,7 +1967,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "notes": "",
         }
 
-    if wid == "W3_literature_survey_polish":
+    if wid == "literature_survey_polish":
         return {
             "schema_version": 1,
             "created_at": now,
@@ -1969,10 +1975,10 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "plan_id": f"{rid}:{wid}",
             "run_id": rid,
             "workflow_id": wid,
-            "current_step_id": "W3.SURVEY_EXPORT",
+            "current_step_id": "literature_survey.export",
             "steps": [
                 _plan_step(
-                    step_id="W3.SURVEY_EXPORT",
+                    step_id="literature_survey.export",
                     description="Export deterministic KB → literature survey (T30)",
                     status="in_progress",
                     expected_approvals=[],
@@ -1982,7 +1988,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
                     completed_at=None,
                 ),
                 _plan_step(
-                    step_id="W3.SURVEY_POLISH",
+                    step_id="literature_survey.polish",
                     description="A4-gated research-writer consume (hygiene + optional compile) (T36)",
                     status="pending",
                     expected_approvals=["A4"],
@@ -2017,7 +2023,7 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
             "notes": "",
         }
 
-    # W1_ingest (default)
+    # ingest (default)
     return {
         "schema_version": 1,
         "created_at": now,
@@ -2025,10 +2031,10 @@ def _build_plan_for_run(*, workflow_id: str, run_id: str, args: argparse.Namespa
         "plan_id": f"{rid}:{wid}",
         "run_id": rid,
         "workflow_id": wid,
-        "current_step_id": "W1.S1",
+        "current_step_id": "ingest.main",
         "steps": [
             _plan_step(
-                step_id="W1.S1",
+                step_id="ingest.main",
                 description="Ingest paper (snapshots + KB note + artifacts)",
                 status="in_progress",
                 expected_approvals=[],
@@ -2135,11 +2141,11 @@ def _default_gate_for_run(*, workflow_id: str, args: argparse.Namespace, policy:
         # Adapter workflows express their gate requirements in the run-card and handle approvals
         # inside the adapter runner to ensure SSOT artifacts are written even when awaiting approval.
         return None
-    if workflow_id == "W_compute" and bool(req.get("compute_runs")):
+    if workflow_id == "computation" and bool(req.get("compute_runs")):
         return "A3"
-    if workflow_id == "W2_reproduce" and bool(req.get("compute_runs")):
+    if workflow_id == "reproduce" and bool(req.get("compute_runs")):
         return "A3"
-    if workflow_id == "W3_revision":
+    if workflow_id == "revision":
         apply_edits = not bool(getattr(args, "no_apply_provenance_table", False))
         if apply_edits and bool(req.get("paper_edits")):
             return "A4"
@@ -2441,12 +2447,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     st = _read_or_init_state(repo_root)
 
     supported = {
-        "W1_ingest",
-        "W_compute",
-        "W2_reproduce",
-        "W3_paper_reviser",
-        "W3_revision",
-        "W3_literature_survey_polish",
+        "ingest",
+        "computation",
+        "reproduce",
+        "paper_reviser",
+        "revision",
+        "literature_survey_polish",
     } | adapter_workflow_ids()
     if args.workflow_id not in supported:
         return _die(f"v0.4 supports --workflow-id {('|'.join(sorted(supported)))}")
@@ -2693,10 +2699,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
 
     try:
-        if args.workflow_id == "W_compute":
+        if args.workflow_id == "computation":
             run_card_arg = getattr(args, "run_card", None)
             if not run_card_arg:
-                return _die("W_compute requires --run-card <path>")
+                return _die("computation requires --run-card <path>")
 
             run_card_path = Path(str(run_card_arg)).expanduser()
             if not run_card_path.is_absolute():
@@ -2714,13 +2720,13 @@ def cmd_run(args: argparse.Namespace) -> int:
 
             if not project_dir or not project_dir.exists() or not project_dir.is_dir():
                 return _die(
-                    "W_compute could not infer project_dir from run-card path; expected layout: "
+                    "computation could not infer project_dir from run-card path; expected layout: "
                     "<project_dir>/run_cards/<card>.json (or pass --project-dir <dir>)"
                 )
 
             params = _parse_param_overrides(getattr(args, "param", None))
-            res = w_compute_one(
-                WComputeInputs(
+            res = computation_one(
+                ComputationInputs(
                     tag=str(args.run_id),
                     project_dir=os.fspath(project_dir),
                     run_card=os.fspath(run_card_path),
@@ -2733,7 +2739,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 repo_root=repo_root,
             )
 
-            # Determine status from the SSOT analysis.json (w_compute errors list may be empty when blocked/skipped).
+            # Determine status from the SSOT analysis.json (computation errors list may be empty when blocked/skipped).
             analysis_rel = (res.get("artifact_paths") or {}).get("analysis")
             if isinstance(analysis_rel, str) and analysis_rel.strip():
                 analysis = read_json(repo_root / analysis_rel)
@@ -2760,12 +2766,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                             category=gate,
                             run_id=str(args.run_id),
                             plan_step_ids=[str(step_id)] if step_id else None,
-                            purpose=f"Gate {gate} before running W_compute phase {blocked.get('phase_id') if isinstance(blocked, dict) else '(unknown)'}",
+                            purpose=f"Gate {gate} before running computation phase {blocked.get('phase_id') if isinstance(blocked, dict) else '(unknown)'}",
                             plan=plan,
                             risks=risks,
                             outputs=outputs,
                             rollback=rollback,
-                            note="W_compute phase gate requested by run-card",
+                            note="computation phase gate requested by run-card",
                             force=False,
                         )
                         print(f"[info] requested approval: {approval_id}")
@@ -2773,10 +2779,10 @@ def cmd_run(args: argparse.Namespace) -> int:
                         return 3
 
                 if status and status != "completed":
-                    # Ensure Orchestrator fails closed on non-completed runs (even if w_compute errors list is empty).
-                    res.setdefault("errors", []).append(f"W_compute not completed (status={status})")
+                    # Ensure Orchestrator fails closed on non-completed runs (even if computation errors list is empty).
+                    res.setdefault("errors", []).append(f"computation not completed (status={status})")
 
-        elif args.workflow_id == "W2_reproduce":
+        elif args.workflow_id == "reproduce":
             ns = tuple(int(x.strip()) for x in str(args.ns).split(",") if x.strip())
             res = reproduce_one(
                 ReproduceInputs(
@@ -2789,7 +2795,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 ),
                 repo_root=repo_root,
             )
-        elif args.workflow_id == "W3_revision":
+        elif args.workflow_id == "revision":
             apply_edits = not bool(getattr(args, "no_apply_provenance_table", False))
             require_paper_approval = bool((policy.get("require_approval_for") or {}).get("paper_edits"))
             can_edit = (not require_paper_approval) or bool((st.get("gate_satisfied") or {}).get("A4"))
@@ -2806,8 +2812,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                 repo_root=repo_root,
                 i_approve_paper_edits=bool(can_edit) if apply_edits else False,
             )
-        elif args.workflow_id == "W3_paper_reviser":
-            # W3_paper_reviser: evidence-first A-E workflow around ~/.codex/skills/paper-reviser.
+        elif args.workflow_id == "paper_reviser":
+            # paper_reviser: evidence-first A-E workflow around ~/.codex/skills/paper-reviser.
             # Hard gate: Step C (retrieval tasks) is always A1-gated if tasks exist.
             # Optional: apply-to-draft is A4-gated (approval_policy dependent).
 
@@ -2818,7 +2824,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             auditor_model = str(getattr(args, "auditor_model", "") or "").strip()
             if not (writer_backend and writer_model and auditor_backend and auditor_model):
                 return _die(
-                    "W3_paper_reviser requires --writer-backend/--writer-model/--auditor-backend/--auditor-model (all non-empty; no defaults)"
+                    "paper_reviser requires --writer-backend/--writer-model/--auditor-backend/--auditor-model (all non-empty; no defaults)"
                 )
 
             manual_evidence = bool(getattr(args, "manual_evidence", False))
@@ -2827,7 +2833,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             if not manual_evidence:
                 if not (evidence_backend and evidence_model):
                     return _die(
-                        "W3_paper_reviser requires --evidence-synth-backend/--evidence-synth-model unless --manual-evidence is set (no defaults)"
+                        "paper_reviser requires --evidence-synth-backend/--evidence-synth-model unless --manual-evidence is set (no defaults)"
                     )
 
             # Gate-satisfied sanity: refuse stale approvals that are not in approval_history.
@@ -2913,9 +2919,9 @@ def cmd_run(args: argparse.Namespace) -> int:
                     command_argv=list(sys.argv),
                 )
             except (ValueError, FileNotFoundError) as exc:
-                return _die(f"W3_paper_reviser input error: {exc}")
+                return _die(f"paper_reviser input error: {exc}")
             except Exception as exc:
-                return _die(f"W3_paper_reviser crashed: {exc}")
+                return _die(f"paper_reviser crashed: {exc}")
 
             analysis_rel = (res.get("artifact_paths") or {}).get("analysis")
             status = None
@@ -2945,7 +2951,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                         run_id=str(args.run_id),
                     )
                     purpose = (
-                        f"Gate {gate} before running W3_paper_reviser step {blocked.get('phase_id') if isinstance(blocked, dict) else '(unknown)'}"
+                        f"Gate {gate} before running paper_reviser step {blocked.get('phase_id') if isinstance(blocked, dict) else '(unknown)'}"
                     )
                     if gate == "A1":
                         purpose = "Run external retrieval tasks (research-team.literature_fetch) for paper-reviser verification"
@@ -3003,7 +3009,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                         outputs=outputs,
                         rollback=rollback,
                         details_md=details_md,
-                        note=f"W3_paper_reviser gate requested: {gate}",
+                        note=f"paper_reviser gate requested: {gate}",
                         force=False,
                     )
                     print(f"[info] requested approval: {approval_id}")
@@ -3015,7 +3021,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 st.setdefault("artifacts", {}).update(res.get("artifact_paths") or {})
                 st["run_status"] = "paused"
                 st["notes"] = (
-                    "W3_paper_reviser awaiting manual evidence notes "
+                    "paper_reviser awaiting manual evidence notes "
                     "(see artifacts/runs/<run_id>/paper_reviser/verification/evidence/)"
                 )
                 save_state(repo_root, st)
@@ -3032,23 +3038,23 @@ def cmd_run(args: argparse.Namespace) -> int:
                 return 4
 
             elif status is None:
-                res.setdefault("errors", []).append("W3_paper_reviser missing/invalid analysis.json results.status")
+                res.setdefault("errors", []).append("paper_reviser missing/invalid analysis.json results.status")
 
             elif status != "completed":
-                res.setdefault("errors", []).append(f"W3_paper_reviser not completed (status={status})")
+                res.setdefault("errors", []).append(f"paper_reviser not completed (status={status})")
 
             else:
                 # Happy path: record "latest_*" pointers. Common post-processing persists state,
                 # so we avoid calling save_state() here to prevent inconsistent windows.
                 ok_flag = (results or {}).get("ok") if isinstance(results, dict) else None
                 if ok_flag is not True:
-                    res.setdefault("errors", []).append("W3_paper_reviser completed but analysis.results.ok != true")
+                    res.setdefault("errors", []).append("paper_reviser completed but analysis.results.ok != true")
                 st.setdefault("artifacts", {}).update(res.get("artifact_paths") or {})
                 for k in ["manifest", "summary", "analysis", "report"]:
                     v = (res.get("artifact_paths") or {}).get(k)
                     if v:
                         st.setdefault("artifacts", {})[f"latest_{k}"] = v
-        elif args.workflow_id == "W3_literature_survey_polish":
+        elif args.workflow_id == "literature_survey_polish":
             from .toolkit.literature_survey_export import LiteratureSurveyExportInputs, literature_survey_export_one
             from .toolkit.literature_survey_polish import (
                 LiteratureSurveyPolishInputs,
@@ -3057,7 +3063,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             )
 
             # Step 1: deterministic survey export (T30)
-            _update_step(repo_root, st, step_id="W3.SURVEY_EXPORT", title="Deterministic literature survey export (T30)")
+            _update_step(repo_root, st, step_id="literature_survey.export", title="Deterministic literature survey export (T30)")
             survey_dir = repo_root / "artifacts" / "runs" / str(args.run_id) / "literature_survey"
             survey_log_dir = survey_dir / "logs"
             survey_log_dir.mkdir(parents=True, exist_ok=True)
@@ -3107,7 +3113,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     )
 
             # Step 2: A4-gated research-writer consume (T36)
-            _update_step(repo_root, st, step_id="W3.SURVEY_POLISH", title="Literature survey polish (research-writer)")
+            _update_step(repo_root, st, step_id="literature_survey.polish", title="Literature survey polish (research-writer)")
 
             require_paper_approval = bool((policy.get("require_approval_for") or {}).get("paper_edits"))
             gate_satisfied = (st.get("gate_satisfied") or {}).get("A4")
@@ -3119,7 +3125,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     event_type="gate_satisfied_invalidated",
                     run_id=st.get("run_id"),
                     workflow_id=st.get("workflow_id"),
-                    step_id="W3.SURVEY_POLISH",
+                    step_id="literature_survey.polish",
                     details={"category": "A4", "approval_id": str(gate_satisfied), "reason": "missing approval_history record"},
                 )
                 gate_satisfied = None
@@ -3138,7 +3144,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     st=st,
                     category="A4",
                     run_id=str(args.run_id),
-                    plan_step_ids=["W3.SURVEY_POLISH"],
+                    plan_step_ids=["literature_survey.polish"],
                     purpose="Run research-writer consume (deterministic hygiene + optional compile) on the T30 literature survey export.",
                     plan=plan,
                     risks=risks,
@@ -3390,7 +3396,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             )
         else:
             if not (args.inspire_recid or args.arxiv_id or args.doi):
-                return _die("W1_ingest requires one of --inspire-recid/--arxiv-id/--doi")
+                return _die("ingest requires one of --inspire-recid/--arxiv-id/--doi")
             res = ingest_one(
                 IngestInputs(
                     inspire_recid=args.inspire_recid,
@@ -4039,40 +4045,40 @@ def cmd_bridge(args: argparse.Namespace) -> int:
         ws = Path(workspace_arg).expanduser()
         if not ws.is_absolute():
             ws = repo_root / ws
-        w_compute_dir = ws.resolve()
+        computation_dir = ws.resolve()
     else:
         if not hepar_run_id:
             return _die("bridge requires --run-id (or --workspace)")
-        w_compute_dir = (repo_root / "artifacts" / "runs" / hepar_run_id / "w_compute").resolve()
+        computation_dir = (repo_root / "artifacts" / "runs" / hepar_run_id / "computation").resolve()
 
-    analysis_path = w_compute_dir / "analysis.json"
-    manifest_path = w_compute_dir / "manifest.json"
+    analysis_path = computation_dir / "analysis.json"
+    manifest_path = computation_dir / "manifest.json"
     if not analysis_path.exists():
-        return _die(f"missing W_compute analysis.json: {analysis_path}")
+        return _die(f"missing computation analysis.json: {analysis_path}")
     if not manifest_path.exists():
-        return _die(f"missing W_compute manifest.json: {manifest_path}")
+        return _die(f"missing computation manifest.json: {manifest_path}")
 
     try:
         analysis = read_json(analysis_path)
         w_manifest = read_json(manifest_path)
     except Exception as e:
-        return _die(f"failed to read W_compute artifacts: {e}")
+        return _die(f"failed to read computation artifacts: {e}")
 
     results = analysis.get("results") if isinstance(analysis, dict) else None
     if not isinstance(results, dict):
-        return _die("W_compute analysis.json missing results object")
+        return _die("computation analysis.json missing results object")
 
     status = results.get("status")
     if status != "completed":
-        return _die(f"W_compute is not completed (status={status!r}); run W_compute first")
+        return _die(f"computation is not completed (status={status!r}); run computation first")
 
     headline_numbers = results.get("headline_numbers")
     acceptance_checks = results.get("acceptance_checks")
     ok_flag = bool(results.get("ok"))
     if not isinstance(headline_numbers, list):
-        return _die("W_compute analysis.json missing results.headline_numbers list")
+        return _die("computation analysis.json missing results.headline_numbers list")
     if not isinstance(acceptance_checks, list):
-        return _die("W_compute analysis.json missing results.acceptance_checks list")
+        return _die("computation analysis.json missing results.acceptance_checks list")
 
     created_at = utc_now_iso().replace("+00:00", "Z")
     bridge_step_dir = repo_root / "artifacts" / "runs" / (hepar_run_id or "bridge") / "bridge_mcp"
@@ -4114,14 +4120,14 @@ def cmd_bridge(args: argparse.Namespace) -> int:
         "schema_version": 1,
         "generated_at": created_at,
         "hepar_run_id": hepar_run_id or None,
-        "w_compute_analysis": _rel(analysis_path),
+        "computation_analysis": _rel(analysis_path),
         "headline_numbers": headline_numbers,
     }
     payload_acceptance = {
         "schema_version": 1,
         "generated_at": created_at,
         "hepar_run_id": hepar_run_id or None,
-        "w_compute_analysis": _rel(analysis_path),
+        "computation_analysis": _rel(analysis_path),
         "ok": bool(ok_flag),
         "acceptance_checks": acceptance_checks,
     }
@@ -4129,7 +4135,7 @@ def cmd_bridge(args: argparse.Namespace) -> int:
         "schema_version": 1,
         "generated_at": created_at,
         "hepar_run_id": hepar_run_id or None,
-        "w_compute_manifest": _rel(manifest_path),
+        "computation_manifest": _rel(manifest_path),
         "manifest": w_manifest,
     }
 
@@ -4150,7 +4156,7 @@ def cmd_bridge(args: argparse.Namespace) -> int:
                 "status": str(status2),
                 "timestamp_utc": utc_now_iso().replace("+00:00", "Z"),
                 "hepar_run_id": hepar_run_id or None,
-                "w_compute_dir": _rel(w_compute_dir),
+                "computation_dir": _rel(computation_dir),
                 "mcp_server": cfg.name,
                 "mcp_project_name": project_name,
                 "mcp_run_id": mcp_run_id or None,
@@ -4215,8 +4221,8 @@ def cmd_bridge(args: argparse.Namespace) -> int:
             # Create an MCP run to hold staged compute results.
             args_snapshot = {
                 "hepar_run_id": hepar_run_id,
-                "w_compute_dir": _rel(w_compute_dir),
-                "w_compute_analysis": _rel(analysis_path),
+                "computation_dir": _rel(computation_dir),
+                "computation_analysis": _rel(analysis_path),
             }
             run_create = client.call_tool_json(
                 tool_name="hep_run_create",
@@ -4308,7 +4314,7 @@ def cmd_bridge(args: argparse.Namespace) -> int:
                 "cwd": manifest_cwd(repo_root=repo_root, cwd=repo_root),
                 "params": {
                     "hepar_run_id": hepar_run_id,
-                    "w_compute_dir": _rel(w_compute_dir),
+                    "computation_dir": _rel(computation_dir),
                     "mcp_server": cfg.name,
                     "mcp_project_name": project_name,
                 },
@@ -4338,7 +4344,7 @@ def cmd_bridge(args: argparse.Namespace) -> int:
                 "created_at": created_at,
                 "inputs": {
                     "hepar_run_id": hepar_run_id,
-                    "w_compute_analysis": _rel(analysis_path),
+                    "computation_analysis": _rel(analysis_path),
                 },
                 "results": {
                     "ok": bool(bridge_status == "success"),
@@ -5401,7 +5407,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
 
 
 def cmd_method_design(args: argparse.Namespace) -> int:
-    """Phase C2: method design + runnable W_compute scaffold generation (MVP: deterministic templates)."""
+    """Phase C2: method design + runnable computation scaffold generation (MVP: deterministic templates)."""
     repo_root = _repo_root_from_args(args)
     try:
         res = method_design_one(
@@ -5473,7 +5479,7 @@ def cmd_skill_propose(args: argparse.Namespace) -> int:
 
 
 def cmd_run_card_validate(args: argparse.Namespace) -> int:
-    """Validate a W_compute run_card v2 (strict schema + cycle check)."""
+    """Validate a computation run_card v2 (strict schema + cycle check)."""
     repo_root = _repo_root_from_args(args)
 
     run_card_path = Path(str(args.run_card)).expanduser()
@@ -5502,19 +5508,19 @@ def cmd_run_card_validate(args: argparse.Namespace) -> int:
     run_id_override = str(args.run_id).strip() if getattr(args, "run_id", None) else None
     card = normalize_and_validate_run_card_v2(raw, run_id_override=run_id_override, param_overrides=params)
 
-    # Cycle detection for phases.depends_on (shares semantics with W_compute).
-    from .toolkit.w_compute import validate_phase_dag
+    # Cycle detection for phases.depends_on (shares semantics with computation).
+    from .toolkit.computation import validate_phase_dag
 
     validate_phase_dag(list(card.normalized.get("phases") or []))
 
-    print("[ok] run-card v2 validated (W_compute)")
+    print("[ok] run-card v2 validated (computation)")
     print(f"- project_dir: {os.fspath(project_dir)}")
     print(f"- run_card: {os.fspath(run_card_path)}")
     return 0
 
 
 def _render_phase_dag_text(phases: list[dict[str, Any]]) -> str:
-    from .toolkit.w_compute import validate_phase_dag
+    from .toolkit.computation import validate_phase_dag
 
     order = validate_phase_dag(phases)
     edges: list[tuple[str, str]] = []
@@ -5525,7 +5531,7 @@ def _render_phase_dag_text(phases: list[dict[str, Any]]) -> str:
     edges_sorted = sorted(set(edges))
 
     lines: list[str] = []
-    lines.append("W_compute phase DAG")
+    lines.append("computation phase DAG")
     lines.append("")
     lines.append("Topological order:")
     lines.append("- " + " -> ".join(order))
@@ -5541,7 +5547,7 @@ def _render_phase_dag_text(phases: list[dict[str, Any]]) -> str:
 
 
 def _render_phase_dag_dot(phases: list[dict[str, Any]]) -> str:
-    from .toolkit.w_compute import validate_phase_dag
+    from .toolkit.computation import validate_phase_dag
 
     order = validate_phase_dag(phases)
     edges: list[tuple[str, str]] = []
@@ -5552,7 +5558,7 @@ def _render_phase_dag_dot(phases: list[dict[str, Any]]) -> str:
     edges_sorted = sorted(set(edges))
 
     lines: list[str] = []
-    lines.append('digraph "w_compute" {')
+    lines.append('digraph "computation" {')
     lines.append("  rankdir=LR;")
     for pid in order:
         lines.append(f'  "{pid}";')
@@ -5564,7 +5570,7 @@ def _render_phase_dag_dot(phases: list[dict[str, Any]]) -> str:
 
 
 def _render_phase_dag_mermaid(phases: list[dict[str, Any]]) -> str:
-    from .toolkit.w_compute import validate_phase_dag
+    from .toolkit.computation import validate_phase_dag
 
     order = validate_phase_dag(phases)
     deps: dict[str, list[str]] = {pid: [] for pid in order}
@@ -5589,7 +5595,7 @@ def _render_phase_dag_mermaid(phases: list[dict[str, Any]]) -> str:
 
 
 def cmd_run_card_render(args: argparse.Namespace) -> int:
-    """Render a W_compute run_card v2 phase DAG (after strict validation)."""
+    """Render a computation run_card v2 phase DAG (after strict validation)."""
     repo_root = _repo_root_from_args(args)
 
     run_card_path = Path(str(args.run_card)).expanduser()
@@ -5674,12 +5680,17 @@ def main() -> int:
         action="store_true",
         help="Allow init inside a subdirectory of an existing project root (not recommended).",
     )
+    p_init.add_argument(
+        "--runtime-only",
+        action="store_true",
+        help="Initialize only .autoresearch runtime state/policy without scaffolding project-local docs/KB/specs. Intended for maintainer regressions and harness use.",
+    )
     p_init.add_argument("--checkpoint-interval-seconds", type=int, help="Default checkpoint interval.")
     p_init.set_defaults(fn=cmd_init)
 
     p_start = sub.add_parser("start", help="Start a run (sets run_id/workflow_id, status=running).")
     p_start.add_argument("--run-id", required=True, help="Run tag, e.g. M1-r1")
-    p_start.add_argument("--workflow-id", required=True, help="Workflow id, e.g. W1_ingest")
+    p_start.add_argument("--workflow-id", required=True, help="Workflow id, e.g. ingest")
     p_start.add_argument("--step-id", help="Optional initial step id.")
     p_start.add_argument("--step-title", help="Optional initial step title.")
     p_start.add_argument("--checkpoint-interval-seconds", type=int, help="Override checkpoint interval for this run.")
@@ -5750,13 +5761,13 @@ def main() -> int:
 
     p_run = sub.add_parser(
         "run",
-        help="Run a workflow (v0.4+: W_compute + W1_ingest + W2_reproduce(toy) + W3_paper_reviser + W3_revision + W3_literature_survey_polish + ADAPTER_shell_smoke).",
+        help="Run a workflow (v0.4+: computation + ingest + reproduce(toy) + paper_reviser + revision + literature_survey_polish + shell_adapter_smoke).",
     )
     p_run.add_argument("--run-id", required=True, help="Run tag, e.g. M1-r1")
     p_run.add_argument(
         "--workflow-id",
         required=True,
-        help="Workflow id, e.g. W_compute|W1_ingest|W2_reproduce|W3_paper_reviser|W3_revision|W3_literature_survey_polish|ADAPTER_shell_smoke",
+        help="Workflow id, e.g. computation|ingest|reproduce|paper_reviser|revision|literature_survey_polish|shell_adapter_smoke",
     )
     p_run.add_argument("--note", help="Ledger note.")
     p_run.add_argument(
@@ -5773,15 +5784,15 @@ def main() -> int:
     p_run.add_argument("--gate", choices=sorted(APPROVAL_CATEGORY_TO_POLICY_KEY.keys()), help="Force a gate (A1–A5) before running.")
     p_run.add_argument(
         "--run-card",
-        help="Workflow run-card path. For W_compute: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON).",
+        help="Workflow run-card path. For computation: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON).",
     )
     p_run.add_argument(
         "--project-dir",
-        help="W_compute: project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
+        help="computation: project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
     )
-    p_run.add_argument("--trust-project", action="store_true", help="W_compute: trust project to execute shell backends (non-interactive).")
-    p_run.add_argument("--resume", action="store_true", help="W_compute: resume from artifacts/runs/<run-id>/w_compute (requires matching run-card).")
-    p_run.add_argument("--param", action="append", default=[], help="W_compute: parameter override (repeatable: key=value).")
+    p_run.add_argument("--trust-project", action="store_true", help="computation: trust project to execute shell backends (non-interactive).")
+    p_run.add_argument("--resume", action="store_true", help="computation: resume from artifacts/runs/<run-id>/computation (requires matching run-card).")
+    p_run.add_argument("--param", action="append", default=[], help="computation: parameter override (repeatable: key=value).")
     p_run.add_argument(
         "--sandbox",
         default="none",
@@ -5804,14 +5815,14 @@ def main() -> int:
         help="Sandbox local_copy only: allow writes to the sandboxed repo copy (default: read-only; no effect for docker provider).",
     )
     w1 = p_run.add_mutually_exclusive_group(required=False)
-    w1.add_argument("--inspire-recid", help="INSPIRE literature recid, e.g. 3112995")
+    w1.add_argument("--inspire-recid", help="INSPIRE literature recid, e.g. 1234567")
     w1.add_argument("--arxiv-id", help="arXiv id, e.g. 2210.03629")
     w1.add_argument("--doi", help="DOI, e.g. 10.1103/PhysRevLett.116.061102")
-    p_run.add_argument("--case", default="toy", help="W2 case id (v0: toy).")
-    p_run.add_argument("--ns", default="0,1,2,5,10", help="W2 toy case n values (comma-separated).")
-    p_run.add_argument("--epsabs", type=float, default=1e-12, help="W2 toy: scipy.integrate.quad epsabs.")
-    p_run.add_argument("--epsrel", type=float, default=1e-12, help="W2 toy: scipy.integrate.quad epsrel.")
-    p_run.add_argument("--mpmath-dps", type=int, default=80, help="W2 toy: mpmath precision (decimal digits).")
+    p_run.add_argument("--case", default="toy", help="reproduce case id (v0: toy).")
+    p_run.add_argument("--ns", default="0,1,2,5,10", help="reproduce toy case n values (comma-separated).")
+    p_run.add_argument("--epsabs", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsabs.")
+    p_run.add_argument("--epsrel", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsrel.")
+    p_run.add_argument("--mpmath-dps", type=int, default=80, help="reproduce toy: mpmath precision (decimal digits).")
     p_run.add_argument("--refkey", help="Optional RefKey (defaults to a stable derived key)")
     p_run.add_argument(
         "--download",
@@ -5819,101 +5830,101 @@ def main() -> int:
         choices=["none", "auto", "arxiv_source", "arxiv_pdf", "both"],
         help="Download policy for arXiv assets (if available).",
     )
-    p_run.add_argument("--paper-root", default="paper", help="W3: LaTeX project root (default: paper).")
-    p_run.add_argument("--tex-main", default="main.tex", help="W3: main TeX file within paper-root.")
-    p_run.add_argument("--draft-tex", help="W3_paper_reviser: input draft .tex path (default: <paper-root>/<tex-main>).")
+    p_run.add_argument("--paper-root", default="paper", help="revision: LaTeX project root (default: paper).")
+    p_run.add_argument("--tex-main", default="main.tex", help="revision: main TeX file within paper-root.")
+    p_run.add_argument("--draft-tex", help="paper_reviser: input draft .tex path (default: <paper-root>/<tex-main>).")
     p_run.add_argument(
         "--paper-reviser-mode",
         default="run-models",
         choices=["run-models", "stub-models", "dry-run"],
-        help="W3_paper_reviser: paper-reviser execution mode (default: run-models).",
+        help="paper_reviser: paper-reviser execution mode (default: run-models).",
     )
-    p_run.add_argument("--writer-backend", choices=["claude", "gemini"], help="W3_paper_reviser: writer backend (required).")
-    p_run.add_argument("--writer-model", help="W3_paper_reviser: writer model/alias (required; non-empty).")
-    p_run.add_argument("--auditor-backend", choices=["claude", "gemini"], help="W3_paper_reviser: auditor backend (required).")
-    p_run.add_argument("--auditor-model", help="W3_paper_reviser: auditor model/alias (required; non-empty).")
+    p_run.add_argument("--writer-backend", choices=["claude", "gemini"], help="paper_reviser: writer backend (required).")
+    p_run.add_argument("--writer-model", help="paper_reviser: writer model/alias (required; non-empty).")
+    p_run.add_argument("--auditor-backend", choices=["claude", "gemini"], help="paper_reviser: auditor backend (required).")
+    p_run.add_argument("--auditor-model", help="paper_reviser: auditor model/alias (required; non-empty).")
     p_run.add_argument(
         "--paper-reviser-max-rounds-rev1",
         type=int,
         default=1,
-        help="W3_paper_reviser: paper-reviser --max-rounds for round_01 (default: 1).",
+        help="paper_reviser: paper-reviser --max-rounds for round_01 (default: 1).",
     )
     p_run.add_argument(
         "--paper-reviser-no-codex-verify",
         action="store_true",
-        help="W3_paper_reviser: pass --no-codex-verify to paper-reviser.",
+        help="paper_reviser: pass --no-codex-verify to paper-reviser.",
     )
     p_run.add_argument(
         "--paper-reviser-min-clean-size-ratio",
         type=float,
-        help="W3_paper_reviser: pass --min-clean-size-ratio to paper-reviser (must be in (0, 1]).",
+        help="paper_reviser: pass --min-clean-size-ratio to paper-reviser (must be in (0, 1]).",
     )
     p_run.add_argument(
         "--paper-reviser-codex-model",
-        help="W3_paper_reviser: pass --codex-model to paper-reviser.",
+        help="paper_reviser: pass --codex-model to paper-reviser.",
     )
     p_run.add_argument(
         "--paper-reviser-codex-config",
         action="append",
         default=[],
-        help="W3_paper_reviser: repeatable --codex-config key=value passthrough.",
+        help="paper_reviser: repeatable --codex-config key=value passthrough.",
     )
     p_run.add_argument(
         "--paper-reviser-fallback-auditor",
         choices=["off", "claude"],
-        help="W3_paper_reviser: pass --fallback-auditor to paper-reviser.",
+        help="paper_reviser: pass --fallback-auditor to paper-reviser.",
     )
     p_run.add_argument(
         "--paper-reviser-fallback-auditor-model",
-        help="W3_paper_reviser: pass --fallback-auditor-model to paper-reviser.",
+        help="paper_reviser: pass --fallback-auditor-model to paper-reviser.",
     )
     p_run.add_argument(
         "--paper-reviser-secondary-deep-verify-backend",
         choices=["off", "claude", "gemini"],
-        help="W3_paper_reviser: pass --secondary-deep-verify-backend to paper-reviser.",
+        help="paper_reviser: pass --secondary-deep-verify-backend to paper-reviser.",
     )
     p_run.add_argument(
         "--paper-reviser-secondary-deep-verify-model",
-        help="W3_paper_reviser: pass --secondary-deep-verify-model to paper-reviser.",
+        help="paper_reviser: pass --secondary-deep-verify-model to paper-reviser.",
     )
     p_run.add_argument(
         "--manual-evidence",
         action="store_true",
-        help="W3_paper_reviser: stop after retrieval; require manual evidence/<VR-ID>.md before round_02.",
+        help="paper_reviser: stop after retrieval; require manual evidence/<VR-ID>.md before round_02.",
     )
     p_run.add_argument(
         "--evidence-synth-backend",
         choices=["stub", "claude", "gemini"],
-        help="W3_paper_reviser: evidence synthesis backend (required unless --manual-evidence).",
+        help="paper_reviser: evidence synthesis backend (required unless --manual-evidence).",
     )
     p_run.add_argument(
         "--evidence-synth-model",
-        help="W3_paper_reviser: evidence synthesis model/alias (required unless --manual-evidence).",
+        help="paper_reviser: evidence synthesis model/alias (required unless --manual-evidence).",
     )
     p_run.add_argument(
         "--verification-plan",
-        help="W3_paper_reviser: explicit verification_plan.json path (copied into SSOT under artifacts/runs/<run-id>/paper_reviser/verification/).",
+        help="paper_reviser: explicit verification_plan.json path (copied into SSOT under artifacts/runs/<run-id>/paper_reviser/verification/).",
     )
     p_run.add_argument(
         "--apply-to-draft",
         action="store_true",
-        help="W3_paper_reviser: apply final clean.tex back to the draft .tex (A4-gated if required by approval_policy).",
+        help="paper_reviser: apply final clean.tex back to the draft .tex (A4-gated if required by approval_policy).",
     )
-    p_run.add_argument("--skills-dir", help="W3_paper_reviser: override $CODEX_HOME/skills for tool discovery.")
-    p_run.add_argument("--survey-topic", help="W3_literature_survey_polish: optional topic header for the T30 survey export.")
+    p_run.add_argument("--skills-dir", help="paper_reviser: override $CODEX_HOME/skills for tool discovery.")
+    p_run.add_argument("--survey-topic", help="literature_survey_polish: optional topic header for the T30 survey export.")
     p_run.add_argument(
         "--survey-refkeys",
-        help="W3_literature_survey_polish: comma-separated RefKey list for the T30 survey export (default: small demo set).",
+        help="literature_survey_polish: comma-separated RefKey list for the T30 survey export (default: curated KB profile literature notes).",
     )
     p_run.add_argument(
         "--survey-no-compile",
         action="store_true",
-        help="W3_literature_survey_polish: do not attempt latexmk compile in research-writer consume (still runs hygiene).",
+        help="literature_survey_polish: do not attempt latexmk compile in research-writer consume (still runs hygiene).",
     )
-    p_run.add_argument("--no-apply-provenance-table", action="store_true", help="W3: do not edit paper; compile only.")
-    p_run.add_argument("--no-compile-before", action="store_true", help="W3: skip compile before edits.")
-    p_run.add_argument("--no-compile-after", action="store_true", help="W3: skip compile after edits.")
-    p_run.add_argument("--latexmk-timeout-seconds", type=int, default=300, help="W3: timeout per latexmk invocation.")
+    p_run.add_argument("--no-apply-provenance-table", action="store_true", help="revision: do not edit paper; compile only.")
+    p_run.add_argument("--no-compile-before", action="store_true", help="revision: skip compile before edits.")
+    p_run.add_argument("--no-compile-after", action="store_true", help="revision: skip compile after edits.")
+    p_run.add_argument("--latexmk-timeout-seconds", type=int, default=300, help="revision: timeout per latexmk invocation.")
     p_run.add_argument("--overwrite-note", action="store_true", help="Overwrite existing knowledge_base note.")
     p_run.add_argument("--no-query-log", action="store_true", help="Do not append to literature_queries.md")
     p_run.add_argument("--allow-errors", action="store_true", help="Treat workflow errors list as non-fatal.")
@@ -5971,9 +5982,9 @@ def main() -> int:
     )
     p_doc.set_defaults(fn=cmd_doctor)
 
-    p_bridge = sub.add_parser("bridge", help="Bridge a completed W_compute run into MCP evidence (Phase B4).")
-    p_bridge.add_argument("--run-id", help="HEPAR run id (reads artifacts/runs/<run-id>/w_compute).")
-    p_bridge.add_argument("--workspace", help="Explicit W_compute workspace dir (overrides --run-id).")
+    p_bridge = sub.add_parser("bridge", help="Bridge a completed computation run into MCP evidence (Phase B4).")
+    p_bridge.add_argument("--run-id", help="HEPAR run id (reads artifacts/runs/<run-id>/computation).")
+    p_bridge.add_argument("--workspace", help="Explicit computation workspace dir (overrides --run-id).")
     p_bridge.add_argument("--mcp-project-name", default="hep-autoresearch", help="MCP project name to create/reuse.")
     p_bridge.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
     p_bridge.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
@@ -6050,7 +6061,7 @@ def main() -> int:
     p_gap.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
     p_gap.set_defaults(fn=cmd_literature_gap)
 
-    p_md = sub.add_parser("method-design", help="Generate a runnable W_compute project scaffold (Phase C2).")
+    p_md = sub.add_parser("method-design", help="Generate a runnable computation project scaffold (Phase C2).")
     p_md.add_argument("--tag", required=True, help="Run tag for artifact output paths.")
     p_md.add_argument(
         "--template",
@@ -6103,10 +6114,10 @@ def main() -> int:
     p_skill.add_argument("--max-proposals", type=int, default=5, help="Max proposals to emit (default: 5).")
     p_skill.set_defaults(fn=cmd_skill_propose)
 
-    p_rc = sub.add_parser("run-card", help="Run-card utilities (W_compute run_card v2).")
+    p_rc = sub.add_parser("run-card", help="Run-card utilities (computation run_card v2).")
     rc_sub = p_rc.add_subparsers(dest="run_card_cmd", required=True)
 
-    p_rc_val = rc_sub.add_parser("validate", help="Validate a W_compute run-card v2 (strict).")
+    p_rc_val = rc_sub.add_parser("validate", help="Validate a computation run-card v2 (strict).")
     p_rc_val.add_argument("--run-card", required=True, help="Path to run-card v2 JSON (absolute or project-relative).")
     p_rc_val.add_argument(
         "--project-dir",
@@ -6116,7 +6127,7 @@ def main() -> int:
     p_rc_val.add_argument("--param", action="append", default=[], help="Parameter override (repeatable: key=value).")
     p_rc_val.set_defaults(fn=cmd_run_card_validate)
 
-    p_rc_rend = rc_sub.add_parser("render", help="Render a W_compute run-card v2 phase DAG (mermaid/dot/text).")
+    p_rc_rend = rc_sub.add_parser("render", help="Render a computation run-card v2 phase DAG (mermaid/dot/text).")
     p_rc_rend.add_argument("--run-card", required=True, help="Path to run-card v2 JSON (absolute or project-relative).")
     p_rc_rend.add_argument(
         "--project-dir",

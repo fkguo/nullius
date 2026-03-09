@@ -41,11 +41,11 @@
 {
   "schema_version": 1,
   "run_id": "M1-r1",
-  "workflow_id": "W1_ingest",
+  "workflow_id": "ingest",
   "run_status": "awaiting_approval",
   "current_step": {
-    "step_id": "W1.S3",
-    "title": "Expand literature search",
+    "step_id": "ingest.main",
+    "title": "Ingest paper and write reading note",
     "started_at": "2026-02-01T00:00:00Z"
   },
   "checkpoints": {
@@ -110,7 +110,7 @@ Plan（计划）语义（补充）：
 - `plan_md_path` 是派生视图（每次 plan 更新时确定性重写）。
 - `plan.branching`（可选）用于记录“可回溯”的备选路径（branch candidates）：
   - 同一时刻只能有一个 active branch：`plan.branching.active_branch_id`。
-  - `plan.branching.active_branch_id` 是复合 id：`"<decision_id>:<branch_id>"`（例如 `"W2.S1:b3"`）。
+  - `plan.branching.active_branch_id` 是复合 id：`"<decision_id>:<branch_id>"`（例如 `"reproduce.main:b3"`）。
   - `branch_decision.active_branch_id` 是该 decision 内的裸 `branch_id`（例如 `"b3"`）。
   - 默认限制分支爆炸：`plan.branching.max_branches_per_decision = 5`（提高 cap 必须显式，并在 Plan SSOT + ledger 中留下记录）。
 

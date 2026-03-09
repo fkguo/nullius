@@ -102,7 +102,7 @@ def http_get_json(url: str, timeout_seconds: float = 60.0) -> dict[str, Any]:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "hep-autoresearch/0 (W1_ingest; https://inspirehep.net)",
+            "User-Agent": "hep-autoresearch/0 (ingest; https://inspirehep.net)",
             "Accept": "application/json",
         },
     )
@@ -121,7 +121,7 @@ def http_get_text(url: str, timeout_seconds: float = 60.0) -> str:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "hep-autoresearch/0 (W1_ingest; https://inspirehep.net)",
+            "User-Agent": "hep-autoresearch/0 (ingest; https://inspirehep.net)",
             "Accept": "*/*",
         },
     )
@@ -143,7 +143,7 @@ def http_download(url: str, dest_path, timeout_seconds: float = 120.0) -> None:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "hep-autoresearch/0 (W1_ingest; https://inspirehep.net)",
+            "User-Agent": "hep-autoresearch/0 (ingest; https://inspirehep.net)",
             "Accept": "*/*",
         },
     )

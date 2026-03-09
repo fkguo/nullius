@@ -1,4 +1,4 @@
-# Prompt template — Idea triage (W1 + novelty report)
+# Prompt template — Idea triage (ingest + novelty report)
 
 把下面内容发给你的“工具型智能体”（Codex/Claude Code/自建 agent），并把 `INITIAL_INSTRUCTION.md` 填好。
 
@@ -16,7 +16,7 @@
 要求：
 - 只使用稳定锚点来源（INSPIRE/arXiv/DOI/GitHub/Zenodo/官方文档）；任何 discovery 查询都要记录到 `knowledge_base/methodology_traces/literature_queries.md`。
 - 所有关键结论必须给出证据：链接到文献（稳定锚点）或指向本地 artifacts。
-- 先做 W1 ingestion（见 `workflows/W1_ingest.zh.md`），再输出 novelty report（不是“保证新”，而是 evidence-backed 的 `LIKELY KNOWN / POSSIBLY NOVEL / UNCLEAR` 分级 + 需要补的最小检查）。
+- 先做 ingest workflow（见 `workflows/ingest.zh.md`），再输出 novelty report（不是“保证新”，而是 evidence-backed 的 `LIKELY KNOWN / POSSIBLY NOVEL / UNCLEAR` 分级 + 需要补的最小检查）。
 - 输出到一个新文件：`knowledge_base/methodology_traces/YYYY-MM-DD_novelty_report_<slug>.md`。
 
 交付物（novelty report 必含）：

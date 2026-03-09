@@ -37,7 +37,7 @@ class TestRunCard(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            rel, sha = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="W1_ingest")
+            rel, sha = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="ingest")
             p = repo_root / rel
             self.assertTrue(p.exists())
             payload = json.loads(p.read_text(encoding="utf-8"))
@@ -52,8 +52,8 @@ class TestRunCard(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            rel1, sha1 = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="W2_reproduce")
-            rel2, sha2 = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="W2_reproduce")
+            rel1, sha1 = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="reproduce")
+            rel2, sha2 = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="reproduce")
             self.assertEqual(rel1, rel2)
             self.assertEqual(sha1, sha2)
 
@@ -68,13 +68,13 @@ class TestRunCard(unittest.TestCase):
             rel1, sha1 = ensure_run_card(
                 repo_root=repo_root,
                 run_id="M1-test",
-                workflow_id="W2_reproduce",
+                workflow_id="reproduce",
                 params={"a": 1},
             )
             rel2, sha2 = ensure_run_card(
                 repo_root=repo_root,
                 run_id="M1-test",
-                workflow_id="W2_reproduce",
+                workflow_id="reproduce",
                 params={"a": 2},
                 overwrite=True,
             )
@@ -89,8 +89,8 @@ class TestRunCard(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            rel, _ = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="W1_ingest")
+            rel, _ = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="ingest")
             p = repo_root / rel
             p.write_text("{}", encoding="utf-8")
             with self.assertRaises(ValueError):
-                ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="W1_ingest")
+                ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="ingest")

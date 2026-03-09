@@ -1,5 +1,0 @@
-python3 -B scripts/build_kfactor_mtt.py \
-  --nlo-proc /output/dataset/output/proc_sm_nlo_ttbar --nlo-run sm_nlo \
-  --lo-proc  /output/dataset/output/proc_sm_lo_ttbar  --lo-run  sm_lo \
-  --out /output/dataset/output/kfactors_mtt.json \
-  --nbins 60 --mmin 340 --mmax 2000

@@ -1,6 +1,6 @@
 # C2_method_design (Phase C2)
 
-Goal: turn a (human-provided) method intent into a **runnable, auditable W_compute plugin project**:
+Goal: turn a (human-provided) method intent into a **runnable, auditable computation plugin project**:
 - generate a self-contained project scaffold (scripts + run_card v2 + project.json)
 - (optional) snapshot external constants (e.g. PDG properties) at design time for reproducibility
 - keep the generator deterministic and regression-testable (offline stub MCP)
@@ -66,14 +66,14 @@ Files:
   - `tests/test_method_design_cli.py` validates:
     - scaffold generation
     - run-card strict validation
-    - W_compute execution for all templates (with stub MCP for pdg_snapshot)
+    - computation execution for all templates (with stub MCP for pdg_snapshot)
 
 ## MVP scope (v0)
 
 - Deterministic templates (no LLM calls).
 - Templates:
   - `minimal_ok`: one phase writes a small JSON output
-  - `pdg_snapshot`: snapshot a PDG property at design time via MCP, then run a self-contained W_compute card that copies the snapshot into results
+  - `pdg_snapshot`: snapshot a PDG property at design time via MCP, then run a self-contained computation card that copies the snapshot into results
   - `pdg_runtime`: query a PDG property at runtime via MCP, writing `results/pdg_property.json` (useful when you want the compute run to depend on the PDG DB version/locator)
   - `spec_v1`: materialize a runnable project from a structured `method_spec` v1 bundle (project metadata + files + run_card v2)
 - Run-card output is validated strictly (`run_card v2` + DAG cycle check) before writing.

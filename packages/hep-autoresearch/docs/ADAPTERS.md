@@ -42,9 +42,9 @@ Minimal example:
 {
   "schema_version": 1,
   "run_id": "MXX-adapter-smoke-r1",
-  "workflow_id": "ADAPTER_shell_smoke",
+  "workflow_id": "shell_adapter_smoke",
   "adapter_id": "shell",
-  "artifact_step": "adapter_shell_smoke",
+  "artifact_step": "shell_adapter_smoke",
   "required_gates": ["A3"],
   "budgets": { "timeout_seconds": 30 },
   "backend": {

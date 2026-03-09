@@ -30,7 +30,7 @@
 - `research-writer`：paper scaffold + deterministic hygiene +（可选）writer→auditor 精修闭环。
 - `hep-calc`：HEP 推导/数值复现的可审计计算编排（Mathematica/Julia/LoopTools 等）。
 - `deep-learning-lab`：ML/数值实验的可复现实验工程（configs、dataset provenance、artifacts runs）。
-- `prl-referee-review`：PRL 风格审稿报告（作为 W3 的外部 reviewer 角色更合适）。
+- `prl-referee-review`：PRL 风格审稿报告（作为 revision 的外部 reviewer 角色更合适）。
 
 ### 1.3 `hep-research-mcp`
 
@@ -65,7 +65,7 @@
 - 把 run-card 写入 `manifest.json`（或以文件路径形式写入）。
 - 在 resume 时读回 run-card，避免“上次怎么跑的”丢失。
 
-这与 ArgoLOOM/HEPTAPOD 等系统强调的 run cards / job spec 在工程上对齐。
+这与现有多 agent research orchestration 文献里强调的 run cards / job spec 思路在工程上对齐。
 
 ### 2.3 引用与键的分离：RefKey ≠ citekey
 
@@ -120,15 +120,15 @@
    - 本仓库缺口：
      - 把“prompt/tool list 版本”纳入 `manifest.json` 的标准字段，并进入回归对比。
 
-3) **KB 三层语义（受 LANDAU 启发）显式化 + 最小索引导出（KB index）**
-   - 文献来源：PhysMaster（LANDAU）。
+3) **KB 三层语义显式化 + 最小索引导出（KB index）**
+   - 文献来源：近期 AI scientist / agent runtime 文献中的分层知识库实践。
    - 生态圈已有：
      - 目录结构天然对应（literature/methodology_traces/priors）。
    - 本仓库缺口：
      - 一个 deterministic “KB index” 导出（JSON）供 Orchestrator/Reviewer packet 使用。
 
 4) **curated KB profile（少而精）作为可选模式，并用 eval 约束收益/噪声**
-   - 文献来源：ArgoLOOM（每域少量高信噪比语料）。
+   - 文献来源：多 agent / research-runtime 文献中一贯强调的“少而精 seed context + 可审计交付物”实践。
    - 生态圈已有：
      - `knowledge_base/literature/` 可以手工 curated，但缺“模式化开关”。
    - 本仓库缺口：
@@ -137,7 +137,7 @@
 ### 4.2 Later（需要 infra + eval guardrails，再纳入计划）
 
 - **MCTS/tree long-horizon 调度骨架**
-  - 文献来源：PhysMaster（MCTS/UCT）。
+  - 文献来源：long-horizon agent runtime 文献中的显式分支探索实践。
   - 生态圈已有：
     - Orchestrator 状态机 + eval gate + evolution proposal，具备做 reward 的基础信号。
   - 风险：
@@ -152,7 +152,7 @@
 
 ---
 
-## 5) 需要你审核的“计划纳入建议”（我先不直接改 Task Board）
+## 5) 计划纳入建议（待维护者裁定）
 
-如果你同意，上面 Adopt-now 的 1)–4) 我建议拆成后续任务（例如 T31–T34）。
-你回复“同意纳入 1/2/3/4（或全部）”后，我再把它们写入 `RESEARCH_PLAN.md` 并开始实施（从 T29 开始）。
+上面 Adopt-now 的 1)–4) 适合拆成后续任务（例如 T31–T34）。
+一旦维护者确认纳入，应把这些项写入项目本地 `RESEARCH_PLAN.md`（或等价 Task Board）后再实施，而不是只停留在讨论文档中。

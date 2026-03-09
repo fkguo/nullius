@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "run_id": "schrodinger-ho-r1",
-  "workflow_id": "W_compute",
+  "workflow_id": "computation",
   "title": "Solve radial Schrodinger equation for HO potential",
 
   "parameters": {

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "case_id": "E14-ingest-failall-snapshot-integrity",
+  "workflow": "ingest",
+  "description": "ingest workflow (HEPAR_HTTP_MODE=fail_all): artifacts must record the failure deterministically and MUST NOT corrupt the last good curated-anchor `references/arxiv/.../metadata.json` snapshot.",
+  "inputs": {
+    "tag": "M18-ingest-failall-r1",
+    "refkey": "arxiv-2310.06770-swe-bench"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "references/arxiv/2310.06770/metadata.json",
+      "artifacts/runs/M18-ingest-failall-r1/ingest/arxiv-2310.06770-swe-bench/manifest.json",
+      "artifacts/runs/M18-ingest-failall-r1/ingest/arxiv-2310.06770-swe-bench/summary.json",
+      "artifacts/runs/M18-ingest-failall-r1/ingest/arxiv-2310.06770-swe-bench/analysis.json",
+      "artifacts/runs/M18-ingest-failall-r1/ingest/arxiv-2310.06770-swe-bench/report.md"
+    ],
+    "json_value_checks": [
+      {
+        "path": "artifacts/runs/M18-ingest-failall-r1/ingest/arxiv-2310.06770-swe-bench/analysis.json",
+        "pointer": "#/results/ok",
+        "type": "boolean",
+        "equals": false
+      },
+      {
+        "path": "artifacts/runs/M18-ingest-failall-r1/ingest/arxiv-2310.06770-swe-bench/analysis.json",
+        "pointer": "#/results/errors",
+        "type": "array",
+        "min_length": 2
+      },
+      {
+        "path": "artifacts/runs/M18-ingest-failall-r1/ingest/arxiv-2310.06770-swe-bench/analysis.json",
+        "pointer": "#/results/errors/0",
+        "type": "string",
+        "contains": "HEPAR_HTTP_MODE=fail_all"
+      },
+      {
+        "path": "artifacts/runs/M18-ingest-failall-r1/ingest/arxiv-2310.06770-swe-bench/analysis.json",
+        "pointer": "#/results/errors/1",
+        "type": "string",
+        "contains": "HEPAR_HTTP_MODE=fail_all"
+      },
+      {
+        "path": "references/arxiv/2310.06770/metadata.json",
+        "pointer": "#/arxiv_id",
+        "equals": "2310.06770"
+      },
+      {
+        "path": "references/arxiv/2310.06770/metadata.json",
+        "pointer": "#/title",
+        "type": "string",
+        "contains": "SWE-bench",
+        "min_length": 1
+      },
+      {
+        "path": "references/arxiv/2310.06770/metadata.json",
+        "pointer": "#/primary_category",
+        "equals": "cs.CL"
+      }
+    ]
+  },
+  "notes": "This is a regression anchor: offline/fail_all runs should never overwrite the curated ingest anchor snapshot with '(unknown)' placeholders."
+}

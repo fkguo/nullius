@@ -5,7 +5,6 @@ arXiv: 2308.08155 [cs.AI]
 Links:
 - arXiv: https://arxiv.org/abs/2308.08155
 - Code: https://github.com/microsoft/autogen
-- TeX snapshot (local): [arxiv_main.tex](../../references/arxiv/2308.08155/source/arxiv_main.tex)
 
 ## Key points（来自 TeX 精读）
 

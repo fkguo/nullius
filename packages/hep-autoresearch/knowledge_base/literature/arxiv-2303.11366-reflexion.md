@@ -5,7 +5,6 @@ arXiv: 2303.11366 [cs.AI]
 Links:
 - arXiv: https://arxiv.org/abs/2303.11366
 - Code: https://github.com/noahshinn024/reflexion
-- TeX snapshot (local): [main.tex](../../references/arxiv/2303.11366/source/main.tex)
 
 ## Key points（来自 TeX 精读）
 

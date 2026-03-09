@@ -88,7 +88,7 @@ Reviewer outputs (repo-root-relative):
 | #2 config schema | planned | (pending) | `research_team_config.json` → schema + 校验 + 测试 |
 | #15 Web state/ledger locking | planned | (pending) | Web 写入路径持锁 + 事务式落盘 + 回归测试 |
 | #7 MCP retry | planned | (pending) | stdio client 重试/退避/重连与测试 |
-| #9 idempotency | planned | (pending) | W2/W3_revision 默认拒绝覆盖 + `--force` |
+| #9 idempotency | planned | (pending) | reproduce/revision 默认拒绝覆盖 + `--force` |
 | #5 Phase C eval cases | planned | (pending) | E34–E38 补齐（基于现有确定性 run artifacts） |
 
 ---
@@ -131,11 +131,11 @@ Reviewer outputs (repo-root-relative):
 
 ### Issue #3: 集成测试覆盖不足 (非“零”)
 
-**更正**: 当前并非“零集成测试”。例如 `tests/test_w3_paper_reviser_workflow.py` 是离线 E2E 流程测试 (含 gate + resume/skip 逻辑)，但整体仍缺少覆盖“全链路/失败恢复/并发一致性”的系统集成测试矩阵。
+**更正**: 当前并非“零集成测试”。例如 `tests/test_paper_reviser_workflow.py` 是离线 E2E 流程测试 (含 gate + resume/skip 逻辑)，但整体仍缺少覆盖“全链路/失败恢复/并发一致性”的系统集成测试矩阵。
 
 - **目录**: `tests/` (14 个 `.py`, 约 2,769 行; 其中 `test_*.py` 为 13 个)
 - **问题**: 集成/回归测试覆盖不足 (存在 workflow 级别覆盖，但缺少端到端与 CI 一体化)
-  - 无 W1→W2→W3 完整流水线测试
+  - 无 ingest→reproduce→revision 完整流水线测试
   - 无 init→start→run→approve→resume 生命周期测试
   - 无 CLI + Web API 并发状态同步/一致性测试
   - 无失败恢复路径测试
@@ -148,9 +148,9 @@ Reviewer outputs (repo-root-relative):
 |------|------|--------|----------|
 | `orchestrator_state.py` | 699 | 状态机核心 | 无单测 |
 | `run_card_schema.py` | 654 | run_card v2 校验 | 无单测 |
-| `w1_ingest.py` | 928 | W1 工作流 | 仅 eval E1/E2 |
-| `w2_reproduce.py` | 299 | W2 工作流 | 仅 eval E4 |
-| `w3_revision.py` | 333 | W3 遗留工作流 | 仅 eval E5 |
+| `ingest.py` | 928 | ingest workflow | 仅 eval E1/E2 |
+| `reproduce.py` | 299 | reproduce workflow | 仅 eval E4 |
+| `revision.py` | 333 | revision legacy workflow | 仅 eval E5 |
 | `mcp_stdio_client.py` | 335 | MCP 通信 | 无单测 |
 | `adapters/registry.py` | 70 | 适配器路由 | 无单测 |
 | `context_pack.py` | 337 | 上下文打包 | 仅 eval E11 |
@@ -219,12 +219,12 @@ Reviewer outputs (repo-root-relative):
 
 | 工作流 | 重复执行行为 | 安全? |
 |--------|-------------|-------|
-| W1_ingest | 检查 notes 是否存在, 默认不覆盖 | 安全 |
-| W2_reproduce | **无检查, 直接覆盖** | **不安全** |
-| W3_paper_reviser | 检查 round_01 是否存在, 需要 `--force` | 安全 |
+| ingest | 检查 notes 是否存在, 默认不覆盖 | 安全 |
+| reproduce | **无检查, 直接覆盖** | **不安全** |
+| paper_reviser | 检查 round_01 是否存在, 需要 `--force` | 安全 |
 | method_design | 抛出 `FileExistsError` | 安全 |
-| W_compute | 支持 `--resume` 跳过已完成阶段 | 安全 |
-| W3_revision | **无检查, 直接覆盖** | **不安全** |
+| computation | 支持 `--resume` 跳过已完成阶段 | 安全 |
+| revision | **无检查, 直接覆盖** | **不安全** |
 
 - **建议**: 统一策略: "存在则拒绝 + `--force` 覆盖"
 
@@ -266,7 +266,7 @@ Reviewer outputs (repo-root-relative):
 | 位置 | 值 | 建议 |
 |------|---|------|
 | `src/hep_autoresearch/toolkit/_http.py` | `timeout_seconds=60.0` / `120.0` | 提取到配置常量 |
-| `src/hep_autoresearch/toolkit/w_compute.py` | `default_timeout_seconds=900` | 提取到 run_card 参数 |
+| `src/hep_autoresearch/toolkit/computation.py` | `default_timeout_seconds=900` | 提取到 run_card 参数 |
 | `src/hep_autoresearch/toolkit/mcp_stdio_client.py` | `startup_timeout_seconds=8.0` | 提取到配置 |
 
 ### Issue #13: 适配器注册为手动维护

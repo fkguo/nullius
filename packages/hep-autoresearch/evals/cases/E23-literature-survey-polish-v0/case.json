@@ -34,7 +34,7 @@
     "text_contains_checks": [
       {
         "path": "artifacts/runs/M42-t36-r1-survey-polish/approvals/A4-0001/packet.md",
-        "contains": ["(A4)", "Plan step(s): W3.SURVEY_POLISH", "W3_literature_survey_polish"]
+        "contains": ["(A4)", "Plan step(s): literature_survey.polish", "literature_survey_polish"]
       }
     ],
     "json_numeric_checks": [

@@ -7,13 +7,14 @@
 - 任何一步都有可审计产物与可回滚路径
 
 本文件定义交互契约，后续实现可以是 CLI 优先、Web 次之。
+下文所有命令都假设你位于一个真实、已 scaffold 的研究项目根目录（或显式传 `--project-root <dir>`）；`packages/hep-autoresearch/` 是工具开发仓，不是日常运行项目的 project root。
 
 ## 1) 交互命令（CLI 优先）
 
 建议命令集合（示意；最终命令名以后再定）：
 
-- `init`：初始化当前目录为 project root（补齐 docs/KB/specs 最小骨架；创建 `.autoresearch/` 状态 + ledger）
-- `run`：启动一个 workflow（W1/W2/W3/W4 + adapter workflows；高风险 shell backend 可选 `--sandbox`）
+- `init`：把你选定的项目目录初始化为 project root（补齐 docs/KB/specs 最小骨架；创建 `.autoresearch/` 状态 + ledger）
+- `run`：启动一个 workflow（如 `ingest` / `reproduce` / `draft` / `revision` / `derivation_check` + adapter workflows；高风险 shell backend 可选 `--sandbox`）
 - `branch`：把“分支决策/备选路径”记录进 Plan SSOT（list/add/switch；用于可控回溯）
 - `status`：显示当前 run 状态（步骤、产物、待同意点、预算消耗）
 - `pause`：暂停当前 run（写 stop file 或更新状态）
@@ -49,7 +50,7 @@
 
 Orchestrator 必须把 run 状态落盘（崩溃/中断后可恢复），至少包括：
 - `run_id` / `tag`
-- `workflow_id`（W1/W2/W3/W4）
+- `workflow_id`（如 `ingest` / `reproduce` / `draft` / `revision` / `derivation_check`）
 - 当前 step、已完成 steps、下一步
 - `pending_approval`（如有：approval_id + 包内容摘要）
 - 预算消耗（network calls、runtime）
@@ -100,34 +101,35 @@ Web 入口不改变契约，只改变 UI：
 
 ### 现阶段实现（v0）
 
-当前已提供最小 CLI（支持 `run/status/pause/resume/approve/reject/logs/export`；v0.4 可执行 `W1_ingest`、`W2_reproduce`（toy）、`W_compute`、`W3_revision`（v0）、`W3_literature_survey_polish`、`ADAPTER_shell_smoke`，并按 `approval_policy.json` 自动触发默认同意点）：
+当前已提供最小 CLI（支持 `run/status/pause/resume/approve/reject/logs/export`；v0.4 可执行 `ingest`、`reproduce`（toy）、`computation`、`revision`（v0）、`literature_survey_polish`、`shell_adapter_smoke`，并按 `approval_policy.json` 自动触发默认同意点）：
 
 ```bash
-python3 scripts/orchestrator.py init
-python3 scripts/orchestrator.py run --run-id M1-orch-r1 --workflow-id W1_ingest --inspire-recid 3112995 --refkey recid-3112995-madagants --download none
-python3 scripts/orchestrator.py status
-python3 scripts/orchestrator.py logs --tail 20
-python3 scripts/orchestrator.py pause
-python3 scripts/orchestrator.py resume
-python3 scripts/orchestrator.py export --run-id M1-orch-r1
+# 在你的研究项目根目录里执行（不是在 packages/hep-autoresearch/ 里）
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py init
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M1-orch-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py status
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py logs --tail 20
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py pause
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py resume
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py export --run-id M1-orch-r1
 
-# W2 (toy) reproduction
-python3 scripts/orchestrator.py run --run-id M2-orch-w2-toy-r1 --workflow-id W2_reproduce --case toy --ns 0,1,2,5,10
-python3 scripts/orchestrator.py status   # 查看 pending_approval（默认 A3）
-python3 scripts/orchestrator.py approve <approval_id>
-python3 scripts/orchestrator.py run --run-id M2-orch-w2-toy-r1 --workflow-id W2_reproduce --case toy --ns 0,1,2,5,10
+# reproduce (toy) workflow
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py status   # 查看 pending_approval（默认 A3）
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py approve <approval_id>
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
 
-# W_compute (run_card v2 DAG; example: schrodinger_ho)
-python3 scripts/orchestrator.py run --run-id M0-wcompute-demo-r1 --workflow-id W_compute --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
-python3 scripts/orchestrator.py status   # 查看 pending_approval（默认 A3）
-python3 scripts/orchestrator.py approve <approval_id>
-python3 scripts/orchestrator.py run --run-id M0-wcompute-demo-r1 --workflow-id W_compute --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
+# computation (run_card v2 DAG; example: schrodinger_ho)
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir /path/to/packages/hep-autoresearch/examples/schrodinger_ho --run-card /path/to/packages/hep-autoresearch/examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py status   # 查看 pending_approval（默认 A3）
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py approve <approval_id>
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir /path/to/packages/hep-autoresearch/examples/schrodinger_ho --run-card /path/to/packages/hep-autoresearch/examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
 
-# W3 revision v0 (compile gate + provenance table)
-python3 scripts/orchestrator.py run --run-id M2-orch-w3-r1 --workflow-id W3_revision
-python3 scripts/orchestrator.py status   # 查看 pending_approval（默认 A4）
-python3 scripts/orchestrator.py approve <approval_id>
-python3 scripts/orchestrator.py run --run-id M2-orch-w3-r1 --workflow-id W3_revision
+# revision v0 (compile gate + provenance table)
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M2-orch-revision-r1 --workflow-id revision
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py status   # 查看 pending_approval（默认 A4）
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py approve <approval_id>
+python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M2-orch-revision-r1 --workflow-id revision
 ```
 
 安全注意（最小要求）：

@@ -9,12 +9,12 @@
   2) 新增/更新至少 1 个 eval case（`evals/`）。
 
 当前 workflow 列表：
-- `W1_ingest.md`：文献入口（INSPIRE/arXiv/DOI → references + reading note）
-- `W2_reproduce.md`：复现主结果（reproduction-first）
-- `W_compute.md`：通用计算 DAG（run_card v2）→ 可审计产物 + resume
-- `W3_draft.md`：草稿写作（从 Draft_Derivation/KB 到可编译草稿）
-- `W3_revision.md`：审稿→改稿闭环（LaTeX）
-- `W3_paper_reviser.md`：paper-reviser 集成 + 验证闭环（A–E；Step C 走 A1 门禁）
-- `W4_derivation_check.md`：推导与一致性检查（含数值/极限对照）
+- `ingest.md`：文献入口（INSPIRE/arXiv/DOI → references + reading note）
+- `reproduce.md`：复现主结果（reproduction-first）
+- `computation.md`：通用计算 DAG（run_card v2）→ 可审计产物 + resume
+- `draft.md`：草稿写作（从 Draft_Derivation/KB 到可编译草稿）
+- `revision.md`：审稿→改稿闭环（LaTeX）
+- `paper_reviser.md`：paper-reviser 集成 + 验证闭环（A–E；Step C 走 A1 门禁）
+- `derivation_check.md`：推导与一致性检查（含数值/极限对照）
 - `C1_literature_gap.md`：MCP INSPIRE 文献发现（Phase C1，生成可审计 discovery bundle）
-- `C2_method_design.md`：方法设计脚手架（Phase C2，生成可运行的 W_compute 插件项目）
+- `C2_method_design.md`：方法设计脚手架（Phase C2，生成可运行的 computation 插件项目）

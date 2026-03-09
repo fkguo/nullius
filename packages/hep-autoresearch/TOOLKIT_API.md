@@ -10,7 +10,7 @@ Goal: split the “research agent platform” into reusable, testable, replaceab
 
 ## 1) Module layout (v0)
 
-### A. `ingest` (W1)
+### A. `ingest`
 
 Responsibilities:
 - input (recid/arXiv/DOI/query) → stable anchor → references snapshot → reading note (RefKey-templated)
@@ -85,6 +85,6 @@ Draft interfaces:
 
 ## 2) Version strategy (suggested)
 
-- v0: only promise W1 ingestion + eval static checker (reliability engineering bootstrap)
-- v1: add W3 revision loop (LaTeX compilable + diff + citation/evidence gates)
-- v2: add W2 reproduce (toy first, then real papers)
+- v0: only promise ingest + eval static checker (reliability engineering bootstrap)
+- v1: add revision loop (LaTeX compilable + diff + citation/evidence gates)
+- v2: add reproduce (toy first, then real papers)

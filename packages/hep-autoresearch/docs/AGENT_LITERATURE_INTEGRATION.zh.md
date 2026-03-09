@@ -1,11 +1,15 @@
-# Agent literature integration（从 MadAgents 引用的 agent/LLM 文献提炼可执行机制）
+# Agent literature integration（从 curated 的 agent / research-workflow literature notes 提炼可执行机制）
 
 目的：把 “agent 相关文献” 的优点转化为我们 autopilot 的**可实现机制**（流程/门禁/产物/评测），而不是停留在概念层面。
 
 数据来源：
-- MadAgents（[@recid-3112995-madagants](../knowledge_base/literature/recid-3112995-madagants.md)）references 抽取：[`references/inspire/recid-3112995/references.md`](../references/inspire/recid-3112995/references.md)
-- 筛选 trace：[2026-02-01 — MadAgents agent literature survey](../knowledge_base/methodology_traces/2026-02-01_madagants_agent_literature_survey.md)
-- 补充（非 INSPIRE 例）：[@arxiv-2512.19799-physmaster](../knowledge_base/literature/arxiv-2512.19799-physmaster.md)（TeX 精读；含 long-horizon/MCTS/LANDAU）
+- curated profile：[`knowledge_base/_index/kb_profiles/curated.json`](../knowledge_base/_index/kb_profiles/curated.json)
+- 代表性 KB notes：
+  - [@arxiv-2210.03629-react](../knowledge_base/literature/arxiv-2210.03629-react.md)
+  - [@arxiv-2303.11366-reflexion](../knowledge_base/literature/arxiv-2303.11366-reflexion.md)
+  - [@arxiv-2405.15793-swe-agent](../knowledge_base/literature/arxiv-2405.15793-swe-agent.md)
+  - [@arxiv-2305.13971-grammar-constrained-decoding](../knowledge_base/literature/arxiv-2305.13971-grammar-constrained-decoding.md)
+  - [@arxiv-2310.06770-swe-bench](../knowledge_base/literature/arxiv-2310.06770-swe-bench.md)
 
 ## 1) 我们已经“集成/对齐”的关键点（不是新增负担）
 
@@ -22,18 +26,20 @@
 
 ## 2) 从文献“新增”出来的高 ROI 机制（建议纳入 M1–M2 设计）
 
-### 2.1 run-card / job spec（HEPTAPOD 方向）
+### 2.1 run-card / job spec（结构化执行契约）
 
 来源：
-- [@recid-3093880-heptapod](../knowledge_base/literature/recid-3093880-heptapod.md)
+- [@arxiv-2210.03629-react](../knowledge_base/literature/arxiv-2210.03629-react.md)
+- [@arxiv-2405.15793-swe-agent](../knowledge_base/literature/arxiv-2405.15793-swe-agent.md)
 
 建议集成：
 - 把每次复杂 workflow 的关键配置固化为结构化 run-card（类似 `hep-calc` job），并纳入 artifacts manifest。
 
-### 2.2 workflow manager 保证确定性 + agent 负责生成/修错（LLM-Powered HEP Agents 方向）
+### 2.2 deterministic runner 保证执行边界 + agent 负责生成/修错
 
 来源：
-- [@recid-3090360-llm-powered-hep-agents](../knowledge_base/literature/recid-3090360-llm-powered-hep-agents.md)
+- [@arxiv-2405.15793-swe-agent](../knowledge_base/literature/arxiv-2405.15793-swe-agent.md)
+- [@arxiv-2210.03629-react](../knowledge_base/literature/arxiv-2210.03629-react.md)
 
 建议集成：
 - 将“确定性执行器（workflow manager / runner）”作为默认执行层；agent 不直接掌控“随意执行”，而是提交受控任务。
@@ -76,46 +82,47 @@
 - 把每次失败（review/eval/复现/构建失败）转成“可执行反思条目”写入经验库（episodic memory）。
 - 经验库条目必须与 eval case 绑定，支持回滚/消融/灰度启用，防止错误经验固化。
 
-### 2.7 long-horizon 调度骨架：MCTS + 分层角色（PhysMaster 方向）
+### 2.7 显式 backtracking / branch checkpoints
 
 来源：
-- [@arxiv-2512.19799-physmaster](../knowledge_base/literature/arxiv-2512.19799-physmaster.md)
+- [@arxiv-2210.03629-react](../knowledge_base/literature/arxiv-2210.03629-react.md)
+- [@arxiv-2303.11366-reflexion](../knowledge_base/literature/arxiv-2303.11366-reflexion.md)
 
 建议集成（Later；但需要先把接口与评测准备好）：
-- 将 long-horizon 任务的“分支探索”显式化为树结构（而不是线性日志），并把 **门禁/评测结果** 作为 reward 信号，借鉴 UCT 做探索/利用平衡。
+- 将复杂任务中的“试错 / 回退 / 改写下一步”显式化为 checkpoint 或 branch（而不是只保留线性日志），避免 runtime 被单一路径绑死。
 - 引入 node 级别的“继承摘要 + RAG 背景 + 执行 + critique + 下一步”闭环，但必须绑定：
   - 可恢复状态（resume）
   - 评测回归（防 reward hacking）
   - 回滚/消融（防错误经验固化）
 
-### 2.8 三层知识库的显式语义（LANDAU 方向）
+### 2.8 三层知识库的显式语义
 
-来源：
-- [@arxiv-2512.19799-physmaster](../knowledge_base/literature/arxiv-2512.19799-physmaster.md)
+说明：
+- 这一节不是照搬单篇论文，而是把现有 `literature / methodology_traces / priors` 三层结构收束成稳定语义，避免后续实现继续把临时 planning/context 混进长期 KB。
 
 建议集成（Adopt now：仅做语义对齐 + 文档化；Later：做接口）：
-- Adopt now：明确我们现有结构与 LANDAU 的对应关系：
+- Adopt now：明确我们现有结构的三层语义：
   - `knowledge_base/literature/` → Library
   - `knowledge_base/methodology_traces/` + `EVOLUTION` proposals → Methodology
   - `knowledge_base/priors/` → Priors
-- Later：做一个最小 “KB index” 接口（可导出为 JSON；受 PhysMaster 的 LANDAU 分层语义启发），用于：
+- Later：做一个最小 “KB index” 接口（可导出为 JSON），用于：
   - Orchestrator 的任务分派（按 layer 取证据）
   - reviewer packet 的证据束自动化
   - 经验库条目的可检索/可回滚/可消融
 
-### 2.9 运行质量指标 + prompt 作为 run-card 参数（Agents of Discovery 方向）
+### 2.9 运行质量指标 + prompt 作为 run-card 参数（SWE-agent 方向）
 
 来源：
-- [@recid-2968660-agents-of-discovery](../knowledge_base/literature/recid-2968660-agents-of-discovery.md)
+- [@arxiv-2405.15793-swe-agent](../knowledge_base/literature/arxiv-2405.15793-swe-agent.md)
 
 建议集成（Adopt now）：
 - 把运行指标（calls/tool calls/errors/latency/tokens/cost）作为 artifacts 的标准字段，并纳入 eval（稳定性/方差，不只是 pass/fail）。
 - 把 prompt（含 tool list 与关键约束）当作 run-card 字段固定落盘，避免“换了 prompt 但没记录”造成不可复现。
 
-### 2.10 多域模块 + curated KB（少而精）+ 交付物导向（ArgoLOOM 方向）
+### 2.10 多域模块 + curated KB（少而精）+ 交付物导向
 
-来源：
-- [@recid-3062816-argoloom](../knowledge_base/literature/recid-3062816-argoloom.md)
+说明：
+- 这一节强调的是产品边界：默认 seed KB 要保持少而精，产物以 run cards / configs / logs 为主，而不是继续把偶发实例或临时调研堆进 package repo。
 
 建议集成（Adopt now / later）：
 - Adopt now：
@@ -149,5 +156,5 @@
 - 在宣称“新意”或推进高成本工作流之前，必须对最接近 prior work 的关键文献做 TeX 级精读，并把可执行机制提炼进 KB（见 [knowledge_base/literature/](../knowledge_base/literature/)）与本项目契约/工作流。
 
 执行提示（避免重复造轮子）：
-- arXiv 论文可优先下载 TeX 源码（本 repo 约定：`references/arxiv_src/<id>/src/`），再做精读/摘录到 KB note（KB note 必须给出 source file pointer）。
+- arXiv 论文可按需下载 TeX 源码（物化时可用 `references/arxiv_src/<id>/src/` 这类布局作为临时约定），再做精读/摘录到 KB note；不要把整棵源码树长期沉积在 package repo 里。
 - 若该论文在 INSPIRE 上不存在，也可以直接用 arXiv Atom + e-print 源（`export.arxiv.org` + `arxiv.org/e-print/<id>`）抓取并落盘；抓取动作要记到 `knowledge_base/methodology_traces/literature_queries.md`。

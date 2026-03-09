@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "case_id": "E5-revision-compile-provenance",
+  "workflow": "revision",
+  "description": "revision workflow: a minimal eval fixture project compiles and provenance table rows are populated from the fixture notebook.",
+  "inputs": {
+    "tag": "M2-revision-devcheck-r1",
+    "paper_root": "paper"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_revision.py",
+      "src/hep_autoresearch/toolkit/revision.py",
+      "evals/fixtures/revision_project/Draft_Derivation.md",
+      "evals/fixtures/revision_project/paper/main.tex",
+      "evals/fixtures/revision_project/artifacts/runs/M2-revision-devcheck-r1/revision/manifest.json",
+      "evals/fixtures/revision_project/artifacts/runs/M2-revision-devcheck-r1/revision/summary.json",
+      "evals/fixtures/revision_project/artifacts/runs/M2-revision-devcheck-r1/revision/analysis.json"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "evals/fixtures/revision_project/artifacts/runs/M2-revision-devcheck-r1/revision/analysis.json",
+        "pointer": "#/results/compile_exit_code_before",
+        "max_abs": 0
+      },
+      {
+        "path": "evals/fixtures/revision_project/artifacts/runs/M2-revision-devcheck-r1/revision/analysis.json",
+        "pointer": "#/results/compile_exit_code_after",
+        "max_abs": 0
+      },
+      {
+        "path": "evals/fixtures/revision_project/artifacts/runs/M2-revision-devcheck-r1/revision/analysis.json",
+        "pointer": "#/results/provenance_rows",
+        "min": 1
+      }
+    ]
+  },
+  "notes": "Run first from evals/fixtures/revision_project: python3 ../../../scripts/run_revision.py --tag M2-revision-devcheck-r1 --paper-root paper --i-approve-paper-edits. This is a deterministic compile+provenance regression anchor and does not run external LLMs."
+}

@@ -10,7 +10,7 @@
 
 ## 1) 模块划分（v0）
 
-### A. `ingest`（W1）
+### A. `ingest`
 
 职责：
 - 输入（recid/arXiv/DOI/query）→ stable anchor → references 快照 → reading note（RefKey 模板化）
@@ -85,6 +85,6 @@
 
 ## 2) 版本策略（建议）
 
-- v0：只承诺 W1 ingestion + eval 静态检查器（可靠性工程起步）
-- v1：加 W3 revision 闭环（LaTeX 可编译 + diff + 引用/证据门禁）
-- v2：加 W2 reproduce（先 toy，再真实论文）
+- v0：只承诺 ingest + eval 静态检查器（可靠性工程起步）
+- v1：加 revision 闭环（LaTeX 可编译 + diff + 引用/证据门禁）
+- v2：加 reproduce（先 toy，再真实论文）

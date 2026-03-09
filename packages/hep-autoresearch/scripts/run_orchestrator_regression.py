@@ -24,29 +24,29 @@ def main() -> int:
         default=600,
         help="Timeout for each orchestrator invocation (default: 600).",
     )
-    parser.add_argument("--w2-ns", default="0,1,2", help="W2 ns list (comma-separated).")
+    parser.add_argument("--reproduce-ns", default="0,1,2", help="reproduce ns list (comma-separated).")
     parser.add_argument(
         "--scenarios",
-        default="w2,wcompute,w3",
-        help="Comma-separated scenarios to run: project_init,plan,branching,sandbox,w2,wcompute,w3,survey_polish,bypass (default: w2,wcompute,w3). ('branch' is an alias for 'branching')",
+        default="reproduce,computation,revision",
+        help="Comma-separated scenarios to run: project_init,plan,branching,sandbox,reproduce,computation,revision,survey_polish,bypass (default: reproduce,computation,revision). ('branch' is an alias for 'branching')",
     )
     parser.add_argument(
-        "--wcompute-run-card",
+        "--computation-run-card",
         default="examples/schrodinger_ho/run_cards/ho_groundstate.json",
-        help="Run-card path for the wcompute scenario (default: examples/schrodinger_ho/run_cards/ho_groundstate.json).",
+        help="Run-card path for the computation scenario (default: examples/schrodinger_ho/run_cards/ho_groundstate.json).",
     )
     args = parser.parse_args()
 
-    ns = tuple(int(x.strip()) for x in str(args.w2_ns).split(",") if x.strip())
+    ns = tuple(int(x.strip()) for x in str(args.reproduce_ns).split(",") if x.strip())
     scenarios = tuple(s.strip() for s in str(args.scenarios).split(",") if s.strip())
     repo_root = Path.cwd()
     res = run_orchestrator_regression(
         OrchestratorRegressionInputs(
             tag=str(args.tag),
             scenarios=scenarios,
-            w2_ns=ns,
+            reproduce_ns=ns,
             timeout_seconds=int(args.timeout_seconds),
-            wcompute_run_card=str(args.wcompute_run_card),
+            computation_run_card=str(args.computation_run_card),
         ),
         repo_root=repo_root,
     )

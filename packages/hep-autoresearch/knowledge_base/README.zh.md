@@ -14,7 +14,7 @@ Skepticism policy (real research):
 
 - Notes and excerpts from primary sources
 - One file per topic or paper cluster
-- Include a `RefKey: <Key>` line near the top of each note (used in [Draft_Derivation.md](../Draft_Derivation.md) references).
+- Include a `RefKey: <Key>` line near the top of each note（供真实 scaffolded 项目根里的 `Draft_Derivation.md` notebook 引用）。
 - Keep the first H1 title meaningful (used for human-readable links in Capsule I).
 - For INSPIRE-based notes, also include:
   - `INSPIRE recid: <integer>`
@@ -22,7 +22,8 @@ Skepticism policy (real research):
   - `Authors: <FirstAuthor et al.>`
   - `Publication: <journal / arXiv / status>`
 - Include an external link if available (prefer INSPIRE/arXiv/DOI; GitHub is allowed for code).
-- In [Draft_Derivation.md](../Draft_Derivation.md) Capsule I, prefer linking like:
+- 不要把整棵论文源码树或源码压缩包长期纳入这个 package repo；这里保留紧凑的笔记与稳定 metadata anchor，原始源码在需要时于 project-local 或 scratch 位置按需重新抓取。
+- In the project-local `Draft_Derivation.md` notebook（Capsule I）, prefer linking like:
   ```md
   - [RefKey — Authors — Title](knowledge_base/literature/<RefKey>.md)
   ```
@@ -45,7 +46,7 @@ Skepticism policy (real research):
 什么时候需要把 `metadata-only/skimmed` 升级为“精读/复核”？
 - 任何要进入 **核心推导/Headline numbers/默认算法选择/主结论/新意宣称（A5）** 的引用：至少 `spot-checked`；对“最接近的 prior work”建议做到 `replicated`（能复就复，不能复就做强诊断代理）。
 - 任何要“照着论文实现算法/代码”的情况：至少达到 `skimmed` 并附带一个可复现核对点（否则等同把黑箱当真）。
-- W1 ingestion 阶段允许大量 `metadata-only`（用于 coverage/筛选）；但必须在后续 workflow（W2/W4/W3）里对真正依赖的少数关键文献补齐升级。
+- ingest 阶段允许大量 `metadata-only`（用于 coverage/筛选）；但必须在后续 workflow（reproduce / derivation_check / revision）里对真正依赖的少数关键文献补齐升级。
 
 ### Markdown math hygiene (rendering safety)
 

@@ -4,7 +4,7 @@
 
 本仓库的核心目标是让平台保持**领域无关**。任何物理/领域实现都应放在**项目插件**里（自包含目录），通常位于 [examples/](../examples/) 下。
 
-W_compute 通过执行项目插件声明的 `run_card v2` phases 来运行计算/验证/数据处理等流水线。
+computation 通过执行项目插件声明的 `run_card v2` phases 来运行计算/验证/数据处理等流水线。
 
 ## 推荐目录结构
 
@@ -48,7 +48,7 @@ examples/<project_id>/
 
 起步材料：
 - schema：[specs/run_card_v2.schema.json](../specs/run_card_v2.schema.json)
-- 工作流概览：[workflows/W_compute.md](../workflows/W_compute.md)
+- 工作流概览：[workflows/computation.md](../workflows/computation.md)
 
 运行前先校验：
 
@@ -57,18 +57,18 @@ python3 scripts/orchestrator.py run-card validate \
   --run-card examples/<project_id>/run_cards/<card>.json
 ```
 
-## 用 W_compute 运行一个插件
+## 用 computation 运行一个插件
 
 ```bash
 python3 scripts/orchestrator.py run \
   --run-id M0-my-plugin-r1 \
-  --workflow-id W_compute \
+  --workflow-id computation \
   --run-card examples/<project_id>/run_cards/<card>.json \
   --trust-project
 ```
 
 产物落盘位置：
-- `artifacts/runs/<RUN_ID>/w_compute/`（见 [docs/ARTIFACT_CONTRACT.md](ARTIFACT_CONTRACT.md)）
+- `artifacts/runs/<RUN_ID>/computation/`（见 [docs/ARTIFACT_CONTRACT.md](ARTIFACT_CONTRACT.md)）
 
 ## 最佳实践
 

@@ -16,6 +16,7 @@ from hep_autoresearch.toolkit._git import try_get_git_metadata  # noqa: E402
 from hep_autoresearch.toolkit._json import write_json  # noqa: E402
 from hep_autoresearch.toolkit._paths import manifest_cwd  # noqa: E402
 from hep_autoresearch.toolkit._time import utc_now_iso  # noqa: E402
+from hep_autoresearch.toolkit.literature_survey_export import resolve_literature_survey_refkeys  # noqa: E402
 from hep_autoresearch.toolkit.literature_survey import write_literature_survey  # noqa: E402
 
 
@@ -25,7 +26,7 @@ def main() -> int:
     parser.add_argument("--topic", help="Optional topic header.")
     parser.add_argument(
         "--refkeys",
-        help="Comma-separated RefKey list. If omitted, exports a small deterministic demo set.",
+        help="Comma-separated RefKey list. If omitted, uses literature notes listed in knowledge_base/_index/kb_profiles/curated.json.",
     )
     args = parser.parse_args()
 
@@ -34,11 +35,8 @@ def main() -> int:
     if not tag:
         raise SystemExit("tag is required")
 
-    if args.refkeys:
-        refkeys = [x.strip() for x in str(args.refkeys).split(",") if x.strip()]
-    else:
-        # v0 demo set: one INSPIRE-backed note and one arXiv-only note.
-        refkeys = ["recid-3112995-madagants", "arxiv-2512.19799-physmaster"]
+    explicit_refkeys = [x.strip() for x in str(args.refkeys).split(",") if x.strip()] if args.refkeys else None
+    refkeys = resolve_literature_survey_refkeys(repo_root=repo_root, refkeys=explicit_refkeys)
 
     created_at = utc_now_iso().replace("+00:00", "Z")
     out_dir = repo_root / "artifacts" / "runs" / tag / "literature_survey"

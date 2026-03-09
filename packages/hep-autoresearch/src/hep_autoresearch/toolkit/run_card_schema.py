@@ -177,8 +177,8 @@ def normalize_and_validate_run_card_v2(
         raise ValueError("run_card.run_id must be a safe non-empty id string (1-128 chars)")
 
     workflow_id = payload.get("workflow_id")
-    if workflow_id != "W_compute":
-        raise ValueError("run_card.workflow_id must be 'W_compute'")
+    if workflow_id != "computation":
+        raise ValueError("run_card.workflow_id must be 'computation'")
 
     title = payload.get("title")
     if not _schema_string(title) or not title.strip():
@@ -466,7 +466,7 @@ def normalize_and_validate_run_card_v2(
     normalized: dict[str, Any] = {
         "schema_version": 2,
         "run_id": eff_run_id,
-        "workflow_id": "W_compute",
+        "workflow_id": "computation",
         "title": str(title).strip(),
         "description": payload.get("description") if isinstance(payload.get("description"), str) else None,
         "parameters": normalized_params_def,

@@ -215,7 +215,7 @@ def render_artifact_report(
 
             # Headline numbers can be represented as:
             # - analysis.results.headlines: a simple object (most workflows)
-            # - analysis.results.headline_numbers: a list of {label,tier,value,source,pointer} (W_compute/run_card v2)
+            # - analysis.results.headline_numbers: a list of {label,tier,value,source,pointer} (computation/run_card v2)
             headlines = results.get("headlines")
             if isinstance(headlines, dict) and headlines:
                 rendered_keys.add("headlines")

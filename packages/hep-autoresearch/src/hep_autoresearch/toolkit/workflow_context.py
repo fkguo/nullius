@@ -16,17 +16,17 @@ def workflow_context(*, workflow_id: str, run_id: str, refkey: str | None = None
     wid = str(workflow_id)
     rid = str(run_id)
 
-    if wid == "W_compute":
+    if wid == "computation":
         return WorkflowContext(
             workflow_id=wid,
             expected_outputs=[
                 f"artifacts/runs/{rid}/run_card.json",
-                f"artifacts/runs/{rid}/w_compute/manifest.json",
-                f"artifacts/runs/{rid}/w_compute/summary.json",
-                f"artifacts/runs/{rid}/w_compute/analysis.json",
-                f"artifacts/runs/{rid}/w_compute/report.md",
-                f"artifacts/runs/{rid}/w_compute/run_card.json",
-                f"artifacts/runs/{rid}/w_compute/phase_state.json",
+                f"artifacts/runs/{rid}/computation/manifest.json",
+                f"artifacts/runs/{rid}/computation/summary.json",
+                f"artifacts/runs/{rid}/computation/analysis.json",
+                f"artifacts/runs/{rid}/computation/report.md",
+                f"artifacts/runs/{rid}/computation/run_card.json",
+                f"artifacts/runs/{rid}/computation/phase_state.json",
             ],
             plan=[
                 "Validate run_card v2 strictly (unknown fields are errors; params resolved deterministically).",
@@ -38,21 +38,21 @@ def workflow_context(*, workflow_id: str, run_id: str, refkey: str | None = None
                 "Misdeclared inputs/outputs can cause silent failures; fail-fast with actionable diagnostics.",
                 "Resume/crash recovery must fail closed; never mix mismatched run-cards in the same workspace.",
             ],
-            rollback="Delete artifacts/runs/<run_id>/w_compute/ (no repo edits expected).",
+            rollback="Delete artifacts/runs/<run_id>/computation/ (no repo edits expected).",
         )
 
-    if wid == "ADAPTER_shell_smoke":
+    if wid == "shell_adapter_smoke":
         return WorkflowContext(
             workflow_id=wid,
             expected_outputs=[
                 f"artifacts/runs/{rid}/run_card.json",
-                f"artifacts/runs/{rid}/adapter_shell_smoke/manifest.json",
-                f"artifacts/runs/{rid}/adapter_shell_smoke/summary.json",
-                f"artifacts/runs/{rid}/adapter_shell_smoke/analysis.json",
-                f"artifacts/runs/{rid}/adapter_shell_smoke/run_card.json",
-                f"artifacts/runs/{rid}/adapter_shell_smoke/report.md",
-                f"artifacts/runs/{rid}/adapter_shell_smoke/logs/stdout.txt",
-                f"artifacts/runs/{rid}/adapter_shell_smoke/logs/stderr.txt",
+                f"artifacts/runs/{rid}/shell_adapter_smoke/manifest.json",
+                f"artifacts/runs/{rid}/shell_adapter_smoke/summary.json",
+                f"artifacts/runs/{rid}/shell_adapter_smoke/analysis.json",
+                f"artifacts/runs/{rid}/shell_adapter_smoke/run_card.json",
+                f"artifacts/runs/{rid}/shell_adapter_smoke/report.md",
+                f"artifacts/runs/{rid}/shell_adapter_smoke/logs/stdout.txt",
+                f"artifacts/runs/{rid}/shell_adapter_smoke/logs/stderr.txt",
             ],
             plan=[
                 "Build a run-card (prompt/tools/budgets/backend config) and write it under the artifact dir.",
@@ -63,10 +63,10 @@ def workflow_context(*, workflow_id: str, run_id: str, refkey: str | None = None
                 "Shell commands are powerful; safe-by-default gating should be enforced (A3 for compute runs).",
                 "If artifacts are not written on failure, regression/evals lose visibility; always write SSOT.",
             ],
-            rollback="Delete artifacts/runs/<run_id>/adapter_shell_smoke/ (no repo edits expected).",
+            rollback="Delete artifacts/runs/<run_id>/shell_adapter_smoke/ (no repo edits expected).",
         )
 
-    if wid == "W2_reproduce":
+    if wid == "reproduce":
         return WorkflowContext(
             workflow_id=wid,
             expected_outputs=[
@@ -75,12 +75,12 @@ def workflow_context(*, workflow_id: str, run_id: str, refkey: str | None = None
                 f"artifacts/runs/{rid}/reproduce/summary.json",
                 f"artifacts/runs/{rid}/reproduce/analysis.json",
             ],
-            plan=["Run W2 reproduction and write manifest/summary/analysis artifacts."],
+            plan=["Run reproduce workflow and write manifest/summary/analysis artifacts."],
             risks=["Numerical/dep differences across environments; overly-trivial toy agreement masking future issues."],
             rollback="Delete artifacts/runs/<run_id>/reproduce and revert repo changes via git if needed.",
         )
 
-    if wid == "W3_revision":
+    if wid == "revision":
         return WorkflowContext(
             workflow_id=wid,
             expected_outputs=[
@@ -102,7 +102,7 @@ def workflow_context(*, workflow_id: str, run_id: str, refkey: str | None = None
             rollback="Revert paper/ changes via git; delete artifacts/runs/<run_id>/revision.",
         )
 
-    if wid == "W3_paper_reviser":
+    if wid == "paper_reviser":
         return WorkflowContext(
             workflow_id=wid,
             expected_outputs=[
@@ -134,7 +134,7 @@ def workflow_context(*, workflow_id: str, run_id: str, refkey: str | None = None
             rollback="Delete artifacts/runs/<run_id>/paper_reviser/. If apply-to-draft was used, revert the draft .tex via git.",
         )
 
-    if wid == "W3_literature_survey_polish":
+    if wid == "literature_survey_polish":
         return WorkflowContext(
             workflow_id=wid,
             expected_outputs=[
@@ -169,7 +169,7 @@ def workflow_context(*, workflow_id: str, run_id: str, refkey: str | None = None
             rollback="Delete artifacts/runs/<run_id>/{literature_survey,literature_survey_polish}/ (no repo edits expected).",
         )
 
-    # W1_ingest (default)
+    # ingest (default)
     ref = refkey or "<refkey>"
     return WorkflowContext(
         workflow_id=wid,
@@ -179,7 +179,7 @@ def workflow_context(*, workflow_id: str, run_id: str, refkey: str | None = None
             f"artifacts/runs/{rid}/ingest/{ref}/summary.json",
             f"artifacts/runs/{rid}/ingest/{ref}/analysis.json",
         ],
-        plan=["Run W1 ingestion for a paper id and write references/ + KB note + artifacts."],
+        plan=["Run ingest for a paper id and write references/ + KB note + artifacts."],
         risks=["Potential wrong/duplicate RefKey; partial snapshots if network fails."],
         rollback="Delete newly created references/ + artifacts/ for this run; revert files via git if needed.",
     )

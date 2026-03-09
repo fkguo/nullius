@@ -1,0 +1,14 @@
+{
+  "_comment": "Copy this file to .mcp.json and fill in your local MCP server command/args/env.",
+  "mcpServers": {
+    "hep-research": {
+      "args": [
+        "<path-to-hep-research-mcp-entrypoint.js>"
+      ],
+      "command": "node",
+      "env": {
+        "HEP_DATA_DIR": ".hep-mcp"
+      }
+    }
+  }
+}

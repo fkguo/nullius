@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "case_id": "E1-ingest-curated-anchor",
+  "workflow": "ingest",
+  "description": "Paper ingestion: generic curated arXiv anchor -> references snapshot + reading note",
+  "inputs": {
+    "arxiv_id": "2310.06770",
+    "refkey": "arxiv-2310.06770-swe-bench"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "knowledge_base/literature/arxiv-2310.06770-swe-bench.md",
+      "references/arxiv/2310.06770/metadata.json"
+    ],
+    "reading_note_required_fields": [
+      "RefKey:",
+      "arXiv:",
+      "Links:"
+    ],
+    "json_value_checks": [
+      {
+        "path": "references/arxiv/2310.06770/metadata.json",
+        "pointer": "#/arxiv_id",
+        "equals": "2310.06770"
+      },
+      {
+        "path": "references/arxiv/2310.06770/metadata.json",
+        "pointer": "#/title",
+        "type": "string",
+        "contains": "SWE-bench",
+        "min_length": 1
+      },
+      {
+        "path": "references/arxiv/2310.06770/metadata.json",
+        "pointer": "#/primary_category",
+        "equals": "cs.CL"
+      },
+      {
+        "path": "references/arxiv/2310.06770/metadata.json",
+        "pointer": "#/source_url",
+        "type": "string",
+        "contains": "2310.06770"
+      }
+    ]
+  },
+  "notes": "Strengthened: asserts `references/arxiv/.../metadata.json` integrity for the curated ingest anchor (guards against offline/fail_all runs polluting snapshots)."
+}

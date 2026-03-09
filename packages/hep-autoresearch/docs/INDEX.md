@@ -13,12 +13,22 @@ If a document has both languages, we use:
 - Architecture: `docs/ARCHITECTURE.md` (EN stub) / `docs/ARCHITECTURE.zh.md` (Chinese)
 - Roadmap: `docs/ROADMAP.md` (EN stub) / `docs/ROADMAP.zh.md` (Chinese)
 
-## Project docs (root)
+## External project scaffold
+
+Run `hep-autoresearch init` in your **research project directory**. It scaffolds the project-local files below:
 
 - Project charter: `PROJECT_CHARTER.md` (EN) / `PROJECT_CHARTER.zh.md` (Chinese)
 - Research plan: `RESEARCH_PLAN.md` (EN) / `RESEARCH_PLAN.zh.md` (Chinese)
 - Prework checklist: `PREWORK.md` (EN) / `PREWORK.zh.md` (Chinese)
-- Initial instruction: `INITIAL_INSTRUCTION.md` (EN) / `INITIAL_INSTRUCTION.zh.md` (Chinese)
+- Project map: `PROJECT_MAP.md`
+- Derivation notebook: `Draft_Derivation.md`
+- Runtime state / policy: `.autoresearch/`
+- Project-local docs / KB / schemas: `docs/`, `knowledge_base/`, `specs/`
+
+These are **external project assets**. They are not maintained at this package repo root.
+
+## Package docs
+
 - Toolkit API boundary: `TOOLKIT_API.md` (EN) / `TOOLKIT_API.zh.md` (Chinese)
 - Knowledge base overview: `knowledge_base/README.md` (EN) / `knowledge_base/README.zh.md` (Chinese)
 - Evals overview: `evals/README.md` (EN) / `evals/README.zh.md` (Chinese)
@@ -29,9 +39,9 @@ If a document has both languages, we use:
 - Approval gates (safe defaults): `docs/APPROVAL_GATES.md` (EN) / `docs/APPROVAL_GATES.zh.md` (Chinese)
 - Eval suite: `docs/EVALS.md` (EN stub) / `docs/EVALS.zh.md` (Chinese) and `docs/EVAL_GATE_CONTRACT.md` (EN) / `docs/EVAL_GATE_CONTRACT.zh.md` (Chinese)
 
-## W_compute / run_card v2
+## computation / run_card v2
 
-- W_compute user guide: `docs/W_COMPUTE.md` (EN) / `docs/W_COMPUTE.zh.md` (Chinese)
+- computation user guide: `docs/COMPUTATION.md` (EN) / `docs/COMPUTATION.zh.md` (Chinese)
 - Examples / project plugins: `docs/EXAMPLES.md` (EN) / `docs/EXAMPLES.zh.md` (Chinese)
 
 ## Orchestrator UX

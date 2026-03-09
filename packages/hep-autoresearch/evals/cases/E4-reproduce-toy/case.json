@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "case_id": "E4-reproduce-toy",
+  "workflow": "reproduce",
+  "description": "Toy reproduction (Gamma integrals): artifacts exist and numeric errors are within tolerance.",
+  "inputs": {
+    "case": "toy",
+    "tag": "M2-toy-r1"
+  },
+  "acceptance": {
+    "required_paths_exist": [
+      "scripts/run_reproduce.py",
+      "src/hep_autoresearch/toolkit/reproduce.py",
+      "artifacts/runs/M2-toy-r1/reproduce/manifest.json",
+      "artifacts/runs/M2-toy-r1/reproduce/summary.json",
+      "artifacts/runs/M2-toy-r1/reproduce/analysis.json"
+    ],
+    "json_numeric_checks": [
+      {
+        "path": "artifacts/runs/M2-toy-r1/reproduce/analysis.json",
+        "pointer": "#/results/headlines/max_abs_err_scipy",
+        "max": 1e-08
+      },
+      {
+        "path": "artifacts/runs/M2-toy-r1/reproduce/analysis.json",
+        "pointer": "#/results/headlines/max_abs_diff_scipy_mpmath",
+        "max": 1e-08
+      }
+    ]
+  },
+  "notes": "This eval is deterministic and runs locally. It is a regression anchor for later L2/L3 changes."
+}

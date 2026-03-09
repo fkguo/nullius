@@ -19,7 +19,7 @@ Before large-scale CI exists, define at least these eval classes:
 2) **Regression** (required): do not degrade
    - run a fixed set of eval cases from `evals/` and compare before/after
    - metrics: pass rate, intervention count, time-to-result, number of gate failures
-   - for each physics workflow (e.g. W2/W4), include at least one **nontrivial** invariant/diagnostic check (symmetry/trace/limits/residuals) tied to core logic, not only trivial smoke checks
+   - for each physics workflow (e.g. reproduce / derivation_check), include at least one **nontrivial** invariant/diagnostic check (symmetry/trace/limits/residuals) tied to core logic, not only trivial smoke checks
 
 3) **Bypass / adversarial** (required): gates cannot be bypassed
    - attempts to bypass approval gates (split queries, many small requests, prompt injection)
@@ -79,7 +79,7 @@ Suggested default thresholds (workflow-specific overrides allowed):
 ## 3) Minimum coverage (prevent “tiny eval = gameable”)
 
 Suggested minimums (MVP):
-- L2 changes: run at least `N >= 3` eval cases (include at least one from W1 and one from W3)
+- L2 changes: run at least `N >= 3` eval cases (include at least one from ingest and one from revision)
 - L3 changes: run at least `N >= 5` eval cases (include ≥1 bypass case)
 
 Later, switch to a coverage ratio (e.g. 80%) once suites grow; start with fixed N first.

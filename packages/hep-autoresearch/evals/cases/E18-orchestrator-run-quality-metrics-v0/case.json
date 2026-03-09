@@ -12,7 +12,7 @@
       "artifacts/runs/M34-t31-r1/orchestrator_regression/manifest.json",
       "artifacts/runs/M34-t31-r1/orchestrator_regression/summary.json",
       "artifacts/runs/M34-t31-r1/orchestrator_regression/analysis.json",
-      "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json"
+      "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/reproduce.json"
     ],
     "json_value_checks": [
       {
@@ -23,30 +23,30 @@
       },
       {
         "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/analysis.json",
-        "pointer": "#/results/quality_metrics_paths/w2",
+        "pointer": "#/results/quality_metrics_paths/reproduce",
         "type": "string",
-        "equals": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json"
+        "equals": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/reproduce.json"
       },
       {
-        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/reproduce.json",
         "pointer": "#/run_id",
         "type": "string",
-        "equals": "M34-t31-r1-w2"
+        "equals": "M34-t31-r1-reproduce"
       },
       {
-        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/reproduce.json",
         "pointer": "#/ledger/ledger_path",
         "type": "string",
         "contains": "ledger.jsonl"
       },
       {
-        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/reproduce.json",
         "pointer": "#/artifacts/run_dir",
         "type": "string",
-        "contains": "artifacts/runs/M34-t31-r1-w2"
+        "contains": "artifacts/runs/M34-t31-r1-reproduce"
       },
       {
-        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/reproduce.json",
         "pointer": "#/artifacts/run_dir_exists",
         "type": "boolean",
         "equals": true
@@ -54,12 +54,12 @@
     ],
     "json_numeric_checks": [
       {
-        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/reproduce.json",
         "pointer": "#/ledger/total_events",
         "min": 1
       },
       {
-        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/w2.json",
+        "path": "artifacts/runs/M34-t31-r1/orchestrator_regression/quality_metrics/reproduce.json",
         "pointer": "#/ledger/approvals/requested_total",
         "min": 1
       }

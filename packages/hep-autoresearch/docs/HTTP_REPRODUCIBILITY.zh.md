@@ -50,7 +50,7 @@ fixtures 按 URL 做 `sha256(url)`：
 
 ```bash
 export HEPAR_HTTP_MODE=live
-python3 scripts/run_w1_ingest.py --inspire-recid 3112995 --refkey recid-3112995-madagants --tag M1-r1 --download none
+python3 scripts/run_ingest.py --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --tag M1-r1 --download none
 ```
 
 ### B) 需要可复现回归/CI：`record` → `replay`
@@ -60,7 +60,7 @@ python3 scripts/run_w1_ingest.py --inspire-recid 3112995 --refkey recid-3112995-
 ```bash
 export HEPAR_HTTP_MODE=record
 export HEPAR_HTTP_FIXTURES_DIR=references/http_fixtures
-python3 scripts/run_w1_ingest.py --inspire-recid 3112995 --refkey recid-3112995-madagants --tag M1-r1 --download none
+python3 scripts/run_ingest.py --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --tag M1-r1 --download none
 ```
 
 2) 离线复现（replay；禁止触网）：
@@ -68,19 +68,19 @@ python3 scripts/run_w1_ingest.py --inspire-recid 3112995 --refkey recid-3112995-
 ```bash
 export HEPAR_HTTP_MODE=replay
 export HEPAR_HTTP_FIXTURES_DIR=references/http_fixtures
-python3 scripts/run_w1_ingest.py --inspire-recid 3112995 --refkey recid-3112995-madagants --tag M1-r1 --download none
+python3 scripts/run_ingest.py --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --tag M1-r1 --download none
 ```
 
 ### C) 禁网回归（失败路径 + “不污染快照”）：`fail_all`
 
 ```bash
 export HEPAR_HTTP_MODE=fail_all
-python3 scripts/run_w1_ingest.py --inspire-recid 3112995 --refkey recid-3112995-madagants --tag M18-w1-failall-r1 --download none --no-query-log
+python3 scripts/run_ingest.py --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --tag M18-ingest-failall-r1 --download none --no-query-log
 ```
 
 该模式用于确保：
 - 失败被记录在 artifacts（`analysis.json#/results/errors`），而不是静默退化
-- 失败 **不会覆盖** 既有的 `references/.../extracted.json` 等快照（见回归用例 E14）
+- 失败 **不会覆盖** 既有的 `references/arxiv/.../metadata.json` 等快照（见回归用例 E14）
 
 ## 4) 离线 eval 推荐路径（项目级）
 
@@ -105,4 +105,3 @@ python3 scripts/run_evals.py --tag offline-eval
 - fixtures 可能包含完整 HTTP 响应；**只允许记录公共信息**（INSPIRE/arXiv/DOI 等公开数据）。
 - 不要对需要认证/携带 token 的 URL 使用 `record`（避免泄露到磁盘/仓库）。
 - 如果未来新增认证接口，应在工具层默认禁止 record（或对敏感域做 denylist）。
-

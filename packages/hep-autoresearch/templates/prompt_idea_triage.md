@@ -18,7 +18,7 @@ Requirements:
 - Use only stable anchors: INSPIRE / arXiv / DOI / GitHub / Zenodo / official documentation.
 - Log every discovery query and selection decision to `knowledge_base/methodology_traces/literature_queries.md`.
 - Every key conclusion must be evidence-backed: link to stable sources or point to local artifacts.
-- Do W1 ingestion first (see `workflows/W1_ingest.md`), then write a novelty report. The novelty report is not “guaranteed novel”; it must be evidence-backed with a tier:
+- Do ingest workflow first (see `workflows/ingest.md`), then write a novelty report. The novelty report is not “guaranteed novel”; it must be evidence-backed with a tier:
   - `LIKELY KNOWN` / `POSSIBLY NOVEL` / `UNCLEAR`
   - plus the minimal missing checks needed to upgrade confidence.
 - Write the report to: `knowledge_base/methodology_traces/YYYY-MM-DD_novelty_report_<slug>.md`.

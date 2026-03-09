@@ -17,8 +17,8 @@
 ## 1. 术语澄清（避免混淆）
 
 - **Gate（A1–A5）**：Orchestrator 的审批门禁类别（见 [docs/APPROVAL_GATES.md](../APPROVAL_GATES.md)）。例如 **A3=compute_runs**，表示“需要人类批准后才能继续执行可能耗时/耗资源的计算类动作”。
-- **Workflow**：Orchestrator 的工作流（例如 `W_compute`）。
-- **Phase**：`W_compute` 的 run_card v2 中的 `phases[*]`（例如 `phase_id=solve_numerics`），不是 Gate。
+- **Workflow**：Orchestrator 的工作流（例如 `computation`）。
+- **Phase**：`computation` 的 run_card v2 中的 `phases[*]`（例如 `phase_id=solve_numerics`），不是 Gate。
 
 本设计解决的是“**Gate 触发后如何生成可决策的审批包**”，不是修改用户项目中的 phase DAG。
 
@@ -67,7 +67,7 @@ Ledger 的 `approval_requested.details` 至少包含：
 5) 回滚  
 6) 你要看什么判据（DoD）
 
-接下来按 workflow 追加“决策所需细节”。本设计优先覆盖 `W_compute`（A3 的主战场）。
+接下来按 workflow 追加“决策所需细节”。本设计优先覆盖 `computation`（A3 的主战场）。
 
 ### 3.1 顶部六段的文字模板（用于 golden test 与稳定解析）
 
@@ -135,11 +135,11 @@ Ledger 的 `approval_requested.details` 至少包含：
 - 仅当两份 reviewer 输出文件均存在且能解析出 `VERDICT:` 时插入，否则不插入该段
 - 摘要句只允许 1 句，且必须包含可点击的文件指针（便于定位）
 
-## 4. W_compute：必须自动补齐的决策材料
+## 4. computation：必须自动补齐的决策材料
 
 ### 4.1 参数差分表（run_card v2 + overrides）
 
-对 `W_compute`，`packet_human.md` 必须包含参数差分表：
+对 `computation`，`packet_human.md` 必须包含参数差分表：
 
 仅列出 **与 run_card 默认值不同** 的参数行：
 
@@ -180,7 +180,7 @@ Ledger 的 `approval_requested.details` 至少包含：
 
 对每个 phase，列出“将执行的命令”（**参数已解析**，避免人类猜测）：
 
-- phase 顺序：拓扑排序（与 `W_compute` 执行一致；见 [src/hep_autoresearch/toolkit/w_compute.py](../../src/hep_autoresearch/toolkit/w_compute.py)）
+- phase 顺序：拓扑排序（与 `computation` 执行一致；见 [src/hep_autoresearch/toolkit/computation.py](../../src/hep_autoresearch/toolkit/computation.py)）
 - 每个 phase 展示：
   - `phase_id`
   - `cwd`: `<PROJECT_DIR>/<backend.cwd>`
@@ -193,7 +193,7 @@ Ledger 的 `approval_requested.details` 至少包含：
 - 将 workspace/output 引用统一写成占位符：
   - `<REPO_ROOT>`：仓库根目录
   - `<PROJECT_DIR>`：插件项目根目录
-  - `<WORKSPACE>`：`artifacts/runs/<RUN_ID>/w_compute`
+  - `<WORKSPACE>`：`artifacts/runs/<RUN_ID>/computation`
 - 若 argv 中存在 `phases/...` 形式的输入路径，渲染为 `<WORKSPACE>/phases/...`（而不是绝对路径）
 
 命令行渲染（deterministic）：
@@ -237,7 +237,7 @@ Ledger 的 `approval_requested.details` 至少包含：
 {
   "schema_version": 1,
   "suite_id": "A3-suite-2026-02-15-r1",
-  "workflow_id": "W_compute",
+  "workflow_id": "computation",
   "runs": [
     {
       "run_id": "M0-grid-r3",
@@ -267,11 +267,11 @@ Ledger 的 `approval_requested.details` 至少包含：
 
 约束：
 
-- `workflow_id` 先限定 `W_compute`（v1 scope）
+- `workflow_id` 先限定 `computation`（v1 scope）
 - `runs[*].run_id` 必填且互异（用于生成 `<WORKSPACE>` 占位）
 - `run_card` 必须是 repo_root 内的相对路径（避免不可审计的外部引用）
 - `params` 会按 run_card.parameters 的 type 做 coercion；未知参数一律 fail-closed
-- `project_dir` 可选；缺省时从 `run_card` 推断 `<project_dir>/run_cards/...`（与现有 `W_compute` 逻辑一致）
+- `project_dir` 可选；缺省时从 `run_card` 推断 `<project_dir>/run_cards/...`（与现有 `computation` 逻辑一致）
 - `params` 支持两种写法（实现必须归一化）：
   - 标量：`"n_grid": 4001` 等价于 `{"value": 4001, "why": null}`
   - 对象：`"n_grid": {"value": 4001, "why": "grid refine"}`
@@ -292,7 +292,7 @@ Ledger 的 `approval_requested.details` 至少包含：
   "properties": {
     "schema_version": { "const": 1 },
     "suite_id": { "type": "string", "minLength": 1 },
-    "workflow_id": { "enum": ["W_compute"] },
+    "workflow_id": { "enum": ["computation"] },
     "runs": {
       "type": "array",
       "minItems": 1,
@@ -345,7 +345,7 @@ Ledger 的 `approval_requested.details` 至少包含：
 - 设计要求（v1 必做）：新增 `hepar run --suite suite.json`（或等价的 suite-run 命令），作为套件执行入口
 - 该入口将：
   - 先触发一次 A3（生成 suite 审批包）
-  - A3 批准后，按 `suite.json` 的 `runs` 数组输入顺序依次触发每个子 run 的 `W_compute` 执行
+  - A3 批准后，按 `suite.json` 的 `runs` 数组输入顺序依次触发每个子 run 的 `computation` 执行
 
 可发现性（v1 必做）：
 
@@ -359,7 +359,7 @@ Ledger 的 `approval_requested.details` 至少包含：
 
 - L0: 元信息（approval_id、category、run_id/workflow_id、context pack、run-card SHA256、plan step 等）
 - L1: 决策摘要（可直接链接到 `packet_human.md`）
-- L2: workflow-specific details（`W_compute` 的参数解析结果、命令渲染、DoD 结构化对象）
+- L2: workflow-specific details（`computation` 的参数解析结果、命令渲染、DoD 结构化对象）
 - L3: gate resolution trace（若存在；与 adapter 逻辑一致）
 - L4: 原有 Purpose/Plan/Budgets/Risks/Outputs/Rollback（尽量保留现有字段）
 
@@ -385,7 +385,7 @@ Ledger 的 `approval_requested.details` 至少包含：
 ```json
 {
   "schema_version": 1,
-  "workflow_id": "W_compute",
+  "workflow_id": "computation",
   "runs": [
     {
       "run_id": "M0-grid-r3",
@@ -409,7 +409,7 @@ Ledger 的 `approval_requested.details` 至少包含：
 对 `hep-autoresearch request-approval`：
 
 - `--lang zh|en`（默认 `zh`）
-- `--suite <path>`（与手动 `--plan/--risk/--output` 组合时，规则：suite 负责 W_compute 细节；其余字段作为额外补充）
+- `--suite <path>`（与手动 `--plan/--risk/--output` 组合时，规则：suite 负责 computation 细节；其余字段作为额外补充）
 
 可选（非 v1 必需）：
 

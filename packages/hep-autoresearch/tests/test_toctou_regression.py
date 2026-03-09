@@ -37,7 +37,7 @@ def _setup_repo(tmp_path: Path) -> Path:
 def _make_state(repo: Path, **overrides: Any) -> dict[str, Any]:
     st = default_state()
     st["run_id"] = "test-run"
-    st["workflow_id"] = "W_test"
+    st["workflow_id"] = "custom"
     st.update(overrides)
     save_state(repo, st)
     return st

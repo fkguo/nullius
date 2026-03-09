@@ -108,7 +108,7 @@ def _write_markdown(out_path: Path, *, recid: str, refs: list[RefRow]) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Export INSPIRE references list for a literature recid.")
-    ap.add_argument("--recid", required=True, help="INSPIRE literature recid, e.g. 3112995")
+    ap.add_argument("--recid", required=True, help="INSPIRE literature recid, e.g. 1234567")
     ap.add_argument(
         "--out-dir",
         default="references/inspire",

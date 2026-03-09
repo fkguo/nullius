@@ -1,3 +1,0 @@
-shower pythia8 ufo_parton -f
-delphes ufo_parton -f
-exit

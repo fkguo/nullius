@@ -23,13 +23,13 @@ class TestRunQualityMetrics(unittest.TestCase):
             ledger_path.write_text(
                 "\n".join(
                     [
-                        json.dumps({"ts": "2026-02-01T00:00:00Z", "event_type": "run_started", "run_id": "R1", "workflow_id": "W2"}),
+                        json.dumps({"ts": "2026-02-01T00:00:00Z", "event_type": "run_started", "run_id": "R1", "workflow_id": "reproduce"}),
                         json.dumps(
                             {
                                 "ts": "2026-02-01T00:00:01Z",
                                 "event_type": "approval_requested",
                                 "run_id": "R1",
-                                "workflow_id": "W2",
+                                "workflow_id": "reproduce",
                                 "details": {"category": "A3"},
                             }
                         ),
@@ -38,11 +38,11 @@ class TestRunQualityMetrics(unittest.TestCase):
                                 "ts": "2026-02-01T00:00:02Z",
                                 "event_type": "approval_approved",
                                 "run_id": "R1",
-                                "workflow_id": "W2",
+                                "workflow_id": "reproduce",
                                 "details": {"category": "A3"},
                             }
                         ),
-                        json.dumps({"ts": "2026-02-01T00:00:03Z", "event_type": "completed", "run_id": "R1", "workflow_id": "W2"}),
+                        json.dumps({"ts": "2026-02-01T00:00:03Z", "event_type": "completed", "run_id": "R1", "workflow_id": "reproduce"}),
                     ]
                 )
                 + "\n",
@@ -56,13 +56,13 @@ class TestRunQualityMetrics(unittest.TestCase):
             payload = build_run_quality_metrics(
                 repo_root=repo_root,
                 run_id="R1",
-                workflow_id="W2",
+                workflow_id="reproduce",
                 ledger_path=ledger_path,
                 run_dir=run_dir,
             )
             validate_run_quality_metrics(payload)
             self.assertEqual(payload["run_id"], "R1")
-            self.assertEqual(payload.get("workflow_id"), "W2")
+            self.assertEqual(payload.get("workflow_id"), "reproduce")
             self.assertGreaterEqual(payload["ledger"]["total_events"], 1)
             self.assertTrue(payload["artifacts"]["run_dir_exists"])
 

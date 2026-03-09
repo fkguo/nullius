@@ -32,7 +32,7 @@
         "path": "artifacts/runs/M44-t39-r1/orchestrator_regression/analysis.json",
         "pointer": "#/results/branching/active_branch_id",
         "type": "string",
-        "equals": "W2.S1:b3"
+        "equals": "reproduce.main:b3"
       }
     ],
     "json_numeric_checks": [
@@ -46,7 +46,7 @@
     "text_contains_checks": [
       {
         "path": "artifacts/runs/M44-t39-r1/orchestrator_regression/.autoresearch/plan.md",
-        "contains": ["## Branching", "active_branch_id: W2.S1:b3", "cap_override: 6", "active_branch_id: b3"]
+        "contains": ["## Branching", "active_branch_id: reproduce.main:b3", "cap_override: 6", "active_branch_id: b3"]
       }
     ]
   },

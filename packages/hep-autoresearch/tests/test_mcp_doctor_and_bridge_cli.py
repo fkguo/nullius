@@ -120,7 +120,7 @@ class TestMcpDoctorAndBridgeCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
 
-            # Minimal init scaffold for W_compute run.
+            # Minimal init scaffold for computation run.
             self.assertEqual(_run_cli(repo_root, ["init"])[0], 0)
 
             # Disable A3 compute approval for this test.
@@ -145,7 +145,7 @@ class TestMcpDoctorAndBridgeCLI(unittest.TestCase):
             rc, out, err = _run_cli(repo_root, ["doctor"])
             self.assertEqual(rc, 0, msg=out)
 
-            # Minimal W_compute project + run_card v2.
+            # Minimal computation project + run_card v2.
             proj = repo_root / "proj"
             (proj / "run_cards").mkdir(parents=True, exist_ok=True)
             (proj / "scripts").mkdir(parents=True, exist_ok=True)
@@ -164,7 +164,7 @@ class TestMcpDoctorAndBridgeCLI(unittest.TestCase):
             run_card = {
                 "schema_version": 2,
                 "run_id": "IGNORED",
-                "workflow_id": "W_compute",
+                "workflow_id": "computation",
                 "title": "mcp bridge test",
                 "phases": [
                     {
@@ -200,7 +200,7 @@ class TestMcpDoctorAndBridgeCLI(unittest.TestCase):
             run_id = "M1-test-bridge"
             rc, _, _ = _run_cli(
                 repo_root,
-                ["run", "--run-id", run_id, "--workflow-id", "W_compute", "--run-card", str(run_card_path), "--trust-project"],
+                ["run", "--run-id", run_id, "--workflow-id", "computation", "--run-card", str(run_card_path), "--trust-project"],
             )
             self.assertEqual(rc, 0)
 

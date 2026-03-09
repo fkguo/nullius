@@ -1,91 +1,117 @@
 # Beginner tutorial (English)
 
-This is a short English quickstart for first-time users. A more detailed Chinese tutorial is available at `docs/BEGINNER_TUTORIAL.zh.md`.
+This quickstart assumes you are using `hep-autoresearch` in an **external research project directory**. The package repo itself is a development repo, not the default place to run your day-to-day project.
 
-## 0) What you need to know
+## 0) Core ideas
 
-1) **An agent is not a model**: reliability comes from tools + artifacts + gates + independent review, not from “good prompts”.
-2) **Workflows are the entry point**: you run W1/W2/W3/W4; the orchestrator routes work and enforces gates.
-3) **Artifacts are evidence**: key outputs must land as `manifest.json / summary.json / analysis.json` (SSOT). `report.md` is derived.
-4) **Approval gates are default**: large-scale retrieval, code edits, compute-heavy runs, manuscript edits, and “claims/new conclusions” should require human approval unless explicitly set to full-auto.
+1) **Agent is not model**: reliability comes from artifacts, approval gates, replayable commands, and independent review.
+2) **Workflow is the entry point**: choose `ingest`, `reproduce`, `computation`, `draft`, `revision`, or another semantic workflow; the orchestrator handles routing and safety policy.
+3) **Artifacts are evidence**: important outputs land in `manifest.json`, `summary.json`, and `analysis.json`. Human-readable reports are derived views.
+4) **Context pack is the guardrail**: every run can emit `context.md` and `context.json`, keeping the run anchored to project-local charter, plan, notebook, and gate contracts.
 
-## 1) Minimal install
+## 1) Install
 
 ```bash
-# (recommended) create a dedicated venv once
 python3 -m venv ~/.venvs/hep-autoresearch
 source ~/.venvs/hep-autoresearch/bin/activate
 python -m pip install -U pip
 
-# from repo root (dev install)
+# from the package repo root (dev install)
 python -m pip install -e .
 hep-autoresearch --help
 hepar --help
 ```
 
-Alternative (if you use [uv](https://github.com/astral-sh/uv)):
+Optional:
+- `claude` CLI and `gemini` CLI if you later use dual-review or skill-based workflows.
 
-```bash
-uv venv ~/.venvs/hep-autoresearch
-source ~/.venvs/hep-autoresearch/bin/activate
-uv pip install -e .
-hep-autoresearch --help
-```
-
-To exit the venv:
-
-```bash
-deactivate
-```
-
-Optional (only needed when running dual-model reviews):
-- `claude` CLI
-- `gemini` CLI (commonly used alias: `gemini-3-pro-preview`)
-
-## 1.5) Create a real research project (recommended)
-
-Run the Orchestrator in your **research project directory** (not in the `hep-autoresearch` dev repo):
+## 2) Create a real project root
 
 ```bash
 mkdir my-research-project
 cd my-research-project
-hep-autoresearch init   # scaffolds docs/ + knowledge_base/ + specs/ + .autoresearch/
+hep-autoresearch init
 hep-autoresearch status
 ```
 
+This creates a minimal project root with:
+- `PROJECT_CHARTER.md`
+- `PROJECT_MAP.md`
+- `RESEARCH_PLAN.md`
+- `PREWORK.md`
+- `Draft_Derivation.md`
+- `.autoresearch/`
+- `docs/`, `knowledge_base/`, `specs/`
+
 After initialization, you can run `hep-autoresearch ...` from any subdirectory; the CLI searches upward for `.autoresearch/`.
 
-## 2) Preflight-only (no external LLM calls)
+## 3) Smoke test without external LLM calls
+
+Write a context pack in the new project:
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
-  --tag M0-r1 \
-  --notes Draft_Derivation.md \
-  --out-dir team \
-  --member-a-system prompts/_system_member_a.txt \
-  --member-b-system prompts/_system_member_b.txt \
-  --auto-tag \
-  --preflight-only
+hep-autoresearch context \
+  --run-id M0-context-r1 \
+  --workflow-id custom \
+  --note "bootstrap smoke test"
 ```
 
-This produces:
-- planning artifacts under `artifacts/runs/M0-r1/`
-- a team packet under `team/runs/M0-r1/` (for reviewers)
+Check the outputs:
+- `artifacts/runs/M0-context-r1/context/context.md`
+- `artifacts/runs/M0-context-r1/context/context.json`
 
-## 3) Quick check: run evals
+This confirms the project-local charter / plan / notebook / gate contracts are visible to the runtime.
+
+## 4) Run a minimal workflow
+
+Example: deterministic ingest run with no external LLM dependency.
+
+```bash
+hep-autoresearch run \
+  --run-id M1-ingest-r1 \
+  --workflow-id ingest \
+  --arxiv-id 2310.06770 \
+  --refkey arxiv-2310.06770-swe-bench \
+  --download none
+
+hep-autoresearch status
+hep-autoresearch logs --tail 20
+```
+
+If a gate is raised:
+
+```bash
+hep-autoresearch status
+hep-autoresearch approve <approval_id>
+hep-autoresearch run --run-id M1-ingest-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
+```
+
+## 5) Other workflows
+
+- `computation`: `workflows/computation.md`
+- `reproduce`: `workflows/reproduce.md`
+- `draft`: `workflows/draft.md`
+- `revision`: `workflows/revision.md`
+- `derivation_check`: `workflows/derivation_check.md`
+
+For `revision`, the default expectation is a project-local LaTeX tree such as `paper/`, or a user-specified LaTeX repo.
+
+## 6) Optional skills and team workflows
+
+If you intentionally use `research-team`, `research-writer`, or other higher-level skills:
+- create those prompts/assets in **your project root**;
+- treat them as project-local workflow inputs;
+- do not assume this package repo ships package-root member prompts or a package-root manuscript tree.
+
+## 7) Maintainer note
+
+If you are working on the package repo itself, run evals from the package repo root:
 
 ```bash
 python3 scripts/run_evals.py --tag M0-eval-r1
+python3 scripts/run_orchestrator_regression.py --tag M0-reg-r1
 ```
 
-## 4) Next: pick a workflow
+The regression harness uses `init --runtime-only` on purpose, so maintainer checks do not recreate package-root project files.
 
-- W1 ingestion: `workflows/W1_ingest.md`
-- W_compute (run_card v2 DAG): `workflows/W_compute.md`
-- W2 reproduce: `workflows/W2_reproduce.md`
-- W3 writing/revision: `workflows/W3_draft.md` / `workflows/W3_revision.md`
-- W4 derivation checks: `workflows/W4_derivation_check.md`
-
-W_compute docs:
-- W_compute user guide: [docs/W_COMPUTE.md](W_COMPUTE.md)
-- Examples / project plugins: [docs/EXAMPLES.md](EXAMPLES.md)
+That is a maintainer regression workflow, not the default end-user quickstart.

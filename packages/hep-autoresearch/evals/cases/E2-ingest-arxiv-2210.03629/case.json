@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "case_id": "E2-ingest-arxiv-2210.03629",
-  "workflow": "W1_ingest",
+  "workflow": "ingest",
   "description": "Paper ingestion: arXiv 2210.03629 -> references snapshot + reading note",
   "inputs": {
     "arxiv_id": "2210.03629",

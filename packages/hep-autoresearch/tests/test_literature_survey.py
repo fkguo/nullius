@@ -16,13 +16,13 @@ class TestLiteratureSurvey(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         survey, _, bib_text, tex_text = build_literature_survey(
             repo_root=repo_root,
-            refkeys=["recid-3112995-madagants", "arxiv-2512.19799-physmaster"],
+            refkeys=["arxiv-2310.06770-swe-bench", "arxiv-2405.15793-swe-agent"],
             topic="test",
         )
         self.assertEqual(survey["stats"]["total_entries"], 2)
-        self.assertIn("@article{Plehn:2026gxv", bib_text)
-        self.assertIn("@article{arxiv-2512.19799-physmaster", bib_text)
-        self.assertIn("\\cite{Plehn:2026gxv}", tex_text)
+        self.assertIn("@article{arxiv-2310.06770-swe-bench", bib_text)
+        self.assertIn("@article{arxiv-2405.15793-swe-agent", bib_text)
+        self.assertIn("\\cite{arxiv-2310.06770-swe-bench}", tex_text)
 
     def test_escapers_are_deterministic(self) -> None:
         import sys
@@ -64,7 +64,7 @@ class TestLiteratureSurvey(unittest.TestCase):
 
         survey, _, _, _ = build_literature_survey(
             repo_root=repo_root,
-            refkeys=["recid-3112995-madagants", "arxiv-2512.19799-physmaster"],
+            refkeys=["arxiv-2310.06770-swe-bench", "arxiv-2405.15793-swe-agent"],
             topic="test",
         )
         errors = _schema_validate(survey, schema, "survey", root_schema=schema)
@@ -72,3 +72,21 @@ class TestLiteratureSurvey(unittest.TestCase):
 
         mapped = _schema_for_json_path(repo_root, "artifacts/runs/TEST/literature_survey/survey.json")
         self.assertEqual(mapped, schema_path)
+
+    def test_export_defaults_follow_curated_profile(self) -> None:
+        import sys
+
+        sys.path.insert(0, str(_src_root()))
+        from hep_autoresearch.toolkit.literature_survey_export import resolve_literature_survey_refkeys
+
+        repo_root = Path(__file__).resolve().parents[1]
+        refkeys = resolve_literature_survey_refkeys(repo_root=repo_root, refkeys=None)
+        self.assertEqual(
+            refkeys,
+            [
+                "arxiv-2210.03629-react",
+                "arxiv-2303.11366-reflexion",
+                "arxiv-2310.06770-swe-bench",
+                "arxiv-2405.15793-swe-agent",
+            ],
+        )

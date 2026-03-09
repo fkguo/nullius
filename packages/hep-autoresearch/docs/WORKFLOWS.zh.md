@@ -2,7 +2,15 @@
 
 本文件把“科研全流程自动化”的愿景拆成可实现的 workflow，每个 workflow 都定义：输入、步骤、产物、门禁。
 
-## W1：Paper ingestion（文献入口）
+## 命名边界
+
+- 当前面向用户与开发者的 workflow 名称统一使用语义名：`ingest`、`reproduce`、`computation`、`draft`、`paper_reviser`、`revision`、`derivation_check`。
+- 活跃文档、脚本、测试、eval 后缀与运行时 payload 中，不再引入新的 `W1`/`W2`/`W3`/`W4` 命名。
+- 若少数 schema enum、旧 fixture 或归档材料仍保留 `W*`，应视为历史兼容记录，而不是当前命名规范。
+- `E4`、`E6`、`E14` 这类 eval 数字前缀继续作为稳定编号保留；需要语义化的是其后缀，而不是编号本身。
+
+
+## ingest：Paper ingestion（文献入口）
 
 **输入**
 - INSPIRE recid / arXiv id / DOI / 关键词查询
@@ -20,7 +28,7 @@
 **门禁**
 - 链接卫生、RefKey 完整性、最小字段齐全（recid/arXiv/外链）。
 
-## W2：Reproduction-first（复现主结果）
+## reproduce：Reproduction-first（复现主结果）
 
 **输入**
 - 目标论文（RefKey）+ 主结果定义（例如“Fig.2 左图的曲线”或“Table 1 的某列数值”）
@@ -38,7 +46,7 @@
 **门禁**
 - artifacts 契约完整、误差解释完整、独立复核收敛。
 
-## W3：Review → Revision（审稿→改稿闭环）
+## revision：Review → Revision（审稿→改稿闭环）
 
 **输入**
 - LaTeX 工程（paper/ 或任意可编译项目）
@@ -57,7 +65,7 @@
 **门禁**
 - 可编译、引用完整、证据门禁通过、收敛。
 
-## W3a：Draft writing（草稿写作）
+## draft：Draft writing（草稿写作）
 
 > 默认面向：已有 `Draft_Derivation.md` + `knowledge_base/`。
 
@@ -72,7 +80,7 @@
 3) 生成 paper scaffold（优先 `research-writer` 或 MCP 导出）
 4) 分节写作（每节必须附带证据指针；禁止无证据新增关键论断）
 5) integrate + compile gate（必须可编译）
-6) Reviewer 独立审阅；READY 后再进入 `W3_revision`
+6) Reviewer 独立审阅；READY 后再进入 `revision`
 
 **产物**
 - draft paper（可编译版本）+ 编译日志
@@ -81,9 +89,9 @@
 **门禁**
 - A4（paper edits）、可编译、引用/证据门禁、Reviewer 信息隔离与收敛。
 
-详见：`workflows/W3_draft.zh.md`。
+详见：`workflows/draft.zh.md`。
 
-## W4：Derivation + Checker（推导与一致性检查）
+## derivation_check：Derivation + Checker（推导与一致性检查）
 
 **输入**
 - 目标推导（定义清楚的量与终点公式/数值）
@@ -103,4 +111,4 @@
 ## Phase C：研究能力扩展（补充）
 
 - C1: `workflows/C1_literature_gap.md`（无 LLM 的 MCP INSPIRE 文献发现 bundle）
-- C2: `workflows/C2_method_design.md`（方法设计脚手架 → 可运行 W_compute 插件项目）
+- C2: `workflows/C2_method_design.md`（方法设计脚手架 → 可运行 computation 插件项目）

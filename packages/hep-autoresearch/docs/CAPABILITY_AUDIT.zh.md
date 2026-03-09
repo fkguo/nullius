@@ -43,7 +43,7 @@
 - preflight-only（不调用外部 LLM）用于早期 deterministic 检查
 
 缺口/需要本项目补的：
-- 它不是一个通用 Orchestrator：需要我们在 W1/W2/W3/W4 上补齐执行器与状态机
+- 它不是一个通用 Orchestrator：需要我们在 ingest / reproduce / draft / revision / derivation_check 上补齐执行器与状态机
 
 ### 1.2 review-swarm（核心：clean-room 双模型审阅/收敛）
 
@@ -63,7 +63,7 @@
 - 可与 research-team artifacts 目录对接
 
 你能直接复用的能力：
-- W2（reproduction-first）与 W4（checker）中的“可执行计算 + 可审计产物”底座
+- reproduce（reproduction-first）与 derivation_check（checker）中的“可执行计算 + 可审计产物”底座
 - 对照 LaTeX 数值（当目标论文有明确数值/表格时）
 
 缺口/需要本项目补的：
@@ -76,7 +76,7 @@
 - LaTeX/Markdown 卫生与 evidence gate（防无证据新增）
 
 你能直接复用的能力：
-- W3（review→revision）与 W5（对外发布）的写作侧工具链
+- revision（review→revision）与 publication/export 的写作侧工具链
 - 对外分享的 paper bundle 与 trace
 
 缺口/需要本项目补的：
@@ -88,7 +88,7 @@
 - 调用 Claude/Gemini 生成 PRL editor+referee 风格报告（严格输出契约）
 
 你能直接复用的能力：
-- W3 的 reviewer 组件之一（风格化审稿输出）
+- revision 的 reviewer 组件之一（风格化审稿输出）
 
 注意事项：
 - 它是 workflow skill（依赖 runner），本质上仍是文本审阅；必须与“可编译/引用/证据”门禁联动
@@ -124,9 +124,9 @@
 - arXiv 源文件下载（LaTeX/PDF）与元数据获取
 - 主题分析、citation network、field survey 等更高层工具
 
-对 W1/W2/W4 的意义：
-- W1 ingestion 的主数据源（稳定锚点）
-- W2 reproduction 的“引用链扩展与最近工作定位”
+对 ingest / reproduce / derivation_check 的意义：
+- ingest 的主数据源（稳定锚点）
+- reproduce workflow 的“引用链扩展与最近工作定位”
 
 ### 2.2 写作证据与导出（Evidence-first writing）
 
@@ -134,7 +134,7 @@
 - run/project 级证据索引、写作证据包、LaTeX evidence catalog、citation mapping
 - paper scaffold/export（RevTeX）
 
-对 W3/W5 的意义：
+对 revision / publication-export 的意义：
 - 把“写作”变成 evidence-first 资产（可追溯、可导出、可共享）
 
 ### 2.3 项目/运行资产管理
@@ -176,7 +176,7 @@
 
 更重要的新增代码更可能放在本项目（`toolkit/` / `src/`）里：
 - Orchestrator CLI/Web
-- W1 ingestion runner / W2 reproduce runner / W3 revision runner
+- ingest runner / reproduce runner / revision runner
 - eval runner（读 `evals/` 并执行验收）
 
 如果要新增 skill，建议只在以下情况下做：
@@ -210,5 +210,5 @@
 
 ## 7) 文献借鉴（agents/LLM workflow）
 
-除工具能力盘点外，我们也从 MadAgents（[@recid-3112995-madagants](../knowledge_base/literature/recid-3112995-madagants.md)）引用的 agent/LLM 文献中抽取了可执行机制，并给出“adopt now / later”的集成建议：
+除工具能力盘点外，我们也从 curated 的 agent / research-workflow literature notes 中抽取了可执行机制，并给出“adopt now / later”的集成建议：
 - `docs/AGENT_LITERATURE_INTEGRATION.md`

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "run_id": "M1-nlo-cross-section-r1",
-  "workflow_id": "W_compute",
+  "workflow_id": "computation",
   "title": "Compute X cross-section at NLO",
   "description": "Reproduce NLO cross-section calculation from arXiv:XXXX.XXXXX",
 

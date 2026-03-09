@@ -21,7 +21,7 @@
       "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/plan.md",
       "artifacts/runs/M31-t29-r1-plan/reproduce/manifest.json"
     ],
-    "reading_note_required_fields": ["Plan view:", "Plan SSOT:", "Plan step(s):", "W2.S1"],
+    "reading_note_required_fields": ["Plan view:", "Plan SSOT:", "Plan step(s):", "reproduce.main"],
     "json_numeric_checks": [
       {
         "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/analysis.json",
@@ -68,19 +68,19 @@
         "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/current_step/step_id",
         "type": "string",
-        "equals": "W2.S1"
+        "equals": "reproduce.main"
       },
       {
         "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/plan/current_step_id",
         "type": "string",
-        "equals": "W2.S1"
+        "equals": "reproduce.main"
       },
       {
         "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",
         "pointer": "#/plan/steps/0/step_id",
         "type": "string",
-        "equals": "W2.S1"
+        "equals": "reproduce.main"
       },
       {
         "path": "artifacts/runs/M31-t29-r1/orchestrator_regression/.autoresearch/state.json",

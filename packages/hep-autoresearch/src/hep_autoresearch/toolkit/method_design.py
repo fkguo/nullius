@@ -17,7 +17,7 @@ from .artifact_report import write_artifact_report
 from .mcp_config import load_mcp_server_config, merged_env
 from .mcp_stdio_client import McpStdioClient
 from .run_card_schema import normalize_and_validate_run_card_v2
-from .w_compute import validate_phase_dag
+from .computation import validate_phase_dag
 
 
 _PROJECT_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -435,7 +435,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
         run_card = {
             "schema_version": 2,
             "run_id": str(inps.tag),
-            "workflow_id": "W_compute",
+            "workflow_id": "computation",
             "title": title,
             "phases": [
                 {
@@ -478,7 +478,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
                 "```bash\n"
                 "python3 -m hep_autoresearch run \\\n"
                 f"  --run-id {inps.tag} \\\n"
-                "  --workflow-id W_compute \\\n"
+                "  --workflow-id computation \\\n"
                 f"  --run-card {rc_path.as_posix()} \\\n"
                 "  --trust-project\n"
                 "```\n"
@@ -545,7 +545,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
         # 4) Write run_card v2 and validate it (strict) + DAG cycle check.
         run_card = dict(spec_norm.get("run_card") or {})
         run_card["run_id"] = str(inps.tag)
-        run_card.setdefault("workflow_id", "W_compute")
+        run_card.setdefault("workflow_id", "computation")
         run_card.setdefault("title", title)
         _write_json(rc_path, run_card, overwrite=bool(inps.overwrite))
         _act("write_run_card", "ok", path=_rel(repo_root, rc_path))
@@ -579,7 +579,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
                         "```bash\n"
                         "python3 -m hep_autoresearch run \\\n"
                         f"  --run-id {inps.tag} \\\n"
-                        "  --workflow-id W_compute \\\n"
+                        "  --workflow-id computation \\\n"
                         f"  --run-card {rc_path.as_posix()} \\\n"
                         "  --trust-project\n"
                         "```\n"
@@ -595,7 +595,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
     # Template: pdg_snapshot — query PDG at design time and embed a snapshot into the project.
     elif template == "pdg_snapshot":
         title = inps.title or f"Method-design scaffold (pdg_snapshot: {inps.pdg_particle_name}/{inps.pdg_property})"
-        desc = inps.description or "Scaffold that snapshots a PDG property (via MCP) and prepares a runnable W_compute run-card."
+        desc = inps.description or "Scaffold that snapshots a PDG property (via MCP) and prepares a runnable computation run-card."
 
         snapshot, pdg_actions, pdg_errors = _pdg_snapshot_v1(repo_root=repo_root, inps=inps, created_at=created_at)
         actions.extend(pdg_actions)
@@ -639,7 +639,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
         run_card = {
             "schema_version": 2,
             "run_id": str(inps.tag),
-            "workflow_id": "W_compute",
+            "workflow_id": "computation",
             "title": title,
             "phases": [
                 {
@@ -683,7 +683,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
                 "```bash\n"
                 "python3 -m hep_autoresearch run \\\n"
                 f"  --run-id {inps.tag} \\\n"
-                "  --workflow-id W_compute \\\n"
+                "  --workflow-id computation \\\n"
                 f"  --run-card {rc_path.as_posix()} \\\n"
                 "  --trust-project\n"
                 "```\n"
@@ -859,7 +859,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
         run_card = {
             "schema_version": 2,
             "run_id": str(inps.tag),
-            "workflow_id": "W_compute",
+            "workflow_id": "computation",
             "title": title,
             "parameters": {
                 "mcp_config": {"type": "string", "default": ".mcp.json", "description": "Path to MCP config JSON for runtime PDG query."},
@@ -935,7 +935,7 @@ def method_design_one(inps: MethodDesignInputs, *, repo_root: Path) -> dict[str,
                 "```bash\n"
                 "python3 -m hep_autoresearch run \\\n"
                 f"  --run-id {inps.tag} \\\n"
-                "  --workflow-id W_compute \\\n"
+                "  --workflow-id computation \\\n"
                 f"  --run-card {rc_path.as_posix()} \\\n"
                 "  --trust-project\n"
                 "```\n"

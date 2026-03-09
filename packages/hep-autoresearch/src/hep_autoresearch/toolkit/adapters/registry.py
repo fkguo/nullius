@@ -9,12 +9,12 @@ from .shell import ShellAdapter
 
 
 def adapter_workflow_ids() -> set[str]:
-    return {"ADAPTER_shell_smoke"}
+    return {"shell_adapter_smoke"}
 
 
 def adapter_for_workflow(workflow_id: str) -> Adapter:
     wid = str(workflow_id)
-    if wid == "ADAPTER_shell_smoke":
+    if wid == "shell_adapter_smoke":
         return ShellAdapter()
     raise KeyError(f"unknown adapter workflow_id: {workflow_id}")
 
@@ -22,14 +22,14 @@ def adapter_for_workflow(workflow_id: str) -> Adapter:
 def default_run_card_for_workflow(*, workflow_id: str, run_id: str, state: dict[str, Any]) -> dict[str, Any]:
     wid = str(workflow_id)
     rid = str(run_id)
-    if wid == "ADAPTER_shell_smoke":
+    if wid == "shell_adapter_smoke":
         artifacts = state.get("artifacts") if isinstance(state.get("artifacts"), dict) else {}
         return {
             "schema_version": 1,
             "run_id": rid,
             "workflow_id": wid,
             "adapter_id": "shell",
-            "artifact_step": "adapter_shell_smoke",
+            "artifact_step": "shell_adapter_smoke",
             # Gate floor is enforced by Orchestrator approval_policy.json; run-card may add more gates.
             "required_gates": [],
             "gate_resolution_mode": "union",

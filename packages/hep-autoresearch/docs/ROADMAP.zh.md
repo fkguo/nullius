@@ -75,8 +75,8 @@
 - 输出：可编译 LaTeX + diff + 引用/证据门禁通过
 
 **实现顺序（推荐，写入计划）**
-- 先做 `W3a Draft`：默认用 `research-writer` 从 `Draft_Derivation.md` + `knowledge_base/` 生成可编译草稿（降低“无 paper_root 无法改稿”的阻塞）。
-- 再做 `W3 Revision`：在可编译基线之上进入“审→改→再审”闭环。
+- 先做 `draft`：默认用 `research-writer` 从 `Draft_Derivation.md` + `knowledge_base/` 生成可编译草稿（降低“无 paper_root 无法改稿”的阻塞）。
+- 再做 `revision`：在可编译基线之上进入“审→改→再审”闭环。
 - MCP 写作编排工具（`hep_run_writing_*`）作为中期增强：在 delegation protocol 完整后再逐步引入（避免双重编排/状态冲突）。
 
 **验收**

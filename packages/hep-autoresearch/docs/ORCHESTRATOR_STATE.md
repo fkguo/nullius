@@ -40,11 +40,11 @@ Recommended minimal fields:
 {
   "schema_version": 1,
   "run_id": "M1-r1",
-  "workflow_id": "W1_ingest",
+  "workflow_id": "ingest",
   "run_status": "awaiting_approval",
   "current_step": {
-    "step_id": "W1.S3",
-    "title": "Expand literature search",
+    "step_id": "ingest.main",
+    "title": "Ingest paper and write reading note",
     "started_at": "2026-02-01T00:00:00Z"
   },
   "plan": {
@@ -52,12 +52,12 @@ Recommended minimal fields:
     "created_at": "2026-02-01T00:00:00Z",
     "updated_at": "2026-02-01T00:00:00Z",
     "run_id": "M1-r1",
-    "workflow_id": "W1_ingest",
-    "current_step_id": "W1.S3",
+    "workflow_id": "ingest",
+    "current_step_id": "ingest.main",
     "steps": [
       {
-        "step_id": "W1.S3",
-        "description": "Expand literature search",
+        "step_id": "ingest.main",
+        "description": "Ingest paper and write reading note",
         "status": "in_progress",
         "expected_approvals": ["A1"],
         "expected_outputs": ["artifacts/runs/M1-r1/ingest/<refkey>/manifest.json"],
@@ -127,7 +127,7 @@ Plan semantics:
 - `plan_md_path` is derived (rewrite deterministically on each plan update).
 - `plan.branching` (optional) records alternative approaches (“branch candidates”) for safe backtracking:
   - One active branch at a time: `plan.branching.active_branch_id`.
-  - `plan.branching.active_branch_id` is a composite id: `"<decision_id>:<branch_id>"` (e.g., `"W2.S1:b3"`).
+  - `plan.branching.active_branch_id` is a composite id: `"<decision_id>:<branch_id>"` (e.g., `"reproduce.main:b3"`).
   - `branch_decision.active_branch_id` is the bare branch id within that decision (e.g., `"b3"`).
   - Cap branch explosion by default: `plan.branching.max_branches_per_decision = 5` (raising caps must be explicit and recorded in the Plan SSOT + ledger).
 

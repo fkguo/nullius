@@ -44,7 +44,7 @@
 
 ### 2.2 建议：更显式的“KB index（Library/Methodology/Priors）索引导出”
 
-原因：PhysMaster 的 LANDAU 分层语义在我们生态圈中天然存在，但需要一个统一命名的、可复用的 deterministic 导出（本项目称 KB index）。
+原因：我们生态圈已经天然具备 Library / Methodology / Priors 三层语义，但仍缺一个统一命名、可复用的 deterministic 导出（本项目称 KB index）。
 
 建议：
 - 给 `research-team` 增加一个 deterministic exporter：把 KB 三层的 RefKey、links、evidence pointers 导出为 JSON（供 Orchestrator / reviewer packet 自动引用）。
@@ -76,7 +76,7 @@
 
 原因：hep-calc 的计算结果如果能落到 `manifest/summary/analysis`，就能：
 - 直接进入 eval suite 做回归；
-- 被 W3 写作自动拉取 provenance；
+- 被 draft/revision 写作自动拉取 provenance；
 - 进入 L3 evolution 做“失败→改进提案→新增测试”闭环。
 
 最小方案：
@@ -100,9 +100,9 @@
 
 ## 6) prl-referee-review（或同类审稿工具）
 
-### 6.1 建议：作为 W3 的外部 reviewer adapter
+### 6.1 建议：作为 revision 的外部 reviewer adapter
 
-原因：PRL 风格审稿报告非常适合作为 W3 的 “review pass”，但应满足：
+原因：PRL 风格审稿报告非常适合作为 revision 的 “review pass”，但应满足：
 - 输出 contract（READY/NOT_READY + major/minor + required actions）。
 - 落盘到 artifacts（便于后续 revision plan 与对照）。
 
@@ -112,7 +112,7 @@
 
 ### 7.1 建议：提供“citekey resolver”稳定入口（INSPIRE recid → citekey/BibTeX）
 
-原因：T30 要求 INSPIRE 论文必须用 INSPIRE 标准 citekey；我们在本仓库通过 W1 快照实现。
+原因：T30 要求 INSPIRE 论文必须用 INSPIRE 标准 citekey；我们在本仓库通过 ingest 快照实现。
 
 若要更强/更通用：
 - MCP 可提供一个“recid → (citekey, bibtex, canonical links)”的工具接口；

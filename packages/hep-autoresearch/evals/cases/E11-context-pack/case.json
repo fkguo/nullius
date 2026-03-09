@@ -2,41 +2,41 @@
   "schema_version": 1,
   "case_id": "E11-context-pack",
   "workflow": "custom",
-  "description": "Context pack: every run should have a human-readable context.md and machine context.json that anchors work to the project charter/plan/gates/contracts.",
+  "description": "Context pack: a scaffolded external project run should emit human-readable context.md and machine context.json anchored to project-local charter/plan/gates/contracts.",
   "inputs": {
-    "tag": "M14-contextpack-devcheck-r1"
+    "tag": "M54-project-init-r1"
   },
   "acceptance": {
     "required_paths_exist": [
       "scripts/build_context_pack.py",
       "src/hep_autoresearch/toolkit/context_pack.py",
       "src/hep_autoresearch/toolkit/workflow_context.py",
-      "PROJECT_CHARTER.md",
-      "PROJECT_MAP.md",
-      "RESEARCH_PLAN.md",
-      "PREWORK.md",
-      "Draft_Derivation.md",
-      "docs/APPROVAL_GATES.md",
-      "docs/ARTIFACT_CONTRACT.md",
-      "docs/EVAL_GATE_CONTRACT.md",
-      "artifacts/runs/M14-contextpack-devcheck-r1/context/context.md",
-      "artifacts/runs/M14-contextpack-devcheck-r1/context/context.json"
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/PROJECT_CHARTER.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/PROJECT_MAP.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/RESEARCH_PLAN.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/PREWORK.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/Draft_Derivation.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/docs/APPROVAL_GATES.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/docs/ARTIFACT_CONTRACT.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/docs/EVAL_GATE_CONTRACT.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/knowledge_base/_index/kb_index.json",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-reproduce/context/context.md",
+      "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-reproduce/context/context.json"
     ],
     "json_numeric_checks": [
       {
-        "path": "artifacts/runs/M14-contextpack-devcheck-r1/context/context.json",
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-reproduce/context/context.json",
         "pointer": "#/project/missing_required_files_count",
         "min": 0,
         "max": 0
       },
       {
-        "path": "artifacts/runs/M14-contextpack-devcheck-r1/context/context.json",
+        "path": "artifacts/runs/M54-project-init-r1/orchestrator_regression/project_init_project/artifacts/runs/M54-project-init-r1-proj-reproduce/context/context.json",
         "pointer": "#/project/required_context_ok",
         "min": 1,
         "max": 1
       }
     ]
   },
-  "notes": "This eval is intentionally deterministic and does not run external LLMs."
+  "notes": "Run first: python3 scripts/run_orchestrator_regression.py --tag M54-project-init-r1 --scenarios project_init. This eval is deterministic and does not run external LLMs."
 }
-

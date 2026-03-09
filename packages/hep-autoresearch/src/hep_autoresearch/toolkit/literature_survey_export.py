@@ -20,17 +20,36 @@ class LiteratureSurveyExportInputs:
     refkeys: list[str] | None = None
 
 
+def resolve_literature_survey_refkeys(*, repo_root: Path, refkeys: list[str] | None) -> list[str]:
+    explicit = [str(x).strip() for x in (refkeys or []) if str(x).strip()]
+    if explicit:
+        return explicit
+
+    profile_path = repo_root / "knowledge_base" / "_index" / "kb_profiles" / "curated.json"
+    if not profile_path.exists():
+        raise ValueError("refkeys are required when curated KB profile is missing")
+    profile = read_json(profile_path)
+    paths = profile.get("paths") if isinstance(profile, dict) else None
+    if not isinstance(paths, list):
+        raise ValueError("refkeys are required when curated KB profile has no paths list")
+
+    derived = [
+        Path(str(path)).stem
+        for path in paths
+        if isinstance(path, str) and path.startswith("knowledge_base/literature/") and path.endswith(".md")
+    ]
+    refkeys_from_profile = [refkey for refkey in derived if refkey]
+    if not refkeys_from_profile:
+        raise ValueError("refkeys are required when curated KB profile has no literature notes")
+    return sorted(dict.fromkeys(refkeys_from_profile))
+
+
 def literature_survey_export_one(inps: LiteratureSurveyExportInputs, *, repo_root: Path) -> dict[str, Any]:
     tag = str(inps.tag).strip()
     if not tag:
         raise ValueError("tag is required")
 
-    refkeys: list[str]
-    if inps.refkeys:
-        refkeys = [str(x).strip() for x in inps.refkeys if str(x).strip()]
-    else:
-        # v0 demo set: one INSPIRE-backed note and one arXiv-only note.
-        refkeys = ["recid-3112995-madagants", "arxiv-2512.19799-physmaster"]
+    refkeys = resolve_literature_survey_refkeys(repo_root=repo_root, refkeys=inps.refkeys)
 
     created_at = utc_now_iso().replace("+00:00", "Z")
     out_dir = repo_root / "artifacts" / "runs" / tag / "literature_survey"
@@ -144,4 +163,3 @@ def literature_survey_export_one(inps: LiteratureSurveyExportInputs, *, repo_roo
     }
 
     return {"errors": errors, "ok": bool(ok), "artifact_paths": artifact_paths}
-

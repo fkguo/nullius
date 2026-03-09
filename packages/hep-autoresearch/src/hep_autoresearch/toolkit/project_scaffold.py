@@ -276,7 +276,7 @@ def ensure_project_scaffold(*, repo_root: Path) -> dict[str, Any]:
         skipped=skipped,
     )
 
-    # Append-only query log (required by W1 ingestion).
+    # Append-only query log (required by the ingest workflow).
     _write_text_if_missing(
         repo_root=repo_root,
         path=repo_root / "knowledge_base" / "methodology_traces" / "literature_queries.md",
@@ -295,6 +295,21 @@ def ensure_project_scaffold(*, repo_root: Path) -> dict[str, Any]:
     kb_profiles_dir = repo_root / "knowledge_base" / "_index" / "kb_profiles"
     minimal_profile_path = kb_profiles_dir / "minimal.json"
     if not minimal_profile_path.exists():
+        _write_text_if_missing(
+            repo_root=repo_root,
+            path=repo_root / "knowledge_base" / "literature" / "initial_literature_scope.md",
+            created=created,
+            skipped=skipped,
+            text=(
+                "# Initial literature scope\n\n"
+                "RefKey: initial-literature-scope\n\n"
+                "Purpose:\n"
+                "- capture the first stable anchor papers, reviews, datasets, or codebases relevant to the project;\n"
+                "- record why each item matters before large-scale retrieval expands the KB.\n\n"
+                "Seed shortlist:\n"
+                "- (fill)\n"
+            ),
+        )
         _write_text_if_missing(
             repo_root=repo_root,
             path=repo_root / "knowledge_base" / "priors" / "initial_priors.md",
@@ -336,8 +351,11 @@ def ensure_project_scaffold(*, repo_root: Path) -> dict[str, Any]:
         curated_def = {
             "schema_version": 1,
             "profile": "curated",
-            "paths": list(minimal_def["paths"]),
-            "notes": "curated profile (initial): same as minimal until the project curator expands it.",
+            "paths": [
+                "knowledge_base/literature/initial_literature_scope.md",
+                *list(minimal_def["paths"]),
+            ],
+            "notes": "curated profile (initial): initial literature scope plus minimal project scaffold context.",
         }
         _write_json_if_missing(
             repo_root=repo_root,

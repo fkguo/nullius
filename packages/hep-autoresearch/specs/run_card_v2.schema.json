@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "run_card_v2.schema.json",
   "title": "Run Card v2",
-  "description": "Declarative run card for the W_compute workflow engine. Strict mode: unknown fields are errors. Schema version must be exactly 2.",
+  "description": "Declarative run card for the computation workflow engine. Strict mode: unknown fields are errors. Schema version must be exactly 2.",
   "type": "object",
   "required": ["schema_version", "run_id", "workflow_id", "title", "phases"],
   "additionalProperties": false,
@@ -21,8 +21,8 @@
     },
     "workflow_id": {
       "type": "string",
-      "const": "W_compute",
-      "description": "Workflow engine identifier. Must be W_compute for run_card v2."
+      "const": "computation",
+      "description": "Workflow engine identifier. Must be computation for run_card v2."
     },
     "title": {
       "type": "string",

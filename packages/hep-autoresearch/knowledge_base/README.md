@@ -14,7 +14,7 @@ Skepticism policy (real research):
 
 - Notes and excerpts from primary sources
 - One file per topic or paper cluster
-- Include a `RefKey: <Key>` line near the top of each note (used in [Draft_Derivation.md](../Draft_Derivation.md) references).
+- Include a `RefKey: <Key>` line near the top of each note (used by the project-local `Draft_Derivation.md` notebook in a scaffolded research project root).
 - Keep the first H1 title meaningful (used for human-readable links in Capsule I).
 - For INSPIRE-based notes, also include:
   - `INSPIRE recid: <integer>`
@@ -22,7 +22,8 @@ Skepticism policy (real research):
   - `Authors: <FirstAuthor et al.>`
   - `Publication: <journal / arXiv / status>`
 - Include an external link if available (prefer INSPIRE/arXiv/DOI; GitHub is allowed for code).
-- In [Draft_Derivation.md](../Draft_Derivation.md) Capsule I, prefer linking like:
+- Do not check full paper-source trees or tarballs into this package repo; keep compact notes and stable metadata anchors here, and re-fetch raw source on demand in a project-local or scratch location when needed.
+- In the project-local `Draft_Derivation.md` notebook (Capsule I), prefer linking like:
   ```md
   - [RefKey — Authors — Title](knowledge_base/literature/<RefKey>.md)
   ```
@@ -45,7 +46,7 @@ Treat each note’s `Verification status` as the marker of reading depth / verif
 When should you upgrade from `metadata-only/skimmed` to “deep read / verification”?
 - Any reference used in **core derivations / headline numbers / default algorithm choices / main conclusions / novelty claims (A5)**: at least `spot-checked`. For the closest prior work, aim for `replicated` when possible.
 - Any case where you “implement an algorithm from the paper”: at least `skimmed` plus one reproducible check (otherwise you are trusting a black box).
-- W1 ingestion may contain lots of `metadata-only` notes for coverage/screening; but later workflows (W2/W4/W3) must upgrade the few key dependencies you actually rely on.
+- The ingest workflow may contain lots of `metadata-only` notes for coverage/screening; but later workflows (reproduce / derivation_check / revision) must upgrade the few key dependencies you actually rely on.
 
 ### Markdown math hygiene (rendering safety)
 

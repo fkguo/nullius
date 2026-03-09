@@ -36,7 +36,7 @@ class TestMethodDesignCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
 
-            # Init is required to run W_compute through hepar (approval policy, runtime dirs).
+            # Init is required to run computation through hepar (approval policy, runtime dirs).
             rc, out, err = _run_cli(repo_root, ["init"])
             self.assertEqual(rc, 0, msg=out + err)
 
@@ -75,7 +75,7 @@ class TestMethodDesignCLI(unittest.TestCase):
             rc, out, err = _run_cli(repo_root, ["run-card", "validate", "--run-card", str(run_card_path)])
             self.assertEqual(rc, 0, msg=out + err)
 
-            # Run the generated W_compute project.
+            # Run the generated computation project.
             rc, out, err = _run_cli(
                 repo_root,
                 [
@@ -83,7 +83,7 @@ class TestMethodDesignCLI(unittest.TestCase):
                     "--run-id",
                     tag,
                     "--workflow-id",
-                    "W_compute",
+                    "computation",
                     "--run-card",
                     str(run_card_path),
                     "--trust-project",
@@ -91,7 +91,7 @@ class TestMethodDesignCLI(unittest.TestCase):
             )
             self.assertEqual(rc, 0, msg=out + err)
 
-            w_out = repo_root / "artifacts" / "runs" / tag / "w_compute"
+            w_out = repo_root / "artifacts" / "runs" / tag / "computation"
             analysis = json.loads((w_out / "analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(((analysis.get("results") or {}).get("status")), "completed")
             self.assertTrue((w_out / "phases" / "write_ok" / "results" / "ok.json").exists())
@@ -136,7 +136,7 @@ class TestMethodDesignCLI(unittest.TestCase):
                 "run_card": {
                     "schema_version": 2,
                     "run_id": "IGNORED",
-                    "workflow_id": "W_compute",
+                    "workflow_id": "computation",
                     "title": "spec_v1 run",
                     "phases": [
                         {
@@ -182,14 +182,14 @@ class TestMethodDesignCLI(unittest.TestCase):
                     "--run-id",
                     tag,
                     "--workflow-id",
-                    "W_compute",
+                    "computation",
                     "--run-card",
                     str(run_card_path),
                     "--trust-project",
                 ],
             )
             self.assertEqual(rc, 0, msg=out + err)
-            w_out = repo_root / "artifacts" / "runs" / tag / "w_compute"
+            w_out = repo_root / "artifacts" / "runs" / tag / "computation"
             self.assertTrue((w_out / "phases" / "p1" / "results" / "ok.json").exists())
 
     def test_method_design_pdg_snapshot_requires_mcp_config(self) -> None:
@@ -221,7 +221,7 @@ class TestMethodDesignCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
 
-            # Init so we can also run W_compute afterwards.
+            # Init so we can also run computation afterwards.
             rc, out, err = _run_cli(repo_root, ["init"])
             self.assertEqual(rc, 0, msg=out + err)
 
@@ -279,21 +279,21 @@ class TestMethodDesignCLI(unittest.TestCase):
                     "--run-id",
                     tag,
                     "--workflow-id",
-                    "W_compute",
+                    "computation",
                     "--run-card",
                     str(run_card_path),
                     "--trust-project",
                 ],
             )
             self.assertEqual(rc, 0, msg=out + err)
-            w_out = repo_root / "artifacts" / "runs" / tag / "w_compute"
+            w_out = repo_root / "artifacts" / "runs" / tag / "computation"
             self.assertTrue((w_out / "phases" / "emit_snapshot" / "results" / "pdg_snapshot.json").exists())
 
     def test_method_design_pdg_runtime_with_stub_mcp(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
 
-            # Init so we can also run W_compute afterwards.
+            # Init so we can also run computation afterwards.
             rc, out, err = _run_cli(repo_root, ["init"])
             self.assertEqual(rc, 0, msg=out + err)
 
@@ -348,7 +348,7 @@ class TestMethodDesignCLI(unittest.TestCase):
                     "--run-id",
                     tag,
                     "--workflow-id",
-                    "W_compute",
+                    "computation",
                     "--run-card",
                     str(run_card_path),
                     "--trust-project",
@@ -356,7 +356,7 @@ class TestMethodDesignCLI(unittest.TestCase):
             )
             self.assertEqual(rc, 0, msg=out + err)
 
-            out_path = repo_root / "artifacts" / "runs" / tag / "w_compute" / "phases" / "query_pdg" / "results" / "pdg_property.json"
+            out_path = repo_root / "artifacts" / "runs" / tag / "computation" / "phases" / "query_pdg" / "results" / "pdg_property.json"
             self.assertTrue(out_path.exists())
             payload = json.loads(out_path.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("schema_version"), 1)
