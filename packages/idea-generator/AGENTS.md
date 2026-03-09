@@ -7,6 +7,7 @@ This repository is a **design / architecture workspace** for an `idea-generator`
 - **Do not leave `research-team` scaffolds** (projects/runs/artifacts trees) in this repo. If you must use `research-team`, create it in a temporary location (e.g. `/tmp/...`) and only copy back **summaries/design docs**.
 - Prefer **evidence-first**: capture claims as actionable design rules + link to primary sources (arXiv/ACL/etc.) in `docs/`.
 - Keep outputs **architecture-first** (interfaces/contracts/plugins) rather than model-specific prompt hacks.
+- Checked-in `docs/plans/examples/**` must stay **generic, minimal, and reusable**. Do not copy examples verbatim from `idea-runs`, prior campaigns, or local pilot artifacts.
 
 ## Where to write things
 
@@ -16,6 +17,7 @@ This repository is a **design / architecture workspace** for an `idea-generator`
 ## Progress tracking (rules)
 
 - **Single Source of Truth (SSOT)**: track implementation progress only in `docs/plans/2026-02-12-implementation-plan-tracker.md`.
+- The tracker records **package-level design / contract / implementation progress only**. Do not turn it into a run diary, board-sync log, or scientific campaign notebook.
 - **No new trackers**: do not create parallel TODO lists in other docs; instead, link to the SSOT tracker and update it.
 - **Update discipline**: any non-trivial design change that affects scope, interfaces, or gates must include:
   - a status update in the tracker (checkboxes / task table), and
