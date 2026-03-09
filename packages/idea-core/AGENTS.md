@@ -4,6 +4,7 @@
 
 - Do not check raw reviewer prompts, transcripts, per-run receipts, or local review workflow files into this repo.
 - Keep local review materials outside the repo; distill only durable conclusions into checked-in docs or trackers.
+- Checked-in demo snapshots under `docs/demos/` must be portable: no machine-local absolute paths or `file://` URIs.
 
 ## Network / push policy
 

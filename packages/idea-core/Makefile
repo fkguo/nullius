@@ -14,7 +14,7 @@ bundle-contracts:
 
 validate:
 	$(PYTHON) scripts/check_no_test_instance_pollution.py
-	$(PYTHON) scripts/check_m5_legacy_migration_absent.py
+	$(PYTHON) scripts/check_demo_snapshots_portable.py
 	$(PYTHON) -m idea_core.contracts.validate
 
 test:
