@@ -1,1 +1,0 @@
-OK: wrote run outputs -> /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v23-grid80-enf40-qstar-ecos

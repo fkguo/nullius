@@ -1,8 +1,0 @@
-Board sync postupdate (W6-27 derive UV/ASR budget, 2026-02-19)
-timestamp_utc: 2026-02-19T16:56:00.994085+00:00
-item_snapshot_postupdate: docs/reviews/bundles/2026-02-19-w6-27-board-item-list-postupdate-v1.json
-draft_issue_snapshot_postupdate: docs/reviews/bundles/2026-02-19-w6-27-board-draft-issue-postupdate-v1.json
-item_edit_response: docs/reviews/bundles/2026-02-19-w6-27-board-item-edit-v1.out.json
-W6-01 status: None
-body_contains_w6_27: True
-body_contains_w6_27_commit_2cc492f: True

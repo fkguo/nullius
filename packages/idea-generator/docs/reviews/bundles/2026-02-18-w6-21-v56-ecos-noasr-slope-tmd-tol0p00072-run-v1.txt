@@ -1,1 +1,0 @@
-OK: wrote run outputs -> /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-18-a-bochner-k0-socp-v56-dispersion-grid200-enf200-qstar-audit6-ecos-noasr-slope-tmd-tol0p00072

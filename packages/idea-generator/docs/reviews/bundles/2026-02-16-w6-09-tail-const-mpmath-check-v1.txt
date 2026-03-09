@@ -1,6 +1,0 @@
-cfg: projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/compute/a_bochner_k0_socp_config_v2j_dispersion_grid200_enf200_qstar_audit3_clarabel.json
-mp.dps: 80
-s1_mpi2: 212.0
-s2_mpi2: 212000000000000.0
-Q2_mpi2: 15.4380844556040006665398323093540966510772705078125
-tail_const_mpmath: -0.01130617453956700791502315

@@ -10,8 +10,8 @@ This repository is a **design / architecture workspace** for an `idea-generator`
 
 ## Where to write things
 
-- Design iterations: `docs/plans/` (date-stamped Markdown)
-- Multi-agent consultation outputs: `docs/plans/agent-team-output/`
+- Design iterations and durable checked-in summaries: `docs/plans/` (date-stamped Markdown)
+- Local multi-agent consultation outputs and review workflow files must stay outside the repo; distill durable conclusions back into `docs/plans/`.
 
 ## Progress tracking (rules)
 
@@ -26,22 +26,22 @@ This repository is a **design / architecture workspace** for an `idea-generator`
 
 | Skill | What it’s for | Path |
 |---|---|---|
-| `review-swarm` | Dual-agent loop (Claude + Gemini), strict output contract + convergence gate | `/home/user/.codex/skills/review-swarm/SKILL.md` |
-| `claude-cli-runner` | Run local `claude` CLI one-shot; write output to file | `/home/user/.codex/skills/claude-cli-runner/SKILL.md` |
-| `gemini-cli-runner` | Run local `gemini` CLI one-shot; write output to file | `/home/user/.codex/skills/gemini-cli-runner/SKILL.md` |
-| `research-team` | Milestone-based parallel research workflow (Claude+Gemini), reproducible artifacts | `/home/user/.codex/skills/research-team/SKILL.md` |
-| `research-writer` | RevTeX4-2 paper scaffold/validation; provenance wiring + BibTeX hygiene | `/home/user/.codex/skills/research-writer/SKILL.md` |
-| `hepar` | Control plane for evidence-first research runs (init/status/run/export/…) | `/home/user/.codex/skills/hepar/SKILL.md` |
-| `hep-calc` | HEP calculation audit runner (Mathematica/Julia; diagrams/amplitudes) | `/home/user/.codex/skills/hep-calc/SKILL.md` |
-| `pdg-lookup` | PDG local DB lookups (properties/decays/measurements/refs) | `/home/user/.codex/skills/pdg-lookup/SKILL.md` |
-| `referee-review` | Offline referee-style review report (Markdown + strict JSON) | `/home/user/.codex/skills/referee-review/SKILL.md` |
-| `zotero-import` | Two-step Zotero import pipeline (`zotero_add` → `zotero_confirm`) | `/home/user/.codex/skills/zotero-import/SKILL.md` |
-| `sci-hub` | Download papers not on arXiv (DOI/URL/PMID/query); Zotero integration | `/home/user/.codex/skills/sci-hub/SKILL.md` |
-| `md-toc-latex-unescape` | Fix LaTeX escaping inside Markdown TOC blocks | `/home/user/.codex/skills/md-toc-latex-unescape/SKILL.md` |
-| `deep-learning-lab` | Reproducible DL research scaffold (configs, provenance, artifacts/runs) | `/home/user/.codex/skills/deep-learning-lab/SKILL.md` |
-| `paper-reviser` | Content-first LaTeX paper revision (diff + tracked changes) | `/home/user/.codex/skills/paper-reviser/SKILL.md` |
-| `skill-installer` | Install additional Codex skills from curated list or GitHub repo | `/home/user/.codex/skills/.system/skill-installer/SKILL.md` |
-| `skill-creator` | Create/update a Codex skill (specialized workflows/tool integrations) | `/home/user/.codex/skills/.system/skill-creator/SKILL.md` |
+| `review-swarm` | Dual-agent loop (Claude + Gemini), strict output contract + convergence gate | `$CODEX_HOME/skills/review-swarm/SKILL.md` |
+| `claude-cli-runner` | Run local `claude` CLI one-shot; write output to file | `$CODEX_HOME/skills/claude-cli-runner/SKILL.md` |
+| `gemini-cli-runner` | Run local `gemini` CLI one-shot; write output to file | `$CODEX_HOME/skills/gemini-cli-runner/SKILL.md` |
+| `research-team` | Milestone-based parallel research workflow (Claude+Gemini), reproducible artifacts | `$CODEX_HOME/skills/research-team/SKILL.md` |
+| `research-writer` | RevTeX4-2 paper scaffold/validation; provenance wiring + BibTeX hygiene | `$CODEX_HOME/skills/research-writer/SKILL.md` |
+| `hepar` | Control plane for evidence-first research runs (init/status/run/export/…) | `$CODEX_HOME/skills/hepar/SKILL.md` |
+| `hep-calc` | HEP calculation audit runner (Mathematica/Julia; diagrams/amplitudes) | `$CODEX_HOME/skills/hep-calc/SKILL.md` |
+| `pdg-lookup` | PDG local DB lookups (properties/decays/measurements/refs) | `$CODEX_HOME/skills/pdg-lookup/SKILL.md` |
+| `referee-review` | Offline referee-style review report (Markdown + strict JSON) | `$CODEX_HOME/skills/referee-review/SKILL.md` |
+| `zotero-import` | Two-step Zotero import pipeline (`zotero_add` → `zotero_confirm`) | `$CODEX_HOME/skills/zotero-import/SKILL.md` |
+| `sci-hub` | Download papers not on arXiv (DOI/URL/PMID/query); Zotero integration | `$CODEX_HOME/skills/sci-hub/SKILL.md` |
+| `md-toc-latex-unescape` | Fix LaTeX escaping inside Markdown TOC blocks | `$CODEX_HOME/skills/md-toc-latex-unescape/SKILL.md` |
+| `deep-learning-lab` | Reproducible DL research scaffold (configs, provenance, artifacts/runs) | `$CODEX_HOME/skills/deep-learning-lab/SKILL.md` |
+| `paper-reviser` | Content-first LaTeX paper revision (diff + tracked changes) | `$CODEX_HOME/skills/paper-reviser/SKILL.md` |
+| `skill-installer` | Install additional Codex skills from curated list or GitHub repo | `$CODEX_HOME/skills/.system/skill-installer/SKILL.md` |
+| `skill-creator` | Create/update a Codex skill (specialized workflows/tool integrations) | `$CODEX_HOME/skills/.system/skill-creator/SKILL.md` |
 
 ## Practical notes (for this repo)
 

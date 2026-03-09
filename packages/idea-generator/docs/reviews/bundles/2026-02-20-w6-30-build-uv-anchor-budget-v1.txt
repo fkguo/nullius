@@ -1,2 +1,0 @@
-OK: wrote /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/artifacts/assumptions/uv_anchor_budget_v1.json
-  Q2_GeV2=10.0: A_target=0.03445131808557542, abs_tol=0.017257427038556872, rel_tol=0.5009221126370332

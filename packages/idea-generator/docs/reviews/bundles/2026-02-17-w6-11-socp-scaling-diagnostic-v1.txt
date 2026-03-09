@@ -1,8 +1,0 @@
-SOCP scaling diagnostic (v15b n_enforce=60, Q2=10)
-source: runs/2026-02-16-a-bochner-k0-socp-v15b-dispersion-reF-n60-scs-q2a10/results.json
-c_fac: min=1.462e+01 max=4.955e+13 ratio=3.388e+12
-sqrt_c_fac: min=3.824e+00 max=7.039e+06 ratio=1.841e+06
-obj_coeff_z_formulation: min=4.792e-03 max=1.399e+05 ratio=2.919e+07
-obj_coeff_x_formulation: min=1.253e-03 max=3.533e-02 ratio=2.819e+01
-Interpretation: x-formulation keeps linear/objective coefficients O(1e-3..1e-2) with ratio~O(10^1),
-whereas z-formulation induces a ~O(10^7) objective coefficient dynamic range for the same physical problem.

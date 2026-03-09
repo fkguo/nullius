@@ -1,5 +1,0 @@
-# W5-01 Completion + W5-02 Start Board Sync
-Date: 2026-02-15T16:27:28Z
-Project: https://github.com/users/fkguo/projects/1
-
-[{"status":"Done","title":"[M5.1] A0.1 charter + A0.2 promotion gate 接入"},{"status":"Todo","title":"[M5.2] clean-room 多评审 + 结构化辩论触发"},{"status":"Todo","title":"[M5.3] 端到端试跑（至少 1 个 C2 handoff）"},{"status":"In Progress","title":"[M5.4] 失败库（negative results）结构化复用"},{"status":"Done","title":"[W5-03] test-instance 解耦 + idea-runs + 反污染 gate"},{"status":"Done","title":"[W5-04] 通用质量门禁 schema + checklist（无实例内容）"},{"status":"Done","title":"[W5-05] control-plane 工程硬化 + 回归测试"}]

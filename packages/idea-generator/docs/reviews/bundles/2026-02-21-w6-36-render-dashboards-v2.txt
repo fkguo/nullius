@@ -1,4 +1,0 @@
-idea-runs render_project_dashboards.py (W6-36, v2)
-timestamp_utc: 2026-02-21T10:09:22Z
-
-OK: rendered dashboards for project: pion-gff-bootstrap-positivity-pilot-2026-02-15

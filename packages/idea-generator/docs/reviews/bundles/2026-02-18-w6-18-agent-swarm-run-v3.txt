@@ -1,6 +1,0 @@
-[ok] /home/user/Coding/Agents/Autoresearch/idea-generator/docs/plans/agent-team-output/2026-02-18-w6-18-review-v1/round-003/gemini_output.md
-[ok] /home/user/Coding/Agents/Autoresearch/idea-generator/docs/plans/agent-team-output/2026-02-18-w6-18-review-v1/round-003/claude_output.md
-[ok] /home/user/Coding/Agents/Autoresearch/idea-generator/docs/plans/agent-team-output/2026-02-18-w6-18-review-v1/round-003/gemini_output.md
-==== contract check ====
-[ok] docs/plans/agent-team-output/2026-02-18-w6-18-review-v1/round-003/claude_output.md
-[ok] docs/plans/agent-team-output/2026-02-18-w6-18-review-v1/round-003/gemini_output.md

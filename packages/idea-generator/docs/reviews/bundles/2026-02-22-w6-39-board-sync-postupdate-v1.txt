@@ -1,8 +1,0 @@
-Board sync postupdate (W6-39 tightening island: digitize S0 Re/Im/Abs box constraints + rerun strict-gated full-PSD, 2026-02-22)
-timestamp_utc: 2026-02-22T11:28:34.484352+00:00
-item_snapshot_postupdate: docs/reviews/bundles/2026-02-22-w6-39-board-item-list-postupdate-v1.json
-draft_issue_snapshot_postupdate: docs/reviews/bundles/2026-02-22-w6-39-board-draft-issue-postupdate-v1.json
-item_edit_response: docs/reviews/bundles/2026-02-22-w6-39-board-item-edit-v1.out.json
-W6-01 status: In Progress
-body_contains_w6_39: True
-body_contains_w6_39_commit_71abc12: True

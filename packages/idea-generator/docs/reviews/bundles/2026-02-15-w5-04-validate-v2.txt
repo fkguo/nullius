@@ -1,4 +1,0 @@
-python3 scripts/check_no_test_instance_pollution.py
-OK: no test-instance pollution paths detected.
-python3 scripts/validate_w5_quality_schemas.py
-OK: W5 quality-gate schemas and examples validated

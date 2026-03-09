@@ -1,3 +1,0 @@
-python3 scripts/build_failure_library_index.py
-OK: wrote failure library index with 3 entries -> /home/user/Coding/Agents/Autoresearch/idea-runs/evidence/failure_library_index_v1.json
-EXIT:0

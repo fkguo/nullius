@@ -1,4 +1,0 @@
-timestamp=2026-02-16T13:34:41Z
-cmd: PROJECT=projects/pion-gff-bootstrap-positivity-pilot-2026-02-15 make validate-project
-python3 scripts/validate_project_artifacts.py --project "projects/pion-gff-bootstrap-positivity-pilot-2026-02-15"
-OK: validated project artifacts: pion-gff-bootstrap-positivity-pilot-2026-02-15

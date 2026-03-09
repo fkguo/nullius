@@ -1,8 +1,0 @@
-Board sync postupdate (W6-36 tightening island execution, 2026-02-21)
-timestamp_utc: 2026-02-21T10:22:03.716659+00:00
-item_snapshot_postupdate: docs/reviews/bundles/2026-02-21-w6-36-board-item-list-postupdate-v1.json
-draft_issue_snapshot_postupdate: docs/reviews/bundles/2026-02-21-w6-36-board-draft-issue-postupdate-v1.json
-item_edit_response: docs/reviews/bundles/2026-02-21-w6-36-board-item-edit-v1.out.json
-W6-01 status: In Progress
-body_contains_w6_36: True
-body_contains_w6_36_commit_0a55ef6: True

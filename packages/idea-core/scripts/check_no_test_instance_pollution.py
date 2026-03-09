@@ -2,8 +2,8 @@
 """Fail-fast if test-instance run trees are mixed into tool repositories.
 
 Boundary policy:
-- Forbidden: `research/**`, `docs/research/**`, `artifacts/runs/**`
-- Allowed: design/plan/review SSOT evidence under `docs/plans/**` and `docs/reviews/**`
+- Forbidden: `research/**`, `docs/research/**`, `artifacts/runs/**`, local review workflow directories under `docs/**`
+- Allowed: checked-in design/plan SSOT evidence under `docs/plans/**`
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ FORBIDDEN_ROOTS = (
     Path("research"),
     Path("docs/research"),
     Path("artifacts/runs"),
+    Path("docs/reviews"),
 )
 
 
@@ -39,7 +40,7 @@ def main() -> int:
 
     if violations:
         print("ERROR: test-instance pollution detected in tool repository.", file=sys.stderr)
-        print("Move run/research artifacts to idea-runs.", file=sys.stderr)
+        print("Move run/research artifacts to idea-runs and keep review workflow files outside the repo.", file=sys.stderr)
         for rel in violations:
             print(f" - {rel}", file=sys.stderr)
         return 1

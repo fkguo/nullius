@@ -1,8 +1,0 @@
-v18 residual worst-case summary (Clarabel; full Q2 grid)
-run: /home/user/Coding/Agents/Autoresearch/idea-runs/projects/pion-gff-bootstrap-positivity-pilot-2026-02-15/runs/2026-02-16-a-bochner-k0-socp-v18-dispersion-grid200-enf200-full-resaudit
-
-norm_eq_abs: 7.623e-07 @ (82.817964066965, 'max_residuals')
-asr_eq_abs: 8.309e-08 @ (82.817964066965, 'max_residuals')
-k0_min_margin: -3.665e-06 @ (50.0, 'min_residuals')
-soc_min_margin: -6.571e-08 @ (1.118667472118, 'min_residuals')
-modulus_min_margin: -2.359e-08 @ (1.380042312875, 'min_residuals')

@@ -1,1 +1,0 @@
-OK: wrote run outputs -> runs/2026-02-18-a-bochner-k0-sdp-v14b-gram-psd-cross5-q2a15p4381-qstar-eps1e-5

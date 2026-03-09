@@ -4,7 +4,4 @@
 # macOS
 .DS_Store
 
-# Ephemeral review/session artifacts
-docs/**/agent-team-output/**/gemini_output.raw.md
-docs/**/agent-team-output/**/claude_output.raw.md
 docs/plans/auto-relay/.state/

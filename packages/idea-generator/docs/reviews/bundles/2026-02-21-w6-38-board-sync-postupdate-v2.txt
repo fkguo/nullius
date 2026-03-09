@@ -1,8 +1,0 @@
-Board sync postupdate (W6-38 tightening island: eta2410 digitize + strict-gated full-PSD, 2026-02-21)
-timestamp_utc: 2026-02-21T18:24:35.848175+00:00
-item_snapshot_postupdate: docs/reviews/bundles/2026-02-21-w6-38-board-item-list-postupdate-v2.json
-draft_issue_snapshot_postupdate: docs/reviews/bundles/2026-02-21-w6-38-board-draft-issue-postupdate-v2.json
-item_edit_response: docs/reviews/bundles/2026-02-21-w6-38-board-item-edit-v2.out.json
-W6-01 status: In Progress
-body_contains_w6_38: True
-body_contains_w6_38_commit_2c3dcda: True

@@ -1,2 +1,0 @@
-[FAIL] /home/user/Coding/Agents/Autoresearch/idea-generator/docs/plans/agent-team-output/2026-02-20-w6-31-review-v1/round-003/gemini_output.md
-  - missing file: /home/user/Coding/Agents/Autoresearch/idea-generator/docs/plans/agent-team-output/2026-02-20-w6-31-review-v1/round-003/gemini_output.md

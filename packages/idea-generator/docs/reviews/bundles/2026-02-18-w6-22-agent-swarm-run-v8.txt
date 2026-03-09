@@ -1,3 +1,0 @@
-[ok] /home/user/Coding/Agents/Autoresearch/idea-generator/docs/plans/agent-team-output/2026-02-18-w6-22-review-v1/round-008/gemini_output.md
-[ok] /home/user/Coding/Agents/Autoresearch/idea-generator/docs/plans/agent-team-output/2026-02-18-w6-22-review-v1/round-008/claude_output.md
-[ok] /home/user/Coding/Agents/Autoresearch/idea-generator/docs/plans/agent-team-output/2026-02-18-w6-22-review-v1/round-008/gemini_output.md

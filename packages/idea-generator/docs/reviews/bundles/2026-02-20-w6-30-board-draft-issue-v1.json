@@ -1,1 +1,0 @@
-{"data":{"node":null},"errors":[{"type":"NOT_FOUND","path":["node"],"locations":[{"line":1,"column":16}],"message":"Could not resolve to a node with the global id of ''"}]}
