@@ -90,7 +90,7 @@ Near-term primary abstraction:
 - one runtime that supports both **interactive mode** (the user steers) and **autonomous mode** (the runtime continues from policy / budget / approval rules);
 - stage labels such as `idea`, `literature`, `derivation`, `writing`, `revision` treated as **UX orientation labels**, not as the execution kernel.
 
-The execution kernel should therefore be **event-driven / task-graph-shaped**, not a strict `W1 → W2 → W3 → W_compute` chain.
+The execution kernel should therefore be **event-driven / task-graph-shaped**, not a strict `ingest → reproduce → revision → computation` chain.
 Typical legal transitions should include:
 
 - literature → idea refinement;

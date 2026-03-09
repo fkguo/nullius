@@ -33,7 +33,7 @@ SKIP_DIRS = frozenset({"specs", "__pycache__"})
 # Baseline whitelist: source modules that existed before the gate was
 # introduced and do not yet have tests.  These are grandfathered in but
 # should be progressively reduced.  Each entry is relative to SRC_DIR
-# (e.g. "toolkit/w1_ingest.py").
+# (e.g. "toolkit/ingest.py").
 BASELINE_WHITELIST: frozenset[str] = frozenset({
     "cli.py",
     "orchestrator_cli.py",
@@ -62,12 +62,12 @@ BASELINE_WHITELIST: frozenset[str] = frozenset({
     "toolkit/run_card_schema.py",
     "toolkit/skill_proposal.py",
     "toolkit/units.py",
-    "toolkit/w1_ingest.py",
-    "toolkit/w2_reproduce.py",
-    "toolkit/w3_paper_reviser.py",
-    "toolkit/w3_paper_reviser_evidence.py",
-    "toolkit/w3_paper_reviser_utils.py",
-    "toolkit/w3_revision.py",
+    "toolkit/ingest.py",
+    "toolkit/reproduce.py",
+    "toolkit/paper_reviser.py",
+    "toolkit/paper_reviser_evidence.py",
+    "toolkit/paper_reviser_utils.py",
+    "toolkit/revision.py",
     "toolkit/workflow_context.py",
     "web/app.py",
 })
@@ -76,7 +76,7 @@ BASELINE_WHITELIST: frozenset[str] = frozenset({
 def _module_stem(rel_path: str) -> str:
     """Extract the final module name without extension.
 
-    ``"toolkit/w_compute.py"`` → ``"w_compute"``
+    ``"toolkit/computation.py"`` → ``"computation"``
     """
     return Path(rel_path).stem
 

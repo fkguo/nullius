@@ -80,7 +80,7 @@ class TestStructuredLogger:
             stderr_human=False,
         )
         slog.trace_id = "trace-xyz"
-        slog.info("step_started", {"step_id": "s1", "workflow": "w1"})
+        slog.info("step_started", {"step_id": "s1", "workflow": "ingest"})
 
         content = log_file.read_text(encoding="utf-8").strip()
         assert content

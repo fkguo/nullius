@@ -77,7 +77,7 @@ function setupProject(projectRoot: string, opts: {
   const state = {
     schema_version: 1,
     run_id: runId,
-    workflow_id: 'W_test',
+    workflow_id: 'custom',
     run_status: 'awaiting_approval',
     current_step: null,
     plan: null,
@@ -121,7 +121,7 @@ describe('orch_run_create', () => {
     const projectRoot = makeTmpDir();
     const res = await handleToolCall(
       'orch_run_create',
-      { project_root: projectRoot, run_id: 'run-abc', workflow_id: 'W1' },
+      { project_root: projectRoot, run_id: 'run-abc', workflow_id: 'ingest' },
       'full',
     );
     const payload = extractPayload(res);

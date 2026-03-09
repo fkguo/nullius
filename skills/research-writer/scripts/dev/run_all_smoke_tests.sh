@@ -15,7 +15,7 @@ fi
 
 run_card="${tmp_root}/run_card.json"
 cat >"${run_card}" <<'JSON'
-{"run_id":"SMOKE-1","workflow_id":"W3_draft","backend":{"name":"research-writer"}}
+{"run_id":"SMOKE-1","workflow_id":"draft","backend":{"name":"research-writer"}}
 JSON
 
 echo "[smoke] help: scaffold CLI"

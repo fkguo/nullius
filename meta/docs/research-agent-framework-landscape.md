@@ -77,7 +77,7 @@ Mastra is the only TS-native option. It's YC W25, very young, API unstable. Lang
 1. Evidence-first contract is non-negotiable; no framework supports it
 2. TS+Python monorepo makes SDK lock-in expensive
 3. Model-agnostic requirement (Claude/Gemini/Codex) conflicts with Claude SDK and partially with OpenAI SDK
-4. Domain-specific workflow (W1→W2→W3→W_compute) doesn't fit generic patterns
+4. Domain-specific workflow assumptions (e.g. a fixed `ingest → reproduce → revision → computation` chain) don't fit generic patterns
 5. Approval gates + human-in-the-loop need custom state machine beyond framework capabilities
 
 ### Align with three open standards

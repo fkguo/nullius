@@ -871,7 +871,7 @@ producer* (TS→TS). Avoid Python→TS CLI bridges while the TS migration is in-
 ### 8.2 Current render call sites (2026-03-05)
 
 - **Claim DAG**: `skills/research-team/scripts/bin/render_claim_graph.py` (called from `skills/research-team/scripts/bin/run_team_cycle.sh`)
-- **W_compute DAG**: `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py` (outputs mermaid/dot/text; has regression tests)
+- **Computation DAG**: `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py` (outputs mermaid/dot/text; has regression tests)
 
 ### 8.3 TypeScript usage (example)
 

@@ -15,7 +15,7 @@
 - `campaign.generate_batch()` / `search.step()` / `eval.run()` 无法被 TS 编排器调用
 - 连接方案: NEW-IDEA-01 (MCP 桥接) + NEW-05a Stage 3 (TS 重写)
 
-### Island 2: W_compute + hep-calc (CLI-only)
+### Island 2: computation + hep-calc (CLI-only)
 - CLI skill 模式 (SKILL.md + shell entry)，不参与 MCP 工具链
 - 计算结果 (headline_numbers.json, acceptance_check.json) 无法注入 writing evidence pipeline
 - 连接方案: NEW-COMP-01 (设计) + NEW-CONN-03 (evidence 翻译层)
@@ -157,7 +157,7 @@ NEW-WF-01 references: CONN-01, 02, 03 (CONN-04 就绪后追加)
 
 1. **Phase 2**: NEW-IDEA-01 + NEW-COMP-01 → Pipeline A 能力暴露为 MCP
 2. **Phase 2-2B**: NEW-CONN-01~04 → 所有阶段通过 hint-only next_actions 连通
-3. **Phase 3**: NEW-COMP-02 (完整 W_compute MCP), NEW-CONN-05 (交叉检验)
+3. **Phase 3**: NEW-COMP-02 (完整 Computation MCP), NEW-CONN-05 (交叉检验)
 4. **Phase 4**: Pipeline A (hepar CLI) 退役
 
 ## next_actions 语义

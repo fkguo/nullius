@@ -68,7 +68,7 @@ interface ApprovalParams {
 | Layer | Responsibility | Implemented By |
 |---|---|---|
 | **Run-Infra** | State machine transitions, ledger writes, approval gates, timeout enforcement, branch management, artifact registry | `@autoresearch/orchestrator` (`orch_run_*`) |
-| **Strategy Orchestration** | Workflow sequencing (W1→W2→W3→W_compute), evidence retrieval, section writing, review loops, quality gates | Agent (Claude/Gemini) using `hep_run_*` tools |
+| **Strategy Orchestration** | Workflow sequencing (如 `ingest → reproduce → revision → computation` 等语义 DAG)、evidence retrieval、section writing、review loops、quality gates | Agent (Claude/Gemini) using `hep_run_*` tools |
 
 ### 2.2 Invariant Rules
 
@@ -80,7 +80,7 @@ interface ApprovalParams {
 
 4. **Evidence artifacts are strategy-scoped.** `hep_run_*` writes evidence catalogs, embeddings, section drafts — these are domain artifacts. Run-infra only tracks their existence in the artifact registry, never interprets their content.
 
-5. **Run-infra is workflow-agnostic.** The orchestrator does not encode the W1→W2→W3 workflow sequence. It provides generic phases, branches, and checkpoints. The workflow DAG is defined in run cards and interpreted by the agent.
+5. **Run-infra is workflow-agnostic.** The orchestrator does not encode any fixed `ingest → reproduce → revision → computation` sequence. It provides generic phases, branches, and checkpoints. The workflow DAG is defined in run cards and interpreted by the agent.
 
 ### 2.3 Interaction Diagram
 
@@ -165,7 +165,7 @@ Agent (Claude/Gemini)
 ```
 orch_run_request_approval(run_id, {
   gate_id: "outline_review",
-  scope: "W1.phase_outline",
+  scope: "writing.phase_outline",
   approval_packet: { ... },       // serialized content for review
   timeout_minutes: 1440,          // 24 hours
   on_timeout: "block",            // block | reject | escalate

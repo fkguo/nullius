@@ -64,7 +64,7 @@ describe('StateManager', () => {
   it('reads state from file (Python-shaped)', () => {
     const state = baseState({
       run_id: 'test-run-1',
-      workflow_id: 'W_compute',
+      workflow_id: 'computation',
       run_status: 'running',
       current_step: { step_id: 'phase_1', title: 'Phase 1', started_at: '2026-02-24T00:00:00Z' },
     });
@@ -449,10 +449,10 @@ describe('StateManager write operations (Stage 2)', () => {
   it('createRun transitions idle → running with run_id', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState();
-    sm.createRun(state, 'test-run-001', 'W_compute');
+    sm.createRun(state, 'test-run-001', 'computation');
 
     expect(state.run_id).toBe('test-run-001');
-    expect(state.workflow_id).toBe('W_compute');
+    expect(state.workflow_id).toBe('computation');
     expect(state.run_status).toBe('running');
 
     const readState = sm.readState();
@@ -462,14 +462,14 @@ describe('StateManager write operations (Stage 2)', () => {
   it('createRun rejects non-idle state', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({ run_status: 'running' as RunState['run_status'] });
-    expect(() => sm.createRun(state, 'r1', 'w1')).toThrow("expected 'idle'");
+    expect(() => sm.createRun(state, 'r1', 'ingest')).toThrow("expected 'idle'");
   });
 
   it('approveRun clears pending and resumes', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'awaiting_approval',
       pending_approval: {
         approval_id: 'A1-0001',
@@ -515,7 +515,7 @@ describe('StateManager write operations (Stage 2)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'awaiting_approval',
       pending_approval: {
         approval_id: 'A1-0001',
@@ -627,7 +627,7 @@ describe('StateManager write operations (Stage 2)', () => {
     const state = baseState();
 
     // Create
-    sm.createRun(state, 'lifecycle-001', 'W_ingest');
+    sm.createRun(state, 'lifecycle-001', 'ingest');
     expect(state.run_status).toBe('running');
 
     // Pause
@@ -732,7 +732,7 @@ describe('Checkpoint management (Stage 3a)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'awaiting_approval',
       pending_approval: {
         approval_id: 'A1-0001',
@@ -778,7 +778,7 @@ describe('requestApproval (Stage 3a)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'running',
     });
 
@@ -808,7 +808,7 @@ describe('requestApproval (Stage 3a)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'running',
     });
 
@@ -859,7 +859,7 @@ describe('requestApproval (Stage 3a)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'running',
       current_step: { step_id: 'phase_1', title: 'Phase 1', started_at: '2026-02-24T00:00:00Z' },
     });
@@ -875,7 +875,7 @@ describe('requestApproval (Stage 3a)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'running',
     });
 
@@ -908,7 +908,7 @@ describe('Ledger detail parity (Stage 3a)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'awaiting_approval',
       pending_approval: {
         approval_id: 'A1-0001',
@@ -935,7 +935,7 @@ describe('Ledger detail parity (Stage 3a)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'awaiting_approval',
       pending_approval: {
         approval_id: 'A2-0001',
@@ -1034,7 +1034,7 @@ describe('Sentinel file management (Stage 3b)', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
       run_id: 'r1',
-      workflow_id: 'w1',
+      workflow_id: 'ingest',
       run_status: 'awaiting_approval',
       pending_approval: {
         approval_id: 'A1-0001',
@@ -1523,7 +1523,7 @@ describe('Ledger detail parity (Stage 3b regression)', () => {
     const state = baseState({ run_id: 'r1' });
 
     // createRun → run_started
-    sm.createRun(state, 'r1', 'w1');
+    sm.createRun(state, 'r1', 'ingest');
     const lines = fs.readFileSync(sm.ledgerPath, 'utf-8').trim().split('\n');
     const runStarted = JSON.parse(lines[lines.length - 1]!);
     expect(runStarted.event_type).toBe('run_started');

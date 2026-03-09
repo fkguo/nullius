@@ -23,7 +23,7 @@ function writeTempPdf(bytes: Uint8Array): string {
   return p;
 }
 
-describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', () => {
+describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semantic query', () => {
   let dataDir: string;
   let originalDataDirEnv: string | undefined;
   const tempDirs: string[] = [];
@@ -55,7 +55,7 @@ describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', 
     const pdfPath = writeTempPdf(await makeTinyPdfBytes());
     tempDirs.push(path.dirname(pdfPath));
 
-    const projectRes = await handleToolCall('hep_project_create', { name: 'W2 evidence', description: 'w2' });
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
     const run = JSON.parse(runRes.content[0].text) as { run_id: string };
@@ -63,7 +63,7 @@ describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', 
     const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
       run_id: run.run_id,
       latex_sources: [{ main_tex_path: mainTexPath, include_cross_refs: true }],
-      pdf_source: { pdf_path: pdfPath, mode: 'text', max_pages: 2, output_prefix: 'w2_pdf' },
+      pdf_source: { pdf_path: pdfPath, mode: 'text', max_pages: 2, output_prefix: 'writing_evidence_pdf' },
     });
     expect(buildRes.isError).not.toBe(true);
 
@@ -175,7 +175,7 @@ describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', 
     const fixtureDir = new URL('../fixtures/latex/multifile/', import.meta.url);
     const mainTexPath = fileURLToPath(new URL('main.tex', fixtureDir));
 
-    const projectRes = await handleToolCall('hep_project_create', { name: 'W2 budgets', description: 'w2' });
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence budgets', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
     const run = JSON.parse(runRes.content[0].text) as { run_id: string };
@@ -236,7 +236,7 @@ describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', 
     const mainTexPath = fileURLToPath(new URL('main.tex', fixtureDir));
     const missingTexPath = path.join(os.tmpdir(), `missing-${Date.now()}-${Math.random()}.tex`);
 
-    const projectRes = await handleToolCall('hep_project_create', { name: 'W2 tolerance', description: 'w2' });
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence tolerance', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
     const run = JSON.parse(runRes.content[0].text) as { run_id: string };
@@ -267,7 +267,7 @@ describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', 
     const mainTexPath = fileURLToPath(new URL('main.tex', fixtureDir));
     const missingTexPath = path.join(os.tmpdir(), `missing-${Date.now()}-${Math.random()}.tex`);
 
-    const projectRes = await handleToolCall('hep_project_create', { name: 'W2 fail-fast', description: 'w2' });
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence fail-fast', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
     const run = JSON.parse(runRes.content[0].text) as { run_id: string };
@@ -297,7 +297,7 @@ describe('Open Roadmap R2/W2: hep_run_build_writing_evidence + semantic query', 
   it('continue_on_error=true still fails when all sources fail, but writes status artifact for diagnosis', async () => {
     const missingTexPath = path.join(os.tmpdir(), `missing-${Date.now()}-${Math.random()}.tex`);
 
-    const projectRes = await handleToolCall('hep_project_create', { name: 'W2 all-fail', description: 'w2' });
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence all-fail', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
     const run = JSON.parse(runRes.content[0].text) as { run_id: string };
