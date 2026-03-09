@@ -58,10 +58,10 @@ Convention: unless explicitly requested, do not trigger network access or extern
 - **When adding/changing CLI flags**: update `SKILL.md` (calling contract) and add at least one runnable smoke/fixture coverage (usually in `scripts/dev/run_all_smoke_tests.sh`).
 - **Determinism**: except for `--fetch-bibtex` and `--run-models`, keep behavior deterministic and offline-reproducible.
 - **`.sh` vs `.py`**: `.sh` scripts are thin wrappers; flags should match the corresponding `.py` CLIs. Prefer `.sh` in docs; `--help` can point to `.py`.
+- **Maintainer-local review artifacts**: `team/reviews/` is for local milestone packets / reviewer outputs only. Do not check it into the repo; keep only reusable prompt assets outside that subtree.
 
 ## Common dependencies (for development/debugging)
 
 - Baseline: `bash`, `python3`
 - Optional compile: TeX distribution + RevTeX 4.2 + `latexmk`
 - Optional `--run-models`: local `claude` and `gemini` CLIs; and `$CODEX_HOME/skills/claude-cli-runner`, `$CODEX_HOME/skills/gemini-cli-runner`
-

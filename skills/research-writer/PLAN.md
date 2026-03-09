@@ -29,18 +29,18 @@ Principle: **Skills** implement deterministic, testable tooling and auditable pi
 
 - Each milestone has:
   - **Status**: `planned` → `in progress` → `done`
-  - A review folder: `team/reviews/<Milestone>-r1/`
+  - A local maintainer review folder: `team/reviews/<Milestone>-r1/` (not checked in)
   - Dual-review gate: both reviewers must output `VERDICT: READY`.
 - As work proceeds, update:
   - this file (checkboxes + Status),
   - `ROADMAP.md` (milestone status),
-  - and create/refresh review packets under `team/reviews/`.
+  - and create/refresh local review packets under `team/reviews/`.
 
 ## Milestones
 
 ### M8 — Distill “consensus vs disagreement” across dual-model outputs
 
-**Status:** done (see `team/reviews/M8-r1/`)
+**Status:** done
 
 **Why (agent pain point):**
 - After N≈10^2–10^3 papers, “what’s common” and “where models disagree” must be visible and auditable.
@@ -65,7 +65,7 @@ Principle: **Skills** implement deterministic, testable tooling and auditable pi
 **Progress checklist**
 - [x] Implement `distill_discussion_logic.py`
 - [x] Add fixture + smoke coverage
-- [x] Create `team/reviews/M8-r1/` packet + dual-review
+- [x] Create local review packet + dual-review
 
 ---
 
@@ -98,7 +98,7 @@ Principle: **Skills** implement deterministic, testable tooling and auditable pi
 
 ### M9G — Research-writer guardrails (anti-hallucination evidence gate)
 
-**Status:** done (see `team/reviews/M9G-r3/`)
+**Status:** done
 
 **Why (real failure mode):**
 - When revising drafts, LLMs may add plausible-sounding but false provenance details (e.g., “data taken from X” or “uniform errors added”) without evidence.
@@ -129,7 +129,7 @@ Principle: **Skills** implement deterministic, testable tooling and auditable pi
 
 ### M9D — `draft_sections` (writer → auditor; opt-in, human-friendly)
 
-**Status:** done (see `team/reviews/M9D-r1/`)
+**Status:** done
 
 **Why (human UX + automation):**
 - Two unmerged drafts (one per model) are often unusable for humans.

@@ -8,7 +8,7 @@ Acceptance criteria:
 - `assets/style/physics_discussion_logic_playbook.md` captures general discussion logic distilled from exemplar papers (argument flow, diagnostics, uncertainty narration).
 - No changes are made to the source Overleaf projects.
 
-Status: done (see `team/reviews/M0-r4/`).
+Status: done.
 
 ## M1: Design + scaffold
 
@@ -56,7 +56,7 @@ Acceptance criteria:
 - `assets/style/style_sources_used.md` records the N=50 arXiv IDs used (audit trail; no corpus dump committed).
 - The corpus/packs pipeline supports batching/resume and optional model subset reruns (repair workflow).
 
-Status: done (see `team/reviews/M5-r2/`).
+Status: done.
 
 ## M6: Release readiness (N=96 corpus support)
 
@@ -66,7 +66,7 @@ Acceptance criteria:
 - Corpus fetcher supports both tar/tar.gz and gzip single-file arXiv sources.
 - Dual reviewer convergence indicates READY for real workflows.
 
-Status: done (see `team/reviews/M6-r1/`).
+Status: done.
 
 ## M7: Release polish (UX + robustness)
 
@@ -81,15 +81,15 @@ Acceptance criteria:
   - if `latexmk` exists: confirms `main.pdf` and prints warning count (non-failing).
 - Dual reviewer convergence indicates READY.
 
-Status: done (see `team/reviews/M7-r1/`).
+Status: done.
 
 ## M8+ (forward)
 
 See `PLAN.md` for the forward plan with explicit **Skill vs Agent** responsibilities and a progress checklist.
 
-M8 status: done (see `team/reviews/M8-r1/`).
+M8 status: done.
 
-M9G status: done (see `team/reviews/M9G-r3/`).
+M9G status: done.
 
 ## M9D: Draft sections (writer → auditor; opt-in)
 
@@ -106,4 +106,4 @@ Acceptance criteria:
   - On failure, final is renamed to `*_unsafe.tex` and `evidence_gate_report_*.md` is written.
 - Smoke harness covers a safe stub run and an unsafe (expected-fail) stub run.
 
-Status: done (see `team/reviews/M9D-r1/`).
+Status: done.
