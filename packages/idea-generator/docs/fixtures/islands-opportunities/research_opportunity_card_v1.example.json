@@ -2,9 +2,9 @@
   "version": 1,
   "opportunity_id": "223e4567-e89b-42d3-a456-426614174000",
   "title": "Add a low-cost closure constraint before heavier numerics",
-  "summary": "Reframe the current target observable as a consistency-bootstrap problem with typed assumptions and one additional closure constraint. Goal: improve or falsify the baseline direction before introducing a heavier backend.",
+  "summary": "Reframe the current target observable as a consistency-search problem with typed assumptions and one additional closure constraint. Goal: improve or falsify the baseline direction before introducing a heavier backend.",
   "scope": "IN_SCOPE",
-  "bootstrap_mechanism_tags": ["symmetry", "closure", "constraint-propagation"],
+  "mechanism_tags": ["symmetry", "closure", "constraint-propagation"],
   "related_island_ids": ["island-consistency-core"],
   "expected_artifacts": [
     {
@@ -27,6 +27,6 @@
     "https://example.org/theory/baseline-observable",
     "https://example.org/theory/closure-constraint"
   ],
-  "tags": ["method:consistency-bootstrap", "topic:target-observable", "domain:theory", "opportunity_id:223e4567-e89b-42d3-a456-426614174000"],
+  "tags": ["method:consistency-search", "topic:target-observable", "domain:theory", "opportunity_id:223e4567-e89b-42d3-a456-426614174000"],
   "created_at_utc": "2026-02-16T00:00:00Z"
 }

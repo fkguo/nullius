@@ -19,7 +19,7 @@
           "title",
           "status",
           "plan_artifact_path",
-          "bootstrap_mechanism_tags",
+          "mechanism_tags",
           "tags",
           "last_updated_at_utc"
         ],
@@ -32,7 +32,7 @@
             "minLength": 1,
             "description": "Project-relative path to the island's IdeaIslandPlan v1 JSON artifact."
           },
-          "bootstrap_mechanism_tags": {
+          "mechanism_tags": {
             "type": "array",
             "minItems": 1,
             "uniqueItems": true,

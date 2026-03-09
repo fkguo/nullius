@@ -1,10 +1,10 @@
 {
   "version": 1,
   "island_id": "island-consistency-core",
-  "title": "Consistency bootstrap for a symbolic target observable",
+  "title": "Constraint-guided exploration for a symbolic target observable",
   "research_question": "Which auditable self-consistency constraints yield the strongest reproducible bound on a symbolic target observable under a laptop-feasible setup?",
   "strategy_notes": "Start from a baseline representation, formalize assumptions as typed artifacts, and add one constraint family at a time so every improvement is attributable and reproducible.",
-  "bootstrap_mechanism_tags": ["symmetry", "closure", "constraint-propagation"],
+  "mechanism_tags": ["symmetry", "closure", "constraint-propagation"],
   "evaluation_metrics": [
     {
       "metric_id": "baseline_reproduction",
@@ -34,7 +34,7 @@
     "https://example.org/theory/baseline-observable",
     "https://example.org/theory/closure-constraint"
   ],
-  "tags": ["method:consistency-bootstrap", "topic:target-observable", "domain:theory", "island_id:island-consistency-core"],
+  "tags": ["method:consistency-search", "topic:target-observable", "domain:theory", "island_id:island-consistency-core"],
   "created_at_utc": "2026-02-16T00:00:00Z",
   "updated_at_utc": "2026-02-16T00:00:00Z"
 }

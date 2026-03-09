@@ -9,7 +9,7 @@
     "island_id",
     "title",
     "research_question",
-    "bootstrap_mechanism_tags",
+    "mechanism_tags",
     "evaluation_metrics",
     "current_status",
     "next_actions",
@@ -25,12 +25,12 @@
     "title": { "type": "string", "minLength": 1 },
     "research_question": { "type": "string", "minLength": 1 },
     "strategy_notes": { "type": "string", "minLength": 1 },
-    "bootstrap_mechanism_tags": {
+    "mechanism_tags": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Retrieval keys for bootstrap mechanism family (e.g., positivity, analyticity, crossing, dispersive bounds)."
+      "description": "Retrieval keys for the relevant mechanism family (e.g., symmetry, closure, analyticity, reduction strategy)."
     },
     "evaluation_metrics": {
       "type": "array",
@@ -86,7 +86,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:constraint-bootstrap\", \"topic:observable-bound\")."
+      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:consistency-search\", \"topic:target-observable\")."
     },
     "created_at_utc": { "type": "string", "format": "date-time" },
     "updated_at_utc": { "type": "string", "format": "date-time" }

@@ -18,7 +18,7 @@ SCHEMA_FILES = [
     "idea_island_plan_v1.schema.json",
     "idea_island_registry_v1.schema.json",
     "idea_island_progress_event_v1.schema.json",
-    "bootstrap_opportunity_card_v1.schema.json",
+    "research_opportunity_card_v1.schema.json",
 ]
 
 EXAMPLE_ROOT = Path("docs/fixtures/islands-opportunities")
@@ -26,12 +26,12 @@ EXAMPLE_ROOT = Path("docs/fixtures/islands-opportunities")
 JSON_EXAMPLES = {
     "idea_island_plan_v1.schema.json": ["idea_island_plan_v1.example.json"],
     "idea_island_registry_v1.schema.json": ["idea_island_registry_v1.example.json"],
-    "bootstrap_opportunity_card_v1.schema.json": ["bootstrap_opportunity_card_v1.example.json"],
+    "research_opportunity_card_v1.schema.json": ["research_opportunity_card_v1.example.json"],
 }
 
 JSONL_EXAMPLES = {
     "idea_island_progress_event_v1.schema.json": ["idea_island_progress_v1.example.jsonl"],
-    "bootstrap_opportunity_card_v1.schema.json": ["bootstrap_opportunity_pool_v1.example.jsonl"],
+    "research_opportunity_card_v1.schema.json": ["research_opportunity_pool_v1.example.jsonl"],
 }
 
 

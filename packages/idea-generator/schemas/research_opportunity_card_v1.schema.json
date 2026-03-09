@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "bootstrap_opportunity_card_v1.schema.json",
-  "title": "BootstrapOpportunityCard v1",
-  "description": "One bootstrap opportunity (in-scope or out-of-scope) card. Intended for append-only JSONL pools.",
+  "$id": "research_opportunity_card_v1.schema.json",
+  "title": "ResearchOpportunityCard v1",
+  "description": "One research opportunity (in-scope or out-of-scope) card. Intended for append-only JSONL pools.",
   "type": "object",
   "required": [
     "version",
@@ -10,7 +10,7 @@
     "title",
     "summary",
     "scope",
-    "bootstrap_mechanism_tags",
+    "mechanism_tags",
     "verification_plan",
     "risks",
     "evidence_uris",
@@ -24,7 +24,7 @@
     "summary": { "type": "string", "minLength": 1 },
     "scope": { "enum": ["IN_SCOPE", "OUT_OF_SCOPE"] },
     "scope_notes": { "type": "string", "minLength": 1 },
-    "bootstrap_mechanism_tags": {
+    "mechanism_tags": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
@@ -59,7 +59,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:constraint-bootstrap\", \"topic:observable-bound\")."
+      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:consistency-search\", \"topic:target-observable\")."
     },
     "created_at_utc": { "type": "string", "format": "date-time" }
   },
