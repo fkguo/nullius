@@ -1,6 +1,7 @@
-import { invalidParams, HEP_RUN_BUILD_CITATION_MAPPING } from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 import { getRun, updateRunManifestAtomic, type RunArtifactRef, type RunManifest } from '../../core/runs.js';
 import { buildAllowedCitationsArtifact, buildCitekeyToInspireStats, writeRunJsonArtifact } from '../../core/citations.js';
+import { HEP_RUN_BUILD_CITATION_MAPPING } from '../../tool-names.js';
 import type { ToolSpec } from './types.js';
 import { HepRunBuildCitationMappingToolSchema } from './projectSchemas.js';
 

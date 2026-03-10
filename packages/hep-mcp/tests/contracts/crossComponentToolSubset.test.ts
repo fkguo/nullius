@@ -1,25 +1,25 @@
 /**
  * H-16b: Cross-component contract test — TOOL_NAMES ⊂ registry.getTools('full')
  *
- * Ensures every tool name constant in packages/shared/src/tool-names.ts
+ * Ensures every tool name constant in hep-mcp local tool authority
  * has a corresponding entry in the hep-mcp tool registry.
  */
 import { describe, expect, it } from 'vitest';
 
-import * as shared from '@autoresearch/shared';
+import * as hepTools from '../../src/tool-names.js';
 import { getTools } from '../../src/tools/index.js';
 import { computeToolCatalogHash } from '../../src/tools/utils/health.js';
 
 /**
- * Extract all tool name constants from @autoresearch/shared exports.
+ * Extract all tool name constants from hep-mcp local exports.
  * Tool name constants are lowercase strings with underscores containing at least
  * two segments (prefix_action), matching known tool name prefixes.
  * Excludes namespace prefixes like 'hep_run_' which end with underscore.
  */
 function extractToolNameConstants(): string[] {
-  const TOOL_NAME_PREFIXES = ['hep_', 'inspire_', 'pdg_', 'zotero_', 'hepdata_'];
+  const TOOL_NAME_PREFIXES = ['hep_', 'inspire_', 'pdg_', 'zotero_', 'hepdata_', 'openalex_', 'arxiv_', 'orch_'];
   const names: string[] = [];
-  for (const [_key, value] of Object.entries(shared)) {
+  for (const [_key, value] of Object.entries(hepTools)) {
     if (typeof value !== 'string') continue;
     // Skip namespace prefixes (end with underscore, e.g. 'hep_run_')
     if (value.endsWith('_')) continue;

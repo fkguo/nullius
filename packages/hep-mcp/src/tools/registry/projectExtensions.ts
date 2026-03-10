@@ -1,6 +1,6 @@
 import { TOOL_SPECS as ARXIV_TOOL_SPECS } from '@autoresearch/arxiv-mcp/tooling';
 import { TOOL_SPECS as HEPDATA_MCP_TOOL_SPECS } from '@autoresearch/hepdata-mcp/tooling';
-import { HEP_RUN_INGEST_SKILL_ARTIFACTS, HEP_RUN_CREATE_FROM_IDEA } from '@autoresearch/shared';
+import { HEP_RUN_INGEST_SKILL_ARTIFACTS, HEP_RUN_CREATE_FROM_IDEA } from '../../tool-names.js';
 import { ORCH_TOOL_SPECS } from '../orchestrator/tools.js';
 import { ingestSkillArtifacts } from '../ingest-skill-artifacts.js';
 import { createFromIdea } from '../create-from-idea.js';

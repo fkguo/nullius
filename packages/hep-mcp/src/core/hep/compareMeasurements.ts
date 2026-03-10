@@ -1,10 +1,6 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import {
-  HEP_RUN_BUILD_MEASUREMENTS,
-  HEP_PROJECT_QUERY_EVIDENCE,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';
@@ -12,6 +8,7 @@ import { getRunArtifactPath, getRunArtifactsDir } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
 import { startRunStep, completeRunStep } from '../zotero/runSteps.js';
+import { HEP_PROJECT_QUERY_EVIDENCE, HEP_RUN_BUILD_MEASUREMENTS } from '../../tool-names.js';
 import { canonicalizeUnit } from '../../tools/research/config.js';
 import { clusterByQuantity } from '../semantics/quantityClustering.js';
 import type { QuantitySamplingContext } from '../semantics/quantityAdjudicator.js';

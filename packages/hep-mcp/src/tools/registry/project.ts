@@ -1,4 +1,4 @@
-import { TOOL_RISK_LEVELS, type ToolRiskLevel } from '@autoresearch/shared';
+import { getHepToolRiskLevel } from '../../tool-risk.js';
 import type { ToolSpec } from './types.js';
 import { RAW_PROJECT_CORE_TOOL_SPECS } from './projectCore.js';
 import { RAW_PROJECT_CITATION_TOOL_SPECS } from './projectCitation.js';
@@ -7,7 +7,7 @@ import { RAW_PROJECT_EXTENSION_TOOL_SPECS } from './projectExtensions.js';
 function withRiskLevel(spec: Omit<ToolSpec, 'riskLevel'>): ToolSpec {
   return {
     ...spec,
-    riskLevel: (TOOL_RISK_LEVELS[spec.name] ?? 'read') as ToolRiskLevel,
+    riskLevel: getHepToolRiskLevel(spec.name),
   };
 }
 

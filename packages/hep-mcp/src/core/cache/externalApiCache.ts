@@ -2,15 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createHash, randomUUID } from 'crypto';
 import { pathToFileURL } from 'url';
-import {
-  HEP_RUN_READ_ARTIFACT_CHUNK,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 
 import { ensureDir, getCacheDir } from '../../data/dataDir.js';
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { assertSafePathSegment } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
+import { HEP_RUN_READ_ARTIFACT_CHUNK } from '../../tool-names.js';
 
 type ExternalApiCacheEntryV1 = {
   version: 1;

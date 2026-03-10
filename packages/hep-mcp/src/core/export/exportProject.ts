@@ -2,12 +2,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import {
-  HEP_EXPORT_PROJECT,
-  HEP_IMPORT_PAPER_BUNDLE,
-  HEP_RUN_BUILD_CITATION_MAPPING,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 import { strToU8, unzipSync, zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
@@ -21,6 +16,7 @@ import {
 import { listPapers } from '../papers.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { resolvePathWithinParent } from '../../data/pathGuard.js';
+import { HEP_EXPORT_PROJECT, HEP_IMPORT_PAPER_BUNDLE, HEP_RUN_BUILD_CITATION_MAPPING } from '../../tool-names.js';
 
 function pad3(n: number): string {
   return String(n).padStart(3, '0');

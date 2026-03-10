@@ -4,15 +4,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { createRequire } from 'module';
 import { createCanvas } from '@napi-rs/canvas';
-import {
-  HEP_RUN_BUILD_PDF_EVIDENCE,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { assertSafePathSegment, getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
+import { HEP_RUN_BUILD_PDF_EVIDENCE } from '../../tool-names.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
 import { zoteroGetBinary } from '@autoresearch/zotero-mcp/shared/zotero';
 

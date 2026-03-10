@@ -1,10 +1,9 @@
 import {
   DiscoveryProviderDescriptorSchema,
-  HEP_RENDER_LATEX,
-  HEP_RUN_BUILD_PDF_EVIDENCE,
   type DiscoveryProviderDescriptor,
 } from '@autoresearch/shared';
 import { zodToMcpInputSchema } from '../mcpSchema.js';
+import { HEP_RENDER_LATEX, HEP_RUN_BUILD_PDF_EVIDENCE } from '../../tool-names.js';
 import {
   type ToolExposure,
   type ToolExposureMode,

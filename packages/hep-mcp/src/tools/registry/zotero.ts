@@ -1,12 +1,11 @@
 import { TOOL_SPECS as ZOTERO_MCP_TOOL_SPECS } from '@autoresearch/zotero-mcp/tooling';
 import {
   invalidParams,
-  HEP_IMPORT_FROM_ZOTERO,
   INSPIRE_DEEP_RESEARCH,
-  TOOL_RISK_LEVELS,
-  type ToolRiskLevel,
 } from '@autoresearch/shared';
 import { hepImportFromZotero } from '../../core/zotero/tools.js';
+import { HEP_IMPORT_FROM_ZOTERO } from '../../tool-names.js';
+import { getHepToolRiskLevel } from '../../tool-risk.js';
 import { withNextActions } from '../utils/discoveryHints.js';
 import type { ToolSpec } from './types.js';
 import { HepImportFromZoteroToolSchema } from './projectSchemas.js';
@@ -80,5 +79,5 @@ const RAW_ZOTERO_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = ZOTERO_INTEGRATION_
 
 export const ZOTERO_TOOL_SPECS: ToolSpec[] = RAW_ZOTERO_TOOL_SPECS.map(spec => ({
   ...spec,
-  riskLevel: (TOOL_RISK_LEVELS[spec.name] ?? 'read') as ToolRiskLevel,
+  riskLevel: getHepToolRiskLevel(spec.name),
 }));

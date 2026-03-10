@@ -1,5 +1,16 @@
 ## Cross-Component Architecture Decisions
 
+### [2026-03-10] Shared boundary invariant: shared keeps seams, providers keep concrete authority
+
+**Context**: `meta/docs/prompts/prompt-2026-03-09-batch1-shared-boundary.md` closeout (`NEW-05a-shared-boundary`)
+**Decision**:
+- `packages/shared/` should keep only provider-agnostic typed seams and cross-package contract helpers.
+- Concrete provider-owned authority must live in the owning leaf provider or aggregator package.
+- For the HEP lane, this means concrete `HEP_*` tool names, concrete HEP risk maps, and `hep://runs/...` artifact URI wrappers belong in `packages/hep-mcp/`, not in `packages/shared/`.
+- Shared may still keep sibling-provider constants when they are used as cross-package contract seams rather than as concrete HEP authority.
+**Why**: This keeps the substrate/domain-neutral core from drifting back into HEP authority ownership while still allowing shared contracts that multiple packages compose.
+**Files**: `packages/shared/src/tool-names.ts`, `packages/shared/src/tool-risk.ts`, `packages/shared/src/artifact-ref.ts`, `packages/hep-mcp/src/tool-names.ts`, `packages/hep-mcp/src/tool-risk.ts`, `packages/hep-mcp/src/core/runArtifactUri.ts`
+
 ### [2026-03-02] RT-05: Semi-permeable Clean Room + Information Membrane
 
 **Context**: research-team multi-agent verification architecture

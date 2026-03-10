@@ -3,25 +3,20 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import {
-  HEP_RUN_BUILD_CITATION_MAPPING,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
+import { HEP_RUN_BUILD_CITATION_MAPPING } from '../../tool-names.js';
+import { createHepRunArtifactRef, makeHepRunArtifactUri } from '../runArtifactUri.js';
 
 function nowIso(): string {
   return new Date().toISOString();
 }
 
-function runArtifactUri(runId: string, artifactName: string): string {
-  return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
-}
-
 function makeRunArtifactRef(runId: string, artifactName: string, mimeType: string): RunArtifactRef {
-  return { name: artifactName, uri: runArtifactUri(runId, artifactName), mimeType };
+  return createHepRunArtifactRef(runId, artifactName, mimeType);
 }
 
 function sanitizeStem(stem: string): string {
@@ -241,8 +236,8 @@ export async function compileRunLatexOrThrow(params: {
       throw invalidParams('LaTeX compile failed (pdflatex pass 1)', {
         run_id: runId,
         tex_artifact_name: texName,
-        stdout_uri: runArtifactUri(runId, `latex_compile_${stem}_pdflatex_pass1_stdout.txt`),
-        stderr_uri: runArtifactUri(runId, `latex_compile_${stem}_pdflatex_pass1_stderr.txt`),
+        stdout_uri: makeHepRunArtifactUri(runId, `latex_compile_${stem}_pdflatex_pass1_stdout.txt`),
+        stderr_uri: makeHepRunArtifactUri(runId, `latex_compile_${stem}_pdflatex_pass1_stderr.txt`),
       });
     }
 
@@ -262,8 +257,8 @@ export async function compileRunLatexOrThrow(params: {
         throw invalidParams('LaTeX compile failed (bibtex)', {
           run_id: runId,
           tex_artifact_name: texName,
-          stdout_uri: runArtifactUri(runId, `latex_compile_${stem}_bibtex_stdout.txt`),
-          stderr_uri: runArtifactUri(runId, `latex_compile_${stem}_bibtex_stderr.txt`),
+          stdout_uri: makeHepRunArtifactUri(runId, `latex_compile_${stem}_bibtex_stdout.txt`),
+          stderr_uri: makeHepRunArtifactUri(runId, `latex_compile_${stem}_bibtex_stderr.txt`),
         });
       }
     }
@@ -285,8 +280,8 @@ export async function compileRunLatexOrThrow(params: {
         throw invalidParams(`LaTeX compile failed (pdflatex pass ${pass})`, {
           run_id: runId,
           tex_artifact_name: texName,
-          stdout_uri: runArtifactUri(runId, `latex_compile_${stem}_pdflatex_pass${pass}_stdout.txt`),
-          stderr_uri: runArtifactUri(runId, `latex_compile_${stem}_pdflatex_pass${pass}_stderr.txt`),
+          stdout_uri: makeHepRunArtifactUri(runId, `latex_compile_${stem}_pdflatex_pass${pass}_stdout.txt`),
+          stderr_uri: makeHepRunArtifactUri(runId, `latex_compile_${stem}_pdflatex_pass${pass}_stderr.txt`),
         });
       }
     }
@@ -315,7 +310,7 @@ export async function compileRunLatexOrThrow(params: {
           passes: params.passes,
           run_bibtex: params.run_bibtex,
           timeout_ms: params.timeout_ms,
-          output_pdf_uri: runArtifactUri(runId, pdfArtifactName),
+          output_pdf_uri: makeHepRunArtifactUri(runId, pdfArtifactName),
         },
         null,
         2
@@ -329,7 +324,7 @@ export async function compileRunLatexOrThrow(params: {
       summary: {
         compiled: true,
         tex_artifact: texName,
-        pdf_uri: runArtifactUri(runId, pdfArtifactName),
+        pdf_uri: makeHepRunArtifactUri(runId, pdfArtifactName),
         passes: params.passes,
         run_bibtex: params.run_bibtex,
       },

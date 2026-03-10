@@ -2,9 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { ensureDir } from '../data/dataDir.js';
+import { HEP_EXPORT_PROJECT, HEP_RUN_CLEAR_MANIFEST_LOCK } from '../tool-names.js';
 import {
-  HEP_EXPORT_PROJECT,
-  HEP_RUN_CLEAR_MANIFEST_LOCK,
   invalidParams,
   notFound,
   type RunArtifactRef,

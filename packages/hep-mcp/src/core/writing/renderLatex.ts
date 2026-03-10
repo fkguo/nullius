@@ -1,12 +1,11 @@
 import * as fs from 'fs';
-import {
-  HEP_RENDER_LATEX,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
+import { HEP_RENDER_LATEX } from '../../tool-names.js';
+import { createHepRunArtifactRef } from '../runArtifactUri.js';
 
 import type { SentenceAttribution, SentenceType } from './writingTypes.js';
 
@@ -195,11 +194,7 @@ function renderDraft(params: {
 function writeRunTextArtifact(runId: string, artifactName: string, content: string, mimeType: string): RunArtifactRef {
   const artifactPath = getRunArtifactPath(runId, artifactName);
   fs.writeFileSync(artifactPath, content, 'utf-8');
-  return {
-    name: artifactName,
-    uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`,
-    mimeType,
-  };
+  return createHepRunArtifactRef(runId, artifactName, mimeType);
 }
 
 function computeRunStatus(manifest: RunManifest): RunManifest['status'] {

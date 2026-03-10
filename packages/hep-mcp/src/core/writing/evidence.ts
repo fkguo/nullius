@@ -1,12 +1,10 @@
 import * as fs from 'fs';
-import {
-  HEP_RUN_BUILD_WRITING_EVIDENCE,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getProjectPaperEvidenceCatalogPath, getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
+import { HEP_RUN_BUILD_WRITING_EVIDENCE } from '../../tool-names.js';
 import { buildProjectEvidenceCatalog, type EvidenceCatalogItemV1, type EvidenceType } from '../evidence.js';
 import { buildRunPdfEvidence, type PdfEvidenceCatalogItemV1, type PdfEvidenceType, type PdfExtractMode } from '../pdf/evidence.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';

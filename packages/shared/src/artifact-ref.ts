@@ -2,46 +2,114 @@
  * ArtifactRef runtime construction and validation helpers (H-18).
  *
  * The generated type `ArtifactRefV1` (from `meta/schemas/artifact_ref_v1.schema.json`)
- * is the SSOT for the full content-addressed reference. This module provides:
- * - Lightweight artifact ref construction (URI + name, no hash required)
- * - Full ArtifactRefV1 construction (with sha256)
- * - URI format validation
+ * remains the SSOT for the full content-addressed reference. This module keeps
+ * lightweight provider-agnostic URI helpers in shared.
  */
 
 import type { ArtifactRefV1 } from './generated/artifact-ref-v1.js';
 
-// ── Lightweight Run Artifact Ref ─────────────────────────────────────────────
-
-/**
- * Lightweight artifact reference returned from tool results.
- * This is the "Evidence-first" summary — URI + name + optional mime type.
- * Compatible with the existing RunArtifactRef in hep-mcp.
- */
-export interface RunArtifactRef {
+export interface ArtifactRefSummary {
   name: string;
   uri: string;
   mimeType?: string;
 }
 
-/** Construct a `hep://` URI for a run artifact. */
-export function makeRunArtifactUri(runId: string, artifactName: string): string {
-  return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
+/**
+ * Kept as a structural alias so existing run-manifest consumers do not need a
+ * rename when the helper surface becomes provider-agnostic.
+ */
+export type RunArtifactRef = ArtifactRefSummary;
+
+export interface ArtifactUriParts {
+  scheme: string;
+  authority: string;
+  pathSegments: string[];
 }
 
-/** Construct a lightweight run artifact ref. */
-export function createRunArtifactRef(
-  runId: string,
-  artifactName: string,
-  mimeType?: string,
-): RunArtifactRef {
+export interface ScopedArtifactUriParts {
+  scheme: string;
+  scope: string;
+  scopeId: string;
+  artifactName: string;
+}
+
+function decodeSegments(rawSegments: string[]): string[] {
+  return rawSegments.map(segment => decodeURIComponent(segment));
+}
+
+export function makeArtifactUri(parts: ArtifactUriParts): string {
+  if (!parts.scheme) throw new Error('Artifact URI requires a non-empty scheme');
+  if (!parts.authority) throw new Error('Artifact URI requires a non-empty authority');
+  const encodedPath = parts.pathSegments.map(segment => encodeURIComponent(segment)).join('/');
+  return encodedPath.length > 0
+    ? `${parts.scheme}://${parts.authority}/${encodedPath}`
+    : `${parts.scheme}://${parts.authority}`;
+}
+
+export function parseArtifactUri(uri: string): ArtifactUriParts | null {
+  let url: URL;
+  try {
+    url = new URL(uri);
+  } catch {
+    return null;
+  }
+
+  const scheme = url.protocol.replace(/:$/, '');
+  if (!scheme || !url.host) return null;
+
+  try {
+    return {
+      scheme,
+      authority: url.host,
+      pathSegments: decodeSegments(url.pathname.split('/').filter(Boolean)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function makeScopedArtifactUri(parts: ScopedArtifactUriParts): string {
+  return makeArtifactUri({
+    scheme: parts.scheme,
+    authority: parts.scope,
+    pathSegments: [parts.scopeId, 'artifact', parts.artifactName],
+  });
+}
+
+export function createScopedArtifactRef(
+  parts: ScopedArtifactUriParts,
+  mimeType = 'application/json',
+): ArtifactRefSummary {
   return {
-    name: artifactName,
-    uri: makeRunArtifactUri(runId, artifactName),
-    mimeType: mimeType ?? 'application/json',
+    name: parts.artifactName,
+    uri: makeScopedArtifactUri(parts),
+    mimeType,
   };
 }
 
-// ── Full ArtifactRefV1 Construction ──────────────────────────────────────────
+export function parseScopedArtifactUri(
+  uri: string,
+  expected: Partial<Pick<ScopedArtifactUriParts, 'scheme' | 'scope'>> = {},
+): ScopedArtifactUriParts | null {
+  const parsed = parseArtifactUri(uri);
+  if (!parsed) return null;
+  if (expected.scheme && parsed.scheme !== expected.scheme) return null;
+  if (expected.scope && parsed.authority !== expected.scope) return null;
+  if (parsed.pathSegments.length !== 3 || parsed.pathSegments[1] !== 'artifact') return null;
+  return {
+    scheme: parsed.scheme,
+    scope: parsed.authority,
+    scopeId: parsed.pathSegments[0]!,
+    artifactName: parsed.pathSegments[2]!,
+  };
+}
+
+export function isScopedArtifactUri(
+  uri: string,
+  expected: Partial<Pick<ScopedArtifactUriParts, 'scheme' | 'scope'>> = {},
+): boolean {
+  return parseScopedArtifactUri(uri, expected) !== null;
+}
 
 export interface CreateArtifactRefV1Options {
   uri: string;
@@ -53,7 +121,6 @@ export interface CreateArtifactRefV1Options {
   created_at?: string;
 }
 
-/** Construct a full content-addressed ArtifactRefV1. */
 export function createArtifactRefV1(opts: CreateArtifactRefV1Options): ArtifactRefV1 {
   if (!opts.uri) throw new Error('ArtifactRefV1 requires a non-empty uri');
   if (!opts.sha256 || !/^[0-9a-f]{64}$/.test(opts.sha256)) {
@@ -68,28 +135,4 @@ export function createArtifactRefV1(opts: CreateArtifactRefV1Options): ArtifactR
     ...(opts.produced_by !== undefined && { produced_by: opts.produced_by }),
     ...(opts.created_at !== undefined && { created_at: opts.created_at }),
   };
-}
-
-// ── URI Validation ───────────────────────────────────────────────────────────
-
-const HEP_ARTIFACT_URI_RE = /^hep:\/\/runs\/[^/]+\/artifact\/[^/]+$/;
-
-/** Check whether a string is a valid `hep://runs/<id>/artifact/<name>` URI. */
-export function isHepArtifactUri(uri: string): boolean {
-  return HEP_ARTIFACT_URI_RE.test(uri);
-}
-
-/** Parse a `hep://runs/<id>/artifact/<name>` URI into its components. Returns null if invalid. */
-export function parseHepArtifactUri(uri: string): { runId: string; artifactName: string } | null {
-  const match = /^hep:\/\/runs\/([^/]+)\/artifact\/([^/]+)$/.exec(uri);
-  if (!match) return null;
-  try {
-    return {
-      runId: decodeURIComponent(match[1]),
-      artifactName: decodeURIComponent(match[2]),
-    };
-  } catch {
-    // Malformed percent-encoding — treat as invalid URI
-    return null;
-  }
 }

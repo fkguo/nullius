@@ -1,15 +1,11 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import {
-  HEP_PROJECT_QUERY_EVIDENCE,
-  HEP_RUN_BUILD_WRITING_EVIDENCE,
-  invalidParams,
-  type EvidenceMultimodalArtifact,
-} from '@autoresearch/shared';
+import { invalidParams, type EvidenceMultimodalArtifact } from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef } from './runs.js';
 import { getRunArtifactPath } from './paths.js';
 import { writeRunJsonArtifact } from './citations.js';
+import { HEP_PROJECT_QUERY_EVIDENCE, HEP_RUN_BUILD_WRITING_EVIDENCE } from '../tool-names.js';
 import { queryProjectEvidence, type EvidenceType, type QueryEvidenceHit, type QueryEvidenceResult } from './evidence.js';
 import { buildRetrievalSubstrateSnapshot } from './evidenceRetrievalSubstrate.js';
 import { buildEvidenceLocalization, type LocalizationCandidate, type LocalizationCatalogItem } from './evidence-localization/localize.js';

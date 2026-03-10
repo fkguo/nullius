@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { HEP_PROJECT_COMPARE_MEASUREMENTS } from '@autoresearch/shared';
+import { HEP_PROJECT_COMPARE_MEASUREMENTS } from '../../tool-names.js';
 import { canonicalQuantityKey } from './quantityCanonical.js';
 import { heuristicAdjudicateQuantityPair } from './quantityHeuristicModel.js';
 import { normalizeUnitsForPair, unitPairIncompatible } from './quantityUnits.js';
@@ -177,4 +177,3 @@ export async function adjudicateQuantityPair(
     return payload;
   }
 }
-

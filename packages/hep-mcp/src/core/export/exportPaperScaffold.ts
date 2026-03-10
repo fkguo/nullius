@@ -1,17 +1,13 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  HEP_EXPORT_PAPER_SCAFFOLD,
-  HEP_RUN_BUILD_CITATION_MAPPING,
-  HEP_RUN_STAGE_CONTENT,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 import { zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { assertSafePathSegment, getRunArtifactPath, getRunArtifactsDir, getRunDir } from '../paths.js';
 import { resolvePathWithinParent } from '../../data/pathGuard.js';
+import { HEP_EXPORT_PAPER_SCAFFOLD, HEP_RUN_BUILD_CITATION_MAPPING, HEP_RUN_STAGE_CONTENT } from '../../tool-names.js';
 
 function pad3(n: number): string {
   return String(n).padStart(3, '0');

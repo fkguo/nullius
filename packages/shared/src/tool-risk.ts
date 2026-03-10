@@ -1,142 +1,24 @@
 /**
- * Tool risk classification for MCP tools (H-11a).
+ * Provider-agnostic tool risk helpers.
  *
- * Three-level classification:
- * - read:        Returns data without modifying any state
- * - write:       Creates or modifies run state, artifacts, or external resources
- * - destructive: Irreversible operations (export, delete). Requires _confirm: true.
+ * Shared keeps the risk vocabulary and lookup seam, while each provider owns
+ * its own concrete tool→risk authority.
  */
-import * as T from './tool-names.js';
 
 export type ToolRiskLevel = 'read' | 'write' | 'destructive';
+export type ToolRiskTable = Readonly<Record<string, ToolRiskLevel>>;
 
-/**
- * Static risk level map for all tools in the ecosystem.
- * Consumed by the orchestrator for policy decisions without needing the full registry.
- */
-export const TOOL_RISK_LEVELS: Record<string, ToolRiskLevel> = {
-  // ── HEP Project Tools ─────────────────────────────────────────────────
-  [T.HEP_PROJECT_CREATE]: 'write',
-  [T.HEP_PROJECT_GET]: 'read',
-  [T.HEP_PROJECT_LIST]: 'read',
-  [T.HEP_HEALTH]: 'read',
-  [T.HEP_PROJECT_BUILD_EVIDENCE]: 'write',
-  [T.HEP_PROJECT_QUERY_EVIDENCE]: 'read',
-  [T.HEP_PROJECT_QUERY_EVIDENCE_SEMANTIC]: 'read',
-  [T.HEP_PROJECT_PLAYBACK_EVIDENCE]: 'read',
-  [T.HEP_PROJECT_COMPARE_MEASUREMENTS]: 'read',
+export function getToolRiskLevel(
+  toolName: string,
+  toolRiskTable: ToolRiskTable,
+  fallback: ToolRiskLevel = 'read',
+): ToolRiskLevel {
+  return toolRiskTable[toolName] ?? fallback;
+}
 
-  // ── HEP Run Management ────────────────────────────────────────────────
-  [T.HEP_RUN_CREATE]: 'write',
-  [T.HEP_RUN_READ_ARTIFACT_CHUNK]: 'read',
-  [T.HEP_RUN_CLEAR_MANIFEST_LOCK]: 'write',
-  [T.HEP_RUN_STAGE_CONTENT]: 'write',
-  [T.HEP_RUN_BUILD_PDF_EVIDENCE]: 'write',
-  [T.HEP_RUN_INGEST_SKILL_ARTIFACTS]: 'write',
-  [T.HEP_RUN_CREATE_FROM_IDEA]: 'write',
-
-  // ── HEP Run Evidence & Citation Mapping ─────────────────────────────────
-  [T.HEP_RUN_BUILD_WRITING_EVIDENCE]: 'write',
-  [T.HEP_RUN_BUILD_MEASUREMENTS]: 'write',
-  [T.HEP_RUN_BUILD_CITATION_MAPPING]: 'write',
-
-  // ── HEP Render & Export ───────────────────────────────────────────────
-  [T.HEP_RENDER_LATEX]: 'write',
-  [T.HEP_EXPORT_PROJECT]: 'destructive',
-  [T.HEP_EXPORT_PAPER_SCAFFOLD]: 'destructive',
-  [T.HEP_IMPORT_PAPER_BUNDLE]: 'write',
-  [T.HEP_IMPORT_FROM_ZOTERO]: 'write',
-
-  // ── HEP INSPIRE Integration ───────────────────────────────────────────
-  [T.HEP_INSPIRE_SEARCH_EXPORT]: 'write',
-  [T.HEP_INSPIRE_RESOLVE_IDENTIFIERS]: 'read',
-
-  // ── INSPIRE Search & Navigation ───────────────────────────────────────
-  [T.INSPIRE_SEARCH]: 'write',
-  [T.INSPIRE_SEARCH_NEXT]: 'read',
-  [T.INSPIRE_RESEARCH_NAVIGATOR]: 'read',
-  [T.INSPIRE_DEEP_RESEARCH]: 'write',
-
-  // ── INSPIRE Literature Access ─────────────────────────────────────────
-  [T.INSPIRE_LITERATURE]: 'read',
-  [T.INSPIRE_PAPER_SOURCE]: 'write',
-  [T.INSPIRE_PARSE_LATEX]: 'write',
-  [T.INSPIRE_RESOLVE_CITEKEY]: 'read',
-  [T.INSPIRE_CRITICAL_RESEARCH]: 'read',
-
-  // ── INSPIRE Analysis ──────────────────────────────────────────────────
-  [T.INSPIRE_FIND_CROSSOVER_TOPICS]: 'read',
-  [T.INSPIRE_ANALYZE_CITATION_STANCE]: 'read',
-  [T.INSPIRE_CLEANUP_DOWNLOADS]: 'destructive',
-  [T.INSPIRE_VALIDATE_BIBLIOGRAPHY]: 'read',
-
-  // ── Arxiv Tools ──────────────────────────────────────────────────────
-  [T.ARXIV_SEARCH]: 'read',
-  [T.ARXIV_GET_METADATA]: 'read',
-  [T.ARXIV_PAPER_SOURCE]: 'write',
-
-  // ── PDG Tools ─────────────────────────────────────────────────────────
-  [T.PDG_INFO]: 'read',
-  [T.PDG_FIND_PARTICLE]: 'read',
-  [T.PDG_FIND_REFERENCE]: 'read',
-  [T.PDG_GET_REFERENCE]: 'read',
-  [T.PDG_GET_PROPERTY]: 'read',
-  [T.PDG_GET]: 'read',
-  [T.PDG_GET_DECAYS]: 'read',
-  [T.PDG_GET_MEASUREMENTS]: 'read',
-  [T.PDG_BATCH]: 'read',
-
-  // ── Zotero Tools ──────────────────────────────────────────────────────
-  [T.ZOTERO_LOCAL]: 'read',
-  [T.ZOTERO_FIND_ITEMS]: 'read',
-  [T.ZOTERO_SEARCH_ITEMS]: 'read',
-  [T.ZOTERO_EXPORT_ITEMS]: 'read',
-  [T.ZOTERO_GET_SELECTED_COLLECTION]: 'read',
-  [T.ZOTERO_ADD]: 'write',
-  [T.ZOTERO_CONFIRM]: 'write',
-  // ── Orchestrator Run Tools (NEW-R15-impl) ─────────────────────────────────
-  [T.ORCH_RUN_CREATE]: 'write',
-  [T.ORCH_RUN_STATUS]: 'read',
-  [T.ORCH_RUN_LIST]: 'read',
-  [T.ORCH_RUN_APPROVE]: 'destructive',
-  [T.ORCH_RUN_REJECT]: 'destructive',
-  [T.ORCH_RUN_EXPORT]: 'destructive',
-  [T.ORCH_RUN_PAUSE]: 'write',
-  [T.ORCH_RUN_RESUME]: 'write',
-  [T.ORCH_RUN_APPROVALS_LIST]: 'read',
-  [T.ORCH_POLICY_QUERY]: 'read',
-
-  // ── Idea Tools (NEW-IDEA-01) ────────────────────────────────────────────
-  [T.IDEA_CAMPAIGN_INIT]: 'write',
-  [T.IDEA_CAMPAIGN_STATUS]: 'read',
-  [T.IDEA_CAMPAIGN_TOPUP]: 'write',
-  [T.IDEA_CAMPAIGN_PAUSE]: 'write',
-  [T.IDEA_CAMPAIGN_RESUME]: 'write',
-  [T.IDEA_CAMPAIGN_COMPLETE]: 'write',
-  [T.IDEA_SEARCH_STEP]: 'write',
-  [T.IDEA_EVAL_RUN]: 'write',
-
-  // ── HEPData Tools ─────────────────────────────────────────────────────
-  [T.HEPDATA_SEARCH]: 'read',
-  [T.HEPDATA_GET_RECORD]: 'read',
-  [T.HEPDATA_GET_TABLE]: 'read',
-  [T.HEPDATA_DOWNLOAD]: 'destructive',
-
-  // ── OpenAlex Tools ────────────────────────────────────────────────────
-  [T.OPENALEX_SEARCH]: 'read',
-  [T.OPENALEX_SEMANTIC_SEARCH]: 'read',
-  [T.OPENALEX_GET]: 'read',
-  [T.OPENALEX_FILTER]: 'read',
-  [T.OPENALEX_GROUP]: 'read',
-  [T.OPENALEX_REFERENCES]: 'read',
-  [T.OPENALEX_CITATIONS]: 'read',
-  [T.OPENALEX_BATCH]: 'read',
-  [T.OPENALEX_AUTOCOMPLETE]: 'read',
-  [T.OPENALEX_CONTENT]: 'destructive',
-  [T.OPENALEX_RATE_LIMIT]: 'read',
-};
-
-// ── H-11b: Permission Composition ────────────────────────────────────────
+export function hasToolRiskEntry(toolName: string, toolRiskTable: ToolRiskTable): boolean {
+  return Object.prototype.hasOwnProperty.call(toolRiskTable, toolName);
+}
 
 const RISK_ORDER: Record<ToolRiskLevel, number> = {
   read: 0,
@@ -164,10 +46,7 @@ export function composedRiskLevel(levels: ToolRiskLevel[]): ToolRiskLevel {
  * Static permission policy for tool chains (H-11b).
  */
 export const PERMISSION_POLICY = {
-  /** Chains containing destructive tools require A5 gate approval */
   destructive_requires_gate: true,
-  /** Write-only chains do NOT require gate approval */
   write_chain_requires_gate: false,
-  /** Maximum number of tools in a single chain */
   max_chain_length: 10,
 } as const;

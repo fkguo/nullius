@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
-import { TOOL_RISK_LEVELS, type ToolRiskLevel } from '@autoresearch/shared';
+import { HEP_TOOL_RISK_LEVELS, type ToolRiskLevel } from '../src/tool-risk.js';
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -104,35 +104,32 @@ describe('Tool risk level contracts (H-11a)', () => {
     }
   });
 
-  it('riskLevel matches TOOL_RISK_LEVELS shared map', () => {
+  it('riskLevel matches HEP_TOOL_RISK_LEVELS local map', () => {
     const specs = getToolSpecs('full');
     const mismatches: string[] = [];
     for (const spec of specs) {
-      const expected = TOOL_RISK_LEVELS[spec.name];
+      const expected = HEP_TOOL_RISK_LEVELS[spec.name];
       if (expected === undefined) {
-        mismatches.push(`[${spec.name}] missing from TOOL_RISK_LEVELS`);
+        mismatches.push(`[${spec.name}] missing from HEP_TOOL_RISK_LEVELS`);
       } else if (spec.riskLevel !== expected) {
-        mismatches.push(`[${spec.name}] riskLevel=${spec.riskLevel} but TOOL_RISK_LEVELS says ${expected}`);
+        mismatches.push(`[${spec.name}] riskLevel=${spec.riskLevel} but HEP_TOOL_RISK_LEVELS says ${expected}`);
       }
     }
     if (mismatches.length > 0) {
-      throw new Error(`TOOL_RISK_LEVELS drift:\n${mismatches.join('\n')}`);
+      throw new Error(`HEP_TOOL_RISK_LEVELS drift:\n${mismatches.join('\n')}`);
     }
   });
 
-  it('TOOL_RISK_LEVELS has no stale entries (every key is a registered tool or belongs to another MCP server)', () => {
+  it('HEP_TOOL_RISK_LEVELS has no stale entries', () => {
     const specs = getToolSpecs('full');
     const registeredNames = new Set(specs.map(s => s.name));
-    // Tools registered in other MCP servers (not hep-mcp)
-    const otherServerPrefixes = ['idea_'];
     const stale: string[] = [];
-    for (const name of Object.keys(TOOL_RISK_LEVELS)) {
+    for (const name of Object.keys(HEP_TOOL_RISK_LEVELS)) {
       if (registeredNames.has(name)) continue;
-      if (otherServerPrefixes.some(p => name.startsWith(p))) continue;
       stale.push(name);
     }
     if (stale.length > 0) {
-      throw new Error(`Stale TOOL_RISK_LEVELS entries:\n${stale.join('\n')}`);
+      throw new Error(`Stale HEP_TOOL_RISK_LEVELS entries:\n${stale.join('\n')}`);
     }
   });
 

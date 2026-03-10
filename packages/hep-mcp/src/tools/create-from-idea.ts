@@ -10,7 +10,6 @@ import * as path from 'path';
 import {
   invalidParams,
   INSPIRE_SEARCH,
-  HEP_PROJECT_BUILD_EVIDENCE,
   McpError,
 } from '@autoresearch/shared';
 import { createProject } from '../core/projects.js';
@@ -20,6 +19,7 @@ import { parseHepRunArtifactUriOrThrow } from '../core/runArtifactUri.js';
 import { writeRunJsonArtifact } from '../core/citations.js';
 import { getDataDir } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
+import { HEP_PROJECT_BUILD_EVIDENCE } from '../tool-names.js';
 
 export interface CreateFromIdeaParams {
   handoff_uri: string;

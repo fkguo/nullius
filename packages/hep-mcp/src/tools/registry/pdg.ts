@@ -1,5 +1,5 @@
 import { TOOL_SPECS as PDG_MCP_TOOL_SPECS } from '@autoresearch/pdg-mcp/tooling';
-import { TOOL_RISK_LEVELS, type ToolRiskLevel } from '@autoresearch/shared';
+import { getHepToolRiskLevel } from '../../tool-risk.js';
 import type { ToolSpec } from './types.js';
 
 const RAW_PDG_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = PDG_MCP_TOOL_SPECS.map(spec => ({
@@ -24,5 +24,5 @@ const RAW_PDG_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = PDG_MCP_TOOL_SPECS.map
 
 export const PDG_TOOL_SPECS: ToolSpec[] = RAW_PDG_TOOL_SPECS.map(spec => ({
   ...spec,
-  riskLevel: (TOOL_RISK_LEVELS[spec.name] ?? 'read') as ToolRiskLevel,
+  riskLevel: getHepToolRiskLevel(spec.name),
 }));

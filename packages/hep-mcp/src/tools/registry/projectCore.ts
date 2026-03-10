@@ -21,7 +21,7 @@ import {
   HEP_IMPORT_PAPER_BUNDLE,
   HEP_INSPIRE_SEARCH_EXPORT,
   HEP_INSPIRE_RESOLVE_IDENTIFIERS,
-} from '@autoresearch/shared';
+} from '../../tool-names.js';
 import { createProject, getProject, listProjects } from '../../core/projects.js';
 import { createRun } from '../../core/runs.js';
 import { buildProjectEvidenceCatalog, playbackProjectEvidence, queryProjectEvidence } from '../../core/evidence.js';

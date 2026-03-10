@@ -1,13 +1,12 @@
 import * as fs from 'fs';
 import { randomUUID } from 'crypto';
-import {
-  HEP_RUN_STAGE_CONTENT,
-  invalidParams,
-} from '@autoresearch/shared';
+import { invalidParams } from '@autoresearch/shared';
 
 import { getRun } from '../runs.js';
-import { assertSafePathSegment, getRunArtifactPath } from '../paths.js';
+import { getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
+import { HEP_RUN_STAGE_CONTENT } from '../../tool-names.js';
+import { parseHepRunArtifactUriOrThrow } from '../runArtifactUri.js';
 
 type StagedContentArtifactV1 = {
   version: 1;
@@ -18,47 +17,6 @@ type StagedContentArtifactV1 = {
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function parseRunArtifactUri(uri: string): { runId: string; artifactName: string } {
-  let url: URL;
-  try {
-    url = new URL(uri);
-  } catch {
-    throw invalidParams(`Invalid staging URI: ${uri}`, { staging_uri: uri });
-  }
-
-  if (url.protocol !== 'hep:') {
-    throw invalidParams(`Invalid staging URI protocol: ${url.protocol}`, { staging_uri: uri });
-  }
-  if (url.host !== 'runs') {
-    throw invalidParams(`Invalid staging URI host: ${url.host}`, { staging_uri: uri });
-  }
-
-  let segments: string[];
-  try {
-    segments = url.pathname.split('/').filter(Boolean).map(s => decodeURIComponent(s));
-  } catch (err) {
-    throw invalidParams('Invalid staging URI encoding', { staging_uri: uri, error: String(err) });
-  }
-  if (segments.length !== 3 || segments[1] !== 'artifact') {
-    throw invalidParams('Invalid staging URI path (expected hep://runs/<run_id>/artifact/<artifact_name>)', { staging_uri: uri });
-  }
-
-  const runId = segments[0]!;
-  const artifactName = segments[2]!;
-
-  try {
-    assertSafePathSegment(runId, 'run_id');
-    assertSafePathSegment(artifactName, 'artifact_name');
-  } catch (err) {
-    throw invalidParams('Invalid staging URI path segments', {
-      staging_uri: uri,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  return { runId, artifactName };
 }
 
 export async function stageRunContent(params: {
@@ -99,7 +57,7 @@ export async function readStagedContent(
   staging_uri: string,
   expected_content_type: StagedContentArtifactV1['content_type'] = 'section_output'
 ): Promise<unknown> {
-  const parsed = parseRunArtifactUri(staging_uri);
+  const parsed = parseHepRunArtifactUriOrThrow(staging_uri);
   if (parsed.runId !== run_id) {
     throw invalidParams('Cross-run staging reference is not allowed', { run_id, staging_uri });
   }
