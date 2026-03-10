@@ -1,12 +1,6 @@
 {
   "packs": [
     {
-      "pack_id": "hep.bootstrap",
-      "domain_prefixes": ["hep-"],
-      "description": "Built-in HEP bootstrap pack selected by HEP domain prefixes.",
-      "operator_source": "bootstrap_default"
-    },
-    {
       "pack_id": "hep.operators.v1",
       "domain_prefixes": ["hep-"],
       "description": "HEP operator families pack (AnomalyAbduction, SymmetryOperator, LimitExplorer).",

@@ -58,19 +58,14 @@ class IdeaCoreService:
         *,
         data_dir: Path,
         contract_dir: Path,
-        search_operators: tuple[SearchOperator, ...] | None = None,
         domain_pack_index: DomainPackIndex | None = None,
     ) -> None:
         self.store = EngineStore(data_dir)
         self.catalog = ContractCatalog(contract_dir)
-        if domain_pack_index is not None and search_operators is not None:
-            raise ValueError("pass either domain_pack_index or search_operators, not both")
         if domain_pack_index is not None:
             self.domain_pack_index = domain_pack_index
         else:
-            self.domain_pack_index = build_builtin_domain_pack_index(
-                search_operators=search_operators,
-            )
+            self.domain_pack_index = build_builtin_domain_pack_index()
 
     def handle(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         handlers = {

@@ -74,7 +74,7 @@ def test_builtin_pack_campaign_init_no_longer_persists_formalism_registry(tmp_pa
 
     campaign = service.store.load_campaign(campaign_id)
     assert campaign is not None
-    assert campaign["domain_pack"]["pack_id"] == "hep.bootstrap"
+    assert campaign["domain_pack"]["pack_id"] == "hep.operators.v1"
     assert "formalism_registry" not in campaign
 
     seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))

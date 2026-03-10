@@ -9,7 +9,7 @@ from idea_core.engine.domain_pack import (
     DomainConstraintPolicy,
     DomainPackAssets,
     DomainPackDescriptor,
-    build_bootstrap_abstract_problem_registry,
+    build_default_abstract_problem_registry,
 )
 from idea_core.engine.hep_constraint_policy import build_hep_constraint_findings
 from idea_core.engine.operators import SearchOperator, hep_operator_families_m32
@@ -33,10 +33,7 @@ def _load_hep_builtin_pack_catalog() -> list[dict[str, Any]]:
 
 def _resolve_operator_set(
     operator_source: str,
-    bootstrap_search_operators: tuple[SearchOperator, ...],
 ) -> tuple[SearchOperator, ...]:
-    if operator_source == "bootstrap_default":
-        return tuple(bootstrap_search_operators)
     if operator_source == "hep_operator_families_m32":
         return hep_operator_families_m32()
     raise ValueError(f"unknown HEP operator_source: {operator_source}")
@@ -45,7 +42,6 @@ def _resolve_operator_set(
 def _build_hep_assets(
     *,
     entry: dict[str, Any],
-    bootstrap_search_operators: tuple[SearchOperator, ...],
 ) -> DomainPackAssets:
     pack_id = str(entry["pack_id"])
     domain_prefixes = tuple(str(prefix) for prefix in entry.get("domain_prefixes", []))
@@ -54,16 +50,14 @@ def _build_hep_assets(
     return DomainPackAssets(
         pack_id=pack_id,
         domain_prefixes=domain_prefixes,
-        abstract_problem_registry=build_bootstrap_abstract_problem_registry(),
-        search_operators=_resolve_operator_set(operator_source, bootstrap_search_operators),
+        abstract_problem_registry=build_default_abstract_problem_registry(),
+        search_operators=_resolve_operator_set(operator_source),
         operator_selection_policy=operator_selection_policy,
         constraint_policy=HEP_CONSTRAINT_POLICY,
     )
 
 
-def build_builtin_hep_domain_pack_descriptors(
-    search_operators: tuple[SearchOperator, ...],
-) -> tuple[DomainPackDescriptor, ...]:
+def build_builtin_hep_domain_pack_descriptors() -> tuple[DomainPackDescriptor, ...]:
     descriptors: list[DomainPackDescriptor] = []
     for entry in _load_hep_builtin_pack_catalog():
         pack_id = str(entry["pack_id"])
@@ -74,10 +68,7 @@ def build_builtin_hep_domain_pack_descriptors(
                 pack_id=pack_id,
                 domain_prefixes=domain_prefixes,
                 description=description,
-                loader=lambda entry=copy.deepcopy(entry): _build_hep_assets(
-                    entry=entry,
-                    bootstrap_search_operators=search_operators,
-                ),
+                loader=lambda entry=copy.deepcopy(entry): _build_hep_assets(entry=entry),
             )
         )
     return tuple(descriptors)

@@ -6,7 +6,6 @@ from typing import Any, Callable
 
 from idea_core.engine.operators import (
     SearchOperator,
-    default_search_operators,
 )
 from idea_core.engine.retrieval import LibrarianRecipeBook, build_default_librarian_recipe_book
 
@@ -93,12 +92,12 @@ class DomainPackIndex:
             return assets
 
 
-def build_bootstrap_abstract_problem_registry() -> dict[str, Any]:
+def build_default_abstract_problem_registry() -> dict[str, Any]:
     return {
         "entries": [
             {
                 "abstract_problem_type": "optimization",
-                "description": "Default optimization abstraction for bootstrap runs.",
+                "description": "Default optimization abstraction for provider-local packs.",
                 "known_solution_families": ["gradient-based"],
                 "prerequisite_checklist": ["objective is defined"],
                 "reference_uris": ["https://example.org/optimization"],
@@ -107,18 +106,7 @@ def build_bootstrap_abstract_problem_registry() -> dict[str, Any]:
     }
 
 
-def build_builtin_domain_pack_index(
-    *,
-    search_operators: tuple[SearchOperator, ...] | None = None,
-) -> DomainPackIndex:
-    resolved_search_operators = (
-        tuple(search_operators)
-        if search_operators is not None
-        else default_search_operators()
-    )
-    if not resolved_search_operators:
-        raise ValueError("built-in domain pack index requires at least one search operator")
-
+def build_builtin_domain_pack_index() -> DomainPackIndex:
     from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_descriptors
 
-    return DomainPackIndex(build_builtin_hep_domain_pack_descriptors(resolved_search_operators))
+    return DomainPackIndex(build_builtin_hep_domain_pack_descriptors())

@@ -4,10 +4,41 @@ from pathlib import Path
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.coordinator import IdeaCoreService, RpcError
+from idea_core.engine.domain_pack import DomainPackAssets, DomainPackDescriptor, DomainPackIndex
+from idea_core.engine.operators import default_search_operators
+
+
+def _test_domain_pack_index() -> DomainPackIndex:
+    descriptor = DomainPackDescriptor(
+        pack_id="test.default.operators",
+        domain_prefixes=("hep-",),
+        description="Explicit test pack for M2.6 operator scheduling.",
+        loader=lambda: DomainPackAssets(
+            pack_id="test.default.operators",
+            domain_prefixes=("hep-",),
+            abstract_problem_registry={
+                "entries": [
+                    {
+                        "abstract_problem_type": "optimization",
+                        "description": "M2.6 operator scheduling fixture.",
+                        "known_solution_families": ["dummy.round_robin"],
+                        "prerequisite_checklist": ["objective is defined"],
+                        "reference_uris": ["https://example.org/m26/domain-pack"],
+                    }
+                ]
+            },
+            search_operators=default_search_operators(),
+        ),
+    )
+    return DomainPackIndex((descriptor,))
 
 
 def make_service(tmp_path: Path) -> IdeaCoreService:
-    return IdeaCoreService(data_dir=tmp_path / "runs", contract_dir=DEFAULT_CONTRACT_DIR)
+    return IdeaCoreService(
+        data_dir=tmp_path / "runs",
+        contract_dir=DEFAULT_CONTRACT_DIR,
+        domain_pack_index=_test_domain_pack_index(),
+    )
 
 
 def init_campaign(
