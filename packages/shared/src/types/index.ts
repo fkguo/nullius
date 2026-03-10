@@ -44,6 +44,44 @@ export {
   type FormatOptions,
 } from './common.js';
 
+// Semantic assessment contracts
+export {
+  SemanticAssessmentBackendSchema,
+  SemanticAssessmentStatusSchema,
+  SemanticAssessmentProvenanceSchema,
+  type SemanticAssessmentBackend,
+  type SemanticAssessmentStatus,
+  type SemanticAssessmentProvenance,
+} from './semantic-assessment.js';
+
+// Semantic grouping contracts
+export {
+  GroupingProvenanceModeSchema,
+  GroupingProvenanceSchema,
+  GroupingAssignmentDetailSchema,
+  SemanticClusterSchema,
+  CollectionSemanticGroupingSchema,
+  type GroupingProvenanceMode,
+  type GroupingProvenance,
+  type GroupingAssignmentDetail,
+  type SemanticCluster,
+  type CollectionSemanticGrouping,
+} from './collection-semantic-grouping.js';
+
+// Methodology challenge contracts
+export {
+  MethodologyChallengeModeSchema,
+  MethodologyChallengeExtractionStatusSchema,
+  MethodologyChallengeExtractionProvenanceSchema,
+  ExtractedMethodologyChallengeSchema,
+  MethodologyChallengeExtractionResultSchema,
+  type MethodologyChallengeMode,
+  type MethodologyChallengeExtractionStatus,
+  type MethodologyChallengeExtractionProvenance,
+  type ExtractedMethodologyChallenge,
+  type MethodologyChallengeExtractionResult,
+} from './methodology-challenges.js';
+
 // Params
 export {
   InspireSearchParamsSchema,

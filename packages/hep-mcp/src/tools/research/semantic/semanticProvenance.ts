@@ -1,18 +1,13 @@
 import { createHash } from 'crypto';
 
-export type SemanticAssessmentBackend = 'mcp_sampling' | 'metadata' | 'diagnostic_fallback';
-export type SemanticAssessmentStatus = 'applied' | 'metadata' | 'fallback' | 'abstained' | 'invalid' | 'unavailable';
-
-export interface SemanticAssessmentProvenance {
-  backend: SemanticAssessmentBackend;
-  status: SemanticAssessmentStatus;
-  used_fallback: boolean;
-  reason_code: string;
-  prompt_version?: string;
-  input_hash?: string;
-  model?: string;
-  signals?: string[];
-}
+export {
+  SemanticAssessmentBackendSchema,
+  SemanticAssessmentStatusSchema,
+  SemanticAssessmentProvenanceSchema,
+  type SemanticAssessmentBackend,
+  type SemanticAssessmentStatus,
+  type SemanticAssessmentProvenance,
+} from '@autoresearch/shared';
 
 export function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');

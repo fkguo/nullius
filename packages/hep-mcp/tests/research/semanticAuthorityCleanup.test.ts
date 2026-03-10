@@ -1,3 +1,4 @@
+import { SemanticAssessmentProvenanceSchema } from '@autoresearch/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/api/client.js', () => ({
@@ -40,6 +41,7 @@ describe('semantic authority cleanup regressions', () => {
   it('does not treat title keywords as review authority without explicit metadata', () => {
     const classified = classifyPaper(makePaper());
 
+    expect(() => SemanticAssessmentProvenanceSchema.parse(classified.review_classification.provenance)).not.toThrow();
     expect(classified.review_classification.decision).toBe('uncertain');
     expect(classified.paper_type).toBe('uncertain');
     expect(classified.review_classification.provenance.reason_code).toBe('insufficient_metadata');
@@ -50,6 +52,7 @@ describe('semantic authority cleanup regressions', () => {
 
     const result = await classifyReviews({ recids: ['2002'] });
 
+    expect(() => SemanticAssessmentProvenanceSchema.parse(result.classifications[0]?.provenance)).not.toThrow();
     expect(result.classifications).toHaveLength(1);
     expect(result.summary.total).toBe(1);
     expect(result.classifications[0]?.review_type).toBe('uncertain');
@@ -70,6 +73,7 @@ describe('semantic authority cleanup regressions', () => {
       { createMessage: vi.fn().mockRejectedValue(new Error('Method not found')) },
     );
 
+    expect(() => SemanticAssessmentProvenanceSchema.parse(result.classifications[0]?.provenance)).not.toThrow();
     expect(result.classifications[0]?.provenance.backend).toBe('mcp_sampling');
     expect(result.classifications[0]?.provenance.status).toBe('unavailable');
     expect(result.classifications[0]?.provenance.reason_code).toBe('sampling_error');
@@ -80,6 +84,7 @@ describe('semantic authority cleanup regressions', () => {
 
     const result = await generateCriticalQuestions({ recid: '4004' });
 
+    expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
     expect(result.reliability_score).toBeNull();
     expect(result.red_flags.some(flag => flag.type === 'excessive_claims')).toBe(false);
     expect(result.provenance.reason_code).toBe('sampling_unavailable');
@@ -94,6 +99,7 @@ describe('semantic authority cleanup regressions', () => {
       { createMessage: vi.fn().mockRejectedValue(new Error('sampling offline')) },
     );
 
+    expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
     expect(result.success).toBe(true);
     expect(result.reliability_score).toBeNull();
     expect(result.provenance.backend).toBe('mcp_sampling');
@@ -109,6 +115,7 @@ describe('semantic authority cleanup regressions', () => {
 
     const result = await trackAssumptions({ recid: '6006' });
 
+    expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
     expect(result.success).toBe(true);
     expect(result.analysis?.core_assumptions).toHaveLength(0);
     expect(result.analysis?.fragility_score).toBe(0.65);

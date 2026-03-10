@@ -1,4 +1,10 @@
-import type { Paper } from '@autoresearch/shared';
+import type {
+  CollectionSemanticGrouping,
+  GroupingAssignmentDetail,
+  GroupingProvenance,
+  Paper,
+  SemanticCluster,
+} from '@autoresearch/shared';
 import type { DeepPaperAnalysis } from '../deepAnalyze.js';
 import { calculateTFIDF, extractTopTerms, tokenize } from './tfidf.js';
 import {
@@ -12,10 +18,12 @@ import {
 } from './collectionSemanticLexicon.js';
 
 export interface GroupingPaper { recid: string; title: string; abstract?: string; keywords?: string[]; methodology?: string; conclusions?: string; citation_count?: number; }
-export interface GroupingProvenance { mode: 'open_cluster' | 'heuristic_fallback' | 'uncertain'; used_fallback: boolean; reason_code: string; confidence: number; evidence: string[]; canonical_hint?: string; }
-export interface GroupingAssignmentDetail { label: string; provenance: GroupingProvenance; }
-export interface SemanticCluster { label: string; keywords: string[]; paper_ids: string[]; representative_papers: string[]; provenance: GroupingProvenance; }
-export interface CollectionSemanticGrouping { topic_groups: SemanticCluster[]; method_groups: SemanticCluster[]; topic_assignments: Record<string, string>; method_assignments: Record<string, string>; topic_assignment_details: Record<string, GroupingAssignmentDetail>; method_assignment_details: Record<string, GroupingAssignmentDetail>; topic_fallback_rate: number; method_fallback_rate: number; }
+export type {
+  CollectionSemanticGrouping,
+  GroupingAssignmentDetail,
+  GroupingProvenance,
+  SemanticCluster,
+} from '@autoresearch/shared';
 
 type GroupingFocus = 'topic' | 'method';
 type HintScore = { label: string; score: number };
@@ -123,7 +131,7 @@ function buildClusters(papers: GroupingPaper[], details: Record<string, Grouping
   return [...groups.entries()].sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0])).map(([key, members]) => {
     const label = key.slice(key.indexOf(':') + 1);
     const memberDetails = members.map(member => details[member.recid]);
-    const provenance = memberDetails[0]?.provenance ?? { mode: 'uncertain', used_fallback: true, reason_code: 'missing_assignment', confidence: 0, evidence: [] };
+    const provenance: GroupingProvenance = memberDetails[0]?.provenance ?? { mode: 'uncertain', used_fallback: true, reason_code: 'missing_assignment', confidence: 0, evidence: [] };
     return { label, keywords: buildKeywords(label, memberDetails, focus), paper_ids: members.map(member => member.recid), representative_papers: representatives(members, 5), provenance };
   });
 }

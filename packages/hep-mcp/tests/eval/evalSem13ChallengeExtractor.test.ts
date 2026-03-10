@@ -1,3 +1,4 @@
+import { MethodologyChallengeExtractionResultSchema } from '@autoresearch/shared';
 import { describe, expect, it } from 'vitest';
 import { loadBaseline, runEvalSet } from '../../src/eval/index.js';
 import { extractMethodologyChallenges, type ChallengeExtractionResult } from '../../src/tools/research/synthesis/challengeExtraction.js';
@@ -11,7 +12,12 @@ describe('eval: SEM-13 challenge extractor', () => {
     if (!lockedBaseline) throw new Error(`Missing locked baseline for ${evalSet.name}`);
 
     const improved = await runEvalSet<Sem13Input, Sem13Actual>(evalSet, {
-      run: async input => extractMethodologyChallenges(input.papers as never[], input.critical_results as never[] | undefined),
+      run: async input => MethodologyChallengeExtractionResultSchema.parse(
+        extractMethodologyChallenges(
+          input.papers as never[],
+          input.critical_results as never[] | undefined,
+        ),
+      ),
       judge: (expected, actual) => {
         const exp = expected as Sem13Expected;
         const pass = exp.status === actual.status && JSON.stringify([...exp.challenge_types].sort()) === JSON.stringify([...actual.challenge_types].sort());
@@ -29,7 +35,12 @@ describe('eval: SEM-13 challenge extractor', () => {
   holdoutIt('holds structured challenge extraction on the locked holdout', async () => {
     const evalSet = readEvalSetFixture('sem13/sem13_challenge_extractor_holdout.json');
     const report = await runEvalSet<Sem13Input, ChallengeExtractionResult>(evalSet, {
-      run: async input => extractMethodologyChallenges(input.papers as never[], input.critical_results as never[] | undefined),
+      run: async input => MethodologyChallengeExtractionResultSchema.parse(
+        extractMethodologyChallenges(
+          input.papers as never[],
+          input.critical_results as never[] | undefined,
+        ),
+      ),
       judge: (expected, actual) => {
         const exp = expected as Sem13Expected;
         const pass = exp.status === actual.status;

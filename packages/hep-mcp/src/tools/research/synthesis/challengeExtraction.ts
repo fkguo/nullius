@@ -1,5 +1,10 @@
 import type { CriticalAnalysisResult } from '../criticalAnalysis.js';
 import type { DeepPaperAnalysis } from '../deepAnalyze.js';
+import type {
+  ExtractedMethodologyChallenge as ExtractedChallenge,
+  MethodologyChallengeExtractionProvenance as ChallengeExtractionProvenance,
+  MethodologyChallengeExtractionResult as ChallengeExtractionResult,
+} from '@autoresearch/shared';
 import {
   CHALLENGE_NORMALIZATION_HINTS,
   EXPLICIT_NO_CHALLENGE,
@@ -11,10 +16,11 @@ import {
 } from './challengeLexicon.js';
 
 export type { ChallengeType } from './challengeLexicon.js';
-
-export interface ChallengeExtractionProvenance { mode: 'open_text' | 'heuristic_fallback' | 'uncertain' | 'no_challenge'; used_fallback: boolean; reason_code: string; evidence_count: number; }
-export interface ExtractedChallenge { type?: ChallengeType; summary: string; confidence: number; evidence: string[]; provenance: Pick<ChallengeExtractionProvenance, 'mode' | 'used_fallback' | 'reason_code'>; }
-export interface ChallengeExtractionResult { status: 'detected' | 'no_challenge_detected' | 'uncertain'; challenge_types: ChallengeType[]; challenges: ExtractedChallenge[]; provenance: ChallengeExtractionProvenance; }
+export type {
+  ExtractedMethodologyChallenge as ExtractedChallenge,
+  MethodologyChallengeExtractionProvenance as ChallengeExtractionProvenance,
+  MethodologyChallengeExtractionResult as ChallengeExtractionResult,
+} from '@autoresearch/shared';
 
 type TextRecord = { normalized: string; original: string };
 
@@ -88,7 +94,7 @@ function fallbackChallenges(texts: TextRecord[]): ExtractedChallenge[] {
 }
 
 function finalizeDetected(challenges: ExtractedChallenge[], mode: ChallengeExtractionProvenance['mode']): ChallengeExtractionResult {
-  const types = [...new Set(challenges.map(challenge => challenge.type).filter((type): type is ChallengeType => !!type))];
+  const types = [...new Set(challenges.map(challenge => challenge.type).filter((type): type is string => !!type))];
   if (types.length >= 2) types.push('cross_cutting_methodology');
   return {
     status: 'detected',

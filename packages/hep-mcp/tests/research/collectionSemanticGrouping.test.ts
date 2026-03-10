@@ -1,3 +1,4 @@
+import { CollectionSemanticGroupingSchema } from '@autoresearch/shared';
 import { describe, expect, it } from 'vitest';
 
 import { groupCollectionSemantics } from '../../src/tools/research/synthesis/collectionSemanticGrouping.js';
@@ -19,6 +20,7 @@ describe('groupCollectionSemantics', () => {
       },
     ]);
 
+    expect(() => CollectionSemanticGroupingSchema.parse(grouping)).not.toThrow();
     expect(grouping.topic_assignments['1']).toBe('heavy_neutral_lepton');
     expect(grouping.topic_assignment_details['1'].provenance.mode).toBe('heuristic_fallback');
     expect(grouping.topic_groups[0]?.keywords).toContain('heuristic_fallback');
@@ -40,6 +42,7 @@ describe('groupCollectionSemantics', () => {
       },
     ]);
 
+    expect(() => CollectionSemanticGroupingSchema.parse(grouping)).not.toThrow();
     expect(grouping.method_assignments['p9']).toBe('mixed_methods');
     expect(grouping.method_assignment_details['p9'].provenance.reason_code).toBe('combined_method_signals');
     expect(grouping.method_groups[0]?.keywords).toContain('heuristic_fallback');

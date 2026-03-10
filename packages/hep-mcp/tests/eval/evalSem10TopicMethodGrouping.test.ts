@@ -1,3 +1,4 @@
+import { CollectionSemanticGroupingSchema } from '@autoresearch/shared';
 import { describe, expect, it } from 'vitest';
 import { loadBaseline, runEvalSet } from '../../src/eval/index.js';
 import { groupCollectionSemantics } from '../../src/tools/research/synthesis/collectionSemanticGrouping.js';
@@ -12,9 +13,9 @@ describe('eval: SEM-10 topic/method grouping', () => {
 
     const improved = await runEvalSet<Sem10Input, Sem10Actual>(evalSet, {
       run: async input => {
-        const base = normalizeGrouping(groupCollectionSemantics(input.papers));
+        const base = normalizeGrouping(CollectionSemanticGroupingSchema.parse(groupCollectionSemantics(input.papers)));
         const stabilities = [1, 2, 3, 4, 5].map(seed => {
-          const shuffled = normalizeGrouping(groupCollectionSemantics(shufflePapers(input.papers, seed)));
+          const shuffled = normalizeGrouping(CollectionSemanticGroupingSchema.parse(groupCollectionSemantics(shufflePapers(input.papers, seed))));
           const allKeys = Object.keys(base.topic_assignments);
           const matches = allKeys.filter(key => base.topic_assignments[key] === shuffled.topic_assignments[key] && base.method_assignments[key] === shuffled.method_assignments[key]).length;
           return matches / Math.max(allKeys.length, 1);
@@ -40,7 +41,7 @@ describe('eval: SEM-10 topic/method grouping', () => {
     const evalSet = readEvalSetFixture('sem10/sem10_topic_method_grouping_holdout.json');
     const report = await runEvalSet<Sem10Input, Sem10Actual>(evalSet, {
       run: async input => {
-        const base = normalizeGrouping(groupCollectionSemantics(input.papers));
+        const base = normalizeGrouping(CollectionSemanticGroupingSchema.parse(groupCollectionSemantics(input.papers)));
         return { ...base, permutation_stability: 1 };
       },
       judge: (expected, actual) => {

@@ -1,3 +1,4 @@
+import { MethodologyChallengeExtractionResultSchema } from '@autoresearch/shared';
 import { describe, expect, it } from 'vitest';
 
 import { extractMethodologyChallenges, renderMethodologyChallenges } from '../../src/tools/research/synthesis/challengeExtraction.js';
@@ -15,6 +16,7 @@ describe('challenge extraction', () => {
       }],
     );
 
+    expect(() => MethodologyChallengeExtractionResultSchema.parse(result)).not.toThrow();
     expect(result.status).toBe('detected');
     expect(result.challenge_types).toEqual(expect.arrayContaining(['background_control', 'fit_instability', 'cross_cutting_methodology']));
     expect(result.provenance.mode).toBe('open_text');
