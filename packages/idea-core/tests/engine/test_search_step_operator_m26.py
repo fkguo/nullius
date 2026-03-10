@@ -138,6 +138,7 @@ def test_generated_nodes_visible_via_node_list_cursor_and_node_get(tmp_path: Pat
         assert len(node["parent_node_ids"]) == 1
         assert node["idea_card"] is not None
         assert node["idea_card"]["thesis_statement"].startswith(node["rationale_draft"]["title"])
+        assert "candidate_formalisms" not in node["idea_card"]
         formalization = node["operator_trace"]["params"]["formalization"]
         assert formalization["mode"] == "explain_then_formalize_deterministic_v1"
         assert formalization["source_artifact"] == "rationale_draft"

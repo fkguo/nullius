@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "idea_handoff_c2_v1.schema.json",
   "title": "IdeaHandoffC2 v1",
-  "description": "C2 intake handoff artifact produced by node.promote. This is the only allowed entry into C2: must be schema-valid, grounded (pass), and formalism-checked (pass).",
+  "description": "C2 intake handoff artifact produced by node.promote. This is the only allowed entry into C2: must be schema-valid and grounded (pass).",
   "type": "object",
   "required": [
     "campaign_id",
@@ -10,8 +10,7 @@
     "idea_id",
     "promoted_at",
     "idea_card",
-    "grounding_audit",
-    "formalism_check"
+    "grounding_audit"
   ],
   "properties": {
     "campaign_id": {
@@ -59,26 +58,6 @@
         "timestamp": {
           "type": "string",
           "format": "date-time"
-        }
-      },
-      "additionalProperties": false
-    },
-    "formalism_check": {
-      "type": "object",
-      "required": [
-        "status",
-        "missing_formalisms"
-      ],
-      "properties": {
-        "status": {
-          "const": "pass"
-        },
-        "missing_formalisms": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "maxItems": 0
         }
       },
       "additionalProperties": false

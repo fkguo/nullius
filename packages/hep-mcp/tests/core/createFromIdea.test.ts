@@ -17,7 +17,6 @@ function makeHandoff(overrides: Record<string, unknown> = {}): Record<string, un
         'Pseudoscalar pole dominance accounts for >60% of the LbL contribution',
       ],
       required_observables: ['a_mu'],
-      candidate_formalisms: ['qft/perturbative-qed'],
       minimal_compute_plan: [
         { step: 'Evaluate two-loop diagrams', method: 'FeynCalc', estimated_difficulty: 'challenging' },
       ],
@@ -39,10 +38,6 @@ function makeHandoff(overrides: Record<string, unknown> = {}): Record<string, un
       folklore_risk_score: 0.1,
       failures: [],
       timestamp: '2026-01-01T00:00:00Z',
-    },
-    formalism_check: {
-      status: 'pass',
-      missing_formalisms: [],
     },
     ...overrides,
   };

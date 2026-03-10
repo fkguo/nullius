@@ -22,7 +22,6 @@ const ideaStyleSheet: StyleSheet = {
     }
     if (node.type === 'claim')     return { shape: 'ellipse',   fillColor: '#e8eaf6' };
     if (node.type === 'evidence')  return { shape: 'note',      fillColor: '#fce4ec' };
-    if (node.type === 'formalism') return { shape: 'component', fillColor: '#e0f2f1' };
     return { shape: 'box', fillColor: '#f5f5f5' };
   },
   edgeStyle(edge: UniversalEdge): EdgeStyle {
@@ -32,7 +31,6 @@ const ideaStyleSheet: StyleSheet = {
       refutes:        { color: '#c62828', style: 'dashed' },
       mentions:       { color: '#9e9e9e', style: 'dotted' },
       derived_from:   { color: '#1565c0', style: 'solid' },
-      uses_formalism: { color: '#00695c', style: 'dotted' },
     };
     return styles[edge.type] ?? { color: '#9e9e9e', style: 'solid' };
   },
@@ -40,7 +38,7 @@ const ideaStyleSheet: StyleSheet = {
 
 // --- Data types ---------------------------------------------------------
 
-interface IdeaCard { thesis_statement?: string; candidate_formalisms?: string[] }
+interface IdeaCard { thesis_statement?: string }
 interface EvalInfo { scores?: Record<string, number> }
 interface IdeaNode {
   node_id: string;
@@ -67,8 +65,7 @@ function avgScore(scores: Record<string, number> | undefined): number {
 
 function pipelineStatus(node: IdeaNode): IdeaStatus {
   if (node.eval_info?.scores) return 'evaluated';
-  if (node.idea_card?.candidate_formalisms?.length) return 'formalized';
-  if (node.idea_card?.thesis_statement) return 'refined';
+  if (node.idea_card?.thesis_statement) return 'formalized';
   return 'seed';
 }
 
@@ -84,7 +81,6 @@ function buildIdeaGraph(ideaNodes: IdeaNode[], evidenceGraph: EvidenceGraph): Un
   const ideaIds = new Set(ideaNodes.map(n => 'idea:' + n.node_id));
 
   // IdeaNodes
-  const formalismSet = new Set<string>();
   for (const n of ideaNodes) {
     const status = pipelineStatus(n);
     nodes.push({
@@ -98,15 +94,6 @@ function buildIdeaGraph(ideaNodes: IdeaNode[], evidenceGraph: EvidenceGraph): Un
     for (const pid of (n.parent_node_ids ?? [])) {
       edges.push({ source: 'idea:' + pid, target: 'idea:' + n.node_id, type: 'parent_of' });
     }
-    for (const f of (n.idea_card?.candidate_formalisms ?? [])) {
-      formalismSet.add(f);
-      edges.push({ source: 'idea:' + n.node_id, target: 'form:' + f, type: 'uses_formalism' });
-    }
-  }
-
-  // Formalism nodes
-  for (const f of formalismSet) {
-    nodes.push({ id: 'form:' + f, type: 'formalism', label: f });
   }
 
   // Evidence graph nodes (skip idea_node kind - already covered)

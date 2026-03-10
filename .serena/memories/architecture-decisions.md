@@ -1,5 +1,16 @@
 ## Cross-Component Architecture Decisions
 
+### [2026-03-10] Formalism boundary invariant: formalism is optional run-local metadata, not core contract authority
+
+**Context**: `meta/docs/prompts/prompt-2026-03-10-formalism-contract-boundary.md` closeout (`NEW-05a-formalism-contract-boundary`)
+**Decision**:
+- Repo-level public schemas and generic runtime must not require a canonical formalism registry, formalism membership gate, or formalism-check handoff field.
+- `candidate_formalisms[]` may remain only as optional user/project/run-local method metadata; unknown values must not block `campaign.init`, `search.step`, `node.promote`, or downstream idea handoff consumption.
+- Built-in domain packs/provider seams may expose provider-local compilers or execution helpers, but must not ship concrete worldview catalogs such as `hep/toy`, `hep/eft`, or `hep/lattice` as generic authority.
+- Public graph/tooling surfaces should not elevate formalism into default first-class nodes/edges or mandatory public contract fields.
+**Why**: The substrate’s stable core is question/evidence/artifact/approval/runtime semantics. Method choice is real research content, but it belongs in run-local/provider-local layers rather than repo-wide mandatory authority.
+**Files**: `packages/idea-generator/schemas/idea_card_v1.schema.json`, `packages/idea-generator/schemas/idea_handoff_c2_v1.schema.json`, `packages/idea-generator/schemas/promotion_result_v1.schema.json`, `packages/idea-generator/schemas/idea_core_rpc_v1.openrpc.json`, `packages/idea-core/src/idea_core/engine/coordinator.py`, `packages/idea-core/src/idea_core/engine/operators.py`, `packages/idea-core/src/idea_core/engine/retrieval.py`, `packages/idea-core/src/idea_core/engine/hep_builtin_domain_packs.json`, `packages/shared/src/graph-viz/adapters/idea-map.ts`
+
 ### [2026-03-10] Shared boundary invariant: shared keeps seams, providers keep concrete authority
 
 **Context**: `meta/docs/prompts/prompt-2026-03-09-batch1-shared-boundary.md` closeout (`NEW-05a-shared-boundary`)

@@ -1129,55 +1129,6 @@
         "title": "EvaluatorConfig v1",
         "type": "object"
       },
-      "formalism_registry_v1": {
-        "$id": "formalism_registry_v1.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "description": "DomainPack-declared registry mapping formalism IDs to C2 validation/compilation contracts.",
-        "properties": {
-          "entries": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "c2_schema_ref": {
-                  "format": "uri",
-                  "type": "string"
-                },
-                "compiler_id": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "description": {
-                  "type": "string"
-                },
-                "formalism_id": {
-                  "description": "Format: <namespace>/<name>.",
-                  "pattern": "^[a-z0-9_-]+\\/[a-z0-9_.-]+$",
-                  "type": "string"
-                },
-                "validator_id": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "required": [
-                "formalism_id",
-                "c2_schema_ref",
-                "validator_id",
-                "compiler_id"
-              ],
-              "type": "object"
-            },
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "entries"
-        ],
-        "title": "Formalism Registry v1",
-        "type": "object"
-      },
       "idea_card_v1": {
         "$id": "idea_card_v1.schema.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1185,10 +1136,9 @@
         "description": "Stage-2 (Formalize) artifact: C2-ready structured research idea with claim-level provenance and an executable minimal plan.",
         "properties": {
           "candidate_formalisms": {
+            "description": "Optional non-authoritative run-local method/formalism hints. Engines may preserve these strings for local context, but MUST NOT treat them as a mandatory gate or canonical registry membership.",
             "items": {
-              "description": "Formalism ID. Expected format: <namespace>/<name> (validated against the DomainPack formalism registry at runtime).",
               "minLength": 1,
-              "pattern": "^[a-z0-9_-]+\\/[a-z0-9_.-]+$",
               "type": "string"
             },
             "minItems": 1,
@@ -1389,7 +1339,6 @@
           "thesis_statement",
           "testable_hypotheses",
           "required_observables",
-          "candidate_formalisms",
           "minimal_compute_plan",
           "claims"
         ],
@@ -1986,7 +1935,7 @@
             }
           }
         ],
-        "description": "Success result of promoting an idea to a C2 handoff artifact (after schema + grounding + formalism checks). Failed promotions MUST be surfaced via JSON-RPC errors (schema_validation_failed | grounding_audit_failed | formalism_not_in_registry), not via this success result.",
+        "description": "Success result of promoting an idea to a C2 handoff artifact (after schema + grounding checks). Failed promotions MUST be surfaced via JSON-RPC errors, not via this success result.",
         "properties": {
           "budget_snapshot": {
             "$ref": "#/components/schemas/budget_snapshot_v1"
@@ -1994,25 +1943,6 @@
           "campaign_id": {
             "format": "uuid",
             "type": "string"
-          },
-          "formalism_check": {
-            "additionalProperties": false,
-            "properties": {
-              "missing_formalisms": {
-                "description": "Expected to be empty on success. Non-empty failures must be returned via JSON-RPC error formalism_not_in_registry.",
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "status": {
-                "const": "pass"
-              }
-            },
-            "required": [
-              "status"
-            ],
-            "type": "object"
           },
           "grounding_audit_summary": {
             "additionalProperties": false,
@@ -2103,7 +2033,6 @@
           "node_id",
           "idea_id",
           "handoff_artifact_ref",
-          "formalism_check",
           "grounding_audit_summary",
           "budget_snapshot",
           "idempotency",
@@ -3258,7 +3187,7 @@
   "info": {
     "description": "JSON-RPC interface between the idea-generator adapter (hepar skill) and the standalone idea-core engine. Contract schemas are referenced via $ref to sibling files in this directory.\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted \u2192 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods (e.g., LLM generation), this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, elo_config_required, elo_config_unexpected.",
     "title": "idea-core RPC (v1)",
-    "version": "1.9.7"
+    "version": "1.9.8"
   },
   "methods": [
     {
@@ -3298,14 +3227,6 @@
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/budget_envelope_v1"
-          }
-        },
-        {
-          "description": "Override or supplement the DomainPack default formalism registry. If omitted, the engine uses the DomainPack built-in registry. If provided, entries are merged (caller entries take precedence on formalism_id collision). The merged registry MUST be non-empty; otherwise campaign.init MUST fail with schema_validation_failed.",
-          "name": "formalism_registry",
-          "required": false,
-          "schema": {
-            "$ref": "#/components/schemas/formalism_registry_v1"
           }
         },
         {
@@ -3689,7 +3610,7 @@
       "summary": "List IdeaNodes in a campaign (paginated)."
     },
     {
-      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid, grounding_audit.status must be pass, and all candidate_formalisms must exist in the effective formalism registry. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
+      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid and grounding_audit.status must be pass. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
       "errors": [
         {
           "code": -32001,
@@ -3722,10 +3643,6 @@
         {
           "code": -32016,
           "message": "reduction_audit_failed"
-        },
-        {
-          "code": -32012,
-          "message": "formalism_not_in_registry"
         }
       ],
       "name": "node.promote",
@@ -3762,7 +3679,7 @@
           "$ref": "#/components/schemas/promotion_result_v1"
         }
       },
-      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding + formalism gates) within a campaign scope."
+      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding gates) within a campaign scope."
     },
     {
       "description": "Side-effecting. Only permitted when campaign status is running; otherwise campaign_not_active. Batch size is capped (node_ids maxItems=100) to bound rollback cost. Returns updated_node_ids to indicate which nodes were mutated (eval_info appended) during this operation. Atomicity (MUST): on any error (including budget_exhausted, node_not_found, node_not_in_campaign), the engine MUST perform no partial writes/mutations; if partial work occurs internally it MUST be rolled back before returning (and before storing the idempotency record).",

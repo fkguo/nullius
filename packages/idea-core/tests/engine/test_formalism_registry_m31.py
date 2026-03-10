@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
+from idea_core.engine.coordinator import IdeaCoreService
 from idea_core.engine.domain_pack import DomainPackAssets, DomainPackDescriptor, DomainPackIndex
 from idea_core.engine.operators import OperatorOutput
-from idea_core.engine.coordinator import IdeaCoreService, RpcError
 
 
 class _NoopOperator:
@@ -21,7 +21,7 @@ class _NoopOperator:
             rationale_title="M3.1 noop rationale",
             rationale="No-op operator output used by M3.1 tests.",
             thesis_statement="M3.1 noop thesis",
-            hypothesis=f"M3.1 noop hypothesis in {context.formalism_id}",
+            hypothesis="M3.1 noop hypothesis remains testable with observable-1",
             claim_text="M3.1 noop claim",
             trace_inputs={"parent_node_id": context.parent_node_id},
             trace_params={"mode": "noop"},
@@ -43,9 +43,9 @@ def _make_service(
 
 def _campaign_init(service: IdeaCoreService, *, idempotency_key: str, extensions: dict | None = None) -> str:
     charter = {
-        "campaign_name": "m3.1-formalism-registry",
+        "campaign_name": "m3.1-formalism-boundary",
         "domain": "hep-ph",
-        "scope": "m3.1 formalism registry test scope",
+        "scope": "m3.1 formalism boundary test scope",
         "approval_gate_ref": "gate://a0.1",
     }
     if extensions is not None:
@@ -68,30 +68,28 @@ def _campaign_init(service: IdeaCoreService, *, idempotency_key: str, extensions
     return result["campaign_id"]
 
 
-def test_hep_bootstrap_pack_has_minimal_formalism_registry_set(tmp_path: Path) -> None:
+def test_builtin_pack_campaign_init_no_longer_persists_formalism_registry(tmp_path: Path) -> None:
     service = _make_service(tmp_path)
-    campaign_id = _campaign_init(service, idempotency_key="m3.1-default-registry")
+    campaign_id = _campaign_init(service, idempotency_key="m3.1-default-pack")
 
     campaign = service.store.load_campaign(campaign_id)
     assert campaign is not None
     assert campaign["domain_pack"]["pack_id"] == "hep.bootstrap"
+    assert "formalism_registry" not in campaign
 
-    formalism_ids = [
-        entry["formalism_id"]
-        for entry in campaign.get("formalism_registry", {}).get("entries", [])
-    ]
-    assert {"hep/toy", "hep/eft", "hep/lattice"}.issubset(set(formalism_ids))
+    seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))
+    seed_node = service.handle("node.get", {"campaign_id": campaign_id, "node_id": seed_node_id})
+    assert "candidate_formalisms" not in seed_node["idea_card"]
 
 
-def test_campaign_init_fails_when_effective_formalism_registry_is_empty(tmp_path: Path) -> None:
+def test_campaign_init_succeeds_with_pack_without_formalism_authority(tmp_path: Path) -> None:
     descriptor = DomainPackDescriptor(
-        pack_id="hep.empty-formalisms",
+        pack_id="hep.minimal-pack",
         domain_prefixes=("hep-",),
-        description="M3.1 empty formalism registry test pack",
+        description="M3.1 minimal pack without formalism authority",
         loader=lambda: DomainPackAssets(
-            pack_id="hep.empty-formalisms",
+            pack_id="hep.minimal-pack",
             domain_prefixes=("hep-",),
-            formalism_registry={"entries": []},
             abstract_problem_registry={
                 "entries": [
                     {
@@ -107,16 +105,13 @@ def test_campaign_init_fails_when_effective_formalism_registry_is_empty(tmp_path
         ),
     )
     service = _make_service(tmp_path, domain_pack_index=DomainPackIndex((descriptor,)))
+    campaign_id = _campaign_init(
+        service,
+        idempotency_key="m3.1-minimal-pack",
+        extensions={"enable_domain_packs": ["hep.minimal-pack"]},
+    )
 
-    try:
-        _campaign_init(
-            service,
-            idempotency_key="m3.1-empty-registry",
-            extensions={"enable_domain_packs": ["hep.empty-formalisms"]},
-        )
-        assert False, "expected RpcError"
-    except RpcError as exc:
-        assert exc.code == -32002
-        assert exc.message == "schema_validation_failed"
-        assert exc.data["reason"] == "schema_invalid"
-        assert "effective formalism registry must be non-empty" in exc.data["details"]["message"]
+    campaign = service.store.load_campaign(campaign_id)
+    assert campaign is not None
+    assert campaign["domain_pack"]["pack_id"] == "hep.minimal-pack"
+    assert "formalism_registry" not in campaign

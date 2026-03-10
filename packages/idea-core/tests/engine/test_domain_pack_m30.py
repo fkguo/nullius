@@ -24,7 +24,7 @@ class _TaggedOperator:
             rationale_title=f"{self.operator_id} rationale",
             rationale="Deterministic test operator output for M3.0.",
             thesis_statement=f"{self.operator_id} thesis",
-            hypothesis=f"{self.operator_id} hypothesis in {context.formalism_id}",
+            hypothesis=f"{self.operator_id} hypothesis with the current observable set",
             claim_text=f"{self.operator_id} claim",
             trace_inputs={"parent_node_id": context.parent_node_id},
             trace_params={"tag": self.operator_id},
@@ -35,7 +35,6 @@ class _TaggedOperator:
 def _make_domain_pack_descriptor(
     *,
     pack_id: str,
-    formalism_id: str,
     operator_tag: str,
     load_counter: dict[str, int],
     domain_prefixes: tuple[str, ...] = ("hep-",),
@@ -48,17 +47,6 @@ def _make_domain_pack_descriptor(
         return DomainPackAssets(
             pack_id=pack_id,
             domain_prefixes=domain_prefixes,
-            formalism_registry={
-                "entries": [
-                    {
-                        "formalism_id": formalism_id,
-                        "c2_schema_ref": f"https://example.org/schemas/{formalism_id.replace('/', '-')}.json",
-                        "validator_id": f"{pack_id}.validator",
-                        "compiler_id": f"{pack_id}.compiler",
-                        "description": f"Formalism for {pack_id}",
-                    }
-                ]
-            },
             abstract_problem_registry={
                 "entries": [
                     {
@@ -128,14 +116,12 @@ def test_domain_pack_matches_domain_prefix_without_hep_global_default(tmp_path: 
         (
             _make_domain_pack_descriptor(
                 pack_id="hep.alpha",
-                formalism_id="hep/alpha",
                 operator_tag="alpha",
                 load_counter=load_counter,
                 domain_prefixes=("hep-",),
             ),
             _make_domain_pack_descriptor(
                 pack_id="math.alpha",
-                formalism_id="math/alpha",
                 operator_tag="math",
                 load_counter=load_counter,
                 domain_prefixes=("math-",),
@@ -157,7 +143,7 @@ def test_domain_pack_matches_domain_prefix_without_hep_global_default(tmp_path: 
 
     seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))
     seed_node = service.handle("node.get", {"campaign_id": campaign_id, "node_id": seed_node_id})
-    assert seed_node["idea_card"]["candidate_formalisms"] == ["math/alpha"]
+    assert "candidate_formalisms" not in seed_node["idea_card"]
 
 
 def test_domain_pack_lazy_loads_only_selected_pack_and_reuses_cache(tmp_path: Path) -> None:
@@ -166,13 +152,11 @@ def test_domain_pack_lazy_loads_only_selected_pack_and_reuses_cache(tmp_path: Pa
         (
             _make_domain_pack_descriptor(
                 pack_id="hep.alpha",
-                formalism_id="hep/alpha",
                 operator_tag="alpha",
                 load_counter=load_counter,
             ),
             _make_domain_pack_descriptor(
                 pack_id="hep.beta",
-                formalism_id="hep/beta",
                 operator_tag="beta",
                 load_counter=load_counter,
             ),
@@ -191,7 +175,7 @@ def test_domain_pack_lazy_loads_only_selected_pack_and_reuses_cache(tmp_path: Pa
 
     seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))
     seed_node = service.handle("node.get", {"campaign_id": campaign_id, "node_id": seed_node_id})
-    assert seed_node["idea_card"]["candidate_formalisms"] == ["hep/beta"]
+    assert "candidate_formalisms" not in seed_node["idea_card"]
 
     first_step = service.handle(
         "search.step",
@@ -224,7 +208,6 @@ def test_domain_pack_disable_all_fails_campaign_init(tmp_path: Path) -> None:
         (
             _make_domain_pack_descriptor(
                 pack_id="hep.alpha",
-                formalism_id="hep/alpha",
                 operator_tag="alpha",
                 load_counter=load_counter,
             ),
@@ -252,7 +235,6 @@ def test_domain_pack_requires_matching_domain_when_no_pack_is_enabled(tmp_path: 
         (
             _make_domain_pack_descriptor(
                 pack_id="hep.alpha",
-                formalism_id="hep/alpha",
                 operator_tag="alpha",
                 load_counter=load_counter,
             ),
@@ -280,13 +262,11 @@ def test_domain_pack_selects_explicit_domain_pack_id(tmp_path: Path) -> None:
         (
             _make_domain_pack_descriptor(
                 pack_id="hep.alpha",
-                formalism_id="hep/alpha",
                 operator_tag="alpha",
                 load_counter=load_counter,
             ),
             _make_domain_pack_descriptor(
                 pack_id="hep.beta",
-                formalism_id="hep/beta",
                 operator_tag="beta",
                 load_counter=load_counter,
             ),
@@ -306,7 +286,7 @@ def test_domain_pack_selects_explicit_domain_pack_id(tmp_path: Path) -> None:
     assert load_counter == {"hep.alpha": 1, "hep.beta": 0}
     seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))
     seed_node = service.handle("node.get", {"campaign_id": campaign_id, "node_id": seed_node_id})
-    assert seed_node["idea_card"]["candidate_formalisms"] == ["hep/alpha"]
+    assert "candidate_formalisms" not in seed_node["idea_card"]
 
 
 def test_domain_pack_disable_overrides_requested_pack_id(tmp_path: Path) -> None:
@@ -315,13 +295,11 @@ def test_domain_pack_disable_overrides_requested_pack_id(tmp_path: Path) -> None
         (
             _make_domain_pack_descriptor(
                 pack_id="hep.alpha",
-                formalism_id="hep/alpha",
                 operator_tag="alpha",
                 load_counter=load_counter,
             ),
             _make_domain_pack_descriptor(
                 pack_id="hep.beta",
-                formalism_id="hep/beta",
                 operator_tag="beta",
                 load_counter=load_counter,
             ),
@@ -351,7 +329,6 @@ def test_domain_pack_index_load_is_thread_safe(tmp_path: Path) -> None:
     load_counter = {"hep.alpha": 0}
     descriptor = _make_domain_pack_descriptor(
         pack_id="hep.alpha",
-        formalism_id="hep/alpha",
         operator_tag="alpha",
         load_counter=load_counter,
         load_delay_s=0.02,
@@ -375,7 +352,6 @@ def test_search_step_fails_if_campaign_domain_pack_metadata_missing(tmp_path: Pa
         (
             _make_domain_pack_descriptor(
                 pack_id="hep.alpha",
-                formalism_id="hep/alpha",
                 operator_tag="alpha",
                 load_counter=load_counter,
             ),

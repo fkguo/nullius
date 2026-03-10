@@ -14,7 +14,6 @@ from idea_core.engine.domain_pack import (
     DomainPackIndex,
     build_builtin_domain_pack_index,
 )
-from idea_core.engine.formalism_registry import FormalismRegistry
 from idea_core.engine.operators import (
     OperatorContext,
     OperatorOutput,
@@ -528,17 +527,6 @@ class IdeaCoreService:
                 extra={"campaign_id": campaign_id},
             ) from exc
 
-    def _campaign_default_formalism_id(self, campaign: dict[str, Any]) -> str:
-        campaign_id = campaign.get("campaign_id")
-        try:
-            return FormalismRegistry.from_payload(
-                campaign.get("formalism_registry"),
-                context="campaign formalism registry",
-            ).default_formalism_id()
-        except ValueError as exc:
-            extra = {"campaign_id": campaign_id} if isinstance(campaign_id, str) else None
-            raise self._schema_error(str(exc), extra=extra) from exc
-
     @classmethod
     def _sanitize_evidence_uris(cls, value: Any) -> list[str]:
         cleaned = sanitize_text_list(value, fallback=[])
@@ -844,7 +832,6 @@ class IdeaCoreService:
         cls,
         *,
         rationale_draft: dict[str, Any],
-        formalism_id: str,
         evidence_uris: Any,
         hypothesis: Any,
         claim_text: Any,
@@ -867,7 +854,7 @@ class IdeaCoreService:
 
         cleaned_hypothesis = sanitize_text(
             hypothesis,
-            f"{title} should be testable in {formalism_id} with observable-1.",
+            f"{title} should be testable with observable-1.",
         )
         cleaned_claim = sanitize_text(
             claim_text,
@@ -879,7 +866,6 @@ class IdeaCoreService:
             "thesis_statement": thesis_statement,
             "testable_hypotheses": [cleaned_hypothesis],
             "required_observables": ["observable-1"],
-            "candidate_formalisms": [formalism_id],
             "minimal_compute_plan": [
                 {
                     "step": compute_step,
@@ -960,7 +946,6 @@ class IdeaCoreService:
         *,
         campaign_id: str,
         seed: dict[str, Any],
-        formalism_id: str,
         index: int,
         island_id: str,
         now: str,
@@ -978,7 +963,6 @@ class IdeaCoreService:
         }
         idea_card, formalization_trace = self._formalize_rationale_to_idea_card(
             rationale_draft=rationale_draft,
-            formalism_id=formalism_id,
             evidence_uris=evidence_uris,
             hypothesis=f"Hypothesis from seed {index + 1}",
             claim_text=f"Seed-derived claim: {content}",
@@ -1036,7 +1020,6 @@ class IdeaCoreService:
             now = utc_now_iso()
             campaign_id = str(uuid4())
             domain_pack, enabled_pack_ids = self._resolve_domain_pack_for_charter(params["charter"])
-            default_formalisms = copy.deepcopy(domain_pack.formalism_registry)
             default_abstract_problems = copy.deepcopy(domain_pack.abstract_problem_registry)
             try:
                 initial_island_count = self._resolve_initial_island_count(params["charter"])
@@ -1088,24 +1071,6 @@ class IdeaCoreService:
                     )
                     raise error
 
-            try:
-                formalism_registry = FormalismRegistry.merge(
-                    defaults=default_formalisms,
-                    overrides=params.get("formalism_registry"),
-                    context="effective formalism registry",
-                ).to_payload()
-            except ValueError as exc:
-                error = self._schema_error(str(exc))
-                self._store_idempotency(
-                    method="campaign.init",
-                    idempotency_key=idempotency_key,
-                    payload_hash_value=p_hash,
-                    campaign_id=None,
-                    response=error.__dict__,
-                    kind="error",
-                )
-                raise error
-
             abstract_problem_registry = self._merge_registry_entries(
                 defaults=default_abstract_problems,
                 overrides=user_abstract,
@@ -1127,7 +1092,6 @@ class IdeaCoreService:
                     "nodes_used": 0,
                 },
                 "island_states": self._initial_island_states(initial_island_count),
-                "formalism_registry": formalism_registry,
                 "abstract_problem_registry": abstract_problem_registry,
                 "domain_pack": {
                     "pack_id": domain_pack.pack_id,
@@ -1136,17 +1100,11 @@ class IdeaCoreService:
             }
 
             nodes: dict[str, dict[str, Any]] = {}
-            first_formalism = FormalismRegistry.from_payload(
-                formalism_registry,
-                context="effective formalism registry",
-            ).default_formalism_id()
-
             for index, seed in enumerate(seed_items):
                 island_id = f"island-{index % initial_island_count}"
                 node = self._seed_node(
                     campaign_id=campaign_id,
                     seed=seed,
-                    formalism_id=first_formalism,
                     index=index,
                     island_id=island_id,
                     now=now,
@@ -1317,7 +1275,6 @@ class IdeaCoreService:
         campaign_id: str,
         island_id: str,
         parent_node_id: str,
-        formalism_id: str,
         operator_output: OperatorOutput,
         evidence_uris: list[str] | None,
         now: str,
@@ -1341,7 +1298,6 @@ class IdeaCoreService:
         }
         idea_card, formalization_trace = self._formalize_rationale_to_idea_card(
             rationale_draft=rationale_draft,
-            formalism_id=formalism_id,
             evidence_uris=evidence_uris,
             hypothesis=operator_output.hypothesis,
             claim_text=operator_output.claim_text,
@@ -1545,8 +1501,6 @@ class IdeaCoreService:
             new_node_ids: list[str] = []
             new_nodes_payload: list[dict[str, Any]] = []
 
-            default_formalism = self._campaign_default_formalism_id(planned_campaign)
-
             for tick in range(n_steps_requested):
                 if self._step_budget_exhausted(local_usage, step_budget):
                     early_stop_reason = "step_budget_exhausted"
@@ -1601,7 +1555,6 @@ class IdeaCoreService:
                         tick=tick + 1,
                         island_id=island_id,
                         parent_node_id=parent_node["node_id"],
-                        formalism_id=default_formalism,
                     )
                     operator_output = operator.run(context, parent_node=copy.deepcopy(parent_node))
                     now = utc_now_iso()
@@ -1618,7 +1571,6 @@ class IdeaCoreService:
                         island_id=island_id,
                         operator_output=operator_output,
                         domain=str(planned_campaign.get("charter", {}).get("domain", "")),
-                        formalism_id=default_formalism,
                         generated_at=now,
                     )
                     combined_evidence_uris = domain_pack.librarian_recipes.claim_evidence_uris(
@@ -1633,7 +1585,6 @@ class IdeaCoreService:
                         campaign_id=campaign_id,
                         island_id=island_id,
                         parent_node_id=parent_node["node_id"],
-                        formalism_id=default_formalism,
                         operator_output=operator_output,
                         evidence_uris=combined_evidence_uris,
                         now=now,
@@ -2552,47 +2503,6 @@ class IdeaCoreService:
                 )
                 raise error
 
-            try:
-                formalism_registry = FormalismRegistry.from_payload(
-                    campaign.get("formalism_registry"),
-                    context="campaign formalism registry",
-                )
-            except ValueError as exc:
-                error = self._schema_error(
-                    str(exc),
-                    extra={"campaign_id": campaign_id, "node_id": node_id},
-                )
-                self._store_idempotency(
-                    method="node.promote",
-                    idempotency_key=idempotency_key,
-                    payload_hash_value=p_hash,
-                    campaign_id=campaign_id,
-                    response=error.__dict__,
-                    kind="error",
-                )
-                raise error
-
-            candidate_formalisms = node.get("idea_card", {}).get("candidate_formalisms", [])
-            missing_formalisms = formalism_registry.missing_formalisms(candidate_formalisms)
-            if missing_formalisms:
-                data = {
-                    "reason": "schema_invalid",
-                    "campaign_id": campaign_id,
-                    "node_id": node_id,
-                    "details": {"missing_formalisms": missing_formalisms},
-                }
-                self.catalog.validate_error_data(data)
-                error = RpcError(code=-32012, message="formalism_not_in_registry", data=data)
-                self._store_idempotency(
-                    method="node.promote",
-                    idempotency_key=idempotency_key,
-                    payload_hash_value=p_hash,
-                    campaign_id=campaign_id,
-                    response=error.__dict__,
-                    kind="error",
-                )
-                raise error
-
             reduction_report = node.get("reduction_report")
             reduction_audit = node.get("reduction_audit")
             has_reduction = reduction_report is not None
@@ -2675,10 +2585,6 @@ class IdeaCoreService:
                 "promoted_at": now,
                 "idea_card": node["idea_card"],
                 "grounding_audit": grounding,
-                "formalism_check": {
-                    "status": "pass",
-                    "missing_formalisms": [],
-                },
             }
             if has_reduction:
                 handoff_payload["reduction_report"] = reduction_report
@@ -2700,7 +2606,6 @@ class IdeaCoreService:
                 "node_id": node_id,
                 "idea_id": node["idea_id"],
                 "handoff_artifact_ref": handoff_ref,
-                "formalism_check": {"status": "pass", "missing_formalisms": []},
                 "grounding_audit_summary": {
                     "status": "pass",
                     "folklore_risk_score": grounding.get("folklore_risk_score", 0.0),

@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { renderGraph } from '../graph-viz/render.js';
 import { parseProgressMd } from '../graph-viz/parse-progress.js';
+import { ideaMapAdapter } from '../graph-viz/adapters/idea-map.js';
 import type { UniversalGraph, StyleSheet, NodeStyle, EdgeStyle } from '../graph-viz/types.js';
 
 // --- Minimal stylesheet for tests ---------------------------------------
@@ -164,5 +168,28 @@ describe('parseProgressMd', () => {
     const items = parseProgressMd(sampleMd);
     const m0 = items.find(i => i.id === 'M0');
     expect(m0?.depends_on).toEqual(['T1', 'T2']);
+  });
+});
+
+describe('ideaMapAdapter', () => {
+  it('ignores optional candidate_formalisms when building the public graph', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'idea-map-'));
+    try {
+      writeFileSync(join(dir, 'nodes.jsonl'), `${JSON.stringify({
+        node_id: 'n1',
+        idea_card: { thesis_statement: 'Thesis', candidate_formalisms: ['hep/toy'] },
+      })}\n`);
+      writeFileSync(join(dir, 'evidence.json'), JSON.stringify({ nodes: [], edges: [] }));
+
+      const { graph } = await ideaMapAdapter.adapt({
+        nodes: join(dir, 'nodes.jsonl'),
+        evidence: join(dir, 'evidence.json'),
+      });
+
+      expect(graph.nodes.every(node => node.type !== 'formalism')).toBe(true);
+      expect(graph.edges.every(edge => edge.type !== 'uses_formalism')).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

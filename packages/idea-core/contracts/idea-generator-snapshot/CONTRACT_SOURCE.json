@@ -1,10 +1,10 @@
 {
   "source_repo": "../idea-generator",
   "source_branch": "main",
-  "source_commit": "d653513-dirty",
+  "source_commit": "92b396a-dirty",
   "source_tree_state": "dirty",
-  "source_schema_sha256": "81fc841eaf88e26669174bb48d00c9943a95c9f4655c2c5272a5afd015e3d307",
-  "synced_at_utc": "2026-03-09T09:54:02Z",
+  "source_schema_sha256": "320366422b13f4e80d51491040ae2db36a71de340996483af7fee7c3a8ac8b2c",
+  "synced_at_utc": "2026-03-10T06:06:12Z",
   "openrpc_file": "schemas/idea_core_rpc_v1.openrpc.json",
   "bundled_openrpc_file": "schemas/idea_core_rpc_v1.bundled.json",
   "policy": "read-only vendored snapshot + generated bundled OpenRPC; do not hand-edit vendored schemas or bundled artifact"

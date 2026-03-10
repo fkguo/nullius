@@ -8,7 +8,6 @@
     "thesis_statement",
     "testable_hypotheses",
     "required_observables",
-    "candidate_formalisms",
     "minimal_compute_plan",
     "claims"
   ],
@@ -21,10 +20,9 @@
       "minItems": 1,
       "items": {
         "type": "string",
-        "minLength": 1,
-        "pattern": "^[a-z0-9_-]+\\/[a-z0-9_.-]+$",
-        "description": "Formalism ID. Expected format: <namespace>/<name> (validated against the DomainPack formalism registry at runtime)."
-      }
+        "minLength": 1
+      },
+      "description": "Optional non-authoritative run-local method/formalism hints. Engines may preserve these strings for local context, but MUST NOT treat them as a mandatory gate or canonical registry membership."
     },
     "minimal_compute_plan": {
       "type": "array",

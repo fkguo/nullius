@@ -11,7 +11,6 @@ class OperatorContext:
     tick: int
     island_id: str
     parent_node_id: str
-    formalism_id: str
 
 
 @dataclass(frozen=True)
@@ -74,9 +73,12 @@ class DummyExpandBridgeOperator:
             ),
             thesis_statement=(
                 "Use a bridge-style perturbation to extend the parent hypothesis while "
-                "preserving formalism compatibility."
+                "preserving baseline assumptions."
             ),
-            hypothesis=f"Bridge expansion tick-{context.tick} remains testable in {context.formalism_id}.",
+            hypothesis=(
+                f"Bridge expansion tick-{context.tick} remains testable with the current "
+                "observable set."
+            ),
             claim_text=(
                 "Bridge expansion predicts a measurable shift relative to the parent "
                 "baseline under the same observable set."
@@ -118,8 +120,8 @@ class DummyConstraintShiftOperator:
                 "kill criterion."
             ),
             hypothesis=(
-                f"Constraint shift tick-{context.tick} yields a separable outcome in "
-                f"{context.formalism_id}."
+                f"Constraint shift tick-{context.tick} yields a separable outcome under the "
+                "current observable plan."
             ),
             claim_text=(
                 "Constraint shift predicts a failure boundary that should appear before "
@@ -170,7 +172,7 @@ class HepAnomalyAbductionOperator:
             ),
             hypothesis=(
                 f"Anomaly-abduction tick-{context.tick} implies a correlated signature "
-                f"that remains testable in {context.formalism_id}."
+                "that remains testable with the current observable set."
             ),
             claim_text=(
                 "A minimal explanatory mechanism should predict at least one correlated observable "
@@ -215,7 +217,7 @@ class HepSymmetryOperator:
             ),
             hypothesis=(
                 f"Symmetry operator tick-{context.tick} yields a selection rule that should hold "
-                f"in {context.formalism_id} if the hypothesis is consistent."
+                "if the hypothesis is internally consistent."
             ),
             claim_text=(
                 "A candidate symmetry (exact or approximate) implies at least one forbidden/allowed "
@@ -260,7 +262,7 @@ class HepLimitExplorerOperator:
             ),
             hypothesis=(
                 f"Limit explorer tick-{context.tick} predicts a scaling relation that can be checked "
-                f"in {context.formalism_id} with a toy computation."
+                "with a lightweight consistency computation."
             ),
             claim_text=(
                 "In an appropriate limit, the hypothesis should reduce to a known baseline or "

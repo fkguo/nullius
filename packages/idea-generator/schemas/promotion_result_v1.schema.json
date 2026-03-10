@@ -2,14 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "promotion_result_v1.schema.json",
   "title": "PromotionResult v1",
-  "description": "Success result of promoting an idea to a C2 handoff artifact (after schema + grounding + formalism checks). Failed promotions MUST be surfaced via JSON-RPC errors (schema_validation_failed | grounding_audit_failed | formalism_not_in_registry), not via this success result.",
+  "description": "Success result of promoting an idea to a C2 handoff artifact (after schema + grounding checks). Failed promotions MUST be surfaced via JSON-RPC errors, not via this success result.",
   "type": "object",
   "required": [
     "campaign_id",
     "node_id",
     "idea_id",
     "handoff_artifact_ref",
-    "formalism_check",
     "grounding_audit_summary",
     "budget_snapshot",
     "idempotency",
@@ -32,25 +31,6 @@
     "handoff_artifact_ref": {
       "type": "string",
       "format": "uri"
-    },
-    "formalism_check": {
-      "type": "object",
-      "required": [
-        "status"
-      ],
-      "properties": {
-        "status": {
-          "const": "pass"
-        },
-        "missing_formalisms": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Expected to be empty on success. Non-empty failures must be returned via JSON-RPC error formalism_not_in_registry."
-        }
-      },
-      "additionalProperties": false
     },
     "grounding_audit_summary": {
       "type": "object",

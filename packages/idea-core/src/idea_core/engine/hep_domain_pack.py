@@ -49,13 +49,11 @@ def _build_hep_assets(
 ) -> DomainPackAssets:
     pack_id = str(entry["pack_id"])
     domain_prefixes = tuple(str(prefix) for prefix in entry.get("domain_prefixes", []))
-    formalism_registry = {"entries": copy.deepcopy(entry["formalism_entries"])}
     operator_source = str(entry["operator_source"])
     operator_selection_policy = str(entry.get("operator_selection_policy", "round_robin_v1"))
     return DomainPackAssets(
         pack_id=pack_id,
         domain_prefixes=domain_prefixes,
-        formalism_registry=formalism_registry,
         abstract_problem_registry=build_bootstrap_abstract_problem_registry(),
         search_operators=_resolve_operator_set(operator_source, bootstrap_search_operators),
         operator_selection_policy=operator_selection_policy,

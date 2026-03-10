@@ -2,7 +2,7 @@
   "openrpc": "1.2.6",
   "info": {
     "title": "idea-core RPC (v1)",
-    "version": "1.9.7",
+    "version": "1.9.8",
     "description": "JSON-RPC interface between the idea-generator adapter (hepar skill) and the standalone idea-core engine. Contract schemas are referenced via $ref to sibling files in this directory.\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods (e.g., LLM generation), this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, elo_config_required, elo_config_unexpected."
   },
   "x-error-data-contract": {
@@ -57,14 +57,6 @@
             "$ref": "./budget_envelope_v1.schema.json"
           },
           "required": true
-        },
-        {
-          "name": "formalism_registry",
-          "schema": {
-            "$ref": "./formalism_registry_v1.schema.json"
-          },
-          "description": "Override or supplement the DomainPack default formalism registry. If omitted, the engine uses the DomainPack built-in registry. If provided, entries are merged (caller entries take precedence on formalism_id collision). The merged registry MUST be non-empty; otherwise campaign.init MUST fail with schema_validation_failed.",
-          "required": false
         },
         {
           "name": "abstract_problem_registry",
@@ -461,7 +453,7 @@
     },
     {
       "name": "node.promote",
-      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding + formalism gates) within a campaign scope.",
+      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding gates) within a campaign scope.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -489,7 +481,7 @@
           "required": true
         }
       ],
-      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid, grounding_audit.status must be pass, and all candidate_formalisms must exist in the effective formalism registry. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
+      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid and grounding_audit.status must be pass. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
       "result": {
         "name": "promotion_result",
         "schema": {
@@ -528,10 +520,6 @@
         {
           "code": -32016,
           "message": "reduction_audit_failed"
-        },
-        {
-          "code": -32012,
-          "message": "formalism_not_in_registry"
         }
       ]
     },

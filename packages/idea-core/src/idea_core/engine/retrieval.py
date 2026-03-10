@@ -104,7 +104,6 @@ class LibrarianRecipeBook:
         island_id: str,
         operator_output: OperatorOutput,
         domain: str,
-        formalism_id: str,
         generated_at: str,
     ) -> dict[str, Any]:
         claim_text = _compact_text(operator_output.claim_text, "candidate claim")
@@ -112,7 +111,6 @@ class LibrarianRecipeBook:
         rationale_title = _compact_text(operator_output.rationale_title, "untitled rationale")
         fields = {
             "domain": _compact_text(domain, "research-domain"),
-            "formalism_id": _compact_text(formalism_id, "generic/toy"),
             "operator_family": _compact_text(operator_output.operator_family, "UnknownFamily"),
             "claim_text": claim_text,
             "hypothesis": hypothesis,
@@ -185,9 +183,9 @@ def build_default_librarian_recipe_book() -> LibrarianRecipeBook:
             LibrarianRecipeTemplate(
                 recipe_id="pdg.anomaly_constraints.v1",
                 provider="PDG",
-                query_template='"{claim_text}" "{formalism_id}" anomaly constraints',
+                query_template='"{claim_text}" anomaly constraints',
                 summary_template=(
-                    "PDG template for anomaly constraints and baseline world averages linked to {formalism_id}."
+                    "PDG template for anomaly constraints and baseline world averages tied to the current claim."
                 ),
                 relevance=0.88,
             ),
@@ -205,7 +203,7 @@ def build_default_librarian_recipe_book() -> LibrarianRecipeBook:
             LibrarianRecipeTemplate(
                 recipe_id="pdg.symmetry_baselines.v1",
                 provider="PDG",
-                query_template='"{hypothesis}" "{formalism_id}" branching ratio baseline',
+                query_template='"{hypothesis}" branching ratio baseline',
                 summary_template=(
                     "PDG template for symmetry-sensitive observables and branching-ratio baselines."
                 ),
@@ -225,9 +223,9 @@ def build_default_librarian_recipe_book() -> LibrarianRecipeBook:
             LibrarianRecipeTemplate(
                 recipe_id="pdg.limit_measurements.v1",
                 provider="PDG",
-                query_template='"{hypothesis}" "{formalism_id}" limit measurement',
+                query_template='"{hypothesis}" limit measurement',
                 summary_template=(
-                    "PDG template for measurements constraining the proposed limit regime in {formalism_id}."
+                    "PDG template for measurements constraining the proposed limit regime."
                 ),
                 relevance=0.85,
             ),
@@ -245,7 +243,7 @@ def build_default_librarian_recipe_book() -> LibrarianRecipeBook:
         LibrarianRecipeTemplate(
             recipe_id="pdg.generic.hep.v1",
             provider="PDG",
-            query_template='"{claim_text}" "{formalism_id}"',
+            query_template='"{claim_text}"',
             summary_template="PDG generic HEP retrieval template for data/constraint baselines.",
             relevance=0.8,
         ),

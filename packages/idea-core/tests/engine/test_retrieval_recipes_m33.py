@@ -93,6 +93,7 @@ def test_m3_3_librarian_recipes_emit_evidence_packets_and_claim_uris(tmp_path: P
         for recipe in recipes:
             assert recipe["query_template"]
             assert recipe["query"]
+            assert "hep/" not in recipe["query"]
             assert recipe["api_source"] in {"INSPIRE", "PDG"}
             assert recipe["api_query"] == recipe["query"]
             assert recipe["raw_response_hash"].startswith("sha256:")

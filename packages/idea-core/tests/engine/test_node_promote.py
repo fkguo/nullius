@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.coordinator import IdeaCoreService, RpcError
@@ -63,6 +64,12 @@ def _node_log_entries(service: IdeaCoreService, campaign_id: str) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def _artifact_payload(ref: str) -> dict:
+    parsed = urlparse(ref)
+    assert parsed.scheme == "file"
+    return json.loads(Path(unquote(parsed.path)).read_text(encoding="utf-8"))
+
+
 def _valid_reduction_report() -> dict:
     mapping_row = {"source": "x", "target": "y", "mapping": "x->y"}
     return {
@@ -117,6 +124,10 @@ def test_node_promote_success_without_reduction(tmp_path: Path) -> None:
     assert result["node_id"] == node_id
     assert result["has_reduction_report"] is False
     assert result["reduction_audit_summary"] is None
+    assert "formalism_check" not in result
+
+    handoff = _artifact_payload(result["handoff_artifact_ref"])
+    assert "formalism_check" not in handoff
 
 
 def test_node_promote_fails_grounding_not_pass(tmp_path: Path) -> None:
@@ -138,7 +149,7 @@ def test_node_promote_fails_grounding_not_pass(tmp_path: Path) -> None:
         assert exc.data["reason"] == "grounding_audit_not_pass"
 
 
-def test_node_promote_fails_when_candidate_formalism_not_in_registry(tmp_path: Path) -> None:
+def test_node_promote_treats_candidate_formalisms_as_optional_metadata(tmp_path: Path) -> None:
     service = make_service(tmp_path)
     campaign_id, node_id = init_campaign(service)
     _enable_grounding_pass(service, campaign_id, node_id)
@@ -147,21 +158,18 @@ def test_node_promote_fails_when_candidate_formalism_not_in_registry(tmp_path: P
     nodes[node_id]["idea_card"]["candidate_formalisms"] = ["hep/not-in-registry"]
     service.store.save_nodes(campaign_id, nodes)
 
-    try:
-        service.handle(
-            "node.promote",
-            {
-                "campaign_id": campaign_id,
-                "node_id": node_id,
-                "idempotency_key": "promote-formalism-not-in-registry",
-            },
-        )
-        assert False, "expected RpcError"
-    except RpcError as exc:
-        assert exc.code == -32012
-        assert exc.message == "formalism_not_in_registry"
-        assert exc.data["reason"] == "schema_invalid"
-        assert exc.data["details"]["missing_formalisms"] == ["hep/not-in-registry"]
+    result = service.handle(
+        "node.promote",
+        {
+            "campaign_id": campaign_id,
+            "node_id": node_id,
+            "idempotency_key": "promote-optional-formalism-metadata",
+        },
+    )
+
+    handoff = _artifact_payload(result["handoff_artifact_ref"])
+    assert handoff["idea_card"]["candidate_formalisms"] == ["hep/not-in-registry"]
+    assert "formalism_check" not in handoff
 
 
 def test_node_promote_fails_when_idea_card_missing(tmp_path: Path) -> None:

@@ -22,7 +22,7 @@ Five subsystems in Autoresearch produce typed directed graphs:
 | Claim DAG | claim (with status) | supports, contradicts, requires, fork, supersedes, competitor | claims.jsonl + edges.jsonl |
 | Memory Graph (EVO-20) | signal, gene, capsule, outcome, skill, module, ... | resolved_by, confidence, co_change, supersedes, ... | SQLite (mg_nodes/mg_edges) |
 | Literature graph | paper | cites, extends, contradicts, reviews | INSPIRE API JSON |
-| Idea map | idea_node, claim, evidence, formalism | parent_of, supports, refutes, mentions, derived_from | nodes_latest.json + artifacts/ |
+| Idea map | idea_node, claim, evidence | parent_of, supports, refutes, mentions, derived_from | nodes_latest.json + artifacts/ |
 | Progress graph | milestone, task | depends_on | RESEARCH_PLAN.md task board |
 
 The existing `render_claim_graph.py` (~458 LOC) already does `typed nodes + typed edges → Graphviz DOT/PNG/SVG`. This design extracts a domain-agnostic core and defines per-domain adapters.
@@ -442,11 +442,12 @@ MemoryGraph service; see §5.1 for dependency direction rationale)
 1. `nodes_latest.json` — IdeaNode lineage (parent_node_ids, operator_family, idea_card)
 2. `IdeaEvidenceGraph` artifacts — claim/evidence provenance (supports/refutes/mentions/derived_from)
 
-The adapter synthesizes a unified graph from both sources. Formalism nodes and
-`parent_of` / `uses_formalism` edges are **derived by the adapter** from IdeaNode
-fields (`parent_node_ids`, `idea_card.candidate_formalisms`), NOT from the evidence
-graph schema (which only defines kinds `claim|evidence|idea_node` and relations
-`supports|refutes|mentions|derived_from`).
+The adapter synthesizes a unified graph from both sources. Only lineage edges
+(`parent_of`) are **derived by the adapter** from IdeaNode fields
+(`parent_node_ids`). Optional `idea_card.candidate_formalisms` metadata is
+intentionally ignored in the public graph layer, so the evidence graph schema
+remains focused on kinds `claim|evidence|idea_node` and relations
+`supports|refutes|mentions|derived_from`.
 
 **ID namespacing** (prevents cross-source collision, required since renderer treats
 duplicate IDs as error):
@@ -455,8 +456,6 @@ duplicate IDs as error):
 |---|---|---|
 | `nodes_latest.json` IdeaNode | `idea:` | `idea:node_42` |
 | `IdeaEvidenceGraph` claim/evidence | `ev:` | `ev:claim_17` |
-| Adapter-derived formalism | `form:` | `form:lattice_qcd` |
-
 Evidence graph nodes with `kind=idea_node` are **not emitted** as separate nodes;
 they are resolved to the corresponding `idea:*` node from `nodes_latest.json`. This
 dedup rule ensures exactly one node per idea, even when both sources reference it.
@@ -483,12 +482,6 @@ dedup rule ensures exactly one node per idea, even when both sources reference i
 | `kind` ("claim" / "evidence") | `type` | `idea_node` kind → skip (resolved to `idea:*` node) |
 | `label` | `label` | |
 
-**Adapter-derived nodes** (NOT from evidence graph schema):
-
-| Derived from | UniversalNode field | Notes |
-|---|---|---|
-| `idea_card.candidate_formalisms[]` | `type` = "formalism", `id` = `"form:" + formalism_name` | **namespaced** (e.g., `form:lattice_qcd`) |
-
 **Edge mapping** (from `IdeaEvidenceGraph` edges — schema-defined):
 
 | EvidenceGraph edge field | UniversalEdge field | Notes |
@@ -511,7 +504,6 @@ If a referenced ID exists in neither source, the edge is **skipped with a warnin
 | Derived from | UniversalEdge type | Source → Target | Notes |
 |---|---|---|---|
 | IdeaNode `parent_node_ids[]` | `parent_of` | `idea:<parent>` → `idea:<child>` | parent → child direction |
-| IdeaCard `candidate_formalisms[]` | `uses_formalism` | `idea:<node>` → `form:<formalism>` | namespaced |
 
 **StyleSheet**:
 
@@ -520,8 +512,6 @@ If a referenced ID exists in neither source, the edge is **skipped with a warnin
 | idea_node | box | stage-dependent (#fff3e0→#e8f5e9→#e3f2fd→#f3e5f5) |
 | claim | ellipse | #e8eaf6 |
 | evidence | note | #fce4ec |
-| formalism | component | #e0f2f1 |
-
 | Edge type | Color | Style |
 |---|---|---|
 | parent_of | #555555 | solid |
@@ -529,7 +519,6 @@ If a referenced ID exists in neither source, the edge is **skipped with a warnin
 | refutes | #c62828 | dashed |
 | mentions | #9e9e9e | dotted |
 | derived_from | #1565c0 | solid |
-| uses_formalism | #00695c | dotted |
 
 ### 4.5 Progress Graph Adapter
 
@@ -948,7 +937,7 @@ NEW-VIZ-01 是纯渲染层。未来在 UniversalGraph 之上需要一层 compute
 1. **派生节点生成** — 从基础图的边关系预计算聚类/模式节点（构建时，非查询时）：
    - Claim DAG → argument cluster（共享 supports/contradicts 链的 claim 群）
    - Literature graph → citation community（引用密集的论文群 = research school）
-   - Idea map → research direction（共享 evidence/formalism 的 idea 聚类）
+   - Idea map → research direction（共享 evidence / lineage pattern 的 idea 聚类）
    - Memory Graph (EVO-20) → signal pattern（高频 triggered_by 链 = 反复出现的模式）
 
 2. **结构化查询 API** — 类似 GitNexus 的 `impact`/`context` 工具：

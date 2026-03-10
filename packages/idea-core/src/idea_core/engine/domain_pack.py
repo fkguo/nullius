@@ -25,7 +25,6 @@ class DomainConstraintPolicy:
 class DomainPackAssets:
     pack_id: str
     domain_prefixes: tuple[str, ...]
-    formalism_registry: dict[str, Any]
     abstract_problem_registry: dict[str, Any]
     search_operators: tuple[SearchOperator, ...]
     librarian_recipes: LibrarianRecipeBook = field(default_factory=build_default_librarian_recipe_book)
