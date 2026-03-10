@@ -1,8 +1,15 @@
-# HEP Research MCP
+# Autoresearch Lab
 
 English | [中文](./docs/README_zh.md)
 
-A Model Context Protocol (MCP) server for deep academic research in High Energy Physics (HEP) and related fields.
+Autoresearch Lab is the monorepo/workbench for the Autoresearch ecosystem: a domain-neutral, evidence-first research substrate, a runtime/control-plane nucleus, and independently composable provider packages. HEP is the first mature provider family in this repo, not the root identity.
+
+## Root Scope
+
+- Root = ecosystem entrypoint, governance surface, and local development workspace.
+- `@autoresearch/orchestrator` = runtime/control-plane nucleus for run/workspace/task state.
+- Provider packages such as `hep-mcp`, `openalex-mcp`, `arxiv-mcp`, `pdg-mcp`, and `zotero-mcp` remain leaf capabilities.
+- The detailed workflow sections below document the current HEP-first provider surface; they do not redefine the root as a HEP-only product.
 
 ## Language Policy (Phase 4.11)
 
@@ -10,9 +17,21 @@ A Model Context Protocol (MCP) server for deep academic research in High Energy 
 - `docs/README_zh.md` is the synchronized Chinese reference.
 - Bridge/alignment references: `docs/SKILL_MCP_BRIDGE.md`, `docs/STYLE_CORPUS_ALIGNMENT.md`.
 
-## vNext: Local-First + Evidence-First (Recommended)
+## Package Overview
 
-This repo is being refactored to a **vNext** architecture centered on **Project/Run** and `hep://` **MCP Resources**.
+| Package | Role | Status |
+| --- | --- | --- |
+| `@autoresearch/orchestrator` | Runtime/control-plane nucleus for `.autoresearch` state, routing, approvals, and research-loop execution | Active |
+| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (66 std / 83) | Active |
+| `@autoresearch/openalex-mcp` | Standalone OpenAlex scholarly graph provider | Active |
+| `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | Literature/data providers composable with the ecosystem runtime | Active |
+| `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | Local offline/reference providers | Active |
+| `idea-core` / `idea-engine` / `idea-mcp` | Idea evaluation and future TypeScript migration lane | In progress |
+| `@autoresearch/shared` | Cross-package typed seams and utilities | Active |
+
+## Current Local-First + Evidence-First Provider Stack
+
+The most mature provider surface in this repo today is the HEP-first local-first workflow centered on **Project/Run** and `hep://` **MCP Resources**.
 
 **Hard constraints (by design):**
 - **Local MCP transport only**: stdio (`StdioServerTransport`) only; no HTTP transport/server.
@@ -31,9 +50,9 @@ This repo is being refactored to a **vNext** architecture centered on **Project/
    - Publication scaffold: `hep_export_paper_scaffold` → `paper/` + `paper_scaffold.zip`
    - Publication round-trip (optional): `hep_import_paper_bundle` (imports finalized `paper/` back into run artifacts; `hep_export_project(include_paper_bundle=true)` can embed it into `research_pack.zip`)
 
-## Core Capability: Deep Research
+## Current Provider Focus: HEP-First Deep Research
 
-hep-research-mcp is a **local-first, evidence-first** research and writing pipeline for HEP:
+`@autoresearch/hep-mcp` is a **local-first, evidence-first** research and writing pipeline for HEP:
 
 ### 1. Build citable evidence (Project/Run)
 
@@ -54,7 +73,7 @@ hep-research-mcp is a **local-first, evidence-first** research and writing pipel
 
 ---
 
-## Typical Use Cases
+## Current HEP-First Use Cases
 
 ### Scenario A: Quickly Understand a New Field
 
@@ -141,83 +160,52 @@ Pick paper `recid` values from the `IDs:` line for downstream calls.
 
 ---
 
-## Project Overview
-
-This project is an MCP (Model Context Protocol) server that provides AI assistants with deep access to the INSPIRE-HEP high energy physics literature database.
-
-| Package         | Function                              | Status              |
-| --------------- | ------------------------------------- | ------------------- |
-| **hep-research-mcp** | INSPIRE-HEP + vNext local evidence-first workflows (`hep_*`, `zotero_local`, `pdg_*`) | ✅ vNext M0–M12 done |
-| **zotero-mcp**  | Zotero Local API tools for local library management (also aggregated into hep-research-mcp as `zotero_*`) — [Docs](./packages/zotero-mcp/README.md) | ✅ v0.3.0          |
-| **pdg-mcp**     | Offline PDG sqlite tools/resources (also aggregated into hep-research-mcp as `pdg_*`) — [Docs](./packages/pdg-mcp/README.md) | ✅ v0.3.0          |
-| **shared**      | Shared type definitions and utilities | ✅ Complete         |
-
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      AI Assistant                           │
-│                    (MCP Client)                             │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ MCP Protocol (stdio)
-                           ▼
+│                Autoresearch Lab (repo root)                │
+│     ecosystem docs, governance, package composition        │
+└───────────────┬───────────────────────────────┬────────────┘
+                │                               │
+                ▼                               ▼
+┌──────────────────────────────┐   ┌──────────────────────────┐
+│ @autoresearch/orchestrator   │   │ @autoresearch/shared     │
+│ runtime / control-plane      │   │ typed seams / utilities  │
+└───────────────┬──────────────┘   └──────────────┬───────────┘
+                │                                 │
+                ▼                                 ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  hep-research-mcp Server                    │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
-│  │   Tool Layer    │  │ Artifacts/Cache │  │  API Layer  │ │
-│  │ (66 std / 83)    │  │  (FS+Memory)    │  │ (Rate Limit)│ │
-│  └─────────────────┘  └─────────────────┘  └──────┬──────┘ │
-└───────────────┬───────────────────────┬──────────┼────────┘
-                │                       │          │ HTTPS APIs
-                │ local FS              │ localhost│
-                ▼                       ▼          ▼
-      <HEP_DATA_DIR>/           Zotero Local API  INSPIRE-HEP + arXiv
-      (projects/runs/...)       (127.0.0.1:23119) (inspirehep.net + arxiv.org)
-                │
-                ▼
-        PDG sqlite (optional)
-        (PDG_DB_PATH)
+│ Provider / domain packages                                 │
+│ hep-mcp | openalex-mcp | arxiv-mcp | pdg-mcp | zotero-mcp  │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Local evidence + external APIs                             │
+│ .autoresearch | HEP_DATA_DIR | OpenAlex | INSPIRE | PDG    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Directory Structure
 
 ```
-hep-research-mcp/
+autoresearch-lab/
 ├── README.md
-├── package.json              # workspace config
-├── tsconfig.json             # base TypeScript config
+├── package.json              # workspace metadata
 ├── pnpm-workspace.yaml       # pnpm workspace
-├── docs/                     # documentation (see docs/README_zh.md, docs/TESTING_GUIDE.md)
+├── docs/                     # root docs
+├── meta/                     # governance SSOT, prompts, redesign plan
 ├── packages/
-│   ├── hep-research-mcp/     # hep-research-mcp server
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   └── src/
-│   │       ├── index.ts      # entry point
-│   │       ├── tools/        # MCP tool implementations
-│   │       ├── vnext/        # vNext Project/Run + hep:// resources
-│   │       ├── api/          # INSPIRE API client
-│   │       ├── data/         # HEP_DATA_DIR + path guards + downloads
-│   │       ├── cache/        # caching logic
-│   │       └── utils/        # utility functions
-│   ├── pdg-mcp/              # pdg-mcp server (local PDG sqlite snapshots; optional standalone)
-│   │   ├── package.json
-│   │   └── src/
-│   │       ├── index.ts      # entry point
-│   │       ├── tools/        # MCP tool implementations (pdg_*)
-│   │       └── resources.ts  # pdg:// resources (artifacts)
-│   ├── zotero-mcp/           # zotero-mcp server (Zotero Local API; optional standalone)
-│   │   ├── package.json
-│   │   └── src/
-│   │       ├── index.ts      # entry point
-│   │       ├── tools/        # MCP tool implementations (zotero_*)
-│   │       └── zotero/       # Zotero Local API client
-│   └── shared/               # shared code
-│       ├── package.json
-│       ├── tsconfig.json
-│       └── src/
-│           ├── types/        # shared type definitions
-│           └── utils/        # shared utilities
+│   ├── orchestrator/         # runtime / control-plane nucleus
+│   ├── hep-mcp/              # HEP-first provider family
+│   ├── openalex-mcp/         # OpenAlex provider
+│   ├── arxiv-mcp/            # arXiv provider
+│   ├── pdg-mcp/              # PDG provider
+│   ├── zotero-mcp/           # Zotero provider
+│   ├── idea-core/            # current Python idea engine
+│   ├── idea-engine/          # future TypeScript idea engine
+│   └── shared/               # cross-package contracts/utilities
 ```
 
 ## Quick Start
@@ -235,7 +223,7 @@ npm install -g pnpm
 ### Install Dependencies
 
 ```bash
-cd /path/to/hep-research-mcp
+cd /path/to/autoresearch-lab
 pnpm install
 ```
 
@@ -246,7 +234,7 @@ pnpm install
 pnpm -r build
 
 # Or build specific package
-pnpm --filter @hep-research/shared build
+pnpm --filter @autoresearch/shared build
 ```
 
 ### Verify Installation

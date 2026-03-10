@@ -2,7 +2,7 @@
   "name": "autoresearch-lab",
   "version": "0.1.0",
   "private": true,
-  "description": "Autoresearch ecosystem monorepo — evidence-first HEP research automation",
+  "description": "Autoresearch ecosystem monorepo — evidence-first theory-research substrate, control-plane, and provider packages",
   "type": "module",
   "scripts": {
     "build": "pnpm -r build",

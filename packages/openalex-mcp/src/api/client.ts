@@ -37,7 +37,7 @@ export function getDataDir(): string {
   if (explicit?.trim().length) return path.resolve(expandTilde(explicit));
   const hepDataDir = process.env.HEP_DATA_DIR;
   if (hepDataDir?.trim().length) return path.resolve(path.join(expandTilde(hepDataDir), 'openalex'));
-  return path.resolve(path.join(os.homedir(), '.hep-mcp', 'openalex'));
+  return path.resolve(path.join(os.homedir(), '.autoresearch', 'openalex'));
 }
 
 function ensureDir(dir: string): void {

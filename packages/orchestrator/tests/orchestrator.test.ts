@@ -1972,11 +1972,11 @@ describe('Stage 3c: saveState with plan', () => {
     expect(() => sm.saveState(state)).toThrow(/schema_version/);
   });
 
-  it('derives correct plan_md_path when HEP_AUTORESEARCH_DIR is overridden', () => {
+  it('derives correct plan_md_path when AUTORESEARCH_CONTROL_DIR is overridden', () => {
     const customDir = path.join(tmpDir, 'custom_state_dir');
-    const origEnv = process.env['HEP_AUTORESEARCH_DIR'];
+    const origEnv = process.env['AUTORESEARCH_CONTROL_DIR'];
     try {
-      process.env['HEP_AUTORESEARCH_DIR'] = customDir;
+      process.env['AUTORESEARCH_CONTROL_DIR'] = customDir;
       const customSm = new StateManager(tmpDir);
       customSm.ensureDirs();
       const state = baseState({ plan: basePlan() });
@@ -1985,8 +1985,8 @@ describe('Stage 3c: saveState with plan', () => {
       expect(state.plan_md_path).toBe(path.relative(tmpDir, path.join(customDir, 'plan.md')));
       expect(fs.existsSync(path.join(customDir, 'plan.md'))).toBe(true);
     } finally {
-      if (origEnv === undefined) delete process.env['HEP_AUTORESEARCH_DIR'];
-      else process.env['HEP_AUTORESEARCH_DIR'] = origEnv;
+      if (origEnv === undefined) delete process.env['AUTORESEARCH_CONTROL_DIR'];
+      else process.env['AUTORESEARCH_CONTROL_DIR'] = origEnv;
       fs.rmSync(customDir, { recursive: true, force: true });
     }
   });

@@ -46,7 +46,7 @@ function resolveProjectRoot(raw: string): string {
 }
 
 function autoresearchDir(projectRoot: string): string {
-  const override = process.env['HEP_AUTORESEARCH_DIR'];
+  const override = process.env['AUTORESEARCH_CONTROL_DIR'];
   if (override) {
     const p = expandTilde(override);
     return path.isAbsolute(p) ? p : path.join(projectRoot, p);

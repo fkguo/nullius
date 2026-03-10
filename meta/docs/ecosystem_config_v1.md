@@ -53,7 +53,13 @@ Note: `inspire_critical_research(mode=theoretical, options.llm_mode='internal')`
 | `ZOTERO_BASE_URL` | URL | `http://127.0.0.1:23119` | Zotero Local API endpoint (strict: only localhost:23119) | zotero-mcp, hep-mcp |
 | `ZOTERO_DATA_DIR` | path | (none) | Path to Zotero data directory (for PDF attachment resolution) | hep-mcp |
 
-### Python Orchestrator (hep-autoresearch)
+### TypeScript Orchestrator (`@autoresearch/orchestrator`)
+
+| Key | Type | Default | Description | Read by |
+|-----|------|---------|-------------|---------|
+| `AUTORESEARCH_CONTROL_DIR` | path | derived | Control-plane state directory for `.autoresearch` ledger/state/plan files | orchestrator, hep-mcp |
+
+### Legacy Python Orchestrator (hep-autoresearch)
 
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|

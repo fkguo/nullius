@@ -7,10 +7,11 @@ import * as path from 'node:path';
 import type { LedgerEvent } from './types.js';
 
 const AUTORESEARCH_DIRNAME = '.autoresearch';
+const AUTORESEARCH_CONTROL_DIR_ENV = 'AUTORESEARCH_CONTROL_DIR';
 const LEDGER_FILENAME = 'ledger.jsonl';
 
 function ledgerPath(repoRoot: string): string {
-  const override = process.env['HEP_AUTORESEARCH_DIR'];
+  const override = process.env[AUTORESEARCH_CONTROL_DIR_ENV];
   const dir = override
     ? (path.isAbsolute(override) ? override : path.join(repoRoot, override))
     : path.join(repoRoot, AUTORESEARCH_DIRNAME);

@@ -8,6 +8,7 @@ import type { RunState, RunStatus, ApprovalPolicy, ApprovalHistoryEntry, LedgerE
 import { sortKeysRecursive, utcNowIso } from './util.js';
 
 const AUTORESEARCH_DIRNAME = '.autoresearch';
+const AUTORESEARCH_CONTROL_DIR_ENV = 'AUTORESEARCH_CONTROL_DIR';
 const STATE_FILENAME = 'state.json';
 const LEDGER_FILENAME = 'ledger.jsonl';
 const APPROVAL_POLICY_FILENAME = 'approval_policy.json';
@@ -22,7 +23,7 @@ function isDict(v: unknown): v is Record<string, unknown> {
 
 // ─── Embedded plan schema + recursive validator (matching Python _schema_validate) ───
 
-/** Embedded plan.schema.json (SSOT: packages/hep-autoresearch/specs/plan.schema.json).
+/** Embedded plan.schema.json (current checked-in source: packages/hep-autoresearch/specs/plan.schema.json).
  *  Embedded to avoid cross-package file dependency. Must be kept in sync. */
 const PLAN_SCHEMA: Record<string, unknown> = {
   type: 'object',
@@ -256,7 +257,7 @@ const APPROVAL_CATEGORY_TO_POLICY_KEY: Record<string, string> = {
 };
 
 function autoresearchDir(repoRoot: string): string {
-  const override = process.env['HEP_AUTORESEARCH_DIR'];
+  const override = process.env[AUTORESEARCH_CONTROL_DIR_ENV];
   if (override) {
     return path.isAbsolute(override) ? override : path.join(repoRoot, override);
   }
@@ -954,7 +955,7 @@ export class StateManager {
   }
 
   /** Relative path to plan.md from repoRoot (matching Python plan_md_path().relative_to(repo_root)).
-   *  Falls back to absolute path if plan.md is outside repoRoot (e.g. HEP_AUTORESEARCH_DIR override). */
+   *  Falls back to absolute path if plan.md is outside repoRoot (e.g. AUTORESEARCH_CONTROL_DIR override). */
   get planMdRelativePath(): string {
     const p = this.planMdPath;
     const rel = path.relative(this.repoRoot, p);
