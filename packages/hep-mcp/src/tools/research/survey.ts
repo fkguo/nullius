@@ -11,6 +11,7 @@ import {
   type PaperSummary,
   GenerateSurveyParamsSchema,
 } from '@autoresearch/shared';
+import { classifyPaper } from './paperClassifier.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -74,8 +75,7 @@ const GOAL_CONFIG = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function isReviewPaper(paper: PaperSummary): boolean {
-  const title = (paper.title || '').toLowerCase();
-  return title.includes('review') || title.includes('status') || title.includes('overview');
+  return classifyPaper(paper).review_classification.decision === 'review';
 }
 
 function determinePriority(

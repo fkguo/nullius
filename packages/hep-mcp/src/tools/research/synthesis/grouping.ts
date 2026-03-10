@@ -4,7 +4,7 @@
  */
 
 import type { DeepPaperAnalysis } from '../deepAnalyze.js';
-import { groupCollectionSemantics, humanizeSemanticLabel, toGroupingPaper } from './collectionSemanticGrouping.js';
+import { groupCollectionSemantics, humanizeSemanticLabel, toGroupingPaper, type SemanticCluster } from './collectionSemanticGrouping.js';
 
 export interface PaperGroup {
   name: string;
@@ -40,9 +40,16 @@ function extractContribution(paper: DeepPaperAnalysis): string {
 /**
  * Extract group-level insights
  */
-function extractGroupInsights(label: string, papers: DeepPaperAnalysis[]): string[] {
+function presentClusterLabel(cluster: SemanticCluster): string {
+  return humanizeSemanticLabel(cluster.provenance.canonical_hint ?? cluster.label);
+}
+
+function extractGroupInsights(cluster: SemanticCluster, papers: DeepPaperAnalysis[]): string[] {
   const insights: string[] = [];
-  if (label !== 'uncertain') insights.push(`Shared semantic grouping: ${humanizeSemanticLabel(label)}`);
+  if (cluster.label !== 'uncertain') {
+    const modeLabel = cluster.provenance.mode === 'open_cluster' ? 'Open-text grouping' : 'Heuristic fallback grouping';
+    insights.push(`${modeLabel}: ${presentClusterLabel(cluster)}`);
+  }
 
   // Count theorems
   const totalTheorems = papers.reduce((sum, p) => sum + (p.theorems?.length || 0), 0);
@@ -97,11 +104,17 @@ export function groupByMethodology(
   const paperMap = new Map(papers.map(paper => [paper.recid, paper]));
   return clusters.map(cluster => {
     const members = cluster.paper_ids.map(recid => paperMap.get(recid)).filter((paper): paper is DeepPaperAnalysis => !!paper);
+    const presentableLabel = presentClusterLabel(cluster);
+    const description = cluster.provenance.mode === 'open_cluster'
+      ? `Papers grouped by recurring open-text methodological overlap around ${presentableLabel}.`
+      : cluster.provenance.mode === 'heuristic_fallback'
+        ? `Papers grouped by provider-local heuristic fallback around ${presentableLabel}; manual review remains advisable.`
+        : 'Papers with insufficient shared methodological signal for a stronger grouping.';
     return {
-      name: humanizeSemanticLabel(cluster.label),
-      description: `Papers grouped under ${humanizeSemanticLabel(cluster.label)}.`,
+      name: presentableLabel,
+      description,
       papers: members.slice(0, maxPerGroup).map(paper => ({ recid: paper.recid, title: paper.title, contribution: extractContribution(paper) })),
-      key_insights: extractGroupInsights(cluster.label, members),
+      key_insights: extractGroupInsights(cluster, members),
     };
   });
 }

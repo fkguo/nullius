@@ -17,6 +17,7 @@ describe('challenge extraction', () => {
 
     expect(result.status).toBe('detected');
     expect(result.challenge_types).toEqual(expect.arrayContaining(['background_control', 'fit_instability', 'cross_cutting_methodology']));
+    expect(result.provenance.mode).toBe('open_text');
     expect(renderMethodologyChallenges(result)).toContain('background control');
   });
 

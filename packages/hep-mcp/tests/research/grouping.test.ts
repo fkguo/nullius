@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { groupByMethodology } from '../../src/tools/research/synthesis/grouping.js';
 
 describe('groupByMethodology', () => {
-  it('surfaces cross-cutting methodology groups from the shared semantic authority', () => {
+  it('surfaces mixed-method groups via explicit heuristic fallback labeling', () => {
     const groups = groupByMethodology([
       {
         recid: '1',
@@ -21,6 +21,7 @@ describe('groupByMethodology', () => {
       },
     ], 5);
 
-    expect(groups.map(group => group.name)).toEqual(expect.arrayContaining(['Cross-cutting methods', 'Experimental simulation']));
+    expect(groups.map(group => group.name)).toEqual(expect.arrayContaining(['Mixed methods', 'Experimental simulation']));
+    expect(groups.find(group => group.name === 'Mixed methods')?.description).toContain('heuristic fallback');
   });
 });

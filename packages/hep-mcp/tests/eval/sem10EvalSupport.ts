@@ -18,7 +18,8 @@ const METHOD_ALIASES: Record<string, string[]> = {
   dispersive_amplitude: ['dispersive_amplitude', 'dispersion', 'unitarity', 'amplitude', 'bootstrap'],
   effective_field_theory: ['effective_field_theory', 'effective theory', 'eft', 'smeft', 'operator'],
   lattice_nonperturbative: ['lattice_nonperturbative', 'lattice', 'finite_volume', 'nonperturbative'],
-  cross_cutting: ['cross_cutting', 'mixed'],
+  // Legacy eval fixtures still emit `cross_cutting`; canonicalize it here only for backward-compatible scoring.
+  cross_cutting: ['cross_cutting', 'mixed', 'mixed_methods'],
   uncertain: ['general', 'uncertain'],
 };
 

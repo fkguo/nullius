@@ -91,18 +91,23 @@ export interface DeepPaperAnalysis {
 
   /** Methodology section content */
   methodology?: string;
+  methodology_diagnostics?: SectionLookupDiagnostics;
 
   /** Conclusions section content */
   conclusions?: string;
+  conclusions_diagnostics?: SectionLookupDiagnostics;
 
   /** Introduction section content */
   introduction?: string;
+  introduction_diagnostics?: SectionLookupDiagnostics;
 
   /** Results section content */
   results?: string;
+  results_diagnostics?: SectionLookupDiagnostics;
 
   /** Discussion section content */
   discussion?: string;
+  discussion_diagnostics?: SectionLookupDiagnostics;
 
   /** Key equations with importance scores */
   key_equations?: Array<{
@@ -113,6 +118,13 @@ export interface DeepPaperAnalysis {
     section?: string;
     context_text?: string;
   }>;
+}
+
+export interface SectionLookupDiagnostics {
+  mode: 'heading_utility';
+  status: 'extracted' | 'unavailable';
+  reason_code: string;
+  matched_titles: string[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,31 +140,31 @@ const DEFAULT_OPTIONS: Required<DeepAnalyzeOptions> = {
   max_section_length: 5000,
 };
 
-// Keywords for finding methodology sections
+// Heading utility hints for locating methodology-like sections
 const METHODOLOGY_KEYWORDS = [
   'methodology', 'methods', 'method', 'approach', 'technique',
   'framework', 'formalism', 'theoretical framework', 'setup',
   'model', 'calculation', 'computational',
 ];
 
-// Keywords for finding conclusion sections
+// Heading utility hints for locating conclusion-like sections
 const CONCLUSION_KEYWORDS = [
   'conclusion', 'conclusions', 'summary', 'discussion',
   'outlook', 'future', 'remarks', 'summary and outlook',
 ];
 
-// Keywords for finding introduction sections
+// Heading utility hints for locating introduction-like sections
 const INTRODUCTION_KEYWORDS = [
   'introduction', 'motivation', 'background', 'overview',
 ];
 
-// Keywords for finding results sections
+// Heading utility hints for locating results-like sections
 const RESULTS_KEYWORDS = [
   'results', 'findings', 'analysis', 'numerical results',
   'main results', 'experimental results', 'theoretical results',
 ];
 
-// Keywords for finding discussion sections
+// Heading utility hints for locating discussion-like sections
 const DISCUSSION_KEYWORDS = [
   'discussion', 'interpretation', 'implications', 'comparison',
 ];
@@ -171,8 +183,9 @@ function findSectionsByKeywords(
   sections: Section[],
   keywords: string[],
   maxLength: number
-): string {
+): { content?: string; diagnostics: SectionLookupDiagnostics } {
   const results: string[] = [];
+  const matchedTitles: string[] = [];
 
   function searchSections(sectionList: Section[]) {
     for (const section of sectionList) {
@@ -185,6 +198,7 @@ function findSectionsByKeywords(
           content = content.slice(0, maxLength) + '...';
         }
         results.push(`## ${section.title}\n\n${content}`);
+        matchedTitles.push(section.title);
       }
 
       // Search children
@@ -195,7 +209,25 @@ function findSectionsByKeywords(
   }
 
   searchSections(sections);
-  return results.join('\n\n');
+  if (results.length === 0) {
+    return {
+      diagnostics: {
+        mode: 'heading_utility',
+        status: 'unavailable',
+        reason_code: 'no_heading_keyword_match',
+        matched_titles: [],
+      },
+    };
+  }
+  return {
+    content: results.join('\n\n'),
+    diagnostics: {
+        mode: 'heading_utility',
+        status: 'extracted',
+        reason_code: 'heading_keyword_match',
+        matched_titles: matchedTitles,
+      },
+    };
 }
 
 /**
@@ -416,44 +448,50 @@ async function analyzeSinglePaper(
 
     // Step 8: Find methodology sections
     let methodology: string | undefined;
+    let methodologyDiagnostics: SectionLookupDiagnostics | undefined;
     if (options.extract_methodology) {
-      methodology = findSectionsByKeywords(
+      const lookup = findSectionsByKeywords(
         sectionsWithContent,
         METHODOLOGY_KEYWORDS,
         options.max_section_length
-      ) || undefined;
+      );
+      methodology = lookup.content;
+      methodologyDiagnostics = lookup.diagnostics;
     }
 
     // Step 9: Find conclusion sections
     let conclusions: string | undefined;
+    let conclusionsDiagnostics: SectionLookupDiagnostics | undefined;
     if (options.extract_conclusions) {
-      conclusions = findSectionsByKeywords(
+      const lookup = findSectionsByKeywords(
         sectionsWithContent,
         CONCLUSION_KEYWORDS,
         options.max_section_length
-      ) || undefined;
+      );
+      conclusions = lookup.content;
+      conclusionsDiagnostics = lookup.diagnostics;
     }
 
     // Step 9a: Find introduction sections
-    const introduction = findSectionsByKeywords(
+    const introductionLookup = findSectionsByKeywords(
       sectionsWithContent,
       INTRODUCTION_KEYWORDS,
       options.max_section_length
-    ) || undefined;
+    );
 
     // Step 9b: Find results sections
-    const results = findSectionsByKeywords(
+    const resultsLookup = findSectionsByKeywords(
       sectionsWithContent,
       RESULTS_KEYWORDS,
       options.max_section_length
-    ) || undefined;
+    );
 
     // Step 9c: Find discussion sections
-    const discussion = findSectionsByKeywords(
+    const discussionLookup = findSectionsByKeywords(
       sectionsWithContent,
       DISCUSSION_KEYWORDS,
       options.max_section_length
-    ) || undefined;
+    );
 
     // Step 10: Identify key equations with importance scoring (no limit)
     let keyEquations: DeepPaperAnalysis['key_equations'] = undefined;
@@ -490,10 +528,15 @@ async function analyzeSinglePaper(
       equations,
       theorems,
       methodology,
+      methodology_diagnostics: methodologyDiagnostics,
       conclusions,
-      introduction,
-      results,
-      discussion,
+      conclusions_diagnostics: conclusionsDiagnostics,
+      introduction: introductionLookup.content,
+      introduction_diagnostics: introductionLookup.diagnostics,
+      results: resultsLookup.content,
+      results_diagnostics: resultsLookup.diagnostics,
+      discussion: discussionLookup.content,
+      discussion_diagnostics: discussionLookup.diagnostics,
       key_equations: keyEquations,
     };
 
