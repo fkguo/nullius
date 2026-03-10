@@ -5,31 +5,6 @@ from dataclasses import dataclass
 from typing import Any
 
 
-MINIMAL_HEP_FORMALISM_ENTRIES: tuple[dict[str, str], ...] = (
-    {
-        "formalism_id": "hep/toy",
-        "c2_schema_ref": "https://example.org/schemas/toy-c2-v1.json",
-        "validator_id": "toy-validator",
-        "compiler_id": "toy-compiler",
-        "description": "Default bootstrap formalism",
-    },
-    {
-        "formalism_id": "hep/eft",
-        "c2_schema_ref": "https://example.org/schemas/eft-c2-v1.json",
-        "validator_id": "eft-validator",
-        "compiler_id": "eft-compiler",
-        "description": "Effective field theory baseline for perturbative studies.",
-    },
-    {
-        "formalism_id": "hep/lattice",
-        "c2_schema_ref": "https://example.org/schemas/lattice-c2-v1.json",
-        "validator_id": "lattice-validator",
-        "compiler_id": "lattice-compiler",
-        "description": "Lattice-style non-perturbative baseline.",
-    },
-)
-
-
 @dataclass(frozen=True)
 class FormalismRegistry:
     entries: tuple[dict[str, Any], ...]

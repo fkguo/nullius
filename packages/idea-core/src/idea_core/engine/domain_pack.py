@@ -1,17 +1,24 @@
 from __future__ import annotations
 
-import copy
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from idea_core.engine.formalism_registry import MINIMAL_HEP_FORMALISM_ENTRIES
 from idea_core.engine.operators import (
     SearchOperator,
     default_search_operators,
-    hep_operator_families_m32,
 )
 from idea_core.engine.retrieval import LibrarianRecipeBook, build_default_librarian_recipe_book
+
+
+DomainConstraintFindingBuilder = Callable[[dict[str, Any]], list[dict[str, str]]]
+
+
+@dataclass(frozen=True)
+class DomainConstraintPolicy:
+    namespace: str
+    blocking_error_message: str
+    build_findings: DomainConstraintFindingBuilder
 
 
 @dataclass(frozen=True)
@@ -23,6 +30,7 @@ class DomainPackAssets:
     search_operators: tuple[SearchOperator, ...]
     librarian_recipes: LibrarianRecipeBook = field(default_factory=build_default_librarian_recipe_book)
     operator_selection_policy: str = "round_robin_v1"
+    constraint_policy: DomainConstraintPolicy | None = None
 
 
 @dataclass(frozen=True)
@@ -77,24 +85,17 @@ class DomainPackIndex:
                 )
             if not assets.search_operators:
                 raise ValueError(f"domain pack {pack_id} has no search operators")
+            if assets.constraint_policy is not None:
+                if not assets.constraint_policy.namespace.strip():
+                    raise ValueError(f"domain pack {pack_id} has empty constraint namespace")
+                if not assets.constraint_policy.blocking_error_message.strip():
+                    raise ValueError(f"domain pack {pack_id} has empty blocking error message")
             self._cache[pack_id] = assets
             return assets
 
 
-def build_default_domain_pack_index(
-    *,
-    search_operators: tuple[SearchOperator, ...] | None = None,
-) -> DomainPackIndex:
-    resolved_search_operators = (
-        tuple(search_operators)
-        if search_operators is not None
-        else default_search_operators()
-    )
-    if not resolved_search_operators:
-        raise ValueError("default domain pack requires at least one search operator")
-
-    default_formalisms = {"entries": [copy.deepcopy(entry) for entry in MINIMAL_HEP_FORMALISM_ENTRIES]}
-    default_abstract_problems = {
+def build_bootstrap_abstract_problem_registry() -> dict[str, Any]:
+    return {
         "entries": [
             {
                 "abstract_problem_type": "optimization",
@@ -106,31 +107,19 @@ def build_default_domain_pack_index(
         ]
     }
 
-    default_descriptor = DomainPackDescriptor(
-        pack_id="hep.default",
-        domain_prefixes=("hep-",),
-        description="Default built-in HEP bootstrap domain pack.",
-        loader=lambda: DomainPackAssets(
-            pack_id="hep.default",
-            domain_prefixes=("hep-",),
-            formalism_registry=copy.deepcopy(default_formalisms),
-            abstract_problem_registry=copy.deepcopy(default_abstract_problems),
-            search_operators=resolved_search_operators,
-        ),
-    )
 
-    operator_families_descriptor = DomainPackDescriptor(
-        pack_id="hep.operators.v1",
-        domain_prefixes=("hep-",),
-        description="HEP operator families pack (AnomalyAbduction, SymmetryOperator, LimitExplorer).",
-        loader=lambda: DomainPackAssets(
-            pack_id="hep.operators.v1",
-            domain_prefixes=("hep-",),
-            formalism_registry=copy.deepcopy(default_formalisms),
-            abstract_problem_registry=copy.deepcopy(default_abstract_problems),
-            search_operators=hep_operator_families_m32(),
-            operator_selection_policy="island_index_v1",
-        ),
+def build_builtin_domain_pack_index(
+    *,
+    search_operators: tuple[SearchOperator, ...] | None = None,
+) -> DomainPackIndex:
+    resolved_search_operators = (
+        tuple(search_operators)
+        if search_operators is not None
+        else default_search_operators()
     )
+    if not resolved_search_operators:
+        raise ValueError("built-in domain pack index requires at least one search operator")
 
-    return DomainPackIndex((default_descriptor, operator_families_descriptor))
+    from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_descriptors
+
+    return DomainPackIndex(build_builtin_hep_domain_pack_descriptors(resolved_search_operators))

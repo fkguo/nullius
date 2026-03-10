@@ -68,12 +68,13 @@ def _campaign_init(service: IdeaCoreService, *, idempotency_key: str, extensions
     return result["campaign_id"]
 
 
-def test_default_hep_domain_pack_has_minimal_formalism_registry_set(tmp_path: Path) -> None:
+def test_hep_bootstrap_pack_has_minimal_formalism_registry_set(tmp_path: Path) -> None:
     service = _make_service(tmp_path)
     campaign_id = _campaign_init(service, idempotency_key="m3.1-default-registry")
 
     campaign = service.store.load_campaign(campaign_id)
     assert campaign is not None
+    assert campaign["domain_pack"]["pack_id"] == "hep.bootstrap"
 
     formalism_ids = [
         entry["formalism_id"]

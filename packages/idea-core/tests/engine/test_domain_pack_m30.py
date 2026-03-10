@@ -38,6 +38,7 @@ def _make_domain_pack_descriptor(
     formalism_id: str,
     operator_tag: str,
     load_counter: dict[str, int],
+    domain_prefixes: tuple[str, ...] = ("hep-",),
     load_delay_s: float = 0.0,
 ) -> DomainPackDescriptor:
     def _loader() -> DomainPackAssets:
@@ -46,7 +47,7 @@ def _make_domain_pack_descriptor(
         load_counter[pack_id] += 1
         return DomainPackAssets(
             pack_id=pack_id,
-            domain_prefixes=("hep-",),
+            domain_prefixes=domain_prefixes,
             formalism_registry={
                 "entries": [
                     {
@@ -74,7 +75,7 @@ def _make_domain_pack_descriptor(
 
     return DomainPackDescriptor(
         pack_id=pack_id,
-        domain_prefixes=("hep-",),
+        domain_prefixes=domain_prefixes,
         description=f"Test domain pack {pack_id}",
         loader=_loader,
     )
@@ -92,11 +93,12 @@ def _init_campaign(
     service: IdeaCoreService,
     *,
     idempotency_key: str,
+    domain: str = "hep-ph",
     extensions: dict | None = None,
 ) -> str:
     charter = {
         "campaign_name": "m3.0-domain-pack-fixture",
-        "domain": "hep-ph",
+        "domain": domain,
         "scope": "m3.0 domain pack fixture scope",
         "approval_gate_ref": "gate://a0.1",
     }
@@ -118,6 +120,44 @@ def _init_campaign(
         },
     )
     return result["campaign_id"]
+
+
+def test_domain_pack_matches_domain_prefix_without_hep_global_default(tmp_path: Path) -> None:
+    load_counter = {"hep.alpha": 0, "math.alpha": 0}
+    index = DomainPackIndex(
+        (
+            _make_domain_pack_descriptor(
+                pack_id="hep.alpha",
+                formalism_id="hep/alpha",
+                operator_tag="alpha",
+                load_counter=load_counter,
+                domain_prefixes=("hep-",),
+            ),
+            _make_domain_pack_descriptor(
+                pack_id="math.alpha",
+                formalism_id="math/alpha",
+                operator_tag="math",
+                load_counter=load_counter,
+                domain_prefixes=("math-",),
+            ),
+        )
+    )
+    service = _make_service(tmp_path, index)
+
+    campaign_id = _init_campaign(
+        service,
+        idempotency_key="m3.0-domain-prefix-init",
+        domain="math-topology",
+    )
+
+    assert load_counter == {"hep.alpha": 0, "math.alpha": 1}
+    campaign = service.store.load_campaign(campaign_id)
+    assert campaign is not None
+    assert campaign["domain_pack"]["pack_id"] == "math.alpha"
+
+    seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))
+    seed_node = service.handle("node.get", {"campaign_id": campaign_id, "node_id": seed_node_id})
+    assert seed_node["idea_card"]["candidate_formalisms"] == ["math/alpha"]
 
 
 def test_domain_pack_lazy_loads_only_selected_pack_and_reuses_cache(tmp_path: Path) -> None:
@@ -204,6 +244,34 @@ def test_domain_pack_disable_all_fails_campaign_init(tmp_path: Path) -> None:
         assert exc.message == "schema_validation_failed"
         assert exc.data["reason"] == "schema_invalid"
         assert "domain pack candidates are empty" in exc.data["details"]["message"]
+
+
+def test_domain_pack_requires_matching_domain_when_no_pack_is_enabled(tmp_path: Path) -> None:
+    load_counter = {"hep.alpha": 0}
+    index = DomainPackIndex(
+        (
+            _make_domain_pack_descriptor(
+                pack_id="hep.alpha",
+                formalism_id="hep/alpha",
+                operator_tag="alpha",
+                load_counter=load_counter,
+            ),
+        )
+    )
+    service = _make_service(tmp_path, index)
+
+    try:
+        _init_campaign(
+            service,
+            idempotency_key="m3.0-no-domain-match",
+            domain="math-topology",
+        )
+        assert False, "expected RpcError"
+    except RpcError as exc:
+        assert exc.code == -32002
+        assert exc.message == "schema_validation_failed"
+        assert exc.data["reason"] == "schema_invalid"
+        assert "no domain pack available for domain: math-topology" in exc.data["details"]["message"]
 
 
 def test_domain_pack_selects_explicit_domain_pack_id(tmp_path: Path) -> None:

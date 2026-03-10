@@ -1,0 +1,63 @@
+{
+  "packs": [
+    {
+      "pack_id": "hep.bootstrap",
+      "domain_prefixes": ["hep-"],
+      "description": "Built-in HEP bootstrap pack selected by HEP domain prefixes.",
+      "operator_source": "bootstrap_default",
+      "formalism_entries": [
+        {
+          "formalism_id": "hep/toy",
+          "c2_schema_ref": "https://example.org/schemas/toy-c2-v1.json",
+          "validator_id": "toy-validator",
+          "compiler_id": "toy-compiler",
+          "description": "Default bootstrap formalism"
+        },
+        {
+          "formalism_id": "hep/eft",
+          "c2_schema_ref": "https://example.org/schemas/eft-c2-v1.json",
+          "validator_id": "eft-validator",
+          "compiler_id": "eft-compiler",
+          "description": "Effective field theory baseline for perturbative studies."
+        },
+        {
+          "formalism_id": "hep/lattice",
+          "c2_schema_ref": "https://example.org/schemas/lattice-c2-v1.json",
+          "validator_id": "lattice-validator",
+          "compiler_id": "lattice-compiler",
+          "description": "Lattice-style non-perturbative baseline."
+        }
+      ]
+    },
+    {
+      "pack_id": "hep.operators.v1",
+      "domain_prefixes": ["hep-"],
+      "description": "HEP operator families pack (AnomalyAbduction, SymmetryOperator, LimitExplorer).",
+      "operator_source": "hep_operator_families_m32",
+      "operator_selection_policy": "island_index_v1",
+      "formalism_entries": [
+        {
+          "formalism_id": "hep/toy",
+          "c2_schema_ref": "https://example.org/schemas/toy-c2-v1.json",
+          "validator_id": "toy-validator",
+          "compiler_id": "toy-compiler",
+          "description": "Default bootstrap formalism"
+        },
+        {
+          "formalism_id": "hep/eft",
+          "c2_schema_ref": "https://example.org/schemas/eft-c2-v1.json",
+          "validator_id": "eft-validator",
+          "compiler_id": "eft-compiler",
+          "description": "Effective field theory baseline for perturbative studies."
+        },
+        {
+          "formalism_id": "hep/lattice",
+          "c2_schema_ref": "https://example.org/schemas/lattice-c2-v1.json",
+          "validator_id": "lattice-validator",
+          "compiler_id": "lattice-compiler",
+          "description": "Lattice-style non-perturbative baseline."
+        }
+      ]
+    }
+  ]
+}

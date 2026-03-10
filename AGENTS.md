@@ -340,6 +340,8 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - **Phase 0**: 14/14 完成 ✅
 - **Phase 1**: 19/23 完成
 - **Standalone closeout**: `NEW-05a-shared-boundary` ✅（`packages/shared/` 不再持有具体 `HEP_*` tool-name authority / HEP risk map / `hep://runs` helper；`packages/hep-mcp/` 本地 authority + wrappers 已落地；formal review 经 `Opus` + 用户确认 fallback `GLM-5` + `K2.5` 收敛为 0 blocking；GitNexus 仍会漏报新文件/新 helper callsites，因此 post-change exact verification 继续以源码 grep 为准）
+- **Standalone blocked**: `NEW-05a-idea-core-domain-boundary`（按 `meta/docs/prompts/prompt-2026-03-09-batch2-idea-core-domain-boundary.md` 的局部代码清理已在当前工作树完成且 `make -C packages/idea-core test` 全绿，但 closeout 暂停；原因是 repo-level public contracts 仍要求 `candidate_formalisms[]` / `formalism_registry` / `formalism_check`，并继续把 shipped concrete formalism instances 带入工具生态）
+- **Standalone pending**: `NEW-05a-formalism-contract-boundary`（按 `meta/docs/prompts/prompt-2026-03-10-formalism-contract-boundary.md` 待执行；目标是在整个 `autoresearch` 范围内把 `formalism` 从 mandatory public authority 降级为可选 run-local 方法元数据，并移除 shipped concrete formalism worldview，然后再恢复 batch2 closeout 与 batch3 顺序）
 - **Phase 2**: 26/44 完成 — `NEW-WF-01` ✅（2026-03-07 retro-closeout：batch10 已交付 `research_workflow_v1` schema + templates，本轮补专项回归测试并修正 tracker drift）
 - **Phase 3**: 32/50 完成 — Batch 8 `NEW-RT-05` ✅ + Batch 9 `NEW-SEM-07` ✅（G2: JSON SoT + drift regression 已满足） + Batch 10 `NEW-SEM-01` ✅ `NEW-SEM-06` ✅（现记为 `SEM-06a` baseline；Opus + K2.5 双模型审核 0 blocking） + Batch 11 `NEW-SEM-02` ✅ `NEW-RT-06` ✅ + Batch 12 `NEW-SEM-03` ✅ `NEW-SEM-04` ✅ `NEW-SEM-06-INFRA` ✅（`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated） + Batch 13 `NEW-SEM-05` ✅ `NEW-SEM-09` ✅（统一 paper/review/content classifier + section-role semantic labeling 已落地；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，low-risk amendments integrated） + Batch 14 `NEW-SEM-10` ✅ `NEW-SEM-13` ✅（topic/method grouping 与 synthesis challenge extraction 现已由共享语义 authority 驱动；Batch 14 开工前先独立修复 orchestrator `zod` 直依赖 CI 回归，commit `a4e1ad0`，GitHub Actions run `22768970963` ✅；实现 acceptance 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `7bd21bc`，low-risk amendments 已吸收） + Batch 15–16 `NEW-LOOP-01` ✅（`packages/orchestrator/src/research-loop/` 单用户/单项目 substrate 已落地；workspace/task/event graph + explicit backtracks + typed handoff seams + delegated-task injection 均已锁测试；`Opus + OpenCode(kimi-for-coding/k2p5)` 两轮正式双审最终 `CONVERGED`，agent `self-review` 0 blocking，全部 acceptance commands 全绿，implementation commit `d00147d`；同轮补齐 `NEW-WF-01` regression closeout） + Standalone `NEW-RT-07` ✅（host-side MCP sampling routing registry / typed metadata contract / auditable fallback + fail-closed path 已落地；`packages/orchestrator/src/{mcp-client,mcp-jsonrpc,mcp-server-request-handler,sampling-handler,routing/sampling-*}`、`packages/shared/src/sampling-metadata.ts` 与 `packages/hep-mcp/src/core/sampling-metadata.ts` 为 authority；全部 acceptance commands 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking，implementation commit `a7aeba0`；未启动 `NEW-DISC-01` D4/D5 / `NEW-SEM-06b/d/e` / `EVO-13`） + Standalone `NEW-DISC-01` ✅（D4/D5 已完成：shared canonical paper / query-plan / dedup / search-log authority 现位于 `packages/shared/src/discovery/`；broker consumer `packages/hep-mcp/src/tools/research/federatedDiscovery.ts` 将 discovery artifacts 写入 `HEP_DATA_DIR/cache/discovery/`；exact-ID-first + uncertain fail-closed canonicalization、append-only search-log 语义、broker eval fixtures/baseline/holdout 均已锁定；全部 acceptance commands 全绿，`Opus` + `OpenCode(kimi-for-coding/k2p5)` 两轮正式双审最终 0 blocking，agent `self-review` 0 blocking；implementation commit `f233e77`，PR `#3` 已合并到 `main`（merge commit `2dbb97a`）） + Batch 17 `NEW-SEM-06b` ✅（hybrid candidate generation + strong reranker 已落地到 canonical paper substrate；shared discovery authority 现包含 candidate-channel / candidate-generation / rerank artifacts，hep-mcp broker 写入 audited `candidate_generation` + `rerank` artifacts 并执行 exact-ID-first + keyword + optional provider-native semantic generation + bounded canonical-paper rerank；锁定 eval plane 位于 `packages/hep-mcp/tests/eval/evalSem06bHybridDiscovery.test.ts` 与对应 fixtures/baseline/holdout，单测覆盖 `providerExecutors` / `paperReranker` / `federatedDiscovery`；全部 prompt acceptance commands 全绿，`SEM-06b` 专项 holdout 在 `EVAL_INCLUDE_HOLDOUT=1` 下通过；`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，agent `self-review` 0 blocking；implementation commit `be1e466`） + Batch 18 `NEW-SEM-06d` ✅（triggered reformulation + QPP planner layer 已落地到 canonical-paper backbone；shared discovery authority 现包含 `provider-result-counts` / `query-reformulation-artifact` contract，hep-mcp discovery 执行 probe -> QPP -> optional reformulation -> optional second round -> rerank，并以 fail-closed 状态写入 audited search-log telemetry；锁定 eval plane 位于 `packages/hep-mcp/tests/eval/evalSem06dTriggeredReformulation.test.ts` 与对应 fixtures/baseline/holdout，覆盖 exact-ID/easy no-trigger、hard uplift、QPP unavailable、budget exhausted、invalid/abstained reformulation failure paths；全部 prompt acceptance commands 全绿，`Opus + OpenCode(kimi-for-coding/k2p5)` 正式双审 0 blocking，Gemini 因本地 agentic reviewer 不可用经用户明确批准 fallback，agent `self-review` 0 blocking；implementation commit `1b6be54`，tracker sync commit `834d799`，PR `#4` 已合并到 `main`（merge commit `e9e96f2`）） + Retrieval lane `Batch 19` `NEW-SEM-06e` ✅（structure-aware evidence localization 已在 shared + hep-mcp 落地：typed localization contract / LaTeX+PDF semantic surface merge / exact-unit rescue / fail-closed fallback+abstain 均已锁定；新增 `evalSem06eStructureAwareLocalization` baseline+holdout 与 `evalSem06eFailureModes` unavailable 路径；全部 acceptance commands 全绿，GitNexus `impact(queryProjectEvidenceSemantic)` LOW，正式三审 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` 0 blocking，agent `self-review` 0 blocking；implementation commit `2d0b6e0`，PR `#5` 已合并到 `main`（merge commit `230ec3f`））；single-user loop clarification 文档已完成 `Opus + Kimi K2.5` 外部双审核，0 blocking，clarifications integrated + Standalone `NEW-SEM-06f` ✅（bounded multimodal/page-native retrieval 已落地：shared multimodal artifact contract + hep-mcp policy/fusion modules + preferred-unit localization hook 均已锁定；`queryProjectEvidenceSemantic` 现写出 auditable `multimodal` artifact，并保持 text-first skip / disabled / unavailable / ambiguous fail-closed 语义；eval authority 位于 `packages/hep-mcp/tests/eval/evalSem06fMultimodalScientificRetrieval.test.ts` 与对应 fixtures/baseline/holdout，`EVAL_INCLUDE_HOLDOUT=1` 专项重跑通过；全部 acceptance commands 全绿，GitNexus `detect_changes`=LOW 且 `impact(queryProjectEvidenceSemantic)`=LOW，正式三审 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` 0 blocking，agent `self-review` 0 blocking；implementation commit `cc79c47` 已位于 `main`，后续治理澄清 / marker sync commits `cf8cafc` / `b27700b` 已保留）
 - **Phase 4**: 0/8 完成 — blocked by Phase 3
@@ -511,64 +513,98 @@ hepar report render --run-ids <...> --out md|tex
 - **Edges** (`CodeRelation.type`): `CALLS`, `IMPORTS`, `EXTENDS`, `IMPLEMENTS`, `DEFINES`, `MEMBER_OF`, `STEP_IN_PROCESS`
 
 <!-- gitnexus:start -->
-# GitNexus MCP
+# GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (9748 symbols, 22813 relationships, 300 execution flows).
+This project is indexed by GitNexus as **autoresearch-lab** (9823 symbols, 22909 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
-## Always Start Here
+## Always Do
 
-For any task involving code understanding, debugging, impact analysis, or refactoring, you must:
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
 
-1. **Read `gitnexus://repo/{name}/context`** — codebase overview + check index freshness
-2. **Match your task to a skill below** and **read that skill file**
-3. **Follow the skill's workflow and checklist**
+## When Debugging
 
-> If step 1 warns the index is stale, run `npx gitnexus analyze` in the terminal first.
+1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
+2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
+3. `READ gitnexus://repo/autoresearch-lab/process/{processName}` — trace the full execution flow step by step
+4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
-## Skills
+## When Refactoring
 
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/refactoring/SKILL.md` |
+- **Renaming**: MUST use `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` first. Review the preview — graph edits are safe, text_search edits need manual review. Then run with `dry_run: false`.
+- **Extracting/Splitting**: MUST run `gitnexus_context({name: "target"})` to see all incoming/outgoing refs, then `gitnexus_impact({target: "target", direction: "upstream"})` to find all external callers before moving code.
+- After any refactor: run `gitnexus_detect_changes({scope: "all"})` to verify only expected files changed.
 
-## Tools Reference
+## Never Do
 
-| Tool | What it gives you |
-|------|-------------------|
-| `query` | Process-grouped code intelligence — execution flows related to a concept |
-| `context` | 360-degree symbol view — categorized refs, processes it participates in |
-| `impact` | Symbol blast radius — what breaks at depth 1/2/3 with confidence |
-| `detect_changes` | Git-diff impact — what do your current changes affect |
-| `rename` | Multi-file coordinated rename with confidence-tagged edits |
-| `cypher` | Raw graph queries (read `gitnexus://repo/{name}/schema` first) |
-| `list_repos` | Discover indexed repos |
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 
-## Resources Reference
+## Tools Quick Reference
 
-Lightweight reads (~100-500 tokens) for navigation:
+| Tool | When to use | Command |
+|------|-------------|---------|
+| `query` | Find code by concept | `gitnexus_query({query: "auth validation"})` |
+| `context` | 360-degree view of one symbol | `gitnexus_context({name: "validateUser"})` |
+| `impact` | Blast radius before editing | `gitnexus_impact({target: "X", direction: "upstream"})` |
+| `detect_changes` | Pre-commit scope check | `gitnexus_detect_changes({scope: "staged"})` |
+| `rename` | Safe multi-file rename | `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` |
+| `cypher` | Custom graph queries | `gitnexus_cypher({query: "MATCH ..."})` |
 
-| Resource | Content |
+## Impact Risk Levels
+
+| Depth | Meaning | Action |
+|-------|---------|--------|
+| d=1 | WILL BREAK — direct callers/importers | MUST update these |
+| d=2 | LIKELY AFFECTED — indirect deps | Should test |
+| d=3 | MAY NEED TESTING — transitive | Test if critical path |
+
+## Resources
+
+| Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/{name}/context` | Stats, staleness check |
-| `gitnexus://repo/{name}/clusters` | All functional areas with cohesion scores |
-| `gitnexus://repo/{name}/cluster/{clusterName}` | Area members |
-| `gitnexus://repo/{name}/processes` | All execution flows |
-| `gitnexus://repo/{name}/process/{processName}` | Step-by-step trace |
-| `gitnexus://repo/{name}/schema` | Graph schema for Cypher |
+| `gitnexus://repo/autoresearch-lab/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab/process/{name}` | Step-by-step execution trace |
 
-## Graph Schema
+## Self-Check Before Finishing
 
-**Nodes:** File, Function, Class, Interface, Method, Community, Process
-**Edges (via CodeRelation.type):** CALLS, IMPORTS, EXTENDS, IMPLEMENTS, DEFINES, MEMBER_OF, STEP_IN_PROCESS
+Before completing any code modification task, verify:
+1. `gitnexus_impact` was run for all modified symbols
+2. No HIGH/CRITICAL risk warnings were ignored
+3. `gitnexus_detect_changes()` confirms changes match expected scope
+4. All d=1 (WILL BREAK) dependents were updated
 
-```cypher
-MATCH (caller)-[:CodeRelation {type: 'CALLS'}]->(f:Function {name: "myFunc"})
-RETURN caller.name, caller.filePath
+## Keeping the Index Fresh
+
+After committing code changes, the GitNexus index becomes stale. Re-run analyze to update it:
+
+```bash
+npx gitnexus analyze
 ```
+
+If the index previously included embeddings, preserve them by adding `--embeddings`:
+
+```bash
+npx gitnexus analyze --embeddings
+```
+
+To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.embeddings` field shows the count (0 means no embeddings). **Running analyze without `--embeddings` will delete any previously generated embeddings.**
+
+> Claude Code users: A PostToolUse hook handles this automatically after `git commit` and `git merge`.
+
+## CLI
+
+- Re-index: `npx gitnexus analyze`
+- Check freshness: `npx gitnexus status`
+- Generate docs: `npx gitnexus wiki`
 
 <!-- gitnexus:end -->

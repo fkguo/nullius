@@ -521,3 +521,16 @@
 - Formal external review via `Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)` returned 0 blocking. One low-value non-blocking amendment (export/unit-test `parseEnabledFlag`) was declined/closed because disabled-path behavior is already covered end-to-end and exporting the helper would widen internal API surface without changing correctness. Formal self-review also passed with 0 blocking.
 **Scope guard**:
 - `NEW-SEM-06f` does not create a new multimodal retrieval substrate, new parser/OCR/indexing stack, or search-heavy `agent-arxiv` lane. Future work should only revisit heavier multimodal retrieval if a later prompt explicitly reopens that scope.
+
+### [2026-03-10] Formalism is not core authority: treat it as optional run-local method metadata
+
+**Context**: During the standalone `NEW-05a-idea-core-domain-boundary` batch, the local code cleanup successfully pushed some HEP default-worldview logic behind the domain-pack seam, but a deeper repo-level contract problem remained: public schemas and runtime gates still required `candidate_formalisms[]`, `formalism_registry`, and `formalism_check`, and the HEP built-in pack still shipped concrete ids like `hep/toy`, `hep/eft`, and `hep/lattice` as if they were canonical authority. A 2026-03-10 SOTA/code review across `AI-Scientist-v2`, `PiFlow`, `Agent Laboratory`, and `AIDE` confirmed a different pattern: the core substrate centers on problem/task/evidence/runtime, while method/formalism choices stay task-local or runtime-local rather than becoming preinstalled worldview catalogs.
+**Decision**:
+- Core/public contracts must not require `candidate_formalisms[]`, `formalism_registry`, or `formalism_check` as mandatory mainline gates.
+- `formalism`-like method information may exist only as optional, non-gating, project/run-local metadata until a future explicit `method_spec -> execution_plan` contract is introduced.
+- Domain packs/providers expose capabilities, data/tool connectivity, and execution/evidence seams; they do not own canonical shipped concrete formalism-instance authority.
+- Stable `domain_pack_id` remains acceptable as an audit/replay/explicit-selection reference key, but it must not imply a pack-bundled worldview catalog.
+- Concrete approach/formalism names should live only in user input, project/run context, demo/test fixtures, or clearly provider-local non-authoritative templates.
+**Impact**:
+- `NEW-05a-idea-core-domain-boundary` closeout stays blocked until the follow-up prompt `meta/docs/prompts/prompt-2026-03-10-formalism-contract-boundary.md` removes the repo-level contract leakage.
+- `batch3` runtime/root/provider de-HEP cleanup should happen only after this formalism-contract follow-up, because batch3 alone cannot clean the user-facing tool ecology.

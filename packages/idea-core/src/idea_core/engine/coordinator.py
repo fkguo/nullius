@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -10,9 +9,10 @@ from uuid import uuid4
 
 from idea_core.contracts.catalog import ContractCatalog, ContractRuntimeError
 from idea_core.engine.domain_pack import (
+    DomainConstraintPolicy,
     DomainPackAssets,
     DomainPackIndex,
-    build_default_domain_pack_index,
+    build_builtin_domain_pack_index,
 )
 from idea_core.engine.formalism_registry import FormalismRegistry
 from idea_core.engine.operators import (
@@ -23,9 +23,7 @@ from idea_core.engine.operators import (
 from idea_core.engine.store import EngineStore
 from idea_core.engine.text_utils import (
     contains_any,
-    contains_unit_token,
     dedupe_preserve_order,
-    is_number,
     sanitize_text,
     sanitize_text_list,
     token_set,
@@ -37,67 +35,6 @@ BUDGET_DIMENSIONS = ["tokens", "cost_usd", "wall_clock_s", "steps", "nodes"]
 DIMENSION_ORDER = ["novelty", "feasibility", "impact", "tractability", "grounding"]
 STAGNATION_PATIENCE_STEPS = 2
 BEST_SCORE_EPSILON = 1e-9
-HEP_INFRASTRUCTURE_TIERS = {
-    "laptop": 0,
-    "workstation": 1,
-    "cluster": 2,
-    "not_yet_feasible": 3,
-}
-HEP_COMPUTE_RUBRIC_RULES = (
-    (
-        "frontier_not_yet_feasible",
-        (
-            "exascale",
-            "petabyte",
-            "full detector reconstruction",
-            "sign-problem lattice",
-            "quantum gravity full simulation",
-        ),
-        4.0,
-        "not_yet_feasible",
-    ),
-    (
-        "heavy_cluster",
-        (
-            "lattice",
-            "detector simulation",
-            "global fit",
-            "nnlo",
-            "multi-loop",
-            "full monte carlo",
-            "high-statistics simulation",
-        ),
-        3.1,
-        "cluster",
-    ),
-    (
-        "batch_workstation",
-        (
-            "parameter scan",
-            "mcmc",
-            "bayesian fit",
-            "markov chain",
-            "event generation",
-            "numerical integration",
-            "grid scan",
-        ),
-        1.6,
-        "workstation",
-    ),
-    (
-        "toy_laptop",
-        (
-            "toy",
-            "analytic",
-            "closed-form",
-            "smoke",
-            "deterministic",
-            "back-of-envelope",
-        ),
-        0.0,
-        "laptop",
-    ),
-)
 
 
 @dataclass
@@ -132,7 +69,7 @@ class IdeaCoreService:
         if domain_pack_index is not None:
             self.domain_pack_index = domain_pack_index
         else:
-            self.domain_pack_index = build_default_domain_pack_index(
+            self.domain_pack_index = build_builtin_domain_pack_index(
                 search_operators=search_operators,
             )
 
@@ -529,7 +466,10 @@ class IdeaCoreService:
             domain = str(charter.get("domain", "")).strip()
             candidate_pack_ids = list(self.domain_pack_index.eligible_pack_ids_for_domain(domain))
             if not candidate_pack_ids:
-                candidate_pack_ids = list(self.domain_pack_index.list_pack_ids())
+                domain_label = domain or "<empty>"
+                raise self._schema_error(
+                    f"no domain pack available for domain: {domain_label}",
+                )
 
         candidate_pack_ids = [pack_id for pack_id in candidate_pack_ids if pack_id not in disabled_ids]
         if not candidate_pack_ids:
@@ -588,6 +528,17 @@ class IdeaCoreService:
                 extra={"campaign_id": campaign_id},
             ) from exc
 
+    def _campaign_default_formalism_id(self, campaign: dict[str, Any]) -> str:
+        campaign_id = campaign.get("campaign_id")
+        try:
+            return FormalismRegistry.from_payload(
+                campaign.get("formalism_registry"),
+                context="campaign formalism registry",
+            ).default_formalism_id()
+        except ValueError as exc:
+            extra = {"campaign_id": campaign_id} if isinstance(campaign_id, str) else None
+            raise self._schema_error(str(exc), extra=extra) from exc
+
     @classmethod
     def _sanitize_evidence_uris(cls, value: Any) -> list[str]:
         cleaned = sanitize_text_list(value, fallback=[])
@@ -645,344 +596,6 @@ class IdeaCoreService:
         union = left_tokens | right_tokens
         return len(overlap) / len(union)
 
-    @classmethod
-    def _infer_hep_compute_rubric(
-        cls,
-        *,
-        method: str,
-        step: str,
-        claim_context: str,
-    ) -> dict[str, Any]:
-        context = " ".join([method, step, claim_context]).lower()
-        for rubric_id, keywords, estimate, required_infrastructure in HEP_COMPUTE_RUBRIC_RULES:
-            if contains_any(context, keywords):
-                return {
-                    "rubric_id": rubric_id,
-                    "estimated_compute_hours_log10": float(estimate),
-                    "required_infrastructure": required_infrastructure,
-                }
-        return {
-            "rubric_id": "baseline_workstation",
-            "estimated_compute_hours_log10": 1.0,
-            "required_infrastructure": "workstation",
-        }
-
-    @staticmethod
-    def _infrastructure_rank(required_infrastructure: str) -> int:
-        return HEP_INFRASTRUCTURE_TIERS.get(required_infrastructure, -1)
-
-    @classmethod
-    def _hep_claim_texts(cls, node: dict[str, Any]) -> list[tuple[str, str]]:
-        idea_card = node.get("idea_card")
-        if not isinstance(idea_card, dict):
-            return []
-        claims = idea_card.get("claims")
-        if not isinstance(claims, list):
-            return []
-        claim_texts: list[tuple[str, str]] = []
-        for idx, claim in enumerate(claims):
-            if not isinstance(claim, dict):
-                continue
-            claim_text = sanitize_text(claim.get("claim_text"), fallback="")
-            if claim_text:
-                claim_texts.append((f"idea_card.claims[{idx}].claim_text", claim_text))
-        return claim_texts
-
-    @classmethod
-    def _build_hep_constraint_findings(cls, node: dict[str, Any]) -> list[dict[str, str]]:
-        claim_texts = cls._hep_claim_texts(node)
-        if not claim_texts:
-            return []
-
-        findings: list[dict[str, str]] = []
-
-        def add_finding(
-            *,
-            heuristic_class: str,
-            validator_id: str,
-            code: str,
-            severity: str,
-            failure_mode: str,
-            target_field: str,
-            suggested_action: str,
-            message: str,
-            operator_hint: str | None = None,
-        ) -> None:
-            finding = {
-                "heuristic_class": heuristic_class,
-                "validator_id": validator_id,
-                "code": code,
-                "severity": severity,
-                "failure_mode": failure_mode,
-                "target_field": target_field,
-                "suggested_action": suggested_action,
-                "message": message,
-            }
-            if operator_hint:
-                finding["operator_hint"] = operator_hint
-            findings.append(finding)
-
-        for target_field, claim_text in claim_texts:
-            lowered = claim_text.lower()
-            has_number = any(ch.isdigit() for ch in lowered)
-
-            if has_number and contains_any(lowered, ("mass", "energy", "width")):
-                if not contains_unit_token(lowered, ("tev", "gev", "mev", "kev", "ev")):
-                    add_finding(
-                        heuristic_class="consistency",
-                        validator_id="hep.dimension_units.v1",
-                        code="dimension_missing_unit_mass_energy",
-                        severity="major",
-                        failure_mode="physics_inconsistency",
-                        target_field=target_field,
-                        suggested_action=(
-                            "Attach explicit energy/mass units (e.g., GeV/TeV) to the quantitative claim "
-                            "and restate the numerical range."
-                        ),
-                        message="Mass/energy-like quantity appears numeric but does not carry explicit units.",
-                    )
-
-            if has_number and "lifetime" in lowered:
-                if not contains_unit_token(lowered, ("s", "ms", "us", "ns", "ps", "fs")):
-                    add_finding(
-                        heuristic_class="consistency",
-                        validator_id="hep.dimension_units.v1",
-                        code="dimension_missing_unit_lifetime",
-                        severity="major",
-                        failure_mode="physics_inconsistency",
-                        target_field=target_field,
-                        suggested_action=(
-                            "Provide lifetime units (s/ms/us/ns/ps/fs) and ensure the numeric range matches "
-                            "the intended regime."
-                        ),
-                        message="Lifetime claim appears numeric but lacks explicit time units.",
-                    )
-
-            branching_matches = re.findall(
-                r"(?:branching ratio|branching fraction|\bbr\b)[^0-9+-]{0,10}([+-]?\d+(?:\.\d+)?)\s*(%)?",
-                lowered,
-            )
-            for raw_value, is_percent in branching_matches:
-                value = float(raw_value)
-                if is_percent == "%":
-                    value = value / 100.0
-                if value < 0.0 or value > 1.0:
-                    add_finding(
-                        heuristic_class="consistency",
-                        validator_id="hep.known_constraints.v1",
-                        code="branching_ratio_out_of_range",
-                        severity="critical",
-                        failure_mode="physics_inconsistency",
-                        target_field=target_field,
-                        suggested_action=(
-                            "Constrain branching ratio to [0, 1] (or use percentage notation explicitly) "
-                            "and align normalization assumptions."
-                        ),
-                        message="Branching-ratio-like quantity exceeds physical bounds [0, 1].",
-                    )
-                    break
-
-            if "massless" in lowered:
-                mass_matches = re.findall(
-                    r"\bmass\b[^0-9+-]{0,12}([+-]?\d+(?:\.\d+)?)\s*(tev|gev|mev|kev|ev)\b",
-                    lowered,
-                )
-                for raw_value, _ in mass_matches:
-                    if float(raw_value) > 0.0:
-                        add_finding(
-                            heuristic_class="consistency",
-                            validator_id="hep.known_constraints.v1",
-                            code="massless_positive_mass",
-                            severity="critical",
-                            failure_mode="physics_inconsistency",
-                            target_field=target_field,
-                            suggested_action=(
-                                "Resolve contradiction between 'massless' and positive mass value; either "
-                                "remove massless claim or set mass consistently to zero."
-                            ),
-                            message="Claim asserts massless state but also gives a positive mass value.",
-                        )
-                        break
-
-        idea_card = node.get("idea_card")
-        compute_plan = idea_card.get("minimal_compute_plan", []) if isinstance(idea_card, dict) else []
-        heavy_claim_text = " ".join(text for _, text in claim_texts).lower()
-        heavy_compute_claim = contains_any(
-            heavy_claim_text,
-            (
-                "lattice",
-                "detector simulation",
-                "global fit",
-                "nnlo",
-                "multi-loop",
-                "monte carlo",
-            ),
-        )
-
-        has_cluster_like_step = False
-        if isinstance(compute_plan, list):
-            for idx, step in enumerate(compute_plan):
-                if not isinstance(step, dict):
-                    continue
-                method = sanitize_text(step.get("method"), fallback="").lower()
-                step_name = sanitize_text(step.get("step"), fallback="").lower()
-                rubric = cls._infer_hep_compute_rubric(
-                    method=method,
-                    step=step_name,
-                    claim_context=heavy_claim_text,
-                )
-                rubric_estimate = float(rubric["estimated_compute_hours_log10"])
-                rubric_infra = str(rubric["required_infrastructure"])
-
-                raw_required_infra = sanitize_text(step.get("required_infrastructure"), fallback="").lower()
-                if not raw_required_infra:
-                    step["required_infrastructure"] = rubric_infra
-                    required_infra = rubric_infra
-                else:
-                    required_infra = raw_required_infra
-
-                estimate_value = step.get("estimated_compute_hours_log10")
-                if is_number(estimate_value):
-                    estimate = float(estimate_value)
-                else:
-                    estimate = rubric_estimate
-                    step["estimated_compute_hours_log10"] = estimate
-
-                if required_infra in {"cluster", "not_yet_feasible"}:
-                    has_cluster_like_step = True
-
-                method_target = f"idea_card.minimal_compute_plan[{idx}].method"
-                infra_target = f"idea_card.minimal_compute_plan[{idx}].required_infrastructure"
-                estimate_target = (
-                    f"idea_card.minimal_compute_plan[{idx}].estimated_compute_hours_log10"
-                )
-
-                if contains_any(method, ("todo", "tbd", "unknown", "placeholder", "n/a", "unspecified")):
-                    add_finding(
-                        heuristic_class="feasibility",
-                        validator_id="hep.compute_feasibility.v1",
-                        code="compute_plan_placeholder_method",
-                        severity="critical",
-                        failure_mode="not_computable",
-                        target_field=method_target,
-                        suggested_action=(
-                            "Replace placeholder compute method with an executable workflow "
-                            "(toolchain + measurable outputs + stopping criteria)."
-                        ),
-                        message="Compute plan method is placeholder-only and cannot be executed.",
-                        operator_hint="LimitExplorer",
-                    )
-
-                if required_infra == "not_yet_feasible":
-                    add_finding(
-                        heuristic_class="feasibility",
-                        validator_id="hep.compute_feasibility.v1",
-                        code="required_infrastructure_not_yet_feasible",
-                        severity="critical",
-                        failure_mode="not_computable",
-                        target_field=infra_target,
-                        suggested_action=(
-                            "Downgrade claim scope to a feasible proxy or provide a staged plan that "
-                            "starts with computable validation steps."
-                        ),
-                        message="Compute plan explicitly marks required infrastructure as not yet feasible.",
-                        operator_hint="LimitExplorer",
-                    )
-
-                if cls._infrastructure_rank(required_infra) < cls._infrastructure_rank(rubric_infra):
-                    severity = "critical" if rubric_infra in {"cluster", "not_yet_feasible"} else "major"
-                    add_finding(
-                        heuristic_class="feasibility",
-                        validator_id="hep.compute_feasibility.v1",
-                        code="required_infrastructure_below_rubric",
-                        severity=severity,
-                        failure_mode="not_computable",
-                        target_field=infra_target,
-                        suggested_action=(
-                            "Raise required_infrastructure to the HEP default rubric tier "
-                            f"({rubric_infra}) or narrow the compute scope to match declared infra."
-                        ),
-                        message=(
-                            "Required infrastructure is below the HEP compute rubric for the declared "
-                            "method/claim complexity."
-                        ),
-                        operator_hint="LimitExplorer",
-                    )
-
-                if rubric_estimate - estimate >= 0.7:
-                    severity = "critical" if rubric_estimate >= 3.0 else "major"
-                    add_finding(
-                        heuristic_class="feasibility",
-                        validator_id="hep.compute_feasibility.v1",
-                        code="estimated_compute_hours_below_rubric",
-                        severity=severity,
-                        failure_mode="not_computable",
-                        target_field=estimate_target,
-                        suggested_action=(
-                            "Increase estimated_compute_hours_log10 to match the HEP default rubric "
-                            f"({rubric_estimate:.1f}) or decompose into a lower-cost staged proxy."
-                        ),
-                        message=(
-                            "Compute-hour estimate is under-calibrated versus HEP rubric and risks "
-                            "a pseudo-computable plan."
-                        ),
-                        operator_hint="LimitExplorer",
-                    )
-
-                if estimate >= 3.0 and required_infra in {"laptop", "workstation"}:
-                    add_finding(
-                        heuristic_class="feasibility",
-                        validator_id="hep.compute_feasibility.v1",
-                        code="compute_hours_infrastructure_mismatch",
-                        severity="major",
-                        failure_mode="not_computable",
-                        target_field=infra_target,
-                        suggested_action=(
-                            "Align infrastructure tier with compute estimate (cluster or staged decomposition) "
-                            "before promotion."
-                        ),
-                        message="Compute-hour estimate is inconsistent with declared infrastructure tier.",
-                        operator_hint="LimitExplorer",
-                    )
-
-        if heavy_compute_claim and not has_cluster_like_step:
-            add_finding(
-                heuristic_class="feasibility",
-                validator_id="hep.compute_feasibility.v1",
-                code="heavy_claim_without_cluster_plan",
-                severity="critical",
-                failure_mode="not_computable",
-                target_field="idea_card.minimal_compute_plan",
-                suggested_action=(
-                    "Add at least one cluster-grade or staged feasibility step for heavy-compute claims "
-                    "(lattice/detector/global-fit class)."
-                ),
-                message="Claim implies heavy compute but plan lacks cluster-grade feasibility steps.",
-                operator_hint="LimitExplorer",
-            )
-
-        deduped: list[dict[str, str]] = []
-        seen: set[tuple[str, str, str, str]] = set()
-        for finding in findings:
-            key = (
-                finding["heuristic_class"],
-                finding["validator_id"],
-                finding["code"],
-                finding["target_field"],
-            )
-            if key in seen:
-                continue
-            seen.add(key)
-            deduped.append(finding)
-        return deduped
-
-    @classmethod
-    def _hep_failure_mode_token(cls, finding: dict[str, str]) -> str:
-        return (
-            f"hep:{finding['heuristic_class']}:{finding['validator_id']}:"
-            f"{finding['code']}:{finding['severity']}"
-        )
-
     @staticmethod
     def _priority_for_severity(severity: str) -> str:
         if severity == "critical":
@@ -1008,16 +621,29 @@ class IdeaCoreService:
             deduped.append(suggestion)
         return deduped
 
+    @staticmethod
+    def _constraint_failure_mode_token(
+        constraint_policy: DomainConstraintPolicy,
+        finding: dict[str, str],
+    ) -> str:
+        return (
+            f"{constraint_policy.namespace}:{finding['heuristic_class']}:"
+            f"{finding['validator_id']}:{finding['code']}:{finding['severity']}"
+        )
+
     @classmethod
-    def _append_hep_constraint_diagnostics(
+    def _append_domain_constraint_diagnostics(
         cls,
         *,
         node: dict[str, Any],
         failure_modes: list[str],
         fix_suggestions: list[dict[str, Any]],
+        constraint_policy: DomainConstraintPolicy | None,
     ) -> None:
-        for finding in cls._build_hep_constraint_findings(node):
-            failure_modes.append(cls._hep_failure_mode_token(finding))
+        if constraint_policy is None:
+            return
+        for finding in constraint_policy.build_findings(node):
+            failure_modes.append(cls._constraint_failure_mode_token(constraint_policy, finding))
             suggestion = {
                 "failure_mode": finding["failure_mode"],
                 "suggested_action": finding["suggested_action"],
@@ -1030,7 +656,14 @@ class IdeaCoreService:
             fix_suggestions.append(suggestion)
 
     @classmethod
-    def _blocking_hep_failure_modes(cls, node: dict[str, Any]) -> list[str]:
+    def _blocking_domain_failure_modes(
+        cls,
+        node: dict[str, Any],
+        *,
+        constraint_policy: DomainConstraintPolicy | None,
+    ) -> list[str]:
+        if constraint_policy is None:
+            return []
         eval_info = node.get("eval_info")
         if not isinstance(eval_info, dict):
             return []
@@ -1039,7 +672,7 @@ class IdeaCoreService:
             return []
         blocking: list[str] = []
         for mode in raw_modes:
-            if not isinstance(mode, str) or not mode.startswith("hep:"):
+            if not isinstance(mode, str) or not mode.startswith(f"{constraint_policy.namespace}:"):
                 continue
             segments = mode.split(":")
             if len(segments) < 5:
@@ -1912,12 +1545,7 @@ class IdeaCoreService:
             new_node_ids: list[str] = []
             new_nodes_payload: list[dict[str, Any]] = []
 
-            formalism_entries = planned_campaign.get("formalism_registry", {}).get("entries", [])
-            default_formalism = "hep/toy"
-            if formalism_entries and isinstance(formalism_entries[0], dict):
-                first_id = formalism_entries[0].get("formalism_id")
-                if isinstance(first_id, str) and first_id:
-                    default_formalism = first_id
+            default_formalism = self._campaign_default_formalism_id(planned_campaign)
 
             for tick in range(n_steps_requested):
                 if self._step_budget_exhausted(local_usage, step_budget):
@@ -2270,6 +1898,7 @@ class IdeaCoreService:
 
             campaign = self._load_campaign_or_error(campaign_id)
             self._ensure_campaign_running(campaign)
+            domain_pack = self._load_campaign_domain_pack(campaign)
 
             nodes = self.store.load_nodes(campaign_id)
             node_ids = params["node_ids"]
@@ -2352,10 +1981,11 @@ class IdeaCoreService:
                             }
                         )
 
-                self._append_hep_constraint_diagnostics(
+                self._append_domain_constraint_diagnostics(
                     node=node,
                     failure_modes=failure_modes,
                     fix_suggestions=fix_suggestions,
+                    constraint_policy=domain_pack.constraint_policy,
                 )
                 failure_modes = dedupe_preserve_order(failure_modes)
                 fix_suggestions = self._dedupe_fix_suggestions(fix_suggestions)
@@ -2783,6 +2413,7 @@ class IdeaCoreService:
 
             campaign = self._load_campaign_or_error(campaign_id)
             self._ensure_campaign_running(campaign)
+            domain_pack = self._load_campaign_domain_pack(campaign)
 
             nodes = self.store.load_nodes(campaign_id)
             node = nodes.get(node_id)
@@ -2871,15 +2502,23 @@ class IdeaCoreService:
                 )
                 raise error
 
-            blocking_hep_modes = self._blocking_hep_failure_modes(node)
-            if blocking_hep_modes:
+            blocking_constraint_modes = self._blocking_domain_failure_modes(
+                node,
+                constraint_policy=domain_pack.constraint_policy,
+            )
+            if blocking_constraint_modes:
+                blocking_error_message = (
+                    domain_pack.constraint_policy.blocking_error_message
+                    if domain_pack.constraint_policy is not None
+                    else "domain_constraints_failed"
+                )
                 data = {
                     "reason": "schema_invalid",
                     "campaign_id": campaign_id,
                     "node_id": node_id,
                     "details": {
-                        "message": "hep_constraints_failed",
-                        "blocking_failure_modes": blocking_hep_modes,
+                        "message": blocking_error_message,
+                        "blocking_failure_modes": blocking_constraint_modes,
                     },
                 }
                 self.catalog.validate_error_data(data)
