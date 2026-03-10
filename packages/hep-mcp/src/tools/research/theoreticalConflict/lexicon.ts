@@ -6,7 +6,7 @@ export type DebateAxis =
   | 'systematics'
   | 'other';
 
-export const AXIS_POSITION_LEXICON = {
+const AXIS_POSITION_LEXICON = {
   internal_structure: {
     molecular: ['molecular', 'hadronic molecule', 'molecule', 'bound state of', 'd*d', 'd*0', 'd0 d*', 'threshold'],
     tetraquark: ['tetraquark', 'diquark', 'compact'],
@@ -22,17 +22,21 @@ export const AXIS_POSITION_LEXICON = {
 
 type AxisKey = keyof typeof AXIS_POSITION_LEXICON;
 
+export type LexiconRetrievalPriorV1 = {
+  source: 'provider_local_lexicon';
+  axis_hint: DebateAxis;
+  position_hint: string;
+  hits: string[];
+  match_score: number;
+};
+
 function normalizeForMatch(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-export function classifyAxisPosition(text: string): {
-  axis: DebateAxis;
-  position: string;
-  hits: string[];
-} {
+export function collectLexiconRetrievalPrior(text: string): LexiconRetrievalPriorV1 | null {
   const lower = normalizeForMatch(text);
-  if (!lower) return { axis: 'other', position: 'unknown', hits: [] };
+  if (!lower) return null;
 
   const matches: Array<{ axis: AxisKey; position: string; score: number }> = [];
   const hits: string[] = [];
@@ -53,33 +57,14 @@ export function classifyAxisPosition(text: string): {
     }
   }
 
-  if (matches.length === 0) return { axis: 'other', position: 'unknown', hits: [] };
+  if (matches.length === 0) return null;
   matches.sort((a, b) => b.score - a.score);
   const best = matches[0]!;
-  return { axis: best.axis, position: best.position, hits };
-}
-
-const MUTUAL_EXCLUSION_RULES: Record<string, Array<[string, string]>> = {
-  internal_structure: [
-    ['molecular', 'tetraquark'],
-    ['molecular', 'hybrid'],
-    ['tetraquark', 'hybrid'],
-  ],
-};
-
-export function mutualExclusionRuleHits(axis: DebateAxis, positionA: string, positionB: string): string[] {
-  const a = positionA.trim().toLowerCase();
-  const b = positionB.trim().toLowerCase();
-  if (!a || !b || a === b) return [];
-
-  const rules = MUTUAL_EXCLUSION_RULES[axis] ?? [];
-  const hits: string[] = [];
-  for (const [x, y] of rules) {
-    const xa = x.toLowerCase();
-    const ya = y.toLowerCase();
-    if ((a === xa && b === ya) || (a === ya && b === xa)) {
-      hits.push(`mutual_exclusion:${axis}:${[xa, ya].sort().join('__')}`);
-    }
-  }
-  return hits;
+  return {
+    source: 'provider_local_lexicon',
+    axis_hint: best.axis,
+    position_hint: best.position,
+    hits,
+    match_score: best.score,
+  };
 }

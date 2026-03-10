@@ -46,8 +46,12 @@ type TheoreticalMetaArtifact = {
 
 type ConflictCandidateArtifact = {
   score: number;
-  retrieval_explanation: string;
-  rule_hits?: string[];
+  retrieval_explanation: { matched_tokens: string[]; token_overlap_ratio: number };
+  candidate_provenance: {
+    used_retrieval_prior: boolean;
+    retrieval_prior_sources: string[];
+    retrieval_prior_hits: string[];
+  };
 };
 
 type TheoreticalLlmRequestArtifact = {
@@ -65,6 +69,12 @@ type ConflictEdgeArtifact = {
   reasoning?: string;
   adjudication_category?: string;
   rationale?: ConflictRationaleArtifact;
+  provenance?: {
+    decision_status?: string;
+    reason_code?: string;
+    used_retrieval_prior?: boolean;
+    retrieval_prior_sources?: string[];
+  };
 };
 
 type TheoreticalConflictArtifact = {
@@ -75,7 +85,7 @@ type TheoreticalConflictArtifact = {
 
 type TheoreticalLlmResponseArtifact = {
   ok: boolean;
-  parsed: { relation: string };
+  parsed: { relation: string; abstain?: boolean };
 };
 
 type TheoreticalErrorPayload = {
@@ -191,10 +201,11 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     expect(typeof candidates[0].score).toBe('number');
     expect(candidates[0].retrieval_explanation).toBeTruthy();
 
-    const hasExclusive = candidates.some(candidate =>
-      Array.isArray(candidate.rule_hits) && candidate.rule_hits.some(hit => hit.includes('mutual_exclusion:internal_structure'))
+    const hasPriorAssistedCandidate = candidates.some(candidate =>
+      candidate.candidate_provenance.used_retrieval_prior
+      && candidate.candidate_provenance.retrieval_prior_sources.includes('provider_local_lexicon')
     );
-    expect(hasExclusive).toBe(true);
+    expect(hasPriorAssistedCandidate).toBe(true);
 
     const requests = readJsonl<TheoreticalLlmRequestArtifact>(getRunArtifactPath(run_id, 'theoretical_llm_requests.jsonl'));
     expect(requests.length).toBeGreaterThan(0);
@@ -203,6 +214,63 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     const conflicts = readJson<TheoreticalConflictArtifact>(getRunArtifactPath(run_id, 'theoretical_conflicts_v1.json'));
     expect(conflicts.artifacts.meta_uri).toContain('theoretical_meta_v1.json');
     expect(conflicts.summary.edges).toBeGreaterThan(0);
+    expect(conflicts.conflicts.every(edge => edge.relation === 'unclear')).toBe(true);
+    expect(conflicts.conflicts.every(edge => edge.provenance?.decision_status === 'fallback')).toBe(true);
+    expect(conflicts.conflicts.every(edge => edge.provenance?.reason_code === 'passthrough_mode')).toBe(true);
+  });
+
+  it('keeps non-lexicon title-only hard cases in the pipeline without forcing a final relation', async () => {
+    vi.mocked(api.getPaper).mockImplementation(async (recid: string) => {
+      const samples: Record<string, MockPaper> = {
+        '201': {
+          recid: '201',
+          title: 'Cusp explanation of Zc(3900)',
+          year: 2014,
+          abstract: 'A threshold cusp can mimic the observed enhancement.',
+        },
+        '202': {
+          recid: '202',
+          title: 'Triangle-singularity origin of Zc(3900)',
+          year: 2015,
+          abstract: 'The peak follows from a triangle singularity rather than a genuine resonance.',
+        },
+      };
+      const hit = samples[recid];
+      if (!hit) throw new Error(`missing recid mock: ${recid}`);
+      return hit;
+    });
+
+    const { run_id } = await createProjectAndRun();
+    const res = await handleToolCall('inspire_critical_research', {
+      mode: 'theoretical',
+      recids: ['201', '202'],
+      run_id,
+      options: {
+        subject_entity: 'Zc(3900)',
+        inputs: ['title'],
+        llm_mode: 'passthrough',
+        prompt_version: 'v2',
+        max_candidates_total: 10,
+        max_llm_requests: 10,
+      },
+    });
+
+    expect(res.isError).toBeFalsy();
+
+    const candidates = readJsonl<ConflictCandidateArtifact>(getRunArtifactPath(run_id, 'theoretical_conflict_candidates.jsonl'));
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(candidates.every(candidate => candidate.candidate_provenance.used_retrieval_prior === false)).toBe(true);
+
+    const claims = readJsonl<{ position: string }>(getRunArtifactPath(run_id, 'theoretical_claims_normalized.jsonl'));
+    const positions = claims.map(claim => claim.position);
+    expect(positions).toContain('cusp explanation');
+    expect(positions).toContain('triangle-singularity origin');
+
+    const conflicts = readJson<TheoreticalConflictArtifact>(getRunArtifactPath(run_id, 'theoretical_conflicts_v1.json'));
+    expect(conflicts.summary.edges).toBeGreaterThan(0);
+    expect(conflicts.conflicts[0]?.relation).toBe('unclear');
+    expect(conflicts.conflicts[0]?.provenance?.decision_status).toBe('fallback');
+    expect(conflicts.conflicts[0]?.provenance?.used_retrieval_prior).toBe(false);
   });
 
   it('client mode Phase A returns next_actions and Phase B applies adjudications', async () => {
@@ -268,6 +336,64 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     const notComparable = conflicts.conflicts.find(edge => edge.reasoning === 'Different assumptions and observables.');
     expect(notComparable?.adjudication_category).toBe('not_comparable');
     expect(notComparable?.rationale?.observable_differences).toContain('Mass hierarchy vs decay pattern');
+    expect(notComparable?.provenance?.decision_status).toBe('adjudicated');
+    expect(notComparable?.provenance?.reason_code).toBe('model_response');
+  });
+
+  it('preserves abstained adjudications as unclear fallback provenance rather than fabricating a relation', async () => {
+    mockPapers();
+    const { run_id } = await createProjectAndRun();
+
+    await handleToolCall('inspire_critical_research', {
+      mode: 'theoretical',
+      recids: ['101', '102', '103'],
+      run_id,
+      options: {
+        subject_entity: 'X(3872)',
+        llm_mode: 'client',
+        prompt_version: 'v2',
+        max_candidates_total: 10,
+        max_llm_requests: 10,
+      },
+    });
+
+    const requests = readJsonl<TheoreticalLlmRequestArtifact>(getRunArtifactPath(run_id, 'theoretical_llm_requests.jsonl'));
+    const firstRequestId = requests[0].request_id as string;
+
+    const res = await handleToolCall('inspire_critical_research', {
+      mode: 'theoretical',
+      recids: ['101', '102', '103'],
+      run_id,
+      options: {
+        subject_entity: 'X(3872)',
+        llm_mode: 'client',
+        prompt_version: 'v2',
+        max_candidates_total: 10,
+        max_llm_requests: 10,
+        client_llm_responses: [
+          {
+            request_id: firstRequestId,
+            json_response: {
+              abstain: true,
+              reasoning: 'The retrieved claims are too weak to support a stable relation.',
+            },
+            model: 'unit-test',
+            created_at: '2026-01-07T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    expect(res.isError).toBeFalsy();
+
+    const responses = readJsonl<TheoreticalLlmResponseArtifact>(getRunArtifactPath(run_id, 'theoretical_llm_responses.jsonl'));
+    expect(responses.some(response => response.ok && response.parsed.abstain === true)).toBe(true);
+
+    const conflicts = readJson<TheoreticalConflictArtifact>(getRunArtifactPath(run_id, 'theoretical_conflicts_v1.json'));
+    const abstained = conflicts.conflicts.find(edge => edge.provenance?.decision_status === 'abstained');
+    expect(abstained?.relation).toBe('unclear');
+    expect(abstained?.provenance?.reason_code).toBe('model_abstained');
+    expect(abstained?.reasoning).toContain('too weak');
   });
 
   it('strict_llm hard-fails on invalid client response JSON', async () => {
@@ -415,5 +541,7 @@ describe('inspire_critical_research(mode=theoretical): debate map + edges', () =
     const notComparable = conflicts.conflicts.find(edge => edge.relation === 'different_scope');
     expect(notComparable?.adjudication_category).toBe('not_comparable');
     expect(notComparable?.rationale?.scope_notes).toContain('Not directly comparable');
+    expect(notComparable?.provenance?.decision_status).toBe('adjudicated');
+    expect(notComparable?.provenance?.reason_code).toBe('model_response');
   });
 });

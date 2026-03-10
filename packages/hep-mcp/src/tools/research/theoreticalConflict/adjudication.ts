@@ -17,6 +17,7 @@ export type ParsedAdjudication = {
   reasoning: string;
   compatibility_note?: string;
   rationale: ConflictRationaleV1;
+  abstain?: boolean;
 };
 
 function parseJsonPayload(input: unknown): unknown {
@@ -74,6 +75,30 @@ export function parseAdjudication(input: unknown): ParsedAdjudication | null {
   const obj = parseJsonPayload(input);
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
   const record = obj as Record<string, unknown>;
+  const abstain = record.abstain === true;
+  if (abstain) {
+    const reasoning = String(record.reasoning ?? record.reason ?? '').trim() || 'Model abstained from adjudicating this edge.';
+    const rationaleRecord = record.rationale && typeof record.rationale === 'object' && !Array.isArray(record.rationale)
+      ? record.rationale as Record<string, unknown>
+      : null;
+    const rationale = rationaleRecord
+      ? {
+          category: 'unclear' as const,
+          summary: String(rationaleRecord.summary ?? reasoning).trim() || reasoning,
+          assumption_differences: normalizeStringArray(rationaleRecord.assumption_differences),
+          observable_differences: normalizeStringArray(rationaleRecord.observable_differences),
+          scope_notes: normalizeStringArray(rationaleRecord.scope_notes),
+        }
+      : defaultRationaleForRelation('unclear', reasoning);
+    return {
+      relation: 'unclear',
+      confidence: 0,
+      reasoning,
+      rationale,
+      abstain: true,
+    };
+  }
+
   const relationRaw = String(record.relation ?? '').trim();
   if (!isEdgeRelation(relationRaw)) return null;
   const relation = relationRaw as EdgeRelation;

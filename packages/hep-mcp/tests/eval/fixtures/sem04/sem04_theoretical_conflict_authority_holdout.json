@@ -1,0 +1,42 @@
+{
+  "name": "sem04_theoretical_conflict_authority_holdout",
+  "version": 1,
+  "description": "Holdout coverage for abstained theoretical conflict adjudications.",
+  "module": "sem04_theoretical_conflict_authority",
+  "cases": [
+    {
+      "id": "client_abstain_preserves_unclear_edge",
+      "tags": ["holdout", "abstain"],
+      "input": {
+        "subject_entity": "Zc(3900)",
+        "inputs": ["title"],
+        "llm_mode": "client",
+        "client_response": {
+          "abstain": true,
+          "reasoning": "The retrieved claims are too weak to support a stable relation."
+        },
+        "papers": [
+          {
+            "recid": "201",
+            "title": "Cusp explanation of Zc(3900)",
+            "year": 2014,
+            "abstract": "A threshold cusp can mimic the observed enhancement."
+          },
+          {
+            "recid": "202",
+            "title": "Triangle-singularity origin of Zc(3900)",
+            "year": 2015,
+            "abstract": "The peak follows from a triangle singularity rather than a genuine resonance."
+          }
+        ]
+      },
+      "expected": {
+        "min_candidates": 1,
+        "relation": "unclear",
+        "decision_status": "abstained",
+        "reason_code": "model_abstained",
+        "used_retrieval_prior": false
+      }
+    }
+  ]
+}

@@ -15,7 +15,11 @@ import { getRunArtifactPath } from '../../core/paths.js';
 import { getRun, type RunArtifactRef } from '../../core/runs.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
-import { classifyAxisPosition, mutualExclusionRuleHits, type DebateAxis } from './theoreticalConflict/lexicon.js';
+import {
+  collectLexiconRetrievalPrior,
+  type DebateAxis,
+  type LexiconRetrievalPriorV1,
+} from './theoreticalConflict/lexicon.js';
 import {
   defaultRationaleForRelation,
   parseAdjudication,
@@ -33,6 +37,7 @@ type ClaimType = 'interpretation' | 'prediction' | 'methodology' | 'assumption' 
 
 type EdgeRelation = 'contradict' | 'compatible' | 'different_scope' | 'unclear';
 type EvidenceStrength = 'strong' | 'moderate' | 'weak';
+type EdgeDecisionStatus = 'adjudicated' | 'fallback' | 'abstained' | 'pending_client';
 
 export interface TheoreticalConflictsResult {
   run_id: string;
@@ -51,6 +56,7 @@ type ClaimCandidateV1 = {
   locator?: { recid: string; field?: 'title' | 'abstract'; evidence_id?: string };
   subject_entity_hint?: string;
   trigger_signals?: string[];
+  retrieval_prior?: LexiconRetrievalPriorV1;
 };
 
 type NormalizedClaimV1 = {
@@ -66,6 +72,7 @@ type NormalizedClaimV1 = {
   source: { recid: string; title?: string; year?: number };
   confidence: number;
   evidence_refs?: Array<{ recid: string; field?: 'title' | 'abstract'; evidence_id?: string }>;
+  retrieval_prior?: LexiconRetrievalPriorV1;
 };
 
 type DebateNodeV1 = {
@@ -94,6 +101,21 @@ type ConflictEdgeV1 = {
   rationale?: ConflictRationaleV1;
   evidence_strength: EvidenceStrength;
   claim_ids: string[];
+  provenance: {
+    decision_source: 'llm_adjudication' | 'fallback_uncertain';
+    decision_status: EdgeDecisionStatus;
+    reason_code: string;
+    used_retrieval_prior: boolean;
+    retrieval_prior_sources: string[];
+    retrieval_prior_hits: string[];
+  };
+};
+
+type ConflictCandidateProvenanceV1 = {
+  retrieval_strategy: 'semantic_similarity';
+  used_retrieval_prior: boolean;
+  retrieval_prior_sources: string[];
+  retrieval_prior_hits: string[];
 };
 
 type LlmMode = 'passthrough' | 'client' | 'internal';
@@ -232,6 +254,10 @@ function normalizeWhitespace(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function splitSentences(text: string): string[] {
   const t = normalizeWhitespace(text);
   if (!t) return [];
@@ -364,6 +390,35 @@ function extractEntityHint(text: string): string | undefined {
   return undefined;
 }
 
+function derivePositionLabel(text: string, subjectEntity: string): string {
+  const normalized = normalizeWhitespace(text).replace(/[.;:]+$/g, '');
+  if (!normalized) return 'claim';
+
+  let cleaned = normalized
+    .replace(/^(?:we|our (?:results|analysis|study))\s+(?:propose|interpret|argue|conclude|find|show|demonstrate|suggest)\s+(?:that\s+)?/i, '')
+    .replace(/^(?:this paper|this work)\s+(?:argues?|proposes?|suggests?)\s+(?:that\s+)?/i, '')
+    .replace(/^(?:it|this|the result)\s+(?:is|are)\s+/i, '')
+    .replace(/^(?:a|an|the)\s+/i, '');
+
+  if (subjectEntity && subjectEntity !== 'unknown') {
+    cleaned = cleaned.replace(new RegExp(escapeRegExp(subjectEntity), 'ig'), ' ');
+  }
+
+  cleaned = cleaned
+    .replace(/^[,:;-]+\s*/g, '')
+    .replace(/\b(?:for|of|in|on|with|via|using|from|to)\s*$/i, '')
+    .replace(/^\b(?:is|are|can be|may be|as)\b\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const tokens = (cleaned || normalized)
+    .split(' ')
+    .map(token => token.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  return (tokens.join(' ') || 'claim').toLowerCase();
+}
+
 function stableSort<T>(items: T[], key: (t: T) => string): T[] {
   const copy = [...items];
   copy.sort((a, b) => key(a).localeCompare(key(b)));
@@ -403,7 +458,7 @@ export async function performTheoreticalConflicts(params: {
   if (!isAdjudicateEdgePromptVersion(promptVersionRaw)) {
     throw invalidParams('Unknown prompt_version for theoretical adjudication', {
       prompt_version: promptVersionRaw,
-      supported: ['v1'],
+      supported: ['v1', 'v2'],
     });
   }
   const promptVersion = promptVersionRaw as AdjudicateEdgePromptVersion;
@@ -461,11 +516,11 @@ export async function performTheoreticalConflicts(params: {
         if (!text) continue;
 
         const triggerSignals = TRIGGER_PATTERNS.filter(p => p.re.test(text)).map(p => p.name);
-        const classified = classifyAxisPosition(text);
-        const axis = classified.axis;
+        const retrievalPrior = collectLexiconRetrievalPrior(text);
 
-        // Keep only sentences that look like claims, or that strongly match a known debate lexicon axis.
-        if (triggerSignals.length === 0 && axis !== 'internal_structure') continue;
+        // Titles remain admissible as open-world claim summaries. Lexicon hits can help retrieval, but
+        // may not suppress or finalize a conflict decision.
+        if (item.input_type !== 'title' && triggerSignals.length === 0 && !retrievalPrior) continue;
 
         const claimCandidateId = `cc_${sha256Hex(JSON.stringify({ recid: paper.recid, input_type: item.input_type, text })).slice(0, 16)}`;
         if (candidatesById.has(claimCandidateId)) continue;
@@ -480,7 +535,10 @@ export async function performTheoreticalConflicts(params: {
           text,
           locator: item.field ? { recid: paper.recid, field: item.field } : { recid: paper.recid },
           subject_entity_hint: entityHint !== 'unknown' ? entityHint : undefined,
-          trigger_signals: [...triggerSignals, ...classified.hits].length > 0 ? [...triggerSignals, ...classified.hits] : undefined,
+          trigger_signals: [...triggerSignals, ...(retrievalPrior?.hits ?? [])].length > 0
+            ? [...triggerSignals, ...(retrievalPrior?.hits ?? [])]
+            : undefined,
+          retrieval_prior: retrievalPrior ?? undefined,
         });
       }
     }
@@ -498,19 +556,25 @@ export async function performTheoreticalConflicts(params: {
 
   // Baseline normalization (0 LLM).
   const claims: NormalizedClaimV1[] = candidatesFinal.map(c => {
-    const classified = classifyAxisPosition(c.text);
+    const position = derivePositionLabel(
+      c.text,
+      subjectEntityDefault !== 'unknown' ? subjectEntityDefault : (c.subject_entity_hint?.trim() || 'unknown'),
+    );
     const polarity = guessPolarity(c.text);
     const triggerCount = Array.isArray(c.trigger_signals) ? c.trigger_signals.length : 0;
-    const confidence = classified.axis === 'internal_structure' && classified.position !== 'unknown'
-      ? clamp01(0.55 + Math.min(0.25, triggerCount * 0.05))
-      : 0.35;
+    const confidenceBase = c.input_type === 'title' ? 0.45 : 0.35;
+    const confidence = clamp01(
+      confidenceBase
+      + Math.min(0.2, triggerCount * 0.05)
+      + (c.retrieval_prior ? 0.05 : 0),
+    );
 
     const effectiveEntity = subjectEntityDefault !== 'unknown' ? subjectEntityDefault : (c.subject_entity_hint?.trim() || 'unknown');
     const claimId = `cl_${sha256Hex(JSON.stringify({
       recid: c.locator?.recid ?? '',
       subject_entity: effectiveEntity,
-      axis: classified.axis,
-      position: classified.position,
+      axis: 'other',
+      position,
       text: c.text.toLowerCase(),
     })).slice(0, 16)}`;
 
@@ -521,13 +585,14 @@ export async function performTheoreticalConflicts(params: {
       claim_id: claimId,
       claim_type: 'interpretation',
       subject_entity: effectiveEntity,
-      axis: classified.axis,
-      position: classified.position,
+      axis: 'other',
+      position,
       polarity,
       original_text: c.text,
       source: { recid, title: meta?.title, year: meta?.year },
       confidence,
       evidence_refs: recid ? [{ recid, field: c.locator?.field }] : undefined,
+      retrieval_prior: c.retrieval_prior,
     };
   });
 
@@ -583,8 +648,8 @@ export async function performTheoreticalConflicts(params: {
     position_a: string;
     position_b: string;
     score: number;
-    rule_hits: string[];
     retrieval_explanation: { matched_tokens: string[]; token_overlap_ratio: number };
+    candidate_provenance: ConflictCandidateProvenanceV1;
     embedding_similarity: number;
     support_balance: number;
     claims_a_count: number;
@@ -645,12 +710,15 @@ export async function performTheoreticalConflicts(params: {
         const textA = positionText.get(posA) ?? '';
         const textB = positionText.get(posB) ?? '';
         const explanation = tokenOverlapExplanation(textA, textB);
-
-        const ruleHits = mutualExclusionRuleHits(node.axis, posA, posB);
-        const baselineRelation: EdgeRelation = ruleHits.length > 0 ? 'contradict' : 'unclear';
-        const baselineConfidence = baselineRelation === 'contradict' ? 0.65 : 0.35;
-        const ruleBoost = ruleHits.length > 0 ? 0.7 : 0;
-        const score = (0.5 * explanation.token_overlap_ratio) + (0.5 * embeddingSim) + (0.3 * balance) + ruleBoost;
+        const retrievalPriorHits = uniqueStrings([
+          ...claimsA.flatMap(claim => claim.retrieval_prior?.hits ?? []),
+          ...claimsB.flatMap(claim => claim.retrieval_prior?.hits ?? []),
+        ]);
+        const usedRetrievalPrior = retrievalPriorHits.length > 0;
+        const priorBoost = usedRetrievalPrior ? 0.1 : 0;
+        const baselineRelation: EdgeRelation = 'unclear';
+        const baselineConfidence = usedRetrievalPrior ? 0.3 : 0.25;
+        const score = (0.5 * explanation.token_overlap_ratio) + (0.5 * embeddingSim) + (0.3 * balance) + priorBoost;
 
         bucket.push({
           version: 1,
@@ -660,8 +728,13 @@ export async function performTheoreticalConflicts(params: {
           position_a: posA,
           position_b: posB,
           score,
-          rule_hits: ruleHits,
           retrieval_explanation: explanation,
+          candidate_provenance: {
+            retrieval_strategy: 'semantic_similarity',
+            used_retrieval_prior: usedRetrievalPrior,
+            retrieval_prior_sources: usedRetrievalPrior ? ['provider_local_lexicon'] : [],
+            retrieval_prior_hits: retrievalPriorHits,
+          },
           embedding_similarity: embeddingSim,
           support_balance: balance,
           claims_a_count: countA,
@@ -698,6 +771,14 @@ export async function performTheoreticalConflicts(params: {
       rationale: defaultRationaleForRelation(c.baseline_relation),
       evidence_strength: c.evidence_strength,
       claim_ids: c.claim_ids,
+      provenance: {
+        decision_source: 'fallback_uncertain',
+        decision_status: llmMode === 'client' ? 'pending_client' : 'fallback',
+        reason_code: llmMode === 'client' ? 'pending_client_response' : 'passthrough_mode',
+        used_retrieval_prior: c.candidate_provenance.used_retrieval_prior,
+        retrieval_prior_sources: c.candidate_provenance.retrieval_prior_sources,
+        retrieval_prior_hits: c.candidate_provenance.retrieval_prior_hits,
+      },
     }));
 
   const candidatesForRequests = [...conflictCandidatesFinal].sort((a, b) => (b.score - a.score) || a.edge_id.localeCompare(b.edge_id));
@@ -764,6 +845,7 @@ export async function performTheoreticalConflicts(params: {
 
   const responsesJsonl: Array<Record<string, unknown>> = [];
   const adjudications = new Map<string, ParsedAdjudication>();
+  const responseOutcomeByRequest = new Map<string, { decision_status: EdgeDecisionStatus; reason_code: string }>();
   let strictFailure: { request_id: string; error: string } | null = null;
 
   async function collectInternalResponses(): Promise<ClientLlmResponseInput[]> {
@@ -853,6 +935,10 @@ export async function performTheoreticalConflicts(params: {
 
       const errorField = resp.error;
       if (typeof errorField === 'string' && errorField.trim()) {
+        responseOutcomeByRequest.set(requestId, {
+          decision_status: 'fallback',
+          reason_code: 'llm_call_error',
+        });
         responsesJsonl.push({
           version: 1,
           generated_at: runStartedAt,
@@ -871,6 +957,10 @@ export async function performTheoreticalConflicts(params: {
       const parsed = parseAdjudication(resp.json_response);
       if (!parsed) {
         const err = 'invalid_json_response';
+        responseOutcomeByRequest.set(requestId, {
+          decision_status: 'fallback',
+          reason_code: err,
+        });
         responsesJsonl.push({
           version: 1,
           generated_at: runStartedAt,
@@ -886,6 +976,10 @@ export async function performTheoreticalConflicts(params: {
       }
 
       adjudications.set(requestId, parsed);
+      responseOutcomeByRequest.set(requestId, {
+        decision_status: parsed.abstain ? 'abstained' : 'adjudicated',
+        reason_code: parsed.abstain ? 'model_abstained' : 'model_response',
+      });
       responsesJsonl.push({
         version: 1,
         generated_at: runStartedAt,
@@ -906,8 +1000,20 @@ export async function performTheoreticalConflicts(params: {
   // Apply adjudications to edges (best-effort).
   const edgesAdjudicated: ConflictEdgeV1[] = edgesFinal.map(edge => {
     const reqId = `rq_${sha256Hex(JSON.stringify({ edge_id: edge.edge_id, prompt_version: promptVersion })).slice(0, 16)}`;
+    const outcome = responseOutcomeByRequest.get(reqId);
     const adjudicated = adjudications.get(reqId);
-    if (!adjudicated) return edge;
+    if (!outcome && !adjudicated) return edge;
+    if (!adjudicated) {
+      return {
+        ...edge,
+        provenance: {
+          ...edge.provenance,
+          decision_source: 'fallback_uncertain',
+          decision_status: outcome?.decision_status ?? edge.provenance.decision_status,
+          reason_code: outcome?.reason_code ?? edge.provenance.reason_code,
+        },
+      };
+    }
     return {
       ...edge,
       relation: adjudicated.relation,
@@ -916,6 +1022,12 @@ export async function performTheoreticalConflicts(params: {
       compatibility_note: adjudicated.compatibility_note,
       adjudication_category: adjudicated.rationale.category,
       rationale: adjudicated.rationale,
+      provenance: {
+        ...edge.provenance,
+        decision_source: 'llm_adjudication',
+        decision_status: outcome?.decision_status ?? (adjudicated.abstain ? 'abstained' : 'adjudicated'),
+        reason_code: outcome?.reason_code ?? (adjudicated.abstain ? 'model_abstained' : 'model_response'),
+      },
     };
   });
 
