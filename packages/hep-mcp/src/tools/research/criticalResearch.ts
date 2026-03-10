@@ -140,6 +140,8 @@ export async function performCriticalResearch(
         search_confirmations: options.search_confirmations,
         max_search_results: options.max_search_results,
         assumption_max_depth: options.assumption_max_depth,
+      }, {
+        createMessage: ctx.createMessage,
       });
       break;
     }
@@ -148,6 +150,8 @@ export async function performCriticalResearch(
       result.reviews = await classifyReviews({
         recids,
         current_threshold_years: options.current_threshold_years,
+      }, {
+        createMessage: ctx.createMessage,
       });
       break;
     }

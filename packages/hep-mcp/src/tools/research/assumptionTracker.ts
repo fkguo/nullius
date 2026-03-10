@@ -1,56 +1,35 @@
-/**
- * Assumption Tracker Module
- * Tracks assumptions and their validation status across papers
- *
- * Features:
- * - Assumption extraction from text
- * - Inherited assumption detection
- * - Challenge/validation detection
- * - Fragility scoring
- */
-
+import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
+import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
 import * as api from '../../api/client.js';
-import { getConfig, validateRecid, validateMaxDepth } from './config.js';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
+import { getConfig, validateMaxDepth, validateRecid } from './config.js';
+import { buildAssumptionExtractionPrompt, extractSamplingText, parseAssumptionExtractionResponse } from './semantic/assumptionSampling.js';
+import type { SemanticAssessmentProvenance } from './semantic/semanticProvenance.js';
+import { sha256Hex } from './semantic/semanticProvenance.js';
 
 export type AssumptionType = 'explicit' | 'implicit';
 export type AssumptionSource = 'original' | 'inherited';
-export type ValidationStatus = 'tested' | 'untested' | 'challenged' | 'refuted';
+export type ValidationStatus = 'tested' | 'untested' | 'challenged' | 'refuted' | 'uncertain' | 'unavailable';
 
 export interface AssumptionNode {
-  /** The assumption text */
   assumption: string;
-  /** Whether explicitly stated or implicit */
   type: AssumptionType;
-  /** Whether original to this paper or inherited from references */
   source: AssumptionSource;
-  /** Papers from which this assumption is inherited */
-  inherited_from?: Array<{ recid: string; title: string; }>;
-  /** Validation status */
+  inherited_from?: Array<{ recid: string; title: string }>;
   validation_status: ValidationStatus;
-  /** Papers that challenge this assumption */
-  challenge_papers?: Array<{ recid: string; title: string; }>;
-  /** Papers that support/test this assumption */
-  supporting_papers?: Array<{ recid: string; title: string; }>;
-  /** Category of assumption */
-  category: 'theoretical' | 'methodological' | 'experimental' | 'phenomenological';
+  challenge_papers?: Array<{ recid: string; title: string }>;
+  supporting_papers?: Array<{ recid: string; title: string }>;
+  category: string | null;
+  provenance: SemanticAssessmentProvenance;
 }
 
 export interface AssumptionChain {
-  /** Paper being analyzed */
   paper_recid: string;
   paper_title: string;
   paper_year?: number;
-  /** Core assumptions identified */
   core_assumptions: AssumptionNode[];
-  /** Fragility score (0-1, higher = more fragile) */
   fragility_score: number;
-  /** Most critical (fragile) dependencies */
   critical_dependencies: string[];
-  /** Summary */
   summary: {
     total_assumptions: number;
     explicit_count: number;
@@ -59,479 +38,291 @@ export interface AssumptionChain {
     challenged_count: number;
     untested_count: number;
   };
+  provenance: SemanticAssessmentProvenance;
 }
 
 export interface AssumptionTrackerParams {
-  /** INSPIRE recid of the paper to analyze */
   recid: string;
-  /** Maximum depth for tracing inherited assumptions (default: 2) */
   max_depth?: number;
-  /** Check for challenges in citing papers (default: true) */
   check_challenges?: boolean;
 }
 
 export interface AssumptionTrackerResult {
   success: boolean;
   error?: string;
-  /** Assumption chain analysis */
   analysis: AssumptionChain | null;
-  /** Risk assessment */
   risk_assessment?: {
     level: 'low' | 'medium' | 'high';
     description: string;
     recommendations: string[];
   };
+  provenance?: SemanticAssessmentProvenance;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Keywords indicating explicit assumptions
-const EXPLICIT_ASSUMPTION_KEYWORDS = [
-  'assume', 'assuming', 'assumption',
-  'suppose', 'supposing', 'suppose that',
-  'we take', 'we consider',
-  'for simplicity', 'in the limit',
-  'neglect', 'ignoring', 'neglecting',
-  'approximation', 'approximate',
-  'treat as', 'treating',
-];
-
-// Keywords indicating implicit/inherited assumptions
-const IMPLICIT_ASSUMPTION_PATTERNS = [
-  'following ref', 'following \\[',
-  'as in ref', 'as shown in',
-  'using the method of', 'based on',
-  'according to', 'from ref',
-  'standard assumption', 'usual assumption',
-  'it is well known', 'well-known',
-];
-
-// Keywords indicating challenges
-const CHALLENGE_KEYWORDS = [
-  'question', 'challenge', 'contradict',
-  'inconsistent', 'disagree', 'dispute',
-  'problematic', 'flaw', 'error',
-  'invalid', 'violation', 'breaks down',
-  'fails', 'failure', 'incorrect',
-];
-
-// Keywords indicating validation/support
-const VALIDATION_KEYWORDS = [
-  'confirm', 'validate', 'verify',
-  'support', 'consistent with',
-  'agreement', 'agrees with',
-  'test', 'tested', 'demonstrated',
-];
-
-// Common assumption categories and examples
-const ASSUMPTION_CATEGORIES: Record<string, string[]> = {
-  theoretical: [
-    'unitarity', 'causality', 'lorentz invariance',
-    'gauge invariance', 'symmetry', 'perturbative',
-    'non-perturbative', 'effective field theory',
-    'standard model', 'supersymmetry',
-  ],
-  methodological: [
-    'monte carlo', 'fitting', 'extrapolation',
-    'interpolation', 'lattice', 'continuum limit',
-    'chiral limit', 'perturbation theory',
-    'resummation', 'factorization',
-  ],
-  experimental: [
-    'detector', 'efficiency', 'background',
-    'systematic', 'calibration', 'alignment',
-    'trigger', 'acceptance', 'resolution',
-  ],
-  phenomenological: [
-    'model', 'parametrization', 'form factor',
-    'coupling', 'mixing', 'decay',
-    'cross section', 'distribution',
-  ],
+type AssumptionSamplingContext = {
+  createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
+const EXPLICIT_MARKERS = ['assume', 'assuming', 'suppose', 'approximation', 'for simplicity', 'in the limit', 'neglect'];
+const IMPLICIT_MARKERS = ['following', 'based on', 'as in', 'standard assumption', 'well known'];
 
-/**
- * Extract sentences containing assumptions from text
- */
-function extractAssumptionSentences(text: string): Array<{
-  sentence: string;
-  type: AssumptionType;
-}> {
-  const results: Array<{ sentence: string; type: AssumptionType }> = [];
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
-
-  for (const sentence of sentences) {
-    const sentenceLower = sentence.toLowerCase();
-
-    // Check for explicit assumptions
-    if (EXPLICIT_ASSUMPTION_KEYWORDS.some(kw => sentenceLower.includes(kw))) {
-      results.push({ sentence: sentence.trim(), type: 'explicit' });
-      continue;
-    }
-
-    // Check for implicit/inherited assumptions
-    if (IMPLICIT_ASSUMPTION_PATTERNS.some(p => sentenceLower.includes(p))) {
-      results.push({ sentence: sentence.trim(), type: 'implicit' });
-    }
-  }
-
-  return results;
+function splitAbstract(abstract: string): string[] {
+  return abstract.split(/[.!?]+/).map(sentence => sentence.trim()).filter(sentence => sentence.length > 20);
 }
 
-/**
- * Categorize an assumption
- */
-function categorizeAssumption(
-  text: string
-): 'theoretical' | 'methodological' | 'experimental' | 'phenomenological' {
-  const textLower = text.toLowerCase();
-
-  for (const [category, keywords] of Object.entries(ASSUMPTION_CATEGORIES)) {
-    if (keywords.some(kw => textLower.includes(kw))) {
-      return category as 'theoretical' | 'methodological' | 'experimental' | 'phenomenological';
-    }
-  }
-
-  return 'theoretical'; // Default
-}
-
-/**
- * Check if a reference paper contains challenges to assumptions
- */
-async function checkForChallenges(
-  recid: string,
-  _assumptionText: string
-): Promise<Array<{ recid: string; title: string; }>> {
-  const challenges: Array<{ recid: string; title: string; }> = [];
-
-  try {
-    // Prefer query-time filtering over scanning abstracts (we don't fetch abstracts in search fields).
-    const keywordQuery = CHALLENGE_KEYWORDS
-      .map(k => (k.includes(' ') ? `"${k}"` : k))
-      .join(' or ');
-    const query = `refersto:recid:${recid} and (${keywordQuery})`;
-    const result = await api.search(query, { sort: 'mostrecent', size: 1000 });
-
-    for (const paper of result.papers) {
-      if (!paper.recid) continue;
-      challenges.push({
-        recid: paper.recid,
-        title: paper.title,
-      });
-    }
-  } catch (error) {
-    // Log at debug level for troubleshooting
-    console.debug(`[hep-mcp] searchChallenges (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  return challenges.slice(0, 3); // Limit to 3
-}
-
-/**
- * Check if references validate the assumption
- */
-async function checkForValidation(
-  recid: string,
-  maxRefs: number = 10
-): Promise<Array<{ recid: string; title: string; }>> {
-  const validations: Array<{ recid: string; title: string; }> = [];
-
-  try {
-    const refs = await api.getReferences(recid, maxRefs);
-
-    for (const ref of refs) {
-      const title = ref.title || '';
-      const titleLower = title.toLowerCase();
-
-      // Check if title suggests validation
-      if (VALIDATION_KEYWORDS.some(kw => titleLower.includes(kw))) {
-        validations.push({
-          recid: ref.recid || '',
-          title: ref.title,
-        });
-      }
-    }
-  } catch (error) {
-    // Log at debug level for troubleshooting
-    console.debug(`[hep-mcp] checkValidations (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
-    // Skip on error
-  }
-
-  return validations.slice(0, 3);
-}
-
-/**
- * Extract inherited assumptions from references
- */
-async function extractInheritedAssumptions(
-  recid: string,
-  currentDepth: number,
-  maxDepth: number
-): Promise<AssumptionNode[]> {
-  if (currentDepth >= maxDepth) return [];
-
-  const inherited: AssumptionNode[] = [];
-  const config = getConfig().criticalResearch;
-
-  try {
-    const refs = await api.getReferences(recid, config?.maxRefsPerLevel ?? 5);
-
-    for (const ref of refs) {
-      if (!ref.recid) continue;
-
-      // Get reference paper details
-      try {
-        const paper = await api.getPaper(ref.recid);
-        const abstract = paper.abstract || '';
-
-        // Extract assumptions from reference abstract
-        const refAssumptions = extractAssumptionSentences(abstract);
-        const maxAssumptions = config?.maxAssumptionsPerRef ?? 2;
-
-        for (const { sentence, type } of refAssumptions.slice(0, maxAssumptions)) {
-          inherited.push({
-            assumption: sentence,
-            type,
-            source: 'inherited',
-            inherited_from: [{ recid: ref.recid, title: ref.title }],
-            validation_status: 'untested', // Default for inherited
-            category: categorizeAssumption(sentence),
-          });
-        }
-      } catch (error) {
-        // Log at debug level for troubleshooting
-        console.debug(`[hep-mcp] extractInheritedAssumptions - ref processing (recid=${ref.recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
-        continue;
-      }
-    }
-  } catch (error) {
-    // Log at debug level for troubleshooting
-    console.debug(`[hep-mcp] extractInheritedAssumptions (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
-    // Skip on error
-  }
-
-  return inherited;
-}
-
-/**
- * Calculate fragility score based on assumptions
- */
-function calculateFragilityScore(assumptions: AssumptionNode[]): number {
-  if (assumptions.length === 0) return 0;
-
-  let score = 0;
-  let weight = 0;
-
-  for (const assumption of assumptions) {
-    const w = assumption.source === 'inherited' ? 1.2 : 1.0;
-    weight += w;
-
-    // Base fragility by validation status
-    switch (assumption.validation_status) {
-      case 'refuted':
-        score += w * 1.0;
-        break;
-      case 'challenged':
-        score += w * 0.7;
-        break;
-      case 'untested':
-        score += w * 0.4;
-        break;
-      case 'tested':
-        score += w * 0.1;
-        break;
-    }
-
-    // Extra penalty for implicit assumptions
-    if (assumption.type === 'implicit') {
-      score += w * 0.1;
-    }
-  }
-
-  return Math.min(1, score / weight);
-}
-
-/**
- * Identify critical dependencies (most fragile assumptions)
- */
-function identifyCriticalDependencies(assumptions: AssumptionNode[]): string[] {
-  const config = getConfig().criticalResearch;
-  const maxDeps = config?.maxCriticalDependencies ?? 3;
-
-  // Sort by fragility (challenged > untested > inherited)
-  const sorted = [...assumptions].sort((a, b) => {
-    const statusOrder: Record<ValidationStatus, number> = {
-      refuted: 4,
-      challenged: 3,
-      untested: 2,
-      tested: 1,
-    };
-
-    const aScore = statusOrder[a.validation_status] + (a.source === 'inherited' ? 0.5 : 0);
-    const bScore = statusOrder[b.validation_status] + (b.source === 'inherited' ? 0.5 : 0);
-
-    return bScore - aScore;
-  });
-
-  // Return top most critical
-  return sorted.slice(0, maxDeps).map(a => a.assumption.slice(0, 100) + '...');
-}
-
-/**
- * Generate risk assessment
- */
-function generateRiskAssessment(
-  fragilityScore: number,
-  challengedCount: number,
-  untestedCount: number
-): { level: 'low' | 'medium' | 'high'; description: string; recommendations: string[] } {
-  let level: 'low' | 'medium' | 'high';
-  let description: string;
-  const recommendations: string[] = [];
-
-  if (fragilityScore > 0.7 || challengedCount >= 2) {
-    level = 'high';
-    description = 'High fragility detected. Key assumptions have been challenged or are untested.';
-    recommendations.push('Carefully verify all challenged assumptions before relying on conclusions');
-    recommendations.push('Check cited papers for details on challenged assumptions');
-    recommendations.push('Consider alternative approaches that avoid fragile assumptions');
-  } else if (fragilityScore > 0.4 || challengedCount >= 1 || untestedCount >= 3) {
-    level = 'medium';
-    description = 'Moderate fragility. Some assumptions require attention.';
-    recommendations.push('Review untested assumptions for potential weaknesses');
-    recommendations.push('Look for independent validations of key assumptions');
-  } else {
-    level = 'low';
-    description = 'Low fragility. Assumptions appear well-founded.';
-    recommendations.push('Continue to monitor for new challenges in the literature');
-  }
-
-  return { level, description, recommendations };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Function
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Track assumptions and their validation status
- */
-export async function trackAssumptions(
-  params: AssumptionTrackerParams
-): Promise<AssumptionTrackerResult> {
-  const {
-    recid,
-    max_depth: rawMaxDepth = 2,
-    check_challenges = true,
-  } = params;
-
-  // Validate recid
-  const recidError = validateRecid(recid);
-  if (recidError) {
-    return {
-      success: false,
-      error: recidError,
-      analysis: null,
-    };
-  }
-
-  // Validate and clamp max_depth
-  const max_depth = validateMaxDepth(rawMaxDepth, 2);
-
-  try {
-    // Get paper metadata
-    const paper = await api.getPaper(recid);
-    const abstract = paper.abstract || '';
-
-    // Extract assumptions from abstract
-    const directAssumptions = extractAssumptionSentences(abstract);
-    const assumptions: AssumptionNode[] = [];
-
-    // Process direct assumptions
-    for (const { sentence, type } of directAssumptions) {
-      const category = categorizeAssumption(sentence);
-
-      let challenges: Array<{ recid: string; title: string; }> = [];
-      let validations: Array<{ recid: string; title: string; }> = [];
-
-      if (check_challenges) {
-        challenges = await checkForChallenges(recid, sentence);
-        validations = await checkForValidation(recid);
-      }
-
-      let validationStatus: ValidationStatus = 'untested';
-      if (challenges.length > 0) {
-        validationStatus = 'challenged';
-      } else if (validations.length > 0) {
-        validationStatus = 'tested';
-      }
-
-      assumptions.push({
+function extractFallbackAssumptions(abstract: string, promptVersion: string, inputHash: string): AssumptionNode[] {
+  return splitAbstract(abstract)
+    .filter(sentence => {
+      const lowered = sentence.toLowerCase();
+      return EXPLICIT_MARKERS.some(marker => lowered.includes(marker)) || IMPLICIT_MARKERS.some(marker => lowered.includes(marker));
+    })
+    .slice(0, 4)
+    .map(sentence => {
+      const lowered = sentence.toLowerCase();
+      const type: AssumptionType = EXPLICIT_MARKERS.some(marker => lowered.includes(marker)) ? 'explicit' : 'implicit';
+      return {
         assumption: sentence,
         type,
         source: 'original',
-        validation_status: validationStatus,
-        challenge_papers: challenges.length > 0 ? challenges : undefined,
-        supporting_papers: validations.length > 0 ? validations : undefined,
-        category,
-      });
+        validation_status: 'unavailable',
+        category: null,
+        provenance: {
+          backend: 'diagnostic_fallback',
+          status: 'fallback',
+          used_fallback: true,
+          reason_code: 'lexical_candidate_extraction',
+          prompt_version: promptVersion,
+          input_hash: inputHash,
+        },
+      };
+    });
+}
+
+async function fetchReferenceContexts(recid: string, maxDepth: number): Promise<Array<{ recid: string; title: string; abstract?: string }>> {
+  if (maxDepth <= 0) return [];
+  const maxRefs = getConfig().criticalResearch?.maxRefsPerLevel ?? 3;
+  try {
+    const refs = await api.getReferences(recid, maxRefs);
+    const selected = refs.filter(ref => ref.recid).slice(0, maxRefs);
+    const papers = await Promise.all(selected.map(async ref => {
+      try {
+        const paper = await api.getPaper(ref.recid!);
+        return { recid: ref.recid!, title: ref.title, abstract: paper.abstract };
+      } catch {
+        return { recid: ref.recid!, title: ref.title };
+      }
+    }));
+    return papers;
+  } catch {
+    return [];
+  }
+}
+
+function assumptionWeight(status: ValidationStatus): number {
+  switch (status) {
+    case 'refuted': return 1;
+    case 'challenged': return 0.85;
+    case 'uncertain': return 0.65;
+    case 'unavailable': return 0.6;
+    case 'untested': return 0.5;
+    case 'tested': return 0.2;
+  }
+}
+
+function calculateFragilityScore(assumptions: AssumptionNode[]): number {
+  if (assumptions.length === 0) return 0;
+  const weighted = assumptions.map(item => assumptionWeight(item.validation_status) + (item.source === 'inherited' ? 0.1 : 0) + (item.type === 'implicit' ? 0.05 : 0));
+  return Math.min(1, weighted.reduce((sum, value) => sum + value, 0) / assumptions.length);
+}
+
+function identifyCriticalDependencies(assumptions: AssumptionNode[]): string[] {
+  return [...assumptions]
+    .sort((left, right) => assumptionWeight(right.validation_status) - assumptionWeight(left.validation_status))
+    .slice(0, 3)
+    .map(item => item.assumption.slice(0, 100));
+}
+
+function buildRiskAssessment(fragilityScore: number, uncertainCount: number, unavailableCount: number) {
+  if (fragilityScore >= 0.7 || uncertainCount >= 3) {
+    return {
+      level: 'high' as const,
+      description: 'Key assumptions remain semantically unresolved; conclusions should be checked manually before reuse.',
+      recommendations: ['Inspect each high-fragility assumption against the cited literature.', 'Prefer follow-up work with explicit robustness checks.'],
+    };
+  }
+  if (fragilityScore >= 0.45 || unavailableCount >= 2) {
+    return {
+      level: 'medium' as const,
+      description: 'Assumption coverage is partial; several assumptions remain uncertain or unavailable.',
+      recommendations: ['Look for explicit assumption validation in later papers.', 'Document which assumptions you are carrying forward unchanged.'],
+    };
+  }
+  return {
+    level: 'low' as const,
+    description: 'Assumption surface is relatively bounded, though still worth monitoring for later challenges.',
+    recommendations: ['Track whether later papers revisit these assumptions explicitly.'],
+  };
+}
+
+export async function trackAssumptions(
+  params: AssumptionTrackerParams,
+  ctx: AssumptionSamplingContext = {},
+): Promise<AssumptionTrackerResult> {
+  const recidError = validateRecid(params.recid);
+  if (recidError) return { success: false, error: recidError, analysis: null };
+
+  const maxDepth = validateMaxDepth(params.max_depth ?? 2, 2);
+  const checkChallenges = params.check_challenges ?? true;
+
+  try {
+    const paper = await api.getPaper(params.recid);
+    const references = await fetchReferenceContexts(params.recid, maxDepth);
+    const promptVersion = 'sem05_assumption_tracker_v2';
+    const inputHash = sha256Hex(JSON.stringify({
+      recid: params.recid,
+      title: paper.title,
+      abstract: paper.abstract || '',
+      references,
+      max_depth: maxDepth,
+      check_challenges: checkChallenges,
+    }));
+
+    const fallbackProvenance: SemanticAssessmentProvenance = {
+      backend: 'diagnostic_fallback',
+      status: 'fallback',
+      used_fallback: true,
+      reason_code: 'sampling_unavailable',
+      prompt_version: promptVersion,
+      input_hash: inputHash,
+    };
+
+    let assumptions: AssumptionNode[] = [];
+    let provenance = fallbackProvenance;
+
+    if (!ctx.createMessage) {
+      assumptions = extractFallbackAssumptions(paper.abstract || '', promptVersion, inputHash);
+    } else {
+      let response: CreateMessageResult | null = null;
+      try {
+        response = await ctx.createMessage({
+          messages: [{
+            role: 'user',
+            content: {
+              type: 'text',
+              text: buildAssumptionExtractionPrompt({
+                prompt_version: promptVersion,
+                title: paper.title,
+                abstract: paper.abstract || '',
+                references,
+                max_assumptions: getConfig().criticalResearch?.maxCriticalDependencies ?? 5,
+              }),
+            },
+          }],
+          maxTokens: 900,
+          metadata: buildToolSamplingMetadata({
+            tool: INSPIRE_CRITICAL_RESEARCH,
+            module: 'sem05_assumption_tracker',
+            promptVersion,
+            costClass: 'medium',
+          }),
+        });
+      } catch {
+        assumptions = extractFallbackAssumptions(paper.abstract || '', promptVersion, inputHash);
+        provenance = {
+          backend: 'mcp_sampling',
+          status: 'unavailable',
+          used_fallback: true,
+          reason_code: 'sampling_error',
+          prompt_version: promptVersion,
+          input_hash: inputHash,
+        };
+      }
+
+      if (response) {
+        const parsed = parseAssumptionExtractionResponse(extractSamplingText(response.content));
+        if (!parsed || parsed.abstain) {
+          assumptions = extractFallbackAssumptions(paper.abstract || '', promptVersion, inputHash);
+          provenance = {
+            backend: 'mcp_sampling',
+            status: parsed?.abstain ? 'abstained' : 'invalid',
+            used_fallback: true,
+            reason_code: parsed?.abstain ? 'model_abstained' : 'invalid_response',
+            prompt_version: promptVersion,
+            input_hash: inputHash,
+            model: response.model,
+          };
+        } else {
+          assumptions = parsed.assumptions.slice(0, 6).map(item => ({
+            assumption: item.assumption,
+            type: item.type,
+            source: item.source,
+            inherited_from: item.inherited_from.length > 0 ? item.inherited_from : undefined,
+            validation_status: checkChallenges ? 'uncertain' : 'unavailable',
+            category: item.category_label,
+            provenance: {
+              backend: 'mcp_sampling',
+              status: 'applied',
+              used_fallback: false,
+              reason_code: parsed.reason || 'semantic_assumption_extraction',
+              prompt_version: promptVersion,
+              input_hash: inputHash,
+              model: response.model,
+            },
+          }));
+          provenance = assumptions[0]?.provenance ?? {
+            backend: 'mcp_sampling',
+            status: 'applied',
+            used_fallback: false,
+            reason_code: parsed.reason || 'semantic_assumption_extraction',
+            prompt_version: promptVersion,
+            input_hash: inputHash,
+            model: response.model,
+          };
+        }
+      }
     }
 
-    // Extract inherited assumptions from references
-    if (max_depth > 0) {
-      const inherited = await extractInheritedAssumptions(recid, 0, max_depth);
-      assumptions.push(...inherited);
-    }
-
-    // Calculate metrics
-    const fragilityScore = calculateFragilityScore(assumptions);
-    const criticalDependencies = identifyCriticalDependencies(assumptions);
-
-    const explicitCount = assumptions.filter(a => a.type === 'explicit').length;
-    const implicitCount = assumptions.filter(a => a.type === 'implicit').length;
-    const inheritedCount = assumptions.filter(a => a.source === 'inherited').length;
-    const challengedCount = assumptions.filter(a => a.validation_status === 'challenged').length;
-    const untestedCount = assumptions.filter(a => a.validation_status === 'untested').length;
-
+    const fragilityScore = assumptions.length > 0
+      ? calculateFragilityScore(assumptions)
+      : provenance.used_fallback ? 0.65 : 0.5;
+    const uncertainCount = assumptions.filter(item => item.validation_status === 'uncertain').length;
+    const unavailableCount = assumptions.filter(item => item.validation_status === 'unavailable').length;
     const analysis: AssumptionChain = {
-      paper_recid: recid,
+      paper_recid: params.recid,
       paper_title: paper.title,
       paper_year: paper.year,
       core_assumptions: assumptions,
       fragility_score: Math.round(fragilityScore * 100) / 100,
-      critical_dependencies: criticalDependencies,
+      critical_dependencies: identifyCriticalDependencies(assumptions),
       summary: {
         total_assumptions: assumptions.length,
-        explicit_count: explicitCount,
-        implicit_count: implicitCount,
-        inherited_count: inheritedCount,
-        challenged_count: challengedCount,
-        untested_count: untestedCount,
+        explicit_count: assumptions.filter(item => item.type === 'explicit').length,
+        implicit_count: assumptions.filter(item => item.type === 'implicit').length,
+        inherited_count: assumptions.filter(item => item.source === 'inherited').length,
+        challenged_count: assumptions.filter(item => item.validation_status === 'challenged').length,
+        untested_count: assumptions.filter(item => item.validation_status === 'untested' || item.validation_status === 'uncertain' || item.validation_status === 'unavailable').length,
       },
+      provenance,
     };
-
-    const riskAssessment = generateRiskAssessment(
-      fragilityScore,
-      challengedCount,
-      untestedCount
-    );
 
     return {
       success: true,
       analysis,
-      risk_assessment: riskAssessment,
+      risk_assessment: assumptions.length === 0 && provenance.used_fallback
+        ? {
+            level: 'medium',
+            description: 'Assumption extraction was unavailable; do not treat the empty graph as evidence of robustness.',
+            recommendations: ['Inspect the paper manually for unstated assumptions.', 'Retry with semantic sampling or follow-up literature context before reusing the result.'],
+          }
+        : buildRiskAssessment(fragilityScore, uncertainCount, unavailableCount),
+      provenance,
     };
-
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
       analysis: null,
+      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: true, reason_code: 'upstream_error' },
     };
   }
 }

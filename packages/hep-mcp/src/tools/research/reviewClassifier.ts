@@ -1,403 +1,252 @@
-/**
- * Review Classifier Module
- * Classifies review papers into types and assesses their authority
- *
- * Types:
- * - Catalog: Lists papers without strong opinions
- * - Critical: Argues a specific viewpoint
- * - Consensus: Community reports (PDG, Snowmass, etc.)
- */
-
+import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
+import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
 import * as api from '../../api/client.js';
+import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { validateRecids } from './config.js';
+import { buildReviewAssessmentPrompt, extractSamplingText, parseReviewAssessmentResponse } from './semantic/reviewSampling.js';
+import type { SemanticAssessmentProvenance } from './semantic/semanticProvenance.js';
+import { sha256Hex } from './semantic/semanticProvenance.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type ReviewType = 'catalog' | 'critical' | 'consensus';
-export type CoverageScope = 'narrow' | 'moderate' | 'comprehensive';
+export type ReviewType = 'catalog' | 'critical' | 'consensus' | 'uncertain';
+export type CoverageScope = 'narrow' | 'moderate' | 'comprehensive' | 'uncertain';
 export type Recency = 'current' | 'dated' | 'historical';
 
 export interface ReviewClassification {
   recid: string;
   title: string;
-  /** Type of review */
   review_type: ReviewType;
-  /** Authority score (0-1) */
-  authority_score: number;
-  /** Coverage indicators */
+  authority_score: number | null;
   coverage: {
-    /** Estimated number of papers covered */
     paper_count: number;
-    /** Topic breadth */
     scope: CoverageScope;
-    /** Author diversity in the review */
     author_diversity: 'single_group' | 'multi_group' | 'community';
   };
-  /** Potential biases detected */
   potential_biases: string[];
-  /** Recency assessment */
   recency: Recency;
-  /** Years since publication */
   age_years: number;
-  /** Whether this is from a known authoritative source */
-  is_authoritative_source: boolean;
-  /** Confidence in classification */
+  is_authoritative_source: boolean | null;
   classification_confidence: 'high' | 'medium' | 'low';
+  provenance: SemanticAssessmentProvenance;
 }
 
 export interface ClassifyReviewsParams {
-  /** INSPIRE recids of papers to classify */
   recids: string[];
-  /** Year threshold for "current" (default: 3 years) */
   current_threshold_years?: number;
 }
 
 export interface ClassifyReviewsResult {
   success: boolean;
   error?: string;
-  /** Classified reviews */
   classifications: ReviewClassification[];
-  /** Summary statistics */
   summary: {
     total: number;
     by_type: Record<ReviewType, number>;
     authoritative_count: number;
-    average_authority_score: number;
+    uncertain_count: number;
+    average_authority_score: number | null;
   };
-  /** Recommendation for which reviews to trust */
   recommendation?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
+type ReviewSamplingContext = {
+  createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+};
 
-// Keywords indicating consensus/community reports
-const CONSENSUS_KEYWORDS = [
-  'pdg', 'particle data group', 'review of particle physics',
-  'snowmass', 'white paper', 'community report',
-  'european strategy', 'p5 report', 'decadal survey',
-  'working group', 'task force', 'committee',
-  'lhc higgs cross section', 'flavour lattice averaging group', 'flag',
-  'heavy flavor averaging group', 'hflav',
-];
-
-// Known authoritative collaborations/groups for consensus
-const AUTHORITATIVE_SOURCES = [
-  'particle data group', 'pdg',
-  'flag', 'flavour lattice',
-  'hflav', 'heavy flavor',
-  'lhc higgs', 'lhc top',
-  'snowmass', 'european strategy',
-];
-
-// Keywords indicating critical/argumentative reviews
-const CRITICAL_KEYWORDS = [
-  'argue', 'claim', 'controversy', 'debate',
-  'challenge', 'question', 'critique', 'critical',
-  'alternative', 'disagree', 'tension',
-  'we show', 'we demonstrate', 'we argue',
-  'in contrast', 'however', 'on the other hand',
-];
-
-// Keywords indicating catalog-style reviews
-const CATALOG_KEYWORDS = [
-  'survey', 'collection', 'compilation',
-  'catalog', 'list', 'summary',
-  'overview', 'introduction to', 'primer',
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Check if paper is from an authoritative source
- */
-function isAuthoritativeSource(title: string, authors: string[]): boolean {
-  const titleLower = title.toLowerCase();
-  const authorsStr = authors.join(' ').toLowerCase();
-
-  for (const source of AUTHORITATIVE_SOURCES) {
-    if (titleLower.includes(source) || authorsStr.includes(source)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
- * Classify review type based on content
- */
-function classifyReviewType(
-  title: string,
-  abstract: string,
-  authorCount: number
-): { type: ReviewType; confidence: 'high' | 'medium' | 'low' } {
-  const text = `${title} ${abstract}`.toLowerCase();
-
-  // Check for consensus indicators first (highest priority)
-  let consensusScore = 0;
-  for (const keyword of CONSENSUS_KEYWORDS) {
-    if (text.includes(keyword)) {
-      consensusScore++;
-    }
-  }
-
-  // Large author count suggests consensus
-  if (authorCount > 20) {
-    consensusScore += 2;
-  }
-
-  if (consensusScore >= 2) {
-    return { type: 'consensus', confidence: 'high' };
-  }
-
-  // Check for critical indicators
-  let criticalScore = 0;
-  for (const keyword of CRITICAL_KEYWORDS) {
-    if (text.includes(keyword)) {
-      criticalScore++;
-    }
-  }
-
-  if (criticalScore >= 3) {
-    return { type: 'critical', confidence: 'high' };
-  }
-
-  if (criticalScore >= 1) {
-    return { type: 'critical', confidence: 'medium' };
-  }
-
-  // Check for catalog indicators
-  let catalogScore = 0;
-  for (const keyword of CATALOG_KEYWORDS) {
-    if (text.includes(keyword)) {
-      catalogScore++;
-    }
-  }
-
-  if (catalogScore >= 2) {
-    return { type: 'catalog', confidence: 'high' };
-  }
-
-  if (catalogScore >= 1) {
-    return { type: 'catalog', confidence: 'medium' };
-  }
-
-  // Default to catalog with low confidence
-  return { type: 'catalog', confidence: 'low' };
-}
-
-/**
- * Estimate coverage scope from abstract
- */
-function estimateCoverageScope(abstract: string): CoverageScope {
-  const abstractLower = abstract.toLowerCase();
-
-  // Comprehensive indicators
-  const comprehensiveWords = [
-    'comprehensive', 'complete', 'thorough', 'exhaustive',
-    'all aspects', 'full coverage', 'state of the art',
-  ];
-
-  for (const word of comprehensiveWords) {
-    if (abstractLower.includes(word)) {
-      return 'comprehensive';
-    }
-  }
-
-  // Narrow indicators
-  const narrowWords = [
-    'specific', 'particular', 'focus on', 'limited to',
-    'selected', 'subset', 'brief',
-  ];
-
-  for (const word of narrowWords) {
-    if (abstractLower.includes(word)) {
-      return 'narrow';
-    }
-  }
-
-  return 'moderate';
-}
-
-/**
- * Estimate author diversity
- */
-function estimateAuthorDiversity(authorCount: number): 'single_group' | 'multi_group' | 'community' {
-  if (authorCount >= 20) return 'community';
-  if (authorCount >= 5) return 'multi_group';
-  return 'single_group';
-}
-
-/**
- * Detect potential biases in review
- */
-function detectPotentialBiases(
-  title: string,
-  abstract: string,
-  authors: string[],
-  authorCount: number
-): string[] {
-  const biases: string[] = [];
-  const text = `${title} ${abstract}`.toLowerCase();
-
-  // Single author bias
-  if (authorCount === 1) {
-    biases.push('Single author - may reflect personal viewpoint');
-  }
-
-  // Small author team for comprehensive review
-  if (authorCount >= 2 && authorCount <= 3) {
-    const comprehensiveWords = ['comprehensive', 'complete', 'thorough', 'exhaustive'];
-    if (comprehensiveWords.some(w => text.includes(w))) {
-      biases.push('Small author team for claimed comprehensive review');
-    }
-  }
-
-  // Self-promotion indicators
-  const selfPromoWords = ['our work', 'our group', 'our method', 'our approach'];
-  if (selfPromoWords.some(w => text.includes(w))) {
-    biases.push('Contains self-referential language');
-  }
-
-  // Strong opinion indicators
-  const opinionWords = ['best', 'only', 'correct', 'wrong', 'superior', 'inferior'];
-  const opinionCount = opinionWords.filter(w => text.includes(w)).length;
-  if (opinionCount >= 2) {
-    biases.push('Uses evaluative language suggesting strong opinions');
-  }
-
-  // Check for specific theory/model promotion
-  const theoryPromotion = text.match(/(?:our|the)\s+(\w+)\s+model/gi);
-  if (theoryPromotion && theoryPromotion.length > 0) {
-    biases.push('May promote specific theoretical framework');
-  }
-
-  // Author concentration check - look for surname repetition (family/group bias)
-  if (authors.length >= 2) {
-    const surnames = authors.map(a => {
-      // Extract surname (last word in name, or part after comma)
-      const parts = a.includes(',') ? a.split(',')[0].trim() : a.split(' ').pop();
-      return (parts || '').toLowerCase();
-    }).filter(s => s.length > 2);
-
-    // Count surname occurrences
-    const surnameCounts = new Map<string, number>();
-    for (const surname of surnames) {
-      surnameCounts.set(surname, (surnameCounts.get(surname) || 0) + 1);
-    }
-
-    // Check for repeated surnames (possible family/close group)
-    const repeatedSurnames = [...surnameCounts.entries()].filter(([, count]) => count >= 2);
-    if (repeatedSurnames.length > 0 && authors.length <= 5) {
-      biases.push('Author group may have close collaboration ties (shared surnames)');
-    }
-  }
-
-  // Check if abstract mentions specific collaboration/institution heavily
-  const institutionMentions = text.match(/\b(our collaboration|our experiment|our group|our institute)\b/gi);
-  if (institutionMentions && institutionMentions.length >= 2) {
-    biases.push('Heavy focus on single collaboration/institution');
-  }
-
-  return biases;
-}
-
-/**
- * Calculate authority score
- */
-function calculateAuthorityScore(
-  reviewType: ReviewType,
-  citationCount: number,
-  authorCount: number,
-  isAuthoritative: boolean,
-  biasCount: number,
-  ageYears: number
-): number {
-  let score = 0.5; // Base score
-
-  // Type-based scoring
-  if (reviewType === 'consensus') {
-    score += 0.3;
-  } else if (reviewType === 'critical') {
-    score += 0.1;
-  }
-
-  // Authoritative source bonus
-  if (isAuthoritative) {
-    score += 0.2;
-  }
-
-  // Citation-based scoring (normalized)
-  if (citationCount > 1000) {
-    score += 0.15;
-  } else if (citationCount > 500) {
-    score += 0.1;
-  } else if (citationCount > 100) {
-    score += 0.05;
-  }
-
-  // Author diversity bonus for consensus
-  if (reviewType === 'consensus' && authorCount > 20) {
-    score += 0.1;
-  }
-
-  // Bias penalty
-  score -= biasCount * 0.05;
-
-  // Age penalty for old non-consensus reviews
-  if (reviewType !== 'consensus' && ageYears > 10) {
-    score -= 0.1;
-  }
-
-  return Math.max(0, Math.min(1, score));
-}
-
-/**
- * Determine recency
- */
 function determineRecency(ageYears: number, threshold: number): Recency {
   if (ageYears <= threshold) return 'current';
   if (ageYears <= threshold * 3) return 'dated';
   return 'historical';
 }
 
-/**
- * Estimate paper count covered by review
- */
+function estimateAuthorDiversity(authorCount: number): 'single_group' | 'multi_group' | 'community' {
+  if (authorCount >= 20) return 'community';
+  if (authorCount >= 5) return 'multi_group';
+  return 'single_group';
+}
+
+function fallbackBiases(authorCount: number, referenceCount: number): string[] {
+  const biases: string[] = [];
+  if (authorCount === 1) biases.push('Single-author review requires extra manual scrutiny.');
+  if (authorCount <= 3 && referenceCount >= 150) biases.push('Small author team relative to the claimed literature coverage.');
+  return biases;
+}
+
 async function estimatePaperCount(recid: string): Promise<number> {
   try {
-    const refs = await api.getReferences(recid);
-    return refs.length;
-  } catch (error) {
-    // Log at debug level for troubleshooting
-    console.debug(`[hep-mcp] estimatePaperCount (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    return (await api.getReferences(recid)).length;
+  } catch {
     return 0;
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Function
-// ─────────────────────────────────────────────────────────────────────────────
+async function classifySingleReview(
+  recid: string,
+  currentThresholdYears: number,
+  ctx: ReviewSamplingContext,
+): Promise<ReviewClassification> {
+  const unavailable = (reasonCode: string, backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback', model?: string): ReviewClassification => ({
+    recid,
+    title: `Unavailable review (${recid})`,
+    review_type: 'uncertain',
+    authority_score: null,
+    coverage: {
+      paper_count: 0,
+      scope: 'uncertain',
+      author_diversity: 'single_group',
+    },
+    potential_biases: ['Paper metadata unavailable; manual review required.'],
+    recency: 'historical',
+    age_years: 0,
+    is_authoritative_source: null,
+    classification_confidence: 'low',
+    provenance: {
+      backend,
+      status: 'unavailable',
+      used_fallback: true,
+      reason_code: reasonCode,
+      model,
+    },
+  });
 
-/**
- * Classify review papers
- */
+  try {
+    const [paper, paperCount] = await Promise.all([api.getPaper(recid), estimatePaperCount(recid)]);
+    const currentYear = new Date().getFullYear();
+    const authorCount = paper.author_count ?? paper.authors?.length ?? 0;
+    const ageYears = currentYear - (paper.year || currentYear);
+    const promptVersion = 'sem05_review_authority_v2';
+    const inputHash = sha256Hex(JSON.stringify({
+      recid,
+      title: paper.title,
+      abstract: paper.abstract || '',
+      year: paper.year ?? null,
+      citation_count: paper.citation_count ?? null,
+      author_count: authorCount,
+      paper_count: paperCount,
+      publication_summary: paper.publication_summary ?? '',
+      publication_type: paper.publication_type ?? [],
+      document_type: paper.document_type ?? [],
+      collaborations: paper.collaborations ?? [],
+    }));
+
+    const fallback = (reasonCode: string, backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback', model?: string): ReviewClassification => ({
+      recid,
+      title: paper.title,
+      review_type: 'uncertain',
+      authority_score: null,
+      coverage: {
+        paper_count: paperCount,
+        scope: 'uncertain',
+        author_diversity: estimateAuthorDiversity(authorCount),
+      },
+      potential_biases: fallbackBiases(authorCount, paperCount),
+      recency: determineRecency(ageYears, currentThresholdYears),
+      age_years: ageYears,
+      is_authoritative_source: null,
+      classification_confidence: 'low',
+      provenance: {
+        backend,
+        status: backend === 'diagnostic_fallback'
+          ? 'unavailable'
+          : reasonCode === 'model_abstained'
+            ? 'abstained'
+            : reasonCode === 'sampling_error'
+              ? 'unavailable'
+              : 'invalid',
+        used_fallback: true,
+        reason_code: reasonCode,
+        prompt_version: promptVersion,
+        input_hash: inputHash,
+        model,
+      },
+    });
+
+    if (!ctx.createMessage) return fallback('sampling_unavailable');
+
+    let response: CreateMessageResult;
+    try {
+      response = await ctx.createMessage({
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: buildReviewAssessmentPrompt({
+              prompt_version: promptVersion,
+              title: paper.title,
+              abstract: paper.abstract || '',
+              year: paper.year,
+              citation_count: paper.citation_count,
+              author_count: authorCount,
+              reference_count: paperCount,
+              publication_summary: paper.publication_summary,
+              publication_type: paper.publication_type,
+              document_type: paper.document_type,
+              collaborations: paper.collaborations,
+            }),
+          },
+        }],
+        maxTokens: 700,
+        metadata: buildToolSamplingMetadata({
+          tool: INSPIRE_CRITICAL_RESEARCH,
+          module: 'sem05_review_authority',
+          promptVersion,
+          costClass: 'medium',
+        }),
+      });
+    } catch {
+      return fallback('sampling_error', 'mcp_sampling');
+    }
+
+    const parsed = parseReviewAssessmentResponse(extractSamplingText(response.content));
+    if (!parsed) return fallback('invalid_response', 'mcp_sampling', response.model);
+    if (parsed.abstain) return fallback('model_abstained', 'mcp_sampling', response.model);
+
+    return {
+      recid,
+      title: paper.title,
+      review_type: parsed.review_type,
+      authority_score: parsed.authority_score,
+      coverage: {
+        paper_count: paperCount,
+        scope: parsed.scope,
+        author_diversity: estimateAuthorDiversity(authorCount),
+      },
+      potential_biases: [...new Set([...fallbackBiases(authorCount, paperCount), ...parsed.potential_biases])].slice(0, 5),
+      recency: determineRecency(ageYears, currentThresholdYears),
+      age_years: ageYears,
+      is_authoritative_source: parsed.is_authoritative_source,
+      classification_confidence: parsed.classification_confidence,
+      provenance: {
+        backend: 'mcp_sampling',
+        status: 'applied',
+        used_fallback: false,
+        reason_code: parsed.reason || 'semantic_assessment',
+        prompt_version: promptVersion,
+        input_hash: inputHash,
+        model: response.model,
+      },
+    };
+  } catch (error) {
+    console.debug(`[hep-mcp] classifyReviews (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
+    return unavailable('paper_fetch_failed');
+  }
+}
+
+function buildRecommendation(classifications: ReviewClassification[]): string | undefined {
+  if (classifications.length === 0) return undefined;
+  const consensus = classifications.filter(item => item.review_type === 'consensus');
+  if (consensus.length > 0) return `Prioritize ${consensus.length} consensus-style review(s); they provide the strongest semantic baseline.`;
+  const authoritative = classifications.filter(item => item.is_authoritative_source === true && (item.authority_score ?? 0) >= 0.7);
+  if (authoritative.length > 0) return `Use the ${authoritative.length} review(s) with explicit authority judgments first, and inspect uncertain cases manually.`;
+  const uncertain = classifications.filter(item => item.review_type === 'uncertain').length;
+  if (uncertain === classifications.length) return 'Only fallback diagnostics are available for these reviews; inspect them manually before treating any as authoritative.';
+  return 'Use high-confidence review classifications first and keep uncertain cases in manual review.';
+}
+
 export async function classifyReviews(
-  params: ClassifyReviewsParams
+  params: ClassifyReviewsParams,
+  ctx: ReviewSamplingContext = {},
 ): Promise<ClassifyReviewsResult> {
-  const {
-    recids,
-    current_threshold_years = 3,
-  } = params;
-
-  // Validate recids
-  const validationError = validateRecids(recids);
+  const validationError = validateRecids(params.recids);
   if (validationError) {
     return {
       success: false,
@@ -405,131 +254,34 @@ export async function classifyReviews(
       classifications: [],
       summary: {
         total: 0,
-        by_type: { catalog: 0, critical: 0, consensus: 0 },
+        by_type: { catalog: 0, critical: 0, consensus: 0, uncertain: 0 },
         authoritative_count: 0,
-        average_authority_score: 0,
+        uncertain_count: 0,
+        average_authority_score: null,
       },
     };
   }
 
-  const currentYear = new Date().getFullYear();
+  const currentThresholdYears = params.current_threshold_years ?? 3;
+  const results = await Promise.all(params.recids.map(recid => classifySingleReview(recid, currentThresholdYears, ctx)));
+  const classifications = results;
+  const byType: Record<ReviewType, number> = { catalog: 0, critical: 0, consensus: 0, uncertain: 0 };
 
-  // Fetch all papers in parallel for better performance
-  const fetchPromises = recids.map(async (recid): Promise<ReviewClassification | null> => {
-    try {
-      // Fetch paper metadata and reference count in parallel
-      const [paper, paperCount] = await Promise.all([
-        api.getPaper(recid),
-        estimatePaperCount(recid),
-      ]);
+  for (const item of classifications) byType[item.review_type] += 1;
 
-      const authors = paper.authors || [];
-      const authorCount = paper.author_count ?? authors.length;
-      const ageYears = currentYear - (paper.year || currentYear);
-
-      // Check if authoritative source
-      const isAuthoritative = isAuthoritativeSource(paper.title, authors);
-
-      // Classify review type
-      const { type: reviewType, confidence } = classifyReviewType(
-        paper.title,
-        paper.abstract || '',
-        authorCount
-      );
-
-      // Detect biases
-      const biases = detectPotentialBiases(
-        paper.title,
-        paper.abstract || '',
-        authors,
-        authorCount
-      );
-
-      // Calculate authority score
-      const authorityScore = calculateAuthorityScore(
-        reviewType,
-        paper.citation_count || 0,
-        authorCount,
-        isAuthoritative,
-        biases.length,
-        ageYears
-      );
-
-      return {
-        recid,
-        title: paper.title,
-        review_type: reviewType,
-        authority_score: Math.round(authorityScore * 100) / 100,
-        coverage: {
-          paper_count: paperCount,
-          scope: estimateCoverageScope(paper.abstract || ''),
-          author_diversity: estimateAuthorDiversity(authorCount),
-        },
-        potential_biases: biases,
-        recency: determineRecency(ageYears, current_threshold_years),
-        age_years: ageYears,
-        is_authoritative_source: isAuthoritative,
-        classification_confidence: confidence,
-      };
-    } catch (error) {
-      // Log at debug level for troubleshooting
-      console.debug(`[hep-mcp] classifyReviews (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
-      return null;
-    }
-  });
-
-  // Wait for all parallel fetches
-  const results = await Promise.all(fetchPromises);
-
-  // Filter out failed fetches
-  const classifications = results.filter((c): c is ReviewClassification => c !== null);
-
-  // Calculate summary
-  const byType: Record<ReviewType, number> = { catalog: 0, critical: 0, consensus: 0 };
-  let authoritySum = 0;
-  let authoritativeCount = 0;
-
-  for (const c of classifications) {
-    byType[c.review_type]++;
-    authoritySum += c.authority_score;
-    if (c.is_authoritative_source) {
-      authoritativeCount++;
-    }
-  }
-
-  const averageAuthority = classifications.length > 0
-    ? authoritySum / classifications.length
-    : 0;
-
-  // Generate recommendation
-  let recommendation: string | undefined;
-  if (classifications.length > 0) {
-    const consensus = classifications.filter(c => c.review_type === 'consensus');
-    const highAuthority = classifications.filter(c => c.authority_score >= 0.7);
-    const current = classifications.filter(c => c.recency === 'current');
-
-    if (consensus.length > 0) {
-      recommendation = `Prefer consensus reviews (${consensus.length} found) for authoritative baseline. `;
-    }
-
-    if (highAuthority.length > 0 && consensus.length === 0) {
-      recommendation = (recommendation || '') + `High authority reviews (${highAuthority.length}) provide reliable coverage. `;
-    }
-
-    if (current.length === 0) {
-      recommendation = (recommendation || '') + 'Warning: No current reviews found; field may have evolved.';
-    }
-  }
-
+  const authorityScores = classifications.map(item => item.authority_score).filter((score): score is number => score !== null);
   return {
     success: true,
     classifications,
     summary: {
       total: classifications.length,
       by_type: byType,
-      authoritative_count: authoritativeCount,
-      average_authority_score: Math.round(averageAuthority * 100) / 100,
+      authoritative_count: classifications.filter(item => item.is_authoritative_source === true).length,
+      uncertain_count: classifications.filter(item => item.review_type === 'uncertain').length,
+      average_authority_score: authorityScores.length > 0
+        ? Math.round((authorityScores.reduce((sum, score) => sum + score, 0) / authorityScores.length) * 100) / 100
+        : null,
     },
-    recommendation,
+    recommendation: buildRecommendation(classifications),
   };
 }

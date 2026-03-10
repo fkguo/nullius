@@ -5,7 +5,7 @@
 
 import * as api from '../../api/client.js';
 import type { PaperSummary } from '@autoresearch/shared';
-import { isReviewPaper } from './paperClassifier.js';
+import { isReviewPaper, type ReviewPaperAssessment } from './paperClassifier.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -39,6 +39,8 @@ export interface TracedSource extends PaperSummary {
   depth: number;
   /** Whether this is a review paper */
   is_review: boolean;
+  /** Review classification provenance for fail-closed downstream consumers */
+  review_classification: ReviewPaperAssessment;
 }
 
 export interface TraceOriginalSourceResult {
@@ -270,6 +272,7 @@ export async function traceOriginalSource(
       self_citation_chains: selfCitationChains,
       depth,
       is_review: reviewCheck.isReview,
+      review_classification: reviewCheck,
     });
   }
 

@@ -13,6 +13,7 @@ import { gradeEvidence, type EvidenceGradingResult } from './evidenceGrading.js'
 import { generateCriticalQuestions, type CriticalQuestionsResult } from './criticalQuestions.js';
 import { trackAssumptions, type AssumptionTrackerResult } from './assumptionTracker.js';
 import { getConfig } from './config.js';
+import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -77,6 +78,10 @@ export interface CriticalAnalysisResult {
     verdict: string;
   };
 }
+
+type CriticalAnalysisContext = {
+  createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
@@ -164,7 +169,7 @@ function calculateIntegratedScore(
     weight += weights.evidence;
   }
 
-  if (questions?.success && questions.reliability_score !== undefined) {
+  if (questions?.success && questions.reliability_score !== null && questions.reliability_score !== undefined) {
     score += questions.reliability_score * weights.questions;
     weight += weights.questions;
   }
@@ -308,7 +313,7 @@ function extractStrengths(
       strengths.push('Large collaboration enhances credibility');
     }
 
-    if (questions.red_flags.length === 0) {
+    if (questions.red_flags.length === 0 && questions.provenance.used_fallback === false) {
       strengths.push('No red flags detected');
     }
   }
@@ -416,7 +421,8 @@ function generateVerdict(
  * Perform comprehensive critical analysis of a paper
  */
 export async function performCriticalAnalysis(
-  params: CriticalAnalysisParams
+  params: CriticalAnalysisParams,
+  ctx: CriticalAnalysisContext = {},
 ): Promise<CriticalAnalysisResult> {
   const {
     recid,
@@ -457,6 +463,8 @@ export async function performCriticalAnalysis(
           recid,
           check_comments: check_literature,
           check_self_citations: check_literature,
+        }, {
+          createMessage: ctx.createMessage,
         }).then(result => {
           questions = result;
           if (result.paper_title) paperTitle = result.paper_title;
@@ -470,6 +478,8 @@ export async function performCriticalAnalysis(
           recid,
           max_depth: assumption_max_depth,
           check_challenges: check_literature,
+        }, {
+          createMessage: ctx.createMessage,
         }).then(result => {
           assumptions = result;
           if (result.analysis?.paper_title) paperTitle = result.analysis.paper_title;

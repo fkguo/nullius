@@ -1,0 +1,47 @@
+{
+  "name": "sem05_semantic_authority_eval",
+  "version": 1,
+  "description": "Batch B hard cases for semantic authority cleanup in review/paper/question modules.",
+  "module": "SEM-05",
+  "cases": [
+    {
+      "id": "paper-title-keyword-is-not-authority",
+      "input": {
+        "kind": "paper_classifier",
+        "paper": {
+          "title": "A Review of Surprising Results",
+          "publication_type": [],
+          "document_type": []
+        }
+      },
+      "expected": {
+        "paper_type": "uncertain",
+        "review_decision": "uncertain",
+        "used_fallback": true,
+        "reason_code": "insufficient_metadata"
+      },
+      "tags": ["paper", "keyword_authority", "ood"]
+    },
+    {
+      "id": "critical-questions-fallback-does-not-emit-claimword-red-flag",
+      "input": {
+        "kind": "critical_questions",
+        "recid": "4004",
+        "paper": {
+          "title": "A breakthrough discovery",
+          "abstract": "This breakthrough discovery will revolutionize the field and prove a first result.",
+          "author_count": 1,
+          "citation_count": 60,
+          "arxiv_categories": ["hep-th"]
+        }
+      },
+      "expected": {
+        "reliability_score": null,
+        "used_fallback": true,
+        "reason_code": "sampling_unavailable",
+        "forbidden_red_flags": ["excessive_claims"]
+      },
+      "tags": ["questions", "fallback", "keyword_authority"]
+    }
+  ]
+}

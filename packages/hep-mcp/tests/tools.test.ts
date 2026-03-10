@@ -272,6 +272,33 @@ describe('Tool Handlers (current exposure)', () => {
     );
   });
 
+  it('inspire_search review_mode="exclude" should keep uncertain papers visible', async () => {
+    vi.mocked(api.search).mockResolvedValueOnce({
+      total: 3,
+      papers: [
+        { recid: '1', title: 'Explicit review' },
+        { recid: '2', title: 'Uncertain metadata' },
+        { recid: '3', title: 'Original paper' },
+      ],
+      has_more: false,
+    } as any);
+    vi.mocked(paperClassifier.classifyPapers).mockReturnValue([
+      { recid: '1', is_review: true, review_classification: { decision: 'review' } },
+      { recid: '2', is_review: false, review_classification: { decision: 'uncertain' } },
+      { recid: '3', is_review: false, review_classification: { decision: 'not_review' } },
+    ] as any);
+
+    const res = await handleToolCall('inspire_search', {
+      query: 't:qcd',
+      review_mode: 'exclude',
+      size: 10,
+    });
+
+    expect(res.isError).not.toBe(true);
+    const payload = JSON.parse(readTextBlock(res)) as { papers: Array<{ recid: string }> };
+    expect(payload.papers.map(p => p.recid)).toEqual(['3', '2']);
+  });
+
   it('inspire_literature(get_paper) should call api.getPaper', async () => {
     vi.mocked(api.getPaper).mockResolvedValueOnce({ recid: '1' } as any);
     const res = await handleToolCall('inspire_literature', { mode: 'get_paper', recid: '1' });

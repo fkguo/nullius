@@ -8,9 +8,10 @@
 
 import * as api from '../../api/client.js';
 import type { PaperSummary } from '@autoresearch/shared';
-import { classifyPaper, type PaperType } from './paperClassifier.js';
+import { classifyPaper, type PaperType, type ReviewPaperAssessment } from './paperClassifier.js';
 import { calculateMomentum, type CitationMomentum } from './citationMomentum.js';
 import { getConfig, getCurrentYear } from './config.js';
+import type { SemanticAssessmentProvenance } from './semantic/semanticProvenance.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -32,6 +33,8 @@ export interface EnhancedSeminalPaper extends PaperSummary {
   category: PaperCategory;
   paper_type: PaperType;
   is_review: boolean;
+  paper_type_provenance: SemanticAssessmentProvenance;
+  review_classification: ReviewPaperAssessment;
   score_breakdown: {
     citation_score: number;
     age_score: number;
@@ -77,23 +80,6 @@ const DEFAULT_LIMIT = 30;        // Increased from 10 for comprehensive surveys
 // ─────────────────────────────────────────────────────────────────────────────
 // Citation Chain Tracing Algorithm
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Detect review paper signals from title and metadata
- */
-function detectReviewSignals(paper: PaperSummary): number {
-  let signals = 0;
-  const title = paper.title.toLowerCase();
-
-  // Title signals
-  if (/\b(review|status|overview|progress|survey)\b/.test(title)) signals += 2;
-  if (/\b(recent|developments?|advances?)\b/.test(title)) signals += 1;
-
-  // INSPIRE publication type
-  if (paper.publication_type?.includes('review')) signals += 3;
-
-  return signals;
-}
 
 /**
  * Trace foundational papers through citation chains
@@ -143,9 +129,8 @@ async function traceFoundationalPapers(
 
   const seeds = seedResult.papers.filter(p => {
     if (!p.recid) return false;
-    // Additional review filtering
-    const reviewSignals = detectReviewSignals(p);
-    return reviewSignals < 2;
+    const classified = classifyPaper(p);
+    return classified.review_classification.decision !== 'review';
   });
 
   if (seeds.length === 0) {
@@ -327,11 +312,11 @@ export async function findSeminalPapers(
   const seminalFromTracing: EnhancedSeminalPaper[] = [];
 
   for (const traced of tracedPapers.slice(0, limit * 2)) {
-    const paper = traced.paper;
-    const classified = classifyPaper(paper);
+      const paper = traced.paper;
+      const classified = classifyPaper(paper);
 
-    // Skip reviews
-    if (classified.is_review || detectReviewSignals(paper) >= 2) {
+      // Skip reviews
+    if (classified.review_classification.decision === 'review') {
       continue;
     }
 
@@ -339,13 +324,15 @@ export async function findSeminalPapers(
 
     seminalFromTracing.push({
       ...paper,
-      seminal_score: traced.trace_score,
-      category: 'seminal',
-      paper_type: classified.paper_type,
-      is_review: false,
-      score_breakdown: scores,
-      traced_by_count: traced.cited_by_count,
-    });
+        seminal_score: traced.trace_score,
+        category: 'seminal',
+        paper_type: classified.paper_type,
+        is_review: false,
+        paper_type_provenance: classified.paper_type_provenance,
+        review_classification: classified.review_classification,
+        score_breakdown: scores,
+        traced_by_count: traced.cited_by_count,
+      });
   }
 
   // FALLBACK: If tracing yields few results, supplement with high-cited search
@@ -380,6 +367,8 @@ export async function findSeminalPapers(
         category: categorize(paper, false),
         paper_type: classified.paper_type,
         is_review: false,
+        paper_type_provenance: classified.paper_type_provenance,
+        review_classification: classified.review_classification,
         score_breakdown: scores,
       });
     }
@@ -438,6 +427,8 @@ export async function findSeminalPapers(
           category: 'emerging',
           paper_type: classified.paper_type,
           is_review: classified.is_review,
+          paper_type_provenance: classified.paper_type_provenance,
+          review_classification: classified.review_classification,
           score_breakdown: scores,
           momentum,
         });
@@ -470,6 +461,8 @@ export async function findSeminalPapers(
         category: 'review',
         paper_type: classified.paper_type,
         is_review: true,
+        paper_type_provenance: classified.paper_type_provenance,
+        review_classification: classified.review_classification,
         score_breakdown: scores,
       });
     }

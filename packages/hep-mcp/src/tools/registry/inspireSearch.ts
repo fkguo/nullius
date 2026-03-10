@@ -55,8 +55,8 @@ Common search operators:
 
 Review paper handling via \`review_mode\`:
 - mixed (default): keep result order
-- exclude: remove review papers
-- deprioritize/separate: move review papers to the end
+- exclude: remove only explicitly classified review papers; uncertain cases stay visible
+- deprioritize/separate: move explicit review papers to the end and keep uncertain cases in the main set
 
 Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
     zodSchema: InspireSearchToolSchema,
@@ -91,13 +91,14 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
       const applyReviewMode = (r: typeof result) => {
         if (params.review_mode === 'mixed' || r.papers.length === 0) return r;
         return getClassifyPapers().then(classifyPapersFn => {
-          const classified = classifyPapersFn(r.papers) as Array<{ is_review?: boolean }>;
-          const nonReviews = classified.filter(p => !p.is_review);
-          const reviews = classified.filter(p => p.is_review);
+          const classified = classifyPapersFn(r.papers) as Array<{ is_review?: boolean; review_classification?: { decision?: string } }>;
+          const definiteReviews = classified.filter(p => p.review_classification?.decision === 'review' || (p.review_classification?.decision === undefined && p.is_review));
+          const uncertain = classified.filter(p => p.review_classification?.decision === 'uncertain');
+          const nonReviews = classified.filter(p => p.review_classification?.decision === 'not_review' || (!p.is_review && p.review_classification?.decision === undefined));
           if (params.review_mode === 'exclude') {
-            return { ...r, papers: nonReviews as typeof r.papers, total: nonReviews.length };
+            return { ...r, papers: [...nonReviews, ...uncertain] as typeof r.papers, total: nonReviews.length + uncertain.length };
           }
-          return { ...r, papers: [...nonReviews, ...reviews] as typeof r.papers };
+          return { ...r, papers: [...nonReviews, ...uncertain, ...definiteReviews] as typeof r.papers };
         });
       };
 
@@ -120,15 +121,16 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
       }
 
       const classifyPapersFn = await getClassifyPapers();
-      const classified = classifyPapersFn(result.papers) as Array<{ is_review?: boolean }>;
-      const nonReviews = classified.filter(p => !p.is_review);
-      const reviews = classified.filter(p => p.is_review);
+      const classified = classifyPapersFn(result.papers) as Array<{ is_review?: boolean; review_classification?: { decision?: string } }>;
+      const definiteReviews = classified.filter(p => p.review_classification?.decision === 'review' || (p.review_classification?.decision === undefined && p.is_review));
+      const uncertain = classified.filter(p => p.review_classification?.decision === 'uncertain');
+      const nonReviews = classified.filter(p => p.review_classification?.decision === 'not_review' || (!p.is_review && p.review_classification?.decision === undefined));
 
       if (params.review_mode === 'exclude') {
-        return { ...result, papers: nonReviews as typeof result.papers, total: nonReviews.length };
+        return { ...result, papers: [...nonReviews, ...uncertain] as typeof result.papers, total: nonReviews.length + uncertain.length };
       }
 
-      return { ...result, papers: [...nonReviews, ...reviews] as typeof result.papers };
+      return { ...result, papers: [...nonReviews, ...uncertain, ...definiteReviews] as typeof result.papers };
     },
   },
   {

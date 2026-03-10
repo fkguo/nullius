@@ -1,0 +1,42 @@
+{
+  "name": "sem05_semantic_authority_holdout",
+  "version": 1,
+  "description": "Batch B holdout cases for unavailable and empty-graph semantic fallback behavior.",
+  "module": "SEM-05",
+  "cases": [
+    {
+      "id": "assumption-fallback-empty-graph-is-not-low-risk",
+      "input": {
+        "kind": "assumption_tracker",
+        "recid": "6006",
+        "paper": {
+          "abstract": "We compute observables numerically and compare to reference values."
+        },
+        "references": []
+      },
+      "expected": {
+        "risk_level": "medium",
+        "used_fallback": true,
+        "reason_code": "sampling_unavailable",
+        "fragility_min": 0.6
+      },
+      "tags": ["assumptions", "holdout", "fallback"]
+    },
+    {
+      "id": "review-fetch-failure-stays-visible-as-unavailable",
+      "input": {
+        "kind": "review_classifier",
+        "recid": "2002",
+        "fail_get_paper": true,
+        "references": []
+      },
+      "expected": {
+        "total": 1,
+        "review_type": "uncertain",
+        "reason_code": "paper_fetch_failed",
+        "status": "unavailable"
+      },
+      "tags": ["reviews", "holdout", "unavailable"]
+    }
+  ]
+}
