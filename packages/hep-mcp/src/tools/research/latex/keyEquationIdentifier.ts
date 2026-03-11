@@ -1,313 +1,345 @@
-/**
- * Key Equation Identifier
- * Identifies and scores important equations in LaTeX documents
- *
- * Scoring factors:
- * - Reference count: How many times the equation is cited (\ref, \eqref, etc.)
- * - Position: Equations in abstract/conclusions are more important
- * - Label existence: Labeled equations are typically more important
- * - Context keywords: Surrounding text with "key result", "main equation", etc.
- */
-
+import type {
+  CreateMessageRequestParamsBase,
+  CreateMessageResult,
+} from '@modelcontextprotocol/sdk/types.js';
+import { INSPIRE_DEEP_RESEARCH } from '@autoresearch/shared';
 import { latexParser } from 'latex-utensils';
-import type { LatexAst, LatexNode } from './parser.js';
+import { buildToolSamplingMetadata } from '../../../core/sampling-metadata.js';
+import { extractSamplingText } from '../../../core/semantics/quantitySampling.js';
 import { extractEquations, type Equation } from './equationExtractor.js';
-import { extractText } from './sectionExtractor.js';
+import {
+  buildKeyEquationAssessmentPrompt,
+  parseKeyEquationSamplingResponse,
+  type KeyEquationImportanceBand,
+  type KeyEquationSelectionStatus,
+} from './keyEquationSampling.js';
+import type { LatexAst, LatexNode } from './parser.js';
+import { extractAbstract, extractText } from './sectionExtractor.js';
+import { sha256Hex, type SemanticAssessmentProvenance } from '../semantic/semanticProvenance.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface KeyEquation extends Equation {
-  /** Importance score (0-100) */
-  importance_score: number;
-  /** Number of times referenced in text */
-  reference_count: number;
-  /** Section where equation appears */
-  section?: string;
-  /** Whether in abstract or conclusions */
-  in_key_section: boolean;
-  /** Surrounding context text */
-  context_text?: string;
-  /** Keywords found near equation */
-  context_keywords: string[];
-}
-
-export interface KeyEquationOptions {
-  /** Maximum equations to return (default: 10) */
-  max_equations?: number;
-  /** Minimum importance score (default: 20) */
-  min_score?: number;
-  /** Include inline math (default: false) */
-  include_inline?: boolean;
-  /** Context window size in characters (default: 300) */
-  context_window?: number;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Keywords indicating important equations */
-const IMPORTANCE_KEYWORDS = [
+const IMPORTANCE_HINTS = [
   'key result', 'main result', 'central result', 'principal result',
   'key equation', 'main equation', 'central equation', 'fundamental equation',
   'important', 'crucial', 'essential', 'primary',
   'master equation', 'defining equation', 'basic equation',
   'our result', 'final result', 'main finding',
-  'dispersion relation', 'sum rule', 'amplitude',
 ];
+const KEY_SECTIONS = ['abstract', 'summary', 'conclusion', 'conclusions', 'results', 'discussion'];
 
-/** Section names indicating key content */
-const KEY_SECTIONS = [
-  'abstract', 'summary', 'conclusion', 'conclusions',
-  'results', 'main results', 'discussion',
-];
+export interface KeyEquation extends Equation {
+  candidate_key: string;
+  selection_status: KeyEquationSelectionStatus;
+  importance_band?: KeyEquationImportanceBand;
+  importance_score: number;
+  confidence: number;
+  reference_count: number;
+  section?: string;
+  in_key_section: boolean;
+  context_text?: string;
+  context_keywords: string[];
+  selection_rationale?: string;
+  provenance: SemanticAssessmentProvenance;
+}
 
-/** Scoring weights */
-const WEIGHTS = {
-  reference: 15,      // Per reference
-  label: 10,          // Has label
-  key_section: 20,    // In abstract/conclusions
-  keyword: 8,         // Per keyword found
-  display_type: 5,    // Display vs inline
-  max_reference: 45,  // Cap for reference score
-  max_keyword: 24,    // Cap for keyword score
+export interface KeyEquationOptions {
+  max_equations?: number;
+  min_score?: number;
+  include_inline?: boolean;
+  context_window?: number;
+  document_title?: string;
+  abstract?: string;
+  tool_name?: string;
+  createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+}
+
+type KeyEquationCandidate = {
+  equation: Equation;
+  candidate_key: string;
+  reference_count: number;
+  section?: string;
+  in_key_section: boolean;
+  context_text?: string;
+  context_keywords: string[];
+  candidate_priority: number;
+  signal_summary: string[];
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Count references to equation labels in the document
- */
 function countReferences(texContent: string): Map<string, number> {
   const refCounts = new Map<string, number>();
-
-  const refPatterns = [
-    /\\ref\{([^}]+)\}/g,
-    /\\eqref\{([^}]+)\}/g,
-    /\\cref\{([^}]+)\}/g,
-    /\\autoref\{([^}]+)\}/g,
-    /\\Cref\{([^}]+)\}/g,
-  ];
-
-  for (const pattern of refPatterns) {
-    let match;
+  for (const pattern of [/\\ref\{([^}]+)\}/g, /\\eqref\{([^}]+)\}/g, /\\cref\{([^}]+)\}/g, /\\autoref\{([^}]+)\}/g, /\\Cref\{([^}]+)\}/g]) {
+    let match: RegExpExecArray | null;
     while ((match = pattern.exec(texContent)) !== null) {
-      const labels = match[1].split(',').map(l => l.trim());
-      for (const label of labels) {
-        refCounts.set(label, (refCounts.get(label) || 0) + 1);
+      for (const label of match[1].split(',').map(v => v.trim()).filter(Boolean)) {
+        refCounts.set(label, (refCounts.get(label) ?? 0) + 1);
       }
     }
   }
-
   return refCounts;
 }
 
-/**
- * Find the section containing a given position in the document
- */
-function findSectionAtPosition(
-  nodes: LatexNode[],
-  targetIndex: number
-): string | undefined {
+function findSectionAtPosition(nodes: LatexNode[], targetIndex: number): string | undefined {
   let currentSection: string | undefined;
   let nodeIndex = 0;
-
-  function traverse(nodeList: LatexNode[]) {
+  const traverse = (nodeList: LatexNode[]) => {
     for (const node of nodeList) {
       if (nodeIndex > targetIndex) return;
-
-      if (latexParser.isCommand(node)) {
-        const sectionCommands = ['section', 'subsection', 'subsubsection', 'chapter'];
-        if (sectionCommands.includes(node.name)) {
-          const arg = node.args[0];
-          if (arg && latexParser.isGroup(arg)) {
-            currentSection = extractText(arg.content);
-          }
-        }
+      if (latexParser.isCommand(node) && ['section', 'subsection', 'subsubsection', 'chapter'].includes(node.name)) {
+        const arg = node.args[0];
+        if (arg && latexParser.isGroup(arg)) currentSection = extractText(arg.content);
       }
-
-      nodeIndex++;
-
-      if (latexParser.isEnvironment(node)) {
-        traverse(node.content);
-      }
+      nodeIndex += 1;
+      if (latexParser.isEnvironment(node)) traverse(node.content);
     }
-  }
-
+  };
   traverse(nodes);
   return currentSection;
 }
 
-/**
- * Check if text contains importance keywords
- */
 function findKeywords(text: string): string[] {
-  const lowerText = text.toLowerCase();
-  return IMPORTANCE_KEYWORDS.filter(kw => lowerText.includes(kw));
+  const lower = text.toLowerCase();
+  return IMPORTANCE_HINTS.filter(hint => lower.includes(hint));
 }
 
-/**
- * Check if section name indicates key content
- */
 function isKeySection(sectionName?: string): boolean {
   if (!sectionName) return false;
   const lower = sectionName.toLowerCase();
-  return KEY_SECTIONS.some(ks => lower.includes(ks));
+  return KEY_SECTIONS.some(section => lower.includes(section));
 }
 
-/**
- * Extract context around an equation from raw LaTeX content
- */
-function extractContext(
-  texContent: string,
-  equationLatex: string,
-  windowSize: number
-): string {
+function extractContext(texContent: string, equationLatex: string, windowSize: number): string {
   const idx = texContent.indexOf(equationLatex);
   if (idx === -1) return '';
-
-  const start = Math.max(0, idx - windowSize);
-  const end = Math.min(texContent.length, idx + equationLatex.length + windowSize);
-
-  let context = texContent.slice(start, end);
-  // Clean up LaTeX commands for readability
-  context = context
+  return texContent
+    .slice(Math.max(0, idx - windowSize), Math.min(texContent.length, idx + equationLatex.length + windowSize))
     .replace(/\\[a-zA-Z]+\{[^}]*\}/g, ' ')
     .replace(/\\[a-zA-Z]+/g, ' ')
     .replace(/[{}]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-
-  return context;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Function
-// ─────────────────────────────────────────────────────────────────────────────
+function deriveCandidatePriority(candidate: Omit<KeyEquationCandidate, 'candidate_priority' | 'signal_summary' | 'candidate_key' | 'equation'>): { score: number; signals: string[] } {
+  const signals: string[] = [];
+  let score = Math.min(candidate.reference_count, 4) * 3;
+  if (candidate.reference_count > 0) signals.push(`ref_count:${candidate.reference_count}`);
+  if (candidate.section) signals.push(`section:${candidate.section}`);
+  if (candidate.in_key_section) {
+    score += 3;
+    signals.push('key_section_hint');
+  }
+  if (candidate.context_keywords.length > 0) {
+    score += Math.min(candidate.context_keywords.length, 2) * 2;
+    signals.push(`context_keywords:${candidate.context_keywords.slice(0, 2).join('|')}`);
+  }
+  if (candidate.context_text) signals.push('local_context');
+  return { score, signals };
+}
 
-/**
- * Identify and score key equations in a LaTeX document
- */
-export function identifyKeyEquations(
+function importanceScore(status: KeyEquationSelectionStatus, band?: KeyEquationImportanceBand): number {
+  if (status !== 'selected') return 0;
+  if (band === 'high') return 90;
+  if (band === 'medium') return 60;
+  return 35;
+}
+
+function fallbackCandidates(
+  candidates: KeyEquationCandidate[],
+  selectionStatus: KeyEquationSelectionStatus,
+  provenanceStatus: SemanticAssessmentProvenance['status'],
+  reasonCode: string,
+  promptVersion: string,
+  inputHash: string,
+  model?: string,
+): KeyEquation[] {
+  return candidates.map(candidate => ({
+    ...candidate.equation,
+    candidate_key: candidate.candidate_key,
+    selection_status: selectionStatus,
+    importance_score: 0,
+    confidence: 0,
+    reference_count: candidate.reference_count,
+    section: candidate.section,
+    in_key_section: candidate.in_key_section,
+    context_text: candidate.context_text,
+    context_keywords: candidate.context_keywords,
+    selection_rationale: reasonCode,
+    provenance: {
+      backend: selectionStatus === 'unavailable' ? 'diagnostic_fallback' : 'mcp_sampling',
+      status: provenanceStatus,
+      used_fallback: true,
+      reason_code: reasonCode,
+      prompt_version: promptVersion,
+      input_hash: inputHash,
+      model,
+      signals: candidate.signal_summary,
+    },
+  }));
+}
+
+export async function identifyKeyEquations(
   ast: LatexAst,
   texContent: string,
-  options: KeyEquationOptions = {}
-): KeyEquation[] {
+  options: KeyEquationOptions = {},
+): Promise<KeyEquation[]> {
   const {
     max_equations = 10,
     min_score = 20,
     include_inline = false,
     context_window = 300,
+    document_title,
+    abstract = extractAbstract(ast),
+    tool_name = INSPIRE_DEEP_RESEARCH,
+    createMessage,
   } = options;
-
-  // Step 1: Extract all equations
+  const promptVersion = 'sem11_key_equation_importance_v1';
   let equations = extractEquations(ast, { content: texContent });
+  if (!include_inline) equations = equations.filter(eq => eq.type !== 'inline');
 
-  // Filter inline if not requested
-  if (!include_inline) {
-    equations = equations.filter(eq => eq.type !== 'inline');
+  const refCounts = countReferences(texContent);
+  const candidates = equations
+    .map((equation, index) => {
+      const section = findSectionAtPosition(ast.content, index);
+      const contextText = extractContext(texContent, equation.latex, context_window);
+      const contextKeywords = findKeywords(contextText);
+      const seed = {
+        reference_count: equation.label ? (refCounts.get(equation.label) ?? 0) : 0,
+        section,
+        in_key_section: isKeySection(section),
+        context_text: contextText || undefined,
+        context_keywords: contextKeywords,
+      };
+      const derived = deriveCandidatePriority(seed);
+      return {
+        equation,
+        candidate_key: equation.label || `eq_${index + 1}`,
+        ...seed,
+        candidate_priority: derived.score,
+        signal_summary: derived.signals,
+      };
+    })
+    .sort((a, b) => b.candidate_priority - a.candidate_priority)
+    .slice(0, Math.max(max_equations, 6));
+
+  if (candidates.length === 0) return [];
+
+  const inputHash = sha256Hex(JSON.stringify({
+    document_title: document_title ?? '',
+    abstract,
+    candidates: candidates.map(candidate => ({
+      candidate_key: candidate.candidate_key,
+      label: candidate.equation.label ?? null,
+      latex: candidate.equation.latex,
+      reference_count: candidate.reference_count,
+      section: candidate.section ?? null,
+      signal_summary: candidate.signal_summary,
+    })),
+  }));
+
+  if (!createMessage) {
+    return fallbackCandidates(candidates, 'unavailable', 'unavailable', 'sampling_unavailable', promptVersion, inputHash);
   }
 
-  // Step 2: Count references
-  const refCounts = countReferences(texContent);
+  let response: CreateMessageResult;
+  try {
+    response = await createMessage({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: buildKeyEquationAssessmentPrompt({
+            prompt_version: promptVersion,
+            document_title,
+            abstract,
+            candidates: candidates.map(candidate => ({
+              candidate_key: candidate.candidate_key,
+              label: candidate.equation.label,
+              latex: candidate.equation.latex,
+              reference_count: candidate.reference_count,
+              section: candidate.section,
+              context_text: candidate.context_text,
+              signal_summary: candidate.signal_summary,
+            })),
+          }),
+        },
+      }],
+      maxTokens: 900,
+      metadata: buildToolSamplingMetadata({
+        tool: tool_name,
+        module: 'sem11_key_equation_importance',
+        promptVersion,
+        costClass: 'medium',
+      }),
+    });
+  } catch {
+    return fallbackCandidates(candidates, 'unavailable', 'unavailable', 'sampling_error', promptVersion, inputHash);
+  }
 
-  // Step 3: Score each equation
-  const scoredEquations: KeyEquation[] = equations.map((eq, index) => {
-    let score = 0;
-    const keywords: string[] = [];
+  const parsed = parseKeyEquationSamplingResponse(extractSamplingText(response.content));
+  if (!parsed) {
+    return fallbackCandidates(candidates, 'unavailable', 'invalid', 'invalid_response', promptVersion, inputHash, response.model);
+  }
+  if (parsed.overall_status === 'abstained') {
+    return fallbackCandidates(candidates, 'abstained', 'abstained', 'model_abstained', promptVersion, inputHash, response.model);
+  }
 
-    // Reference score
-    const refCount = eq.label ? (refCounts.get(eq.label) || 0) : 0;
-    const refScore = Math.min(refCount * WEIGHTS.reference, WEIGHTS.max_reference);
-    score += refScore;
-
-    // Label score
-    if (eq.label) {
-      score += WEIGHTS.label;
-    }
-
-    // Display type score
-    if (eq.type !== 'inline') {
-      score += WEIGHTS.display_type;
-    }
-
-    // Section analysis
-    const section = findSectionAtPosition(ast.content, index);
-    const inKeySection = isKeySection(section);
-    if (inKeySection) {
-      score += WEIGHTS.key_section;
-    }
-
-    // Context keyword analysis
-    const context = extractContext(texContent, eq.latex, context_window);
-    const foundKeywords = findKeywords(context);
-    const keywordScore = Math.min(
-      foundKeywords.length * WEIGHTS.keyword,
-      WEIGHTS.max_keyword
-    );
-    score += keywordScore;
-    keywords.push(...foundKeywords);
-
-    return {
-      ...eq,
-      importance_score: Math.min(score, 100),
-      reference_count: refCount,
-      section,
-      in_key_section: inKeySection,
-      context_text: context || undefined,
-      context_keywords: keywords,
-    };
-  });
-
-  // Step 4: Sort by importance and filter
-  return scoredEquations
-    .filter(eq => eq.importance_score >= min_score)
-    .sort((a, b) => b.importance_score - a.importance_score)
+  const evaluations = new Map(parsed.evaluations.map(item => [item.candidate_key, item]));
+  return candidates
+    .map(candidate => {
+      const evaluation = evaluations.get(candidate.candidate_key);
+      const selectionStatus = evaluation?.selection_status ?? 'uncertain';
+      const importanceBand = evaluation?.importance_band ?? (selectionStatus === 'selected' ? 'medium' : undefined);
+      const provenance: SemanticAssessmentProvenance = {
+        backend: 'mcp_sampling',
+        status: 'applied',
+        used_fallback: false,
+        reason_code: evaluation?.reason_code ?? 'not_selected',
+        prompt_version: promptVersion,
+        input_hash: inputHash,
+        model: response.model,
+        signals: candidate.signal_summary,
+      };
+      return {
+        ...candidate.equation,
+        candidate_key: candidate.candidate_key,
+        selection_status: selectionStatus,
+        importance_band: importanceBand,
+        importance_score: importanceScore(selectionStatus, importanceBand),
+        confidence: evaluation?.confidence ?? 0.25,
+        reference_count: candidate.reference_count,
+        section: candidate.section,
+        in_key_section: candidate.in_key_section,
+        context_text: candidate.context_text,
+        context_keywords: candidate.context_keywords,
+        selection_rationale: evaluation?.reason?.trim() || undefined,
+        provenance,
+      };
+    })
+    .filter(eq => eq.selection_status !== 'selected' || eq.importance_score >= min_score)
+    .sort((a, b) => {
+      const rank = (value: KeyEquationSelectionStatus) => value === 'selected' ? 0 : value === 'uncertain' ? 1 : value === 'abstained' ? 2 : 3;
+      return rank(a.selection_status) - rank(b.selection_status)
+        || b.importance_score - a.importance_score
+        || b.confidence - a.confidence;
+    })
     .slice(0, max_equations);
 }
 
-/**
- * Get a summary of key equations suitable for review output
- */
-export function summarizeKeyEquations(
-  keyEquations: KeyEquation[]
-): Array<{
+export function summarizeKeyEquations(keyEquations: KeyEquation[]): Array<{
   latex: string;
   label?: string;
-  importance: 'high' | 'medium' | 'low';
+  importance?: KeyEquationImportanceBand;
+  selection_status: KeyEquationSelectionStatus;
   description: string;
 }> {
-  return keyEquations.map(eq => {
-    let importance: 'high' | 'medium' | 'low';
-    if (eq.importance_score >= 60) {
-      importance = 'high';
-    } else if (eq.importance_score >= 40) {
-      importance = 'medium';
-    } else {
-      importance = 'low';
-    }
-
-    // Build description
-    const parts: string[] = [];
-    if (eq.reference_count > 0) {
-      parts.push(`referenced ${eq.reference_count} time(s)`);
-    }
-    if (eq.in_key_section && eq.section) {
-      parts.push(`in ${eq.section}`);
-    }
-    if (eq.context_keywords.length > 0) {
-      parts.push(`keywords: ${eq.context_keywords.slice(0, 2).join(', ')}`);
-    }
-
-    return {
-      latex: eq.latex,
-      label: eq.label,
-      importance,
-      description: parts.join('; ') || 'display equation',
-    };
-  });
+  return keyEquations.map(eq => ({
+    latex: eq.latex,
+    label: eq.label,
+    importance: eq.importance_band,
+    selection_status: eq.selection_status,
+    description: [
+      eq.selection_rationale,
+      eq.reference_count > 0 ? `ref×${eq.reference_count}` : null,
+      eq.section ? `in ${eq.section}` : null,
+    ].filter(Boolean).join('; ') || eq.provenance.reason_code,
+  }));
 }

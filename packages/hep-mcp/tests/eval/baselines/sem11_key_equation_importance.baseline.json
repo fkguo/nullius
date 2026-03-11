@@ -1,0 +1,10 @@
+{
+  "module": "NEW-SEM-11",
+  "cases": {
+    "main-result-beats-frequently-referenced-definition": ["eq:result"],
+    "hep-taxonomy-signal-does-not-override-semantics": ["eq:obs"],
+    "inline-vs-display-is-not-authority": ["eq:final"],
+    "sampling-unavailable-stays-visible": [],
+    "model-abstain-fails-closed": []
+  }
+}

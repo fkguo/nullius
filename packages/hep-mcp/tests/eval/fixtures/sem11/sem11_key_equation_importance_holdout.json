@@ -1,0 +1,44 @@
+{
+  "name": "sem11_key_equation_importance_holdout",
+  "version": 1,
+  "description": "Batch 16 holdout cases for key-equation fail-closed behavior.",
+  "module": "NEW-SEM-11",
+  "cases": [
+    {
+      "id": "sampling-unavailable-stays-visible",
+      "input": {
+        "latex": "\\documentclass{article}\\begin{document}\\section{Result}\\begin{equation}\\label{eq:key} F=ma \\end{equation}This is the key relation.\\end{document}",
+        "sampling_response": null
+      },
+      "expected": {
+        "selected_labels": [],
+        "status_by_label": {
+          "eq:key": "unavailable"
+        },
+        "importance_by_label": {},
+        "provenance_status": "unavailable"
+      },
+      "tags": ["fallback", "sampling_unavailable"]
+    },
+    {
+      "id": "model-abstain-fails-closed",
+      "input": {
+        "latex": "\\documentclass{article}\\begin{document}\\section{Setup}\\begin{equation}\\label{eq:a} a=b \\end{equation}\\section{Discussion}\\begin{equation}\\label{eq:b} c=d \\end{equation}\\end{document}",
+        "sampling_response": {
+          "overall_status": "abstained",
+          "evaluations": []
+        }
+      },
+      "expected": {
+        "selected_labels": [],
+        "status_by_label": {
+          "eq:a": "abstained",
+          "eq:b": "abstained"
+        },
+        "importance_by_label": {},
+        "provenance_status": "abstained"
+      },
+      "tags": ["holdout", "model_abstain"]
+    }
+  ]
+}

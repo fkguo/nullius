@@ -8,6 +8,10 @@
  * 5. Identify controversies and open questions
  */
 
+import type {
+  CreateMessageRequestParamsBase,
+  CreateMessageResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import * as api from '../../api/client.js';
 import type { PaperSummary } from '@autoresearch/shared';
 import { isConferencePaper } from './paperClassifier.js';
@@ -32,6 +36,10 @@ export interface FieldSurveyParams {
   focus?: ('controversies' | 'open_questions' | 'methodology' | 'recent_progress')[];
   /** Prefer journal papers over conference papers (default: true) */
   prefer_journal?: boolean;
+  /** Internal MCP context (not part of tool schema) */
+  _mcp?: {
+    createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+  };
 }
 
 export interface ReviewPaper extends PaperSummary {
@@ -323,7 +331,8 @@ async function expandCitationNetwork(
   iterations: number,
   maxPapers: number,
   preferJournal: boolean,
-  warnings: string[]
+  warnings: string[],
+  ctx: FieldSurveyParams['_mcp'] = {},
 ): Promise<{
   allPapers: Map<string, PaperSummary>;
   byIteration: { round: number; papers_added: number }[];
@@ -392,7 +401,7 @@ async function expandCitationNetwork(
         const confCheck = isConferencePaper(paper);
           if (confCheck.isConference) {
             try {
-              const traceResult = await traceToOriginal({ recid });
+              const traceResult = await traceToOriginal({ recid }, ctx);
               if (traceResult.success && traceResult.original_paper) {
                 newPapers.delete(recid);
                 if (!allPapers.has(traceResult.original_paper.recid!)) {
@@ -727,7 +736,8 @@ export async function performFieldSurvey(
     iterations,
     max_papers,
     prefer_journal,
-    warnings
+    warnings,
+    params._mcp,
   );
 
   // Convert to array

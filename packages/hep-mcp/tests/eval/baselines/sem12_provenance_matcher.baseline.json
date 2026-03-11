@@ -1,0 +1,30 @@
+{
+  "module": "NEW-SEM-12",
+  "cases": {
+    "conference-to-journal-same-content": {
+      "status": "matched",
+      "matched_recid": "j1",
+      "relationship": "same_content"
+    },
+    "rewritten-title-still-matches-extended-version": {
+      "status": "matched",
+      "matched_recid": "j2",
+      "relationship": "extended"
+    },
+    "author-overlap-false-match-rejected": {
+      "status": "no_match",
+      "matched_recid": null,
+      "relationship": "unknown"
+    },
+    "review-input-is-not-traceable": {
+      "status": "input_not_traceable",
+      "matched_recid": null,
+      "relationship": "unknown"
+    },
+    "sampling-unavailable-is-explicit": {
+      "status": "sampling_unavailable",
+      "matched_recid": null,
+      "relationship": "unknown"
+    }
+  }
+}

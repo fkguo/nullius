@@ -33,6 +33,7 @@ export interface DeepResearchParams {
   /** Internal MCP context (not part of tool schema) */
   _mcp?: {
     reportProgress?: (progress: number, total?: number, message?: string) => void | Promise<void>;
+    createMessage?: (params: import('@modelcontextprotocol/sdk/types.js').CreateMessageRequestParamsBase) => Promise<import('@modelcontextprotocol/sdk/types.js').CreateMessageResult>;
   };
 }
 
@@ -89,7 +90,7 @@ export async function performDeepResearch(
         include_inline_math: options.include_inline_math,
         max_section_length: options.max_section_length,
       };
-      result.analysis = await deepAnalyze({ identifiers, options: analyzeOptions });
+      result.analysis = await deepAnalyze({ identifiers, options: analyzeOptions, _mcp: params._mcp });
       break;
     }
 
@@ -108,6 +109,7 @@ export async function performDeepResearch(
         include_critical_analysis: options.include_critical_analysis,
         narrative_structure: options.narrative_structure,
         options: synthOptions,
+        _mcp: params._mcp,
       });
       break;
     }

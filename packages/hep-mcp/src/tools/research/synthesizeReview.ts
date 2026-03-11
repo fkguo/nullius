@@ -8,6 +8,10 @@
  * - Multiple narrative structures
  */
 
+import type {
+  CreateMessageRequestParamsBase,
+  CreateMessageResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import * as api from '../../api/client.js';
 import pLimit from 'p-limit';
 import { deepAnalyze, type DeepPaperAnalysis } from './deepAnalyze.js';
@@ -46,6 +50,10 @@ export interface SynthesizeReviewParams {
   include_critical_analysis?: boolean;
   narrative_structure?: NarrativeStructure;
   options?: SynthesizeOptions;
+  /** Internal MCP context (not part of tool schema) */
+  _mcp?: {
+    createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+  };
 }
 
 export interface SynthesizeOptions {
@@ -94,30 +102,28 @@ function extractKeyEquations(
   }> = [];
 
   for (const paper of papers) {
-    // Prefer key_equations (importance-scored) over regular equations
     if (paper.key_equations && paper.key_equations.length > 0) {
       for (const eq of paper.key_equations) {
-        const importance = eq.importance_score >= 60 ? 'high'
-          : eq.importance_score >= 40 ? 'medium' : 'low';
-
-        // Build description from context
+        if (eq.selection_status !== 'selected') continue;
         const descParts: string[] = [];
         if (eq.label) descParts.push(eq.label);
         if (eq.reference_count > 0) {
           descParts.push(`ref×${eq.reference_count}`);
         }
         if (eq.section) descParts.push(`in ${eq.section}`);
+        if (eq.selection_rationale) descParts.push(eq.selection_rationale);
 
         equations.push({
           latex: eq.latex,
           source_paper: paper.recid,
-          importance,
+          importance: eq.importance_band,
           description: descParts.join('; ') || undefined,
           score: eq.importance_score,
         });
       }
-    } else if (paper.equations) {
-      // Fallback to labeled equations
+      continue;
+    }
+    if (paper.equations) {
       const labeled = paper.equations.filter(eq => eq.label);
       for (const eq of labeled.slice(0, 3)) {
         equations.push({
@@ -234,6 +240,7 @@ export async function synthesizeReview(
       extract_methodology: true,
       extract_conclusions: true,
     },
+    _mcp: params._mcp,
   });
 
   const successfulPapers = analysisResult.papers.filter(p => p.success);

@@ -4,6 +4,11 @@
  * equations, theorems, methodology, and conclusions.
  */
 
+import type {
+  CreateMessageRequestParamsBase,
+  CreateMessageResult,
+} from '@modelcontextprotocol/sdk/types.js';
+import { INSPIRE_DEEP_RESEARCH } from '@autoresearch/shared';
 import { getPaperContent } from '../../utils/arxivCompat.js';
 import { resolveArxivId } from '../../utils/resolveArxivId.js';
 import * as api from '../../api/client.js';
@@ -27,6 +32,10 @@ export interface DeepAnalyzeParams {
   identifiers: string[];
   /** Analysis options */
   options?: DeepAnalyzeOptions;
+  /** Internal MCP context (not part of tool schema) */
+  _mcp?: {
+    createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+  };
 }
 
 export interface DeepAnalyzeOptions {
@@ -114,6 +123,21 @@ export interface DeepPaperAnalysis {
     latex: string;
     label?: string;
     importance_score: number;
+    importance_band?: 'high' | 'medium' | 'low';
+    selection_status: 'selected' | 'uncertain' | 'abstained' | 'unavailable';
+    confidence: number;
+    reason_code: string;
+    selection_rationale?: string;
+    provenance: {
+      backend: 'mcp_sampling' | 'metadata' | 'diagnostic_fallback';
+      status: 'applied' | 'metadata' | 'fallback' | 'abstained' | 'invalid' | 'unavailable';
+      used_fallback: boolean;
+      reason_code: string;
+      prompt_version?: string;
+      input_hash?: string;
+      model?: string;
+      signals?: string[];
+    };
     reference_count: number;
     section?: string;
     context_text?: string;
@@ -319,7 +343,8 @@ function validateAndPrioritizeEquations(
  */
 async function analyzeSinglePaper(
   identifier: string,
-  options: Required<DeepAnalyzeOptions>
+  options: Required<DeepAnalyzeOptions>,
+  ctx: DeepAnalyzeParams['_mcp'] = {},
 ): Promise<DeepPaperAnalysis> {
   // Step 1: Resolve identifier and get paper metadata
   let recid = '';
@@ -496,10 +521,14 @@ async function analyzeSinglePaper(
     // Step 10: Identify key equations with importance scoring (no limit)
     let keyEquations: DeepPaperAnalysis['key_equations'] = undefined;
     if (options.extract_equations) {
-      const keyEqs = identifyKeyEquations(ast, content.main_tex, {
+      const keyEqs = await identifyKeyEquations(ast, content.main_tex, {
         min_score: 15,
         include_inline: options.include_inline_math,
         context_window: 200,
+        document_title: docStructure.title || title,
+        abstract: docStructure.abstract,
+        tool_name: INSPIRE_DEEP_RESEARCH,
+        createMessage: ctx.createMessage,
       });
 
       if (keyEqs.length > 0) {
@@ -507,6 +536,12 @@ async function analyzeSinglePaper(
           latex: eq.latex,
           label: eq.label,
           importance_score: eq.importance_score,
+          importance_band: eq.importance_band,
+          selection_status: eq.selection_status,
+          confidence: eq.confidence,
+          reason_code: eq.provenance.reason_code,
+          selection_rationale: eq.selection_rationale,
+          provenance: eq.provenance,
           reference_count: eq.reference_count,
           section: eq.section,
           context_text: eq.context_text,
@@ -572,7 +607,7 @@ export async function deepAnalyze(
   for (let i = 0; i < identifiers.length; i += BATCH_SIZE) {
     const batch = identifiers.slice(i, i + BATCH_SIZE);
     const results = await Promise.all(
-      batch.map(id => analyzeSinglePaper(id, options))
+      batch.map(id => analyzeSinglePaper(id, options, params._mcp))
     );
     papers.push(...results);
   }
