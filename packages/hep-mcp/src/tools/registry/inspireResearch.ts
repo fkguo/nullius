@@ -36,7 +36,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     description:
       'Parse LaTeX content and extract selected components into a run artifact (Evidence-first; writes `parse_latex_<hash>.json`; network).',
     zodSchema: InspireParseLatexToolSchema,
-    handler: async params => {
+    handler: async (params, ctx) => {
       const { parseLatexContent } = await import('../research/parseLatexContent.js');
       const hash = hashParseLatexRequest({
         identifier: params.identifier,
@@ -51,6 +51,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
           identifier: params.identifier,
           components: params.components,
           options: params.options,
+          ...(ctx.createMessage ? { _mcp: { createMessage: ctx.createMessage } } : {}),
         });
 
         const ref = writeRunJsonArtifact(params.run_id, artifactName, {
@@ -103,7 +104,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     description:
       'Unified research navigation tool (network). Modes: discover/field_survey/topic_analysis/network/experts/connections/trace_source/analyze.',
     zodSchema: ResearchNavigatorToolSchema,
-    handler: async params => {
+    handler: async (params, ctx) => {
       const result = await (async () => {
         switch (params.mode) {
           case 'discover': {
@@ -125,6 +126,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
               max_papers: params.limit,
               focus: params.focus,
               prefer_journal: params.prefer_journal,
+              ...(ctx.createMessage ? { _mcp: { createMessage: ctx.createMessage } } : {}),
             });
           }
           case 'topic_analysis': {
@@ -324,7 +326,14 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
       const { performDeepResearch } = await import('../research/deepResearch.js');
       const result = await performDeepResearch({
         ...params,
-        _mcp: ctx.reportProgress ? { reportProgress: ctx.reportProgress } : undefined,
+        ...((ctx.reportProgress || ctx.createMessage)
+          ? {
+            _mcp: {
+              ...(ctx.reportProgress ? { reportProgress: ctx.reportProgress } : {}),
+              ...(ctx.createMessage ? { createMessage: ctx.createMessage } : {}),
+            },
+          }
+          : {}),
       });
 
       if (params.mode === 'analyze' && params.run_id) {

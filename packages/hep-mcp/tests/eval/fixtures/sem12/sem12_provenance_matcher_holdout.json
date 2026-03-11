@@ -1,0 +1,75 @@
+{
+  "name": "sem12_provenance_matcher_holdout",
+  "version": 1,
+  "description": "Batch 16 holdout cases for provenance matcher uncertainty paths.",
+  "module": "NEW-SEM-12",
+  "cases": [
+    {
+      "id": "review-input-is-not-traceable",
+      "input": {
+        "paper": {
+          "recid": "r2",
+          "title": "Review of duality webs",
+          "abstract": "A review article.",
+          "authors": ["Reviewer, Alice"],
+          "year": 2024,
+          "publication_type": ["review"],
+          "document_type": ["article"]
+        },
+        "candidates": [],
+        "sampling_response": {
+          "status": "input_not_traceable",
+          "selected_candidate_key": null,
+          "relationship": "unknown",
+          "confidence": 0.97,
+          "reason_code": "review_article_not_traceable",
+          "reason": "The input is a review, not a traceable conference/preliminary record."
+        }
+      },
+      "expected": {
+        "status": "input_not_traceable",
+        "success": false,
+        "matched_recid": null,
+        "relationship": "unknown",
+        "reason_code": "review_article_not_traceable",
+        "provenance_status": "applied"
+      },
+      "tags": ["holdout", "review_input"]
+    },
+    {
+      "id": "sampling-unavailable-is-explicit",
+      "input": {
+        "paper": {
+          "recid": "c4",
+          "title": "Conference note on exotic decays",
+          "abstract": "Proceedings summary.",
+          "authors": ["Zed, Uma"],
+          "year": 2022,
+          "publication_type": ["conference paper"],
+          "document_type": ["conference paper"]
+        },
+        "candidates": [
+          {
+            "recid": "j4",
+            "title": "Exotic decays at high luminosity",
+            "abstract": "Possible follow-up article.",
+            "authors": ["Zed, Uma"],
+            "year": 2023,
+            "publication_type": ["article"],
+            "document_type": ["article"]
+          }
+        ],
+        "sampling_response": null
+      },
+      "expected": {
+        "status": "sampling_unavailable",
+        "success": false,
+        "matched_recid": null,
+        "relationship": "unknown",
+        "reason_code": "sampling_unavailable",
+        "provenance_status": "unavailable"
+      },
+      "tags": ["holdout", "sampling_unavailable"]
+    }
+  ]
+}

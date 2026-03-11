@@ -1,0 +1,143 @@
+{
+  "name": "sem12_provenance_matcher_eval",
+  "version": 1,
+  "description": "Batch 16 eval cases for semantic provenance matching.",
+  "module": "NEW-SEM-12",
+  "cases": [
+    {
+      "id": "conference-to-journal-same-content",
+      "input": {
+        "paper": {
+          "recid": "c1",
+          "title": "Proceedings contribution on dual amplitudes",
+          "abstract": "Conference summary of our dual amplitude calculation and the same final formula later published in journal form.",
+          "authors": ["Doe, Alice", "Smith, Bob"],
+          "year": 2022,
+          "publication_type": ["conference paper"],
+          "document_type": ["conference paper"]
+        },
+        "candidates": [
+          {
+            "recid": "j1",
+            "title": "Dual amplitudes in warped backgrounds",
+            "abstract": "Journal article presenting the same calculation and final formula with full details.",
+            "authors": ["Doe, Alice", "Smith, Bob"],
+            "year": 2023,
+            "publication_type": ["article"],
+            "document_type": ["article"]
+          },
+          {
+            "recid": "r1",
+            "title": "Review of warped backgrounds",
+            "abstract": "A broad review article.",
+            "authors": ["Other, Carol"],
+            "year": 2024,
+            "publication_type": ["review"],
+            "document_type": ["article"]
+          }
+        ],
+        "sampling_response": {
+          "status": "matched",
+          "selected_candidate_key": "j1",
+          "relationship": "same_content",
+          "confidence": 0.93,
+          "reason_code": "semantic_content_match",
+          "reason": "The journal article is the same work in fuller publication form."
+        }
+      },
+      "expected": {
+        "status": "matched",
+        "success": true,
+        "matched_recid": "j1",
+        "relationship": "same_content",
+        "reason_code": "semantic_content_match",
+        "provenance_status": "applied"
+      },
+      "tags": ["conference", "journal", "same_content"]
+    },
+    {
+      "id": "rewritten-title-still-matches-extended-version",
+      "input": {
+        "paper": {
+          "recid": "c2",
+          "title": "Short note on bootstrap bounds",
+          "abstract": "Proceedings note announcing bootstrap bounds in a specific defect setup.",
+          "authors": ["Roe, Dana"],
+          "year": 2021,
+          "publication_type": ["conference paper"],
+          "document_type": ["conference paper"]
+        },
+        "candidates": [
+          {
+            "recid": "j2",
+            "title": "Defect bootstrap constraints from mixed correlators",
+            "abstract": "Full journal treatment of the same defect-bootstrap program announced in the proceedings note.",
+            "authors": ["Roe, Dana", "Poe, Erin"],
+            "year": 2023,
+            "publication_type": ["article"],
+            "document_type": ["article"]
+          }
+        ],
+        "sampling_response": {
+          "status": "matched",
+          "selected_candidate_key": "j2",
+          "relationship": "extended",
+          "confidence": 0.88,
+          "reason_code": "semantic_extension_match",
+          "reason": "The journal paper substantially extends the same announced result despite title rewrite."
+        }
+      },
+      "expected": {
+        "status": "matched",
+        "success": true,
+        "matched_recid": "j2",
+        "relationship": "extended",
+        "reason_code": "semantic_extension_match",
+        "provenance_status": "applied"
+      },
+      "tags": ["title_rewrite", "extended_version"]
+    },
+    {
+      "id": "author-overlap-false-match-rejected",
+      "input": {
+        "paper": {
+          "recid": "c3",
+          "title": "Workshop report on holographic noise",
+          "abstract": "Proceedings report about holographic noise in detectors.",
+          "authors": ["Lee, Fran", "Kim, Jin"],
+          "year": 2020,
+          "publication_type": ["conference paper"],
+          "document_type": ["conference paper"]
+        },
+        "candidates": [
+          {
+            "recid": "j3",
+            "title": "Holographic entanglement and tensor networks",
+            "abstract": "Unrelated paper by overlapping authors on a different topic.",
+            "authors": ["Lee, Fran", "Kim, Jin"],
+            "year": 2021,
+            "publication_type": ["article"],
+            "document_type": ["article"]
+          }
+        ],
+        "sampling_response": {
+          "status": "no_match",
+          "selected_candidate_key": null,
+          "relationship": "unknown",
+          "confidence": 0.14,
+          "reason_code": "same_authors_different_content",
+          "reason": "Author overlap is high but the scientific content is not a continuation of the proceedings paper."
+        }
+      },
+      "expected": {
+        "status": "no_match",
+        "success": false,
+        "matched_recid": null,
+        "relationship": "unknown",
+        "reason_code": "same_authors_different_content",
+        "provenance_status": "applied"
+      },
+      "tags": ["false_match", "author_overlap"]
+    }
+  ]
+}

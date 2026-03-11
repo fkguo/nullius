@@ -1,0 +1,118 @@
+{
+  "name": "sem11_key_equation_importance_eval",
+  "version": 1,
+  "description": "Batch 16 eval cases for key-equation semantic importance.",
+  "module": "NEW-SEM-11",
+  "cases": [
+    {
+      "id": "main-result-beats-frequently-referenced-definition",
+      "input": {
+        "latex": "\\documentclass{article}\\begin{document}\\section{Setup}We repeatedly use Eq.~\\eqref{eq:def}. Eq.~\\eqref{eq:def} fixes notation.\\begin{equation}\\label{eq:def} D(x)=x^2 \\end{equation}\\section{Results}Our central result is the following relation controlling the final spectrum.\\begin{equation}\\label{eq:result} M^2 = g^2 + m_0^2 \\end{equation}This is the main result of the paper.\\end{document}",
+        "sampling_response": {
+          "overall_status": "selected",
+          "evaluations": [
+            {
+              "candidate_key": "eq:def",
+              "selection_status": "uncertain",
+              "importance_band": "low",
+              "confidence": 0.31,
+              "reason_code": "supporting_definition",
+              "reason": "Defines notation but is not the central contribution."
+            },
+            {
+              "candidate_key": "eq:result",
+              "selection_status": "selected",
+              "importance_band": "high",
+              "confidence": 0.94,
+              "reason_code": "central_claim_equation",
+              "reason": "Explicitly framed as the paper's main result."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "selected_labels": ["eq:result"],
+        "status_by_label": {
+          "eq:def": "uncertain",
+          "eq:result": "selected"
+        },
+        "importance_by_label": {
+          "eq:def": "low",
+          "eq:result": "high"
+        },
+        "provenance_status": "applied"
+      },
+      "tags": ["core_result", "definition_decoy"]
+    },
+    {
+      "id": "hep-taxonomy-signal-does-not-override-semantics",
+      "input": {
+        "latex": "\\documentclass{article}\\begin{document}\\section{Formalism}The amplitude below is standard setup notation.\\begin{equation}\\label{eq:amp} \\mathcal{A}(s,t)=g^2 f(s,t) \\end{equation}\\section{Phenomenology}The observable prediction relevant for comparison is\\begin{equation}\\label{eq:obs} R = \\frac{\\sigma_{\\rm signal}}{\\sigma_{\\rm bg}} \\end{equation}We use Eq.~\\eqref{eq:obs} as the final prediction and central observable.\\end{document}",
+        "sampling_response": {
+          "overall_status": "selected",
+          "evaluations": [
+            {
+              "candidate_key": "eq:amp",
+              "selection_status": "uncertain",
+              "importance_band": "low",
+              "confidence": 0.28,
+              "reason_code": "taxonomy_signal_not_central",
+              "reason": "Interesting formalism signal, but not the paper's main reported result."
+            },
+            {
+              "candidate_key": "eq:obs",
+              "selection_status": "selected",
+              "importance_band": "high",
+              "confidence": 0.89,
+              "reason_code": "reported_observable",
+              "reason": "Presented as the final prediction for comparison."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "selected_labels": ["eq:obs"],
+        "status_by_label": {
+          "eq:amp": "uncertain",
+          "eq:obs": "selected"
+        },
+        "importance_by_label": {
+          "eq:amp": "low",
+          "eq:obs": "high"
+        },
+        "provenance_status": "applied"
+      },
+      "tags": ["hep_taxonomy", "semantic_authority"]
+    },
+    {
+      "id": "inline-vs-display-is-not-authority",
+      "input": {
+        "latex": "\\documentclass{article}\\begin{document}\\section{Model}We define $\\lambda_{\\rm eff}=g^2/m^2$ for convenience.\\section{Conclusion}The actual take-away equation is\\begin{equation}\\label{eq:final} \\Delta E = \\lambda_{\\rm eff} T^4 \\end{equation}This expression summarizes the final scaling law.\\end{document}",
+        "sampling_response": {
+          "overall_status": "selected",
+          "evaluations": [
+            {
+              "candidate_key": "eq:final",
+              "selection_status": "selected",
+              "importance_band": "high",
+              "confidence": 0.9,
+              "reason_code": "final_scaling_law",
+              "reason": "This is the final reported scaling relation."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "selected_labels": ["eq:final"],
+        "status_by_label": {
+          "eq:final": "selected"
+        },
+        "importance_by_label": {
+          "eq:final": "high"
+        },
+        "provenance_status": "applied"
+      },
+      "tags": ["inline_display", "scaling_law"]
+    }
+  ]
+}

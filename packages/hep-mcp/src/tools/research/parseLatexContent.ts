@@ -4,6 +4,11 @@
  * Consolidates 7 individual extract_* tools into one polymorphic tool
  */
 
+import type {
+  CreateMessageRequestParamsBase,
+  CreateMessageResult,
+} from '@modelcontextprotocol/sdk/types.js';
+import { INSPIRE_PARSE_LATEX } from '@autoresearch/shared';
 import { getPaperContent } from '../../utils/arxivCompat.js';
 import {
   parseTexFile,
@@ -50,6 +55,10 @@ export interface ParseLatexContentParams {
   components?: ComponentType[];
   /** Options for extraction */
   options?: ParseLatexOptions;
+  /** Internal MCP context (not part of tool schema) */
+  _mcp?: {
+    createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+  };
 }
 
 export interface ParseLatexOptions {
@@ -84,7 +93,20 @@ export interface ParseLatexContentResult {
   key_equations?: Array<{
     latex: string;
     label?: string;
-    importance: 'high' | 'medium' | 'low';
+    importance?: 'high' | 'medium' | 'low';
+    selection_status: 'selected' | 'uncertain' | 'abstained' | 'unavailable';
+    reason_code: string;
+    selection_rationale?: string;
+    provenance: {
+      backend: 'mcp_sampling' | 'metadata' | 'diagnostic_fallback';
+      status: 'applied' | 'metadata' | 'fallback' | 'abstained' | 'invalid' | 'unavailable';
+      used_fallback: boolean;
+      reason_code: string;
+      prompt_version?: string;
+      input_hash?: string;
+      model?: string;
+      signals?: string[];
+    };
     reference_count: number;
     section?: string;
   }>;
@@ -196,15 +218,22 @@ export async function parseLatexContent(
 
     // Key equations with importance scoring (no limit)
     if (options.include_key_equations) {
-      const keyEqs = identifyKeyEquations(ast, resolved.content, {
+      const keyEqs = await identifyKeyEquations(ast, resolved.content, {
         min_score: 15,
         include_inline: options.include_inline_math,
+        document_title: result.metadata.title,
+        abstract: result.metadata.abstract,
+        tool_name: INSPIRE_PARSE_LATEX,
+        createMessage: params._mcp?.createMessage,
       });
       result.key_equations = keyEqs.map(eq => ({
         latex: eq.latex,
         label: eq.label,
-        importance: eq.importance_score >= 60 ? 'high'
-          : eq.importance_score >= 40 ? 'medium' : 'low',
+        importance: eq.importance_band,
+        selection_status: eq.selection_status,
+        reason_code: eq.provenance.reason_code,
+        selection_rationale: eq.selection_rationale,
+        provenance: eq.provenance,
         reference_count: eq.reference_count,
         section: eq.section,
       }));
