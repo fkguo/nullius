@@ -38,7 +38,7 @@ Acceptance criteria:
 
 Acceptance criteria:
 - `scripts/bin/research_writer_learn_discussion_logic.py` prepares per-paper reading packs from an INSPIRE/arXiv LaTeX corpus (N=10 default).
-- Packs include excerpt sections (Abstract/Intro/Conclusions) plus auto-selected diagnostics paragraphs, with evidence pointers into the derived `flattened_main.tex`.
+- Packs include excerpt sections (Abstract/Intro/Conclusions) plus semantically curated diagnostics paragraphs, with deterministic fallback candidates and evidence pointers into the derived `flattened_main.tex`.
 - Optional clean-room dual-model pass can be run (`--run-models`) without changing skill assets automatically.
 - `bash scripts/dev/run_all_smoke_tests.sh` exercises the pack generator offline using deterministic fixtures (no network).
 

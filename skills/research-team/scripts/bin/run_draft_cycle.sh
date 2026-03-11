@@ -27,6 +27,7 @@ REQUIRE_CONVERGENCE="-1"
 MAX_SECTIONS="0"
 MAX_SECTION_CHARS="0"
 MAX_ENV_BLOCKS="0"
+SEMANTIC_SELECTION_JSON=""
 
 usage() {
   cat <<'EOF'
@@ -34,7 +35,7 @@ run_draft_cycle.sh
 
 Run a LaTeX-source-first draft cycle:
   1) deterministic preflight (bib/cite/label/fig/KB linkage)
-  2) build a focused review packet (substantive slices: methods/results/physics; plus key math/algorithm envs)
+  2) build a focused review packet (candidate expansion + optional semantic adjudication over substantive slices)
   3) optionally run Member A (Claude) + Member B (Gemini) reviewers (+ optional leader audit)
      - Default Gemini runner fallback is the skill's `assets/run_gemini.sh` (preferred over the external gemini-cli-runner).
 
@@ -74,6 +75,7 @@ Options:
   --max-sections N            Optional override for focus slice count (0 uses config/default).
   --max-section-chars N       Optional override for max chars per focus slice (0 uses config/default).
   --max-env-blocks N          Optional override for env extraction count (0 uses config/default).
+  --semantic-selection-json P Optional structured semantic selection JSON passed to build_draft_packet.py.
 EOF
 }
 
@@ -102,6 +104,7 @@ while [[ $# -gt 0 ]]; do
     --max-sections) MAX_SECTIONS="${2:-0}"; shift 2 ;;
     --max-section-chars) MAX_SECTION_CHARS="${2:-0}"; shift 2 ;;
     --max-env-blocks) MAX_ENV_BLOCKS="${2:-0}"; shift 2 ;;
+    --semantic-selection-json) SEMANTIC_SELECTION_JSON="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -171,8 +174,20 @@ else
 fi
 
 echo "[packet] building draft packet -> ${packet_path}"
-python3 "${PACKET_BUILDER}" --tag "${TAG}" --tex "${TEX}" --bib "${BIB}" --out "${packet_path}" \
-  --max-sections "${MAX_SECTIONS}" --max-section-chars "${MAX_SECTION_CHARS}" --max-env-blocks "${MAX_ENV_BLOCKS}"
+packet_cmd=(
+  python3 "${PACKET_BUILDER}"
+  --tag "${TAG}"
+  --tex "${TEX}"
+  --bib "${BIB}"
+  --out "${packet_path}"
+  --max-sections "${MAX_SECTIONS}"
+  --max-section-chars "${MAX_SECTION_CHARS}"
+  --max-env-blocks "${MAX_ENV_BLOCKS}"
+)
+if [[ -n "${SEMANTIC_SELECTION_JSON}" ]]; then
+  packet_cmd+=(--semantic-selection-json "${SEMANTIC_SELECTION_JSON}")
+fi
+"${packet_cmd[@]}"
 
 if [[ "${PREFLIGHT_ONLY}" -eq 1 ]]; then
   echo "[ok] preflight-only: packet ready: ${packet_path}"
@@ -436,7 +451,10 @@ if [[ "${REQUIRE_CONVERGENCE}" == "1" ]]; then
   conv_status=""
   conv_exit_code_json=""
   if [[ -f "${conv_json}" ]]; then
-    mapfile -t conv_fields < <(python3 - "${conv_json}" <<'PY'
+    conv_fields=()
+    while IFS= read -r line; do
+      conv_fields+=("${line}")
+    done < <(python3 - "${conv_json}" <<'PY'
 import json
 import sys
 

@@ -126,6 +126,11 @@ if ! grep -nF -- "- Preflight structure map (JSON): [D0-r1_draft_structure.json]
   sed -n '1,120p' "${packet_r1}" >&2 || true
   exit 1
 fi
+if ! grep -nF -- '"selection_kind": "draft_focus_sections"' "${run_dir_r1}/D0-r1_draft_structure.json" >/dev/null 2>&1; then
+  echo "[fail] expected semantic_selection block in draft structure JSON" >&2
+  sed -n '1,220p' "${run_dir_r1}/D0-r1_draft_structure.json" >&2 || true
+  exit 1
+fi
 if ! grep -nF -- "- Prompt files README: [prompts/README.md](../../../prompts/README.md)" "${packet_r1}" >/dev/null 2>&1; then
   echo "[fail] expected prompts README link missing from packet" >&2
   sed -n '1,140p' "${packet_r1}" >&2 || true

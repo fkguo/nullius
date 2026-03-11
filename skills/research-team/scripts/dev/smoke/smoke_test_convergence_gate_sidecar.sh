@@ -152,6 +152,8 @@ mkdir -p "$(dirname "${OUT}")"
   echo "## Sweep Semantics / Parameter Dependence"
   echo "Consistency verdict: pass"
   echo
+  echo "## Verdict"
+  echo
   echo "Verdict: ready for next milestone"
 } >"${OUT}"
 EOF

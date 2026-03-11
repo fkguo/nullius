@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import json
 import os
 import re
 import sys
@@ -22,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 from team_config import load_team_config  # type: ignore
+from semantic_packet_curator import CandidateRecord, curate_candidates  # type: ignore
 from tex_draft import (  # type: ignore
     TexEnvBlock,
     TexLine,
@@ -159,6 +161,28 @@ def _utc_now() -> str:
     return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
+def _clip_preview(text: str, *, max_chars: int = 240) -> str:
+    text = re.sub(r"\s+", " ", strip_tex_comments(text)).strip()
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3].rstrip() + "..."
+
+
+def _load_structure_map(path: Path) -> dict[str, object]:
+    if not path.is_file():
+        return {"version": 1}
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"version": 1}
+    return obj if isinstance(obj, dict) else {"version": 1}
+
+
+def _write_structure_map(path: Path, obj: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def _keywords_hit_count(text: str, keywords: set[str]) -> int:
     t = text.lower()
     return sum(1 for k in keywords if k in t)
@@ -267,10 +291,9 @@ def _section_metrics(flat_lines: list, section: TexSection, env_blocks: list[Tex
         "simulation",
         "data",
     }
-    physics_title_kw = {
+    discussion_title_kw = {
         "discussion",
         "interpretation",
-        "physics",
         "physical",
         "implication",
         "phenomenology",
@@ -293,15 +316,15 @@ def _section_metrics(flat_lines: list, section: TexSection, env_blocks: list[Tex
     result_score += 4.0 * _keywords_hit_count(title, result_title_kw)
     result_score += 1.2 * _keywords_hit_count(sample_text, result_title_kw)
 
-    physics_score = (2.0 * eq_count + 0.8 * theorem_count + 0.6 * cite_count) * downweight
-    physics_score += 4.0 * _keywords_hit_count(title, physics_title_kw)
-    physics_score += 1.2 * _keywords_hit_count(sample_text, physics_title_kw)
+    discussion_score = (2.0 * eq_count + 0.8 * theorem_count + 0.6 * cite_count) * downweight
+    discussion_score += 4.0 * _keywords_hit_count(title, discussion_title_kw)
+    discussion_score += 1.2 * _keywords_hit_count(sample_text, discussion_title_kw)
 
     # If the title is uninformative, let content signals dominate.
     if len(title_l.strip()) <= 3 or title_l.strip() in {"", "notes"}:
         method_score *= 1.2
         result_score *= 1.2
-        physics_score *= 1.2
+        discussion_score *= 1.2
 
     return {
         "eq_count": float(eq_count),
@@ -313,81 +336,142 @@ def _section_metrics(flat_lines: list, section: TexSection, env_blocks: list[Tex
         "math_delim_count": float(math_delim_count),
         "method_score": float(method_score),
         "result_score": float(result_score),
-        "physics_score": float(physics_score),
+        "discussion_score": float(discussion_score),
     }
 
 
-def _select_focus_sections(
+def _normalize_focus_intents(focus_sections: list[str]) -> list[str]:
+    req = [str(x).strip().lower() for x in focus_sections if str(x).strip()]
+    if not req or "auto" in req:
+        req = ["methods", "results", "discussion"]
+
+    alias = {
+        "method": "methods",
+        "methods": "methods",
+        "result": "results",
+        "results": "results",
+        "physics": "discussion",
+        "discussion": "discussion",
+        "interpretation": "discussion",
+    }
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in req:
+        normalized = alias.get(raw)
+        if normalized is None or normalized in seen:
+            continue
+        seen.add(normalized)
+        out.append(normalized)
+    return out or ["methods", "results", "discussion"]
+
+
+def _rank_focus_section_ids(
     sections: list[TexSection],
     flat_lines: list,
     env_blocks: list[TexEnvBlock],
     focus_sections: list[str],
-    max_sections: int,
-) -> list[TexSection]:
+) -> tuple[list[int], dict[int, dict[str, float]], list[str]]:
     if not sections:
-        return []
+        return [], {}, []
 
-    req = [str(x).strip().lower() for x in focus_sections if str(x).strip()]
-    if not req or "auto" in req:
-        req = ["methods", "results", "physics"]
-
+    requested = _normalize_focus_intents(focus_sections)
     metrics: dict[int, dict[str, float]] = {}
-    for i, s in enumerate(sections):
-        metrics[i] = _section_metrics(flat_lines, s, env_blocks)
+    for i, section in enumerate(sections):
+        metrics[i] = _section_metrics(flat_lines, section, env_blocks)
 
-    selected: list[int] = []
+    ranked: list[int] = []
     used: set[int] = set()
 
     def _pick_best(score_key: str) -> int | None:
         best_i: int | None = None
-        best_v: float = -1.0
-        for i in range(len(sections)):
-            if i in used:
+        best_v = -1.0
+        for idx in range(len(sections)):
+            if idx in used:
                 continue
-            v = float(metrics[i].get(score_key, 0.0))
-            if v > best_v:
-                best_v = v
-                best_i = i
+            value = float(metrics[idx].get(score_key, 0.0))
+            if value > best_v:
+                best_v = value
+                best_i = idx
         return best_i
 
-    for cat in req:
-        if cat in {"method", "methods"}:
-            i = _pick_best("method_score")
-        elif cat in {"result", "results"}:
-            i = _pick_best("result_score")
-        elif cat in {"physics", "discussion"}:
-            i = _pick_best("physics_score")
-        else:
-            # Unknown selector: ignore for now (keeps the contract simple/deterministic).
-            i = None
-        if i is None:
+    for intent in requested:
+        score_key = {
+            "methods": "method_score",
+            "results": "result_score",
+            "discussion": "discussion_score",
+        }.get(intent, "")
+        if not score_key:
             continue
-        selected.append(i)
-        used.add(i)
-        if len(selected) >= max_sections:
-            return [sections[i] for i in selected]
+        idx = _pick_best(score_key)
+        if idx is None:
+            continue
+        ranked.append(idx)
+        used.add(idx)
 
-    # Fill remaining slots by overall "substantiveness" score.
     scored: list[tuple[float, int]] = []
-    for i in range(len(sections)):
-        if i in used:
+    for idx in range(len(sections)):
+        if idx in used:
             continue
-        m = metrics[i]
-        combined = max(float(m["method_score"]), float(m["result_score"]), float(m["physics_score"]))
-        # Small boost for sections with lots of equations/algorithms, even if titles are nonstandard.
-        combined += 0.2 * float(m["eq_count"]) + 0.5 * float(m["algo_count"])
-        scored.append((combined, i))
-    scored.sort(reverse=True, key=lambda x: x[0])
+        metric = metrics[idx]
+        combined = max(
+            float(metric["method_score"]),
+            float(metric["result_score"]),
+            float(metric["discussion_score"]),
+        )
+        combined += 0.2 * float(metric["eq_count"]) + 0.5 * float(metric["algo_count"])
+        scored.append((combined, idx))
+    scored.sort(reverse=True, key=lambda item: item[0])
+    ranked.extend(idx for _, idx in scored)
+    return ranked, metrics, requested
 
-    for _, i in scored:
-        selected.append(i)
-        used.add(i)
-        if len(selected) >= max_sections:
-            break
 
-    # Preserve document order.
-    selected_sorted = sorted(selected, key=lambda i: sections[i].start_idx)
-    return [sections[i] for i in selected_sorted]
+def _build_section_candidates(
+    *,
+    sections: list[TexSection],
+    ranked_ids: list[int],
+    metrics: dict[int, dict[str, float]],
+    flat_lines: list[TexLine],
+    requested_intents: list[str],
+    max_section_chars: int,
+    root: Path,
+) -> tuple[list[CandidateRecord], dict[str, TexSection]]:
+    candidates: list[CandidateRecord] = []
+    section_lookup: dict[str, TexSection] = {}
+    for fallback_rank, section_idx in enumerate(ranked_ids, start=1):
+        section = sections[section_idx]
+        metric = metrics[section_idx]
+        candidate_id = f"section-{section_idx + 1:03d}"
+        snippet = slice_flat_lines(flat_lines, section.start_idx, section.end_idx, max_chars=max_section_chars)
+        preview = _clip_preview(snippet)
+        hints = {
+            "fallback_rank": fallback_rank,
+            "requested_intents": requested_intents,
+            "intent_scores": {
+                "methods": round(float(metric["method_score"]), 3),
+                "results": round(float(metric["result_score"]), 3),
+                "discussion": round(float(metric["discussion_score"]), 3),
+            },
+            "eq_count": int(metric["eq_count"]),
+            "algo_count": int(metric["algo_count"]),
+            "fig_count": int(metric["fig_count"]),
+            "cite_count": int(metric["cite_count"]),
+        }
+        candidates.append(
+            CandidateRecord(
+                candidate_id=candidate_id,
+                unit="tex_section",
+                label=section.title or "(untitled section)",
+                source_path=f"{_rel(root, section.path)}:{section.line_no}",
+                start_line=int(section.line_no),
+                end_line=int(section.line_no),
+                preview=preview,
+                text=snippet,
+                hints=hints,
+                fallback_rank=fallback_rank,
+            )
+        )
+        section_lookup[candidate_id] = section
+    return candidates, section_lookup
 
 
 def _env_matches(env: str, focus_envs: set[str]) -> bool:
@@ -475,6 +559,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--tex", type=Path, required=True, help="Main TeX file.")
     p.add_argument("--bib", type=Path, required=True, help="BibTeX file.")
     p.add_argument("--out", type=Path, required=True, help="Output packet path (Markdown).")
+    p.add_argument(
+        "--semantic-selection-json",
+        type=Path,
+        default=None,
+        help="Optional structured semantic selection JSON for section adjudication.",
+    )
     p.add_argument("--max-sections", type=int, default=0, help="Override focus section count (0 uses config/default).")
     p.add_argument("--max-section-chars", type=int, default=0, help="Override max chars per section slice (0 uses config/default).")
     p.add_argument("--max-env-blocks", type=int, default=0, help="Override env block count (0 uses config/default).")
@@ -500,9 +590,9 @@ def main() -> int:
     preflight_json = args.out.with_name(f"{args.tag}_draft_structure.json")
 
     dr = cfg.data.get("draft_review", {}) if isinstance(cfg.data.get("draft_review", {}), dict) else {}
-    focus_sections_cfg = dr.get("focus_sections", ["methods", "results", "physics"])
+    focus_sections_cfg = dr.get("focus_sections", ["methods", "results", "discussion"])
     if not isinstance(focus_sections_cfg, list):
-        focus_sections_cfg = ["methods", "results", "physics"]
+        focus_sections_cfg = ["methods", "results", "discussion"]
 
     focus_envs_cfg = dr.get("focus_envs", ["auto"])
     if not isinstance(focus_envs_cfg, list):
@@ -553,13 +643,50 @@ def main() -> int:
         else:
             kb_links.append(f"- {k}: [{relp}]({relp}) (ok)\n")
 
-    focus_sections = _select_focus_sections(
+    ranked_section_ids, metrics, requested_intents = _rank_focus_section_ids(
         sections=sections,
         flat_lines=flat,
         env_blocks=env_blocks,
         focus_sections=[str(x) for x in focus_sections_cfg],
-        max_sections=max_sections,
     )
+    section_candidates, section_lookup = _build_section_candidates(
+        sections=sections,
+        ranked_ids=ranked_section_ids,
+        metrics=metrics,
+        flat_lines=flat,
+        requested_intents=requested_intents,
+        max_section_chars=max_section_chars,
+        root=root,
+    )
+    selection_artifact = curate_candidates(
+        selection_kind="draft_focus_sections",
+        candidates=section_candidates,
+        adjudication_path=args.semantic_selection_json.expanduser().resolve() if args.semantic_selection_json else None,
+        max_primary=max_sections,
+        fallback_count=max_sections,
+    )
+    structure_obj = _load_structure_map(preflight_json)
+    structure_obj["semantic_selection"] = selection_artifact
+    _write_structure_map(preflight_json, structure_obj)
+
+    primary_section_ids = selection_artifact["render_plan"]["primary_candidate_ids"]
+    focus_sections = [
+        section_lookup[candidate_id]
+        for candidate_id in primary_section_ids
+        if candidate_id in section_lookup
+    ]
+    focus_sections.sort(key=lambda section: section.start_idx)
+    focus_mode = str(selection_artifact["render_plan"]["mode"])
+
+    if focus_mode == "candidate_fallback":
+        primary_scan_label = "fallback candidate slices"
+    elif focus_mode == "semantic_uncertain":
+        primary_scan_label = "semantically uncertain slices"
+    elif focus_mode == "semantic_selected":
+        primary_scan_label = "semantic-selected slices"
+    else:
+        primary_scan_label = "focus slices"
+
     focus_env_blocks = _select_env_blocks(
         env_blocks=env_blocks,
         focus_sections=focus_sections,
@@ -592,7 +719,7 @@ def main() -> int:
     lines.append(f"# Draft Review Packet — {args.tag}\n\n")
     lines.append("## Scope\n")
     lines.append(
-        "Focus on substantive issues: physics/derivations, method correctness, and results/diagnostics. "
+        "Focus on substantive issues: derivations, method correctness, results, and diagnostics. "
         "Treat purely formal issues as secondary unless they block correctness.\n\n"
     )
     lines.append("## Provenance\n")
@@ -618,13 +745,47 @@ def main() -> int:
         for k in missing_bib:
             lines.append(f"- {k}\n")
 
+    decision_lookup = {candidate["id"]: candidate["decision"] for candidate in selection_artifact["candidates"]}
+    candidate_lookup = {candidate["id"]: candidate for candidate in selection_artifact["candidates"]}
+
+    lines.append("\n## Semantic Focus Selection\n")
+    lines.append(
+        "Deterministic signals are used only to expand and rank candidate sections. "
+        "Any semantic authority must come from the structured adjudication artifact below; when that artifact is unavailable or invalid, "
+        "the packet falls back to an explicitly labeled candidate bundle instead of pretending a semantic hit.\n\n"
+    )
+    lines.append(f"- Requested intents: {', '.join(requested_intents)}\n")
+    lines.append(f"- Candidate sections: {selection_artifact['counts']['candidates']}\n")
+    lines.append(f"- Adjudicator mode: {selection_artifact['adjudicator']['mode']}\n")
+    lines.append(f"- Adjudicator status: {selection_artifact['adjudicator']['status']}\n")
+    if selection_artifact["adjudicator"]["source_path"]:
+        lines.append(f"- Adjudication source: `{selection_artifact['adjudicator']['source_path']}`\n")
+    if selection_artifact["adjudicator"]["parse_error"]:
+        lines.append(f"- Parse/failure detail: {selection_artifact['adjudicator']['parse_error']}\n")
+    lines.append(f"- Render plan: `{focus_mode}` ({len(primary_section_ids)} primary slices)\n")
+    if focus_mode == "none":
+        lines.append("- Primary slices: none (semantic adjudication explicitly rejected/omitted all candidates)\n")
+    else:
+        lines.append("\n### Primary slices\n")
+        for candidate_id in primary_section_ids:
+            candidate = candidate_lookup.get(candidate_id, {})
+            decision = decision_lookup.get(candidate_id, {})
+            tags = ", ".join(decision.get("semantic_tags", [])) if decision.get("semantic_tags") else "none"
+            rationale = decision.get("rationale") or ""
+            lines.append(
+                f"- `{candidate.get('label', candidate_id)}` [{decision.get('status', 'abstained')}] "
+                f"tags: {tags}; source: `{candidate.get('source', {}).get('path', '')}`\n"
+            )
+            if rationale:
+                lines.append(f"  rationale: {rationale}\n")
+
     lines.append("\n## Provenance / Uncertainty Risk Scan (Deterministic; Heuristic)\n")
     lines.append(
         "This section flags lines in the included TeX slices that *look like* they discuss data provenance/sampling or uncertainty/weighting. "
         "It is heuristic (false positives/negatives possible). Reviewers must enforce the evidence gate.\n\n"
     )
     lines.append(
-        "- Scan scope: focus slices + key environments (as included in this packet; truncated slices are scanned only up to the truncation limit).\n"
+        f"- Scan scope: {primary_scan_label} + key environments (as included in this packet; truncated slices are scanned only up to the truncation limit).\n"
     )
     lines.append(f"- Provenance-like hits: {len(prov_hits)}\n")
     lines.append(f"- Uncertainty/weighting hits: {len(unc_hits)}\n")
@@ -651,23 +812,53 @@ def main() -> int:
     lines.extend(kb_links)
 
     if focus_sections:
-        lines.append("\n## Focus Slices (auto; substantive-first)\n")
+        title_lookup = {
+            "semantic_selected": "## Focus Slices (semantic-selected)\n",
+            "semantic_uncertain": "## Focus Slices (semantic-uncertain)\n",
+            "candidate_fallback": "## Focus Slices (candidate fallback)\n",
+        }
+        lines.append("\n" + title_lookup.get(focus_mode, "## Focus Slices\n"))
         lines.append(
-            "Selection policy: prioritize methods/results/physics sections using content signals (equation/algorithm/figure density), "
-            "not exact section title matches.\n\n"
+            "Deterministic signals only propose candidates. The included slices are governed by the render plan recorded in "
+            f"`{preflight_json.name}`.\n\n"
         )
         for i, s in enumerate(focus_sections, start=1):
             src = f"{_rel(root, s.path)}:{s.line_no}"
             title = s.title or "(untitled)"
+            candidate_id = next(
+                (
+                    item_id
+                    for item_id, section in section_lookup.items()
+                    if (section.path, section.line_no) == (s.path, s.line_no)
+                ),
+                "",
+            )
+            decision = decision_lookup.get(candidate_id, {})
+            candidate = candidate_lookup.get(candidate_id, {})
+            tags = ", ".join(decision.get("semantic_tags", [])) if decision.get("semantic_tags") else "none"
+            rationale = decision.get("rationale") or ""
             lines.append(f"### Slice {i}: {title}\n")
-            lines.append(f"- Source: `{src}`\n\n")
+            lines.append(f"- Source: `{src}`\n")
+            lines.append(f"- Selection status: `{decision.get('status', 'abstained')}`\n")
+            lines.append(f"- Semantic tags: {tags}\n")
+            if rationale:
+                lines.append(f"- Why surfaced: {rationale}\n")
+            else:
+                lines.append(
+                    f"- Why surfaced: fallback candidate rank {candidate.get('deterministic_hints', {}).get('fallback_rank', '?')} "
+                    "(semantic adjudication unavailable or abstained)\n"
+                )
+            lines.append("\n")
             snippet = slice_flat_lines(flat, s.start_idx, s.end_idx, max_chars=max_section_chars)
             lines.append("```tex\n")
             lines.append(snippet.rstrip() + "\n")
             lines.append("```\n\n")
     else:
         lines.append("\n## Focus Slices\n")
-        lines.append("[warn] no TeX section markers detected; consider adding \\section{...} or provide manual excerpting.\n")
+        if focus_mode == "none":
+            lines.append("[warn] semantic adjudication yielded no primary slices; inspect `semantic_selection` in the structure JSON.\n")
+        else:
+            lines.append("[warn] no TeX section markers detected; consider adding \\section{...} or provide manual excerpting.\n")
 
     if focus_env_blocks:
         lines.append("## Key Environments (math/algorithm)\n")

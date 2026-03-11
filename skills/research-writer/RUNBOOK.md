@@ -115,7 +115,7 @@ python3 scripts/bin/fetch_prl_style_corpus.py \
 
 ### 6) Generate N=10 reading packs (corpus → excerpts)
 
-This produces per-paper packs (Abstract/Intro/Conclusions + auto-selected diagnostics paragraphs) to enable clean-room, auditable extraction of discussion logic.
+This produces per-paper packs (Abstract/Intro/Conclusions + semantically curated diagnostics paragraphs, with deterministic fallback candidates) to enable clean-room, auditable extraction of discussion logic.
 
 ```bash
 python3 scripts/bin/research_writer_learn_discussion_logic.py \

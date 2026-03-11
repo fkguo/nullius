@@ -33,6 +33,11 @@ from html import unescape as _html_unescape
 from pathlib import Path
 from typing import Any
 
+_TEAM_LIB = Path(__file__).resolve().parents[3] / "research-team" / "scripts" / "lib"
+sys.path.insert(0, str(_TEAM_LIB))
+
+from semantic_packet_curator import CandidateRecord, curate_candidates  # type: ignore
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -234,17 +239,116 @@ def _strip_simple_html(s: str) -> str:
     return s
 
 
+def _clip_preview(text: str, *, max_chars: int = 220) -> str:
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3].rstrip() + "..."
+
+
+def _iter_paragraphs_with_offsets(text: str) -> list[tuple[int, int, str]]:
+    out: list[tuple[int, int, str]] = []
+    for match in re.finditer(r".*?(?:\n\s*\n|$)", text, flags=re.S):
+        block = match.group(0)
+        stripped = block.strip()
+        if not stripped:
+            continue
+        leading = len(block) - len(block.lstrip())
+        trailing = len(block.rstrip())
+        out.append((match.start() + leading, match.start() + trailing, stripped))
+    return out
+
+
+def _nearest_section_title(text: str, idx: int) -> str:
+    title = ""
+    for match in re.finditer(r"\\section\*?\{([^}]+)\}", text):
+        if match.start() > idx:
+            break
+        title = str(match.group(1) or "").strip()
+    return title
+
+
+def _build_diagnostic_candidates(
+    *,
+    body_text: str,
+    body_masked: str,
+    evidence_name: str,
+    base_line_number: int,
+) -> list[CandidateRecord]:
+    keywords = [
+        "uncert",
+        "systematic",
+        "dominant",
+        "sensitivity",
+        "vary",
+        "variation",
+        "scale",
+        "robust",
+        "stability",
+        "model depend",
+        "consistent",
+        "inconsistent",
+        "mismatch",
+        "tension",
+        "discrep",
+        "driven by",
+    ]
+    ranked: list[tuple[int, int, int, int, str, str]] = []
+    for para_idx, (start, end, paragraph) in enumerate(_iter_paragraphs_with_offsets(body_masked), start=1):
+        if len(paragraph) < 160 or len(paragraph) > 2800:
+            continue
+        section_title = _nearest_section_title(body_text, start)
+        keyword_hits = [word for word in keywords if word in paragraph.lower()]
+        hint_score = len(keyword_hits)
+        if section_title:
+            title_l = section_title.lower()
+            if any(token in title_l for token in ("discussion", "conclusion", "summary", "diagnostic", "results", "analysis")):
+                hint_score += 1
+        ranked.append((-(hint_score), para_idx, start, end, paragraph, section_title))
+
+    ranked.sort(key=lambda item: (item[0], item[1]))
+    candidates: list[CandidateRecord] = []
+    for fallback_rank, (_, para_idx, start, end, paragraph, section_title) in enumerate(ranked, start=1):
+        start_line = max(1, int(base_line_number) + _line_from_index(body_text, start) - 1)
+        end_line = max(start_line, int(base_line_number) + _line_from_index(body_text, end) - 1)
+        keywords_present = [word for word in keywords if word in paragraph.lower()]
+        label = section_title or f"Paragraph {para_idx}"
+        candidates.append(
+            CandidateRecord(
+                candidate_id=f"diag-{para_idx:03d}",
+                unit="latex_paragraph",
+                label=label,
+                source_path=f"{evidence_name}#L{start_line}",
+                start_line=start_line,
+                end_line=end_line,
+                preview=_clip_preview(paragraph),
+                text=paragraph,
+                hints={
+                    "fallback_rank": fallback_rank,
+                    "section_title": section_title,
+                    "keyword_hints": keywords_present,
+                    "char_length": len(paragraph),
+                },
+                fallback_rank=fallback_rank,
+            )
+        )
+    return candidates
+
+
 def _extract_segments_text(
     raw: str,
     *,
     evidence_name: str,
     mask_math: bool,
     mask_cites: bool,
+    semantic_selection_path: Path | None,
 ) -> tuple[list[Segment], dict[str, Any]]:
     no_comments = _strip_latex_comments(raw)
     body = no_comments
+    body_start_line = 1
     doc_idx = body.find("\\begin{document}")
     if doc_idx != -1:
+        body_start_line = _line_from_index(no_comments, doc_idx + len("\\begin{document}"))
         body = body[doc_idx + len("\\begin{document}") :]
 
     if mask_cites:
@@ -333,43 +437,59 @@ def _extract_segments_text(
             conc_txt = _mask_math(conc_txt)
         add_seg("Bottom line / Conclusions", _clip(conc_txt, max_chars=4500), conc_start, extra_evidence=conc_label)
 
-    # Diagnostics / uncertainties: keyword-selected paragraphs from masked body.
-    keywords = [
-        "uncert",
-        "systematic",
-        "dominant",
-        "sensitivity",
-        "vary",
-        "variation",
-        "scale",
-        "robust",
-        "stability",
-        "model depend",
-        "consistent",
-        "inconsistent",
-        "mismatch",
-        "tension",
-        "discrep",
-        "driven by",
-    ]
-    paras = [p.strip() for p in re.split(r"\n\s*\n", body_masked) if p.strip()]
-    scored: list[tuple[int, int, str]] = []
-    for idx, p in enumerate(paras):
-        p_norm = p.lower()
-        score = sum(1 for k in keywords if k in p_norm)
-        if score <= 0:
-            continue
-        # Keep reasonably sized paragraphs.
-        if len(p) < 200 or len(p) > 2500:
-            continue
-        scored.append((score, idx, p))
-    scored.sort(key=lambda x: (-x[0], x[1]))
-    selected = scored[:4]
-    if selected:
-        blocks = []
-        for score, idx, p in sorted(selected, key=lambda x: x[1]):
-            blocks.append(_clip(p, max_chars=1400))
-        add_seg("Diagnostics / uncertainties (auto-selected)", "\n\n".join(blocks), None, extra_evidence="keyword-selected")
+    diagnostic_candidates = _build_diagnostic_candidates(
+        body_text=body,
+        body_masked=body_masked,
+        evidence_name=evidence_name,
+        base_line_number=body_start_line,
+    )
+    diagnostic_selection = curate_candidates(
+        selection_kind="discussion_logic_diagnostics",
+        candidates=diagnostic_candidates,
+        adjudication_path=semantic_selection_path.expanduser().resolve() if semantic_selection_path else None,
+        max_primary=4,
+        fallback_count=4,
+    )
+    evidence_obj["semantic_selection"] = diagnostic_selection
+
+    candidate_lookup = {candidate["id"]: candidate for candidate in diagnostic_selection["candidates"]}
+    decision_lookup = {candidate["id"]: candidate["decision"] for candidate in diagnostic_selection["candidates"]}
+    primary_ids = diagnostic_selection["render_plan"]["primary_candidate_ids"]
+    render_mode = str(diagnostic_selection["render_plan"]["mode"])
+    if primary_ids:
+        blocks: list[str] = []
+        for candidate_id in primary_ids:
+            candidate = candidate_lookup.get(candidate_id, {})
+            decision = decision_lookup.get(candidate_id, {})
+            tags = ", ".join(decision.get("semantic_tags", [])) if decision.get("semantic_tags") else "none"
+            rationale = decision.get("rationale") or ""
+            if not rationale:
+                rationale = (
+                    f"fallback candidate rank {candidate.get('deterministic_hints', {}).get('fallback_rank', '?')} "
+                    "(semantic adjudication unavailable or abstained)"
+                )
+            blocks.append(
+                "\n".join(
+                    [
+                        f"[{decision.get('status', 'abstained')}] {candidate.get('label', candidate_id)}",
+                        f"Why surfaced: {rationale}",
+                        f"Semantic tags: {tags}",
+                        _clip(str(candidate.get('preview') or candidate.get('text') or ''), max_chars=1400),
+                    ]
+                )
+            )
+
+        seg_name = {
+            "semantic_selected": "Diagnostics / uncertainties (semantic-selected)",
+            "semantic_uncertain": "Diagnostics / uncertainties (semantic-uncertain)",
+            "candidate_fallback": "Diagnostics / uncertainties candidates (fallback bundle)",
+        }.get(render_mode, "Diagnostics / uncertainties")
+        add_seg(
+            seg_name,
+            "\n\n---\n\n".join(blocks),
+            None,
+            extra_evidence=f"{render_mode}; details in evidence.json",
+        )
 
     return segs, evidence_obj
 
@@ -982,6 +1102,12 @@ def main() -> int:
     ap.add_argument("--fetch-n", type=int, default=None, help="If fetching, number of records to fetch (default: same as --n).")
     ap.add_argument("--mask-math", action="store_true", help="Mask common math blocks in excerpts (recommended).")
     ap.add_argument("--mask-cites", action="store_true", help="Mask \\cite{...} in excerpts (recommended).")
+    ap.add_argument(
+        "--semantic-selection-dir",
+        type=Path,
+        default=None,
+        help="Optional directory of per-paper semantic selection JSON files named <arxiv_id>.json.",
+    )
     ap.add_argument("--run-models", action="store_true", help="Run Claude+Gemini on each pack (clean-room, tools disabled).")
     ap.add_argument("--stub-models", action="store_true", help="Offline testing: do not call external model CLIs; write deterministic stub outputs.")
     ap.add_argument(
@@ -1043,6 +1169,7 @@ def main() -> int:
         "mode": str(args.mode),
         "mask_math": bool(args.mask_math),
         "mask_cites": bool(args.mask_cites),
+        "semantic_selection_dir": str(args.semantic_selection_dir.expanduser().resolve()) if args.semantic_selection_dir else "",
         "run_models": bool(args.run_models),
         "stub_models": bool(args.stub_models),
         "run_claude": bool(run_claude),
@@ -1119,12 +1246,16 @@ def main() -> int:
                 flat = _flatten_inputs(_read_text(main_tex), paper_dir=pd)
                 pack_dir.mkdir(parents=True, exist_ok=True)
                 flat_path.write_text(flat, encoding="utf-8")
+                selection_path = None
+                if args.semantic_selection_dir is not None:
+                    selection_path = args.semantic_selection_dir.expanduser().resolve() / f"{arxiv_id}.json"
 
                 segs, evidence = _extract_segments_text(
                     flat,
                     evidence_name=flat_path.name,
                     mask_math=bool(args.mask_math),
                     mask_cites=bool(args.mask_cites),
+                    semantic_selection_path=selection_path,
                 )
                 evidence["arxiv_id"] = arxiv_id
                 evidence["source_main_tex"] = main_tex.name

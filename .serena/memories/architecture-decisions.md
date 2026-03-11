@@ -545,3 +545,14 @@
 **Impact**:
 - `NEW-05a-idea-core-domain-boundary` closeout stays blocked until the follow-up prompt `meta/docs/prompts/prompt-2026-03-10-formalism-contract-boundary.md` removes the repo-level contract leakage.
 - `batch3` runtime/root/provider de-HEP cleanup should happen only after this formalism-contract follow-up, because batch3 alone cannot clean the user-facing tool ecology.
+
+### [2026-03-11] NEW-SEM-08 packet curation invariant: auditable candidates first, semantic authority second, deterministic guards last
+
+**Context**: `meta/docs/prompts/prompt-2026-03-11-batch15-sem08-packet-curation.md` closeout (`NEW-SEM-08`) across `skills/research-team` and `skills/research-writer`
+**Decision**:
+- Python-side packet curation must use a three-layer contract: deterministic expansion/ranking over auditable candidate units -> semantic adjudication over those candidates -> deterministic replay/fail-closed render plan.
+- Headings, keyword hits, section order, and similar lexical signals may remain only as candidate hints/provenance; they must not be the final authority for which section/paragraph is treated as critical.
+- The stable public artifact is the structured selection record (`selection_kind`, adjudicator state, per-candidate `selected|rejected|uncertain|abstained`, semantic tags, rationale, failure state, render plan), not free-text model commentary.
+- Failures must stay explicit and fail-closed: unavailable/invalid adjudication yields labeled fallback or `none`, never a fabricated semantic hit.
+**Why**: SOTA review for packet/paragraph selection supported LLM adjudication for semantic criticality, while JSON/schema/replay literature supported keeping determinism at the artifact-contract layer rather than at the semantic-authority layer.
+**Files**: `skills/research-team/scripts/lib/semantic_packet_curator.py`, `skills/research-team/scripts/bin/build_draft_packet.py`, `skills/research-writer/scripts/bin/research_writer_learn_discussion_logic.py`, `skills/research-team/tests/test_semantic_packet_curator.py`, `skills/research-team/tests/test_build_draft_packet_semantic_selection.py`, `skills/research-team/tests/test_discussion_logic_semantic_selection.py`

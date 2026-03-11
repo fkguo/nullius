@@ -146,8 +146,10 @@ test -f "${logic_out}/trace.jsonl"
 test -f "${logic_out}/PROGRESS.md"
 test -f "${logic_out}/packs/1234.56789/pack.md"
 test -f "${logic_out}/packs/1234.56789/flattened_main.tex"
+test -f "${logic_out}/packs/1234.56789/evidence.json"
 grep_re '^# Paper pack: 1234.56789' "${logic_out}/packs/1234.56789/pack.md"
 grep_re 'BEGIN INPUT: sec\.tex' "${logic_out}/packs/1234.56789/flattened_main.tex"
+grep_re '"selection_kind": "discussion_logic_diagnostics"' "${logic_out}/packs/1234.56789/evidence.json"
 
 echo "[smoke] discussion-logic packs: resume selects next paper"
 python3 scripts/bin/research_writer_learn_discussion_logic.py \

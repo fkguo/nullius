@@ -159,6 +159,8 @@ Comparison: match
 ## Sweep Semantics / Parameter Dependence
 Consistency verdict: pass
 
+## Verdict
+
 Verdict: ready for next milestone
 MD
 exit 0
@@ -173,7 +175,7 @@ out=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) out="$2"; shift 2 ;;
-    --model|--output-format|--prompt-file) shift 2 ;;
+    --model|--output-format|--prompt-file|--system-prompt-file) shift 2 ;;
     *) shift ;;
   esac
 done
@@ -199,6 +201,8 @@ Comparison: match
 
 ## Sweep Semantics / Parameter Dependence
 Consistency verdict: pass
+
+## Verdict
 
 Verdict: ready for next milestone
 MD
