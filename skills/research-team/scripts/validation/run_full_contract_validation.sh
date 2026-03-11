@@ -93,11 +93,13 @@ set -euo pipefail
 
 out=""
 marker="${RESEARCH_TEAM_STUB_MARKER:-}"
+prompt=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) out="$2"; shift 2 ;;
-    --model|--system-prompt-file|--prompt-file|--tools|--max-retries|--sleep-secs) shift 2 ;;
+    --prompt-file) prompt="$2"; shift 2 ;;
+    --model|--system-prompt-file|--tools|--max-retries|--sleep-secs) shift 2 ;;
     *) shift ;;
   esac
 done
@@ -117,6 +119,56 @@ if [[ "${RESEARCH_TEAM_STUB_FAIL_SIDECAR:-0}" == "1" && "${out}" == *"_member_c.
 fi
 
 mkdir -p "$(dirname "${out}")"
+
+if [[ -n "${prompt}" && -f "${prompt}" ]] && grep -Eq '^MODE: REQUESTS_ONLY$' "${prompt}"; then
+  tag="$(python3 - "${prompt}" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+m = re.search(r"^Tag:\s*(.+)$", text, re.MULTILINE)
+print((m.group(1).strip() if m else "stub-tag").replace("\\", "/"))
+PY
+)"
+  python3 - "${out}" "${tag}" <<'PY'
+from pathlib import Path
+import json
+import sys
+
+out_path = Path(sys.argv[1])
+tag = sys.argv[2].strip() or "stub-tag"
+artifact = f"artifacts/{tag}/member_a/independent/member_a_stub.txt"
+command = (
+    "python3 -c \"from pathlib import Path; "
+    f"p = Path({artifact!r}); "
+    "p.parent.mkdir(parents=True, exist_ok=True); "
+    "p.write_text('member_a stub\\n', encoding='utf-8')\""
+)
+payload = {
+    "files_read": [
+        {
+            "path": "Draft_Derivation.md",
+            "anchor_or_line": "1",
+            "purpose": "inspect the primary notebook context",
+        }
+    ],
+    "commands_run": [
+        {
+            "command": command,
+            "cwd": ".",
+            "purpose": "create an auditable independent reproduction artifact for member_a",
+            "timeout_secs": 60,
+            "expected_outputs": [artifact],
+        }
+    ],
+    "network_queries": [],
+}
+out_path.write_text(json.dumps(payload), encoding="utf-8")
+PY
+  exit 0
+fi
+
 cat >"${out}" <<'MD'
 # Member A Report
 
@@ -134,6 +186,8 @@ Comparison: match
 ## Sweep Semantics / Parameter Dependence
 Consistency verdict: pass
 
+## Verdict
+
 Verdict: ready for next milestone
 MD
 exit 0
@@ -146,11 +200,13 @@ set -euo pipefail
 
 out=""
 marker="${RESEARCH_TEAM_STUB_MARKER:-}"
+prompt=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) out="$2"; shift 2 ;;
-    --model|--output-format|--prompt-file) shift 2 ;;
+    --prompt-file) prompt="$2"; shift 2 ;;
+    --model|--output-format|--system-prompt-file) shift 2 ;;
     *) shift ;;
   esac
 done
@@ -165,6 +221,55 @@ if [[ -n "${marker}" ]]; then
 fi
 
 mkdir -p "$(dirname "${out}")"
+
+if [[ -n "${prompt}" && -f "${prompt}" ]] && grep -Eq '^MODE: REQUESTS_ONLY$' "${prompt}"; then
+  tag="$(python3 - "${prompt}" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+m = re.search(r"^Tag:\s*(.+)$", text, re.MULTILINE)
+print((m.group(1).strip() if m else "stub-tag").replace("\\", "/"))
+PY
+)"
+  python3 - "${out}" "${tag}" <<'PY'
+from pathlib import Path
+import json
+import sys
+
+out_path = Path(sys.argv[1])
+tag = sys.argv[2].strip() or "stub-tag"
+artifact = f"artifacts/{tag}/member_b/independent/member_b_stub.txt"
+command = (
+    "python3 -c \"from pathlib import Path; "
+    f"p = Path({artifact!r}); "
+    "p.parent.mkdir(parents=True, exist_ok=True); "
+    "p.write_text('member_b stub\\n', encoding='utf-8')\""
+)
+payload = {
+    "files_read": [
+        {
+            "path": "PROJECT_CHARTER.md",
+            "anchor_or_line": "1",
+            "purpose": "verify the declared validation scope and profile",
+        }
+    ],
+    "commands_run": [
+        {
+            "command": command,
+            "cwd": ".",
+            "purpose": "create an auditable independent reproduction artifact for member_b",
+            "timeout_secs": 60,
+            "expected_outputs": [artifact],
+        }
+    ],
+    "network_queries": [],
+}
+out_path.write_text(json.dumps(payload), encoding="utf-8")
+PY
+  exit 0
+fi
 
 if [[ "${RESEARCH_TEAM_STUB_FORCE_NOT_CONVERGED:-0}" == "1" ]]; then
   cat >"${out}" <<'MD'
@@ -183,6 +288,8 @@ Comparison: match
 
 ## Sweep Semantics / Parameter Dependence
 Consistency verdict: pass
+
+## Verdict
 
 Verdict: needs revision
 MD
@@ -205,6 +312,8 @@ Comparison: match
 
 ## Sweep Semantics / Parameter Dependence
 Consistency verdict: pass
+
+## Verdict
 
 Verdict: ready for next milestone
 MD
@@ -383,6 +492,28 @@ print("patched:", path)
 PY
 }
 
+configure_validation_features() {
+  local root="$1"
+  python3 - "${root}/research_team_config.json" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+cfg = json.loads(path.read_text(encoding="utf-8"))
+features = cfg.get("features")
+if not isinstance(features, dict):
+    features = {}
+cfg["features"] = features
+# This harness validates preflight/full-cycle/control-flow contracts, not the separate
+# independent-reproduction artifact lane.
+features["independent_reproduction_gate"] = False
+path.write_text(json.dumps(cfg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
 assert_traj_stage() {
   local traj="$1"
   local tag="$2"
@@ -421,6 +552,7 @@ run_profile() {
   bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-${profile}" --profile "${profile}" >/dev/null 2>&1
   bash "${DEMO}" --root "${root}" --tag "${tag_full}" >/dev/null 2>&1
   approve_project_charter "${root}" "${profile}" >/dev/null 2>&1
+  configure_validation_features "${root}"
 
   (
     cd "${root}"
@@ -472,6 +604,7 @@ run_brake_not_converged() {
   bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakeNotConverged" --profile "mixed" >/dev/null 2>&1
   bash "${DEMO}" --root "${root}" --tag "${tag}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
+  configure_validation_features "${root}"
 
   set +e
   (
@@ -516,6 +649,7 @@ run_brake_sidecar_warn_only() {
   bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakeSidecarWarnOnly" --profile "mixed" >/dev/null 2>&1
   bash "${DEMO}" --root "${root}" --tag "${tag}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
+  configure_validation_features "${root}"
 
   (
     cd "${root}"
@@ -610,6 +744,7 @@ run_brake_plan_tracking_sentinel() {
   bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakePlanSentinel" --profile "mixed" >/dev/null 2>&1
   bash "${DEMO}" --root "${root}" --tag "${tag_full}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
+  configure_validation_features "${root}"
 
   (
     cd "${root}"

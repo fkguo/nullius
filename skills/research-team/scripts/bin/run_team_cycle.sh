@@ -1691,8 +1691,8 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" || "${MEMBER_A_TOOL_ACCESS}" == "
   _ws_lib="${SCRIPTS_DIR}/lib"
   MEMBER_A_WORKSPACE_ID="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import generate_workspace_id; print(generate_workspace_id())")"
   MEMBER_B_WORKSPACE_ID="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import generate_workspace_id; print(generate_workspace_id())")"
-  MEMBER_A_WORKSPACE_DIR="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import create_isolated_workspace; from pathlib import Path; print(create_isolated_workspace(Path('${run_dir}'), 'member_a', '${MEMBER_A_WORKSPACE_ID}'))")"
-  MEMBER_B_WORKSPACE_DIR="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import create_isolated_workspace; from pathlib import Path; print(create_isolated_workspace(Path('${run_dir}'), 'member_b', '${MEMBER_B_WORKSPACE_ID}'))")"
+  MEMBER_A_WORKSPACE_DIR="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import create_isolated_workspace; from pathlib import Path; print(create_isolated_workspace(Path('${run_dir}'), 'member_a', '${MEMBER_A_WORKSPACE_ID}', Path('${PROJECT_ROOT}'), '${safe_tag}'))")"
+  MEMBER_B_WORKSPACE_DIR="$(python3 -c "import sys; sys.path.insert(0,'${_ws_lib}'); from workspace_isolator import create_isolated_workspace; from pathlib import Path; print(create_isolated_workspace(Path('${run_dir}'), 'member_b', '${MEMBER_B_WORKSPACE_ID}', Path('${PROJECT_ROOT}'), '${safe_tag}'))")"
   echo "[info] workspace isolation: member-a=${MEMBER_A_WORKSPACE_ID} (${MEMBER_A_WORKSPACE_DIR})" >&2
   echo "[info] workspace isolation: member-b=${MEMBER_B_WORKSPACE_ID} (${MEMBER_B_WORKSPACE_DIR})" >&2
 fi
@@ -2918,7 +2918,7 @@ if [[ -f "${GATE_SCRIPT}" ]]; then
   fi
   set +e
   # Build optional RT-05 context flags (array for safe quoting)
-  gate_rt05_flags=()
+  declare -a gate_rt05_flags=()
   if [[ -n "${method_landscape_path}" && -f "${method_landscape_path}" ]]; then
     gate_rt05_flags+=( --phase0-landscape "${method_landscape_path}" )
   fi
@@ -2926,15 +2926,27 @@ if [[ -f "${GATE_SCRIPT}" ]]; then
     gate_rt05_flags+=( --phase2-responses "${run_dir}/phase_2" )
   fi
   gate_json="${run_dir}/convergence_gate_result_v1.json"
-  python3 "${GATE_SCRIPT}" --member-a "${member_a_out}" --member-b "${member_b_out}" \
-    --workflow-mode "${WORKFLOW_MODE}" ${gate_sweep_flag} "${gate_rt05_flags[@]}" \
-    --out-json "${gate_json}"
+  gate_cmd=(
+    python3 "${GATE_SCRIPT}"
+    --member-a "${member_a_out}"
+    --member-b "${member_b_out}"
+    --workflow-mode "${WORKFLOW_MODE}"
+    "${gate_sweep_flag}"
+  )
+  if ((${#gate_rt05_flags[@]} > 0)); then
+    gate_cmd+=( "${gate_rt05_flags[@]}" )
+  fi
+  gate_cmd+=( --out-json "${gate_json}" )
+  "${gate_cmd[@]}"
   gate_code=$?
   set -e
   gate_status=""
   gate_exit_code_json=""
   if [[ -f "${gate_json}" ]]; then
-    mapfile -t gate_fields < <(python3 - "${gate_json}" <<'PY'
+    gate_fields=()
+    while IFS= read -r line; do
+      gate_fields+=("${line}")
+    done < <(python3 - "${gate_json}" <<'PY'
 import json
 import sys
 

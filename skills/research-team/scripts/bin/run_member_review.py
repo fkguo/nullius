@@ -37,6 +37,11 @@ from member_evidence import (  # type: ignore
     sha256_file,
     validate_member_evidence_schema,
 )
+from workspace_isolator import (  # type: ignore
+    logical_project_relpath,
+    project_path_from_workspace,
+    sync_workspace_path,
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -130,6 +135,15 @@ def _is_forbidden_path(member_id: str, safe_tag: str, relpath: str) -> bool:
     ]
     rp = relpath.replace("\\", "/").lstrip("./")
     return any(rp.startswith(x) for x in bad_prefixes)
+
+
+def _allowed_output_prefixes(member_id: str, safe_tag: str) -> tuple[str, str]:
+    return (f"artifacts/{safe_tag}/{member_id}/", "references/")
+
+
+def _output_path_allowed(member_id: str, safe_tag: str, relpath: str) -> bool:
+    rp = relpath.replace("\\", "/").lstrip("./")
+    return any(rp.startswith(prefix) for prefix in _allowed_output_prefixes(member_id, safe_tag))
 
 
 def _curl_download(url: str, out_path: Path, timeout: int = 120) -> tuple[int, str]:
@@ -233,7 +247,6 @@ def _allowed_command(command: str) -> tuple[bool, str, list[str]]:
     # execution from within the awk program — same second-order risk as find -exec.
     # Use regex to tolerate whitespace between the function name and '(' since awk
     # allows `system ("cmd")` as well as `system("cmd")`.
-    _AWK_EXEC_RE = re.compile(r"system\s*\(|popen\s*\(")
     if exe_lower in ("awk", "gawk", "nawk"):
         for _arg in parts[1:]:
             if _arg.startswith("-"):
@@ -246,6 +259,8 @@ def _allowed_command(command: str) -> tuple[bool, str, list[str]]:
 _SECRET_ENV_RE = re.compile(
     r"(?i)(api[_\-]?key|secret[_\-]?key|auth[_\-]?token|access[_\-]?token|password|credential)",
 )
+_AWK_EXEC_RE = re.compile(r"system\s*\(|popen\s*\(")
+_ARG_TRAVERSAL_RE = re.compile(r"(?:(?:^|[^\w.])\.\.(?:[^\w.]|$))")
 
 
 def _sanitize_env(env: dict[str, str]) -> dict[str, str]:
@@ -627,7 +642,7 @@ def main() -> int:
                 continue
             try:
                 resolved = _resolve_under(workspace_root, path_s)
-                rel = _safe_relpath(resolved, project_root)
+                rel = logical_project_relpath(resolved, workspace_root, project_root)
                 if _is_forbidden_path(member_id, safe_tag, rel):
                     response_lines.append(f"- files_read[{i}]: (denied) forbidden path: `{rel}`")
                     continue
@@ -668,7 +683,7 @@ def main() -> int:
             if downloaded_to:
                 try:
                     dl_abs = _resolve_under(workspace_root, downloaded_to)
-                    dl_rel = _safe_relpath(dl_abs, project_root)
+                    dl_rel = logical_project_relpath(dl_abs, workspace_root, project_root)
                     # Require downloads to land under references/ relative to workspace root.
                     dl_rel_ws = _safe_relpath(dl_abs, workspace_root)
                     if not dl_rel_ws.replace("\\", "/").startswith("references/"):
@@ -696,8 +711,9 @@ def main() -> int:
                 response_lines.append("```")
                 continue
             try:
-                h = sha256_file(dl_abs)
-                size = dl_abs.stat().st_size
+                synced_dl = sync_workspace_path(dl_abs, workspace_root, project_root)
+                h = sha256_file(synced_dl)
+                size = synced_dl.stat().st_size
                 log_fetched_source(evidence, url, dl_rel, h, size)
                 response_lines.append(f"- network_queries[{i}]: downloaded {url} -> `{dl_rel}` (sha256={h}, bytes={size})")
             except Exception as e:
@@ -731,9 +747,8 @@ def main() -> int:
             # Pre-execution: deny any part (including the executable itself) containing path traversal ('..').
             # Catches traversal in ./-prefixed executables (e.g. ./../member_b/script.sh)
             # and in quoted args (e.g. python3 -c "open('../member_b/...')").
-            _arg_traversal_re = re.compile(r"(?:(?:^|[^\w.])\.\.(?:[^\w.]|$))")
             _traversal_arg = next(
-                (a for a in cmd_parts if _arg_traversal_re.search(a.replace("\\", "/"))),
+                (a for a in cmd_parts if _ARG_TRAVERSAL_RE.search(a.replace("\\", "/"))),
                 None,
             )
             if _traversal_arg is not None:
@@ -749,6 +764,7 @@ def main() -> int:
             # Strategy: strip all workspace-safe substrings (with AND without trailing
             # slash to handle exact workspace_root args), then check whether run_dir
             # still appears anywhere in what remains.
+            _proj_str = str(project_root).rstrip("/")
             _rdir_str = str(run_dir).rstrip("/")
             _ws_str = str(workspace_root).rstrip("/")
             _ws_prefix = _ws_str + "/"
@@ -757,7 +773,7 @@ def main() -> int:
                 n = a.replace("\\", "/")
                 # Remove workspace-safe occurrences (trailing-slash and exact-root forms).
                 cleaned = n.replace(_ws_prefix, "").replace(_ws_str, "")
-                return _rdir_str in cleaned
+                return _proj_str in cleaned or _rdir_str in cleaned
 
             _abs_escape_arg = next((a for a in cmd_parts[1:] if _arg_escapes_workspace(a)), None)
             if _abs_escape_arg is not None:
@@ -779,6 +795,14 @@ def main() -> int:
                 out_bytes = b"TIMEOUT\n"
             _write_text(out_log, out_bytes.decode("utf-8", errors="replace"))
             out_hash = sha256_file(out_log)
+            member_artifacts_ws = workspace_root / "artifacts" / safe_tag / member_id
+            if member_artifacts_ws.exists():
+                sync_workspace_path(
+                    member_artifacts_ws,
+                    workspace_root,
+                    project_root,
+                    replace_tree=True,
+                )
             log_command_run(
                 evidence,
                 cmd,
@@ -809,11 +833,20 @@ def main() -> int:
                 for p_s in expected:
                     try:
                         p_abs = _resolve_under(workspace_root, p_s)
-                        rel = _safe_relpath(p_abs, project_root)
-                        if not p_abs.exists():
+                        rel = logical_project_relpath(p_abs, workspace_root, project_root)
+                        if not _output_path_allowed(member_id, safe_tag, rel):
+                            response_lines.append(
+                                f"- (denied) `{rel}` must stay under "
+                                f"`artifacts/{safe_tag}/{member_id}/` or `references/`"
+                            )
+                            continue
+                        if rel.startswith("references/") and p_abs.exists():
+                            sync_workspace_path(p_abs, workspace_root, project_root)
+                        project_p = project_path_from_workspace(p_abs, workspace_root, project_root)
+                        if not project_p.exists():
                             response_lines.append(f"- (missing) `{rel}`")
                             continue
-                        h = sha256_file(p_abs)
+                        h = sha256_file(project_p)
                         log_output_produced(evidence, rel, h, "expected output from requested command")
                         response_lines.append(f"- `{rel}` (sha256={h})")
                     except Exception as e:
