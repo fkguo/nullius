@@ -1,25 +1,26 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'events';
-import { Writable, Readable } from 'stream';
+import { Readable, Writable } from 'stream';
 
-// Mock child_process.spawn before importing IdeaRpcClient
-const mockStdin = new Writable({
-  write(_chunk, _encoding, callback) { callback(); },
-});
-const mockStdout = new Readable({ read() {} });
-const mockStderr = new Readable({ read() {} });
+function createMockChild() {
+  return Object.assign(new EventEmitter(), {
+    stdin: new Writable({ write(_chunk, _encoding, callback) { callback(); } }),
+    stdout: new Readable({ read() {} }),
+    stderr: new Readable({ read() {} }),
+    exitCode: null as number | null,
+    kill: vi.fn(),
+    pid: 12345,
+  });
+}
 
-const mockChild = Object.assign(new EventEmitter(), {
-  stdin: mockStdin,
-  stdout: mockStdout,
-  stderr: mockStderr,
-  exitCode: null as number | null,
-  kill: vi.fn(),
-  pid: 12345,
-});
+let mockChild = createMockChild();
+const { spawnMock } = vi.hoisted(() => ({
+  spawnMock: vi.fn(),
+}));
+spawnMock.mockImplementation(() => mockChild);
 
 vi.mock('child_process', () => ({
-  spawn: vi.fn(() => mockChild),
+  spawn: spawnMock,
 }));
 
 import { IdeaRpcClient } from '../src/rpc-client.js';
@@ -29,27 +30,16 @@ describe('IdeaRpcClient', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockChild.exitCode = null;
-    mockChild.removeAllListeners();
-    // Re-attach listeners that were removed
-    Object.assign(mockChild, {
-      stdin: new Writable({ write(_chunk, _encoding, callback) { callback(); } }),
-      stdout: new Readable({ read() {} }),
-      stderr: new Readable({ read() {} }),
-    });
-
-    client = new IdeaRpcClient({
-      ideaCorePath: '/fake/idea-core',
-      timeoutMs: 5000,
-    });
+    mockChild = createMockChild();
+    spawnMock.mockImplementation(() => mockChild);
+    client = new IdeaRpcClient({ ideaCorePath: '/fake/idea-core', timeoutMs: 5000 });
   });
 
   afterEach(() => {
     client.close();
   });
 
-  it('sends JSON-RPC request and resolves with result', async () => {
-    // Track what's written to stdin
+  it('sends a JSON-RPC request and resolves with the result payload', async () => {
     const written: string[] = [];
     mockChild.stdin = new Writable({
       write(chunk, _encoding, callback) {
@@ -58,58 +48,26 @@ describe('IdeaRpcClient', () => {
       },
     });
 
-    const promise = client.call('campaign.init', { topic: 'dark matter' });
+    const promise = client.call('campaign.init', { idempotency_key: 'k' });
+    await new Promise(resolve => setTimeout(resolve, 10));
 
-    // Wait for stdin write
-    await new Promise(r => setTimeout(r, 10));
-
-    expect(written.length).toBe(1);
     const request = JSON.parse(written[0]!.trim());
-    expect(request.jsonrpc).toBe('2.0');
-    expect(request.method).toBe('campaign.init');
-    expect(request.params).toEqual({ topic: 'dark matter' });
-
-    // Simulate response
-    const response = JSON.stringify({
+    expect(request).toMatchObject({
       jsonrpc: '2.0',
-      id: request.id,
-      result: { campaign_id: 'test-123', status: 'active' },
-    }) + '\n';
-
-    mockChild.stdout!.push(response);
-
-    const result = await promise;
-    expect(result).toEqual({ campaign_id: 'test-123', status: 'active' });
-  });
-
-  it('maps JSON-RPC error -32601 to invalidParams', async () => {
-    const written: string[] = [];
-    mockChild.stdin = new Writable({
-      write(chunk, _encoding, callback) {
-        written.push(chunk.toString());
-        callback();
-      },
+      method: 'campaign.init',
+      params: { idempotency_key: 'k' },
     });
 
-    const promise = client.call('nonexistent.method', {});
-
-    await new Promise(r => setTimeout(r, 10));
-    const request = JSON.parse(written[0]!.trim());
-
-    mockChild.stdout!.push(JSON.stringify({
+    mockChild.stdout.push(JSON.stringify({
       jsonrpc: '2.0',
       id: request.id,
-      error: { code: -32601, message: 'Method not found' },
+      result: { campaign_id: 'test-123', status: 'running' },
     }) + '\n');
 
-    await expect(promise).rejects.toThrow('method_not_found');
-    try { await promise; } catch (err: any) {
-      expect(err.code).toBe('INVALID_PARAMS');
-      expect(err.retryable).toBe(false);
-    }
+    await expect(promise).resolves.toEqual({ campaign_id: 'test-123', status: 'running' });
   });
 
-  it('maps JSON-RPC error -32603 to internalError', async () => {
+  it('maps method_not_implemented to INTERNAL_ERROR and preserves JSON-RPC details', async () => {
     const written: string[] = [];
     mockChild.stdin = new Writable({
       write(chunk, _encoding, callback) {
@@ -118,68 +76,126 @@ describe('IdeaRpcClient', () => {
       },
     });
 
-    const promise = client.call('campaign.init', { topic: 'test' });
-
-    await new Promise(r => setTimeout(r, 10));
+    const promise = client.call('campaign.pause', { campaign_id: 'x', idempotency_key: 'pause-1' });
+    await new Promise(resolve => setTimeout(resolve, 10));
     const request = JSON.parse(written[0]!.trim());
 
-    mockChild.stdout!.push(JSON.stringify({
+    mockChild.stdout.push(JSON.stringify({
       jsonrpc: '2.0',
       id: request.id,
-      error: { code: -32603, message: 'Internal error' },
+      error: {
+        code: -32000,
+        message: 'method_not_implemented',
+        data: { reason: 'method_not_implemented', details: { method: 'campaign.pause' } },
+      },
     }) + '\n');
 
-    await expect(promise).rejects.toThrow('JSON-RPC error -32603');
-    try { await promise; } catch (err: any) {
-      expect(err.code).toBe('INTERNAL_ERROR');
-      expect(err.retryable).toBe(false);
-    }
+    await expect(promise).rejects.toMatchObject({
+      code: 'INTERNAL_ERROR',
+      retryable: false,
+      data: {
+        reason: 'method_not_implemented',
+        rpc: { code: -32000, message: 'method_not_implemented' },
+      },
+    });
   });
 
-  it('rejects all pending on process exit', async () => {
+  it('maps budget_exhausted to INVALID_PARAMS without retryability', async () => {
+    const written: string[] = [];
     mockChild.stdin = new Writable({
-      write(_chunk, _encoding, callback) { callback(); },
+      write(chunk, _encoding, callback) {
+        written.push(chunk.toString());
+        callback();
+      },
+    });
+
+    const promise = client.call('search.step', { campaign_id: 'x', n_steps: 1, idempotency_key: 'search-1' });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const request = JSON.parse(written[0]!.trim());
+
+    mockChild.stdout.push(JSON.stringify({
+      jsonrpc: '2.0',
+      id: request.id,
+      error: {
+        code: -32001,
+        message: 'budget_exhausted',
+        data: { reason: 'budget_exhausted', campaign_id: 'x' },
+      },
+    }) + '\n');
+
+    await expect(promise).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+      retryable: false,
+      data: {
+        reason: 'budget_exhausted',
+        rpc: { code: -32001, message: 'budget_exhausted' },
+      },
+    });
+  });
+
+  it('maps campaign_not_found to NOT_FOUND', async () => {
+    const written: string[] = [];
+    mockChild.stdin = new Writable({
+      write(chunk, _encoding, callback) {
+        written.push(chunk.toString());
+        callback();
+      },
     });
 
     const promise = client.call('campaign.status', { campaign_id: 'x' });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const request = JSON.parse(written[0]!.trim());
 
-    await new Promise(r => setTimeout(r, 10));
+    mockChild.stdout.push(JSON.stringify({
+      jsonrpc: '2.0',
+      id: request.id,
+      error: {
+        code: -32003,
+        message: 'campaign_not_found',
+        data: { reason: 'campaign_not_found', campaign_id: 'x' },
+      },
+    }) + '\n');
 
-    // Simulate child process exit
+    await expect(promise).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      retryable: false,
+      data: {
+        reason: 'campaign_not_found',
+        rpc: { code: -32003, message: 'campaign_not_found' },
+      },
+    });
+  });
+
+  it('rejects all pending requests when the child exits', async () => {
+    const promise = client.call('campaign.status', { campaign_id: 'x' });
+    await new Promise(resolve => setTimeout(resolve, 10));
+
     mockChild.exitCode = 1;
     mockChild.emit('exit', 1, null);
 
-    await expect(promise).rejects.toThrow('idea-core exited');
-    try { await promise; } catch (err: any) {
-      expect(err.code).toBe('UPSTREAM_ERROR');
-      expect(err.retryable).toBe(true);
-    }
+    await expect(promise).rejects.toMatchObject({
+      code: 'UPSTREAM_ERROR',
+      retryable: true,
+    });
   });
 
-  it('rejects with timeout when no response', async () => {
-    // Use a very short timeout
-    const fastClient = new IdeaRpcClient({
-      ideaCorePath: '/fake/idea-core',
-      timeoutMs: 50,
+  it('rejects with a timeout when no response arrives', async () => {
+    const fastClient = new IdeaRpcClient({ ideaCorePath: '/fake/idea-core', timeoutMs: 50 });
+    const promise = fastClient.call('campaign.init', { idempotency_key: 'slow' });
+
+    await expect(promise).rejects.toMatchObject({
+      code: 'UPSTREAM_ERROR',
+      retryable: true,
     });
-
-    mockChild.stdin = new Writable({
-      write(_chunk, _encoding, callback) { callback(); },
-    });
-
-    const promise = fastClient.call('campaign.init', { topic: 'slow' });
-
-    await expect(promise).rejects.toThrow('timeout');
-    try { await promise; } catch (err: any) {
-      expect(err.code).toBe('UPSTREAM_ERROR');
-      expect(err.retryable).toBe(true);
-    }
 
     fastClient.close();
   });
 
-  it('rejects after close', async () => {
+  it('rejects calls after close', async () => {
     client.close();
-    await expect(client.call('campaign.init', { topic: 'test' })).rejects.toThrow('closed');
+    await expect(client.call('campaign.init', { idempotency_key: 'closed' })).rejects.toMatchObject({
+      code: 'INTERNAL_ERROR',
+      retryable: false,
+    });
   });
 });

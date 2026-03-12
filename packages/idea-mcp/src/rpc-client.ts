@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { randomUUID } from 'crypto';
-import { upstreamError, internalError, invalidParams } from '@autoresearch/shared';
+import { upstreamError, internalError } from '@autoresearch/shared';
+import { mapRpcError } from './rpc-error-mapping.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -30,19 +31,8 @@ export interface IdeaRpcClientOptions {
   ideaCorePath: string;
   timeoutMs?: number;
   maxRestarts?: number;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// JSON-RPC error code → McpError mapping
-// ─────────────────────────────────────────────────────────────────────────────
-
-const RETRYABLE_RPC_CODES = new Set([-32000, -32001]);
-
-function mapRpcError(code: number, message: string, data?: unknown): Error {
-  if (code === -32601) return invalidParams(`method_not_found: ${message}`, data);
-  if (code === -32602 || code === -32002) return invalidParams(message, data);
-  if (RETRYABLE_RPC_CODES.has(code)) return upstreamError(message, data);
-  return internalError(`JSON-RPC error ${code}: ${message}`, data);
+  dataDir?: string;
+  contractDir?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,11 +49,15 @@ export class IdeaRpcClient {
   private readonly ideaCorePath: string;
   private readonly timeoutMs: number;
   private readonly maxRestarts: number;
+  private readonly dataDir?: string;
+  private readonly contractDir?: string;
 
   constructor(opts: IdeaRpcClientOptions) {
     this.ideaCorePath = opts.ideaCorePath;
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.maxRestarts = opts.maxRestarts ?? 3;
+    this.dataDir = opts.dataDir;
+    this.contractDir = opts.contractDir;
   }
 
   async call(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
@@ -113,7 +107,11 @@ export class IdeaRpcClient {
   }
 
   private spawnChild(): void {
-    this.child = spawn('uv', ['run', 'python', '-m', 'idea_core.rpc.server'], {
+    const args = ['run', 'python', '-m', 'idea_core.rpc.server'];
+    if (this.dataDir) args.push('--data-dir', this.dataDir);
+    if (this.contractDir) args.push('--contract-dir', this.contractDir);
+
+    this.child = spawn('uv', args, {
       cwd: this.ideaCorePath,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
