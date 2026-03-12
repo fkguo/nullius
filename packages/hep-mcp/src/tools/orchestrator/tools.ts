@@ -634,7 +634,23 @@ async function handleOrchRunApprovalsList(
     throw invalidParams('No run_id in state and none provided.', {});
   }
 
-  const results: unknown[] = [];
+  const results: Record<string, unknown>[] = [];
+  const resultsByApprovalId = new Map<string, Record<string, unknown>>();
+
+  function upsertApproval(entry: Record<string, unknown>): void {
+    const approvalId = typeof entry['approval_id'] === 'string' ? entry['approval_id'] : null;
+    if (!approvalId) {
+      results.push(entry);
+      return;
+    }
+    const existing = resultsByApprovalId.get(approvalId);
+    if (existing) {
+      Object.assign(existing, entry);
+      return;
+    }
+    resultsByApprovalId.set(approvalId, entry);
+    results.push(entry);
+  }
 
   // Current pending approval
   const pending = state['pending_approval'] as Record<string, unknown> | null;
@@ -644,7 +660,7 @@ async function handleOrchRunApprovalsList(
       params.gate_filter === 'all' ||
       category === params.gate_filter
     ) {
-      results.push({ ...pending, status: 'pending' });
+      upsertApproval({ ...pending, status: 'pending' });
     }
   }
 
@@ -691,7 +707,7 @@ async function handleOrchRunApprovalsList(
         approvalEntry['status'] = pending?.['approval_id'] === approvalEntry['approval_id'] ? 'pending' : 'unknown';
       }
 
-      results.push(approvalEntry);
+      upsertApproval(approvalEntry);
     }
   }
 

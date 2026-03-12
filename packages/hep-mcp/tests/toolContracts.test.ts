@@ -4,6 +4,7 @@ import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
 import { HEP_TOOL_RISK_LEVELS, type ToolRiskLevel } from '../src/tool-risk.js';
+import * as T from '../src/tool-names.js';
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -148,6 +149,34 @@ describe('Tool risk level contracts (H-11a)', () => {
     if (missing.length > 0) {
       throw new Error(`Destructive tools missing _confirm in schema:\n${missing.join('\n')}`);
     }
+  });
+
+  it('orchestrator tool surface is present with the expected risk contract', () => {
+    const expected: Record<string, ToolRiskLevel> = {
+      [T.ORCH_RUN_CREATE]: 'write',
+      [T.ORCH_RUN_STATUS]: 'read',
+      [T.ORCH_RUN_LIST]: 'read',
+      [T.ORCH_RUN_APPROVE]: 'destructive',
+      [T.ORCH_RUN_REJECT]: 'destructive',
+      [T.ORCH_RUN_EXPORT]: 'destructive',
+      [T.ORCH_RUN_PAUSE]: 'write',
+      [T.ORCH_RUN_RESUME]: 'write',
+      [T.ORCH_RUN_APPROVALS_LIST]: 'read',
+      [T.ORCH_POLICY_QUERY]: 'read',
+    };
+    const specsByName = new Map(getToolSpecs('full').map(spec => [spec.name, spec]));
+    expect(Object.keys(expected).every(name => specsByName.has(name))).toBe(true);
+    for (const [name, risk] of Object.entries(expected)) {
+      expect(specsByName.get(name)?.riskLevel).toBe(risk);
+    }
+  });
+
+  it('orch_run_* and hep_run_* namespaces do not collide', () => {
+    const names = getTools('full').map(tool => tool.name);
+    const orchNames = names.filter(name => name.startsWith('orch_run_'));
+    const hepRunNames = new Set(names.filter(name => name.startsWith(T.HEP_RUN_PREFIX)));
+    expect(orchNames.length).toBeGreaterThan(0);
+    expect(orchNames.filter(name => hepRunNames.has(name))).toEqual([]);
   });
 });
 

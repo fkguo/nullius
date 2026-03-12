@@ -112,6 +112,11 @@ function extractPayload(res: unknown): Record<string, unknown> {
   return JSON.parse(r.content[0].text) as Record<string, unknown>;
 }
 
+function extractErrorPayload(res: unknown): { error?: { code?: string; data?: Record<string, unknown> } } {
+  const r = res as { content: Array<{ text: string }> };
+  return JSON.parse(r.content[0].text) as { error?: { code?: string; data?: Record<string, unknown> } };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // orch_run_create
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +146,36 @@ describe('orch_run_create', () => {
     const payload = extractPayload(res);
     expect(payload.idempotency_replay).toBe(true);
     expect(payload.run_id).toBe('run-idem');
+  });
+
+  it('rejects an idempotency conflict when the existing key differs', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall('orch_run_create', {
+      project_root: projectRoot, run_id: 'run-idem', idempotency_key: 'key-1',
+    }, 'full');
+    const res = await handleToolCall('orch_run_create', {
+      project_root: projectRoot, run_id: 'run-idem', idempotency_key: 'key-2',
+    }, 'full');
+    expect((res as Record<string, unknown>).isError).toBe(true);
+    const payload = extractErrorPayload(res);
+    expect(payload.error?.code).toBe('INVALID_PARAMS');
+    expect(JSON.stringify(payload)).toMatch(/idempotency_conflict/);
+  });
+});
+
+describe('orch_run_list', () => {
+  it('lists runs created via orch_run_create', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-list-1', workflow_id: 'ingest' },
+      'full',
+    );
+    const res = await handleToolCall('orch_run_list', { project_root: projectRoot }, 'full');
+    const payload = extractPayload(res);
+    const runs = payload.runs as Array<Record<string, unknown>>;
+    expect(payload.total).toBe(1);
+    expect(runs.some(run => run.run_id === 'run-list-1')).toBe(true);
   });
 });
 
@@ -252,6 +287,44 @@ describe('orch_run_approve — SHA-256 verification', () => {
     const r = res as Record<string, unknown>;
     expect(r.isError).toBe(true);
   });
+
+  it('requires _confirm before approval executes', async () => {
+    const projectRoot = makeTmpDir();
+    const { packetSha256 } = setupProject(projectRoot, { runId: 'run-confirm', approvalId: 'A1-0001' });
+
+    const res = await handleToolCall(
+      'orch_run_approve',
+      {
+        project_root: projectRoot,
+        approval_id: 'A1-0001',
+        approval_packet_sha256: packetSha256,
+      },
+      'full',
+    );
+    expect((res as Record<string, unknown>).isError).toBe(true);
+    const payload = extractErrorPayload(res);
+    expect(payload.error?.code).toBe('CONFIRMATION_REQUIRED');
+  });
+
+  it('rejects when approval_packet_v1.json is missing', async () => {
+    const projectRoot = makeTmpDir();
+    const { packetPath, packetSha256 } = setupProject(projectRoot, { runId: 'run-missing-packet', approvalId: 'A1-0001' });
+    fs.rmSync(packetPath);
+
+    const res = await handleToolCall(
+      'orch_run_approve',
+      {
+        project_root: projectRoot,
+        approval_id: 'A1-0001',
+        approval_packet_sha256: packetSha256,
+        _confirm: true,
+      },
+      'full',
+    );
+    expect((res as Record<string, unknown>).isError).toBe(true);
+    const payload = extractErrorPayload(res);
+    expect(payload.error?.code).toBe('NOT_FOUND');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -322,5 +395,35 @@ describe('orch_policy_query', () => {
     const payload = extractPayload(res);
     expect(payload.requires_approval).toBe(true);
     expect(payload.operation).toBe('mass_search');
+  });
+});
+
+describe('orch_run_export', () => {
+  it('requires _confirm before export summary generation', async () => {
+    const projectRoot = makeTmpDir();
+    const res = await handleToolCall('orch_run_export', { project_root: projectRoot }, 'full');
+    expect((res as Record<string, unknown>).isError).toBe(true);
+    const payload = extractErrorPayload(res);
+    expect(payload.error?.code).toBe('CONFIRMATION_REQUIRED');
+    expect(payload.error?.data?.tool).toBe('orch_run_export');
+  });
+});
+
+describe('orch_run_approvals_list', () => {
+  it('deduplicates the current pending approval and surfaces packet sha + uri', async () => {
+    const projectRoot = makeTmpDir();
+    const { packetSha256 } = setupProject(projectRoot, { runId: 'run-approvals-1', approvalId: 'A1-0001' });
+
+    const res = await handleToolCall(
+      'orch_run_approvals_list',
+      { project_root: projectRoot, include_history: false, gate_filter: 'all' },
+      'full',
+    );
+    const payload = extractPayload(res);
+    const approvals = payload.approvals as Array<Record<string, unknown>>;
+    expect(approvals).toHaveLength(1);
+    expect(approvals[0]?.approval_id).toBe('A1-0001');
+    expect(approvals[0]?.approval_packet_sha256).toBe(packetSha256);
+    expect(String(approvals[0]?.uri ?? '')).toContain('orch://runs/run-approvals-1/approvals/');
   });
 });

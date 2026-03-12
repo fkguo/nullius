@@ -27,8 +27,8 @@
 |---|---|---|
 | `orch_run_create` | `write` | Create a new run under a project. Returns `run_id`. Writes `state.json` + `ledger.jsonl`. |
 | `orch_run_status` | `read` | Read-only snapshot of run state, phase, pending approvals, branch info. |
-| `orch_run_approve` | `write` | Approve a pending approval gate. Requires `approval_id` + `approval_packet_sha256`. Subject to C-01 timeout/budget enforcement. |
-| `orch_run_reject` | `write` | Reject a pending approval. Transitions run to `rejected` state. |
+| `orch_run_approve` | `destructive` | Approve a pending approval gate. Requires `_confirm: true` + `approval_id` + `approval_packet_sha256`. Subject to C-01 timeout/budget enforcement. |
+| `orch_run_reject` | `destructive` | Reject a pending approval. Requires `_confirm: true`; pauses the run irreversibly for the current approval attempt. |
 | `orch_run_pause` | `write` | Pause a running run. Preserves state for later resume. |
 | `orch_run_resume` | `write` | Resume a paused run. Validates state consistency before resuming. |
 | `orch_run_checkpoint` | `write` | Record a phase checkpoint. Enforces approval timeout/budget (C-01). |

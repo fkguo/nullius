@@ -32,7 +32,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (9933 symbols, 23236 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-new-r15-retro** (7865 symbols, 21174 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -48,7 +48,7 @@ This project is indexed by GitNexus as **autoresearch-lab** (9933 symbols, 23236
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-new-r15-retro/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -87,10 +87,10 @@ This project is indexed by GitNexus as **autoresearch-lab** (9933 symbols, 23236
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-new-r15-retro/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-new-r15-retro/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-new-r15-retro/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-new-r15-retro/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 
