@@ -58,6 +58,9 @@ importers:
       '@autoresearch/openalex-mcp':
         specifier: workspace:*
         version: link:../openalex-mcp
+      '@autoresearch/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@autoresearch/pdg-mcp':
         specifier: workspace:*
         version: link:../pdg-mcp
@@ -193,6 +196,9 @@ importers:
       '@autoresearch/shared':
         specifier: workspace:^
         version: link:../shared
+      ajv:
+        specifier: ^8.18.0
+        version: 8.18.0
       zod:
         specifier: ^4.3.5
         version: 4.3.6

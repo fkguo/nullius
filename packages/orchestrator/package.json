@@ -19,6 +19,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@autoresearch/shared": "workspace:^",
+    "ajv": "^8.18.0",
     "zod": "^4.3.5"
   }
 }

@@ -12,6 +12,7 @@
   "exclude": ["node_modules", "dist"],
   "references": [
     { "path": "../shared" },
+    { "path": "../orchestrator" },
     { "path": "../hepdata-mcp" },
     { "path": "../arxiv-mcp" },
     { "path": "../openalex-mcp" }

@@ -1,0 +1,124 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { z } from 'zod';
+import {
+  createStateManager,
+  DEFAULT_APPROVAL_REQUIRED,
+  pauseFilePath,
+  POLICY_KEYS,
+  requireState,
+} from './common.js';
+import {
+  OrchPolicyQuerySchema,
+  OrchRunExportSchema,
+  OrchRunPauseSchema,
+  OrchRunResumeSchema,
+} from './schemas.js';
+
+export async function handleOrchRunExport(
+  params: z.output<typeof OrchRunExportSchema>,
+): Promise<unknown> {
+  const { manager, projectRoot } = createStateManager(params.project_root);
+  const result: Record<string, unknown> = { project_root: projectRoot };
+  if (params.include_state) {
+    result.state = fs.existsSync(manager.statePath) ? JSON.parse(fs.readFileSync(manager.statePath, 'utf-8')) : null;
+    if (result.state === null) {
+      result.state_missing = true;
+    }
+  }
+  if (params.include_artifacts) {
+    const runsDir = path.join(projectRoot, 'artifacts', 'runs');
+    if (fs.existsSync(runsDir)) {
+      result.artifact_runs = fs.readdirSync(runsDir)
+        .filter(runDir => fs.statSync(path.join(runsDir, runDir)).isDirectory())
+        .map(runDir => ({
+          run_id: runDir,
+          files: fs.readdirSync(path.join(runsDir, runDir)).map(file => path.join('artifacts', 'runs', runDir, file)).slice(0, 50),
+          uri: `orch://runs/${runDir}`,
+        }));
+    } else {
+      result.artifact_runs = [];
+    }
+  }
+  return {
+    exported: true,
+    ...result,
+    uri: 'orch://runs/export',
+    message: 'Export summary generated (no files copied; use artifacts/ directory for actual files).',
+  };
+}
+
+export async function handleOrchRunPause(
+  params: z.output<typeof OrchRunPauseSchema>,
+): Promise<unknown> {
+  const { manager, projectRoot } = createStateManager(params.project_root);
+  const state = requireState(projectRoot, manager);
+  state.run_status = 'paused';
+  state.notes = params.note ?? 'paused via orch_run_pause';
+  fs.writeFileSync(pauseFilePath(projectRoot), 'paused\n', 'utf-8');
+  manager.saveState(state);
+  manager.appendLedger('paused', {
+    run_id: state.run_id,
+    workflow_id: state.workflow_id,
+    details: { note: params.note ?? '' },
+  });
+  return {
+    paused: true,
+    run_id: state.run_id,
+    run_status: 'paused',
+    uri: `orch://runs/${state.run_id}`,
+  };
+}
+
+export async function handleOrchRunResume(
+  params: z.output<typeof OrchRunResumeSchema>,
+): Promise<unknown> {
+  const { manager, projectRoot } = createStateManager(params.project_root);
+  const state = requireState(projectRoot, manager);
+  const pausePath = pauseFilePath(projectRoot);
+  if (fs.existsSync(pausePath)) {
+    fs.unlinkSync(pausePath);
+  }
+  state.run_status = 'running';
+  state.notes = params.note ?? 'resumed via orch_run_resume';
+  manager.saveState(state);
+  manager.appendLedger('resumed', {
+    run_id: state.run_id,
+    workflow_id: state.workflow_id,
+    details: { note: params.note ?? '' },
+  });
+  return {
+    resumed: true,
+    run_id: state.run_id,
+    run_status: 'running',
+    uri: `orch://runs/${state.run_id}`,
+  };
+}
+
+export async function handleOrchPolicyQuery(
+  params: z.output<typeof OrchPolicyQuerySchema>,
+): Promise<unknown> {
+  const { manager } = createStateManager(params.project_root);
+  const policy = manager.readPolicy();
+  const effectivePolicy = Object.keys(policy).length > 0 ? policy : { approval_required: DEFAULT_APPROVAL_REQUIRED };
+  const result: Record<string, unknown> = {
+    policy: effectivePolicy,
+    gate_to_policy_key: POLICY_KEYS,
+    policy_path: fs.existsSync(manager.policyPath) ? manager.policyPath : null,
+    policy_exists: fs.existsSync(manager.policyPath),
+  };
+
+  if (!params.operation) {
+    return result;
+  }
+  result.operation = params.operation;
+  const approvalRequired = (effectivePolicy as { approval_required?: Record<string, boolean> }).approval_required;
+  result.requires_approval = approvalRequired ? (approvalRequired[params.operation] ?? true) : true;
+  if (params.include_history && fs.existsSync(manager.statePath)) {
+    const state = manager.readState();
+    result.precedents = state.approval_history
+      .filter(entry => entry.category !== null && POLICY_KEYS[entry.category] === params.operation)
+      .slice(-5);
+  }
+  return result;
+}

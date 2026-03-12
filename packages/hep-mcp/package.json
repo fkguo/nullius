@@ -26,6 +26,7 @@
   "dependencies": {
     "@autoresearch/arxiv-mcp": "workspace:*",
     "@autoresearch/hepdata-mcp": "workspace:*",
+    "@autoresearch/orchestrator": "workspace:*",
     "@autoresearch/openalex-mcp": "workspace:*",
     "@autoresearch/pdg-mcp": "workspace:*",
     "@autoresearch/shared": "workspace:*",

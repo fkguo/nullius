@@ -1,4 +1,7 @@
-import type { SamplingCostClass, SamplingMetadata, ToolRiskLevel } from '@autoresearch/shared';
+import type { SamplingMetadata } from '@autoresearch/shared';
+
+type SamplingCostClassKey = 'low' | 'medium' | 'high';
+type SamplingRiskLevelKey = 'read' | 'write' | 'destructive';
 
 export type SamplingBackendName = 'anthropic';
 
@@ -13,8 +16,8 @@ export interface SamplingRouteSelectors {
   tools: Record<string, string>;
   modules: Record<string, string>;
   module_prompt_versions: Record<string, string>;
-  risk_levels: Partial<Record<ToolRiskLevel, string>>;
-  cost_classes: Partial<Record<SamplingCostClass, string>>;
+  risk_levels: Partial<Record<SamplingRiskLevelKey, string>>;
+  cost_classes: Partial<Record<SamplingCostClassKey, string>>;
 }
 
 export interface SamplingRoutingConfig {

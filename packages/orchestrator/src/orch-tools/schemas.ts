@@ -1,0 +1,99 @@
+import { z } from 'zod';
+
+const ProjectRootSchema = z
+  .string()
+  .min(1)
+  .describe('Absolute (or tilde-prefixed) path to the hepar project root directory (contains .autoresearch/)');
+
+export const OrchRunCreateSchema = z.object({
+  project_root: ProjectRootSchema,
+  run_id: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[a-zA-Z0-9_\-]+$/, 'run_id must be alphanumeric + _ -')
+    .describe('Run identifier, unique within the project.'),
+  workflow_id: z.string().optional().describe('Workflow identifier.'),
+  idempotency_key: z
+    .string()
+    .optional()
+    .describe('Idempotency key. If a run with matching key already exists, returns existing state without error.'),
+});
+
+export const OrchRunStatusSchema = z.object({
+  project_root: ProjectRootSchema,
+});
+
+export const OrchRunListSchema = z.object({
+  project_root: ProjectRootSchema,
+  limit: z.number().int().positive().optional().default(20).describe('Max runs to return.'),
+  status_filter: z
+    .enum(['idle', 'running', 'awaiting_approval', 'paused', 'complete', 'failed', 'all'])
+    .optional()
+    .default('all')
+    .describe('Filter by run_status.'),
+});
+
+export const OrchRunApproveSchema = z.object({
+  project_root: ProjectRootSchema,
+  approval_id: z.string().min(1).describe('Approval ID, e.g. A1-0001.'),
+  approval_packet_sha256: z
+    .string()
+    .length(64)
+    .regex(/^[0-9a-f]{64}$/, 'Must be a lowercase hex SHA-256 of approval_packet_v1.json')
+    .describe('SHA-256 of the approval_packet_v1.json file. Prevents approval of a tampered packet.'),
+  _confirm: z.literal(true).describe('Must be true to execute this destructive operation.'),
+  note: z.string().optional().describe('Optional note recorded in the ledger.'),
+});
+
+export const OrchRunRejectSchema = z.object({
+  project_root: ProjectRootSchema,
+  approval_id: z.string().min(1).describe('Approval ID to reject.'),
+  _confirm: z.literal(true).describe('Must be true to execute this irreversible rejection.'),
+  note: z.string().optional().describe('Reason for rejection, recorded in ledger.'),
+});
+
+export const OrchRunExportSchema = z.object({
+  project_root: ProjectRootSchema,
+  _confirm: z.literal(true).describe('Must be true to acknowledge the export (potentially destructive).'),
+  include_state: z.boolean().optional().default(true).describe('Include .autoresearch/state.json in summary.'),
+  include_artifacts: z.boolean().optional().default(true).describe('List artifact paths.'),
+});
+
+export const OrchRunPauseSchema = z.object({
+  project_root: ProjectRootSchema,
+  note: z.string().optional().describe('Reason for pausing, recorded in ledger.'),
+});
+
+export const OrchRunResumeSchema = z.object({
+  project_root: ProjectRootSchema,
+  note: z.string().optional().describe('Note recorded in ledger when resuming.'),
+});
+
+export const OrchRunApprovalsListSchema = z.object({
+  project_root: ProjectRootSchema,
+  run_id: z.string().optional().describe('Run ID to list approvals for. Defaults to current run_id in state.'),
+  gate_filter: z
+    .enum(['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'all'])
+    .optional()
+    .default('all')
+    .describe('Filter by gate category.'),
+  include_history: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include already-resolved approvals from approval_history.'),
+});
+
+export const OrchPolicyQuerySchema = z.object({
+  project_root: ProjectRootSchema,
+  operation: z
+    .string()
+    .optional()
+    .describe('Operation to check (e.g. "mass_search", "code_changes", "compute_runs"). If omitted, returns full policy.'),
+  include_history: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include historical approval precedents for the queried operation.'),
+});

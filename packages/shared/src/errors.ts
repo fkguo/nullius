@@ -8,7 +8,8 @@ export type ErrorCode =
   | 'RATE_LIMIT'
   | 'UPSTREAM_ERROR'
   | 'INTERNAL_ERROR'
-  | 'UNSAFE_FS';
+  | 'UNSAFE_FS'
+  | 'BLOCKED_COMMAND';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // H-01: retryable defaults per ErrorCode
@@ -21,6 +22,7 @@ const RETRYABLE_BY_CODE: Record<ErrorCode, boolean> = {
   NOT_FOUND: false,
   INTERNAL_ERROR: false,
   UNSAFE_FS: false,
+  BLOCKED_COMMAND: false,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,4 +86,8 @@ export function internalError(message: string, data?: unknown): McpError {
 
 export function unsafeFs(message: string, data?: unknown): McpError {
   return new McpError('UNSAFE_FS', message, data);
+}
+
+export function blockedCommand(message: string, data?: unknown): McpError {
+  return new McpError('BLOCKED_COMMAND', message, data);
 }

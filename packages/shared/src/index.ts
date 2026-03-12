@@ -70,4 +70,5 @@ export {
   upstreamError,
   internalError,
   unsafeFs,
+  blockedCommand,
 } from './errors.js';

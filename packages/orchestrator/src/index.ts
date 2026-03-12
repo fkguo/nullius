@@ -30,4 +30,10 @@ export {
   type RunManifest,
   type StepCheckpoint,
 } from './run-manifest.js';
+export {
+  executeComputationManifest,
+  type ExecuteComputationManifestInput,
+  type ExecuteComputationManifestResult,
+} from './computation/index.js';
+export { ORCH_TOOL_SPECS } from './orch-tools/index.js';
 export * from './research-loop/index.js';
