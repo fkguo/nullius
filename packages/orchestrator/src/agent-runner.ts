@@ -6,7 +6,7 @@ import type { ApprovalGate } from './approval-gate.js';
 import { createChatBackend, type ChatBackendFactory } from './backends/backend-factory.js';
 import type { ChatBackend, MessageParam, MessagesCreateFn, Tool } from './backends/chat-backend.js';
 import type { McpClient } from './mcp-client.js';
-import type { RunManifest } from './run-manifest.js';
+import { RunManifestManager, type RunManifest } from './run-manifest.js';
 import type { ResolvedChatRoute } from './routing/types.js';
 import { DEFAULT_CHAT_MAX_TOKENS, loadRoutingConfig, resolveChatRoute } from './routing/loader.js';
 import type { SpanCollector } from './tracing.js';
@@ -31,6 +31,7 @@ export interface AgentRunnerOptions {
   spanCollector?: SpanCollector;
   routingConfig?: unknown;
   backendFactory?: ChatBackendFactory;
+  manifestManager?: RunManifestManager;
   _messagesCreate?: MessagesCreateFn;
 }
 
@@ -40,6 +41,7 @@ export class AgentRunner {
   readonly approvalGate: ApprovalGate;
   private readonly mcpClient: McpClient;
   private readonly spanCollector: SpanCollector | null;
+  private readonly manifestManager: RunManifestManager | null;
   private readonly route: ResolvedChatRoute;
   private readonly chatBackend: ChatBackend;
 
@@ -49,6 +51,7 @@ export class AgentRunner {
     this.mcpClient = options.mcpClient;
     this.approvalGate = options.approvalGate;
     this.spanCollector = options.spanCollector ?? null;
+    this.manifestManager = options.manifestManager ?? null;
     const routingConfig = loadRoutingConfig(options.routingConfig, options.model);
     this.route = resolveChatRoute(routingConfig, options.model);
     this.chatBackend = (options.backendFactory ?? createChatBackend)(this.route, { messagesCreate: options._messagesCreate });
@@ -74,7 +77,15 @@ export class AgentRunner {
   private async *runImpl(messages: MessageParam[], tools: Tool[], manifest: RunManifest | null): AsyncGenerator<AgentEvent> {
     let currentMessages: MessageParam[] = [...messages];
     const traceId = generateTraceId();
-    const recovery = await resolveIncompleteToolUses({ messages: currentMessages, manifest, mcpClient: this.mcpClient });
+    const checkpointRecorder = async (stepId: string, resultSummary: string) => {
+      this.manifestManager?.saveCheckpoint(this.runId, stepId, resultSummary);
+    };
+    const recovery = await resolveIncompleteToolUses({
+      messages: currentMessages,
+      manifest,
+      mcpClient: this.mcpClient,
+      checkpointRecorder,
+    });
     if (recovery !== null) {
       for (const event of recovery.events) yield event;
       if (recovery.done) return;
@@ -100,6 +111,7 @@ export class AgentRunner {
           traceId,
           mcpClient: this.mcpClient,
           spanCollector: this.spanCollector,
+          checkpointRecorder,
         });
         for (const event of next.events) yield event;
         if (next.done) return;

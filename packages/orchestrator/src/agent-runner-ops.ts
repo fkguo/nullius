@@ -1,6 +1,6 @@
 import { McpError } from '@autoresearch/shared';
 import type { MessageContent, MessageParam, ToolResultContent, ToolUseContent } from './backends/chat-backend.js';
-import type { McpClient } from './mcp-client.js';
+import type { McpClient, McpToolResult } from './mcp-client.js';
 import type { RunManifest, StepCheckpoint } from './run-manifest.js';
 import type { SpanCollector } from './tracing.js';
 
@@ -17,16 +17,28 @@ export function asMcpError(error: unknown, prefix = ''): McpError {
   return new McpError('INTERNAL_ERROR', `${prefix}${message}`);
 }
 
+function checkpointSummary(result: McpToolResult): string {
+  if (typeof result.rawText === 'string' && result.rawText.length > 0) {
+    return result.rawText;
+  }
+  if (result.json !== null) {
+    return JSON.stringify(result.json);
+  }
+  return '';
+}
+
 async function executeToolCall(params: {
   block: ToolUseContent;
   turnCount: number;
   traceId: string;
   mcpClient: McpClient;
   spanCollector: SpanCollector | null;
+  checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
 }): Promise<{ events: AgentEvent[]; toolResult: ToolResultContent; done: boolean }> {
   const toolSpan = params.spanCollector?.startSpan(params.block.name, params.traceId);
   try {
     const result = await params.mcpClient.callTool(params.block.name, params.block.input);
+    await params.checkpointRecorder?.(params.block.id, checkpointSummary(result));
     toolSpan?.end(result.isError ? 'ERROR' : 'OK');
     const resultValue = result.json ?? result.rawText;
     const events: AgentEvent[] = [{ type: 'tool_call', name: params.block.name, input: params.block.input, result: resultValue }];
@@ -51,6 +63,7 @@ export async function handleAssistantResponse(params: {
   traceId: string;
   mcpClient: McpClient;
   spanCollector: SpanCollector | null;
+  checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
 }): Promise<{ events: AgentEvent[]; messages: MessageParam[]; done: boolean }> {
   const assistantContent: MessageContent[] = [];
   const toolResults: ToolResultContent[] = [];
@@ -73,6 +86,7 @@ export async function handleAssistantResponse(params: {
       traceId: params.traceId,
       mcpClient: params.mcpClient,
       spanCollector: params.spanCollector,
+      checkpointRecorder: params.checkpointRecorder,
     });
     events.push(...toolResult.events);
     if (toolResult.done) return { events, messages: params.messages, done: true };
@@ -99,6 +113,7 @@ export async function resolveIncompleteToolUses(params: {
   messages: MessageParam[];
   manifest: RunManifest | null;
   mcpClient: McpClient;
+  checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
 }): Promise<{ events: AgentEvent[]; messages: MessageParam[]; done: boolean } | null> {
   const last = params.messages[params.messages.length - 1];
   if (!last || last.role !== 'assistant' || !Array.isArray(last.content)) return null;
@@ -117,6 +132,7 @@ export async function resolveIncompleteToolUses(params: {
     }
     try {
       const result = await params.mcpClient.callTool(toolUse.name, toolUse.input);
+      await params.checkpointRecorder?.(toolUse.id, checkpointSummary(result));
       const resultValue = result.json ?? result.rawText;
       const json = result.json as Record<string, unknown> | null;
       events.push({ type: 'tool_call', name: toolUse.name, input: toolUse.input, result: resultValue });
