@@ -62,15 +62,34 @@ describe('compute-loop approved execution', () => {
     expect(result.outcome_ref.uri).toBe(`rep://runs/${encodeURIComponent(runId)}/artifact/artifacts%2Fcomputation_result_v1.json`);
 
     const outcome = JSON.parse(fs.readFileSync(result.artifact_paths.computation_result, 'utf-8')) as {
+      objective_title: string;
+      feedback_lowering: {
+        signal: string;
+        decision_kind: string;
+        priority_change: string;
+        prune_candidate: boolean;
+      };
       execution_status: string;
       summary: string;
       produced_artifact_refs: Array<{ uri: string }>;
-      workspace_feedback: { tasks: Array<{ kind: string; status: string }>; handoffs: unknown[]; events: Array<{ event_type: string }> };
+      workspace_feedback: {
+        workspace: { nodes: Array<{ kind: string }>; edges: Array<{ kind: string; to_node_id: string }> };
+        tasks: Array<{ kind: string; status: string }>;
+        handoffs: unknown[];
+        events: Array<{ event_type: string }>;
+      };
     };
 
+    expect(outcome.objective_title).toContain('Deterministic minimal approved execution');
+    expect(outcome.feedback_lowering.signal).toBe('success');
+    expect(outcome.feedback_lowering.decision_kind).toBe('capture_finding');
+    expect(outcome.feedback_lowering.priority_change).toBe('raise');
+    expect(outcome.feedback_lowering.prune_candidate).toBe(false);
     expect(outcome.execution_status).toBe('completed');
     expect(outcome.summary).toContain('Approved execution completed');
     expect(outcome.produced_artifact_refs.some(ref => ref.uri.includes('execution_status.json'))).toBe(true);
+    expect(outcome.workspace_feedback.workspace.nodes.some(node => node.kind === 'decision')).toBe(true);
+    expect(outcome.workspace_feedback.workspace.edges.some(edge => edge.kind === 'produces' && edge.to_node_id === `finding:${runId}`)).toBe(true);
     expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'compute' && task.status === 'completed')).toBe(true);
     expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'finding' && task.status === 'pending')).toBe(true);
     expect(outcome.workspace_feedback.handoffs).toHaveLength(0);

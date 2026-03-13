@@ -90,18 +90,22 @@ describe('compute loop contract', () => {
       'full',
     )) as {
       status: string;
-      next_actions: Array<{ task_kind: string }>;
+      next_actions: Array<{ action_kind: string; task_kind: string }>;
     };
 
     expect(execPayload.status).toBe('completed');
+    expect(execPayload.next_actions[0].action_kind).toBe('capture_finding');
     expect(execPayload.next_actions[0].task_kind).toBe('finding');
 
     const outcomePath = path.join(hepDataDir, 'runs', staged.run_id, 'artifacts', 'computation_result_v1.json');
     const outcome = JSON.parse(fs.readFileSync(outcomePath, 'utf-8')) as {
+      feedback_lowering: { signal: string; decision_kind: string };
       executor_provenance: { execution_surface: string };
       workspace_feedback: { tasks: Array<{ kind: string; status: string }> };
     };
 
+    expect(outcome.feedback_lowering.signal).toBe('success');
+    expect(outcome.feedback_lowering.decision_kind).toBe('capture_finding');
     expect(outcome.executor_provenance.execution_surface).toBe('computation_manifest_executor');
     expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'finding' && task.status === 'pending')).toBe(true);
   });
@@ -144,20 +148,25 @@ describe('compute loop contract', () => {
       'full',
     )) as {
       status: string;
-      next_actions: Array<{ task_kind: string; handoff_kind?: string }>;
+      next_actions: Array<{ action_kind: string; task_kind: string; handoff_kind?: string }>;
     };
 
     expect(execPayload.status).toBe('failed');
+    expect(execPayload.next_actions[0].action_kind).toBe('downgrade_idea');
     expect(execPayload.next_actions[0].task_kind).toBe('idea');
     expect(execPayload.next_actions[0].handoff_kind).toBe('feedback');
 
     const outcomePath = path.join(hepDataDir, 'runs', staged.run_id, 'artifacts', 'computation_result_v1.json');
     const outcome = JSON.parse(fs.readFileSync(outcomePath, 'utf-8')) as {
       failure_reason?: string;
+      feedback_lowering: { signal: string; decision_kind: string; prune_candidate: boolean };
       workspace_feedback: { handoffs: Array<{ handoff_kind: string }> };
     };
 
     expect(outcome.failure_reason).toContain("step 'task_001' exited with code 1");
+    expect(outcome.feedback_lowering.signal).toBe('failure');
+    expect(outcome.feedback_lowering.decision_kind).toBe('downgrade_idea');
+    expect(outcome.feedback_lowering.prune_candidate).toBe(true);
     expect(outcome.workspace_feedback.handoffs[0]?.handoff_kind).toBe('feedback');
   });
 });
