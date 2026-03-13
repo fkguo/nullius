@@ -1,4 +1,4 @@
-import type { ComputationManifestV1 } from '@autoresearch/shared';
+import type { ArtifactRefV1, ComputationManifestV1, ComputationResultV1 } from '@autoresearch/shared';
 
 export type ManifestTool = 'mathematica' | 'julia' | 'python' | 'bash';
 export type ExecutionStatus = 'dry_run' | 'requires_approval' | 'completed' | 'failed';
@@ -39,6 +39,7 @@ export interface PreparedManifest {
 export interface ExecutionArtifactPaths {
   execution_status: string;
   logs_dir: string;
+  computation_result: string;
 }
 
 export interface DryRunExecutionResult {
@@ -77,6 +78,9 @@ export interface CompletedExecutionResult {
   manifest_path: string;
   manifest_sha256: string;
   artifact_paths: ExecutionArtifactPaths;
+  outcome_ref: ArtifactRefV1;
+  next_actions: ComputationResultV1['next_actions'];
+  summary: string;
   produced_outputs: string[];
 }
 
@@ -87,6 +91,9 @@ export interface FailedExecutionResult {
   manifest_path: string;
   manifest_sha256: string;
   artifact_paths: ExecutionArtifactPaths;
+  outcome_ref: ArtifactRefV1;
+  next_actions: ComputationResultV1['next_actions'];
+  summary: string;
   errors: string[];
 }
 

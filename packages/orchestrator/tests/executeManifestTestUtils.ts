@@ -39,7 +39,7 @@ export function createPythonStep(runDir: string, relativeScriptPath: string, bod
 
 export function extractArtifactPaths(
   result: Awaited<ReturnType<typeof import('../src/computation/index.js').executeComputationManifest>>,
-): { execution_status: string; logs_dir: string } | null {
+): { execution_status: string; logs_dir: string; computation_result: string } | null {
   if (result.status === 'completed' || result.status === 'failed') {
     return result.artifact_paths;
   }

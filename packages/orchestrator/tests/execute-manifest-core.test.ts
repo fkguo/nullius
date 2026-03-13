@@ -101,6 +101,7 @@ describe('executeComputationManifest', () => {
     expect(fs.existsSync(path.join(runDir, 'computation', 'outputs', 'ok.json'))).toBe(true);
 
     expect(extractArtifactPaths(result)?.execution_status).toBeTruthy();
+    expect(extractArtifactPaths(result)?.computation_result).toBeTruthy();
     const state = manager.readState();
     expect(state.run_status).toBe('completed');
   });
@@ -220,6 +221,7 @@ describe('executeComputationManifest', () => {
     expect(fs.existsSync(path.join(projectRoot, result.packet_path))).toBe(true);
     expect(fs.existsSync(path.join(runDir, 'computation', 'outputs', 'result.txt'))).toBe(false);
     expect(fs.existsSync(path.join(runDir, 'computation', 'execution_status.json'))).toBe(false);
+    expect(fs.existsSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'))).toBe(false);
 
     const state = manager.readState();
     expect(state.run_status).toBe('awaiting_approval');

@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { StateManager } from '../state-manager.js';
 import { utcNowIso } from '../util.js';
 import { ensureDir, toPosixRelative, writeJsonAtomic } from './io.js';
+import { writeComputationResultArtifact } from './result.js';
 import type {
   CompletedExecutionResult,
   ExecutionStatusFile,
@@ -74,11 +75,16 @@ export function runPreparedManifest(
     writeStepLogs(logDir, step, output);
     statusStep.exit_code = output.status ?? null;
     statusStep.completed_at = utcNowIso();
-    if (output.error || output.status !== 0 || step.expectedOutputPaths.some(filePath => !fs.existsSync(filePath))) {
+    const missingOutputs = step.expectedOutputPaths.filter(filePath => !fs.existsSync(filePath));
+    if (output.error || output.status !== 0 || missingOutputs.length > 0) {
       statusStep.status = 'failed';
       status.status = 'failed';
       status.completed_at = utcNowIso();
-      status.errors.push(output.error?.message ?? `step '${step.id}' failed`);
+      const failureReason = output.error?.message
+        ?? (output.status !== 0
+          ? `step '${step.id}' exited with code ${output.status}`
+          : `step '${step.id}' did not produce expected outputs: ${missingOutputs.map(filePath => toPosixRelative(prepared.runDir, filePath)).join(', ')}`);
+      status.errors.push(failureReason);
       writeJsonAtomic(statusPath, status);
       const failedState = stateManager.readState();
       if (failedState.run_status === 'running') {
@@ -87,13 +93,28 @@ export function runPreparedManifest(
           details: { run_id: prepared.runId, step_id: step.id, execution_status: statusPath },
         });
       }
+      const { computationResult, computationResultPath, computationResultRef } = writeComputationResultArtifact({
+        prepared,
+        status,
+        statusPath,
+        logsDir,
+        producedOutputs: prepared.steps.flatMap(currentStep => currentStep.expectedOutputPaths.filter(filePath => fs.existsSync(filePath))),
+        failureReason,
+      });
       return {
         status: 'failed',
         ok: false,
         run_id: prepared.runId,
         manifest_path: prepared.manifestRelativePath,
         manifest_sha256: prepared.manifestSha256,
-        artifact_paths: { execution_status: statusPath, logs_dir: logsDir },
+        artifact_paths: {
+          execution_status: statusPath,
+          logs_dir: logsDir,
+          computation_result: computationResultPath,
+        },
+        outcome_ref: computationResultRef,
+        next_actions: computationResult.next_actions,
+        summary: computationResult.summary,
         errors: [...status.errors],
       };
     }
@@ -110,13 +131,28 @@ export function runPreparedManifest(
       details: { run_id: prepared.runId, execution_status: statusPath },
     });
   }
+  const producedOutputs = prepared.steps.flatMap(step => step.expectedOutputPaths.filter(filePath => fs.existsSync(filePath)));
+  const { computationResult, computationResultPath, computationResultRef } = writeComputationResultArtifact({
+    prepared,
+    status,
+    statusPath,
+    logsDir,
+    producedOutputs,
+  });
   return {
     status: 'completed',
     ok: true,
     run_id: prepared.runId,
     manifest_path: prepared.manifestRelativePath,
     manifest_sha256: prepared.manifestSha256,
-    artifact_paths: { execution_status: statusPath, logs_dir: logsDir },
-    produced_outputs: prepared.steps.flatMap(step => step.expectedOutputPaths.filter(filePath => fs.existsSync(filePath))),
+    artifact_paths: {
+      execution_status: statusPath,
+      logs_dir: logsDir,
+      computation_result: computationResultPath,
+    },
+    outcome_ref: computationResultRef,
+    next_actions: computationResult.next_actions,
+    summary: computationResult.summary,
+    produced_outputs: producedOutputs,
   };
 }

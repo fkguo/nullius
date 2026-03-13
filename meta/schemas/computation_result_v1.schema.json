@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/computation_result_v1.schema.json",
+  "title": "ComputationResult V1",
+  "description": "Canonical provider-neutral outcome artifact for an approved computation execution. Records execution status, produced artifacts, and deterministic lowering into the single-user research-loop substrate.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "manifest_ref",
+    "execution_status",
+    "produced_artifact_refs",
+    "started_at",
+    "finished_at",
+    "summary",
+    "next_actions",
+    "executor_provenance",
+    "workspace_feedback"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "manifest_ref": {
+      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+    },
+    "execution_status": {
+      "type": "string",
+      "enum": ["completed", "failed"]
+    },
+    "produced_artifact_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "next_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["action_kind", "task_kind", "title", "target_node_id", "reason"],
+        "properties": {
+          "action_kind": {
+            "type": "string",
+            "enum": ["capture_finding", "refine_idea", "literature_followup"]
+          },
+          "task_kind": {
+            "type": "string",
+            "enum": ["finding", "idea", "literature"]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "handoff_kind": {
+            "type": "string",
+            "enum": ["feedback"]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "executor_provenance": {
+      "type": "object",
+      "required": ["orchestrator_component", "execution_surface", "approval_gate", "step_tools", "step_ids"],
+      "properties": {
+        "orchestrator_component": {
+          "type": "string",
+          "minLength": 1
+        },
+        "execution_surface": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approval_gate": {
+          "type": "string",
+          "const": "A3"
+        },
+        "step_tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["mathematica", "julia", "python", "bash"]
+          }
+        },
+        "step_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "failure_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workspace_feedback": {
+      "type": "object",
+      "required": ["policy_mode", "workspace", "tasks", "events", "handoffs", "active_task_ids"],
+      "properties": {
+        "policy_mode": {
+          "type": "string",
+          "enum": ["interactive", "autonomous"]
+        },
+        "workspace": {
+          "type": "object",
+          "required": [
+            "schema_version",
+            "workspace_id",
+            "primary_question_id",
+            "nodes",
+            "edges",
+            "created_at",
+            "updated_at"
+          ],
+          "properties": {
+            "schema_version": {
+              "type": "integer",
+              "const": 1
+            },
+            "workspace_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "primary_question_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["node_id", "kind", "title"],
+                "properties": {
+                  "node_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "question",
+                      "idea",
+                      "evidence_set",
+                      "compute_attempt",
+                      "finding",
+                      "draft_section",
+                      "review_issue",
+                      "decision"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "edges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["edge_id", "kind", "from_node_id", "to_node_id"],
+                "properties": {
+                  "edge_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "depends_on",
+                      "supports",
+                      "produces",
+                      "revises",
+                      "addresses",
+                      "branches_to",
+                      "backtracks_to"
+                    ]
+                  },
+                  "from_node_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "to_node_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rationale": {
+                    "type": ["string", "null"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "additionalProperties": false
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "task_id",
+              "kind",
+              "title",
+              "target_node_id",
+              "source",
+              "actor_id",
+              "status",
+              "parent_task_id",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "task_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "literature",
+                  "idea",
+                  "compute",
+                  "evidence_search",
+                  "finding",
+                  "draft_update",
+                  "review"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target_node_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "type": "string",
+                "enum": ["user", "agent", "system"]
+              },
+              "actor_id": {
+                "type": ["string", "null"]
+              },
+              "metadata": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "active", "completed", "blocked", "cancelled"]
+              },
+              "parent_task_id": {
+                "type": ["string", "null"]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "event_id",
+              "event_type",
+              "created_at",
+              "source",
+              "actor_id",
+              "task_id",
+              "checkpoint_id",
+              "handoff_id",
+              "payload"
+            ],
+            "properties": {
+              "event_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "event_type": {
+                "type": "string",
+                "enum": [
+                  "task_created",
+                  "task_injected",
+                  "task_followup_created",
+                  "task_status_changed",
+                  "handoff_registered",
+                  "checkpoint_created",
+                  "checkpoint_restored",
+                  "intervention_recorded"
+                ]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "source": {
+                "type": "string",
+                "enum": ["user", "agent", "system"]
+              },
+              "actor_id": {
+                "type": ["string", "null"]
+              },
+              "task_id": {
+                "type": ["string", "null"]
+              },
+              "checkpoint_id": {
+                "type": ["string", "null"]
+              },
+              "handoff_id": {
+                "type": ["string", "null"]
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "handoffs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "handoff_id",
+              "handoff_kind",
+              "workspace_id",
+              "source_task_id",
+              "target_node_id",
+              "source",
+              "actor_id",
+              "created_at",
+              "payload"
+            ],
+            "properties": {
+              "handoff_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "handoff_kind": {
+                "type": "string",
+                "enum": ["compute", "feedback", "literature", "review", "writing"]
+              },
+              "workspace_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source_task_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target_node_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "type": "string",
+                "enum": ["user", "agent", "system"]
+              },
+              "actor_id": {
+                "type": ["string", "null"]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "active_task_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

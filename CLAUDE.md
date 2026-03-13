@@ -32,7 +32,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-evo01a** (7937 symbols, 21372 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-evo01-minimal-single-user-loop** (7987 symbols, 21511 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -48,7 +48,7 @@ This project is indexed by GitNexus as **autoresearch-lab-evo01a** (7937 symbols
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-evo01a/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-evo01-minimal-single-user-loop/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -87,10 +87,10 @@ This project is indexed by GitNexus as **autoresearch-lab-evo01a** (7937 symbols
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-evo01a/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-evo01a/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-evo01a/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-evo01a/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-evo01-minimal-single-user-loop/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-evo01-minimal-single-user-loop/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-evo01-minimal-single-user-loop/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-evo01-minimal-single-user-loop/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 

@@ -14,20 +14,56 @@ function materializationError(message: string, details: Record<string, unknown> 
   throw invalidParams(message, { validation_layer: 'materialization', ...details });
 }
 
-function bridgeStubContent(): string {
+function bridgeRunnerContent(): string {
   return [
     'import argparse',
+    'import json',
+    'from datetime import datetime, timezone',
+    'from pathlib import Path',
     'import sys',
     '',
-    "parser = argparse.ArgumentParser(description='EVO-01-A bridge execution stub')",
+    '',
+    'def now_iso() -> str:',
+    "    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')",
+    '',
+    "parser = argparse.ArgumentParser(description='Minimal approved execution runner for bridge-generated tasks')",
     "parser.add_argument('--task-id', required=True)",
     "parser.add_argument('--execution-plan', required=True)",
     'args = parser.parse_args()',
     '',
-    "sys.stderr.write(",
-    "    f'Bridge stub for {args.task_id}: real provider execution is out of scope for EVO-01-A.\\n'",
-    ')',
-    'raise SystemExit(2)',
+    "execution_plan = json.loads(Path(args.execution_plan).read_text(encoding='utf-8'))",
+    "task = next((item for item in execution_plan.get('tasks', []) if item.get('task_id') == args.task_id), None)",
+    'if task is None:',
+    "    sys.stderr.write(f'Unknown task id: {args.task_id}\\n')",
+    '    raise SystemExit(2)',
+    '',
+    'base_payload = {',
+    "    'schema_version': 1,",
+    "    'run_id': execution_plan.get('run_id'),",
+    "    'task_id': task.get('task_id'),",
+    "    'title': task.get('title'),",
+    "    'description': task.get('description'),",
+    "    'status': 'completed',",
+    "    'summary': f\"Minimal approved execution completed for {task.get('task_id')}.\",",
+    "    'objective': execution_plan.get('objective'),",
+    "    'source': execution_plan.get('source'),",
+    "    'hypothesis_indices': task.get('hypothesis_indices', []),",
+    "    'claim_indices': task.get('claim_indices', []),",
+    "    'method_hint_indices': task.get('method_hint_indices', []),",
+    "    'capabilities': task.get('capabilities', []),",
+    "    'produced_at': now_iso(),",
+    '}',
+    '',
+    "for artifact in task.get('expected_artifacts', []):",
+    "    output_path = Path(artifact['path'])",
+    '    output_path.parent.mkdir(parents=True, exist_ok=True)',
+    '    payload = {',
+    '        **base_payload,',
+    "        'artifact_id': artifact.get('artifact_id'),",
+    "        'artifact_kind': artifact.get('kind'),",
+    "        'artifact_path': artifact.get('path'),",
+    '    }',
+    "    output_path.write_text(json.dumps(payload, indent=2) + '\\n', encoding='utf-8')",
     '',
   ].join('\n');
 }
@@ -54,8 +90,8 @@ export function materializeExecutionPlan(runDir: string, executionPlan: Executio
   const computationDir = path.join(runDir, 'computation');
   const scriptsDir = path.join(computationDir, 'scripts');
   ensureDir(scriptsDir);
-  const stubPath = path.join(scriptsDir, 'bridge_stub.py');
-  writeTextAtomic(stubPath, bridgeStubContent());
+  const stubPath = path.join(scriptsDir, 'execution_plan_runner.py');
+  writeTextAtomic(stubPath, bridgeRunnerContent());
 
   const steps = executionPlan.tasks.map((task, index) => {
     if (task.expected_artifacts.length === 0) {
@@ -68,7 +104,7 @@ export function materializeExecutionPlan(runDir: string, executionPlan: Executio
       id: task.task_id,
       description: task.title,
       tool: 'python' as const,
-      script: 'scripts/bridge_stub.py',
+      script: 'scripts/execution_plan_runner.py',
       args: ['--task-id', task.task_id, '--execution-plan', 'execution_plan_v1.json'],
       expected_outputs: outputs,
       ...(task.depends_on_task_ids?.length ? { depends_on: [...task.depends_on_task_ids] } : {}),
@@ -78,9 +114,9 @@ export function materializeExecutionPlan(runDir: string, executionPlan: Executio
   const manifest = assertComputationManifestValid({
     schema_version: 1,
     title: executionPlan.objective,
-    description: 'Bridge-generated manifest. Pre-approval path validates only; real provider execution is intentionally not wired in EVO-01-A.',
+    description: 'Bridge-generated manifest. Approved execution writes structured provider-neutral result artifacts for each validated execution-plan task.',
     entry_point: {
-      script: 'scripts/bridge_stub.py',
+      script: 'scripts/execution_plan_runner.py',
       tool: 'python',
       args: ['--task-id', steps[0]!.id, '--execution-plan', 'execution_plan_v1.json'],
     },
@@ -88,14 +124,14 @@ export function materializeExecutionPlan(runDir: string, executionPlan: Executio
     environment: {
       python_version: '3.11',
       platform: 'any',
-      notes: 'Bridge-generated validation stub manifest. Real provider execution remains out of scope for EVO-01-A.',
+      notes: 'Bridge-generated manifest uses a generic Python execution surface to materialize structured result artifacts after approval. External provider orchestration remains a later lane.',
     },
     dependencies: {},
     computation_budget: {
       estimated_runtime_minutes: executionPlan.tasks.length,
       max_runtime_minutes: Math.max(5, executionPlan.tasks.length * 5),
       max_disk_gb: 1,
-      notes: 'Budget applies to bridge stubs only until a later provider lane lands.',
+      notes: 'Budget applies to the minimal generic execution surface emitted by the bridge. External provider execution remains a later lane.',
     },
     outputs: topLevelOutputs(executionPlan),
     created_at: utcNowIso(),
