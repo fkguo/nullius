@@ -305,6 +305,7 @@ export const HepRunBuildWritingEvidenceToolSchema = z
     run_id: SafePathSegmentSchema,
     latex_sources: z.array(WritingLatexSourceSchema).optional().default([]),
     pdf_source: WritingPdfSourceSchema.optional(),
+    bridge_artifact_names: z.array(SafePathSegmentSchema).optional().default([]),
     continue_on_error: z.boolean().optional().default(false),
     latex_types: z
       .array(EvidenceTypeSchema)
@@ -329,8 +330,8 @@ export const HepRunBuildWritingEvidenceToolSchema = z
     pdf_embeddings_artifact_name: SafePathSegmentSchema.optional().default('pdf_evidence_embeddings.jsonl'),
     pdf_enrichment_artifact_name: SafePathSegmentSchema.optional().default('pdf_evidence_enrichment.jsonl'),
   })
-  .refine(v => v.latex_sources.length > 0 || Boolean(v.pdf_source), {
-    message: 'At least one latex_sources entry or pdf_source is required',
+  .refine(v => v.latex_sources.length > 0 || Boolean(v.pdf_source) || v.bridge_artifact_names.length > 0, {
+    message: 'At least one latex_sources entry, pdf_source, or bridge_artifact_names entry is required',
   });
 
 export const HepProjectBuildEvidenceToolSchema = z

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
@@ -21,6 +22,10 @@ function writeTempPdf(bytes: Uint8Array): string {
   const p = path.join(dir, 'fixture.pdf');
   fs.writeFileSync(p, Buffer.from(bytes));
   return p;
+}
+
+function sha256(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
 }
 
 describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semantic query', () => {
@@ -260,6 +265,109 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(status.summary.succeeded).toBe(1);
     expect(status.summary.failed).toBe(1);
     expect(status.summary.skipped).toBe(0);
+  });
+
+  it('accepts computation followup bridge artifacts as a bridge-only writing evidence refresh source', async () => {
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence bridge', description: 'semantic-query' });
+    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
+    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    const runArtifactsDir = path.join(dataDir, 'runs', run.run_id, 'artifacts');
+    fs.mkdirSync(runArtifactsDir, { recursive: true });
+    const resultPath = path.join(runArtifactsDir, 'computation_result_v1.json');
+    const outputPath = path.join(runArtifactsDir, 'task_001.json');
+    const resultContent = JSON.stringify({ status: 'completed' }, null, 2) + '\n';
+    const outputContent = JSON.stringify({ amplitude: 1.23 }, null, 2) + '\n';
+    fs.writeFileSync(resultPath, resultContent, 'utf-8');
+    fs.writeFileSync(outputPath, outputContent, 'utf-8');
+
+    const bridgeArtifactName = 'writing_followup_bridge_v1.json';
+    fs.writeFileSync(
+      path.join(runArtifactsDir, bridgeArtifactName),
+      JSON.stringify({
+        schema_version: 1,
+        bridge_kind: 'writing',
+        run_id: run.run_id,
+        objective_title: 'Bridge-only refresh',
+        feedback_signal: 'success',
+        decision_kind: 'capture_finding',
+        summary: 'Bridge seed should refresh writing evidence metadata without faking LaTeX evidence.',
+        computation_result_uri: `rep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('artifacts/computation_result_v1.json')}`,
+        manifest_ref: {
+          uri: `rep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('computation/manifest.json')}`,
+          sha256: 'a'.repeat(64),
+        },
+        produced_artifact_refs: [
+          {
+            uri: `rep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('artifacts/task_001.json')}`,
+            sha256: sha256(outputContent),
+          },
+        ],
+        target: {
+          task_kind: 'draft_update',
+          title: 'Update draft from bridge seed',
+          target_node_id: 'draft-seed:run',
+          suggested_content_type: 'section_output',
+          seed_payload: {
+            computation_result_uri: `rep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('artifacts/computation_result_v1.json')}`,
+            manifest_uri: `rep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('computation/manifest.json')}`,
+            summary: 'Bridge seed should refresh writing evidence metadata without faking LaTeX evidence.',
+            produced_artifact_uris: [`rep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('artifacts/task_001.json')}`],
+            finding_node_ids: ['finding:test'],
+            draft_node_id: 'draft-seed:run',
+          },
+        },
+        context: {
+          draft_context_mode: 'seeded_draft',
+        },
+      }, null, 2) + '\n',
+      'utf-8',
+    );
+
+    const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
+      run_id: run.run_id,
+      bridge_artifact_names: [bridgeArtifactName],
+    });
+    expect(buildRes.isError).not.toBe(true);
+
+    const payload = JSON.parse(buildRes.content[0].text) as {
+      artifacts: Array<{ name: string; uri: string }>;
+      summary: { bridge_sources: number; latex_items: number };
+    };
+    expect(payload.summary.bridge_sources).toBe(1);
+    expect(payload.summary.latex_items).toBe(0);
+
+    const statusUri = payload.artifacts.find(a => a.name === 'writing_evidence_source_status.json')?.uri;
+    const metaUri = payload.artifacts.find(a => a.name === 'writing_evidence_meta_v1.json')?.uri;
+    expect(statusUri).toBeTruthy();
+    expect(metaUri).toBeTruthy();
+
+    const status = JSON.parse(String((readHepResource(statusUri!) as any).text)) as {
+      sources: Array<{ source_kind: string; identifier: string; status: string }>;
+      summary: { succeeded: number; failed: number };
+    };
+    expect(status.sources).toHaveLength(1);
+    expect(status.sources[0]).toMatchObject({
+      source_kind: 'bridge',
+      identifier: bridgeArtifactName,
+      status: 'success',
+    });
+    expect(status.summary.succeeded).toBe(1);
+    expect(status.summary.failed).toBe(0);
+
+    const meta = JSON.parse(String((readHepResource(metaUri!) as any).text)) as {
+      bridges: Array<{ artifact_name: string; bridge_kind: string; task_kind: string; produced_artifact_count: number }>;
+      sources_summary: { succeeded: number };
+    };
+    expect(meta.sources_summary.succeeded).toBe(1);
+    expect(meta.bridges).toHaveLength(1);
+    expect(meta.bridges[0]).toMatchObject({
+      artifact_name: bridgeArtifactName,
+      bridge_kind: 'writing',
+      task_kind: 'draft_update',
+      produced_artifact_count: 1,
+    });
   });
 
   it('continue_on_error=false writes status artifact before failing fast', async () => {

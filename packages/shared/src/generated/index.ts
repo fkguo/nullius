@@ -16,6 +16,7 @@ export * from "./computation-manifest-v1.js";
 export type {
   ComputationResultV1,
   ArtifactRefV11,
+  ArtifactRefV12,
 } from "./computation-result-v1.js";
 export * from "./convergence-gate-result-v1.js";
 export * from "./domain-pack-manifest-v1.js";
@@ -56,3 +57,4 @@ export * from "./research-workflow-v1.js";
 export * from "./skill-proposal-v2.js";
 export * from "./strategy-state-v1.js";
 export * from "./workflow-recipe-v1.js";
+export type { WritingReviewBridgeV1 } from "./writing-review-bridge-v1.js";

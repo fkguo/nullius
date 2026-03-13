@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { ArtifactRefV1, ComputationResultV1 } from '@autoresearch/shared';
 import { createRunArtifactRef } from './artifact-refs.js';
 import { assertExecutionPlanValid } from './execution-plan.js';
+import { planComputationFollowupBridges, writeComputationFollowupBridgeArtifacts } from './followup-bridges.js';
 import { writeJsonAtomic } from './io.js';
 import { deriveFeedbackLowering, deriveNextIdeaLoopState } from './loop-feedback.js';
 import { assertComputationResultValid } from './result-schema.js';
@@ -129,10 +130,17 @@ export function writeComputationResultArtifact(params: {
     },
     ...(params.failureReason ? { failure_reason: params.failureReason } : {}),
   };
-  const { workspaceFeedback, nextActions } = deriveNextIdeaLoopState(baseResult);
+  const followupBridges = planComputationFollowupBridges(params.prepared.runDir, baseResult);
+  const { workspaceFeedback, nextActions } = deriveNextIdeaLoopState(baseResult, followupBridges.writingSeed);
+  const followupBridgeRefs = writeComputationFollowupBridgeArtifacts(
+    params.prepared.runId,
+    params.prepared.runDir,
+    followupBridges.bridgePlans,
+  );
   const computationResult = assertComputationResultValid({
     ...baseResult,
     next_actions: nextActions,
+    followup_bridge_refs: followupBridgeRefs,
     workspace_feedback: workspaceFeedback,
   });
   writeJsonAtomic(computationResultPath, computationResult);

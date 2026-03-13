@@ -80,6 +80,7 @@ export interface CompletedExecutionResult {
   artifact_paths: ExecutionArtifactPaths;
   outcome_ref: ArtifactRefV1;
   next_actions: ComputationResultV1['next_actions'];
+  followup_bridge_refs: ComputationResultV1['followup_bridge_refs'];
   summary: string;
   produced_outputs: string[];
 }
@@ -93,6 +94,7 @@ export interface FailedExecutionResult {
   artifact_paths: ExecutionArtifactPaths;
   outcome_ref: ArtifactRefV1;
   next_actions: ComputationResultV1['next_actions'];
+  followup_bridge_refs: ComputationResultV1['followup_bridge_refs'];
   summary: string;
   errors: string[];
 }

@@ -114,6 +114,7 @@ export function runPreparedManifest(
         },
         outcome_ref: computationResultRef,
         next_actions: computationResult.next_actions,
+        followup_bridge_refs: computationResult.followup_bridge_refs,
         summary: computationResult.summary,
         errors: [...status.errors],
       };
@@ -152,6 +153,7 @@ export function runPreparedManifest(
     },
     outcome_ref: computationResultRef,
     next_actions: computationResult.next_actions,
+    followup_bridge_refs: computationResult.followup_bridge_refs,
     summary: computationResult.summary,
     produced_outputs: producedOutputs,
   };

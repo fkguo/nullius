@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/writing_review_bridge_v1.schema.json",
+  "title": "WritingReviewBridge V1",
+  "description": "Provider-neutral deterministic bridge from computation_result_v1 into the writing/review substrate. Encodes routing, handoff seeds, and staging hints; worker selection and prose quality remain runtime responsibilities.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "bridge_kind",
+    "run_id",
+    "objective_title",
+    "feedback_signal",
+    "decision_kind",
+    "summary",
+    "computation_result_uri",
+    "manifest_ref",
+    "produced_artifact_refs",
+    "target",
+    "context"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "bridge_kind": {
+      "type": "string",
+      "enum": ["writing", "review"]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "objective_title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "feedback_signal": {
+      "type": "string",
+      "enum": ["success", "weak_signal", "failure"]
+    },
+    "decision_kind": {
+      "type": "string",
+      "enum": [
+        "capture_finding",
+        "refine_idea",
+        "branch_idea",
+        "downgrade_idea",
+        "literature_followup"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "computation_result_uri": {
+      "type": "string",
+      "minLength": 1
+    },
+    "manifest_ref": {
+      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+    },
+    "produced_artifact_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "task_kind",
+        "title",
+        "target_node_id",
+        "suggested_content_type",
+        "seed_payload"
+      ],
+      "properties": {
+        "task_kind": {
+          "type": "string",
+          "enum": ["draft_update", "review"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "suggested_content_type": {
+          "type": "string",
+          "enum": ["section_output", "reviewer_report", "revision_plan"]
+        },
+        "seed_payload": {
+          "type": "object",
+          "required": [
+            "computation_result_uri",
+            "manifest_uri",
+            "summary",
+            "produced_artifact_uris"
+          ],
+          "properties": {
+            "computation_result_uri": {
+              "type": "string",
+              "minLength": 1
+            },
+            "manifest_uri": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "produced_artifact_uris": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "finding_node_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "draft_node_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "issue_node_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_draft_node_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source_artifact_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source_content_type": {
+              "type": "string",
+              "enum": ["section_output", "reviewer_report", "revision_plan"]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["handoff_kind", "target_node_id", "payload"],
+      "properties": {
+        "handoff_kind": {
+          "type": "string",
+          "enum": ["writing", "review"]
+        },
+        "target_node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["draft_node_id", "finding_node_ids"],
+              "properties": {
+                "draft_node_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "finding_node_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["issue_node_id"],
+              "properties": {
+                "issue_node_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "target_draft_node_id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "context": {
+      "type": "object",
+      "required": ["draft_context_mode"],
+      "properties": {
+        "draft_context_mode": {
+          "type": "string",
+          "enum": ["seeded_draft", "existing_draft"]
+        },
+        "draft_source_artifact_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "draft_source_content_type": {
+          "type": "string",
+          "enum": ["section_output", "reviewer_report", "revision_plan"]
+        },
+        "review_source_artifact_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_source_content_type": {
+          "type": "string",
+          "enum": ["reviewer_report", "revision_plan"]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

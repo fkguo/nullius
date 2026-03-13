@@ -11,7 +11,9 @@ import {
   type ResearchTaskInput,
 } from '../research-loop/index.js';
 import { makeRunArtifactUri } from './artifact-refs.js';
+import { appendWritingFollowups } from './feedback-followups.js';
 import { loopNodeIdsFor } from './feedback-lowering.js';
+import type { WritingFollowupWorkspaceSeed } from './followup-bridges.js';
 
 type WorkspaceFeedback = ComputationResultV1['workspace_feedback'];
 type NextAction = ComputationResultV1['next_actions'][number];
@@ -41,7 +43,7 @@ function taskTitle(input: FeedbackAuthorityInput): string {
   }
 }
 
-function buildWorkspace(input: FeedbackAuthorityInput) {
+function buildWorkspace(input: FeedbackAuthorityInput, writingSeed?: WritingFollowupWorkspaceSeed) {
   const ids = loopNodeIdsFor(input.run_id);
   const resultRef = makeRunArtifactUri(input.run_id, 'artifacts/computation_result_v1.json');
   const nodes: ResearchNode[] = [
@@ -57,6 +59,7 @@ function buildWorkspace(input: FeedbackAuthorityInput) {
       metadata: { result_ref: resultRef, manifest_ref: input.manifest_ref.uri, feedback_lowering: input.feedback_lowering },
     },
   ];
+  if (writingSeed) nodes.push(...writingSeed.nodes);
   if (input.feedback_lowering.target_task_kind === 'idea' && input.feedback_lowering.target_node_id !== ids.idea) {
     nodes.push({
       node_id: input.feedback_lowering.target_node_id,
@@ -77,6 +80,7 @@ function buildWorkspace(input: FeedbackAuthorityInput) {
     { edge_id: `edge:${input.run_id}:compute-produces-decision`, kind: 'produces' as const, from_node_id: ids.compute, to_node_id: ids.decision },
     { edge_id: `edge:${input.run_id}:decision-target`, kind: decisionKind, from_node_id: ids.decision, to_node_id: input.feedback_lowering.target_node_id },
   ];
+  if (writingSeed) edges.push(...writingSeed.edges);
   if (
     input.feedback_lowering.backtrack_to_node_id
     && input.feedback_lowering.backtrack_to_node_id !== input.feedback_lowering.target_node_id
@@ -142,9 +146,12 @@ function feedbackHandoff(input: FeedbackAuthorityInput, sourceTaskId: string): F
   };
 }
 
-export function deriveNextIdeaLoopState(input: FeedbackAuthorityInput): { workspaceFeedback: WorkspaceFeedback; nextActions: NextAction[] } {
+export function deriveNextIdeaLoopState(
+  input: FeedbackAuthorityInput,
+  writingSeed?: WritingFollowupWorkspaceSeed,
+): { workspaceFeedback: WorkspaceFeedback; nextActions: NextAction[] } {
   const ids = loopNodeIdsFor(input.run_id);
-  const runtime = new ResearchLoopRuntime({ workspace: buildWorkspace(input), policy: interactiveResearchLoopPolicy() });
+  const runtime = new ResearchLoopRuntime({ workspace: buildWorkspace(input, writingSeed), policy: interactiveResearchLoopPolicy() });
   const computeTask = runtime.injectTask({
     kind: 'compute',
     title: `Execute approved computation for ${input.objective_title}`,
@@ -171,6 +178,7 @@ export function deriveNextIdeaLoopState(input: FeedbackAuthorityInput): { worksp
     };
   }
   const followupTask = runtime.spawnFollowupTask(computeTask.task_id, taskInput);
+  appendWritingFollowups(runtime, input.run_id, followupTask.task_id, writingSeed);
   return {
     workspaceFeedback: snapshot(runtime),
     nextActions: [{

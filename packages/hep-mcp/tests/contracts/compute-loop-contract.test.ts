@@ -91,23 +91,41 @@ describe('compute loop contract', () => {
     )) as {
       status: string;
       next_actions: Array<{ action_kind: string; task_kind: string }>;
+      followup_bridge_refs: Array<{ uri: string }>;
     };
 
     expect(execPayload.status).toBe('completed');
     expect(execPayload.next_actions[0].action_kind).toBe('capture_finding');
     expect(execPayload.next_actions[0].task_kind).toBe('finding');
+    expect(execPayload.followup_bridge_refs).toHaveLength(1);
 
     const outcomePath = path.join(hepDataDir, 'runs', staged.run_id, 'artifacts', 'computation_result_v1.json');
     const outcome = JSON.parse(fs.readFileSync(outcomePath, 'utf-8')) as {
       feedback_lowering: { signal: string; decision_kind: string };
       executor_provenance: { execution_surface: string };
+      followup_bridge_refs: Array<{ uri: string }>;
       workspace_feedback: { tasks: Array<{ kind: string; status: string }> };
     };
 
     expect(outcome.feedback_lowering.signal).toBe('success');
     expect(outcome.feedback_lowering.decision_kind).toBe('capture_finding');
     expect(outcome.executor_provenance.execution_surface).toBe('computation_manifest_executor');
+    expect(outcome.followup_bridge_refs).toHaveLength(1);
     expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'finding' && task.status === 'pending')).toBe(true);
+    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'draft_update' && task.status === 'pending')).toBe(true);
+
+    const writingBridgePath = path.join(hepDataDir, 'runs', staged.run_id, 'artifacts', 'writing_followup_bridge_v1.json');
+    const writingBridge = JSON.parse(fs.readFileSync(writingBridgePath, 'utf-8')) as {
+      computation_result_uri: string;
+      produced_artifact_refs: Array<{ uri: string }>;
+      target: { seed_payload: { computation_result_uri: string; produced_artifact_uris: string[] } };
+    };
+    expect(writingBridge.computation_result_uri).toContain('computation_result_v1.json');
+    expect(writingBridge.produced_artifact_refs.length).toBeGreaterThan(0);
+    expect(writingBridge.target.seed_payload.computation_result_uri).toBe(writingBridge.computation_result_uri);
+    expect(writingBridge.target.seed_payload.produced_artifact_uris).toEqual(
+      writingBridge.produced_artifact_refs.map(ref => ref.uri),
+    );
   });
 
   it('surfaces deterministic feedback backtracks through the thin hep-mcp adapter when approved execution fails', async () => {

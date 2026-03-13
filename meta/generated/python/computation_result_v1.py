@@ -166,6 +166,44 @@ class NextAction(BaseModel):
     handoff_kind: HandoffKind | None = None
 
 
+class FollowupBridgeRef(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    uri: Annotated[
+        str,
+        Field(
+            description="URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote."
+        ),
+    ]
+    kind: Annotated[
+        str | None,
+        Field(
+            description="Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility."
+        ),
+    ] = None
+    schema_version: Annotated[
+        int | None, Field(description='Schema version of the referenced artifact.')
+    ] = None
+    sha256: Annotated[
+        str,
+        Field(
+            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
+            pattern='^[0-9a-f]{64}$',
+        ),
+    ]
+    size_bytes: Annotated[
+        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+    ] = None
+    produced_by: Annotated[
+        str | None, Field(description='Agent or component that produced this artifact.')
+    ] = None
+    created_at: Annotated[
+        AwareDatetime | None,
+        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+    ] = None
+
+
 class StepTool(StrEnum):
     mathematica = 'mathematica'
     julia = 'julia'
@@ -375,6 +413,7 @@ class ComputationresultV1(BaseModel):
     summary: Annotated[str, Field(min_length=1)]
     feedback_lowering: FeedbackLowering
     next_actions: Annotated[list[NextAction], Field(min_length=1)]
+    followup_bridge_refs: list[FollowupBridgeRef]
     executor_provenance: ExecutorProvenance
     failure_reason: Annotated[str | None, Field(min_length=1)] = None
     workspace_feedback: WorkspaceFeedback

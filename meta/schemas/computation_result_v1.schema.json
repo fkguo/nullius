@@ -16,6 +16,7 @@
     "summary",
     "feedback_lowering",
     "next_actions",
+    "followup_bridge_refs",
     "executor_provenance",
     "workspace_feedback"
   ],
@@ -151,6 +152,12 @@
           }
         },
         "additionalProperties": false
+      }
+    },
+    "followup_bridge_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
       }
     },
     "executor_provenance": {

@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams, type WritingReviewBridgeV1 } from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getProjectPaperEvidenceCatalogPath, getRunArtifactPath } from '../paths.js';
@@ -223,6 +223,22 @@ function readJsonlFile<T>(filePath: string): T[] {
   return out;
 }
 
+function readBridgeArtifact(runId: string, artifactName: string): WritingReviewBridgeV1 {
+  const artifactPath = getRunArtifactPath(runId, artifactName);
+  if (!fs.existsSync(artifactPath)) {
+    throw invalidParams('Bridge artifact not found', { run_id: runId, artifact_name: artifactName });
+  }
+  const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as unknown;
+  if (!parsed || typeof parsed !== 'object') {
+    throw invalidParams('Bridge artifact must be a JSON object', { run_id: runId, artifact_name: artifactName });
+  }
+  const bridge = parsed as Partial<WritingReviewBridgeV1>;
+  if (bridge.schema_version !== 1 || typeof bridge.bridge_kind !== 'string') {
+    throw invalidParams('Unsupported bridge artifact shape', { run_id: runId, artifact_name: artifactName });
+  }
+  return bridge as WritingReviewBridgeV1;
+}
+
 function ensureUniqueByEvidenceId<T extends { evidence_id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
@@ -300,8 +316,12 @@ export type WritingPdfSourceInput = {
   max_regions_total?: number;
 };
 
+export type WritingBridgeSourceInput = {
+  artifact_name: string;
+};
+
 type WritingEvidenceSourceStatusEntryV1 = {
-  source_kind: 'latex' | 'pdf';
+  source_kind: 'latex' | 'pdf' | 'bridge';
   identifier: string;
   paper_id?: string;
   status: 'success' | 'failed' | 'skipped';
@@ -412,6 +432,7 @@ export async function buildRunWritingEvidence(params: {
   run_id: string;
   latex_sources: WritingLatexSourceInput[];
   pdf_source?: WritingPdfSourceInput;
+  bridge_artifact_names?: string[];
   continue_on_error?: boolean;
   latex_types: EvidenceType[];
   pdf_types: PdfEvidenceType[];
@@ -432,8 +453,8 @@ export async function buildRunWritingEvidence(params: {
   artifacts: RunArtifactRef[];
   summary: Record<string, unknown>;
 }> {
-  if (params.latex_sources.length === 0 && !params.pdf_source) {
-    throw invalidParams('At least one latex_sources entry or a pdf_source is required');
+  if (params.latex_sources.length === 0 && !params.pdf_source && (params.bridge_artifact_names?.length ?? 0) === 0) {
+    throw invalidParams('At least one latex_sources entry, pdf_source, or bridge_artifact_names entry is required');
   }
 
   const runId = params.run_id;
@@ -444,6 +465,7 @@ export async function buildRunWritingEvidence(params: {
   const continueOnError = params.continue_on_error ?? false;
   const sourceStatusName = 'writing_evidence_source_status.json';
   const sourceStatuses: WritingEvidenceSourceStatusEntryV1[] = [];
+  const bridgeSummaries: Array<{ artifact_name: string; bridge_kind: string; task_kind: string; target_node_id: string; produced_artifact_count: number }> = [];
   let sourceStatusRef: RunArtifactRef | null = null;
 
   const artifacts: RunArtifactRef[] = [];
@@ -477,6 +499,40 @@ export async function buildRunWritingEvidence(params: {
   };
 
   try {
+    for (const artifactName of params.bridge_artifact_names ?? []) {
+      const t0 = Date.now();
+      try {
+        const bridge = readBridgeArtifact(runId, artifactName);
+        bridgeSummaries.push({
+          artifact_name: artifactName,
+          bridge_kind: bridge.bridge_kind,
+          task_kind: bridge.target.task_kind,
+          target_node_id: bridge.target.target_node_id,
+          produced_artifact_count: bridge.produced_artifact_refs.length,
+        });
+        sourceStatuses.push({
+          source_kind: 'bridge',
+          identifier: artifactName,
+          status: 'success',
+          items_extracted: bridge.produced_artifact_refs.length,
+          duration_ms: Date.now() - t0,
+        });
+      } catch (err) {
+        sourceStatuses.push({
+          source_kind: 'bridge',
+          identifier: artifactName,
+          status: 'failed',
+          error: errorMessage(err),
+          error_code: 'BRIDGE_PARSE_ERROR',
+          duration_ms: Date.now() - t0,
+        });
+        if (!continueOnError) {
+          writeSourceStatusArtifact();
+          throw err;
+        }
+      }
+    }
+
     // ── LaTeX sources → project evidence catalogs
     const builtPapers: Array<{ paper_id: string; catalog_path: string }> = [];
     for (let i = 0; i < params.latex_sources.length; i++) {
@@ -769,6 +825,7 @@ export async function buildRunWritingEvidence(params: {
         enrichment_artifact_name: params.latex_enrichment_artifact_name,
         total_items: latexItems.length,
       },
+      bridges: bridgeSummaries,
       pdf: pdfBuildResult
         ? {
             ...params.pdf_source!,
@@ -809,6 +866,7 @@ export async function buildRunWritingEvidence(params: {
       manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
       artifacts,
       summary: {
+        bridge_sources: bridgeSummaries.length,
         latex_items: latexItems.length,
         latex_types: Array.from(new Set(latexItems.map(it => it.type))).sort(),
         pdf_included: Boolean(params.pdf_source),

@@ -290,6 +290,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         run_id: params.run_id,
         latex_sources: params.latex_sources,
         pdf_source: params.pdf_source,
+        bridge_artifact_names: params.bridge_artifact_names,
         continue_on_error: params.continue_on_error,
         latex_types: params.latex_types,
         pdf_types: params.pdf_types,
