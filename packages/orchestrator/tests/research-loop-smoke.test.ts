@@ -90,7 +90,15 @@ describe('research-loop smoke paths', () => {
         source: 'agent',
         actor_id: null,
         created_at: '2026-03-07T00:00:01Z',
-        payload: { disposition: 'refine_idea', related_finding_node_id: 'finding-1' },
+        payload: {
+          disposition: 'refine_idea',
+          feedback_signal: 'failure',
+          priority_change: 'lower',
+          prune_candidate: true,
+          reason: 'Execution failed and the idea should be downgraded for rework.',
+          backtrack_to_task_kind: 'idea',
+          related_finding_node_id: 'finding-1',
+        },
       },
       task: { kind: 'idea', title: 'Feedback into idea loop', target_node_id: 'idea-1', source: 'agent', actor_id: null },
     });

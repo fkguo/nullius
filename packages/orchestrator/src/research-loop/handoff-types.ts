@@ -19,6 +19,11 @@ export type ComputeHandoff = BaseResearchHandoff<'compute', {
 
 export type FeedbackHandoff = BaseResearchHandoff<'feedback', {
   disposition: 'refine_idea' | 'branch_idea' | 'downgrade_idea';
+  feedback_signal: 'success' | 'weak_signal' | 'failure';
+  priority_change: 'raise' | 'keep' | 'lower';
+  prune_candidate: boolean;
+  reason: string;
+  backtrack_to_task_kind?: 'idea' | 'literature';
   related_finding_node_id?: string;
 }>;
 

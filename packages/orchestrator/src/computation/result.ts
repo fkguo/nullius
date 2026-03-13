@@ -1,10 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ArtifactRefV1, ComputationResultV1 } from '@autoresearch/shared';
-import { createRunArtifactRef, makeRunArtifactUri } from './artifact-refs.js';
+import { createRunArtifactRef } from './artifact-refs.js';
+import { assertExecutionPlanValid } from './execution-plan.js';
 import { writeJsonAtomic } from './io.js';
-import { buildLoopFeedback } from './loop-feedback.js';
+import { deriveFeedbackLowering, deriveNextIdeaLoopState } from './loop-feedback.js';
 import { assertComputationResultValid } from './result-schema.js';
+import { deriveFeedbackSignal } from './result-signal.js';
 import type { ExecutionStatusFile, PreparedManifest } from './types.js';
 
 function listFilesRecursive(dirPath: string): string[] {
@@ -29,6 +31,19 @@ function buildSummary(status: ExecutionStatusFile, producedCount: number): strin
   const failedStep = status.steps.find(step => step.status === 'failed');
   const completedSteps = status.steps.filter(step => step.status === 'completed').length;
   return `Approved execution failed at ${failedStep?.id ?? 'an unknown step'} after ${completedSteps}/${status.steps.length} completed step(s).`;
+}
+
+function loadExecutionPlanTitle(prepared: PreparedManifest): string {
+  const planPath = path.join(prepared.workspaceDir, 'execution_plan_v1.json');
+  if (!fs.existsSync(planPath)) {
+    return prepared.manifest.title ?? `Approved computation for ${prepared.runId}`;
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(planPath, 'utf-8')) as unknown;
+    return assertExecutionPlanValid(parsed).objective;
+  } catch {
+    return prepared.manifest.title ?? `Approved computation for ${prepared.runId}`;
+  }
 }
 
 function collectProducedArtifactRefs(params: {
@@ -83,36 +98,41 @@ export function writeComputationResultArtifact(params: {
     'computation_manifest',
   );
   const producedArtifactRefs = collectProducedArtifactRefs(params);
+  const objectiveTitle = loadExecutionPlanTitle(params.prepared);
   const summary = buildSummary(params.status, params.producedOutputs.length);
   const computationResultPath = path.join(params.prepared.runDir, 'artifacts', 'computation_result_v1.json');
-  const outcomeUri = makeRunArtifactUri(params.prepared.runId, 'artifacts/computation_result_v1.json');
-  const { workspaceFeedback, nextActions } = buildLoopFeedback({
-    prepared: params.prepared,
+  const feedbackLowering = deriveFeedbackLowering({
+    runId: params.prepared.runId,
     executionStatus: params.status.status,
-    summary,
-    manifestRef,
-    outcomeUri,
-    producedArtifactRefs,
-    failureReason: params.failureReason,
+    signal: deriveFeedbackSignal({
+      executionStatus: params.status.status,
+      producedOutputs: params.producedOutputs,
+    }),
   });
-  const computationResult = assertComputationResultValid({
-    schema_version: 1,
+  const baseResult = {
+    schema_version: 1 as const,
     run_id: params.prepared.runId,
+    objective_title: objectiveTitle,
     manifest_ref: manifestRef,
     execution_status: params.status.status,
     produced_artifact_refs: producedArtifactRefs,
     started_at: params.status.started_at,
     finished_at: params.status.completed_at,
     summary,
-    next_actions: nextActions,
+    feedback_lowering: feedbackLowering,
     executor_provenance: {
       orchestrator_component: '@autoresearch/orchestrator',
       execution_surface: 'computation_manifest_executor',
-      approval_gate: 'A3',
+      approval_gate: 'A3' as const,
       step_tools: [...new Set(params.prepared.steps.map(step => step.tool))],
       step_ids: [...params.prepared.stepOrder],
     },
     ...(params.failureReason ? { failure_reason: params.failureReason } : {}),
+  };
+  const { workspaceFeedback, nextActions } = deriveNextIdeaLoopState(baseResult);
+  const computationResult = assertComputationResultValid({
+    ...baseResult,
+    next_actions: nextActions,
     workspace_feedback: workspaceFeedback,
   });
   writeJsonAtomic(computationResultPath, computationResult);

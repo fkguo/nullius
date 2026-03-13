@@ -90,13 +90,27 @@ class ProducedArtifactRef(BaseModel):
     ] = None
 
 
-class ActionKind(StrEnum):
+class Signal(StrEnum):
+    success = 'success'
+    weak_signal = 'weak_signal'
+    failure = 'failure'
+
+
+class DecisionKind(StrEnum):
     capture_finding = 'capture_finding'
     refine_idea = 'refine_idea'
+    branch_idea = 'branch_idea'
+    downgrade_idea = 'downgrade_idea'
     literature_followup = 'literature_followup'
 
 
-class TaskKind(StrEnum):
+class PriorityChange(StrEnum):
+    raise_ = 'raise'
+    keep = 'keep'
+    lower = 'lower'
+
+
+class TargetTaskKind(StrEnum):
     finding = 'finding'
     idea = 'idea'
     literature = 'literature'
@@ -104,6 +118,40 @@ class TaskKind(StrEnum):
 
 class HandoffKind(StrEnum):
     feedback = 'feedback'
+
+
+class BacktrackToTaskKind(StrEnum):
+    idea = 'idea'
+    literature = 'literature'
+
+
+class FeedbackLowering(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    signal: Signal
+    decision_kind: DecisionKind
+    priority_change: PriorityChange
+    prune_candidate: bool
+    target_task_kind: TargetTaskKind
+    target_node_id: Annotated[str, Field(min_length=1)]
+    handoff_kind: HandoffKind | None = None
+    backtrack_to_task_kind: BacktrackToTaskKind | None = None
+    backtrack_to_node_id: Annotated[str | None, Field(min_length=1)] = None
+
+
+class ActionKind(StrEnum):
+    capture_finding = 'capture_finding'
+    refine_idea = 'refine_idea'
+    branch_idea = 'branch_idea'
+    downgrade_idea = 'downgrade_idea'
+    literature_followup = 'literature_followup'
+
+
+class TaskKind(StrEnum):
+    finding = 'finding'
+    idea = 'idea'
+    literature = 'literature'
 
 
 class NextAction(BaseModel):
@@ -267,7 +315,7 @@ class Event(BaseModel):
     payload: dict[str, Any]
 
 
-class HandoffKind1(StrEnum):
+class HandoffKind2(StrEnum):
     compute = 'compute'
     feedback = 'feedback'
     literature = 'literature'
@@ -280,7 +328,7 @@ class Handoff(BaseModel):
         extra='forbid',
     )
     handoff_id: Annotated[str, Field(min_length=1)]
-    handoff_kind: HandoffKind1
+    handoff_kind: HandoffKind2
     workspace_id: Annotated[str, Field(min_length=1)]
     source_task_id: Annotated[str, Field(min_length=1)]
     target_node_id: Annotated[str, Field(min_length=1)]
@@ -312,6 +360,7 @@ class ComputationresultV1(BaseModel):
     )
     schema_version: Literal[1]
     run_id: Annotated[str, Field(min_length=1)]
+    objective_title: Annotated[str, Field(min_length=1)]
     manifest_ref: Annotated[
         ManifestRef,
         Field(
@@ -324,6 +373,7 @@ class ComputationresultV1(BaseModel):
     started_at: AwareDatetime
     finished_at: AwareDatetime
     summary: Annotated[str, Field(min_length=1)]
+    feedback_lowering: FeedbackLowering
     next_actions: Annotated[list[NextAction], Field(min_length=1)]
     executor_provenance: ExecutorProvenance
     failure_reason: Annotated[str | None, Field(min_length=1)] = None

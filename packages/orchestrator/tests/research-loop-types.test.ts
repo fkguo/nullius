@@ -89,7 +89,15 @@ describe('research-loop workspace types', () => {
       source: 'agent',
       actor_id: null,
       created_at: '2026-03-07T00:00:01Z',
-      payload: { disposition: 'refine_idea', related_finding_node_id: 'finding-1' },
+      payload: {
+        disposition: 'branch_idea',
+        feedback_signal: 'weak_signal',
+        priority_change: 'keep',
+        prune_candidate: false,
+        reason: 'Completed execution produced only weak support and should branch the idea.',
+        backtrack_to_task_kind: 'idea',
+        related_finding_node_id: 'finding-1',
+      },
     };
     const literatureHandoff: LiteratureHandoff = {
       handoff_id: 'handoff-literature',
@@ -126,7 +134,9 @@ describe('research-loop workspace types', () => {
     };
 
     expect(computeHandoff.payload.expected_artifacts).toContain('amplitude.json');
-    expect(feedbackHandoff.payload.disposition).toBe('refine_idea');
+    expect(feedbackHandoff.payload.disposition).toBe('branch_idea');
+    expect(feedbackHandoff.payload.feedback_signal).toBe('weak_signal');
+    expect(feedbackHandoff.payload.priority_change).toBe('keep');
     expect(literatureHandoff.payload.reason).toBe('review_followup');
     expect(reviewHandoff.source).toBe('user');
     expect(writingHandoff.actor_id).toBe('writer');

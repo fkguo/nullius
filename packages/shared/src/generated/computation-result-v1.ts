@@ -5,18 +5,40 @@
 export interface ComputationResultV1 {
   schema_version: 1;
   run_id: string;
+  objective_title: string;
   manifest_ref: ArtifactRefV1;
   execution_status: "completed" | "failed";
   produced_artifact_refs: ArtifactRefV11[];
   started_at: string;
   finished_at: string;
   summary: string;
+  feedback_lowering: {
+    signal: "success" | "weak_signal" | "failure";
+    decision_kind:
+      | "capture_finding"
+      | "refine_idea"
+      | "branch_idea"
+      | "downgrade_idea"
+      | "literature_followup";
+    priority_change: "raise" | "keep" | "lower";
+    prune_candidate: boolean;
+    target_task_kind: "finding" | "idea" | "literature";
+    target_node_id: string;
+    handoff_kind?: "feedback";
+    backtrack_to_task_kind?: "idea" | "literature";
+    backtrack_to_node_id?: string;
+  };
   /**
    * @minItems 1
    */
   next_actions: [
     {
-      action_kind: "capture_finding" | "refine_idea" | "literature_followup";
+      action_kind:
+        | "capture_finding"
+        | "refine_idea"
+        | "branch_idea"
+        | "downgrade_idea"
+        | "literature_followup";
       task_kind: "finding" | "idea" | "literature";
       title: string;
       target_node_id: string;
@@ -24,7 +46,12 @@ export interface ComputationResultV1 {
       handoff_kind?: "feedback";
     },
     ...{
-      action_kind: "capture_finding" | "refine_idea" | "literature_followup";
+      action_kind:
+        | "capture_finding"
+        | "refine_idea"
+        | "branch_idea"
+        | "downgrade_idea"
+        | "literature_followup";
       task_kind: "finding" | "idea" | "literature";
       title: string;
       target_node_id: string;
