@@ -20,6 +20,23 @@ const validator = new Ajv2020Ctor({ allErrors: true, strict: false, validateForm
   computationManifestSchema as Record<string, unknown>,
 );
 
+function manifestSchemaError(message: string, details: Record<string, unknown> = {}): never {
+  throw invalidParams(message, { validation_layer: 'manifest_schema', ...details });
+}
+
+function readinessError(message: string, details: Record<string, unknown> = {}): never {
+  throw invalidParams(message, { validation_layer: 'dry_run_readiness', ...details });
+}
+
+export function assertComputationManifestValid(raw: unknown): ComputationManifestV1 {
+  if (!validator(raw)) {
+    manifestSchemaError('manifest failed computation_manifest_v1 validation', {
+      issues: validator.errors ?? [],
+    });
+  }
+  return raw as ComputationManifestV1;
+}
+
 function topologicalOrder(steps: ComputationManifestV1['steps']): string[] {
   const nodes = new Map<string, Set<string>>();
   const reverse = new Map<string, Set<string>>();
@@ -30,7 +47,7 @@ function topologicalOrder(steps: ComputationManifestV1['steps']): string[] {
   for (const [id, deps] of nodes.entries()) {
     for (const dep of deps) {
       if (!nodes.has(dep)) {
-        throw invalidParams(`step '${id}' depends on unknown step '${dep}'`);
+        readinessError(`step '${id}' depends on unknown step '${dep}'`);
       }
       reverse.get(dep)!.add(id);
     }
@@ -50,7 +67,7 @@ function topologicalOrder(steps: ComputationManifestV1['steps']): string[] {
     }
   }
   if (order.length !== steps.length) {
-    throw invalidParams('step dependency graph contains a cycle');
+    readinessError('step dependency graph contains a cycle');
   }
   return order;
 }
@@ -60,22 +77,17 @@ export function prepareManifest(input: ExecuteComputationManifestInput): Prepare
     throw notFound(`manifest not found: ${input.manifestPath}`);
   }
   const raw = JSON.parse(fs.readFileSync(input.manifestPath, 'utf-8')) as unknown;
-  if (!validator(raw)) {
-    throw invalidParams('manifest failed computation_manifest_v1 validation', {
-      issues: validator.errors ?? [],
-    });
-  }
-  const manifest = raw as ComputationManifestV1;
+  const manifest = assertComputationManifestValid(raw);
   const workspaceDir = path.dirname(resolveWithinRoot(input.runDir, input.manifestPath, 'manifest_path'));
   const manifestRelativePath = toPosixRelative(input.runDir, input.manifestPath);
   const seenIds = new Set<string>();
   const steps: StepCommandPlan[] = manifest.steps.map((step: ComputationManifestV1['steps'][number]) => {
     if (seenIds.has(step.id)) {
-      throw invalidParams(`duplicate step id '${step.id}' in manifest`);
+      readinessError(`duplicate step id '${step.id}' in manifest`);
     }
     seenIds.add(step.id);
     if (!step.script) {
-      throw invalidParams(`step '${step.id}' is missing script`);
+      readinessError(`step '${step.id}' is missing script`);
     }
     const scriptRelativePath = sanitizeRelativePath(step.script, `steps.${step.id}.script`);
     const scriptPath = resolveWithinRoot(workspaceDir, scriptRelativePath, `steps.${step.id}.script`);

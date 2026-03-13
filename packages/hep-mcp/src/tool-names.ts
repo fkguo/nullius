@@ -25,6 +25,7 @@ export const HEP_RUN_BUILD_PDF_EVIDENCE = 'hep_run_build_pdf_evidence' as const;
 export const HEP_RUN_INGEST_SKILL_ARTIFACTS = 'hep_run_ingest_skill_artifacts' as const;
 export const HEP_RUN_EXECUTE_MANIFEST = 'hep_run_execute_manifest' as const;
 export const HEP_RUN_CREATE_FROM_IDEA = 'hep_run_create_from_idea' as const;
+export const HEP_RUN_PLAN_COMPUTATION = 'hep_run_plan_computation' as const;
 export const HEP_RUN_BUILD_WRITING_EVIDENCE = 'hep_run_build_writing_evidence' as const;
 export const HEP_RUN_BUILD_MEASUREMENTS = 'hep_run_build_measurements' as const;
 export const HEP_RUN_BUILD_CITATION_MAPPING = 'hep_run_build_citation_mapping' as const;

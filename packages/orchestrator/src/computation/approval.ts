@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { invalidParams } from '@autoresearch/shared';
 import { StateManager } from '../state-manager.js';
 import { utcNowIso } from '../util.js';
+import { assertExecutionPlanValid } from './execution-plan.js';
 import { ensureDir, sha256Text, toPosixRelative, writeJsonAtomic, writeTextAtomic } from './io.js';
 import type { ApprovalRequiredExecutionResult, PreparedManifest } from './types.js';
 
@@ -18,6 +19,34 @@ function approvalArtifacts(projectRoot: string, runId: string, approvalId: strin
     packetJsonPath: path.join(approvalDir, 'approval_packet_v1.json'),
     packetFullPath: path.join(approvalDir, 'packet.md'),
   };
+}
+
+function bridgeDetails(prepared: PreparedManifest): string {
+  const planPath = path.join(prepared.workspaceDir, 'execution_plan_v1.json');
+  if (!fs.existsSync(planPath)) {
+    return `Workspace: ${prepared.workspaceDir}\n\nContainment: validated within current run directory.`;
+  }
+  const executionPlan = assertExecutionPlanValid(
+    JSON.parse(fs.readFileSync(planPath, 'utf-8')) as unknown,
+  );
+  const observables = executionPlan.source.required_observables?.join(', ') ?? 'none recorded';
+  const taskLines = executionPlan.tasks.map(task => {
+    const artifacts = task.expected_artifacts.map(artifact => artifact.path).join(', ');
+    return `- ${task.task_id}: ${task.title} [capabilities: ${task.capabilities.join(', ')}] -> ${artifacts}`;
+  }).join('\n');
+  return [
+    `Workspace: ${prepared.workspaceDir}`,
+    '',
+    'Containment: validated within current run directory.',
+    '',
+    `Bridge objective: ${executionPlan.objective}`,
+    `Source handoff: ${executionPlan.source.source_handoff_uri}`,
+    `Required observables: ${observables}`,
+    'Bridge note: this batch only materializes validation stubs; real provider execution remains out of scope for EVO-01-A.',
+    '',
+    'Execution plan tasks:',
+    taskLines,
+  ].join('\n');
 }
 
 function buildApprovalPacket(prepared: PreparedManifest, requestedAt: string, approvalId: string) {
@@ -39,6 +68,7 @@ function buildApprovalPacket(prepared: PreparedManifest, requestedAt: string, ap
     risks: [
       'Project-local scripts will be executed within the run workspace.',
       'Declared outputs are enforced fail-closed; missing outputs mark the run failed.',
+      'Bridge-generated stubs are intentionally non-provider placeholders until a later execution lane lands.',
     ],
     budgets: {
       ...(prepared.manifest.computation_budget?.max_runtime_minutes !== undefined
@@ -54,12 +84,13 @@ function buildApprovalPacket(prepared: PreparedManifest, requestedAt: string, ap
     checklist: [
       'Verify the execution scope is limited to the current run workspace.',
       'Confirm the expected outputs and resource budget are acceptable.',
+      'Confirm the bridge-generated plan is sufficient for approval-only review without inferring missing provider logic.',
     ],
     requested_at: requestedAt,
     run_card_path: prepared.manifestRelativePath,
     run_card_sha256: prepared.manifestSha256,
     plan_step_ids: prepared.stepOrder,
-    details_md: `Workspace: ${prepared.workspaceDir}\n\nContainment: validated within current run directory.`,
+    details_md: bridgeDetails(prepared),
   };
 }
 

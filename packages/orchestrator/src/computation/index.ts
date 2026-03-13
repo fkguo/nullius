@@ -44,6 +44,7 @@ export async function executeComputationManifest(
   return runPreparedManifest(input.projectRoot, prepared);
 }
 
+export { bridgeStagedIdeaToComputation, type ComputeBridgeInput, type ComputeBridgeResult } from './bridge.js';
 export type {
   ExecuteComputationManifestInput,
   ExecuteComputationManifestResult,

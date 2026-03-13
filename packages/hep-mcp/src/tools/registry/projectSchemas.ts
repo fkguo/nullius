@@ -183,6 +183,12 @@ export const HepRunCreateFromIdeaToolSchema = z.object({
   run_label: z.string().optional().describe('Optional label for the new run'),
 });
 
+export const HepRunPlanComputationToolSchema = z.object({
+  project_root: z.string().min(1).describe('Absolute path to the orchestrator project root that owns .autoresearch/.'),
+  run_id: SafePathSegmentSchema.describe('Run identifier created by hep_run_create or hep_run_create_from_idea.'),
+  dry_run: z.boolean().optional().default(true).describe('Compile execution_plan_v1 + materialize manifest, then validate only when true. When false, return A3 approval requirements before any execution.'),
+});
+
 export const SearchExportFormatSchema = z.enum(['jsonl', 'json']);
 
 export const HepInspireSearchExportToolSchema = z.object({

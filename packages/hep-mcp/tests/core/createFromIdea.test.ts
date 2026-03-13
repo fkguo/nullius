@@ -121,14 +121,15 @@ describe('createFromIdea (NEW-CONN-04)', () => {
     expect(project.name.length).toBeLessThanOrEqual(82); // 80 chars + ellipsis character
   });
 
-  it('returns hint-only next_actions with 3 suggestions', () => {
+  it('returns hint-only next_actions including the explicit compute bridge step', () => {
     const handoffPath = path.join(tmpDir, 'handoff.json');
     fs.writeFileSync(handoffPath, JSON.stringify(makeHandoff()));
 
     const result = createFromIdea({ handoff_uri: handoffPath });
 
-    expect(result.next_actions).toHaveLength(2);
+    expect(result.next_actions).toHaveLength(3);
     const toolNames = result.next_actions.map(a => a.tool);
+    expect(toolNames).toContain('hep_run_plan_computation');
     expect(toolNames).toContain('inspire_search');
     expect(toolNames).toContain('hep_project_build_evidence');
 

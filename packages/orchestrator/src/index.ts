@@ -31,7 +31,10 @@ export {
   type StepCheckpoint,
 } from './run-manifest.js';
 export {
+  bridgeStagedIdeaToComputation,
   executeComputationManifest,
+  type ComputeBridgeInput,
+  type ComputeBridgeResult,
   type ExecuteComputationManifestInput,
   type ExecuteComputationManifestResult,
 } from './computation/index.js';

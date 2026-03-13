@@ -4,13 +4,19 @@ import {
   HEP_RUN_INGEST_SKILL_ARTIFACTS,
   HEP_RUN_EXECUTE_MANIFEST,
   HEP_RUN_CREATE_FROM_IDEA,
+  HEP_RUN_PLAN_COMPUTATION,
 } from '../../tool-names.js';
 import { ORCH_TOOL_SPECS } from '../orchestrator/tools.js';
 import { ingestSkillArtifacts } from '../ingest-skill-artifacts.js';
 import { createFromIdea } from '../create-from-idea.js';
 import { executeManifest, HepRunExecuteManifestToolSchema } from '../execute-manifest.js';
+import { planComputation } from '../plan-computation.js';
 import type { ToolSpec } from './types.js';
-import { HepRunIngestSkillArtifactsToolSchema, HepRunCreateFromIdeaToolSchema } from './projectSchemas.js';
+import {
+  HepRunIngestSkillArtifactsToolSchema,
+  HepRunCreateFromIdeaToolSchema,
+  HepRunPlanComputationToolSchema,
+} from './projectSchemas.js';
 
 export const RAW_PROJECT_EXTENSION_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   ...ORCH_TOOL_SPECS,
@@ -40,6 +46,15 @@ export const RAW_PROJECT_EXTENSION_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       'Create a project + run from an IdeaHandoffC2 artifact. Stages outline_seed_v1.json with thesis/claims/hypotheses. Pure local staging, no network calls.',
     zodSchema: HepRunCreateFromIdeaToolSchema,
     handler: async params => createFromIdea(params),
+  },
+  {
+    name: HEP_RUN_PLAN_COMPUTATION,
+    tier: 'core',
+    exposure: 'standard',
+    description:
+      'Compile staged idea artifacts into execution_plan_v1.json, materialize computation/manifest.json, then stop at dry_run validation or A3 approval request before any execution.',
+    zodSchema: HepRunPlanComputationToolSchema,
+    handler: async params => planComputation(params),
   },
   ...HEPDATA_MCP_TOOL_SPECS.map(
     (spec): Omit<ToolSpec, 'riskLevel'> => ({

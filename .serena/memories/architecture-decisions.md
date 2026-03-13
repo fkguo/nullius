@@ -1,5 +1,16 @@
 ## Cross-Component Architecture Decisions
 
+### [2026-03-13] EVO-01-A bridge invariant: execution plans are audited IR, manifests are materialized execution surfaces
+
+**Context**: `meta/docs/prompts/prompt-2026-03-13-evo01a-compute-bridge.md` closeout (`EVO-01-A` bounded bridge inside `EVO-01`)
+**Decision**:
+- Staged idea surfaces (`outline_seed_v1.json` plus optional handoff/method hints) must compile first into checked-in `execution_plan_v1`, a provider-neutral audited IR with provenance, task-level capability needs, and expected artifacts.
+- `computation_manifest_v1` remains the materialized execution surface. Materializers must consume a validated `execution_plan_v1`; they must not restage `IdeaHandoffC2` / `outline_seed_v1.json` as parallel authority.
+- Pre-approval bridge surfaces may write audited plan artifacts, materialized manifests, and non-executable workspace stubs, but they must remain validation-only: completion stops at `dry_run` or `requires_approval`, never at real provider execution, and must fail closed even if A3 is already satisfied.
+- Host/provider packages may expose thin bridge adapters, but compiler/materializer authority belongs in the generic orchestrator computation core.
+**Why**: This locks the compute lane seam before provider execution lanes land. The stable substrate boundary is staged idea -> audited plan -> materialized manifest -> approval gate, which keeps provider routing out of generic plan authority while preserving future extensibility.
+**Files**: `meta/schemas/execution_plan_v1.schema.json`, `packages/orchestrator/src/computation/execution-plan.ts`, `packages/orchestrator/src/computation/materialize-execution-plan.ts`, `packages/orchestrator/src/computation/bridge.ts`, `packages/orchestrator/src/computation/approval.ts`, `packages/hep-mcp/src/tools/plan-computation.ts`
+
 ### [2026-03-10] Formalism boundary invariant: formalism is optional run-local metadata, not core contract authority
 
 **Context**: `meta/docs/prompts/prompt-2026-03-10-formalism-contract-boundary.md` closeout (`NEW-05a-formalism-contract-boundary`)

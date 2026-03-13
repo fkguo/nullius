@@ -10,28 +10,18 @@ import * as path from 'path';
 import {
   invalidParams,
   INSPIRE_SEARCH,
-  McpError,
 } from '@autoresearch/shared';
 import { createProject } from '../core/projects.js';
 import { createRun } from '../core/runs.js';
-import { getRunDir, getProjectDir } from '../core/paths.js';
-import { parseHepRunArtifactUriOrThrow } from '../core/runArtifactUri.js';
+import { getProjectDir } from '../core/paths.js';
 import { writeRunJsonArtifact } from '../core/citations.js';
-import { getDataDir } from '../data/dataDir.js';
-import { resolvePathWithinParent } from '../data/pathGuard.js';
-import { HEP_PROJECT_BUILD_EVIDENCE } from '../tool-names.js';
+import { HEP_PROJECT_BUILD_EVIDENCE, HEP_RUN_PLAN_COMPUTATION } from '../tool-names.js';
+import { type OutlineSeedV1, resolveHandoffPath } from './idea-staging.js';
 
 export interface CreateFromIdeaParams {
   handoff_uri: string;
   project_id?: string;
   run_label?: string;
-}
-
-export interface OutlineSeedV1 {
-  thesis: string;
-  claims: unknown[];
-  hypotheses: string[];
-  source_handoff_uri: string;
 }
 
 export interface CreateFromIdeaResult {
@@ -40,30 +30,6 @@ export interface CreateFromIdeaResult {
   manifest_uri: string;
   outline_seed_uri: string;
   next_actions: Array<{ tool: string; reason: string }>;
-}
-
-/**
- * Resolve a handoff_uri to a file path.
- * Supports:
- * - hep://runs/<run_id>/artifact/<name>  → resolved via run artifact dir
- * - absolute file path within HEP_DATA_DIR → used directly (containment-checked)
- */
-function resolveHandoffPath(handoffUri: string): string {
-  if (handoffUri.startsWith('hep://')) {
-    const { runId, artifactName } = parseHepRunArtifactUriOrThrow(handoffUri);
-    const runDir = getRunDir(runId);
-    return path.join(runDir, 'artifacts', artifactName);
-  }
-  // File path: hardened containment check (includes symlink escape protection).
-  // Normalize UNSAFE_FS → invalidParams for consistent MCP error semantics.
-  try {
-    return resolvePathWithinParent(getDataDir(), handoffUri, 'handoff_uri');
-  } catch (err) {
-    if (err instanceof McpError) {
-      throw invalidParams(err.message, err.data);
-    }
-    throw err;
-  }
 }
 
 export function createFromIdea(params: CreateFromIdeaParams): CreateFromIdeaResult {
@@ -169,6 +135,10 @@ export function createFromIdea(params: CreateFromIdeaParams): CreateFromIdeaResu
     manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
     outline_seed_uri: outlineSeedRef.uri,
     next_actions: [
+      {
+        tool: HEP_RUN_PLAN_COMPUTATION,
+        reason: 'Compile the staged outline seed into execution_plan_v1 and materialize computation/manifest.json before any approval request.',
+      },
       {
         tool: INSPIRE_SEARCH,
         reason: 'Search related literature using the thesis statement as query.',
