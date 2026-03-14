@@ -1,4 +1,5 @@
 import { IdeaEngineStore } from '../store/engine-store.js';
+import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { filterNodes, type NodeRecord, type NodeListFilter } from './filter-nodes.js';
 import { validateReadParams } from './validators.js';
@@ -11,28 +12,6 @@ interface CampaignRecord extends Record<string, unknown> {
   usage: Record<string, number>;
   island_states: unknown[];
   early_stop_reason?: string;
-}
-
-function budgetSnapshot(campaign: CampaignRecord): Record<string, number | null> {
-  const stepsRemaining = campaign.budget.max_steps === undefined || campaign.budget.max_steps === null
-    ? null
-    : Math.max(Number(campaign.budget.max_steps) - Number(campaign.usage.steps_used), 0);
-  const nodesRemaining = campaign.budget.max_nodes === undefined || campaign.budget.max_nodes === null
-    ? null
-    : Math.max(Number(campaign.budget.max_nodes) - Number(campaign.usage.nodes_used), 0);
-
-  return {
-    tokens_used: Number(campaign.usage.tokens_used),
-    tokens_remaining: Math.max(Number(campaign.budget.max_tokens) - Number(campaign.usage.tokens_used), 0),
-    cost_usd_used: Number(campaign.usage.cost_usd_used),
-    cost_usd_remaining: Math.max(Number(campaign.budget.max_cost_usd) - Number(campaign.usage.cost_usd_used), 0),
-    wall_clock_s_elapsed: Number(campaign.usage.wall_clock_s_elapsed),
-    wall_clock_s_remaining: Math.max(Number(campaign.budget.max_wall_clock_s) - Number(campaign.usage.wall_clock_s_elapsed), 0),
-    steps_used: Number(campaign.usage.steps_used),
-    steps_remaining: stepsRemaining,
-    nodes_used: Number(campaign.usage.nodes_used),
-    nodes_remaining: nodesRemaining,
-  };
 }
 
 export class IdeaEngineReadService {

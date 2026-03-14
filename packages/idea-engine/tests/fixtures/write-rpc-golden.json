@@ -1,0 +1,1569 @@
+{
+  "cases": [
+    {
+      "name": "campaign.init happy path then replay",
+      "now": "2026-03-14T12:00:00Z",
+      "uuid_sequence": [
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333",
+        "44444444-4444-4444-8444-444444444444",
+        "55555555-5555-4555-8555-555555555555"
+      ],
+      "initial_store": {},
+      "steps": [
+        {
+          "request": {
+            "jsonrpc": "2.0",
+            "id": "write-init-happy",
+            "method": "campaign.init",
+            "params": {
+              "charter": {
+                "campaign_name": "write-side-fixture",
+                "domain": "hep-ph",
+                "scope": "write-side happy path fixture scope",
+                "approval_gate_ref": "gate://a0.1",
+                "extensions": {
+                  "initial_island_count": 2
+                }
+              },
+              "seed_pack": {
+                "seeds": [
+                  {
+                    "seed_type": "text",
+                    "content": "seed-1"
+                  },
+                  {
+                    "seed_type": "text",
+                    "content": "seed-2"
+                  }
+                ]
+              },
+              "budget": {
+                "max_tokens": 100000,
+                "max_cost_usd": 100.0,
+                "max_wall_clock_s": 100000,
+                "max_steps": 50,
+                "max_nodes": 10
+              },
+              "idempotency_key": "write-init-happy"
+            }
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": "write-init-happy",
+            "result": {
+              "campaign_id": "11111111-1111-4111-8111-111111111111",
+              "status": "running",
+              "created_at": "2026-03-14T12:00:00Z",
+              "budget_snapshot": {
+                "tokens_used": 0,
+                "tokens_remaining": 100000,
+                "cost_usd_used": 0.0,
+                "cost_usd_remaining": 100.0,
+                "wall_clock_s_elapsed": 0.0,
+                "wall_clock_s_remaining": 100000.0,
+                "steps_used": 0,
+                "steps_remaining": 50,
+                "nodes_used": 2,
+                "nodes_remaining": 8
+              },
+              "island_states": [
+                {
+                  "island_id": "island-0",
+                  "state": "SEEDING",
+                  "population_size": 1,
+                  "stagnation_counter": 0,
+                  "repopulation_count": 0,
+                  "best_score": null
+                },
+                {
+                  "island_id": "island-1",
+                  "state": "SEEDING",
+                  "population_size": 1,
+                  "stagnation_counter": 0,
+                  "repopulation_count": 0,
+                  "best_score": null
+                }
+              ],
+              "idempotency": {
+                "idempotency_key": "write-init-happy",
+                "is_replay": false,
+                "payload_hash": "sha256:80213df002e01183c8ee9e98953e772f49d6468f62601bd5602f512a18e594a9"
+              }
+            }
+          }
+        },
+        {
+          "request": {
+            "jsonrpc": "2.0",
+            "id": "write-init-happy",
+            "method": "campaign.init",
+            "params": {
+              "charter": {
+                "campaign_name": "write-side-fixture",
+                "domain": "hep-ph",
+                "scope": "write-side happy path fixture scope",
+                "approval_gate_ref": "gate://a0.1",
+                "extensions": {
+                  "initial_island_count": 2
+                }
+              },
+              "seed_pack": {
+                "seeds": [
+                  {
+                    "seed_type": "text",
+                    "content": "seed-1"
+                  },
+                  {
+                    "seed_type": "text",
+                    "content": "seed-2"
+                  }
+                ]
+              },
+              "budget": {
+                "max_tokens": 100000,
+                "max_cost_usd": 100.0,
+                "max_wall_clock_s": 100000,
+                "max_steps": 50,
+                "max_nodes": 10
+              },
+              "idempotency_key": "write-init-happy"
+            }
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": "write-init-happy",
+            "result": {
+              "campaign_id": "11111111-1111-4111-8111-111111111111",
+              "status": "running",
+              "created_at": "2026-03-14T12:00:00Z",
+              "budget_snapshot": {
+                "tokens_used": 0,
+                "tokens_remaining": 100000,
+                "cost_usd_used": 0.0,
+                "cost_usd_remaining": 100.0,
+                "wall_clock_s_elapsed": 0.0,
+                "wall_clock_s_remaining": 100000.0,
+                "steps_used": 0,
+                "steps_remaining": 50,
+                "nodes_used": 2,
+                "nodes_remaining": 8
+              },
+              "island_states": [
+                {
+                  "island_id": "island-0",
+                  "state": "SEEDING",
+                  "population_size": 1,
+                  "stagnation_counter": 0,
+                  "repopulation_count": 0,
+                  "best_score": null
+                },
+                {
+                  "island_id": "island-1",
+                  "state": "SEEDING",
+                  "population_size": 1,
+                  "stagnation_counter": 0,
+                  "repopulation_count": 0,
+                  "best_score": null
+                }
+              ],
+              "idempotency": {
+                "idempotency_key": "write-init-happy",
+                "is_replay": true,
+                "payload_hash": "sha256:80213df002e01183c8ee9e98953e772f49d6468f62601bd5602f512a18e594a9"
+              }
+            }
+          }
+        }
+      ],
+      "expected_store": {
+        "campaigns/11111111-1111-4111-8111-111111111111/campaign.json": {
+          "campaign_id": "11111111-1111-4111-8111-111111111111",
+          "charter": {
+            "campaign_name": "write-side-fixture",
+            "domain": "hep-ph",
+            "scope": "write-side happy path fixture scope",
+            "approval_gate_ref": "gate://a0.1",
+            "extensions": {
+              "initial_island_count": 2
+            }
+          },
+          "seed_pack": {
+            "seeds": [
+              {
+                "seed_type": "text",
+                "content": "seed-1"
+              },
+              {
+                "seed_type": "text",
+                "content": "seed-2"
+              }
+            ]
+          },
+          "budget": {
+            "max_tokens": 100000,
+            "max_cost_usd": 100.0,
+            "max_wall_clock_s": 100000,
+            "max_steps": 50,
+            "max_nodes": 10
+          },
+          "status": "running",
+          "created_at": "2026-03-14T12:00:00Z",
+          "usage": {
+            "tokens_used": 0,
+            "cost_usd_used": 0.0,
+            "wall_clock_s_elapsed": 0.0,
+            "steps_used": 0,
+            "nodes_used": 2
+          },
+          "island_states": [
+            {
+              "island_id": "island-0",
+              "state": "SEEDING",
+              "population_size": 1,
+              "stagnation_counter": 0,
+              "repopulation_count": 0,
+              "best_score": null
+            },
+            {
+              "island_id": "island-1",
+              "state": "SEEDING",
+              "population_size": 1,
+              "stagnation_counter": 0,
+              "repopulation_count": 0,
+              "best_score": null
+            }
+          ],
+          "abstract_problem_registry": {
+            "entries": [
+              {
+                "abstract_problem_type": "optimization",
+                "description": "Default optimization abstraction for provider-local packs.",
+                "known_solution_families": [
+                  "gradient-based"
+                ],
+                "prerequisite_checklist": [
+                  "objective is defined"
+                ],
+                "reference_uris": [
+                  "https://example.org/optimization"
+                ]
+              }
+            ]
+          },
+          "domain_pack": {
+            "pack_id": "hep.operators.v1",
+            "enabled_pack_ids": [
+              "hep.operators.v1"
+            ]
+          }
+        },
+        "campaigns/11111111-1111-4111-8111-111111111111/nodes_latest.json": {
+          "22222222-2222-4222-8222-222222222222": {
+            "campaign_id": "11111111-1111-4111-8111-111111111111",
+            "idea_id": "33333333-3333-4333-8333-333333333333",
+            "node_id": "22222222-2222-4222-8222-222222222222",
+            "revision": 1,
+            "parent_node_ids": [],
+            "island_id": "island-0",
+            "operator_id": "seed.import",
+            "operator_family": "Seed",
+            "origin": {
+              "model": "seed_pack",
+              "temperature": 0,
+              "prompt_hash": "sha256:0eb026731d9ea3f870511f8c18daeb814eaa2c9e276082b204f2a962212fb5bd",
+              "timestamp": "2026-03-14T12:00:00Z",
+              "role": "SeedImporter"
+            },
+            "operator_trace": {
+              "inputs": {
+                "seed_type": "text",
+                "seed_index": 0
+              },
+              "params": {
+                "formalization": {
+                  "mode": "explain_then_formalize_deterministic_v1",
+                  "source_artifact": "rationale_draft",
+                  "rationale_hash": "sha256:d89201d86f05305fd32165f207bb83726c48c0724e273fb7b0990d38196e475f",
+                  "input_fields": [
+                    "title",
+                    "rationale",
+                    "risks",
+                    "kill_criteria"
+                  ],
+                  "risk_count": 1,
+                  "kill_criteria_count": 1
+                }
+              },
+              "evidence_uris_used": [
+                "https://example.org/reference"
+              ]
+            },
+            "rationale_draft": {
+              "title": "Seed 1",
+              "rationale": "seed-1",
+              "risks": [
+                "unverified hypothesis"
+              ],
+              "kill_criteria": [
+                "fails basic consistency checks"
+              ]
+            },
+            "idea_card": {
+              "thesis_statement": "Seed 1: seed-1 This rationale requires formal validation before promotion.",
+              "testable_hypotheses": [
+                "Hypothesis from seed 1"
+              ],
+              "required_observables": [
+                "observable-1"
+              ],
+              "minimal_compute_plan": [
+                {
+                  "step": "construct toy estimate",
+                  "method": "deterministic scoring stub",
+                  "estimated_difficulty": "moderate"
+                }
+              ],
+              "claims": [
+                {
+                  "claim_text": "Seed-derived claim: seed-1",
+                  "support_type": "literature",
+                  "evidence_uris": [
+                    "https://example.org/reference"
+                  ]
+                }
+              ]
+            },
+            "eval_info": null,
+            "grounding_audit": null,
+            "reduction_report": null,
+            "reduction_audit": null,
+            "created_at": "2026-03-14T12:00:00Z"
+          },
+          "44444444-4444-4444-8444-444444444444": {
+            "campaign_id": "11111111-1111-4111-8111-111111111111",
+            "idea_id": "55555555-5555-4555-8555-555555555555",
+            "node_id": "44444444-4444-4444-8444-444444444444",
+            "revision": 1,
+            "parent_node_ids": [],
+            "island_id": "island-1",
+            "operator_id": "seed.import",
+            "operator_family": "Seed",
+            "origin": {
+              "model": "seed_pack",
+              "temperature": 0,
+              "prompt_hash": "sha256:532b20b0105c9883348558ed2711c7d23ea6b4ee718364a87e16fad4b3c3a029",
+              "timestamp": "2026-03-14T12:00:00Z",
+              "role": "SeedImporter"
+            },
+            "operator_trace": {
+              "inputs": {
+                "seed_type": "text",
+                "seed_index": 1
+              },
+              "params": {
+                "formalization": {
+                  "mode": "explain_then_formalize_deterministic_v1",
+                  "source_artifact": "rationale_draft",
+                  "rationale_hash": "sha256:3b6b6ddcf8e8d18694c516cc622b295be19cd149958aa545b6004b52fc911de2",
+                  "input_fields": [
+                    "title",
+                    "rationale",
+                    "risks",
+                    "kill_criteria"
+                  ],
+                  "risk_count": 1,
+                  "kill_criteria_count": 1
+                }
+              },
+              "evidence_uris_used": [
+                "https://example.org/reference"
+              ]
+            },
+            "rationale_draft": {
+              "title": "Seed 2",
+              "rationale": "seed-2",
+              "risks": [
+                "unverified hypothesis"
+              ],
+              "kill_criteria": [
+                "fails basic consistency checks"
+              ]
+            },
+            "idea_card": {
+              "thesis_statement": "Seed 2: seed-2 This rationale requires formal validation before promotion.",
+              "testable_hypotheses": [
+                "Hypothesis from seed 2"
+              ],
+              "required_observables": [
+                "observable-1"
+              ],
+              "minimal_compute_plan": [
+                {
+                  "step": "construct toy estimate",
+                  "method": "deterministic scoring stub",
+                  "estimated_difficulty": "moderate"
+                }
+              ],
+              "claims": [
+                {
+                  "claim_text": "Seed-derived claim: seed-2",
+                  "support_type": "literature",
+                  "evidence_uris": [
+                    "https://example.org/reference"
+                  ]
+                }
+              ]
+            },
+            "eval_info": null,
+            "grounding_audit": null,
+            "reduction_report": null,
+            "reduction_audit": null,
+            "created_at": "2026-03-14T12:00:00Z"
+          }
+        },
+        "campaigns/11111111-1111-4111-8111-111111111111/nodes_log.jsonl": [
+          {
+            "mutation": "create",
+            "node_id": "22222222-2222-4222-8222-222222222222",
+            "revision": 1,
+            "node": {
+              "campaign_id": "11111111-1111-4111-8111-111111111111",
+              "idea_id": "33333333-3333-4333-8333-333333333333",
+              "node_id": "22222222-2222-4222-8222-222222222222",
+              "revision": 1,
+              "parent_node_ids": [],
+              "island_id": "island-0",
+              "operator_id": "seed.import",
+              "operator_family": "Seed",
+              "origin": {
+                "model": "seed_pack",
+                "temperature": 0,
+                "prompt_hash": "sha256:0eb026731d9ea3f870511f8c18daeb814eaa2c9e276082b204f2a962212fb5bd",
+                "timestamp": "2026-03-14T12:00:00Z",
+                "role": "SeedImporter"
+              },
+              "operator_trace": {
+                "inputs": {
+                  "seed_type": "text",
+                  "seed_index": 0
+                },
+                "params": {
+                  "formalization": {
+                    "mode": "explain_then_formalize_deterministic_v1",
+                    "source_artifact": "rationale_draft",
+                    "rationale_hash": "sha256:d89201d86f05305fd32165f207bb83726c48c0724e273fb7b0990d38196e475f",
+                    "input_fields": [
+                      "title",
+                      "rationale",
+                      "risks",
+                      "kill_criteria"
+                    ],
+                    "risk_count": 1,
+                    "kill_criteria_count": 1
+                  }
+                },
+                "evidence_uris_used": [
+                  "https://example.org/reference"
+                ]
+              },
+              "rationale_draft": {
+                "title": "Seed 1",
+                "rationale": "seed-1",
+                "risks": [
+                  "unverified hypothesis"
+                ],
+                "kill_criteria": [
+                  "fails basic consistency checks"
+                ]
+              },
+              "idea_card": {
+                "thesis_statement": "Seed 1: seed-1 This rationale requires formal validation before promotion.",
+                "testable_hypotheses": [
+                  "Hypothesis from seed 1"
+                ],
+                "required_observables": [
+                  "observable-1"
+                ],
+                "minimal_compute_plan": [
+                  {
+                    "step": "construct toy estimate",
+                    "method": "deterministic scoring stub",
+                    "estimated_difficulty": "moderate"
+                  }
+                ],
+                "claims": [
+                  {
+                    "claim_text": "Seed-derived claim: seed-1",
+                    "support_type": "literature",
+                    "evidence_uris": [
+                      "https://example.org/reference"
+                    ]
+                  }
+                ]
+              },
+              "eval_info": null,
+              "grounding_audit": null,
+              "reduction_report": null,
+              "reduction_audit": null,
+              "created_at": "2026-03-14T12:00:00Z"
+            }
+          },
+          {
+            "mutation": "create",
+            "node_id": "44444444-4444-4444-8444-444444444444",
+            "revision": 1,
+            "node": {
+              "campaign_id": "11111111-1111-4111-8111-111111111111",
+              "idea_id": "55555555-5555-4555-8555-555555555555",
+              "node_id": "44444444-4444-4444-8444-444444444444",
+              "revision": 1,
+              "parent_node_ids": [],
+              "island_id": "island-1",
+              "operator_id": "seed.import",
+              "operator_family": "Seed",
+              "origin": {
+                "model": "seed_pack",
+                "temperature": 0,
+                "prompt_hash": "sha256:532b20b0105c9883348558ed2711c7d23ea6b4ee718364a87e16fad4b3c3a029",
+                "timestamp": "2026-03-14T12:00:00Z",
+                "role": "SeedImporter"
+              },
+              "operator_trace": {
+                "inputs": {
+                  "seed_type": "text",
+                  "seed_index": 1
+                },
+                "params": {
+                  "formalization": {
+                    "mode": "explain_then_formalize_deterministic_v1",
+                    "source_artifact": "rationale_draft",
+                    "rationale_hash": "sha256:3b6b6ddcf8e8d18694c516cc622b295be19cd149958aa545b6004b52fc911de2",
+                    "input_fields": [
+                      "title",
+                      "rationale",
+                      "risks",
+                      "kill_criteria"
+                    ],
+                    "risk_count": 1,
+                    "kill_criteria_count": 1
+                  }
+                },
+                "evidence_uris_used": [
+                  "https://example.org/reference"
+                ]
+              },
+              "rationale_draft": {
+                "title": "Seed 2",
+                "rationale": "seed-2",
+                "risks": [
+                  "unverified hypothesis"
+                ],
+                "kill_criteria": [
+                  "fails basic consistency checks"
+                ]
+              },
+              "idea_card": {
+                "thesis_statement": "Seed 2: seed-2 This rationale requires formal validation before promotion.",
+                "testable_hypotheses": [
+                  "Hypothesis from seed 2"
+                ],
+                "required_observables": [
+                  "observable-1"
+                ],
+                "minimal_compute_plan": [
+                  {
+                    "step": "construct toy estimate",
+                    "method": "deterministic scoring stub",
+                    "estimated_difficulty": "moderate"
+                  }
+                ],
+                "claims": [
+                  {
+                    "claim_text": "Seed-derived claim: seed-2",
+                    "support_type": "literature",
+                    "evidence_uris": [
+                      "https://example.org/reference"
+                    ]
+                  }
+                ]
+              },
+              "eval_info": null,
+              "grounding_audit": null,
+              "reduction_report": null,
+              "reduction_audit": null,
+              "created_at": "2026-03-14T12:00:00Z"
+            }
+          }
+        ],
+        "global/idempotency_store.json": {
+          "campaign.init:write-init-happy": {
+            "payload_hash": "sha256:80213df002e01183c8ee9e98953e772f49d6468f62601bd5602f512a18e594a9",
+            "created_at": "2026-03-14T12:00:00Z",
+            "state": "committed",
+            "response": {
+              "kind": "result",
+              "payload": {
+                "campaign_id": "11111111-1111-4111-8111-111111111111",
+                "status": "running",
+                "created_at": "2026-03-14T12:00:00Z",
+                "budget_snapshot": {
+                  "tokens_used": 0,
+                  "tokens_remaining": 100000,
+                  "cost_usd_used": 0.0,
+                  "cost_usd_remaining": 100.0,
+                  "wall_clock_s_elapsed": 0.0,
+                  "wall_clock_s_remaining": 100000.0,
+                  "steps_used": 0,
+                  "steps_remaining": 50,
+                  "nodes_used": 2,
+                  "nodes_remaining": 8
+                },
+                "island_states": [
+                  {
+                    "island_id": "island-0",
+                    "state": "SEEDING",
+                    "population_size": 1,
+                    "stagnation_counter": 0,
+                    "repopulation_count": 0,
+                    "best_score": null
+                  },
+                  {
+                    "island_id": "island-1",
+                    "state": "SEEDING",
+                    "population_size": 1,
+                    "stagnation_counter": 0,
+                    "repopulation_count": 0,
+                    "best_score": null
+                  }
+                ],
+                "idempotency": {
+                  "idempotency_key": "write-init-happy",
+                  "is_replay": false,
+                  "payload_hash": "sha256:80213df002e01183c8ee9e98953e772f49d6468f62601bd5602f512a18e594a9"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "campaign.init idempotency conflict",
+      "now": "2026-03-14T12:05:00Z",
+      "uuid_sequence": [
+        "66666666-6666-4666-8666-666666666666",
+        "77777777-7777-4777-8777-777777777777",
+        "88888888-8888-4888-8888-888888888888"
+      ],
+      "initial_store": {},
+      "steps": [
+        {
+          "request": {
+            "jsonrpc": "2.0",
+            "id": "write-init-conflict",
+            "method": "campaign.init",
+            "params": {
+              "charter": {
+                "campaign_name": "write-side-fixture",
+                "domain": "hep-ph",
+                "scope": "write-side conflict baseline scope",
+                "approval_gate_ref": "gate://a0.1"
+              },
+              "seed_pack": {
+                "seeds": [
+                  {
+                    "seed_type": "text",
+                    "content": "seed-1"
+                  }
+                ]
+              },
+              "budget": {
+                "max_tokens": 100000,
+                "max_cost_usd": 100.0,
+                "max_wall_clock_s": 100000,
+                "max_steps": 50,
+                "max_nodes": 10
+              },
+              "idempotency_key": "write-init-conflict"
+            }
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": "write-init-conflict",
+            "result": {
+              "campaign_id": "66666666-6666-4666-8666-666666666666",
+              "status": "running",
+              "created_at": "2026-03-14T12:05:00Z",
+              "budget_snapshot": {
+                "tokens_used": 0,
+                "tokens_remaining": 100000,
+                "cost_usd_used": 0.0,
+                "cost_usd_remaining": 100.0,
+                "wall_clock_s_elapsed": 0.0,
+                "wall_clock_s_remaining": 100000.0,
+                "steps_used": 0,
+                "steps_remaining": 50,
+                "nodes_used": 1,
+                "nodes_remaining": 9
+              },
+              "island_states": [
+                {
+                  "island_id": "island-0",
+                  "state": "SEEDING",
+                  "population_size": 1,
+                  "stagnation_counter": 0,
+                  "repopulation_count": 0,
+                  "best_score": null
+                }
+              ],
+              "idempotency": {
+                "idempotency_key": "write-init-conflict",
+                "is_replay": false,
+                "payload_hash": "sha256:a9c480da6a14a930de7fa3b7b26276ce8d5692ce71caf8d5dc38ea4d315a479f"
+              }
+            }
+          }
+        },
+        {
+          "request": {
+            "jsonrpc": "2.0",
+            "id": "write-init-conflict",
+            "method": "campaign.init",
+            "params": {
+              "charter": {
+                "campaign_name": "write-side-fixture",
+                "domain": "hep-ph",
+                "scope": "write-side conflict DIFFERENT scope",
+                "approval_gate_ref": "gate://a0.1"
+              },
+              "seed_pack": {
+                "seeds": [
+                  {
+                    "seed_type": "text",
+                    "content": "seed-1"
+                  }
+                ]
+              },
+              "budget": {
+                "max_tokens": 100000,
+                "max_cost_usd": 100.0,
+                "max_wall_clock_s": 100000,
+                "max_steps": 50,
+                "max_nodes": 10
+              },
+              "idempotency_key": "write-init-conflict"
+            }
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": "write-init-conflict",
+            "error": {
+              "code": -32002,
+              "message": "schema_validation_failed",
+              "data": {
+                "reason": "idempotency_key_conflict",
+                "idempotency_key": "write-init-conflict",
+                "payload_hash": "sha256:56f378ad328f6914309c89b32dd1fe10bfc50a81bcb31acba759861ee9151811",
+                "details": {
+                  "stored_payload_hash": "sha256:a9c480da6a14a930de7fa3b7b26276ce8d5692ce71caf8d5dc38ea4d315a479f"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "expected_store": {
+        "campaigns/66666666-6666-4666-8666-666666666666/campaign.json": {
+          "campaign_id": "66666666-6666-4666-8666-666666666666",
+          "charter": {
+            "campaign_name": "write-side-fixture",
+            "domain": "hep-ph",
+            "scope": "write-side conflict baseline scope",
+            "approval_gate_ref": "gate://a0.1"
+          },
+          "seed_pack": {
+            "seeds": [
+              {
+                "seed_type": "text",
+                "content": "seed-1"
+              }
+            ]
+          },
+          "budget": {
+            "max_tokens": 100000,
+            "max_cost_usd": 100.0,
+            "max_wall_clock_s": 100000,
+            "max_steps": 50,
+            "max_nodes": 10
+          },
+          "status": "running",
+          "created_at": "2026-03-14T12:05:00Z",
+          "usage": {
+            "tokens_used": 0,
+            "cost_usd_used": 0.0,
+            "wall_clock_s_elapsed": 0.0,
+            "steps_used": 0,
+            "nodes_used": 1
+          },
+          "island_states": [
+            {
+              "island_id": "island-0",
+              "state": "SEEDING",
+              "population_size": 1,
+              "stagnation_counter": 0,
+              "repopulation_count": 0,
+              "best_score": null
+            }
+          ],
+          "abstract_problem_registry": {
+            "entries": [
+              {
+                "abstract_problem_type": "optimization",
+                "description": "Default optimization abstraction for provider-local packs.",
+                "known_solution_families": [
+                  "gradient-based"
+                ],
+                "prerequisite_checklist": [
+                  "objective is defined"
+                ],
+                "reference_uris": [
+                  "https://example.org/optimization"
+                ]
+              }
+            ]
+          },
+          "domain_pack": {
+            "pack_id": "hep.operators.v1",
+            "enabled_pack_ids": [
+              "hep.operators.v1"
+            ]
+          }
+        },
+        "campaigns/66666666-6666-4666-8666-666666666666/nodes_latest.json": {
+          "77777777-7777-4777-8777-777777777777": {
+            "campaign_id": "66666666-6666-4666-8666-666666666666",
+            "idea_id": "88888888-8888-4888-8888-888888888888",
+            "node_id": "77777777-7777-4777-8777-777777777777",
+            "revision": 1,
+            "parent_node_ids": [],
+            "island_id": "island-0",
+            "operator_id": "seed.import",
+            "operator_family": "Seed",
+            "origin": {
+              "model": "seed_pack",
+              "temperature": 0,
+              "prompt_hash": "sha256:0eb026731d9ea3f870511f8c18daeb814eaa2c9e276082b204f2a962212fb5bd",
+              "timestamp": "2026-03-14T12:05:00Z",
+              "role": "SeedImporter"
+            },
+            "operator_trace": {
+              "inputs": {
+                "seed_type": "text",
+                "seed_index": 0
+              },
+              "params": {
+                "formalization": {
+                  "mode": "explain_then_formalize_deterministic_v1",
+                  "source_artifact": "rationale_draft",
+                  "rationale_hash": "sha256:d89201d86f05305fd32165f207bb83726c48c0724e273fb7b0990d38196e475f",
+                  "input_fields": [
+                    "title",
+                    "rationale",
+                    "risks",
+                    "kill_criteria"
+                  ],
+                  "risk_count": 1,
+                  "kill_criteria_count": 1
+                }
+              },
+              "evidence_uris_used": [
+                "https://example.org/reference"
+              ]
+            },
+            "rationale_draft": {
+              "title": "Seed 1",
+              "rationale": "seed-1",
+              "risks": [
+                "unverified hypothesis"
+              ],
+              "kill_criteria": [
+                "fails basic consistency checks"
+              ]
+            },
+            "idea_card": {
+              "thesis_statement": "Seed 1: seed-1 This rationale requires formal validation before promotion.",
+              "testable_hypotheses": [
+                "Hypothesis from seed 1"
+              ],
+              "required_observables": [
+                "observable-1"
+              ],
+              "minimal_compute_plan": [
+                {
+                  "step": "construct toy estimate",
+                  "method": "deterministic scoring stub",
+                  "estimated_difficulty": "moderate"
+                }
+              ],
+              "claims": [
+                {
+                  "claim_text": "Seed-derived claim: seed-1",
+                  "support_type": "literature",
+                  "evidence_uris": [
+                    "https://example.org/reference"
+                  ]
+                }
+              ]
+            },
+            "eval_info": null,
+            "grounding_audit": null,
+            "reduction_report": null,
+            "reduction_audit": null,
+            "created_at": "2026-03-14T12:05:00Z"
+          }
+        },
+        "campaigns/66666666-6666-4666-8666-666666666666/nodes_log.jsonl": [
+          {
+            "mutation": "create",
+            "node_id": "77777777-7777-4777-8777-777777777777",
+            "revision": 1,
+            "node": {
+              "campaign_id": "66666666-6666-4666-8666-666666666666",
+              "idea_id": "88888888-8888-4888-8888-888888888888",
+              "node_id": "77777777-7777-4777-8777-777777777777",
+              "revision": 1,
+              "parent_node_ids": [],
+              "island_id": "island-0",
+              "operator_id": "seed.import",
+              "operator_family": "Seed",
+              "origin": {
+                "model": "seed_pack",
+                "temperature": 0,
+                "prompt_hash": "sha256:0eb026731d9ea3f870511f8c18daeb814eaa2c9e276082b204f2a962212fb5bd",
+                "timestamp": "2026-03-14T12:05:00Z",
+                "role": "SeedImporter"
+              },
+              "operator_trace": {
+                "inputs": {
+                  "seed_type": "text",
+                  "seed_index": 0
+                },
+                "params": {
+                  "formalization": {
+                    "mode": "explain_then_formalize_deterministic_v1",
+                    "source_artifact": "rationale_draft",
+                    "rationale_hash": "sha256:d89201d86f05305fd32165f207bb83726c48c0724e273fb7b0990d38196e475f",
+                    "input_fields": [
+                      "title",
+                      "rationale",
+                      "risks",
+                      "kill_criteria"
+                    ],
+                    "risk_count": 1,
+                    "kill_criteria_count": 1
+                  }
+                },
+                "evidence_uris_used": [
+                  "https://example.org/reference"
+                ]
+              },
+              "rationale_draft": {
+                "title": "Seed 1",
+                "rationale": "seed-1",
+                "risks": [
+                  "unverified hypothesis"
+                ],
+                "kill_criteria": [
+                  "fails basic consistency checks"
+                ]
+              },
+              "idea_card": {
+                "thesis_statement": "Seed 1: seed-1 This rationale requires formal validation before promotion.",
+                "testable_hypotheses": [
+                  "Hypothesis from seed 1"
+                ],
+                "required_observables": [
+                  "observable-1"
+                ],
+                "minimal_compute_plan": [
+                  {
+                    "step": "construct toy estimate",
+                    "method": "deterministic scoring stub",
+                    "estimated_difficulty": "moderate"
+                  }
+                ],
+                "claims": [
+                  {
+                    "claim_text": "Seed-derived claim: seed-1",
+                    "support_type": "literature",
+                    "evidence_uris": [
+                      "https://example.org/reference"
+                    ]
+                  }
+                ]
+              },
+              "eval_info": null,
+              "grounding_audit": null,
+              "reduction_report": null,
+              "reduction_audit": null,
+              "created_at": "2026-03-14T12:05:00Z"
+            }
+          }
+        ],
+        "global/idempotency_store.json": {
+          "campaign.init:write-init-conflict": {
+            "payload_hash": "sha256:a9c480da6a14a930de7fa3b7b26276ce8d5692ce71caf8d5dc38ea4d315a479f",
+            "created_at": "2026-03-14T12:05:00Z",
+            "state": "committed",
+            "response": {
+              "kind": "result",
+              "payload": {
+                "campaign_id": "66666666-6666-4666-8666-666666666666",
+                "status": "running",
+                "created_at": "2026-03-14T12:05:00Z",
+                "budget_snapshot": {
+                  "tokens_used": 0,
+                  "tokens_remaining": 100000,
+                  "cost_usd_used": 0.0,
+                  "cost_usd_remaining": 100.0,
+                  "wall_clock_s_elapsed": 0.0,
+                  "wall_clock_s_remaining": 100000.0,
+                  "steps_used": 0,
+                  "steps_remaining": 50,
+                  "nodes_used": 1,
+                  "nodes_remaining": 9
+                },
+                "island_states": [
+                  {
+                    "island_id": "island-0",
+                    "state": "SEEDING",
+                    "population_size": 1,
+                    "stagnation_counter": 0,
+                    "repopulation_count": 0,
+                    "best_score": null
+                  }
+                ],
+                "idempotency": {
+                  "idempotency_key": "write-init-conflict",
+                  "is_replay": false,
+                  "payload_hash": "sha256:a9c480da6a14a930de7fa3b7b26276ce8d5692ce71caf8d5dc38ea4d315a479f"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "campaign.init prepared record recovery",
+      "now": "2026-03-14T12:10:00Z",
+      "uuid_sequence": [
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "initial_store": {
+        "global/idempotency_store.json": {
+          "campaign.init:write-init-recovery": {
+            "payload_hash": "sha256:9a29d34f1ecf5a76aa69451e423faead818b3aba120f75896e5a82ee6f0a2a2e",
+            "created_at": "2026-03-14T12:09:00Z",
+            "state": "prepared",
+            "response": {
+              "kind": "result",
+              "payload": {
+                "campaign_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                "status": "running",
+                "created_at": "2026-03-14T12:09:00Z",
+                "budget_snapshot": {
+                  "tokens_used": 0,
+                  "tokens_remaining": 100000,
+                  "cost_usd_used": 0.0,
+                  "cost_usd_remaining": 100.0,
+                  "wall_clock_s_elapsed": 0.0,
+                  "wall_clock_s_remaining": 100000.0,
+                  "steps_used": 0,
+                  "steps_remaining": 50,
+                  "nodes_used": 1,
+                  "nodes_remaining": 9
+                },
+                "island_states": [
+                  {
+                    "island_id": "island-0",
+                    "state": "SEEDING",
+                    "population_size": 1,
+                    "stagnation_counter": 0,
+                    "repopulation_count": 0,
+                    "best_score": null
+                  }
+                ],
+                "idempotency": {
+                  "idempotency_key": "write-init-recovery",
+                  "is_replay": false,
+                  "payload_hash": "sha256:9a29d34f1ecf5a76aa69451e423faead818b3aba120f75896e5a82ee6f0a2a2e"
+                }
+              }
+            }
+          }
+        }
+      },
+      "steps": [
+        {
+          "request": {
+            "jsonrpc": "2.0",
+            "id": "write-init-recovery",
+            "method": "campaign.init",
+            "params": {
+              "charter": {
+                "campaign_name": "write-side-fixture",
+                "domain": "hep-ph",
+                "scope": "write-side prepared recovery scope",
+                "approval_gate_ref": "gate://a0.1"
+              },
+              "seed_pack": {
+                "seeds": [
+                  {
+                    "seed_type": "text",
+                    "content": "seed-1"
+                  }
+                ]
+              },
+              "budget": {
+                "max_tokens": 100000,
+                "max_cost_usd": 100.0,
+                "max_wall_clock_s": 100000,
+                "max_steps": 50,
+                "max_nodes": 10
+              },
+              "idempotency_key": "write-init-recovery"
+            }
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": "write-init-recovery",
+            "result": {
+              "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "status": "running",
+              "created_at": "2026-03-14T12:10:00Z",
+              "budget_snapshot": {
+                "tokens_used": 0,
+                "tokens_remaining": 100000,
+                "cost_usd_used": 0.0,
+                "cost_usd_remaining": 100.0,
+                "wall_clock_s_elapsed": 0.0,
+                "wall_clock_s_remaining": 100000.0,
+                "steps_used": 0,
+                "steps_remaining": 50,
+                "nodes_used": 1,
+                "nodes_remaining": 9
+              },
+              "island_states": [
+                {
+                  "island_id": "island-0",
+                  "state": "SEEDING",
+                  "population_size": 1,
+                  "stagnation_counter": 0,
+                  "repopulation_count": 0,
+                  "best_score": null
+                }
+              ],
+              "idempotency": {
+                "idempotency_key": "write-init-recovery",
+                "is_replay": false,
+                "payload_hash": "sha256:9a29d34f1ecf5a76aa69451e423faead818b3aba120f75896e5a82ee6f0a2a2e"
+              }
+            }
+          }
+        }
+      ],
+      "expected_store": {
+        "campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/campaign.json": {
+          "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "charter": {
+            "campaign_name": "write-side-fixture",
+            "domain": "hep-ph",
+            "scope": "write-side prepared recovery scope",
+            "approval_gate_ref": "gate://a0.1"
+          },
+          "seed_pack": {
+            "seeds": [
+              {
+                "seed_type": "text",
+                "content": "seed-1"
+              }
+            ]
+          },
+          "budget": {
+            "max_tokens": 100000,
+            "max_cost_usd": 100.0,
+            "max_wall_clock_s": 100000,
+            "max_steps": 50,
+            "max_nodes": 10
+          },
+          "status": "running",
+          "created_at": "2026-03-14T12:10:00Z",
+          "usage": {
+            "tokens_used": 0,
+            "cost_usd_used": 0.0,
+            "wall_clock_s_elapsed": 0.0,
+            "steps_used": 0,
+            "nodes_used": 1
+          },
+          "island_states": [
+            {
+              "island_id": "island-0",
+              "state": "SEEDING",
+              "population_size": 1,
+              "stagnation_counter": 0,
+              "repopulation_count": 0,
+              "best_score": null
+            }
+          ],
+          "abstract_problem_registry": {
+            "entries": [
+              {
+                "abstract_problem_type": "optimization",
+                "description": "Default optimization abstraction for provider-local packs.",
+                "known_solution_families": [
+                  "gradient-based"
+                ],
+                "prerequisite_checklist": [
+                  "objective is defined"
+                ],
+                "reference_uris": [
+                  "https://example.org/optimization"
+                ]
+              }
+            ]
+          },
+          "domain_pack": {
+            "pack_id": "hep.operators.v1",
+            "enabled_pack_ids": [
+              "hep.operators.v1"
+            ]
+          }
+        },
+        "campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/nodes_latest.json": {
+          "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb": {
+            "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "idea_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "node_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "revision": 1,
+            "parent_node_ids": [],
+            "island_id": "island-0",
+            "operator_id": "seed.import",
+            "operator_family": "Seed",
+            "origin": {
+              "model": "seed_pack",
+              "temperature": 0,
+              "prompt_hash": "sha256:0eb026731d9ea3f870511f8c18daeb814eaa2c9e276082b204f2a962212fb5bd",
+              "timestamp": "2026-03-14T12:10:00Z",
+              "role": "SeedImporter"
+            },
+            "operator_trace": {
+              "inputs": {
+                "seed_type": "text",
+                "seed_index": 0
+              },
+              "params": {
+                "formalization": {
+                  "mode": "explain_then_formalize_deterministic_v1",
+                  "source_artifact": "rationale_draft",
+                  "rationale_hash": "sha256:d89201d86f05305fd32165f207bb83726c48c0724e273fb7b0990d38196e475f",
+                  "input_fields": [
+                    "title",
+                    "rationale",
+                    "risks",
+                    "kill_criteria"
+                  ],
+                  "risk_count": 1,
+                  "kill_criteria_count": 1
+                }
+              },
+              "evidence_uris_used": [
+                "https://example.org/reference"
+              ]
+            },
+            "rationale_draft": {
+              "title": "Seed 1",
+              "rationale": "seed-1",
+              "risks": [
+                "unverified hypothesis"
+              ],
+              "kill_criteria": [
+                "fails basic consistency checks"
+              ]
+            },
+            "idea_card": {
+              "thesis_statement": "Seed 1: seed-1 This rationale requires formal validation before promotion.",
+              "testable_hypotheses": [
+                "Hypothesis from seed 1"
+              ],
+              "required_observables": [
+                "observable-1"
+              ],
+              "minimal_compute_plan": [
+                {
+                  "step": "construct toy estimate",
+                  "method": "deterministic scoring stub",
+                  "estimated_difficulty": "moderate"
+                }
+              ],
+              "claims": [
+                {
+                  "claim_text": "Seed-derived claim: seed-1",
+                  "support_type": "literature",
+                  "evidence_uris": [
+                    "https://example.org/reference"
+                  ]
+                }
+              ]
+            },
+            "eval_info": null,
+            "grounding_audit": null,
+            "reduction_report": null,
+            "reduction_audit": null,
+            "created_at": "2026-03-14T12:10:00Z"
+          }
+        },
+        "campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/nodes_log.jsonl": [
+          {
+            "mutation": "create",
+            "node_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "revision": 1,
+            "node": {
+              "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "idea_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              "node_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              "revision": 1,
+              "parent_node_ids": [],
+              "island_id": "island-0",
+              "operator_id": "seed.import",
+              "operator_family": "Seed",
+              "origin": {
+                "model": "seed_pack",
+                "temperature": 0,
+                "prompt_hash": "sha256:0eb026731d9ea3f870511f8c18daeb814eaa2c9e276082b204f2a962212fb5bd",
+                "timestamp": "2026-03-14T12:10:00Z",
+                "role": "SeedImporter"
+              },
+              "operator_trace": {
+                "inputs": {
+                  "seed_type": "text",
+                  "seed_index": 0
+                },
+                "params": {
+                  "formalization": {
+                    "mode": "explain_then_formalize_deterministic_v1",
+                    "source_artifact": "rationale_draft",
+                    "rationale_hash": "sha256:d89201d86f05305fd32165f207bb83726c48c0724e273fb7b0990d38196e475f",
+                    "input_fields": [
+                      "title",
+                      "rationale",
+                      "risks",
+                      "kill_criteria"
+                    ],
+                    "risk_count": 1,
+                    "kill_criteria_count": 1
+                  }
+                },
+                "evidence_uris_used": [
+                  "https://example.org/reference"
+                ]
+              },
+              "rationale_draft": {
+                "title": "Seed 1",
+                "rationale": "seed-1",
+                "risks": [
+                  "unverified hypothesis"
+                ],
+                "kill_criteria": [
+                  "fails basic consistency checks"
+                ]
+              },
+              "idea_card": {
+                "thesis_statement": "Seed 1: seed-1 This rationale requires formal validation before promotion.",
+                "testable_hypotheses": [
+                  "Hypothesis from seed 1"
+                ],
+                "required_observables": [
+                  "observable-1"
+                ],
+                "minimal_compute_plan": [
+                  {
+                    "step": "construct toy estimate",
+                    "method": "deterministic scoring stub",
+                    "estimated_difficulty": "moderate"
+                  }
+                ],
+                "claims": [
+                  {
+                    "claim_text": "Seed-derived claim: seed-1",
+                    "support_type": "literature",
+                    "evidence_uris": [
+                      "https://example.org/reference"
+                    ]
+                  }
+                ]
+              },
+              "eval_info": null,
+              "grounding_audit": null,
+              "reduction_report": null,
+              "reduction_audit": null,
+              "created_at": "2026-03-14T12:10:00Z"
+            }
+          }
+        ],
+        "global/idempotency_store.json": {
+          "campaign.init:write-init-recovery": {
+            "payload_hash": "sha256:9a29d34f1ecf5a76aa69451e423faead818b3aba120f75896e5a82ee6f0a2a2e",
+            "created_at": "2026-03-14T12:10:00Z",
+            "state": "committed",
+            "response": {
+              "kind": "result",
+              "payload": {
+                "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "status": "running",
+                "created_at": "2026-03-14T12:10:00Z",
+                "budget_snapshot": {
+                  "tokens_used": 0,
+                  "tokens_remaining": 100000,
+                  "cost_usd_used": 0.0,
+                  "cost_usd_remaining": 100.0,
+                  "wall_clock_s_elapsed": 0.0,
+                  "wall_clock_s_remaining": 100000.0,
+                  "steps_used": 0,
+                  "steps_remaining": 50,
+                  "nodes_used": 1,
+                  "nodes_remaining": 9
+                },
+                "island_states": [
+                  {
+                    "island_id": "island-0",
+                    "state": "SEEDING",
+                    "population_size": 1,
+                    "stagnation_counter": 0,
+                    "repopulation_count": 0,
+                    "best_score": null
+                  }
+                ],
+                "idempotency": {
+                  "idempotency_key": "write-init-recovery",
+                  "is_replay": false,
+                  "payload_hash": "sha256:9a29d34f1ecf5a76aa69451e423faead818b3aba120f75896e5a82ee6f0a2a2e"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid_request envelope",
+      "now": "2026-03-14T12:15:00Z",
+      "uuid_sequence": [],
+      "initial_store": {},
+      "steps": [
+        {
+          "request": {
+            "id": "bad-request",
+            "method": "campaign.init",
+            "params": {}
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": "bad-request",
+            "error": {
+              "code": -32600,
+              "message": "invalid_request",
+              "data": {
+                "reason": "invalid_request"
+              }
+            }
+          }
+        }
+      ],
+      "expected_store": {}
+    },
+    {
+      "name": "invalid_params envelope",
+      "now": "2026-03-14T12:16:00Z",
+      "uuid_sequence": [],
+      "initial_store": {},
+      "steps": [
+        {
+          "request": {
+            "jsonrpc": "2.0",
+            "id": "bad-params",
+            "method": "campaign.init",
+            "params": []
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": "bad-params",
+            "error": {
+              "code": -32602,
+              "message": "invalid_params",
+              "data": {
+                "reason": "schema_invalid",
+                "details": {
+                  "message": "params must be an object"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "expected_store": {}
+    },
+    {
+      "name": "method_not_found envelope",
+      "now": "2026-03-14T12:17:00Z",
+      "uuid_sequence": [],
+      "initial_store": {},
+      "steps": [
+        {
+          "request": {
+            "jsonrpc": "2.0",
+            "id": "bad-method",
+            "method": "unknown.method",
+            "params": {}
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": "bad-method",
+            "error": {
+              "code": -32601,
+              "message": "method_not_found",
+              "data": {
+                "reason": "method_not_found",
+                "details": {
+                  "method": "unknown.method"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "expected_store": {}
+    }
+  ],
+  "parse_cases": [
+    {
+      "name": "parse_error envelope",
+      "line": "{",
+      "response": {
+        "jsonrpc": "2.0",
+        "id": null,
+        "error": {
+          "code": -32700,
+          "message": "parse_error",
+          "data": {
+            "reason": "parse_error"
+          }
+        }
+      }
+    }
+  ]
+}

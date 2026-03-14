@@ -1,5 +1,8 @@
-import { IdeaEngineReadService } from '../service/read-service.js';
 import { RpcError } from '../service/errors.js';
+
+interface RpcMethodService {
+  handle(method: string, params: unknown): Record<string, unknown>;
+}
 
 export function buildJsonRpcError(
   id: unknown,
@@ -30,7 +33,7 @@ export function buildJsonRpcResult(
 }
 
 export function handleJsonRpcRequest(
-  service: IdeaEngineReadService,
+  service: RpcMethodService,
   request: Record<string, unknown>,
 ): Record<string, unknown> {
   const id = request.id;

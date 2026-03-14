@@ -13,6 +13,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "ajv": "^8.18.0",
     "canonicalize": "^2.1.0"
   },
   "devDependencies": {

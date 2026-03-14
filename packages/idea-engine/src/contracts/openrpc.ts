@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-interface OpenRpcParam {
+export interface OpenRpcParam {
   name: string;
   required?: boolean;
   schema?: {
@@ -10,22 +10,31 @@ interface OpenRpcParam {
   };
 }
 
-interface OpenRpcMethod {
+export interface OpenRpcMethod {
   name: string;
   params?: OpenRpcParam[];
+  result?: {
+    schema?: Record<string, unknown>;
+  };
 }
 
-interface OpenRpcDocument {
+export interface OpenRpcDocument {
   methods?: OpenRpcMethod[];
+  info?: {
+    version?: string;
+  };
+  ['x-error-data-contract']?: {
+    schema?: Record<string, unknown>;
+  };
 }
 
 export const DEFAULT_CONTRACT_DIR = fileURLToPath(
   new URL('../../../idea-core/contracts/idea-generator-snapshot/schemas', import.meta.url),
 );
 
-const OPENRPC_PATH = resolve(DEFAULT_CONTRACT_DIR, 'idea_core_rpc_v1.openrpc.json');
+export const OPENRPC_PATH = resolve(DEFAULT_CONTRACT_DIR, 'idea_core_rpc_v1.openrpc.json');
 
-function loadOpenRpcDocument(): OpenRpcDocument {
+export function loadOpenRpcDocument(): OpenRpcDocument {
   return JSON.parse(readFileSync(OPENRPC_PATH, 'utf8')) as OpenRpcDocument;
 }
 

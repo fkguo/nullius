@@ -144,6 +144,9 @@ importers:
 
   packages/idea-engine:
     dependencies:
+      ajv:
+        specifier: ^8.18.0
+        version: 8.18.0
       canonicalize:
         specifier: ^2.1.0
         version: 2.1.0
