@@ -567,3 +567,16 @@
 - Failures must stay explicit and fail-closed: unavailable/invalid adjudication yields labeled fallback or `none`, never a fabricated semantic hit.
 **Why**: SOTA review for packet/paragraph selection supported LLM adjudication for semantic criticality, while JSON/schema/replay literature supported keeping determinism at the artifact-contract layer rather than at the semantic-authority layer.
 **Files**: `skills/research-team/scripts/lib/semantic_packet_curator.py`, `skills/research-team/scripts/bin/build_draft_packet.py`, `skills/research-writer/scripts/bin/research_writer_learn_discussion_logic.py`, `skills/research-team/tests/test_semantic_packet_curator.py`, `skills/research-team/tests/test_build_draft_packet_semantic_selection.py`, `skills/research-team/tests/test_discussion_logic_semantic_selection.py`
+
+### [2026-03-14] Scaffold naming invariant: project-root entry surfaces use direct role names, not legacy process names
+
+**Context**: Rewriting the `UX-01` + `UX-05` implementation prompt for the host-agnostic single-user entry layer. The user explicitly required plain-language wording such as `新建项目规则` and clarified that the repo is in a refactor-only phase with no short-term compatibility burden.
+**Decision**:
+- Project-root / scaffold / user-facing entry names should describe role directly rather than historical workflow lineage or template history.
+- During the current refactor, obviously wrong scaffold-surface names should be **directly renamed without compatibility aliases** unless there is concrete evidence that direct rename would materially reduce execution quality.
+- Human primary file = `research_notebook.md`; machine-stable project contract = `research_contract.md`.
+- Legacy scaffold names such as `Draft_Derivation.md`, `PROJECT_CHARTER.md`, `PROJECT_MAP.md`, `PREWORK.md`, `INITIAL_INSTRUCTION.md`, and `INNOVATION_LOG.md` should be treated as rename targets rather than preserved surfaces.
+- Prompt wording for this lane should prefer plain-language Chinese when precision is unchanged; `新建项目规则` is preferred over `project bootstrap semantics`.
+- Naming audits for this lane are **bounded**: scan the scaffold/project-root surface and the files users are directly told to touch, not the entire repository.
+**Why**: The product has not been released, so preserving legacy scaffold names adds long-term architecture drag without offsetting user-compatibility value. Direct role-based names reduce future drift across hosts and make later TS control-plane work cleaner. Plain-language prompt wording lowers execution ambiguity without changing scope.
+**Files**: `meta/docs/prompts/prompt-2026-03-14-ux01-ux05-host-agnostic-bootstrap.md`, `meta/REDESIGN_PLAN.md`, `meta/remediation_tracker_v1.json`
