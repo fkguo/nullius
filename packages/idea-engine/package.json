@@ -8,8 +8,15 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "echo \"no tests yet\"",
-    "lint": "echo \"no lint yet\"",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "canonicalize": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "vitest": "^4.0.18"
   }
 }

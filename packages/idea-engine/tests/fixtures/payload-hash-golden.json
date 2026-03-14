@@ -1,0 +1,54 @@
+{
+  "payload_cases": [
+    {
+      "name": "unordered_nested_unicode",
+      "payload": {
+        "zeta": "最后",
+        "alpha": {
+          "omega": "粒子κ",
+          "beta": [
+            3,
+            {
+              "δ": "非ASCII",
+              "γ": 1.25
+            },
+            1
+          ]
+        }
+      },
+      "expected_hash": "sha256:3965ccca569184cc72f5087002ec57378dd986889d30914e58ba4a45210b71bb"
+    },
+    {
+      "name": "numeric_formatting",
+      "payload": {
+        "fraction": 4.5,
+        "integer_like": 1.0,
+        "scientific_big": 1e+30,
+        "scientific_small": 0.000001,
+        "precise": 333333333.3333333
+      },
+      "expected_hash": "sha256:077ae64965c187dea985be3fd183e59b6fb166d12809d39114b909804c2a04d4"
+    }
+  ],
+  "method_cases": [
+    {
+      "name": "node_list_default_limit_omitted",
+      "method": "node.list",
+      "params": {
+        "campaign_id": "11111111-1111-4111-8111-111111111111",
+        "idempotency_key": "unused"
+      },
+      "expected_hash": "sha256:fe5242bd28a82930763e147fb6d9c1a197c54ce55b22a0ae52747e51d977162d"
+    },
+    {
+      "name": "node_list_default_limit_explicit",
+      "method": "node.list",
+      "params": {
+        "campaign_id": "11111111-1111-4111-8111-111111111111",
+        "limit": 50,
+        "idempotency_key": "unused"
+      },
+      "expected_hash": "sha256:fe5242bd28a82930763e147fb6d9c1a197c54ce55b22a0ae52747e51d977162d"
+    }
+  ]
+}
