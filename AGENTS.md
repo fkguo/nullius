@@ -534,7 +534,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-idea-engine-foundation** (8052 symbols, 21730 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (10217 symbols, 24039 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -550,7 +550,7 @@ This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-idea-eng
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-new05a-stage3-idea-engine-foundation/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -589,10 +589,10 @@ This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-idea-eng
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-idea-engine-foundation/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-idea-engine-foundation/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-idea-engine-foundation/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-idea-engine-foundation/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 
