@@ -11,6 +11,8 @@ const HEP_BUILTIN_PACK_CATALOG = resolve(
 interface DomainPackEntry {
   pack_id: string;
   domain_prefixes: string[];
+  operator_selection_policy?: string;
+  operator_source?: string;
 }
 
 interface DomainPackResolution {
@@ -49,6 +51,10 @@ function extensionStringList(extensions: Record<string, unknown>, keys: string[]
 function builtinDomainPacks(): DomainPackEntry[] {
   const payload = JSON.parse(readFileSync(HEP_BUILTIN_PACK_CATALOG, 'utf8')) as { packs?: DomainPackEntry[] };
   return payload.packs ?? [];
+}
+
+export function builtinDomainPackById(packId: string): DomainPackEntry | undefined {
+  return builtinDomainPacks().find(entry => entry.pack_id === packId);
 }
 
 export function mergeRegistryEntries(

@@ -156,9 +156,9 @@ ERR (4), ID (3), SYNC (6), CFG (4), GATE (5), LOG (4), ART (5), SEC (3), NET (1)
 
 > 适用于 `meta/docs/prompts/prompt-*-impl-*.md` 以及任何要求"按之前惯例执行"的实现任务。通用 checklist 见 `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`。
 
-- **GitNexus 开工前对齐是硬要求**：实现前必须先读 `gitnexus://repo/{name}/context`；若 index stale，先运行 `npx gitnexus analyze`，再继续。禁止带 stale index 开工。
+- **GitNexus 开工前对齐是硬要求**：实现前必须先读 `gitnexus://repo/{name}/context`；若 index stale，先运行 `npx gitnexus analyze`，再继续。若当前 `worktree` 含未提交改动（尤其新增文件 / 新符号 / helper callsites），默认必须改用 `npx gitnexus analyze --force` 刷新当前工作树覆盖，而不能把普通 `analyze` 的 `up to date` 视为当前源码已入图的证据。禁止带 stale index 开工。
 - **本仓 GitNexus generated appendix 约束**：当前 GitNexus 版本会无条件向根 `AGENTS.md` / `CLAUDE.md` upsert 动态 marker；本仓接受这些 generated appendix 进入提交面，但应将其视为非 SSOT 的工具生成上下文，不在 marker block 内手写根级治理规则。
-- **GitNexus 审核前再对齐是条件性硬要求**：若实现新增/重命名符号、改变关键调用链、或当前 index 已不反映工作树，必须在正式审核前再次刷新，并用 `detect_changes` / `impact` / `context` 形成 post-change 证据。
+- **GitNexus 审核前再对齐是条件性硬要求**：若实现新增/重命名符号、改变关键调用链、或当前 index 已不反映工作树，必须在正式审核前再次刷新；dirty `worktree` 默认使用 `npx gitnexus analyze --force`。刷新后再用 `detect_changes` / `impact` / `context` 形成 post-change 证据。
 - **正式 `review-swarm` 为实现收尾必经步骤**：实现 prompt 默认必须在验收命令通过后执行正式三审（`Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)`）；审核必须深入代码、调用链、测试、eval fixture、baseline、scope boundary，禁止只看 diff 摘要做表面判断。
 - **正式自审 (`self-review`) 也是实现收尾硬门禁**：外部三审收敛后，当前执行 agent 仍必须基于实际代码、调用链 / GitNexus 证据、tests / eval / holdout / baseline、scope boundary 再做一轮自审；blocking issue 必须先修复。自审结论与 adopted / deferred / declined/closed dispositions 必须记录，并明确哪些 amendment 因满足“当前 batch 直接相关 + 高价值 + 低风险 + 可独立验证 + 不依赖后续 phase / lane”而被本轮默认吸收；deferred 项必须给出合法理由，并把仍有后续价值的项同步到持久 SSOT；低价值或已判定不值得跟进的项应标记为 declined/closed，而非 deferred。
 - **完成态门禁**：只有当验收命令通过、`review-swarm` 收敛且三审 `blocking_issues = 0`、`self-review` 通过、tracker / memory / `AGENTS.md` 已同步后，实施项才可标记 `done`。
@@ -346,11 +346,11 @@ Agent 在代码审查和自检时必须检测以下反模式：
 > **SSOT**: `meta/remediation_tracker_v1.json`（机器可读，agent 执行时更新）
 
 - **Phase 0**: 14/14 完成 ✅
-- **Phase 1**: 19/23 完成
+- **Phase 1**: 20/23 完成
 - **Standalone closeout**: `NEW-05a-shared-boundary` ✅（`packages/shared/` 不再持有具体 `HEP_*` tool-name authority / HEP risk map / `hep://runs` helper；`packages/hep-mcp/` 本地 authority + wrappers 已落地；formal review 经 `Opus` + 用户确认 fallback `GLM-5` + `K2.5` 收敛为 0 blocking；GitNexus 仍会漏报新文件/新 helper callsites，因此 post-change exact verification 继续以源码 grep 为准）
 - **Standalone closeout**: `NEW-05a-formalism-contract-boundary` ✅（`formalism_registry_v1` / `formalism_check` 已从 source schemas、vendored snapshot、OpenRPC 与 idea-core runtime 主线移除；`candidate_formalisms[]` 降级为可选 run-local metadata；built-in HEP packs 不再 shipped concrete `hep/toy` / `hep/eft` / `hep/lattice` authority；graph-viz 不再提升 formalism 节点/边；formal review 经 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` R1 收敛为 0 blocking，self-review 0 blocking）
 - **Standalone closeout**: `NEW-05a-idea-core-domain-boundary` ✅（已与 `meta/docs/prompts/prompt-2026-03-10-hep-semantic-deep-cleanup.md` 的 Batch A 合并收口，因为二者共享同一 `idea-core` boundary / acceptance commands / review surface；`hep.bootstrap` / `bootstrap_default` / `HEP_COMPUTE_RUBRIC_RULES` / `toy_laptop` 已从 generic/default authority path 移除，`packages/idea-core/src/idea_core/engine/hep_builtin_domain_packs.json` 仅保留 provider-local `hep.operators.v1` catalog；acceptance 全绿，formal review 经 `Opus + OpenCode(kimi-for-coding/k2p5)` R3 收敛为 0 blocking，Gemini 不可用且人类已批准该 dual-review fallback，self-review 0 blocking）
-- **Standalone closeout**: `NEW-05a-stage3` ✅（2026-03-14：当前 worktree 已在不提交的前提下完成 `packages/idea-engine/` 的 bounded Stage 3 write-side foundation：`campaign.init`、deterministic seed-node materialization、prepared/committed global idempotency、以及最小 write-side JSON-RPC parity 现已落地，并由 Python-generated write-RPC/store golden fixtures 锁定跨语言行为。init-time `domain_pack` 仍仅持久化 metadata（`pack_id` / `enabled_pack_ids`），未重开 domain-pack migration lane；`search.step` / `eval.run` / `rank.compute` / `node.promote` / operator families / `NEW-07` / `EVO-13` 均未启动。formal review 经 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` 收敛为 0 blocking；Opus 初始 swarm lane 本地挂起但未启用 fallback reviewer，后续重试提出的唯一低风险 amendment（write-side `RpcError.data` 额外走 vendored `x-error-data-contract` 校验）已吸收并重新通过 acceptance/self-review。GitNexus 仍继续漏报 `packages/idea-engine` 的新 TS 符号/helper callsites，因此 final exact verification 继续以 direct source inspection + targeted tests 为准）
+- **Standalone closeout**: `NEW-05a-stage3` ✅（2026-03-14：基于既有 write-side foundation 完成 bounded `search.step` follow-up，scope 严格限制在 `packages/idea-engine/` 的 `search.step`、minimal island-state mutation parity、minimal `step_budget` fuse parity、minimal `search.step` artifact/store parity，以及 minimal write-side JSON-RPC parity for `search.step`；未扩到 `eval.run` / `rank.compute` / `node.promote` / operator-family migration / broader domain-pack migration / `NEW-07` / `EVO-13`。TS 侧现已具备最小 `search.step` RPC/service 路由、campaign/runtime helper、当前 authority slice 的 domain-pack/operator 选择、operator node + librarian evidence artifact/store parity，以及 Python 生成 golden fixture 驱动的 replay/conflict/step-budget/island-state/budget-exhausted/paused-campaign 覆盖。formal review R1 经 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` 收敛为 0 blocking + 3 amendments；3 条均已吸收（`structuredClone(parentNode)` parity、`refreshIslandPopulationSizes` 单点 authority、`sha256Hex` 单点 authority），formal review R2 再次由同一 trio 收敛为 0 blocking / 0 amendments；self-review 0 blocking。acceptance 在本 worktree 保持全绿，且 amendments 后重跑 `pnpm --filter @autoresearch/idea-engine build`、`pnpm --filter @autoresearch/idea-engine test` 与 `git diff --check` 均通过。后续复查确认 GitNexus 的关键问题不在于“新增文件永久漏报”，而在于 dirty `worktree` 上普通 `npx gitnexus analyze` 只按 commit freshness 报 `up to date`，不会把当前未提交源码重新入图；一旦执行 `npx gitnexus analyze --force`，`context(IdeaEngineSearchStepService)` / `context(loadSearchDomainPackRuntime)`、`impact(IdeaEngineSearchStepService)`、文件级 `cypher` 与 `detect_changes` 均恢复到正确覆盖。因此本仓后续约定改为：只要实现发生在 dirty `worktree` 上，GitNexus 对齐与 post-change evidence 默认使用 `npx gitnexus analyze --force`。implementation commit `afb88b7` 已落地；closeout 当前反映已验证并已提交的状态）
 - **Standalone closeout**: `NEW-05a-hep-semantic-authority-deep-cleanup` ✅（深度审计已落地到 `meta/docs/2026-03-10-hep-semantic-authority-deep-audit.md`，program prompt 已落地到 `meta/docs/prompts/prompt-2026-03-10-hep-semantic-deep-cleanup.md`；Batch A 已并入 `NEW-05a-idea-core-domain-boundary` closeout；Batch B-E 均已按 provider-local fail-closed / diagnostics-only / provider-neutral typed seam 边界收口并通过 acceptance，formal review 经 `Opus + OpenCode(kimi-for-coding/k2p5)` 收敛为 0 blocking，Gemini 不可用且人类已批准该 dual-review fallback，self-review 0 blocking；Batch F downstream recovery 进一步确认 residual `batch2` scope 已被 `NEW-05a-idea-core-domain-boundary` / semantic Batch A 实质吸收：`idea-core` live path 仅保留 provider-local `hep.operators.v1` pack 选择与 explicit capability/task-first constraint policy，`build_builtin_domain_pack_index -> IdeaCoreService.__init__`、`_resolve_domain_pack_for_charter` / `_load_campaign_domain_pack`、以及 `eval.run` / `node.promote` 不再承载 generic/default HEP authority。对应 batch2 acceptance 与源码 grep 已重新作为 exact verification surface；Batch F formal review 亦经人类批准的 `Opus + Kimi K2.5` fallback 收敛为 0 blocking，唯一“拆分 tracker 长 note” amendment 已按 out-of-scope meta-work `declined/closed`，self-review 0 blocking；`batch3` 仍是后续单独 prompt，当前对话未启动）
 - **Standalone closeout**: `NEW-05a-runtime-root-boundary` ✅（按 `meta/docs/prompts/prompt-2026-03-09-batch3-runtime-root-dehep.md` 仅完成 root/runtime/provider 的 HEP occupancy 收口：`README.md` / `docs/README_zh.md` / root `package.json` 现把 root 定位为 ecosystem/workbench，`@autoresearch/orchestrator` 与 `packages/hep-mcp/src/tools/orchestrator/tools.ts` 的 active TS control-plane override 统一改为 `AUTORESEARCH_CONTROL_DIR`，`@autoresearch/openalex-mcp` 默认 home fallback 改为 `~/.autoresearch/openalex` 且保留显式 `HEP_DATA_DIR/openalex` 共置路径；`meta/docs/ecosystem_config_v1.md` 仅把 `HEP_AUTORESEARCH_DIR` 留在 legacy Python 区块。formal review 经 `Opus + OpenCode(kimi-for-coding/k2p5)` 收敛为 0 blocking，Gemini 不可用且人类已批准该 dual-review fallback；唯一低风险 amendment（root quick-start 旧 repo 路径/旧 shared 包名）已吸收，self-review 0 blocking。本批未回写 Batch 1/2 结构性工作，未扩成 root profile/materializer，也未创建 packaged agent）
 - **Phase 2**: 37/49 完成 — `NEW-WF-01` ✅（2026-03-07 retro-closeout：batch10 已交付 `research_workflow_v1` schema + templates，本轮补专项回归测试并修正 tracker drift） + Standalone `NEW-IDEA-01` ✅（2026-03-12 reality-audit / retro-closeout：Batch 9 既有 `packages/idea-mcp/` bridge 未重做，只补最小 acceptance gap；8 个 MCP tools 现与 live OpenRPC input contract 对齐，`idempotency_key` 不再被桥接层吃掉，JSON-RPC `-32000/-32001` false-retryable mapping 已修正并保留 `rpc` 数值语义，新增 real `IdeaRpcClient -> idea_core.rpc.server` round-trip integration test；acceptance、GitNexus post-change gate、formal review (`Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)`) 与 self-review 全部通过。local `idea-mcp` tool-risk authority 经 reality-audit 判定当前无 live consumer/gating path，故在本轮 `declined/closed` 而未扩 batch） + Standalone `NEW-R15-impl` ✅（2026-03-12 reality-audit / retro-closeout：Phase 2 Batch 7 的 `orch_run_*` / `orch_policy_query` live surface 已基本完成，本轮未扩 lane，只补最小 acceptance/SSOT gap：`orch_run_approvals_list` 去重合并修复、8 个 closeout-critical contract/regression cases、risk spec drift sync，以及 `hepar` CLI 与 MCP handler 实际为 shared on-disk contract parity 的叙事纠偏。formal review 经 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` 收敛为 0 blocking，self-review 0 blocking；GitNexus post-change MCP 持续 `Transport closed`，因此 exact verification 继续以 direct source inspection + passing acceptance gates 为准）
@@ -534,7 +534,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-write-side-foundation** (8142 symbols, 21954 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-search-step** (8281 symbols, 22265 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -550,7 +550,7 @@ This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-write-si
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-new05a-stage3-write-side-foundation/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -589,10 +589,10 @@ This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-write-si
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-write-side-foundation/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-write-side-foundation/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-write-side-foundation/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-write-side-foundation/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 
@@ -601,24 +601,6 @@ Before completing any code modification task, verify:
 2. No HIGH/CRITICAL risk warnings were ignored
 3. `gitnexus_detect_changes()` confirms changes match expected scope
 4. All d=1 (WILL BREAK) dependents were updated
-
-## Keeping the Index Fresh
-
-After committing code changes, the GitNexus index becomes stale. Re-run analyze to update it:
-
-```bash
-npx gitnexus analyze
-```
-
-If the index previously included embeddings, preserve them by adding `--embeddings`:
-
-```bash
-npx gitnexus analyze --embeddings
-```
-
-To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.embeddings` field shows the count (0 means no embeddings). **Running analyze without `--embeddings` will delete any previously generated embeddings.**
-
-> Claude Code users: A PostToolUse hook handles this automatically after `git commit` and `git merge`.
 
 ## CLI
 

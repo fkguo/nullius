@@ -34,11 +34,35 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   if (record.response.kind !== 'result') {
     return true;
   }
-  if (method !== 'campaign.init') {
-    return false;
+  if (method === 'search.step') {
+    const campaignId = record.response.payload.campaign_id;
+    const stepId = record.response.payload.step_id;
+    if (typeof campaignId !== 'string' || typeof stepId !== 'string') {
+      return false;
+    }
+    const campaign = store.loadCampaign<Record<string, unknown>>(campaignId);
+    if (!campaign || campaign.last_step_id !== stepId) {
+      return false;
+    }
+    if (!existsSync(store.artifactPath(campaignId, 'search_steps', `${stepId}.json`))) {
+      return false;
+    }
+    const newNodeIds = Array.isArray(record.response.payload.new_node_ids) ? record.response.payload.new_node_ids : [];
+    if (newNodeIds.length === 0) {
+      return true;
+    }
+    const newNodesRef = record.response.payload.new_nodes_artifact_ref;
+    if (typeof newNodesRef !== 'string' || !newNodesRef.startsWith('file://')) {
+      return false;
+    }
+    const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
+    return newNodeIds.every(nodeId => typeof nodeId === 'string' && nodeId in nodes);
   }
-  const campaignId = record.response.payload.campaign_id;
-  return typeof campaignId === 'string' && existsSync(store.campaignManifestPath(campaignId));
+  if (method === 'campaign.init') {
+    const campaignId = record.response.payload.campaign_id;
+    return typeof campaignId === 'string' && existsSync(store.campaignManifestPath(campaignId));
+  }
+  return false;
 }
 
 export function recordOrReplay(options: {
@@ -60,12 +84,16 @@ export function recordOrReplay(options: {
   }
 
   if (existing.payload_hash !== options.payloadHash) {
-    throw new RpcError(-32002, 'schema_validation_failed', {
+    const data: Record<string, unknown> = {
       reason: 'idempotency_key_conflict',
       idempotency_key: options.idempotencyKeyValue,
       payload_hash: options.payloadHash,
       details: { stored_payload_hash: existing.payload_hash },
-    });
+    };
+    if (options.campaignId) {
+      data.campaign_id = options.campaignId;
+    }
+    throw new RpcError(-32002, 'schema_validation_failed', data);
   }
 
   if (existing.state === 'prepared') {
