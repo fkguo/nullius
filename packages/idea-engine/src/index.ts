@@ -3,6 +3,7 @@ export { ContractRuntimeError, IdeaEngineContractCatalog } from './contracts/cat
 export { canonicalJson, hashWithoutIdempotency, payloadHash } from './hash/payload-hash.js';
 export { IdeaEngineStore } from './store/engine-store.js';
 export { IdeaEngineReadService } from './service/read-service.js';
+export { IdeaEngineSearchStepService } from './service/search-step-service.js';
 export { IdeaEngineWriteService } from './service/write-service.js';
 export { IdeaEngineRpcService } from './service/rpc-service.js';
 export { RpcError, schemaValidationError } from './service/errors.js';

@@ -29,3 +29,14 @@ export function budgetSnapshot(campaign: BudgetUsageRecord): Record<string, numb
     nodes_remaining: remaining(campaign.budget.max_nodes, nodesUsed),
   };
 }
+
+export function exhaustedDimensions(campaign: BudgetUsageRecord): string[] {
+  const snapshot = budgetSnapshot(campaign);
+  const exhausted: string[] = [];
+  if ((snapshot.tokens_remaining ?? 1) <= 0) exhausted.push('tokens');
+  if ((snapshot.cost_usd_remaining ?? 1) <= 0) exhausted.push('cost_usd');
+  if ((snapshot.wall_clock_s_remaining ?? 1) <= 0) exhausted.push('wall_clock_s');
+  if (snapshot.steps_remaining !== null && snapshot.steps_remaining <= 0) exhausted.push('steps');
+  if (snapshot.nodes_remaining !== null && snapshot.nodes_remaining <= 0) exhausted.push('nodes');
+  return exhausted;
+}

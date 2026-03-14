@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { sha256Hex } from './sha256-hex.js';
 
 interface SeedNodeOptions {
   campaignId: string;
@@ -28,10 +28,6 @@ function sanitizeTextList(value: unknown, fallback: string[]): string[] {
   return cleaned.length > 0 ? cleaned : fallback;
 }
 
-function sha256Hex(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
-}
-
 export function sanitizeEvidenceUris(value: unknown): string[] {
   const cleaned = sanitizeTextList(value, []);
   return cleaned.length > 0 ? cleaned : ['https://example.org/reference'];
@@ -43,7 +39,7 @@ function rationaleHashForTrace(rationaleDraft: Record<string, unknown>): string 
   return `sha256:${sha256Hex(`${title}|${rationale}`)}`;
 }
 
-function formalizeRationaleToIdeaCard(options: {
+export function buildIdeaCardFromRationaleDraft(options: {
   claimText: unknown;
   computeMethod: string;
   computeStep: string;
@@ -107,17 +103,15 @@ export function buildSeedNode(options: SeedNodeOptions): Record<string, unknown>
     risks: ['unverified hypothesis'],
     kill_criteria: ['fails basic consistency checks'],
   };
-  const { ideaCard, formalizationTrace } = formalizeRationaleToIdeaCard(
-    {
-      rationaleDraft,
-      evidenceUris: options.seed.source_uris,
-      hypothesis: `Hypothesis from seed ${options.index + 1}`,
-      claimText: `Seed-derived claim: ${content}`,
-      supportType: 'literature',
-      computeStep: 'construct toy estimate',
-      computeMethod: 'deterministic scoring stub',
-    },
-  );
+  const { ideaCard, formalizationTrace } = buildIdeaCardFromRationaleDraft({
+    rationaleDraft,
+    evidenceUris: options.seed.source_uris,
+    hypothesis: `Hypothesis from seed ${options.index + 1}`,
+    claimText: `Seed-derived claim: ${content}`,
+    supportType: 'literature',
+    computeStep: 'construct toy estimate',
+    computeMethod: 'deterministic scoring stub',
+  });
   return {
     campaign_id: options.campaignId,
     idea_id: ideaId,
@@ -147,22 +141,4 @@ export function buildSeedNode(options: SeedNodeOptions): Record<string, unknown>
     reduction_audit: null,
     created_at: options.now,
   };
-}
-
-export function refreshIslandPopulationSizes(
-  campaign: Record<string, unknown>,
-  nodes: Record<string, Record<string, unknown>>,
-): void {
-  const counts = new Map<string, number>();
-  for (const node of Object.values(nodes)) {
-    const islandId = typeof node.island_id === 'string' ? node.island_id : null;
-    if (!islandId) {
-      continue;
-    }
-    counts.set(islandId, (counts.get(islandId) ?? 0) + 1);
-  }
-  for (const island of (campaign.island_states as Array<Record<string, unknown>> | undefined) ?? []) {
-    const islandId = typeof island.island_id === 'string' ? island.island_id : '';
-    island.population_size = counts.get(islandId) ?? 0;
-  }
 }

@@ -11,7 +11,8 @@ import {
 } from './domain-pack.js';
 import { RpcError, schemaValidationError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
-import { buildSeedNode, refreshIslandPopulationSizes } from './seed-node.js';
+import { refreshIslandPopulationSizes } from './island-state.js';
+import { buildSeedNode } from './seed-node.js';
 
 function utcNowIso(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
