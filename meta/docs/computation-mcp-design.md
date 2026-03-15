@@ -1,7 +1,7 @@
 # Computation MCP 工具表面安全模型设计
 
 **ID**: NEW-COMP-01  
-**状态**: NEW-COMP-01 设计文档，已按 `NEW-COMP-02` 实现收口对齐（2026-03-12）
+**状态**: NEW-COMP-01 设计文档；2026-03-15 bounded repair 已与 live risk / confirmation authority 对齐
 **依赖**: C-02 (shell 执行隔离), NEW-R15-impl (orchestrator MCP tools)  
 **后续**: NEW-CONN-03 (Computation Evidence Ingestion)
 
@@ -46,7 +46,7 @@
 
 | 工具名 | 风险等级 | 需审批 | 说明 |
 |--------|---------|-------|------|
-| `hep_run_ingest_skill_artifacts` | `destructive` | 否 (路径须通过 C-02 白名单) | 将 provider / skill 产出摄取为计算证据 |
+| `hep_run_ingest_skill_artifacts` | `write` | 否 (路径须通过 C-02 白名单) | 将 provider / skill 产出摄取为计算证据 |
 | `hep_run_execute_manifest` | `destructive` | 是 (A3 gate) | first host adapter；run/path 校验后委托 generic orchestrator core 执行 `computation_manifest_v1` plan |
 
 > host surface 仍位于 `hep-mcp`，但 execution semantics authority 已收敛到 `packages/orchestrator/src/computation/`。
@@ -69,10 +69,17 @@
     ),
     tags: z.array(z.string()).max(20).optional().describe('分类标签，最多 20 个'),
   }),
-  riskLevel: 'destructive',
+  riskLevel: 'write',
   requiresApproval: false,
 }
 ```
+
+**风险判定（2026-03-15 bounded repair）**:
+
+- `hep_run_ingest_skill_artifacts` 属于 `write`，不是 `destructive`；
+- 它只在当前 `run_dir` containment 内追加 `computation_evidence_catalog_v1.jsonl`，并读取同 containment 内的 artifacts / manifest；
+- 它不会触发 execution、不会删除或覆盖 host-global state、也不需要像 `hep_run_execute_manifest` 那样进入 A3 gate；
+- 因此当前 authority 采用 `C-02 containment + write-level dispatcher semantics`，而不是 `_confirm` destructive gate。
 
 **语义约束**:
 
