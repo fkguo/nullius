@@ -12,6 +12,8 @@ import random
 import time
 from typing import Any, Callable, TypeVar
 
+from .mcp_stdio_client import McpTransportError
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -24,7 +26,7 @@ def retry_with_backoff(
     base_delay: float = 1.0,
     max_delay: float = 60.0,
     jitter: float = 0.25,
-    is_retryable: Callable[[Exception], bool] | None = None,
+    retryable_exceptions: tuple[type[Exception], ...] | None = None,
 ) -> T:
     """Call `fn()` with exponential backoff on retryable failures.
 
@@ -34,10 +36,10 @@ def retry_with_backoff(
         base_delay: Base delay in seconds.
         max_delay: Delay cap in seconds.
         jitter: Jitter factor 0–1 (1 = full jitter).
-        is_retryable: Predicate; defaults to checking MCP RATE_LIMIT/UPSTREAM_ERROR.
+        retryable_exceptions: Exception tuple for transport / timeout boundaries.
     """
-    if is_retryable is None:
-        is_retryable = _default_is_retryable
+    if retryable_exceptions is None:
+        retryable_exceptions = (TimeoutError, ConnectionError, OSError, McpTransportError)
 
     attempts: list[dict[str, Any]] = []
     last_exc: Exception | None = None
@@ -45,9 +47,9 @@ def retry_with_backoff(
     for attempt in range(max_retries + 1):
         try:
             return fn()
-        except Exception as exc:
+        except retryable_exceptions as exc:
             last_exc = exc
-            if not is_retryable(exc) or attempt >= max_retries:
+            if attempt >= max_retries:
                 raise RetryExhaustedError(
                     f"Retry exhausted after {attempt + 1} attempt(s): {exc}",
                     last_error=exc,
@@ -64,12 +66,6 @@ def retry_with_backoff(
     # Unreachable — last_exc is always set when loop exhausts
     assert last_exc is not None
     raise last_exc
-
-
-def _default_is_retryable(exc: Exception) -> bool:
-    """Check if an MCP error response is retryable by inspecting error_code."""
-    msg = str(exc).upper()
-    return "RATE_LIMIT" in msg or "UPSTREAM_ERROR" in msg
 
 
 class RetryExhaustedError(Exception):

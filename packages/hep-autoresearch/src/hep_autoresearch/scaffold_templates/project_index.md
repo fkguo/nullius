@@ -3,56 +3,31 @@
 Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
 
-This file is the single navigation “front door”.
-Goal: make the derivation chain, algorithm-design chain, evidence trail, and writing workflow discoverable in minutes.
+This file is the single front door for the project root created by the shared scaffold rule.
+Use it to find the human notebook, the machine contract, and the current plan without assuming any host-specific extras.
 
 ## Read first (in order)
 
-1) [project_charter.md](project_charter.md) — goals, constraints, scope
-2) [research_plan.md](research_plan.md) — Task Board + Progress Log
+1) [project_charter.md](project_charter.md) — goals, constraints, and declared profile
+2) [research_plan.md](research_plan.md) — task board, milestones, and progress log
 3) [research_notebook.md](research_notebook.md) — human-readable derivations, interpretation, and figures
 4) [research_contract.md](research_contract.md) — machine-stable contract for gates, packets, and revision
-5) [research_preflight.md](research_preflight.md) — literature coverage + method selection (when the workflow expands)
+5) [AGENTS.md](AGENTS.md) — workflow anchor for agents and restart discipline
 
-## Latest pointers
+## Core working surfaces
 
-- Latest pointers: [team/LATEST.md](team/LATEST.md)
-- Latest team cycle: [team/LATEST_TEAM.md](team/LATEST_TEAM.md)
-- Latest draft cycle: [team/LATEST_DRAFT.md](team/LATEST_DRAFT.md)
-- Latest artifacts: [artifacts/LATEST.md](artifacts/LATEST.md)
-- Trajectory index: [team/trajectory_index.json](team/trajectory_index.json)
+- Human primary file: [research_notebook.md](research_notebook.md)
+- Machine contract: [research_contract.md](research_contract.md)
+- Artifact root: `artifacts/runs/<TAG>/`
+- Local MCP config example: [.mcp.json.example](.mcp.json.example)
+- Shared docs: [docs/APPROVAL_GATES.md](docs/APPROVAL_GATES.md), [docs/ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md), [docs/EVAL_GATE_CONTRACT.md](docs/EVAL_GATE_CONTRACT.md)
 
-## Ecosystem front door (hep-research-mcp)
+## Optional expansions
 
-- Recommended `HEP_DATA_DIR` for this project (run from project root): `export HEP_DATA_DIR="$PWD/.hep-research-mcp"`
-- Workspace config: [.hep/workspace.json](.hep/workspace.json)
-  - Project-root-relative paths for HEP data/PDG/paper locations (v1: one project root → one MCP entry; local-only)
-- Mapping log: [.hep/mappings.json](.hep/mappings.json)
-  - Append-only with supersede semantics; conflicts should be treated as fail-fast
-- Paper manifest (future): [paper/paper_manifest.json](paper/paper_manifest.json)
-
-## Chains (what to follow)
-
-### Derivation chain
-
-- [research_notebook.md](research_notebook.md) — human-readable derivation + result narrative
-- [research_contract.md](research_contract.md) — machine-stable pointers, capsule, and headline numbers
-
-### Algorithm / numerics design chain
-
-- [research_preflight.md](research_preflight.md) — method selection rationale (incl. Problem Framing Snapshot)
-- [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/) — design decisions + search logs
-
-### Evidence chain
-
-- [team/LATEST.md](team/LATEST.md) — latest member A/B reports + adjudication
-- [team/trajectory_index.json](team/trajectory_index.json) — long-horizon run ledger
-- [knowledge_graph/](knowledge_graph/) — claim DAG + evidence manifest (if enabled)
-
-### Writing chain
-
-- Draft-cycle entry (agent or manual): `bash ~/.codex/skills/research-team/scripts/bin/run_draft_cycle.sh --tag D0-r1 --tex main.tex --bib refs.bib --out-dir team`
-- Export bundle: `bash scripts/export_paper_bundle.sh --tag <TAG> --out export`
+- `research_preflight.md`, `project_brief.md`, and `idea_log.md` are added only when the scaffold expands beyond the minimal root.
+- `knowledge_base/` and `references/` are optional support surfaces, not required at project creation time.
+- `prompts/`, `team/`, and `research_team_config.json` are host-local research-team surfaces, not canonical root files.
+- `.hep/` is provider-local and should only appear when a provider or host layer explicitly needs it.
 
 ---
 

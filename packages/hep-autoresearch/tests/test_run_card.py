@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 def _src_root() -> Path:
@@ -94,3 +95,17 @@ class TestRunCard(unittest.TestCase):
             p.write_text("{}", encoding="utf-8")
             with self.assertRaises(ValueError):
                 ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="ingest")
+
+    def test_ensure_run_card_falls_back_to_absolute_path_when_not_relative_to_repo_root(self) -> None:
+        import sys
+
+        sys.path.insert(0, str(_src_root()))
+        from hep_autoresearch.toolkit.run_card import ensure_run_card
+
+        with tempfile.TemporaryDirectory() as repo_td, tempfile.TemporaryDirectory() as external_td:
+            repo_root = Path(repo_td)
+            external_path = Path(external_td) / "run_card.json"
+            with patch("hep_autoresearch.toolkit.run_card.run_card_path", return_value=external_path):
+                rel, _ = ensure_run_card(repo_root=repo_root, run_id="M1-test", workflow_id="ingest")
+
+            self.assertEqual(rel, str(external_path))

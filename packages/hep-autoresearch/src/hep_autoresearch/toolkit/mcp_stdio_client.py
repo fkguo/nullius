@@ -19,6 +19,30 @@ _PREFERRED_PROTOCOL_VERSION = "2025-03-26"
 _SUPPORTED_PROTOCOL_VERSIONS = (_PREFERRED_PROTOCOL_VERSION, "2024-11-05")
 
 
+class McpTransportError(RuntimeError):
+    def __init__(self, message: str, *, error_code: str = "UPSTREAM_ERROR") -> None:
+        super().__init__(message)
+        self.error_code = error_code
+
+
+class McpRequestTimeout(TimeoutError):
+    def __init__(self, message: str, *, error_code: str = "UPSTREAM_ERROR") -> None:
+        super().__init__(message)
+        self.error_code = error_code
+
+
+class McpProtocolError(RuntimeError):
+    def __init__(self, message: str, *, error_code: str = "UPSTREAM_ERROR") -> None:
+        super().__init__(message)
+        self.error_code = error_code
+
+
+class McpInitializeError(RuntimeError):
+    def __init__(self, message: str, *, error_code: str = "UPSTREAM_ERROR") -> None:
+        super().__init__(message)
+        self.error_code = error_code
+
+
 @dataclass(frozen=True)
 class McpTool:
     name: str
@@ -216,19 +240,25 @@ class McpStdioClient:
         if params is not None:
             payload["params"] = params
         try:
-            with self._write_lock:
-                proc.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
-                proc.stdin.flush()
-        except Exception as e:
+            wire_payload = json.dumps(payload, ensure_ascii=False)
+        except (TypeError, ValueError):
             with self._lock:
                 self._pending.pop(req_id, None)
-            raise RuntimeError(f"failed to write MCP request: {method!r}") from e
+            raise
+        try:
+            with self._write_lock:
+                proc.stdin.write(wire_payload + "\n")
+                proc.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError) as e:
+            with self._lock:
+                self._pending.pop(req_id, None)
+            raise McpTransportError(f"failed to write MCP request: {method!r}") from e
 
         try:
             msg = q.get(timeout=float(timeout_seconds))
         except queue.Empty as e:
             tail = "\n".join(self._stderr[-50:])
-            raise TimeoutError(
+            raise McpRequestTimeout(
                 f"MCP request timeout: method={method!r} timeout={timeout_seconds}s "
                 f"dropped_stdout_lines={self._dropped_stdout_lines}; stderr_tail:\n{tail}"
             ) from e
@@ -237,13 +267,20 @@ class McpStdioClient:
                 self._pending.pop(req_id, None)
 
         if not isinstance(msg, dict):
-            raise RuntimeError(f"bad MCP response type: {type(msg).__name__}")
+            raise McpProtocolError(f"bad MCP response type: {type(msg).__name__}")
         if "error" in msg:
             err = msg.get("error")
-            raise RuntimeError(f"MCP error response for {method!r}: {err!r}")
+            error_code = "UPSTREAM_ERROR"
+            if isinstance(err, dict):
+                raw_code = err.get("code")
+                if isinstance(raw_code, int):
+                    error_code = str(raw_code)
+                elif isinstance(raw_code, str) and raw_code.strip():
+                    error_code = raw_code.strip()
+            raise McpProtocolError(f"MCP error response for {method!r}: {err!r}", error_code=error_code)
         res = msg.get("result")
         if not isinstance(res, dict):
-            raise RuntimeError(f"bad MCP result shape for {method!r}: {type(res).__name__}")
+            raise McpProtocolError(f"bad MCP result shape for {method!r}: {type(res).__name__}")
         return res
 
     def _notify(self, method: str, params: dict[str, Any] | None = None) -> None:
@@ -253,9 +290,13 @@ class McpStdioClient:
         payload: dict[str, Any] = {"jsonrpc": "2.0", "method": str(method)}
         if params is not None:
             payload["params"] = params
-        with self._write_lock:
-            proc.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
-            proc.stdin.flush()
+        wire_payload = json.dumps(payload, ensure_ascii=False)
+        try:
+            with self._write_lock:
+                proc.stdin.write(wire_payload + "\n")
+                proc.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError) as exc:
+            raise McpTransportError(f"failed to write MCP notification: {method!r}") from exc
 
     def initialize(self, *, client_name: str, client_version: str, timeout_seconds: float = 8.0) -> dict[str, Any]:
         params = {
@@ -265,24 +306,39 @@ class McpStdioClient:
         }
         try:
             res = self._request("initialize", params, timeout_seconds=float(timeout_seconds))
-        except Exception as e:
-            raise RuntimeError(
+        except McpRequestTimeout as exc:
+            raise McpInitializeError(
+                f"MCP initialize timed out (requested_protocol={_PREFERRED_PROTOCOL_VERSION!r}, "
+                f"timeout={timeout_seconds}s).",
+                error_code=exc.error_code,
+            ) from exc
+        except McpTransportError as exc:
+            raise McpInitializeError(
+                f"MCP initialize transport failure (requested_protocol={_PREFERRED_PROTOCOL_VERSION!r}).",
+                error_code=exc.error_code,
+            ) from exc
+        except McpProtocolError as exc:
+            raise McpInitializeError(
                 f"MCP initialize failed (requested_protocol={_PREFERRED_PROTOCOL_VERSION!r}). "
-                "Update your MCP server/SDK if needed."
-            ) from e
+                "Update your MCP server/SDK if needed.",
+                error_code=exc.error_code,
+            ) from exc
 
         negotiated = res.get("protocolVersion")
         if not isinstance(negotiated, str) or not negotiated.strip():
-            raise RuntimeError("MCP initialize result missing protocolVersion")
+            raise McpInitializeError("MCP initialize protocol failure: result missing protocolVersion")
         negotiated_s = negotiated.strip()
         if negotiated_s not in set(_SUPPORTED_PROTOCOL_VERSIONS):
-            raise RuntimeError(
+            raise McpInitializeError(
                 f"MCP server negotiated unsupported protocol version: {negotiated_s!r} "
                 f"(client_supported={list(_SUPPORTED_PROTOCOL_VERSIONS)})"
             )
 
         # Follow the protocol: client notifies initialized after receiving the initialize result.
-        self._notify("notifications/initialized")
+        try:
+            self._notify("notifications/initialized")
+        except McpTransportError as exc:
+            raise McpInitializeError("MCP initialize acknowledgement failed", error_code=exc.error_code) from exc
         return res
 
     def list_tools(self, *, timeout_seconds: float = 8.0) -> list[McpTool]:
