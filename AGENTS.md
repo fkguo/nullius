@@ -349,7 +349,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 > **SSOT**: `meta/remediation_tracker_v1.json`（机器可读，agent 执行时更新）
 
 - **Phase 0**: 14/14 完成 ✅
-- **Phase 1**: 22/23 完成，`NEW-R03b` Batch A 目标实现与原 acceptance blocker 已在当前 worktree 清除，但条目暂维持 `in_progress`（2026-03-15：UX-01/UX-05 template-sync 修复后，`PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m pytest packages/hep-autoresearch/tests -q` 已恢复到 203 passed；GitNexus pre-change 与 post-change `analyze --force` 成功，`detect_changes` post-change 返回 LOW，但 `impact` / `context` follow-up 仍报 `Transport closed`，因此 exact verification 继续以 direct source inspection + exact tests 为准；本轮未做专门 NEW-R03b closeout/commit authorization，故未直接标 `done`）
+- **Phase 1**: 22/23 完成，`NEW-R03b` Batch A 目标实现与原 acceptance blocker 已在当前 worktree 清除，但条目暂维持 `in_progress`（2026-03-15：UX-01/UX-05 template-sync 修复后，`PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m pytest packages/hep-autoresearch/tests -q` 已恢复到 203 passed；同日 enhanced rereview minimal follow-up 已补齐 shared scaffold 缺失的 `project_charter.md` / `research_plan.md` 模板并把 `packages/hep-autoresearch/.gitignore` legacy scaffold ignore block 锚定到 package root。当前 worktree 验证面：scaffold exact slice `5 passed`、scaffold smokes 全过、`packages/hep-autoresearch/tests` `203 passed`、`packages/idea-core/tests -q` exit `0`（`116` collected）、NEW-R03b targeted tests `28 passed`、broad-catch gate `PASS`、`git diff --check` 通过。GitNexus pre/post `analyze --force` 成功，`detect_changes` post-change 返回 LOW，`context(ensure_project_scaffold)` 对齐到预期 authority path，但 `impact` follow-up 仍报 `Transport closed`，因此 exact verification 继续以 direct source inspection + exact tests 为准。enhanced rereview `swarm-r2` 现为 0 blocking（Gemini + Kimi = `CONVERGED`，Opus = `CONVERGED_WITH_AMENDMENTS`），self-review 0 blocking；由于本任务未获 commit authorization，故未直接标 `done`）
 - **Standalone closeout**: `UX-01` + `UX-05` ✅（2026-03-14 standalone closeout，2026-03-15 template-sync follow-up；执行模型 `gpt-5-codex`；`hepar init` 与 `research-team scaffold` 已统一到 shared `ensure_project_scaffold` authority，canonical minimal root surface 锁定为 `project_charter.md` / `project_index.md` / `research_plan.md` / `research_notebook.md` / `research_contract.md` / `.mcp.json.example`，bounded naming audit 已收口为 `knowledge_base/` optional、`prompts/`/`team/`/`research_team_config.json` host-local、`references/` optional、`.hep/` provider-local。2026-03-15 follow-up 已补齐缺失 template authority：新增 `project_charter.md` / `research_plan.md` 与 `AGENTS.md` / `docs/*` 模板，移除 `project_scaffold.py` 内联 scaffold 文案 authority，最小 `project_index.md` 不再把 host/provider-local extras 作为默认链接面，并新增双向 anti-drift gate `test_scaffold_template_sync.py`。最终 acceptance 现为 `packages/hep-autoresearch/tests` = 203 passed、`skills/research-team/tests` = 198 passed/1 skipped、prompt-required smokes 全过、`git diff --check` 通过、bounded negative grep 无旧名残留。formal review 最终以 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` 收敛为 0 blocking：首轮 Gemini agentic review 因本地 tool-path 噪声/误用无效，已记录；随后使用同一 Gemini 模型的 packetized rerun 得到有效 `CONVERGED` 结果。2026-03-15 template-sync follow-up formal review R1 收敛为 0 blocking + 1 low-risk amendment，并已吸收为反向 orphan-template anti-drift gate；formal review R2 由同一 trio 收敛为 0 blocking / 0 amendments。GitNexus pre/post `npx gitnexus analyze --force` 均成功；post-change `detect_changes` 可用，但 `impact` / `context` follow-up 仍报 `Transport closed`，因此 post-change evidence 继续退回到 direct source inspection + exact acceptance。self-review 0 blocking）
 - **Standalone closeout**: `NEW-05a-shared-boundary` ✅（`packages/shared/` 不再持有具体 `HEP_*` tool-name authority / HEP risk map / `hep://runs` helper；`packages/hep-mcp/` 本地 authority + wrappers 已落地；formal review 经 `Opus` + 用户确认 fallback `GLM-5` + `K2.5` 收敛为 0 blocking；GitNexus 仍会漏报新文件/新 helper callsites，因此 post-change exact verification 继续以源码 grep 为准）
 - **Standalone closeout**: `NEW-05a-formalism-contract-boundary` ✅（`formalism_registry_v1` / `formalism_check` 已从 source schemas、vendored snapshot、OpenRPC 与 idea-core runtime 主线移除；`candidate_formalisms[]` 降级为可选 run-local metadata；built-in HEP packs 不再 shipped concrete `hep/toy` / `hep/eft` / `hep/lattice` authority；graph-viz 不再提升 formalism 节点/边；formal review 经 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` R1 收敛为 0 blocking，self-review 0 blocking）
@@ -538,7 +538,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-new-r03b-boundaries-impl** (8407 symbols, 22587 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-new-r03b-rereview** (8399 symbols, 22590 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -554,7 +554,7 @@ This project is indexed by GitNexus as **autoresearch-lab-new-r03b-boundaries-im
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-new-r03b-boundaries-impl/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-new-r03b-rereview/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -593,10 +593,10 @@ This project is indexed by GitNexus as **autoresearch-lab-new-r03b-boundaries-im
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-new-r03b-boundaries-impl/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-new-r03b-boundaries-impl/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-new-r03b-boundaries-impl/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-new-r03b-boundaries-impl/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-new-r03b-rereview/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-new-r03b-rereview/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-new-r03b-rereview/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-new-r03b-rereview/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 
