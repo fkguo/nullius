@@ -51,10 +51,10 @@ Inline: $\\Delta = 1$.
 EOF
 
 echo "[test0] baseline passes"
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
-echo "[test1] inject hazards into Draft_Derivation.md (intentional)"
-cat >>"${tmp_root}/Draft_Derivation.md" <<'EOF'
+echo "[test1] inject hazards into research_contract.md (intentional)"
+cat >>"${tmp_root}/research_contract.md" <<'EOF'
 
 <!-- SMOKE_DOUBLE_BACKSLASH_GATE_START -->
 Inline math: $\\Delta = 1$, $k^\\* = 0$.
@@ -65,7 +65,7 @@ $$
 EOF
 
 set +e
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/gate_fail.log" 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/gate_fail.log" 2>&1
 code1=$?
 set -e
 if [[ ${code1} -eq 0 ]]; then
@@ -81,9 +81,9 @@ fi
 echo "[ok] fail case"
 
 echo "[test2] deterministic fix via --notes then pass"
-python3 "${FIX}" --notes "${tmp_root}/Draft_Derivation.md" --in-place >/dev/null 2>&1
+python3 "${FIX}" --notes "${tmp_root}/research_contract.md" --in-place >/dev/null 2>&1
 
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
 # Ensure we did NOT rewrite prior team outputs.
 if ! grep -nF "\\\\Delta = 1" "${tmp_root}/team/runs/old/report.md" >/dev/null 2>&1; then

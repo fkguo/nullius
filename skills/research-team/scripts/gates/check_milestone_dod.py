@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Milestone Definition-of-Done (DoD) gate for RESEARCH_PLAN.md.
+Milestone Definition-of-Done (DoD) gate for research_plan.md.
 
 Purpose: prevent "acceptance criteria" from being purely ceremonial.
 This is a lightweight structural check that ensures the current milestone
@@ -62,7 +62,7 @@ def _strip_fenced_code(text: str) -> str:
             out.append(ln)
     if in_fence:
         # Malformed Markdown (unclosed fence). Be conservative: do not strip, to avoid hiding content.
-        print("[warn] unclosed code fence detected in RESEARCH_PLAN.md; skipping fence stripping", file=sys.stderr)
+        print("[warn] unclosed code fence detected in research_plan.md; skipping fence stripping", file=sys.stderr)
         return text
     return "\n".join(out)
 
@@ -70,7 +70,7 @@ def _strip_fenced_code(text: str) -> str:
 def _find_plan(notes_path: Path) -> Path | None:
     cur = (notes_path.parent if notes_path.is_file() else notes_path).resolve()
     for _ in range(50):
-        cand = cur / "RESEARCH_PLAN.md"
+        cand = cur / "research_plan.md"
         if cand.is_file():
             return cand
         if cur.parent == cur:
@@ -303,7 +303,7 @@ def _iter_md_link_targets(s: str) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (used to locate plan/config).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (used to locate plan/config).")
     ap.add_argument("--tag", type=str, required=True, help="Round tag (e.g. M2-r1).")
     ap.add_argument("--max-issues", type=int, default=30, help="Max issues to print.")
     args = ap.parse_args()
@@ -333,7 +333,7 @@ def main() -> int:
     plan = _find_plan(args.notes)
     if plan is None:
         print("[fail] milestone DoD gate failed")
-        print("[error] RESEARCH_PLAN.md not found (cannot validate milestone deliverables/acceptance)")
+        print("[error] research_plan.md not found (cannot validate milestone deliverables/acceptance)")
         return 1
     text = plan.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     text = _strip_fenced_code(text)
@@ -468,7 +468,7 @@ def main() -> int:
         for it in issues[: args.max_issues]:
             print(f"ERROR: {it.message}")
         print("")
-        print("Fix: update the milestone section in RESEARCH_PLAN.md to include concrete deliverables and acceptance tests.")
+        print("Fix: update the milestone section in research_plan.md to include concrete deliverables and acceptance tests.")
         return 1
     return 0
 

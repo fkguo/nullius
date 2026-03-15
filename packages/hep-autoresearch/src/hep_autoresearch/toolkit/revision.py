@@ -15,6 +15,7 @@ from ._json import write_json
 from ._paths import manifest_cwd
 from ._time import utc_now_iso
 from .artifact_report import write_artifact_report
+from .project_surface import RESEARCH_CONTRACT
 from .run_card import ensure_run_card
 
 
@@ -237,9 +238,9 @@ def revise_one(inps: RevisionInputs, repo_root: Path, *, i_approve_paper_edits: 
         if compile_exit_code_before != 0:
             errors.append(f"latexmk before failed (exit_code={compile_exit_code_before})")
 
-    notebook_path = repo_root / "Draft_Derivation.md"
-    notebook_text = notebook_path.read_text(encoding="utf-8", errors="replace") if notebook_path.is_file() else ""
-    prov_rows = _extract_headline_provenance(notebook_text)
+    contract_path = repo_root / RESEARCH_CONTRACT
+    contract_text = contract_path.read_text(encoding="utf-8", errors="replace") if contract_path.is_file() else ""
+    prov_rows = _extract_headline_provenance(contract_text)
     prov_rows_tex = _render_provenance_table_rows(prov_rows)
 
     diff_path = diff_dir / "main.tex.diff"

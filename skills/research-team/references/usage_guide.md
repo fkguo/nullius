@@ -55,7 +55,7 @@ cd /path/to/project
 
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0-r1 \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
@@ -69,7 +69,7 @@ To run all deterministic gates without calling any external LLMs (this mode also
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0-r1 \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \

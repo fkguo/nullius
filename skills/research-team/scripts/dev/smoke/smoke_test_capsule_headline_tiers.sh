@@ -34,7 +34,7 @@ echo "# demo" > "${tmp_root}/scripts/demo.py"
 
 fill_capsule() {
   local headline_block="$1"
-  python3 - "${tmp_root}/Draft_Derivation.md" "${headline_block}" <<'PY'
+  python3 - "${tmp_root}/research_contract.md" "${headline_block}" <<'PY'
 from __future__ import annotations
 
 import sys
@@ -118,7 +118,7 @@ run_gate_expect_fail() {
   local label="$1"
   local expect_pat="$2"
   set +e
-  python3 "${GATES_DIR}/check_reproducibility_capsule.py" --notes "${tmp_root}/Draft_Derivation.md" --root "${tmp_root}" >/tmp/smoke_capsule_tiers.txt 2>&1
+  python3 "${GATES_DIR}/check_reproducibility_capsule.py" --notes "${tmp_root}/research_contract.md" --root "${tmp_root}" >/tmp/smoke_capsule_tiers.txt 2>&1
   local code=$?
   set -e
   if [ "${code}" -eq 0 ]; then
@@ -136,7 +136,7 @@ run_gate_expect_fail() {
 
 run_gate_expect_pass() {
   set +e
-  python3 "${GATES_DIR}/check_reproducibility_capsule.py" --notes "${tmp_root}/Draft_Derivation.md" --root "${tmp_root}" >/tmp/smoke_capsule_tiers.txt 2>&1
+  python3 "${GATES_DIR}/check_reproducibility_capsule.py" --notes "${tmp_root}/research_contract.md" --root "${tmp_root}" >/tmp/smoke_capsule_tiers.txt 2>&1
   local code=$?
   set -e
   if [ "${code}" -ne 0 ]; then

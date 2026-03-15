@@ -16,7 +16,7 @@ cat >"${debt_file}" <<'EOF'
 # Exploration Gate Debt
 
 - Tag: T0
-- Notes: Draft_Derivation.md
+- Notes: research_contract.md
 
 Items:
 

@@ -31,7 +31,7 @@ print("[ok] set mode=theory_numerics")
 PY
 
 set +e
-python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/Draft_Derivation.md" >/tmp/kb_gate_out1.txt 2>&1
+python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >/tmp/kb_gate_out1.txt 2>&1
 code1=$?
 set -e
 if [[ $code1 -eq 0 ]]; then
@@ -59,7 +59,7 @@ python3 - <<PY
 from pathlib import Path
 import re
 
-p=Path("${tmp_root}")/"Draft_Derivation.md"
+p=Path("${tmp_root}")/"research_contract.md"
 text=p.read_text(encoding="utf-8", errors="replace")
 start="<!-- REPRO_CAPSULE_START -->"
 end="<!-- REPRO_CAPSULE_END -->"
@@ -100,7 +100,7 @@ text = text[:a] + capsule + text[b:]
 p.write_text(text, encoding="utf-8")
 PY
 
-python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/Draft_Derivation.md" >/tmp/kb_gate_out2.txt 2>&1
+python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >/tmp/kb_gate_out2.txt 2>&1
 echo "[smoke][ok] gate passes after adding KB + capsule I"
 
 # Regression: referenced KB notes must follow Markdown math hygiene rules.
@@ -120,7 +120,7 @@ $$
 EOF
 
 set +e
-python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/kb_gate_out3.txt" 2>&1
+python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/kb_gate_out3.txt" 2>&1
 code3=$?
 set -e
 if [[ $code3 -eq 0 ]]; then
@@ -147,7 +147,7 @@ assert "\\quad -2 b\n\n\\qquad c" in t, "expected blank line between merged spli
 print("[smoke][ok] blank line preserved inside merged $$ block")
 PY
 
-python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/kb_gate_out4.txt" 2>&1
+python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/kb_gate_out4.txt" 2>&1
 echo "[smoke][ok] math hygiene passes after fix"
 
 echo "[test3] reject inline '\\$\\$ ... \\$\\$' (prevents parser desync)"
@@ -159,7 +159,7 @@ $$ x = 1 $$
 EOF
 
 set +e
-python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/kb_gate_out5.txt" 2>&1
+python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/kb_gate_out5.txt" 2>&1
 code5=$?
 set -e
 if [[ $code5 -eq 0 ]]; then
@@ -177,7 +177,7 @@ echo "[smoke][ok] inline \\$\\$ rejected"
 # Fix the inline $$ and confirm the gate passes again.
 python3 "${BIN_DIR}/fix_markdown_math_hygiene.py" --root "${tmp_root}/knowledge_base/literature/one.md" --in-place >/dev/null 2>&1
 
-python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/kb_gate_out6.txt" 2>&1
+python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/kb_gate_out6.txt" 2>&1
 echo "[smoke][ok] gate passes after fixing inline \\$\\$"
 
 echo "[test4] autofix must not rewrite inline code examples with \\$\\$"
@@ -191,7 +191,7 @@ if ! grep -nF 'Literal inline-code example (must remain verbatim): `$$ x = 1 $$`
   sed -n '1,220p' "${tmp_root}/knowledge_base/literature/one.md" >&2
   exit 1
 fi
-python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null 2>&1
+python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 echo '[smoke][ok] inline-code $$ example preserved'
 
 echo "[test5] autofix must not rewrite multiple inline \\$\\$ blocks on one line"

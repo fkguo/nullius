@@ -89,7 +89,7 @@ def main() -> int:
             "  auto-enable the numerics sidecar even if config.enabled=false.\n"
         )
     )
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     args = ap.parse_args()
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))

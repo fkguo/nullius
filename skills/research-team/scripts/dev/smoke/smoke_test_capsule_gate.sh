@@ -18,8 +18,8 @@ echo "[smoke] tmp_root=${tmp_root}"
 
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeTest"
 
-# 1) Build packet from the scaffolded Draft_Derivation.md (capsule is present but unfilled) and verify run_team_cycle fails fast.
-python3 "${BIN_DIR}/build_team_packet.py" --tag M0 --notes "${tmp_root}/Draft_Derivation.md" --out "${tmp_root}/prompts/team_packet_M0.txt"
+# 1) Build packet from the scaffolded research_contract.md (capsule is present but unfilled) and verify run_team_cycle fails fast.
+python3 "${BIN_DIR}/build_team_packet.py" --tag M0 --notes "${tmp_root}/research_contract.md" --out "${tmp_root}/prompts/team_packet_M0.txt"
 
 set +e
 bash "${BIN_DIR}/run_team_cycle.sh" \
@@ -51,7 +51,7 @@ echo "[smoke][ok] capsule gate fails fast as expected"
 
 # 2) Fill the capsule minimally so the capsule gate passes, then verify failure happens later (system/tools),
 # without the capsule-incomplete message. We only edit the capsule block.
-python3 - "${tmp_root}/Draft_Derivation.md" <<'PY'
+python3 - "${tmp_root}/research_contract.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -170,9 +170,9 @@ mkdir -p "${tmp_root}/figures/demo"
 printf '\x89PNG\r\n\x1a\n' > "${tmp_root}/figures/demo/main.png"
 
 # Embed the main figure in the notebook (required by capsule gate).
-printf '\n\n## 7. Results\n\n![](figures/demo/main.png)\n' >> "${tmp_root}/Draft_Derivation.md"
+printf '\n\n## 7. Results\n\n![](figures/demo/main.png)\n' >> "${tmp_root}/research_contract.md"
 
-python3 "${BIN_DIR}/build_team_packet.py" --tag M0 --notes "${tmp_root}/Draft_Derivation.md" --out "${tmp_root}/prompts/team_packet_M0b.txt"
+python3 "${BIN_DIR}/build_team_packet.py" --tag M0 --notes "${tmp_root}/research_contract.md" --out "${tmp_root}/prompts/team_packet_M0b.txt"
 
 set +e
 bash "${BIN_DIR}/run_team_cycle.sh" \

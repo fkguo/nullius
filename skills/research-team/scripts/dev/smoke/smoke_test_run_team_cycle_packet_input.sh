@@ -17,8 +17,8 @@ echo "[setup] scaffold + demo milestone"
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokePacketInput" --profile "mixed" >/dev/null 2>&1
 bash "${BIN_DIR}/generate_demo_milestone.sh" --root "${tmp_root}" --tag "${tag}" >/dev/null 2>&1
 
-echo "[setup] approve PROJECT_CHARTER.md (required by project_charter_gate)"
-python3 - "${tmp_root}/PROJECT_CHARTER.md" <<'PY'
+echo "[setup] approve project_charter.md (required by project_charter_gate)"
+python3 - "${tmp_root}/project_charter.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -82,7 +82,7 @@ PY
 
 echo "[setup] build a packet (intentionally with wrong Tag line to exercise patcher)"
 src_packet="${tmp_root}/team_packet_src.txt"
-python3 "${BIN_DIR}/build_team_packet.py" --tag "${tag}" --notes "${tmp_root}/Draft_Derivation.md" --out "${src_packet}" >/dev/null 2>&1
+python3 "${BIN_DIR}/build_team_packet.py" --tag "${tag}" --notes "${tmp_root}/research_contract.md" --out "${src_packet}" >/dev/null 2>&1
 
 python3 - "${src_packet}" <<'PY'
 from __future__ import annotations

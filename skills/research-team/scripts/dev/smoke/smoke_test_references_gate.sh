@@ -35,7 +35,7 @@ d["features"]["references_gate"] = True
 p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
-notes="${tmp_root}/Draft_Derivation.md"
+notes="${tmp_root}/research_contract.md"
 
 mkdir -p "${tmp_root}/knowledge_base/literature"
 cat > "${tmp_root}/knowledge_base/literature/recid-123.md" <<'EOF'

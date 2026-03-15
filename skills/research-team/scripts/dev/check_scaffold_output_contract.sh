@@ -44,10 +44,10 @@ fi
 infer_variant() {
   local cfg="${ROOT}/research_team_config.json"
   if [[ ! -f "${cfg}" ]]; then
-    echo "full"
+    echo "minimal"
     return 0
   fi
-  python3 - "${cfg}" <<'PY' || echo "full"
+  python3 - "${cfg}" <<'PY' || echo "minimal"
 from __future__ import annotations
 import json
 import sys
@@ -56,13 +56,13 @@ path = Path(sys.argv[1])
 try:
     data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
 except Exception:
-    print("full")
+    print("minimal")
     raise SystemExit(0)
 v = str((data or {}).get("scaffold_variant", "")).strip().lower()
 if v in ("minimal", "full"):
     print(v)
 else:
-    print("full")
+    print("minimal")
 PY
 }
 
@@ -78,20 +78,12 @@ case "${VARIANT}" in
 esac
 
 require_paths=(
-  ".hep/workspace.json"
-  ".hep/mappings.json"
-  "Draft_Derivation.md"
-  "PROJECT_CHARTER.md"
-  "RESEARCH_PLAN.md"
-  "PROJECT_MAP.md"
-  "INITIAL_INSTRUCTION.md"
-  "research_team_config.json"
-  "prompts/_team_packet.txt"
-  "prompts/_system_member_a.txt"
-  "prompts/_system_member_b.txt"
-  "knowledge_base/README.md"
-  "knowledge_base/methodology_traces/_template.md"
-  "knowledge_base/methodology_traces/literature_queries.md"
+  "research_notebook.md"
+  "research_contract.md"
+  "project_charter.md"
+  "research_plan.md"
+  "project_index.md"
+  ".mcp.json.example"
 )
 
 for rel in "${require_paths[@]}"; do
@@ -102,14 +94,10 @@ for rel in "${require_paths[@]}"; do
 done
 
 require_dirs=(
-  ".hep"
-  "team"
-  "team/runs"
   "artifacts"
   "artifacts/runs"
-  "references"
-  "knowledge_base/literature"
-  "knowledge_base/priors"
+  "docs"
+  "specs"
 )
 for rel in "${require_dirs[@]}"; do
   if [[ ! -d "${ROOT}/${rel}" ]]; then
@@ -147,6 +135,54 @@ else
 fi
 
 if [[ "${VARIANT}" == "full" ]]; then
+  full_paths=(
+    ".hep/workspace.json"
+    ".hep/mappings.json"
+    "research_preflight.md"
+    "project_brief.md"
+    "idea_log.md"
+    "research_team_config.json"
+    "prompts/_team_packet.txt"
+    "prompts/_system_member_a.txt"
+    "prompts/_system_member_b.txt"
+    "knowledge_base/README.md"
+    "knowledge_base/methodology_traces/_template.md"
+    "knowledge_base/methodology_traces/literature_queries.md"
+    "knowledge_graph/README.md"
+    "knowledge_graph/claims.jsonl"
+    "knowledge_graph/edges.jsonl"
+    "knowledge_graph/evidence_manifest.jsonl"
+    "mechanisms/00_pre_task_clarifier.md"
+    "mechanisms/01_analogy_mining.md"
+    "mechanisms/02_problem_framing_protocol.md"
+    "mechanisms/examples/clarifier_example.md"
+    "mechanisms/examples/analogy_mining_example.md"
+    "mechanisms/examples/problem_framing_protocol_example.md"
+  )
+  full_dirs=(
+    ".hep"
+    "team"
+    "team/runs"
+    "references"
+    "knowledge_base/literature"
+    "knowledge_base/priors"
+    "knowledge_graph"
+    "mechanisms"
+    "mechanisms/examples"
+  )
+  for rel in "${full_paths[@]}"; do
+    if [[ ! -f "${ROOT}/${rel}" ]]; then
+      echo "ERROR: missing full-scaffold file: ${ROOT}/${rel}" >&2
+      exit 1
+    fi
+  done
+  for rel in "${full_dirs[@]}"; do
+    if [[ ! -d "${ROOT}/${rel}" ]]; then
+      echo "ERROR: missing full-scaffold dir: ${ROOT}/${rel}" >&2
+      exit 1
+    fi
+  done
+
   wrappers=(
     "scripts/run_full_cycle.sh"
     "scripts/run_autopilot.sh"
@@ -196,6 +232,21 @@ if [[ "${VARIANT}" == "full" ]]; then
         echo "ERROR: wrapper hard-codes ~/.codex/skills/research-team (expected SKILL_DIR): ${path}" >&2
         exit 1
       fi
+    fi
+  done
+else
+  forbidden_paths=(
+    "prompts"
+    "research_team_config.json"
+    "knowledge_base"
+    "references"
+    "team"
+    ".hep"
+  )
+  for rel in "${forbidden_paths[@]}"; do
+    if [[ -e "${ROOT}/${rel}" ]]; then
+      echo "ERROR: minimal scaffold should not precreate optional path: ${ROOT}/${rel}" >&2
+      exit 1
     fi
   done
 fi

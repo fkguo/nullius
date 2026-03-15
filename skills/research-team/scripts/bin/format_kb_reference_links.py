@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Format/upgrade the "I) Knowledge base references" lists in Draft_Derivation.md.
+Format/upgrade the "I) Knowledge base references" lists in research_contract.md.
 
 Goal (human factors):
 - Keep the knowledge-layers gate deterministic (it only needs paths to exist),
@@ -15,7 +15,7 @@ Safety:
 - Leaves already-descriptive link texts untouched.
 
 Usage:
-  python3 scripts/bin/format_kb_reference_links.py --notes Draft_Derivation.md --in-place
+  python3 scripts/bin/format_kb_reference_links.py --notes research_contract.md --in-place
 """
 
 from __future__ import annotations
@@ -194,7 +194,7 @@ def _rewrite_block(block_lines: list[str], *, notes_dir: Path) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     ap.add_argument("--in-place", action="store_true", help="Rewrite the file in place (default: print to stdout).")
     args = ap.parse_args()
 

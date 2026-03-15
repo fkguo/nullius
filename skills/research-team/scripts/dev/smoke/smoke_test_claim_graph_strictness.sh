@@ -16,7 +16,7 @@ trap cleanup EXIT
 echo "[smoke] tmp_root=${tmp_root}"
 cd "${tmp_root}"
 
-cat > Draft_Derivation.md <<'EOF'
+cat > research_contract.md <<'EOF'
 <!-- REPRO_CAPSULE_START -->
 - Milestone kind: computational
 <!-- REPRO_CAPSULE_END -->
@@ -45,7 +45,7 @@ EOF
 
 echo "[test1] default profile (mixed): mismatch is WARN-only (PASS)"
 set +e
-python3 "${GATES_DIR}/check_claim_graph.py" --notes Draft_Derivation.md > smoke_claim_strict_out1.txt 2>&1
+python3 "${GATES_DIR}/check_claim_graph.py" --notes research_contract.md > smoke_claim_strict_out1.txt 2>&1
 code=$?
 set -e
 if [[ $code -ne 0 ]]; then
@@ -73,7 +73,7 @@ EOF
 
 echo "[test2] profile=toolkit_extraction: mismatch is ERROR (FAIL)"
 set +e
-python3 "${GATES_DIR}/check_claim_graph.py" --notes Draft_Derivation.md > smoke_claim_strict_out2.txt 2>&1
+python3 "${GATES_DIR}/check_claim_graph.py" --notes research_contract.md > smoke_claim_strict_out2.txt 2>&1
 code=$?
 set -e
 if [[ $code -eq 0 ]]; then
@@ -98,7 +98,7 @@ cat > knowledge_graph/edges.jsonl <<'JSONL'
 JSONL
 
 set +e
-python3 "${GATES_DIR}/check_claim_graph.py" --notes Draft_Derivation.md > smoke_claim_strict_out3.txt 2>&1
+python3 "${GATES_DIR}/check_claim_graph.py" --notes research_contract.md > smoke_claim_strict_out3.txt 2>&1
 code=$?
 set -e
 if [[ $code -ne 0 ]]; then

@@ -8,8 +8,8 @@ import os
 from pathlib import Path
 
 
-AUTO_START = "<!-- PROJECT_MAP_AUTO_START -->"
-AUTO_END = "<!-- PROJECT_MAP_AUTO_END -->"
+AUTO_START = "<!-- PROJECT_INDEX_AUTO_START -->"
+AUTO_END = "<!-- PROJECT_INDEX_AUTO_END -->"
 
 
 def _utc_now() -> str:
@@ -31,7 +31,7 @@ def _find_project_root(seed: Path) -> Path:
         cur = cur.parent
     for _ in range(8):
         # Prefer the canonical scaffold markers.
-        if (cur / "PROJECT_CHARTER.md").is_file() and (cur / "Draft_Derivation.md").is_file():
+        if (cur / "project_charter.md").is_file() and (cur / "research_contract.md").is_file():
             return cur
         if cur.parent == cur:
             break
@@ -109,22 +109,22 @@ def _detect_latest_artifacts_dir(project_root: Path, tag: str) -> Path | None:
 
 
 def _ensure_project_map_exists(project_root: Path) -> Path:
-    path = project_root / "PROJECT_MAP.md"
+    path = project_root / "project_index.md"
     if path.is_file():
         return path
 
     title = project_root.name
     lines: list[str] = []
-    lines.append(f"# {title} — PROJECT_MAP")
+    lines.append(f"# {title} — project_index")
     lines.append("")
     lines.append(f"Last updated: {_utc_now()}")
     lines.append("")
     lines.append("## Read first (in order)")
     lines.append("")
-    lines.append("1) [PROJECT_CHARTER.md](PROJECT_CHARTER.md)")
-    lines.append("2) [RESEARCH_PLAN.md](RESEARCH_PLAN.md)")
-    lines.append("3) [PREWORK.md](PREWORK.md)")
-    lines.append("4) [Draft_Derivation.md](Draft_Derivation.md)")
+    lines.append("1) [project_charter.md](project_charter.md)")
+    lines.append("2) [research_plan.md](research_plan.md)")
+    lines.append("3) [research_preflight.md](research_preflight.md)")
+    lines.append("4) [research_contract.md](research_contract.md)")
     lines.append("")
     lines.append("## Latest pointers")
     lines.append("")
@@ -282,8 +282,8 @@ def _parse_project_map_auto_state(text: str) -> dict[str, str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Update PROJECT_MAP.md + latest pointers deterministically.")
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (used to locate project root).")
+    ap = argparse.ArgumentParser(description="Update project_index.md + latest pointers deterministically.")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (used to locate project root).")
     ap.add_argument("--team-dir", type=Path, default=Path("team"), help="Team output directory (default: team).")
     ap.add_argument("--latest-kind", choices=("team", "draft"), default="team", help="Which pointer to update (team or draft).")
     ap.add_argument("--tag", default="", help="Latest tag to record (optional).")
@@ -304,7 +304,7 @@ def main() -> int:
     _write_team_latest_index(team_dir)
     _ensure_project_map_exists(project_root)
 
-    map_path = project_root / "PROJECT_MAP.md"
+    map_path = project_root / "project_index.md"
     text = _read_text(map_path) if map_path.is_file() else ""
     state = _parse_project_map_auto_state(text)
 

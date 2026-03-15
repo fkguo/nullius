@@ -1,4 +1,4 @@
-# RESEARCH_PLAN.md (Template)
+# research_plan.md (Template)
 
 Project: <PROJECT_NAME>
 Owner: <YOUR_NAME>
@@ -13,14 +13,14 @@ Prework checklist (must complete before any team cycle):
 - Populate [knowledge_base/literature/](knowledge_base/literature/) with at least 1 note
 - Populate [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/) with at least 1 trace
 - Update [knowledge_base/priors/](knowledge_base/priors/)
-- Update Capsule I) in [Draft_Derivation.md](Draft_Derivation.md) with all paths
+- Update Capsule I) in [research_contract.md](research_contract.md) with all paths
 
 Run preflight (what the agent runs; no external LLM calls):
 
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0-r1 \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
@@ -33,7 +33,7 @@ Run full team cycle (what the agent runs; Claude + Gemini):
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0-r1 \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
@@ -66,7 +66,7 @@ List the claims you want to be able to defend, and what would falsify them.
 ## 2.5 Innovation Maximization (Idea Portfolio)
 
 To avoid “only minimum deliverables”, maintain an explicit idea portfolio:
-- Create/maintain [INNOVATION_LOG.md](INNOVATION_LOG.md) (template provided by this skill).
+- Create/maintain [idea_log.md](idea_log.md) (template provided by this skill).
 - Each idea must be falsifiable and include a discriminant diagnostic, a minimal test, and a kill criterion.
 - At each milestone, run 1–2 quick “innovation sprints” (low-res is fine) to advance/kill ideas fast.
 
@@ -88,14 +88,14 @@ Best practice (recommended) artifact contract (especially for computational/data
 - Run manifest JSON: command + params + versions + outputs
 - Summary JSON/CSV: computed statistics used for plots/tables
 - Analysis JSON/CSV: headline quantities recomputed from raw artifacts
-- Main figures: generated and embedded in [Draft_Derivation.md](Draft_Derivation.md) (not just saved to disk)
+- Main figures: generated and embedded in [research_contract.md](research_contract.md) (not just saved to disk)
 
 Preferred numerics language:
 - Default: Julia (aim for type-stable, preallocated hot loops; use mature packages first)
 - Optional: Python (when ecosystem/tools make it clearly simpler); consider PyCall only when it improves workflow
 
 Minimum gate enforced by this skill (hard fail-fast):
-- [Draft_Derivation.md](Draft_Derivation.md) Capsule is complete, outputs exist on disk, headline pointers are machine-extractable,
+- [research_contract.md](research_contract.md) Capsule is complete, outputs exist on disk, headline pointers are machine-extractable,
 - and (by default) at least one data artifact + at least one main figure embedded in the notebook (unless `Milestone kind: theory` or `dataset` rules apply).
 
 Minimum fields (edit per project):
@@ -120,7 +120,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
 - Prefer **thresholds** (e.g. `<= 1e-6`) over “reasonable”.
 - Prefer **explicit gate names/commands** (e.g. `run_team_cycle.sh --preflight-only`) over “passed checks”.
 - If full recomputation is impractical, define **audit proxy headlines** (fast-to-check quantities) and record them in:
-  - [Draft_Derivation.md](Draft_Derivation.md) → Audit slices block
+  - [research_contract.md](research_contract.md) → Audit slices block
   - Team packet → “Audit slices / quick checks”
 
 ## Task Board (autopilot uses this)
@@ -136,7 +136,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
 ### M0 — Baseline Reproduction
 
 - Deliverables:
-  - [Draft_Derivation.md](Draft_Derivation.md) skeleton
+  - [research_contract.md](research_contract.md) skeleton
   - minimal reproducible run + plots + manifest/summary
 - Acceptance:
   - `run_team_cycle.sh --preflight-only` passes (capsule + pointers + refs + KB layers)
@@ -148,7 +148,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
 - Review gate:
   - team member reports saved in `team/`
 - Innovation delta:
-  - seed [INNOVATION_LOG.md](INNOVATION_LOG.md) with 3–5 candidate ideas + kill criteria
+  - seed [idea_log.md](idea_log.md) with 3–5 candidate ideas + kill criteria
 - Methodology traces:
   - create at least 1 item under [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/) and cite it in the notebook (capsule section I)
 
@@ -183,7 +183,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
   - Code snippet index: (fill; list any reusable numerics modules you extracted)
   - KB evidence links: (fill; include at least 1 link like [trace](knowledge_base/methodology_traces/recid-XXXX.md); do not put the link in backticks)
 - Innovation delta:
-  - at least 1 idea prototype result (advance/revise/kill) recorded in [INNOVATION_LOG.md](INNOVATION_LOG.md)
+  - at least 1 idea prototype result (advance/revise/kill) recorded in [idea_log.md](idea_log.md)
 - Methodology traces:
   - preserve at least 1 validated computation trace (command + outputs + sanity checks) under [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/)
 
@@ -192,7 +192,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
 - Deliverables:
   - final plots/tables, minimal SI checks, and a consolidated conclusion section
 - Acceptance:
-  - All primary figures are embedded in [Draft_Derivation.md](Draft_Derivation.md) and listed in Capsule D) outputs
+  - All primary figures are embedded in [research_contract.md](research_contract.md) and listed in Capsule D) outputs
   - References are complete and linked (external link if exists + local KB note link)
 - Toolkit delta:
   - API spec: (fill; link to final API spec + versioning notes)
@@ -204,7 +204,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
 ## 6. Team Loop (How we work like a team)
 
 At the end of each milestone:
-1) Update [INNOVATION_LOG.md](INNOVATION_LOG.md) (advance/revise/kill ideas; write the milestone’s innovation delta)
+1) Update [idea_log.md](idea_log.md) (advance/revise/kill ideas; write the milestone’s innovation delta)
 2) Build a team packet (`prompts/team_packet_<TAG>.txt`)
 3) Run a team cycle (Claude + Gemini; both do both)
 4) Convert findings into a fix list

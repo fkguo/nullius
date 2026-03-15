@@ -16,15 +16,15 @@ For the KB index exporter docs (English), see `references/kb_index.md`.
 
 Use `research-team` when you want a project workflow with:
 - deterministic preflight gates (fail-fast),
-- a single source-of-truth notebook (`Draft_Derivation.md`),
+- a human notebook (`research_notebook.md`) plus a machine contract (`research_contract.md`),
 - reproducible artifacts (manifests/summaries/figures),
 - and a strict 2-member convergence loop (Member A + Member B).
 
 ## Non-negotiable contracts (fail-fast)
 
 - **Strict convergence**: if either member reports mismatch/fail/needs revision, you must fix and rerun until converged (or explicitly narrow/kill as `SCOPE`/`MATCHING`).
-- **Notebook SSOT**: `Draft_Derivation.md` is the primary notebook.
-- **Reproducibility Capsule (mandatory)**: `Draft_Derivation.md` must include a filled capsule block (between `<!-- REPRO_CAPSULE_START -->` and `<!-- REPRO_CAPSULE_END -->`).
+- **Notebook split**: `research_notebook.md` is the human entry; `research_contract.md` is the machine-stable gate surface.
+- **Reproducibility Capsule (mandatory)**: `research_contract.md` must include a filled capsule block (between `<!-- REPRO_CAPSULE_START -->` and `<!-- REPRO_CAPSULE_END -->`).
 - **Sweep semantics (mandatory)**: capsule must include `### G) Sweep semantics / parameter dependence (MANDATORY)` (even if “no sweep”: declare baseline + held-fixed constants).
 - **Branch semantics (mandatory when applicable)**: capsule must include `### H) Branch Semantics / Multi-root Contract (MANDATORY)`; if multi-root quantities exist (multiple solutions/branches), you must declare branches/assignment/outputs/invariants/diagnostics.
 - **Pointer lint (mandatory)**: code pointers in the notebook must be resolvable under the configured `pointer_lint.strategy`.
@@ -48,10 +48,12 @@ bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-cl
 bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
   --root /path/to/project \
   --project "My Project" \
-  --profile mixed
+  --profile mixed \
+  --full
 ```
 
 Scaffold creates `prompts/_system_member_a.txt` and `prompts/_system_member_b.txt` (note the leading underscore; they are copied from the skill assets `system_member_a.txt` / `system_member_b.txt`).
+Use `--full` when you want those research-team host-local assets immediately; the default scaffold stays minimal.
 
 3) Run a team cycle from the project root:
 
@@ -60,7 +62,7 @@ cd /path/to/project
 
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0 --auto-tag \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt

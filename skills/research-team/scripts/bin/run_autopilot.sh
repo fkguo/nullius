@@ -7,7 +7,7 @@ if [[ "${1:-}" == -* ]]; then
 fi
 
 ROOT="${1:-.}"
-NOTES_DEFAULT="${ROOT}/Draft_Derivation.md"
+NOTES_DEFAULT="${ROOT}/research_contract.md"
 OUT_DIR_DEFAULT="${ROOT}/team"
 
 # Positional parsing is "soft":

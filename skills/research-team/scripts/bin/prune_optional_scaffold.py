@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -54,6 +55,35 @@ def _normalize_for_compare(text: str) -> str:
     # Keep comparison strict but robust to line endings + trailing whitespace.
     lines = [ln.rstrip() for ln in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _root_variants(project_root: Path) -> tuple[str, ...]:
+    vals = {str(project_root), os.path.abspath(str(project_root)), os.path.realpath(str(project_root))}
+    extra: set[str] = set()
+    for v in list(vals):
+        if v.startswith("/private/var/"):
+            extra.add(v.replace("/private/var/", "/var/", 1))
+        elif v.startswith("/var/"):
+            extra.add(v.replace("/var/", "/private/var/", 1))
+    vals.update(extra)
+    return tuple(sorted((v for v in vals if v), key=len, reverse=True))
+
+
+def _normalize_project_root_variants(text: str, project_root: Path) -> str:
+    out = text
+    for root in _root_variants(project_root):
+        out = out.replace(root, "<PROJECT_ROOT>")
+    return out
+
+
+def _canonicalize_project_root_value(value: object, project_root: Path) -> object:
+    if isinstance(value, str):
+        return _normalize_project_root_variants(value, project_root)
+    if isinstance(value, list):
+        return [_canonicalize_project_root_value(v, project_root) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _canonicalize_project_root_value(v, project_root) for k, v in value.items()}
+    return value
 
 
 def _is_git_repo(root: Path) -> bool:
@@ -95,7 +125,7 @@ def _render_template(template_text: str, *, project_name: str, project_root: Pat
 
 
 def _extract_project_name(project_root: Path) -> str:
-    charter = project_root / "PROJECT_CHARTER.md"
+    charter = project_root / "project_charter.md"
     if not charter.is_file():
         return project_root.name
     text = _read_text(charter)
@@ -152,6 +182,16 @@ def _matches_template_file(
 
     actual = _normalize_for_compare(_read_text(abs_path))
     templ = _normalize_for_compare(_render_template(_read_text(asset_path), project_name=project_name, project_root=project_root, profile=profile))
+    if abs_path.suffix == ".json" and asset_path.suffix == ".json":
+        try:
+            actual_obj = _canonicalize_project_root_value(json.loads(actual), project_root)
+            templ_obj = _canonicalize_project_root_value(json.loads(templ), project_root)
+            if actual_obj == templ_obj:
+                return True, ""
+        except Exception:
+            pass
+    actual = _normalize_project_root_variants(actual, project_root)
+    templ = _normalize_project_root_variants(templ, project_root)
     if actual == templ:
         return True, ""
     return False, "content differs from template"
@@ -235,6 +275,170 @@ def _check_knowledge_graph_dir(project_root: Path, *, assets_dir: Path, project_
     return True, ""
 
 
+def _check_prompts_dir(project_root: Path, *, assets_dir: Path, project_name: str, profile: str) -> tuple[bool, str]:
+    prompts = project_root / "prompts"
+    if not prompts.is_dir():
+        return False, "missing"
+
+    mapping: dict[str, Path] = {
+        "_team_packet.txt": assets_dir / "team_packet_template.txt",
+        "_system_member_a.txt": assets_dir / "system_member_a.txt",
+        "_system_member_b.txt": assets_dir / "system_member_b.txt",
+        "_system_draft_member_a.txt": assets_dir / "system_draft_member_a.txt",
+        "_system_draft_member_b.txt": assets_dir / "system_draft_member_b.txt",
+        "_system_draft_member_c_leader.txt": assets_dir / "system_draft_member_c_leader.txt",
+        "_system_member_c_numerics.txt": assets_dir / "system_member_c_numerics.txt",
+        "README.md": assets_dir / "prompts_readme_template.md",
+    }
+
+    present = _dir_files_rel(prompts)
+    expected = set(mapping.keys())
+    extra = sorted(present - expected)
+    missing = sorted(expected - present)
+    if missing:
+        return False, f"missing expected files: {missing[:5]!r}"
+    if extra:
+        return False, f"contains non-default files: {extra[:5]!r}"
+
+    for rel, asset in mapping.items():
+        ok, why = _matches_template_file(
+            project_root=project_root,
+            rel_path=f"prompts/{rel}",
+            asset_path=asset,
+            project_name=project_name,
+            profile=profile,
+        )
+        if not ok:
+            return False, f"{rel} not default: {why}"
+
+    return True, ""
+
+
+def _check_knowledge_base_dir(project_root: Path, *, assets_dir: Path, project_name: str, profile: str) -> tuple[bool, str]:
+    kb = project_root / "knowledge_base"
+    if not kb.is_dir():
+        return False, "missing"
+
+    mapping: dict[str, Path] = {
+        "README.md": assets_dir / "knowledge_base_readme_template.md",
+        "methodology_traces/_template.md": assets_dir / "methodology_trace_template.md",
+        "methodology_traces/literature_queries.md": assets_dir / "literature_queries_template.md",
+    }
+    present = _dir_files_rel(kb)
+    expected = set(mapping.keys())
+    extra = sorted(present - expected)
+    missing = sorted(expected - present)
+    if missing:
+        return False, f"missing expected files: {missing[:5]!r}"
+    if extra:
+        return False, f"contains non-default files: {extra[:5]!r}"
+
+    for rel, asset in mapping.items():
+        ok, why = _matches_template_file(
+            project_root=project_root,
+            rel_path=f"knowledge_base/{rel}",
+            asset_path=asset,
+            project_name=project_name,
+            profile=profile,
+        )
+        if not ok:
+            return False, f"{rel} not default: {why}"
+
+    return True, ""
+
+
+def _check_references_dir(project_root: Path, *, assets_dir: Path, project_name: str, profile: str) -> tuple[bool, str]:
+    refs = project_root / "references"
+    if not refs.is_dir():
+        return False, "missing"
+
+    present = _dir_files_rel(refs)
+    if present != {"README.md"}:
+        return False, f"contains non-default files: {sorted(present)[:5]!r}"
+
+    ok, why = _matches_template_file(
+        project_root=project_root,
+        rel_path="references/README.md",
+        asset_path=assets_dir / "references_readme_template.md",
+        project_name=project_name,
+        profile=profile,
+    )
+    if not ok:
+        return False, f"README.md not default: {why}"
+    return True, ""
+
+
+def _check_team_dir(project_root: Path, *, assets_dir: Path, project_name: str, profile: str) -> tuple[bool, str]:
+    team = project_root / "team"
+    if not team.is_dir():
+        return False, "missing"
+
+    mapping: dict[str, Path] = {
+        "LATEST.md": assets_dir / "team_latest_template.md",
+        "LATEST_TEAM.md": assets_dir / "team_latest_team_template.md",
+        "LATEST_DRAFT.md": assets_dir / "team_latest_draft_template.md",
+    }
+    present = _dir_files_rel(team)
+    expected = set(mapping.keys())
+    extra = sorted(present - expected)
+    missing = sorted(expected - present)
+    if missing:
+        return False, f"missing expected files: {missing[:5]!r}"
+    if extra:
+        return False, f"contains non-default files: {extra[:5]!r}"
+
+    runs_dir = team / "runs"
+    if not runs_dir.is_dir():
+        return False, "missing runs/"
+    if any(runs_dir.iterdir()):
+        return False, "team/runs is not empty"
+
+    for rel, asset in mapping.items():
+        ok, why = _matches_template_file(
+            project_root=project_root,
+            rel_path=f"team/{rel}",
+            asset_path=asset,
+            project_name=project_name,
+            profile=profile,
+        )
+        if not ok:
+            return False, f"{rel} not default: {why}"
+
+    return True, ""
+
+
+def _check_hep_dir(project_root: Path, *, assets_dir: Path, project_name: str, profile: str) -> tuple[bool, str]:
+    hep_dir = project_root / ".hep"
+    if not hep_dir.is_dir():
+        return False, "missing"
+
+    mapping: dict[str, Path] = {
+        "workspace.json": assets_dir / "hep_workspace_template.json",
+        "mappings.json": assets_dir / "hep_mappings_template.json",
+    }
+    present = _dir_files_rel(hep_dir)
+    expected = set(mapping.keys())
+    extra = sorted(present - expected)
+    missing = sorted(expected - present)
+    if missing:
+        return False, f"missing expected files: {missing[:5]!r}"
+    if extra:
+        return False, f"contains non-default files: {extra[:5]!r}"
+
+    for rel, asset in mapping.items():
+        ok, why = _matches_template_file(
+            project_root=project_root,
+            rel_path=f".hep/{rel}",
+            asset_path=asset,
+            project_name=project_name,
+            profile=profile,
+        )
+        if not ok:
+            return False, f"{rel} not default: {why}"
+
+    return True, ""
+
+
 def _infer_scaffold_variant(project_root: Path) -> str:
     wrappers = [
         "scripts/run_full_cycle.sh",
@@ -245,6 +449,9 @@ def _infer_scaffold_variant(project_root: Path) -> str:
         "scripts/export_paper_bundle.sh",
     ]
     prompt_extras = [
+        "prompts/_team_packet.txt",
+        "prompts/_system_member_a.txt",
+        "prompts/_system_member_b.txt",
         "prompts/_system_draft_member_a.txt",
         "prompts/_system_draft_member_b.txt",
         "prompts/_system_draft_member_c_leader.txt",
@@ -253,7 +460,10 @@ def _infer_scaffold_variant(project_root: Path) -> str:
     ]
     if any((project_root / p).exists() for p in wrappers + prompt_extras):
         return "full"
-    if (project_root / "knowledge_graph").exists() or (project_root / "mechanisms").exists():
+    if any(
+        (project_root / p).exists()
+        for p in ("knowledge_graph", "mechanisms", "knowledge_base", "references", "team", ".hep", "research_team_config.json")
+    ):
         return "full"
     return "minimal"
 
@@ -278,8 +488,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--root", type=Path, required=True, help="Project root directory.")
     p.add_argument(
         "--components",
-        default="wrappers,prompt_extras,scaffolds",
-        help="Comma-separated list: wrappers,prompt_extras,pointers,scaffolds,all (default: wrappers,prompt_extras,scaffolds).",
+        default="wrappers,prompt_extras,pointers,host_config,scaffolds",
+        help="Comma-separated list: wrappers,prompt_extras,pointers,host_config,scaffolds,all (default prunes full-only surfaces back to minimal).",
     )
     p.add_argument("--apply", action="store_true", help="Apply moves (default: dry-run).")
     p.add_argument(
@@ -308,8 +518,8 @@ def main() -> int:
     components_raw = [c.strip() for c in str(args.components or "").split(",") if c.strip()]
     comps = set(components_raw)
     if "all" in comps:
-        comps = {"wrappers", "prompt_extras", "pointers", "scaffolds"}
-    allowed = {"wrappers", "prompt_extras", "pointers", "scaffolds"}
+        comps = {"wrappers", "prompt_extras", "pointers", "host_config", "scaffolds"}
+    allowed = {"wrappers", "prompt_extras", "pointers", "host_config", "scaffolds"}
     unknown = sorted([c for c in comps if c not in allowed])
     if unknown:
         print(f"ERROR: unknown component(s): {unknown}. Allowed: {sorted(allowed)}", file=sys.stderr)
@@ -321,7 +531,7 @@ def main() -> int:
 
     archive_dir = args.archive_dir
     if archive_dir is None:
-        archive_dir = project_root / "team" / "migrations" / f"scaffold_prune_{_now_utc_slug()}"
+        archive_dir = project_root / "artifacts" / "migrations" / f"scaffold_prune_{_now_utc_slug()}"
     if not archive_dir.is_absolute():
         archive_dir = (project_root / archive_dir).resolve()
 
@@ -340,29 +550,22 @@ def main() -> int:
             ("scripts/execute_task.sh", assets_dir / "execute_task.sh"),
             ("scripts/export_paper_bundle.sh", assets_dir / "export_paper_bundle.sh"),
         ],
-        "prompt_extras": [
-            ("prompts/_system_draft_member_a.txt", assets_dir / "system_draft_member_a.txt"),
-            ("prompts/_system_draft_member_b.txt", assets_dir / "system_draft_member_b.txt"),
-            ("prompts/_system_draft_member_c_leader.txt", assets_dir / "system_draft_member_c_leader.txt"),
-            ("prompts/_system_member_c_numerics.txt", assets_dir / "system_member_c_numerics.txt"),
-            ("prompts/README.md", assets_dir / "prompts_readme_template.md"),
-        ],
         "pointers": [
-            ("team/LATEST.md", assets_dir / "team_latest_template.md"),
-            ("team/LATEST_TEAM.md", assets_dir / "team_latest_team_template.md"),
-            ("team/LATEST_DRAFT.md", assets_dir / "team_latest_draft_template.md"),
             ("artifacts/LATEST.md", assets_dir / "artifacts_latest_template.md"),
-            ("references/README.md", assets_dir / "references_readme_template.md"),
+        ],
+        "host_config": [
+            ("research_team_config.json", assets_dir / "research_team_config_template.json"),
+            ("scan_dependency_rules.json", assets_dir / "scan_dependency_rules_template.json"),
         ],
     }
 
     results: list[ItemResult] = []
     planned_moves: list[tuple[int, Path, Path]] = []
 
-    for component in ("wrappers", "prompt_extras", "pointers"):
+    for component in ("wrappers", "prompt_extras", "pointers", "host_config"):
         if component not in comps:
             continue
-        for rel, asset in file_targets[component]:
+        for rel, asset in file_targets.get(component, []):
             src = project_root / rel
             if not src.exists():
                 results.append(ItemResult(kind="file", component=component, path=rel, status="missing", reason="not present"))
@@ -420,35 +623,41 @@ def main() -> int:
             planned_moves.append((len(results) - 1, src, dst))
 
     # Directories (scaffolds).
-    if "scaffolds" in comps:
-        for dname, checker in (
-            ("knowledge_graph", _check_knowledge_graph_dir),
-            ("mechanisms", _check_mechanisms_dir),
-        ):
-            src_dir = project_root / dname
-            if not src_dir.exists():
-                results.append(ItemResult(kind="dir", component="scaffolds", path=dname, status="missing", reason="not present"))
-                continue
-            if not src_dir.is_dir():
-                results.append(ItemResult(kind="dir", component="scaffolds", path=dname, status="skip", reason="not a directory"))
-                continue
+    for component, dname, checker in (
+        ("prompt_extras", "prompts", _check_prompts_dir),
+        ("scaffolds", "knowledge_graph", _check_knowledge_graph_dir),
+        ("scaffolds", "mechanisms", _check_mechanisms_dir),
+        ("scaffolds", "knowledge_base", _check_knowledge_base_dir),
+        ("scaffolds", "references", _check_references_dir),
+        ("scaffolds", "team", _check_team_dir),
+        ("scaffolds", ".hep", _check_hep_dir),
+    ):
+        if component not in comps:
+            continue
+        src_dir = project_root / dname
+        if not src_dir.exists():
+            results.append(ItemResult(kind="dir", component=component, path=dname, status="missing", reason="not present"))
+            continue
+        if not src_dir.is_dir():
+            results.append(ItemResult(kind="dir", component=component, path=dname, status="skip", reason="not a directory"))
+            continue
 
-            ok, why = checker(project_root, assets_dir=assets_dir, project_name=project_name, profile=profile)
-            if not ok:
-                results.append(ItemResult(kind="dir", component="scaffolds", path=dname, status="skip", reason=why))
-                continue
-            dst_dir = archive_dir / dname
-            results.append(
-                ItemResult(
-                    kind="dir",
-                    component="scaffolds",
-                    path=dname,
-                    status="plan_move",
-                    reason="default scaffold directory",
-                    archive_path=_safe_relpath(dst_dir, project_root),
-                )
+        ok, why = checker(project_root, assets_dir=assets_dir, project_name=project_name, profile=profile)
+        if not ok:
+            results.append(ItemResult(kind="dir", component=component, path=dname, status="skip", reason=why))
+            continue
+        dst_dir = archive_dir / dname
+        results.append(
+            ItemResult(
+                kind="dir",
+                component=component,
+                path=dname,
+                status="plan_move",
+                reason="default scaffold directory",
+                archive_path=_safe_relpath(dst_dir, project_root),
             )
-            planned_moves.append((len(results) - 1, src_dir, dst_dir))
+        )
+        planned_moves.append((len(results) - 1, src_dir, dst_dir))
 
     # Apply moves (with best-effort rollback).
     moved: list[tuple[Path, Path]] = []

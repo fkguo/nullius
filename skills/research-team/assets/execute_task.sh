@@ -3,8 +3,8 @@ set -euo pipefail
 
 # execute_task.sh <task_id> <task_text>
 # Implement task execution here. Exit 0 on success; non-zero on failure.
-# Autopilot updates RESEARCH_PLAN.md Task Board status.
-# For complex numerics, justify the algorithm choice and cite a stable-method reference in PREWORK.md.
+# Autopilot updates research_plan.md Task Board status.
+# For complex numerics, justify the algorithm choice and cite a stable-method reference in research_preflight.md.
 
 TASK_ID="${1:-}"
 TASK_TEXT="${2:-}"

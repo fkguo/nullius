@@ -36,7 +36,7 @@ PY
 # - C) reproduction command exists
 # - D) at least one output path exists on disk
 # - A/B/G/H basic structure
-python3 - "${tmp_root}/Draft_Derivation.md" <<'PY'
+python3 - "${tmp_root}/research_contract.md" <<'PY'
 from __future__ import annotations
 
 import sys
@@ -99,7 +99,7 @@ cat > "${tmp_root}/runs/exploration/manifest.json" <<'JSON'
 JSON
 
 set +e
-python3 "${CAPSULE_GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/capsule_exploration_out.txt" 2>&1
+python3 "${CAPSULE_GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/capsule_exploration_out.txt" 2>&1
 code=$?
 set -e
 
@@ -131,7 +131,7 @@ print("[ok] set project_stage=development:", path)
 PY
 
 set +e
-python3 "${CAPSULE_GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/capsule_development_out.txt" 2>&1
+python3 "${CAPSULE_GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/capsule_development_out.txt" 2>&1
 code2=$?
 set -e
 

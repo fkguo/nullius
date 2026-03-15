@@ -33,7 +33,7 @@ except Exception as exc:  # pragma: no cover - import-time failure
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (used to locate project root).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (used to locate project root).")
     ap.add_argument("--min-chars", type=int, default=200, help="Minimum non-whitespace chars required in AGENTS.md (guardrail).")
     args = ap.parse_args()
 
@@ -65,7 +65,7 @@ def main() -> int:
         return 1
 
     # Minimal semantic anchor: file should mention the canonical notebook and at least one trigger command.
-    required_all = ["Draft_Derivation.md"]
+    required_all = ["research_contract.md"]
     required_any = ["run_team_cycle.sh", "run_autopilot.sh"]
     missing_all = [t for t in required_all if t not in txt]
     has_any = any(t in txt for t in required_any)

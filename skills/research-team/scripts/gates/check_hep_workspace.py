@@ -16,7 +16,7 @@ def _find_project_root(seed: Path) -> Path:
     if cur.is_file():
         cur = cur.parent
     for _ in range(12):
-        if (cur / "PROJECT_CHARTER.md").is_file() and (cur / "Draft_Derivation.md").is_file():
+        if (cur / "project_charter.md").is_file() and (cur / "research_contract.md").is_file():
             return cur
         if cur.parent == cur:
             break
@@ -43,7 +43,7 @@ def _is_rel_path(p: str) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Gate: require .hep/workspace.json for hep-research-mcp workspace bootstrap (v1).")
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or any file under project root).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or any file under project root).")
     args = ap.parse_args()
 
     if not args.notes.exists():

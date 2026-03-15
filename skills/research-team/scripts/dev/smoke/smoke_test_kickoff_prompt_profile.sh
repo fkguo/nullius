@@ -41,7 +41,7 @@ fi
 echo "[ok] mixed profile reflected"
 
 echo "[test3] no config: kickoff prompt should omit --profile and instruct profile choice"
-cat > "${tmp3}/INITIAL_INSTRUCTION.md" <<'EOF'
+cat > "${tmp3}/project_brief.md" <<'EOF'
 Goal: Smoke test kickoff prompt generation with no config.
 EOF
 python3 "${BIN_DIR}/generate_project_start_prompt.py" --root "${tmp3}" --force >/tmp/smoke_kickoff_profile_out5.txt 2>&1

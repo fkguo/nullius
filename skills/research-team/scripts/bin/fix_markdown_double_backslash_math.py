@@ -200,11 +200,11 @@ def main() -> int:
         if isinstance(mmh, dict) and isinstance(mmh.get("targets"), list):
             return [str(x) for x in mmh.get("targets", []) if str(x).strip()]
         return [
-            "Draft_Derivation.md",
-            "PREWORK.md",
-            "RESEARCH_PLAN.md",
-            "PROJECT_CHARTER.md",
-            "PROJECT_MAP.md",
+            "research_contract.md",
+            "research_preflight.md",
+            "research_plan.md",
+            "project_charter.md",
+            "project_index.md",
             "knowledge_base/**/*.md",
         ]
 
@@ -276,7 +276,7 @@ def main() -> int:
     print(
         "[hint] To apply fixes (math regions only): "
         "python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py "
-        "--root <path> --in-place  (or: --notes Draft_Derivation.md --in-place)"
+        "--root <path> --in-place  (or: --notes research_contract.md --in-place)"
     )
     return 1
 

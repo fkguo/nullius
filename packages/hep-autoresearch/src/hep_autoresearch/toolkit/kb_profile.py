@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ._json import read_json
-from .kb_index import kb_index_path
+from .kb_index import kb_index_path, write_kb_index
 
 
 def _safe_rel(repo_root: Path, p: Path) -> str:
@@ -74,7 +74,10 @@ def _read_profile_paths(repo_root: Path, *, profile: str, user_profile_path: str
                 f"kb_profile=user requires a profile file; expected {os.fspath(p)} "
                 "(or pass --kb-profile-user-path)"
             )
-        raise FileNotFoundError(f"missing kb_profile definition: {os.fspath(p)}")
+        warnings.append(
+            "kb_profile definition missing; using an empty selection until knowledge_base/_index/kb_profiles/ is bootstrapped"
+        )
+        return [], None, warnings
 
     data = read_json(p)
     if not isinstance(data, dict):
@@ -177,6 +180,8 @@ def build_kb_profile(
     paths, source_rel, warnings = _read_profile_paths(repo_root, profile=prof, user_profile_path=user_profile_path)
 
     idx_path = kb_index_path(repo_root=repo_root)
+    if not idx_path.exists():
+        write_kb_index(repo_root=repo_root, out_path=idx_path)
     idx = read_json(idx_path)
     if not isinstance(idx, dict):
         raise ValueError("kb_index.json must be a JSON object")
@@ -318,4 +323,3 @@ def write_kb_profile(
         "kb_profile_json": _safe_rel(repo_root, kb_profile_path),
         "report": _safe_rel(repo_root, report_path),
     }
-

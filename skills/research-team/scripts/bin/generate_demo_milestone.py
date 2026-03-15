@@ -251,7 +251,7 @@ def _write_if_missing(path: Path, content: str) -> None:
 
 def _ensure_mapping_row(notes_text: str, row: str) -> str:
     """
-    Ensure Draft_Derivation.md Section 6 mapping table has at least one filled row so the
+    Ensure research_contract.md Section 6 mapping table has at least one filled row so the
     packet completeness gate can pass on cold start.
     """
     # Prefer replacing the template Q1 row if present.
@@ -278,7 +278,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, required=True, help="Project root (must already be scaffolded).")
     ap.add_argument("--tag", type=str, required=True, help="Milestone/tag (used in outputs and capsule).")
-    ap.add_argument("--notes", type=str, default="Draft_Derivation.md", help="Notebook filename under --root (default: Draft_Derivation.md).")
+    ap.add_argument("--notes", type=str, default="research_contract.md", help="Notebook filename under --root (default: research_contract.md).")
     ap.add_argument("--force", action="store_true", help="Overwrite an already-filled capsule.")
     ap.add_argument(
         "--kind",

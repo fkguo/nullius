@@ -8,7 +8,7 @@ Goal:
 - Keep the engine generic: domain knowledge lives in a per-project rules file.
 
 Inputs:
-- Prefer --notes Draft_Derivation.md so we can:
+- Prefer --notes research_contract.md so we can:
   (a) find the Reproducibility Capsule, especially section G) "Sweep semantics"
   (b) auto-detect scan CSV + manifest JSON from capsule outputs
   (c) auto-find rules file in project root (unless explicitly set)
@@ -522,7 +522,7 @@ def _collect_from_notes(notes: Path) -> ScanArtifacts:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--notes", type=Path, default=None, help="Notebook path (preferred): Draft_Derivation.md.")
+    p.add_argument("--notes", type=Path, default=None, help="Notebook path (preferred): research_contract.md.")
     p.add_argument("--csv", type=Path, default=None, help="Scan CSV path (optional; overrides capsule guessing).")
     p.add_argument("--manifest", type=Path, default=None, help="Run manifest JSON path (optional; overrides capsule guessing).")
     p.add_argument("--rules", type=Path, default=None, help="Rules file path (optional; overrides auto-detect).")

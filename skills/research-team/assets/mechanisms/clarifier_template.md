@@ -12,9 +12,9 @@ Goal: before starting, turn the task into a verifiable DAG (milestones + DoD) an
 
 Sync key information from this file into the main workflow docs (otherwise mechanisms become ceremony):
 
-- Sync to [PREWORK.md](../PREWORK.md): fill `## Problem Framing Snapshot` (Problem Interpretation + P/D separation + kill criteria).
-- Sync to [RESEARCH_PLAN.md](../RESEARCH_PLAN.md): turn milestones into `## Task Board` checkbox tasks (recommended: explicitly mark `(auto)` / `(manual)` for autopilot).
-- Sync to [Draft_Derivation.md](../Draft_Derivation.md): keep the Capsule as a reproducibility contract; put derivations/algorithm details in the body (do NOT cram derivations into the Capsule).
+- Sync to [research_preflight.md](../research_preflight.md): fill `## Problem Framing Snapshot` (Problem Interpretation + P/D separation + kill criteria).
+- Sync to [research_plan.md](../research_plan.md): turn milestones into `## Task Board` checkbox tasks (recommended: explicitly mark `(auto)` / `(manual)` for autopilot).
+- Sync to [research_contract.md](../research_contract.md): keep the Capsule as a reproducibility contract; put derivations/algorithm details in the body (do NOT cram derivations into the Capsule).
 
 Hard recommendations (avoid superficial acceptance):
 - Kill / Narrow criteria: write at least one explicit threshold/condition (e.g. include `if` or comparison operators `<`, `>`, `!=`).

@@ -22,7 +22,7 @@ def _find_project_root(seed: Path) -> Path:
     if cur.is_file():
         cur = cur.parent
     for _ in range(10):
-        if (cur / "PROJECT_CHARTER.md").is_file() and (cur / "Draft_Derivation.md").is_file():
+        if (cur / "project_charter.md").is_file() and (cur / "research_contract.md").is_file():
             return cur
         if cur.parent == cur:
             break
@@ -178,7 +178,7 @@ def main() -> int:
 
     # Core docs.
     docs_dir = bundle_dir / "docs"
-    for name in ("PROJECT_MAP.md", "PROJECT_CHARTER.md", "RESEARCH_PLAN.md", "PREWORK.md", "Draft_Derivation.md"):
+    for name in ("project_index.md", "project_charter.md", "research_plan.md", "research_preflight.md", "research_contract.md"):
         src = project_root / name
         if src.is_file():
             _copy_file(src, docs_dir / name)
@@ -276,7 +276,7 @@ def main() -> int:
     lines.append("")
     lines.append("## How to use")
     lines.append("")
-    lines.append("- Start from `docs/PROJECT_MAP.md` and `docs/Draft_Derivation.md`.")
+    lines.append("- Start from `docs/project_index.md` and `docs/research_contract.md`.")
     lines.append("- Use `team/LATEST_TEAM.md` for the latest team-cycle audit, and `team/LATEST_DRAFT.md` for draft-cycle review.")
     lines.append("")
     manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")

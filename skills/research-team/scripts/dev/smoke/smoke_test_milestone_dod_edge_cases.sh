@@ -24,7 +24,7 @@ cat >research_team_config.json <<'EOF'
 }
 EOF
 
-cat >Draft_Derivation.md <<'EOF'
+cat >research_contract.md <<'EOF'
 <!-- REPRO_CAPSULE_START -->
 - Milestone kind: computational
 <!-- REPRO_CAPSULE_END -->
@@ -40,8 +40,8 @@ cat >TOOLKIT_API.md <<'EOF'
 EOF
 
 echo "[test1] multi-paragraph bullets + nested bullets (PASS)"
-cat >RESEARCH_PLAN.md <<'EOF'
-# RESEARCH_PLAN.md
+cat >research_plan.md <<'EOF'
+# research_plan.md
 
 ## 3. Milestones
 
@@ -66,7 +66,7 @@ Toolkit delta:
   - KB evidence links: [M2 trace](knowledge_base/methodology_traces/M2_trace.md)
 EOF
 
-python3 "${GATES_DIR}/check_milestone_dod.py" --notes Draft_Derivation.md --tag "M2-r1" >smoke_dod_out1.txt 2>&1
+python3 "${GATES_DIR}/check_milestone_dod.py" --notes research_contract.md --tag "M2-r1" >smoke_dod_out1.txt 2>&1
 if ! grep -nF "Gate: PASS" smoke_dod_out1.txt >/dev/null 2>&1; then
   echo "[fail] expected PASS; got:" >&2
   sed -n '1,220p' smoke_dod_out1.txt >&2
@@ -74,8 +74,8 @@ if ! grep -nF "Gate: PASS" smoke_dod_out1.txt >/dev/null 2>&1; then
 fi
 
 echo "[test2] label variants + ordered lists (PASS)"
-cat >RESEARCH_PLAN.md <<'EOF'
-# RESEARCH_PLAN.md
+cat >research_plan.md <<'EOF'
+# research_plan.md
 
 ## Milestones
 
@@ -93,7 +93,7 @@ Toolkit delta:
   - KB evidence link: [trace](knowledge_base/methodology_traces/M2_trace.md)
 EOF
 
-python3 "${GATES_DIR}/check_milestone_dod.py" --notes Draft_Derivation.md --tag "M2-r1" >smoke_dod_out2.txt 2>&1
+python3 "${GATES_DIR}/check_milestone_dod.py" --notes research_contract.md --tag "M2-r1" >smoke_dod_out2.txt 2>&1
 if ! grep -nF "Gate: PASS" smoke_dod_out2.txt >/dev/null 2>&1; then
   echo "[fail] expected PASS; got:" >&2
   sed -n '1,220p' smoke_dod_out2.txt >&2
@@ -101,8 +101,8 @@ if ! grep -nF "Gate: PASS" smoke_dod_out2.txt >/dev/null 2>&1; then
 fi
 
 echo "[test3] Chinese Toolkit label variant (PASS)"
-cat >RESEARCH_PLAN.md <<'EOF'
-# RESEARCH_PLAN.md
+cat >research_plan.md <<'EOF'
+# research_plan.md
 
 ## 3. Milestones
 
@@ -120,7 +120,7 @@ Acceptance:
   - KB evidence link: [trace](knowledge_base/methodology_traces/M2_trace.md)
 EOF
 
-python3 "${GATES_DIR}/check_milestone_dod.py" --notes Draft_Derivation.md --tag "M2-r1" >smoke_dod_out3.txt 2>&1
+python3 "${GATES_DIR}/check_milestone_dod.py" --notes research_contract.md --tag "M2-r1" >smoke_dod_out3.txt 2>&1
 if ! grep -nF "Gate: PASS" smoke_dod_out3.txt >/dev/null 2>&1; then
   echo "[fail] expected PASS; got:" >&2
   sed -n '1,220p' smoke_dod_out3.txt >&2
@@ -128,8 +128,8 @@ if ! grep -nF "Gate: PASS" smoke_dod_out3.txt >/dev/null 2>&1; then
 fi
 
 echo "[test4] rejects backtick-wrapped knowledge_base link (FAIL)"
-cat >RESEARCH_PLAN.md <<'EOF'
-# RESEARCH_PLAN.md
+cat >research_plan.md <<'EOF'
+# research_plan.md
 
 ## 3. Milestones
 
@@ -148,7 +148,7 @@ Toolkit delta:
 EOF
 
 set +e
-python3 "${GATES_DIR}/check_milestone_dod.py" --notes Draft_Derivation.md --tag "M2-r1" >smoke_dod_out4.txt 2>&1
+python3 "${GATES_DIR}/check_milestone_dod.py" --notes research_contract.md --tag "M2-r1" >smoke_dod_out4.txt 2>&1
 code=$?
 set -e
 if [[ $code -eq 0 ]]; then
@@ -163,8 +163,8 @@ if ! grep -nF "backticks" smoke_dod_out4.txt >/dev/null 2>&1; then
 fi
 
 echo "[test5] rejects missing Acceptance label (FAIL)"
-cat >RESEARCH_PLAN.md <<'EOF'
-# RESEARCH_PLAN.md
+cat >research_plan.md <<'EOF'
+# research_plan.md
 
 ## 3. Milestones
 
@@ -180,7 +180,7 @@ Toolkit delta:
 EOF
 
 set +e
-python3 "${GATES_DIR}/check_milestone_dod.py" --notes Draft_Derivation.md --tag "M2-r1" >smoke_dod_out5.txt 2>&1
+python3 "${GATES_DIR}/check_milestone_dod.py" --notes research_contract.md --tag "M2-r1" >smoke_dod_out5.txt 2>&1
 code=$?
 set -e
 if [[ $code -eq 0 ]]; then

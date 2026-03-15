@@ -32,7 +32,7 @@ from kickoff_prompt_utils import looks_approved  # type: ignore
 
 
 DEFAULT_INSTRUCTION_PATHS = (
-    "INITIAL_INSTRUCTION.md",
+    "project_brief.md",
     "项目开始指令.md",
     "README.md",
 )
@@ -169,15 +169,15 @@ def main() -> int:
     lines.append(
         "- Network policy (allowed, but audited): prefer stable anchors (INSPIRE/arXiv/DOI/GitHub/Zenodo/Software Heritage) + official docs/archives/registries (SciPy/Julia/NumPy/PyPI/etc.). General scholarly search may be used for discovery, but MUST be logged in `knowledge_base/methodology_traces/` and the final citations must be stabilized to stable anchors; if a needed domain is blocked by the References gate, extend allowlist via `research_team_config.json: references.allowed_external_hosts_extra`."
     )
-    lines.append("- All network queries/decisions MUST be logged in `knowledge_base/methodology_traces/` (and referenced from `PREWORK.md`). Prefer `knowledge_base/methodology_traces/literature_queries.md` as an append-only log.")
+    lines.append("- All network queries/decisions MUST be logged in `knowledge_base/methodology_traces/` (and referenced from `research_preflight.md`). Prefer `knowledge_base/methodology_traces/literature_queries.md` as an append-only log.")
     lines.append("- Prefer `hep-research-mcp` (if available in your agent environment) for INSPIRE/arXiv retrieval; fallback is direct INSPIRE REST + arXiv export API (see `scripts/literature_fetch.py` if present).")
     lines.append("- For DOI discovery/metadata: Crossref is preferred for papers; DataCite is preferred for datasets/software DOIs. If network/DNS fails but you must keep moving, use `literature_fetch.py *-get --allow-stub` to write an auditable stub KB note (publication stage will block until metadata is filled).")
     lines.append("- For arXiv papers: downloading LaTeX sources is allowed (store under `references/arxiv_src/`), but avoid writing brittle LaTeX parsers; do LLM-assisted extraction into KB notes with explicit file pointers and normalization notes.")
     lines.append("- If numerical algorithms look unstable/unclear, perform an algorithm/code search within the allowed sources and log it in `knowledge_base/methodology_traces/` before coding.")
     lines.append("- Math formatting: use `$...$` / `$$...$$`. Do not use `\\(\\)` / `\\[\\]`. Inside `$$...$$`, do not start a new line with `+`, `-`, or `=`; do not split one equation into back-to-back `$$` blocks (keep one `$$...$$` block). If you slip, run `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_math_hygiene.py --root <path> --in-place`.")
-    lines.append("- Avoid accidental double-backslash LaTeX escapes in Markdown math (common LLM/TOC artifact), e.g. `\\\\Delta`, `\\\\gamma\\\\_{\\\\rm lin}`. If they appear, run: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes Draft_Derivation.md --in-place`.")
-    lines.append("- References: maintain `## References` in `Draft_Derivation.md`; each entry MUST include an external link (if exists) and a local KB note link.")
-    lines.append("- If you pasted unstable URL variants into References (e.g. `dx.doi.org`, `arxiv.org/pdf/...pdf`, `inspirehep.net/api/...`), normalize them deterministically: `python3 ~/.codex/skills/research-team/scripts/bin/upgrade_reference_anchors.py --notes Draft_Derivation.md --in-place`.")
+    lines.append("- Avoid accidental double-backslash LaTeX escapes in Markdown math (common LLM/TOC artifact), e.g. `\\\\Delta`, `\\\\gamma\\\\_{\\\\rm lin}`. If they appear, run: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`.")
+    lines.append("- References: maintain `## References` in `research_contract.md`; each entry MUST include an external link (if exists) and a local KB note link.")
+    lines.append("- If you pasted unstable URL variants into References (e.g. `dx.doi.org`, `arxiv.org/pdf/...pdf`, `inspirehep.net/api/...`), normalize them deterministically: `python3 ~/.codex/skills/research-team/scripts/bin/upgrade_reference_anchors.py --notes research_contract.md --in-place`.")
     lines.append("")
     lines.append("## Start protocol (must follow; anti-amnesia)")
     lines.append("")
@@ -214,7 +214,7 @@ def main() -> int:
     lines.append("```bash")
     lines.append("bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \\")
     lines.append("  --tag M0-r1 \\")
-    lines.append("  --notes Draft_Derivation.md \\")
+    lines.append("  --notes research_contract.md \\")
     lines.append("  --out-dir team \\")
     lines.append("  --member-a-system prompts/_system_member_a.txt \\")
     lines.append("  --member-b-system prompts/_system_member_b.txt \\")
@@ -223,12 +223,12 @@ def main() -> int:
     lines.append("```")
     lines.append("")
     lines.append("2) Prework (before any full team cycle):")
-    lines.append("- Fill `PREWORK.md` coverage matrix and method selection.")
+    lines.append("- Fill `research_preflight.md` coverage matrix and method selection.")
     lines.append("- Add KB notes under `knowledge_base/literature/`, `knowledge_base/methodology_traces/`, `knowledge_base/priors/`.")
-    lines.append("- Update Capsule I) in `Draft_Derivation.md` with clickable links to those KB notes (use human-readable link text like `RefKey — Authors — Title`).")
+    lines.append("- Update Capsule I) in `research_contract.md` with clickable links to those KB notes (use human-readable link text like `RefKey — Authors — Title`).")
     lines.append("")
     lines.append("3) Plan (anti-superficial acceptance):")
-    lines.append("- Ensure `RESEARCH_PLAN.md` is not a template.")
+    lines.append("- Ensure `research_plan.md` is not a template.")
     lines.append("- For the active milestone, make Deliverables/Acceptance concrete (paths/commands/thresholds).")
     lines.append("- Keep `## Task Board` + `## Progress Log` updated (plan_tracking).")
     lines.append("")
@@ -240,7 +240,7 @@ def main() -> int:
     lines.append("```bash")
     lines.append("bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \\")
     lines.append("  --tag M0-r1 \\")
-    lines.append("  --notes Draft_Derivation.md \\")
+    lines.append("  --notes research_contract.md \\")
     lines.append("  --out-dir team \\")
     lines.append("  --member-a-system prompts/_system_member_a.txt \\")
     lines.append("  --member-b-system prompts/_system_member_b.txt \\")

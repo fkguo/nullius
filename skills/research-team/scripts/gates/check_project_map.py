@@ -16,7 +16,7 @@ def _find_project_root(seed: Path) -> Path:
     if cur.is_file():
         cur = cur.parent
     for _ in range(10):
-        if (cur / "PROJECT_CHARTER.md").is_file() and (cur / "Draft_Derivation.md").is_file():
+        if (cur / "project_charter.md").is_file() and (cur / "research_contract.md").is_file():
             return cur
         if cur.parent == cur:
             break
@@ -25,8 +25,8 @@ def _find_project_root(seed: Path) -> Path:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Gate: require a canonical PROJECT_MAP.md navigation entrypoint.")
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or any file under project root).")
+    ap = argparse.ArgumentParser(description="Gate: require a canonical project_index.md navigation entrypoint.")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or any file under project root).")
     args = ap.parse_args()
 
     if not args.notes.exists():
@@ -39,9 +39,9 @@ def main() -> int:
         return 0
 
     root = _find_project_root(args.notes)
-    path = root / "PROJECT_MAP.md"
+    path = root / "project_index.md"
     if not path.is_file():
-        print(f"ERROR: missing PROJECT_MAP.md at project root: {path}")
+        print(f"ERROR: missing project_index.md at project root: {path}")
         print("Fix: run the scaffold or generate one deterministically:")
         print(f"  python3 ~/.codex/skills/research-team/scripts/bin/update_project_map.py --notes {args.notes} --team-dir team")
         return 1
@@ -49,10 +49,10 @@ def main() -> int:
     text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
     required_links = [
-        (r"\[PROJECT_CHARTER\.md\]\(PROJECT_CHARTER\.md\)", "PROJECT_CHARTER.md link"),
-        (r"\[RESEARCH_PLAN\.md\]\(RESEARCH_PLAN\.md\)", "RESEARCH_PLAN.md link"),
-        (r"\[PREWORK\.md\]\(PREWORK\.md\)", "PREWORK.md link"),
-        (r"\[Draft_Derivation\.md\]\(Draft_Derivation\.md\)", "Draft_Derivation.md link"),
+        (r"\[project_charter\.md\]\(project_charter\.md\)", "project_charter.md link"),
+        (r"\[research_plan\.md\]\(research_plan\.md\)", "research_plan.md link"),
+        (r"\[research_preflight\.md\]\(research_preflight\.md\)", "research_preflight.md link"),
+        (r"\[research_contract\.md\]\(research_contract\.md\)", "research_contract.md link"),
         (r"\[team/LATEST\.md\]\(team/LATEST\.md\)", "team/LATEST.md pointer link"),
         (r"\[artifacts/LATEST\.md\]\(artifacts/LATEST\.md\)", "artifacts/LATEST.md pointer link"),
     ]
@@ -63,7 +63,7 @@ def main() -> int:
             missing.append(label)
 
     if missing:
-        print(f"ERROR: PROJECT_MAP.md missing required link(s): {', '.join(missing)}")
+        print(f"ERROR: project_index.md missing required link(s): {', '.join(missing)}")
         return 1
 
     print("[ok] project map gate passed")
@@ -72,4 +72,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

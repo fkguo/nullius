@@ -22,5 +22,5 @@ Suggested structure:
 
 Policy:
 - Allowed network scope (default): prefer stable anchors (INSPIRE/arXiv/DOI/GitHub) + official docs/archives/registries (SciPy/Julia/NumPy/PyPI/Zenodo/etc.). General scholarly search may be used for discovery, but MUST be logged and final citations must be stabilized to stable anchors.
-- Always log queries/decisions in `knowledge_base/methodology_traces/` and link them from `PREWORK.md`.
+- Always log queries/decisions in `knowledge_base/methodology_traces/` and link them from `research_preflight.md`.
 - Prefer LLM-assisted extraction from LaTeX sources into KB notes with explicit file pointers and normalization audits.

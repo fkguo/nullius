@@ -16,7 +16,7 @@ Where to start:
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0-r1 \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
@@ -28,7 +28,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0-r1 \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
@@ -40,7 +40,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0-r1 \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
@@ -101,7 +101,7 @@ Notes:
 ## Orientation (avoid “file swamp”)
 
 In projects scaffolded by `research-team`, use the navigation front door instead of browsing directories:
-- `PROJECT_MAP.md` (project root) is the single “start here” page (template: [project_map_template.md](assets/project_map_template.md)).
+- `project_index.md` (project root) is the single “start here” page (template: [project_map_template.md](assets/project_map_template.md)).
 - Latest pointers are in `team/LATEST.md`, `team/LATEST_TEAM.md`, and `team/LATEST_DRAFT.md` (written by [update_project_map.py](scripts/bin/update_project_map.py)).
 - Per-run outputs are grouped under `team/runs/<tag>/...` (packet, member reports, gate reports, adjudication).
 - Draft-cycle convergence artifacts (when enabled) live under `team/runs/<tag>/...`:
@@ -156,12 +156,12 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 ### Project map gate (navigation front door)
 
 - Gate: [check_project_map.py](scripts/gates/check_project_map.py)
-- Symptom: `missing PROJECT_MAP.md` / `PROJECT_MAP.md missing required link(s)`
+- Symptom: `missing project_index.md` / `project_index.md missing required link(s)`
 - Fix:
   - If you never scaffolded: rerun `scaffold_research_workflow.sh` (without `--force`) to fill missing navigation files.
   - Or generate/update deterministically:
-    - `python3 ~/.codex/skills/research-team/scripts/bin/update_project_map.py --notes Draft_Derivation.md --team-dir team`
-  - Ensure `PROJECT_MAP.md` links to the canonical docs + `team/LATEST.md` + `artifacts/LATEST.md`.
+    - `python3 ~/.codex/skills/research-team/scripts/bin/update_project_map.py --notes research_contract.md --team-dir team`
+  - Ensure `project_index.md` links to the canonical docs + `team/LATEST.md` + `artifacts/LATEST.md`.
 - Rerun:
   - Preflight-only command.
 
@@ -182,9 +182,9 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 ### Research plan gate
 
 - Gate: [check_research_plan.py](scripts/gates/check_research_plan.py)
-- Symptom: `RESEARCH_PLAN.md appears to be a template`
+- Symptom: `research_plan.md appears to be a template`
 - Fix:
-  - Fill `RESEARCH_PLAN.md` Task Board and milestone DoD fields.
+  - Fill `research_plan.md` Task Board and milestone DoD fields.
   - Optional deterministic autofill (if enabled by config): `python3 ~/.codex/skills/research-team/scripts/bin/auto_fill_research_plan.py --root . --deterministic`.
 - Rerun:
   - Preflight-only command.
@@ -194,7 +194,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Gate: [check_project_charter.py](scripts/gates/check_project_charter.py)
 - Symptom: `project charter gate failed` / `Status must be one of`
 - Fix:
-  - Edit `PROJECT_CHARTER.md`:
+  - Edit `project_charter.md`:
     - Set `Status: APPROVED` (after human review).
     - Ensure `Declared profile:` matches `research_team_config.json`.
     - Add at least 2 “Project-specific commitments”, including at least 1 clickable `knowledge_base/` link.
@@ -213,7 +213,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
     - `knowledge_base/priors/` (≥ configured minimum)
   - In the capsule, fill `### I) Knowledge base references` with clickable links to those notes.
   - Prefer human-readable link text for scanability, e.g. `RefKey — Authors — Title` for literature notes.
-  - Deterministic helper to upgrade existing capsule links: `python3 ~/.codex/skills/research-team/scripts/bin/format_kb_reference_links.py --notes Draft_Derivation.md --in-place`
+  - Deterministic helper to upgrade existing capsule links: `python3 ~/.codex/skills/research-team/scripts/bin/format_kb_reference_links.py --notes research_contract.md --in-place`
   - If a referenced KB note contains display math:
     - Do not use LaTeX `\(` `\)` `\[` `\]`; use `$...$` / `$$...$$`.
     - In `$$...$$` blocks, no line may start with `+`, `-`, or `=` (Markdown hazards). Prefix with `\quad` or rewrite.
@@ -222,12 +222,12 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Rerun:
   - Preflight-only command.
 
-### Problem Framing Snapshot gate (PREWORK.md)
+### Problem Framing Snapshot gate (research_preflight.md)
 
 - Gate: [check_problem_framing_snapshot.py](scripts/gates/check_problem_framing_snapshot.py)
 - Symptom: `Problem Framing Snapshot check failed`
 - Fix:
-  - Fill `PREWORK.md` `## Problem Framing Snapshot` (Problem interpretation + P/D separation + sequential review).
+  - Fill `research_preflight.md` `## Problem Framing Snapshot` (Problem interpretation + P/D separation + sequential review).
   - Optional deterministic autofill: `python3 ~/.codex/skills/research-team/scripts/bin/auto_fill_prework.py --root . --deterministic`.
 - Rerun:
   - Preflight-only command.
@@ -237,7 +237,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Gate: [check_references_section.py](scripts/gates/check_references_section.py)
 - Symptom: `references gate failed`
 - Fix:
-  - Add a `## References` section header to `Draft_Derivation.md` (a localized header is also accepted).
+  - Add a `## References` section header to `research_contract.md` (a localized header is also accepted).
   - Each entry must include:
     - [@Key](#ref-Key) and an anchor `<a id="ref-Key"></a>` on the same line
     - a clickable `knowledge_base/` link
@@ -245,7 +245,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
     - author attribution + year (or `Retrieved: YYYY-MM-DD`)
   - Do not wrap citations/links in backticks (they become non-clickable).
   - If you pasted unstable URL variants (e.g., `dx.doi.org`, `arxiv.org/pdf/...pdf`, `inspirehep.net/api/...`), normalize them deterministically:
-    - `python3 ~/.codex/skills/research-team/scripts/bin/upgrade_reference_anchors.py --notes Draft_Derivation.md --in-place`
+    - `python3 ~/.codex/skills/research-team/scripts/bin/upgrade_reference_anchors.py --notes research_contract.md --in-place`
   - If your metadata fetch fails due to DNS/network issues but you need to keep moving:
     - Re-run the fetch with `--allow-stub` (creates an auditable stub KB note + reference entry; publication stage will block until metadata is filled).
 - Rerun:
@@ -261,7 +261,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - Math policy:
     - Do not use `\(` `\)` `\[ ` `\]`; use `$...$` / `$$...$$`.
     - In `$$...$$` blocks, no line may start with `+`, `-`, or `=` (Markdown hazards).
-    - Deterministic autofix helper: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_math_hygiene.py --root Draft_Derivation.md --in-place`
+    - Deterministic autofix helper: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_math_hygiene.py --root research_contract.md --in-place`
   - Link policy:
     - Never put Markdown links (or `knowledge_base/*.md` paths) inside inline code spans.
 - Rerun:
@@ -272,11 +272,11 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Gate: [check_markdown_math_hygiene.py](scripts/gates/check_markdown_math_hygiene.py)
 - Symptom: `markdown math hygiene gate failed`
 - Default scan targets (configurable in `research_team_config.json`):
-  - `Draft_Derivation.md`
-  - `PREWORK.md`
-  - `RESEARCH_PLAN.md`
-  - `PROJECT_CHARTER.md`
-  - `PROJECT_MAP.md`
+  - `research_contract.md`
+  - `research_preflight.md`
+  - `research_plan.md`
+  - `project_charter.md`
+  - `project_index.md`
   - `knowledge_base/**/*.md`
 - Fix:
   - Deterministic autofix helper (safe for common cases): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_math_hygiene.py --root <path> --in-place`
@@ -309,8 +309,8 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Symptom: `double-backslash math gate failed`
 - Scope: uses the same scan targets as the Markdown math hygiene gate (`markdown_math_hygiene.targets` / `exclude_globs`).
 - Fix:
-  - Deterministic fix (recommended; targets key docs only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes Draft_Derivation.md --in-place`
-  - Check-only helper (warn or fail): `bash ~/.codex/skills/research-team/scripts/bin/check_md_double_backslash.sh --notes Draft_Derivation.md [--fail]`
+  - Deterministic fix (recommended; targets key docs only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`
+  - Check-only helper (warn or fail): `bash ~/.codex/skills/research-team/scripts/bin/check_md_double_backslash.sh --notes research_contract.md [--fail]`
   - Notes:
     - The fixer only rewrites inside Markdown math regions (`$...$`, `$$...$$`) and never touches fenced code blocks.
     - It does NOT rewrite real LaTeX line breaks (`\\`) or spacing commands (`\\[2pt]`).
@@ -322,11 +322,11 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Gate: [check_markdown_latex_macro_hygiene.py](scripts/gates/check_markdown_latex_macro_hygiene.py)
 - Symptom: `latex macro hygiene gate failed`
 - Default scan targets (configurable in `research_team_config.json`):
-  - `Draft_Derivation.md`
-  - `PREWORK.md`
-  - `RESEARCH_PLAN.md`
-  - `PROJECT_CHARTER.md`
-  - `PROJECT_MAP.md`
+  - `research_contract.md`
+  - `research_preflight.md`
+  - `research_plan.md`
+  - `project_charter.md`
+  - `project_index.md`
   - `knowledge_base/**/*.md`
 - Fix:
   - Expand custom macros (e.g. `\Rc`, `\Mc`, `\Cc`, `\cK`) into explicit forms (e.g. `\mathcal{R}`).
@@ -340,11 +340,11 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Gate: [check_markdown_link_hygiene.py](scripts/gates/check_markdown_link_hygiene.py)
 - Symptom: `markdown link hygiene gate failed`
 - Default scan targets (configurable in `research_team_config.json`):
-  - `Draft_Derivation.md`
-  - `PREWORK.md`
-  - `RESEARCH_PLAN.md`
-  - `PROJECT_CHARTER.md`
-  - `PROJECT_MAP.md`
+  - `research_contract.md`
+  - `research_preflight.md`
+  - `research_plan.md`
+  - `project_charter.md`
+  - `project_index.md`
   - `knowledge_base/**/*.md`
 - Fix:
   - Do not wrap links/citations/path pointers in inline code spans (backticks); use Markdown links so paths are clickable.

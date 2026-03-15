@@ -51,7 +51,7 @@ if ! grep -nF "Authors: UNKNOWN" "${note}" >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! grep -nF "Reference entry (paste into Draft_Derivation.md" "${tmp_root}/out.txt" >/dev/null 2>&1; then
+if ! grep -nF "Reference entry (paste into research_contract.md" "${tmp_root}/out.txt" >/dev/null 2>&1; then
   echo "[fail] expected reference entry hint in output; got:" >&2
   sed -n '1,120p' "${tmp_root}/out.txt" >&2 || true
   exit 1

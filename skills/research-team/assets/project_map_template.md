@@ -1,4 +1,4 @@
-# PROJECT_MAP.md (Template)
+# project_index.md (Template)
 
 Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
@@ -8,10 +8,10 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 ## Read first (in order)
 
-1) [PROJECT_CHARTER.md](PROJECT_CHARTER.md) — goals, constraints, scope
-2) [RESEARCH_PLAN.md](RESEARCH_PLAN.md) — Task Board + Progress Log
-3) [PREWORK.md](PREWORK.md) — literature coverage + method selection
-4) [Draft_Derivation.md](Draft_Derivation.md) — full derivation chain (no skipped steps)
+1) [project_charter.md](project_charter.md) — goals, constraints, scope
+2) [research_plan.md](research_plan.md) — Task Board + Progress Log
+3) [research_preflight.md](research_preflight.md) — literature coverage + method selection
+4) [research_contract.md](research_contract.md) — full derivation chain (no skipped steps)
 
 ## Latest pointers
 
@@ -34,11 +34,11 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 ### Derivation chain
 
-- [Draft_Derivation.md](Draft_Derivation.md) — primary derivation + mapping to code/artifacts
+- [research_contract.md](research_contract.md) — primary derivation + mapping to code/artifacts
 
 ### Algorithm / numerics design chain
 
-- [PREWORK.md](PREWORK.md) — method selection rationale (incl. Problem Framing Snapshot)
+- [research_preflight.md](research_preflight.md) — method selection rationale (incl. Problem Framing Snapshot)
 - [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/) — design decisions + search logs
 
 ### Evidence chain
@@ -54,9 +54,9 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 ---
 
-<!-- PROJECT_MAP_AUTO_START -->
+<!-- PROJECT_INDEX_AUTO_START -->
 <!-- This block is auto-generated. Do not edit by hand. -->
-<!-- PROJECT_MAP_AUTO_END -->
+<!-- PROJECT_INDEX_AUTO_END -->
 
 ## Notes (manual)
 

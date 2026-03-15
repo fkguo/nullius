@@ -38,10 +38,10 @@ p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
 echo "[test0] baseline passes"
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
-echo "[test1] inject hazards in PREWORK.md and knowledge_base"
-cat >> "${tmp_root}/PREWORK.md" <<'EOF'
+echo "[test1] inject hazards in research_preflight.md and knowledge_base"
+cat >> "${tmp_root}/research_preflight.md" <<'EOF'
 
 ## Smoke: broken display math (intentional; should be rejected)
 
@@ -73,7 +73,7 @@ $$
 EOF
 
 set +e
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/gate_fail.log" 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/gate_fail.log" 2>&1
 code1=$?
 set -e
 if [[ ${code1} -eq 0 ]]; then
@@ -89,10 +89,10 @@ fi
 echo "[ok] fail case"
 
 echo "[test2] deterministic autofix then pass"
-python3 "${BIN_DIR}/fix_markdown_math_hygiene.py" --root "${tmp_root}/PREWORK.md" --in-place >/dev/null 2>&1
+python3 "${BIN_DIR}/fix_markdown_math_hygiene.py" --root "${tmp_root}/research_preflight.md" --in-place >/dev/null 2>&1
 python3 "${BIN_DIR}/fix_markdown_math_hygiene.py" --root "${tmp_root}/knowledge_base/literature/hazard.md" --in-place >/dev/null 2>&1
 
-cat >> "${tmp_root}/PREWORK.md" <<'EOF'
+cat >> "${tmp_root}/research_preflight.md" <<'EOF'
 
 ## Smoke: TeX linebreak spacing is allowed (\\[2pt] should NOT be treated as disallowed \\[)
 
@@ -102,7 +102,7 @@ b = 2
 $$
 EOF
 
-cat >> "${tmp_root}/PREWORK.md" <<'EOF'
+cat >> "${tmp_root}/research_preflight.md" <<'EOF'
 
 ~~~text
 $$
@@ -111,5 +111,5 @@ $$
 ~~~
 EOF
 
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 echo "[ok] markdown math hygiene gate smoke test passed"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Auto-fill RESEARCH_PLAN.md using initial instruction + prework.
+Auto-fill research_plan.md using initial instruction + prework.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from team_config import load_team_config  # type: ignore
 
 
 DEFAULT_INSTRUCTION_PATHS = (
-    "INITIAL_INSTRUCTION.md",
+    "project_brief.md",
     "项目开始指令.md",
     "README.md",
 )
@@ -71,11 +71,11 @@ def _deterministic_plan(
     instr_rel = _rel(instr_path)
     prework_rel = _rel(prework_path) if prework_text else ""
 
-    instr_hint = "See initial instruction file." if instr_rel else "Add an initial instruction file (INITIAL_INSTRUCTION.md / 项目开始指令.md / README.md)."
+    instr_hint = "See initial instruction file." if instr_rel else "Add an initial instruction file (project_brief.md / 项目开始指令.md / README.md)."
     goal_line = instr_text.splitlines()[0].strip() if instr_text.strip() else instr_hint
 
     lines: list[str] = []
-    lines.append("# RESEARCH_PLAN.md")
+    lines.append("# research_plan.md")
     lines.append("")
     lines.append(f"Project: {project}")
     lines.append(f"Owner: {owner}")
@@ -96,7 +96,7 @@ def _deterministic_plan(
     lines.append("```bash")
     lines.append("bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \\")
     lines.append("  --tag M0-r1 \\")
-    lines.append("  --notes Draft_Derivation.md \\")
+    lines.append("  --notes research_contract.md \\")
     lines.append("  --out-dir team \\")
     lines.append("  --member-a-system prompts/_system_member_a.txt \\")
     lines.append("  --member-b-system prompts/_system_member_b.txt \\")
@@ -109,7 +109,7 @@ def _deterministic_plan(
     lines.append("```bash")
     lines.append("bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \\")
     lines.append("  --tag M0-r1 \\")
-    lines.append("  --notes Draft_Derivation.md \\")
+    lines.append("  --notes research_contract.md \\")
     lines.append("  --out-dir team \\")
     lines.append("  --member-a-system prompts/_system_member_a.txt \\")
     lines.append("  --member-b-system prompts/_system_member_b.txt \\")
@@ -148,12 +148,12 @@ def _deterministic_plan(
     lines.append("### Definition of Done (DoD) rubric (anti-superficial)")
     lines.append("")
     lines.append("- Acceptance MUST be evidence-backed and quickly checkable (files/commands/thresholds, not just prose).")
-    lines.append("- If full recomputation is impractical, define audit proxy headlines in Draft_Derivation.md Audit slices.")
+    lines.append("- If full recomputation is impractical, define audit proxy headlines in research_contract.md Audit slices.")
     lines.append("")
     lines.append("### M0 — Baseline Reproduction")
     lines.append("")
     lines.append("- Deliverables:")
-    lines.append("  - [Draft_Derivation.md](Draft_Derivation.md) capsule + excerpt markers filled")
+    lines.append("  - [research_contract.md](research_contract.md) capsule + excerpt markers filled")
     lines.append("  - At least 1 reproducible artifact run (manifest/summary/analysis + one main figure embedded)")
     lines.append("- Acceptance:")
     lines.append("  - `run_team_cycle.sh --preflight-only` passes")
@@ -206,7 +206,7 @@ def _deterministic_plan(
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=Path.cwd(), help="Project root (default: cwd).")
-    ap.add_argument("--plan", type=Path, default=None, help="Path to RESEARCH_PLAN.md.")
+    ap.add_argument("--plan", type=Path, default=None, help="Path to research_plan.md.")
     ap.add_argument("--force", action="store_true", help="Overwrite even if plan is not a template.")
     ap.add_argument("--deterministic", action="store_true", help="Do not call external LLM runners; generate a minimal starter plan deterministically.")
     ap.add_argument("--member-a-model", default="opus", help="Claude model for plan draft.")
@@ -216,7 +216,7 @@ def main() -> int:
     args = ap.parse_args()
 
     root = args.root.resolve()
-    plan_path = args.plan or (root / "RESEARCH_PLAN.md")
+    plan_path = args.plan or (root / "research_plan.md")
     plan_exists = plan_path.is_file()
 
     team_cfg = load_team_config(root)
@@ -234,7 +234,7 @@ def main() -> int:
         print("Checked:", ", ".join(instr_paths))
         return 2
 
-    prework_path = root / "PREWORK.md"
+    prework_path = root / "research_preflight.md"
     prework_text = _read_text(prework_path) if prework_path.is_file() else ""
 
     member_a_system = args.member_a_system
@@ -250,7 +250,7 @@ def main() -> int:
     from check_research_plan import _looks_like_template  # type: ignore
 
     if plan_exists and not _looks_like_template(plan_marker) and not args.force:
-        print("[skip] RESEARCH_PLAN.md appears filled; use --force to overwrite.")
+        print("[skip] research_plan.md appears filled; use --force to overwrite.")
         return 0
 
     if args.deterministic:
@@ -277,12 +277,12 @@ def main() -> int:
         temp_dir = root / "team"
         temp_dir.mkdir(parents=True, exist_ok=True)
         (temp_dir / "auto_fill_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
-        print("[ok] auto-filled RESEARCH_PLAN.md (deterministic)")
+        print("[ok] auto-filled research_plan.md (deterministic)")
         return 0
 
     prompt = (
-        "You are drafting RESEARCH_PLAN.md for a research-team project.\n"
-        "Use the initial instruction and prework. Output full Markdown for RESEARCH_PLAN.md.\n"
+        "You are drafting research_plan.md for a research-team project.\n"
+        "Use the initial instruction and prework. Output full Markdown for research_plan.md.\n"
         "Requirements:\n"
         "- Include goals, scope, claims, milestones, and acceptance tests.\n"
         "- Add a section 'Task Board' with checkbox tasks formatted as '- [ ] T1: ...'.\n"
@@ -344,7 +344,7 @@ def main() -> int:
         temp_dir = root / "team"
         temp_dir.mkdir(parents=True, exist_ok=True)
         (temp_dir / "auto_fill_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
-        print("[ok] auto-filled RESEARCH_PLAN.md (deterministic fallback)")
+        print("[ok] auto-filled research_plan.md (deterministic fallback)")
         return 0
 
     draft_out = temp_dir / "_autofill_plan_opus.md"
@@ -404,12 +404,12 @@ def main() -> int:
             "member_b_model": args.member_b_model,
         }
         (temp_dir / "auto_fill_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
-        print("[ok] auto-filled RESEARCH_PLAN.md (deterministic fallback)")
+        print("[ok] auto-filled research_plan.md (deterministic fallback)")
         return 0
 
     # Gemini refinement.
     refine_prompt = (
-        "Refine the following RESEARCH_PLAN.md. Output full Markdown only.\n"
+        "Refine the following research_plan.md. Output full Markdown only.\n"
         "Ensure Task Board uses '- [ ] Tn: ...' and tasks are concrete and ordered.\n"
         "\n"
         + draft_out.read_text(encoding="utf-8", errors="replace")
@@ -454,7 +454,7 @@ def main() -> int:
     }
     (temp_dir / "auto_fill_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
 
-    print("[ok] auto-filled RESEARCH_PLAN.md")
+    print("[ok] auto-filled research_plan.md")
     return 0
 
 

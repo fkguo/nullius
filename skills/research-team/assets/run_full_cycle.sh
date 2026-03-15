@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TAG="${1:-M0-r1}"
-NOTES="${2:-Draft_Derivation.md}"
+NOTES="${2:-research_contract.md}"
 OUT_DIR="${3:-team}"
 
 MEMBER_A_SYSTEM="${MEMBER_A_SYSTEM:-prompts/_system_member_a.txt}"

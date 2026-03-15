@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Deterministic auto-fill helper for PREWORK.md.
+Deterministic auto-fill helper for research_preflight.md.
 
 Currently focuses on ensuring a minimal, gate-passing "## Problem Framing Snapshot" block exists.
 
 Design goals:
 - No external LLM calls (safe to run during preflight).
 - Never overwrite non-empty user content.
-- Prefer explicit pointers (RESEARCH_PLAN.md, Draft_Derivation.md) when domain details are unknown.
+- Prefer explicit pointers (research_plan.md, research_contract.md) when domain details are unknown.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from team_config import find_config_path  # type: ignore
 
 
 DEFAULT_INSTRUCTION_PATHS = (
-    "INITIAL_INSTRUCTION.md",
+    "project_brief.md",
     "项目开始指令.md",
     "README.md",
 )
@@ -45,7 +45,7 @@ def _find_first_nonempty(root: Path, rels: list[str]) -> tuple[Path | None, str]
 
 def _render_problem_framing_block(*, goal_line: str) -> str:
     # Keep the block compact and pointer-based so it's safe across domains.
-    gl = goal_line.strip() if goal_line.strip() else "(fill: one-sentence problem from INITIAL_INSTRUCTION.md)"
+    gl = goal_line.strip() if goal_line.strip() else "(fill: one-sentence problem from project_brief.md)"
     return "\n".join(
         [
             "## Problem Framing Snapshot",
@@ -55,20 +55,20 @@ def _render_problem_framing_block(*, goal_line: str) -> str:
             "### Problem Interpretation (P)",
             "",
             f"- Problem sentence: {gl}",
-            "- Inputs: see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) (Scope/In scope) and Reproducibility Capsule B) Inputs",
-            "- Outputs: primary notebook [Draft_Derivation.md](Draft_Derivation.md) + reproducible artifacts under [runs/](runs/) (see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) deliverables)",
-            "- Scope: see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) '## 1. Scope (SCOPE)'",
-            "- Anti-scope: see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) 'Out of scope'",
-            "- Falsification / kill criteria: Fail if any declared falsification/acceptance test triggers; see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) 'Claims & Falsification'",
+            "- Inputs: see [research_plan.md](research_plan.md) (Scope/In scope) and Reproducibility Capsule B) Inputs",
+            "- Outputs: primary notebook [research_contract.md](research_contract.md) + reproducible artifacts under [runs/](runs/) (see [research_plan.md](research_plan.md) deliverables)",
+            "- Scope: see [research_plan.md](research_plan.md) '## 1. Scope (SCOPE)'",
+            "- Anti-scope: see [research_plan.md](research_plan.md) 'Out of scope'",
+            "- Falsification / kill criteria: Fail if any declared falsification/acceptance test triggers; see [research_plan.md](research_plan.md) 'Claims & Falsification'",
             "",
             "### Principle / Derivation Separation (P/D)",
             "",
             "- Principles (P): (>=1; each must have a source pointer)",
-            "- P1: Reproducibility contract: every used formula is linked formula -> code pointer -> artifact; no skipped steps. | Source: [Draft_Derivation.md](Draft_Derivation.md)",
+            "- P1: Reproducibility contract: every used formula is linked formula -> code pointer -> artifact; no skipped steps. | Source: [research_contract.md](research_contract.md)",
             "- Derivation trace (D): (>=3 atomic steps; link to where each step lives)",
-            "- D1: Lock definitions/notation/conventions for touched quantities. Pointer: [Draft_Derivation.md](Draft_Derivation.md)",
-            "- D2: Write the milestone's key derivation step-by-step (>=3 critical steps); no hand-waving. Pointer: [Draft_Derivation.md](Draft_Derivation.md)",
-            "- D3: Map formula -> code pointer -> artifact, and add at least one nontrivial Audit slice/proxy headline number. Pointer: [Draft_Derivation.md](Draft_Derivation.md)",
+            "- D1: Lock definitions/notation/conventions for touched quantities. Pointer: [research_contract.md](research_contract.md)",
+            "- D2: Write the milestone's key derivation step-by-step (>=3 critical steps); no hand-waving. Pointer: [research_contract.md](research_contract.md)",
+            "- D3: Map formula -> code pointer -> artifact, and add at least one nontrivial Audit slice/proxy headline number. Pointer: [research_contract.md](research_contract.md)",
             "",
             "### Sequential Review Checklist (do not skip)",
             "",
@@ -108,7 +108,7 @@ def _has_nonempty_p_line(line: str) -> bool:
 
 def _ensure_p_and_d(lines: list[str], start: int, end: int) -> None:
     # Ensure at least one filled principle line (P1) exists.
-    default_p1 = "- P1: Reproducibility contract: every used formula is linked formula -> code pointer -> artifact; no skipped steps. | Source: [Draft_Derivation.md](Draft_Derivation.md)"
+    default_p1 = "- P1: Reproducibility contract: every used formula is linked formula -> code pointer -> artifact; no skipped steps. | Source: [research_contract.md](research_contract.md)"
     p1_idx = None
     for i in range(start, end):
         if lines[i].lstrip().startswith("- P1:"):
@@ -129,9 +129,9 @@ def _ensure_p_and_d(lines: list[str], start: int, end: int) -> None:
 
     # Ensure D1-D3 exist and are non-empty (process-level defaults are fine).
     defaults = {
-        "D1": "Lock definitions/notation/conventions for touched quantities. Pointer: [Draft_Derivation.md](Draft_Derivation.md)",
-        "D2": "Write the milestone's key derivation step-by-step (>=3 critical steps); no hand-waving. Pointer: [Draft_Derivation.md](Draft_Derivation.md)",
-        "D3": "Map formula -> code pointer -> artifact, and add at least one nontrivial Audit slice/proxy headline number. Pointer: [Draft_Derivation.md](Draft_Derivation.md)",
+        "D1": "Lock definitions/notation/conventions for touched quantities. Pointer: [research_contract.md](research_contract.md)",
+        "D2": "Write the milestone's key derivation step-by-step (>=3 critical steps); no hand-waving. Pointer: [research_contract.md](research_contract.md)",
+        "D3": "Map formula -> code pointer -> artifact, and add at least one nontrivial Audit slice/proxy headline number. Pointer: [research_contract.md](research_contract.md)",
     }
     d_present: dict[str, int] = {}
     for i in range(start, end):
@@ -206,21 +206,21 @@ def main() -> int:
     instr_path, instr_text = _find_first_nonempty(root, instr_paths)
     goal_line = instr_text.splitlines()[0].strip() if instr_text.strip() else ""
 
-    prework = root / "PREWORK.md"
+    prework = root / "research_preflight.md"
     if not prework.is_file():
-        # Create a minimal PREWORK.md if missing (prefer template if available).
+        # Create a minimal research_preflight.md if missing (prefer template if available).
         assets = Path(__file__).resolve().parent.parent / "assets"
-        tmpl = assets / "PREWORK_template.md"
+        tmpl = assets / "research_preflight_template.md"
         if tmpl.is_file():
             prework.write_text(_read_text(tmpl).strip() + "\n", encoding="utf-8")
         else:
-            prework.write_text("# PREWORK.md\n\n", encoding="utf-8")
+            prework.write_text("# research_preflight.md\n\n", encoding="utf-8")
 
     text = _read_text(prework)
     if re.search(r"^##\s+Problem\s+Framing\s+Snapshot\b", text, flags=re.IGNORECASE | re.MULTILINE) is None:
         patched = text.rstrip() + "\n\n" + _render_problem_framing_block(goal_line=goal_line)
         prework.write_text(patched.rstrip() + "\n", encoding="utf-8")
-        print("[ok] inserted Problem Framing Snapshot into PREWORK.md")
+        print("[ok] inserted Problem Framing Snapshot into research_preflight.md")
         if instr_path:
             print(f"- initial instruction: {instr_path}")
         return 0
@@ -243,24 +243,24 @@ def main() -> int:
         # Heading exists in text but not as a standalone line; append a clean block.
         patched = text.rstrip() + "\n\n" + _render_problem_framing_block(goal_line=goal_line)
         prework.write_text(patched.rstrip() + "\n", encoding="utf-8")
-        print("[ok] appended clean Problem Framing Snapshot block into PREWORK.md")
+        print("[ok] appended clean Problem Framing Snapshot block into research_preflight.md")
         return 0
 
     _patch_line_if_empty(lines, "Problem sentence", goal_line or "(fill)", start, end)
-    _patch_line_if_empty(lines, "Inputs", "see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) (Scope/In scope) and Capsule B) Inputs", start, end)
+    _patch_line_if_empty(lines, "Inputs", "see [research_plan.md](research_plan.md) (Scope/In scope) and Capsule B) Inputs", start, end)
     _patch_line_if_empty(
         lines,
         "Outputs",
-        "see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) deliverables; primary notebook [Draft_Derivation.md](Draft_Derivation.md) + [runs/](runs/)",
+        "see [research_plan.md](research_plan.md) deliverables; primary notebook [research_contract.md](research_contract.md) + [runs/](runs/)",
         start,
         end,
     )
-    _patch_line_if_empty(lines, "Scope", "see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) '## 1. Scope (SCOPE)'", start, end)
-    _patch_line_if_empty(lines, "Anti-scope", "see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) 'Out of scope'", start, end)
+    _patch_line_if_empty(lines, "Scope", "see [research_plan.md](research_plan.md) '## 1. Scope (SCOPE)'", start, end)
+    _patch_line_if_empty(lines, "Anti-scope", "see [research_plan.md](research_plan.md) 'Out of scope'", start, end)
     _patch_line_if_empty(
         lines,
         "Falsification / kill criteria",
-        "Fail if any declared falsification/acceptance test triggers; see [RESEARCH_PLAN.md](RESEARCH_PLAN.md) 'Claims & Falsification'",
+        "Fail if any declared falsification/acceptance test triggers; see [research_plan.md](research_plan.md) 'Claims & Falsification'",
         start,
         end,
     )
@@ -268,7 +268,7 @@ def main() -> int:
     _ensure_p_and_d(lines, start, end)
 
     prework.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-    print("[ok] patched Problem Framing Snapshot fields in PREWORK.md (no overwrite of non-empty lines)")
+    print("[ok] patched Problem Framing Snapshot fields in research_preflight.md (no overwrite of non-empty lines)")
     if instr_path:
         print(f"- initial instruction: {instr_path}")
     return 0

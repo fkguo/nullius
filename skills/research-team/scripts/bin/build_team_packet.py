@@ -188,7 +188,7 @@ def _format_idea_seed_section(seeds: list[dict]) -> list[str]:
 
 
 def _parse_innovation_leads(log_path: Path) -> list[dict]:
-    """Parse INNOVATION_LOG.md and extract breakthrough leads.
+    """Parse idea_log.md and extract breakthrough leads.
 
     Expected format in the log:
       ## Lead N: <title>
@@ -229,7 +229,7 @@ def _parse_innovation_leads(log_path: Path) -> list[dict]:
 
 
 def _leads_to_idea_cards(leads: list[dict]) -> list[dict]:
-    """Map INNOVATION_LOG leads to idea_card_v1 schema (best-effort).
+    """Map idea_log breakthrough leads to idea_card_v1 schema (best-effort).
 
     Ensures thesis_statement meets the schema minLength (20 chars).
     """
@@ -287,7 +287,7 @@ def _parse_args() -> argparse.Namespace:
         help="Preferred reply language (optional). If omitted, members should inherit from the packet content.",
     )
     p.add_argument("--notes", type=Path, nargs="*", default=[], help="Notebook/notes paths to reference (optional).")
-    p.add_argument("--innovation-log", type=Path, default=None, help="Path to INNOVATION_LOG.md (optional).")
+    p.add_argument("--innovation-log", type=Path, default=None, help="Path to idea_log.md (optional).")
     p.add_argument("--figures", type=Path, nargs="*", default=[], help="Figure paths (optional).")
     p.add_argument("--tables", type=Path, nargs="*", default=[], help="Table/CSV paths (optional).")
     p.add_argument("--questions", type=str, nargs="*", default=[], help="Questions to stress-test (optional).")
@@ -331,7 +331,7 @@ def _parse_args() -> argparse.Namespace:
         "--export-leads-to",
         type=Path,
         default=None,
-        help="Export INNOVATION_LOG breakthrough leads as idea_card_v1 JSON list to this path.",
+        help="Export idea_log breakthrough leads as idea_card_v1 JSON list to this path.",
     )
     return p.parse_args()
 
@@ -818,7 +818,7 @@ def _run_pointer_lint(notes: Path, import_cmd: str) -> tuple[str, int]:
 def _find_research_plan(seed: Path) -> Path | None:
     cur = (seed.parent if seed.is_file() else seed).resolve()
     for _ in range(50):
-        cand = cur / "RESEARCH_PLAN.md"
+        cand = cur / "research_plan.md"
         if cand.is_file():
             return cand
         if cur.parent == cur:
@@ -830,7 +830,7 @@ def _find_research_plan(seed: Path) -> Path | None:
 def _find_prework(seed: Path) -> Path | None:
     cur = (seed.parent if seed.is_file() else seed).resolve()
     for _ in range(50):
-        cand = cur / "PREWORK.md"
+        cand = cur / "research_preflight.md"
         if cand.is_file():
             return cand
         if cur.parent == cur:
@@ -842,7 +842,7 @@ def _find_prework(seed: Path) -> Path | None:
 def _find_project_charter(seed: Path) -> Path | None:
     cur = (seed.parent if seed.is_file() else seed).resolve()
     for _ in range(50):
-        cand = cur / "PROJECT_CHARTER.md"
+        cand = cur / "project_charter.md"
         if cand.is_file():
             return cand
         if cur.parent == cur:
@@ -937,7 +937,7 @@ def main() -> int:
 
     innovation_log: Path | None = args.innovation_log
     if innovation_log is None:
-        candidate = cwd / "INNOVATION_LOG.md"
+        candidate = cwd / "idea_log.md"
         if candidate.is_file():
             innovation_log = candidate
 
@@ -1080,7 +1080,7 @@ def main() -> int:
                 dod_lines.append(f"Task Board line: {line}")
 
     if plan_path is not None:
-        lines.append("## 0.2) Milestone/Task DoD snapshot (from RESEARCH_PLAN.md; anti-superficial)")
+        lines.append("## 0.2) Milestone/Task DoD snapshot (from research_plan.md; anti-superficial)")
         lines.append("")
         lines.append(f"- Plan: {plan_path}")
         if dod_lines:
@@ -1091,7 +1091,7 @@ def main() -> int:
                 snippet = snippet[:3000].rstrip() + "\n[... truncated ...]"
             lines.extend(snippet.splitlines())
         else:
-            lines.append("- Snapshot: (not found for this tag; ensure RESEARCH_PLAN.md has a matching milestone/task section)")
+            lines.append("- Snapshot: (not found for this tag; ensure research_plan.md has a matching milestone/task section)")
         lines.append("")
 
     # Surface Problem Framing Snapshot (prework decomposition) to reviewers, so it cannot be ignored.
@@ -1104,7 +1104,7 @@ def main() -> int:
         prework_text = prework_path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
         prework_text = _strip_fenced_code(prework_text)
         problem_framing_block = _extract_heading_block(prework_text, heading_re=r"(?i)^(?P<hashes>##+)\s+Problem\s+Framing\s+Snapshot\b.*$")
-        lines.append("## 0.25) Problem Framing Snapshot (from PREWORK.md; prework decomposition)")
+        lines.append("## 0.25) Problem Framing Snapshot (from research_preflight.md; prework decomposition)")
         lines.append("")
         lines.append(f"- Prework: {prework_path}")
         if problem_framing_block:
@@ -1115,7 +1115,7 @@ def main() -> int:
                 snippet = snippet[:3000].rstrip() + "\n[... truncated ...]"
             lines.extend(snippet.splitlines())
         else:
-            lines.append("- Snapshot: (not found; add '## Problem Framing Snapshot' to PREWORK.md)")
+            lines.append("- Snapshot: (not found; add '## Problem Framing Snapshot' to research_preflight.md)")
         lines.append("")
 
     # RT-04: inject idea seeds before the convergence gate section
@@ -1224,7 +1224,7 @@ def main() -> int:
     lines.append("## 2) Definition-hardened quantities (exact operational definitions)")
     lines.append("")
     if mapping_rows:
-        lines.append("- Auto-extracted from Draft_Derivation.md Section 6 table:")
+        lines.append("- Auto-extracted from research_contract.md Section 6 table:")
         for row in mapping_rows:
             qty = row.get("quantity", "").strip() or "(unnamed)"
             definition = row.get("definition", "").strip() or "(missing definition)"
@@ -1246,7 +1246,7 @@ def main() -> int:
     if innovation_log is not None:
         lines.append(f"- Idea portfolio updates (advance/revise/kill): see {innovation_log}")
     else:
-        lines.append("- Idea portfolio updates (advance/revise/kill): (optional) INNOVATION_LOG.md")
+        lines.append("- Idea portfolio updates (advance/revise/kill): (optional) idea_log.md")
     lines.append("")
 
     # Sweep semantics / parameter dependence (mandatory in capsule; surfaced here as a cross-check focus).

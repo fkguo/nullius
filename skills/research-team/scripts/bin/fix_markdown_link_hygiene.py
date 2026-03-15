@@ -7,7 +7,7 @@ Deterministic autofix helper for common "non-clickable link" Markdown hazards.
 What it fixes (outside fenced code blocks):
 1) Inline code spans wrapping a Markdown link, e.g. `[...] ( ... )`:
    - unwraps by removing the backticks, leaving a normal Markdown link.
-2) Inline code spans that are standalone Markdown file/path pointers, e.g. `knowledge_base/foo.md` or `Draft_Derivation.md`:
+2) Inline code spans that are standalone Markdown file/path pointers, e.g. `knowledge_base/foo.md` or `research_contract.md`:
    - rewrites into a Markdown link: [knowledge_base/foo.md](knowledge_base/foo.md)
 
 Conservative guards:

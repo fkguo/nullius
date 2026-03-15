@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Smoke tests for the Project Charter gate (PROJECT_CHARTER.md).
+# Smoke tests for the Project Charter gate (project_charter.md).
 #
 # Coverage:
 # - Missing charter fails
@@ -29,8 +29,8 @@ fi
 
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeCharterGate" --profile "mixed" >/dev/null 2>&1
 
-notes="${tmp_root}/Draft_Derivation.md"
-charter="${tmp_root}/PROJECT_CHARTER.md"
+notes="${tmp_root}/research_contract.md"
+charter="${tmp_root}/project_charter.md"
 cfg="${tmp_root}/research_team_config.json"
 
 mkdir -p "${tmp_root}/knowledge_base/literature"
@@ -68,7 +68,7 @@ write_charter() {
   local commitment2="$7"
 
   cat > "${charter}" <<EOF
-# PROJECT_CHARTER.md
+# project_charter.md
 
 Status: ${status}
 Project: SmokeCharterGate
@@ -136,7 +136,7 @@ run_gate_expect_ok() {
 
 echo "[test0] missing charter fails"
 mv "${charter}" "${charter}.bak"
-run_gate_expect_fail "t0_missing_charter" "Missing PROJECT_CHARTER.md"
+run_gate_expect_fail "t0_missing_charter" "Missing project_charter.md"
 mv "${charter}.bak" "${charter}"
 
 echo "[test1] DRAFT status fails"

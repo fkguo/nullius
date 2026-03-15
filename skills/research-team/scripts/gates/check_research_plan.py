@@ -2,7 +2,7 @@
 """
 Research plan gate.
 
-Fails if RESEARCH_PLAN.md is missing or still contains template placeholders.
+Fails if research_plan.md is missing or still contains template placeholders.
 Exit codes:
   0 ok
   1 template / incomplete
@@ -27,7 +27,7 @@ except Exception as exc:  # pragma: no cover - import-time failure
 PLACEHOLDERS = (
     "<YOUR_NAME>",
     "<YYYY-MM-DD>",
-    "RESEARCH_PLAN.md (Template)",
+    "research_plan.md (Template)",
 )
 
 EMPTY_LINE_PATTERNS = (
@@ -51,7 +51,7 @@ def _find_plan(notes_path: Path) -> Path | None:
         if cur_resolved in seen:
             break
         seen.add(cur_resolved)
-        cand = cur_resolved / "RESEARCH_PLAN.md"
+        cand = cur_resolved / "research_plan.md"
         if cand.is_file():
             return cand
         if cur_resolved.parent == cur_resolved:
@@ -159,7 +159,7 @@ def _as_bool(value: object) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md.")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md.")
     ap.add_argument("--detect-only", action="store_true", help="Exit 0 if template detected, 1 if filled.")
     args = ap.parse_args()
 
@@ -197,13 +197,13 @@ def main() -> int:
             print("[detect] no research plan found")
             return 0
         print("[fail] research plan gate failed")
-        print("[error] Missing RESEARCH_PLAN.md")
+        print("[error] Missing research_plan.md")
         return 1
 
     try:
         text = plan_path.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:
-        print(f"[error] Failed to read RESEARCH_PLAN.md: {exc}")
+        print(f"[error] Failed to read research_plan.md: {exc}")
         return 2
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     clean_text = _strip_fenced_code(text)
@@ -214,7 +214,7 @@ def main() -> int:
 
     if is_template:
         print("[fail] research plan gate failed")
-        print(f"[error] RESEARCH_PLAN.md appears to be a template: {plan_path}")
+        print(f"[error] research_plan.md appears to be a template: {plan_path}")
         print("[error] Fill it or run auto-fill before team cycles.")
         return 1
 
@@ -232,7 +232,7 @@ def main() -> int:
         task_board = _extract_section(text, "Task Board")
         if not task_board:
             print("[fail] research plan gate failed")
-            print("[error] Missing '## Task Board' section in RESEARCH_PLAN.md")
+            print("[error] Missing '## Task Board' section in research_plan.md")
             return 1
         if not re.search(r"^\s*(?:[-*+]|[0-9]+\.)\s*\[\s*(?:[xX])?\s*\]", task_board, flags=re.MULTILINE):
             print("[fail] research plan gate failed")
@@ -243,7 +243,7 @@ def main() -> int:
         progress_log = _extract_section(text, "Progress Log")
         if not progress_log:
             print("[fail] research plan gate failed")
-            print("[error] Missing '## Progress Log' section in RESEARCH_PLAN.md")
+            print("[error] Missing '## Progress Log' section in research_plan.md")
             return 1
 
     print("[ok] research plan gate passed")

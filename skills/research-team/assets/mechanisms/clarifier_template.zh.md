@@ -12,9 +12,9 @@ Date: <YYYY-MM-DD>
 
 把本文件产出的关键信息同步到主流程文档中（否则 mechanisms 会变成“表面文章”）：
 
-- 同步到 [PREWORK.md](../PREWORK.md)：填 `## Problem Framing Snapshot`（Problem Interpretation + P/D separation + kill criteria）。
-- 同步到 [RESEARCH_PLAN.md](../RESEARCH_PLAN.md)：把里程碑拆成 `## Task Board` 的 checkbox 任务（建议显式标注 `(auto)` / `(manual)` 以配合 autopilot）。
-- 同步到 [Draft_Derivation.md](../Draft_Derivation.md)：Capsule 只写复现合约；推导/算法细节写在正文（不要把推导塞进 Capsule）。
+- 同步到 [research_preflight.md](../research_preflight.md)：填 `## Problem Framing Snapshot`（Problem Interpretation + P/D separation + kill criteria）。
+- 同步到 [research_plan.md](../research_plan.md)：把里程碑拆成 `## Task Board` 的 checkbox 任务（建议显式标注 `(auto)` / `(manual)` 以配合 autopilot）。
+- 同步到 [research_contract.md](../research_contract.md)：Capsule 只写复现合约；推导/算法细节写在正文（不要把推导塞进 Capsule）。
 
 硬性建议（用于避免验收流于表面）：
 - Kill / Narrow criteria：至少写 1 条“显式阈值/条件”（例如包含 `if` 或比较符号 `<`, `>`, `!=` 等）。

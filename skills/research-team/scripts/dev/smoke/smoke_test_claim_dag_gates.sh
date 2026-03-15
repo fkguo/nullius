@@ -20,7 +20,7 @@ echo "[smoke] tmp_root=${tmp_root}"
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeClaimDAG"
 
 # Fill the capsule minimally + create required artifacts so deterministic gates can run.
-python3 - "${tmp_root}/Draft_Derivation.md" <<'PY'
+python3 - "${tmp_root}/research_contract.md" <<'PY'
 from __future__ import annotations
 
 import sys
@@ -113,7 +113,7 @@ print("filled capsule:", path)
 PY
 
 # Fill required marker blocks so notebook_integrity_gate can pass.
-python3 - "${tmp_root}/Draft_Derivation.md" <<'PY'
+python3 - "${tmp_root}/research_contract.md" <<'PY'
 from __future__ import annotations
 
 import sys
@@ -197,7 +197,7 @@ m_pi_gev,sA_re
 CSV
 echo "# demo" > "${tmp_root}/scripts/demo.py"
 printf '\x89PNG\r\n\x1a\n' > "${tmp_root}/figures/demo/main.png"
-printf '\n\n## 7. Results\n\n![](figures/demo/main.png)\n' >> "${tmp_root}/Draft_Derivation.md"
+printf '\n\n## 7. Results\n\n![](figures/demo/main.png)\n' >> "${tmp_root}/research_contract.md"
 
 # Enable Claim DAG gates in config; also disable pointer lint to keep the smoke test hermetic.
 python3 - "${tmp_root}/research_team_config.json" <<'PY'
@@ -220,8 +220,8 @@ path.write_text(json.dumps(cfg, indent=2, sort_keys=True) + "\n", encoding="utf-
 print("updated config:", path)
 PY
 
-echo "[setup] approve PROJECT_CHARTER.md (required by project_charter_gate)"
-python3 - "${tmp_root}/PROJECT_CHARTER.md" <<'PY'
+echo "[setup] approve project_charter.md (required by project_charter_gate)"
+python3 - "${tmp_root}/project_charter.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -300,7 +300,7 @@ JSON
 echo "[test1] run_team_cycle preflight-only passes with claim gates enabled"
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag M0 \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \
@@ -320,7 +320,7 @@ cat > "${tmp_root}/knowledge_graph/claims.jsonl" <<'JSONL'
 JSONL
 
 set +e
-python3 "${GATES_DIR}/check_claim_graph.py" --notes "${tmp_root}/Draft_Derivation.md" >/tmp/smoke_claim_dag_out2.txt 2>&1
+python3 "${GATES_DIR}/check_claim_graph.py" --notes "${tmp_root}/research_contract.md" >/tmp/smoke_claim_dag_out2.txt 2>&1
 code=$?
 set -e
 if [[ $code -eq 0 ]]; then

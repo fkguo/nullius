@@ -124,7 +124,7 @@ for p in projects:
             [
                 name,
                 field(p, "root"),
-                field(p, "notes", "Draft_Derivation.md"),
+                field(p, "notes", "research_contract.md"),
                 field(p, "out_dir", "team"),
                 field(p, "member_a_system", "prompts/_system_member_a.txt"),
                 field(p, "member_b_system", "prompts/_system_member_b.txt"),
@@ -178,11 +178,11 @@ default_excludes=(
 )
 
 minimal_includes=(
-  "Draft_Derivation.md"
-  "PROJECT_CHARTER.md"
-  "PROJECT_MAP.md"
-  "PREWORK.md"
-  "RESEARCH_PLAN.md"
+  "research_contract.md"
+  "project_charter.md"
+  "project_index.md"
+  "research_preflight.md"
+  "research_plan.md"
   "AGENTS.md"
   "research_team_config.json"
   "scan_dependency_rules.json"

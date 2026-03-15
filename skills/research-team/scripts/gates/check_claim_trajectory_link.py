@@ -42,7 +42,7 @@ def _parse_args() -> argparse.Namespace:
         "--root",
         type=Path,
         default=None,
-        help="Project root (optional). If --notes is omitted, uses <root>/Draft_Derivation.md when present.",
+        help="Project root (optional). If --notes is omitted, uses <root>/research_contract.md when present.",
     )
     p.add_argument("--claims", type=Path, default=None, help="Override claims.jsonl path.")
     p.add_argument("--team-dir", type=Path, default=None, help="Override team output dir (default: <notes_dir>/team).")
@@ -87,12 +87,12 @@ def main() -> int:
     notes: Path | None = args.notes
     if notes is None:
         root = args.root or Path.cwd()
-        candidate = root / "Draft_Derivation.md"
+        candidate = root / "research_contract.md"
         if candidate.is_file():
             notes = candidate
             print(f"[info] --notes not provided; using {notes}", file=sys.stderr)
         else:
-            print("ERROR: --notes is required unless <root>/Draft_Derivation.md exists.", file=sys.stderr)
+            print("ERROR: --notes is required unless <root>/research_contract.md exists.", file=sys.stderr)
             print("Fix: pass --notes <path> or --root <project_root>.", file=sys.stderr)
             return 2
     if not notes.is_file():

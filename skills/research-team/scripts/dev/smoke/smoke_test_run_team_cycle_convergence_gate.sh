@@ -58,8 +58,8 @@ d["sidecar_review"] = sc
 p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
-echo "[setup] approve PROJECT_CHARTER.md (required by project_charter_gate)"
-python3 - "${tmp_root}/PROJECT_CHARTER.md" <<'PY'
+echo "[setup] approve project_charter.md (required by project_charter_gate)"
+python3 - "${tmp_root}/project_charter.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -234,7 +234,7 @@ log0="${tmp_root}/run_legacy_wrapper.log"
   cd "${tmp_root}"
   bash "${LEGACY_RUN}" \
     --tag "${tag}" \
-    --notes Draft_Derivation.md \
+    --notes research_contract.md \
     --out-dir team_legacy_wrapper \
     --member-a-system prompts/_system_member_a.txt \
     --member-b-system prompts/_system_member_b.txt \
@@ -261,7 +261,7 @@ log1="${tmp_root}/run_no_sidecar.log"
   cd "${tmp_root}"
   bash "${BIN_DIR}/run_team_cycle.sh" \
     --tag "${tag}" \
-    --notes Draft_Derivation.md \
+    --notes research_contract.md \
     --out-dir team_no_sidecar \
     --member-a-system prompts/_system_member_a.txt \
     --member-b-system prompts/_system_member_b.txt \
@@ -289,7 +289,7 @@ log2="${tmp_root}/run_sidecar_fail.log"
   cd "${tmp_root}"
   RESEARCH_TEAM_STUB_FAIL_SIDECAR=1 bash "${BIN_DIR}/run_team_cycle.sh" \
     --tag "${tag}" \
-    --notes Draft_Derivation.md \
+    --notes research_contract.md \
     --out-dir team_sidecar_fail \
     --member-a-system prompts/_system_member_a.txt \
     --member-b-system prompts/_system_member_b.txt \

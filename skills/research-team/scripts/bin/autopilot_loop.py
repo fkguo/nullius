@@ -3,8 +3,8 @@
 Auto-run loop for research-team projects.
 
 Flow:
-- Auto-fill RESEARCH_PLAN.md if configured and template detected.
-- Iterate tasks in RESEARCH_PLAN.md (checkbox lines), run team cycle per task.
+- Auto-fill research_plan.md if configured and template detected.
+- Iterate tasks in research_plan.md (checkbox lines), run team cycle per task.
 - Stop on completion or configured failure limits.
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ def _load_config(root: Path) -> dict:
 
 
 def _find_plan(root: Path) -> Path:
-    return root / "RESEARCH_PLAN.md"
+    return root / "research_plan.md"
 
 
 def _stop_signal(root: Path, names: list[str]) -> Path | None:
@@ -149,7 +149,7 @@ def _ensure_task_board(plan_path: Path) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=Path.cwd(), help="Project root (default: cwd).")
-    ap.add_argument("--notes", type=Path, default=None, help="Notebook path (default: Draft_Derivation.md).")
+    ap.add_argument("--notes", type=Path, default=None, help="Notebook path (default: research_contract.md).")
     ap.add_argument("--out-dir", type=Path, default=None, help="Team output directory (default: team).")
     ap.add_argument("--once", action="store_true", help="Run at most one task.")
     ap.add_argument("--mode", choices=["auto", "assist"], default="auto", help="Assist mode pauses on manual tasks.")
@@ -162,7 +162,7 @@ def main() -> int:
     args = ap.parse_args()
 
     root = args.root.resolve()
-    notes = args.notes or (root / "Draft_Derivation.md")
+    notes = args.notes or (root / "research_contract.md")
     out_dir = args.out_dir or (root / "team")
 
     cfg = _load_config(root)
@@ -256,7 +256,7 @@ def main() -> int:
         return 0
 
     if not plan.is_file():
-        print("ERROR: RESEARCH_PLAN.md not found.")
+        print("ERROR: research_plan.md not found.")
         return 2
 
     if _ensure_task_board(plan):
@@ -312,7 +312,7 @@ def main() -> int:
         section_text, base_line = _extract_task_board(text)
         tasks = _parse_tasks(section_text, base_line=base_line)
         if not tasks:
-            print("[stop] no Task Board entries found in RESEARCH_PLAN.md")
+            print("[stop] no Task Board entries found in research_plan.md")
             return 2
         pending = [t for t in tasks if not t["done"]]
         if not pending:

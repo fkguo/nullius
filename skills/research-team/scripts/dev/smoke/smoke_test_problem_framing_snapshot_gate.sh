@@ -28,12 +28,12 @@ echo "[test] scaffold + Problem Framing gate + deterministic autofill"
 bash "${SCAFFOLD}" --root "${proj}" --project "demo" --profile mixed >/dev/null
 
 # Make initial instruction non-template-ish so goal line is meaningful.
-cat > "${proj}/INITIAL_INSTRUCTION.md" <<'EOF'
+cat > "${proj}/project_brief.md" <<'EOF'
 Goal: smoke-test Problem Framing Snapshot gate + autofill.
 EOF
 
 set +e
-python3 "${CHECK}" --notes "${proj}/Draft_Derivation.md" >/dev/null
+python3 "${CHECK}" --notes "${proj}/research_contract.md" >/dev/null
 code1=$?
 set -e
 if [[ ${code1} -eq 0 ]]; then
@@ -43,5 +43,5 @@ fi
 
 python3 "${FILL}" --root "${proj}" --deterministic >/dev/null
 
-python3 "${CHECK}" --notes "${proj}/Draft_Derivation.md" >/dev/null
+python3 "${CHECK}" --notes "${proj}/research_contract.md" >/dev/null
 echo "[ok] Problem Framing Snapshot gate passes after autofill"

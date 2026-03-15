@@ -143,7 +143,7 @@ if [[ "${SKIP_DEMO}" -ne 1 ]]; then
   bash "${SKILL_ROOT}/scripts/bin/generate_demo_milestone.sh" --root "${WORKSPACE}" --tag "${TAG}" --force
 fi
 
-CHARTER="${WORKSPACE}/PROJECT_CHARTER.md"
+CHARTER="${WORKSPACE}/project_charter.md"
 if [[ -f "${CHARTER}" ]]; then
   PROFILE_FOR_CHARTER="${PROFILE}"
   python3 - "${CHARTER}" "${PROFILE_FOR_CHARTER}" <<'PY'

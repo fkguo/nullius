@@ -16,17 +16,18 @@ debugging.
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
   --root /path/to/project \
-  --project "My Project"
+  --project "My Project" \
+  --full
 ```
 
-2) Fill the Reproducibility Capsule in `Draft_Derivation.md`.
+2) Keep derivations in `research_notebook.md`, then refresh / maintain the machine-facing `research_contract.md`.
 
 3) Run a team cycle (preflight + reviewers):
 
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --tag M0-r1 \
-  --notes Draft_Derivation.md \
+  --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \

@@ -135,7 +135,7 @@ GATE="${SCRIPT_DIR}/../gates/check_tex_draft_preflight.py"
 CONV_GATE="${SCRIPT_DIR}/../gates/check_draft_convergence.py"
 PACKET_BUILDER="${SCRIPT_DIR}/build_draft_packet.py"
 TRAJ="${SCRIPT_DIR}/update_trajectory_index.py"
-PROJECT_MAP_UPDATE_SCRIPT="${SCRIPT_DIR}/update_project_map.py"
+PROJECT_INDEX_UPDATE_SCRIPT="${SCRIPT_DIR}/update_project_map.py"
 
 OUT_DIR_ABS="${OUT_DIR}"
 if [[ "${OUT_DIR_ABS}" != /* ]]; then
@@ -161,14 +161,14 @@ set -e
 if [[ $gate_code -eq 0 ]]; then
   echo "[traj] stage=draft_preflight_ok"
   python3 "${TRAJ}" --notes "${TEX}" --out-dir "${OUT_DIR}" --tag "${TAG}" --stage "draft_preflight_ok" --gate "tex_draft_preflight:ok" >/dev/null 2>&1 || true
-  if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-    python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "draft_preflight_ok" --run-dir "${run_dir}" >/dev/null 2>&1 || true
+  if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+    python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "draft_preflight_ok" --run-dir "${run_dir}" >/dev/null 2>&1 || true
   fi
 else
   echo "[traj] stage=draft_preflight_fail"
   python3 "${TRAJ}" --notes "${TEX}" --out-dir "${OUT_DIR}" --tag "${TAG}" --stage "draft_preflight_fail" --gate "tex_draft_preflight:fail" >/dev/null 2>&1 || true
-  if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-    python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "draft_preflight_fail" --run-dir "${run_dir}" >/dev/null 2>&1 || true
+  if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+    python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "draft_preflight_fail" --run-dir "${run_dir}" >/dev/null 2>&1 || true
   fi
   exit $gate_code
 fi
@@ -422,8 +422,8 @@ echo "[traj] stage=draft_member_reports"
 python3 "${TRAJ}" --notes "${TEX}" --out-dir "${OUT_DIR}" --tag "${TAG}" --stage "draft_member_reports" \
   --packet "${packet_path}" --member-a "${member_a_out}" --member-b "${member_b_out}" ${MEMBER_C_SYSTEM:+--member-c "${member_c_out}"} >/dev/null 2>&1 || true
 
-if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-  python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "draft_member_reports" --run-dir "${run_dir}" >/dev/null 2>&1 || true
+if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+  python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "draft_member_reports" --run-dir "${run_dir}" >/dev/null 2>&1 || true
 fi
 
 if [[ "${REQUIRE_CONVERGENCE}" == "1" ]]; then
@@ -505,8 +505,8 @@ PY
   python3 "${TRAJ}" --notes "${TEX}" --out-dir "${OUT_DIR}" --tag "${TAG}" --stage "${stage}" \
     --packet "${packet_path}" --member-a "${member_a_out}" --member-b "${member_b_out}" --member-c "${member_c_out}" --gate "${gate_summary}" >/dev/null 2>&1 || true
 
-  if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-    python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "${stage}" --run-dir "${run_dir}" >/dev/null 2>&1 || true
+  if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+    python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${TEX}" --team-dir "${OUT_DIR}" --latest-kind draft --tag "${safe_tag}" --status "${stage}" --run-dir "${run_dir}" >/dev/null 2>&1 || true
   fi
 
   if [[ "${conv_status}" == "converged" ]]; then

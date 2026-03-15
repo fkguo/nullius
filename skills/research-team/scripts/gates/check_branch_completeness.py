@@ -274,7 +274,7 @@ def _notebook_text_without_capsule(text: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md.")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md.")
     ap.add_argument(
         "--resolve-relative-to",
         choices=["notebook"],

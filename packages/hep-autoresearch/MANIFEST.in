@@ -3,6 +3,7 @@ include README.zh.md
 include pyproject.toml
 
 recursive-include src *.py
+recursive-include src *.md
 
 prune artifacts
 prune docs

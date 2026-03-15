@@ -9,6 +9,13 @@ from typing import Any
 from ._git import try_get_git_metadata
 from ._json import read_json, write_json
 from ._time import utc_now_iso
+from .project_surface import (
+    PROJECT_CHARTER,
+    PROJECT_INDEX,
+    RESEARCH_CONTRACT,
+    RESEARCH_NOTEBOOK,
+    RESEARCH_PLAN,
+)
 from .workflow_context import WorkflowContext, workflow_context
 
 
@@ -49,13 +56,12 @@ def _rel_link(from_path: Path, to_path: Path) -> str:
 
 def _default_context_files(repo_root: Path) -> list[dict[str, Any]]:
     paths = [
-        ("PROJECT_CHARTER.md", True),
-        ("PROJECT_MAP.md", True),
-        ("RESEARCH_PLAN.md", True),
-        ("PREWORK.md", True),
-        ("Draft_Derivation.md", True),
+        (PROJECT_CHARTER, True),
+        (PROJECT_INDEX, True),
+        (RESEARCH_PLAN, True),
+        (RESEARCH_NOTEBOOK, True),
+        (RESEARCH_CONTRACT, True),
         ("AGENTS.md", True),
-        ("knowledge_base/_index/kb_index.json", True),
         ("docs/APPROVAL_GATES.md", True),
         ("docs/ARTIFACT_CONTRACT.md", True),
         ("docs/EVAL_GATE_CONTRACT.md", True),
@@ -161,7 +167,7 @@ def build_context_pack(inps: ContextPackInputs, *, repo_root: Path) -> dict[str,
     context_md_path = out_dir / "context.md"
 
     git_meta = try_get_git_metadata(repo_root) or {}
-    charter_line = _read_first_matching_line(repo_root / "PROJECT_CHARTER.md", "Status:")
+    charter_line = _read_first_matching_line(repo_root / PROJECT_CHARTER, "Status:")
     charter_status = charter_line.split(":", 1)[1].strip() if charter_line and ":" in charter_line else None
 
     wf_ctx: WorkflowContext | None = None
@@ -229,13 +235,11 @@ def build_context_pack(inps: ContextPackInputs, *, repo_root: Path) -> dict[str,
             "",
             "## Global context (must stay in view)",
             "",
-            "- Goals/anti-goals: "
-            + f"[PROJECT_CHARTER.md]({link('PROJECT_CHARTER.md')})",
-            "- Architecture map: " + f"[PROJECT_MAP.md]({link('PROJECT_MAP.md')})",
-            "- Task board / roadmap: " + f"[RESEARCH_PLAN.md]({link('RESEARCH_PLAN.md')})",
-            "- Problem Framing Snapshot + coverage matrix: " + f"[PREWORK.md]({link('PREWORK.md')})",
-            "- Derivation notebook: " + f"[Draft_Derivation.md]({link('Draft_Derivation.md')})",
-            "- KB index: " + f"[knowledge_base/_index/kb_index.json]({link('knowledge_base/_index/kb_index.json')})",
+            "- Goals/anti-goals: " + f"[{PROJECT_CHARTER}]({link(PROJECT_CHARTER)})",
+            "- Project navigation: " + f"[{PROJECT_INDEX}]({link(PROJECT_INDEX)})",
+            "- Task board / roadmap: " + f"[{RESEARCH_PLAN}]({link(RESEARCH_PLAN)})",
+            "- Human notebook: " + f"[{RESEARCH_NOTEBOOK}]({link(RESEARCH_NOTEBOOK)})",
+            "- Machine contract: " + f"[{RESEARCH_CONTRACT}]({link(RESEARCH_CONTRACT)})",
             "- Approval gates: " + f"[docs/APPROVAL_GATES.md]({link('docs/APPROVAL_GATES.md')})",
             "- Artifact contract: " + f"[docs/ARTIFACT_CONTRACT.md]({link('docs/ARTIFACT_CONTRACT.md')})",
             "- Eval gate contract: " + f"[docs/EVAL_GATE_CONTRACT.md]({link('docs/EVAL_GATE_CONTRACT.md')})",
@@ -329,9 +333,13 @@ def build_context_pack(inps: ContextPackInputs, *, repo_root: Path) -> dict[str,
 
     context_md_path.write_text("\n".join(md_lines).rstrip() + "\n", encoding="utf-8")
 
-    return {
-        "context_dir": os.fspath(out_dir.relative_to(repo_root)),
-        "context_md": os.fspath(context_md_path.relative_to(repo_root)),
-        "context_json": os.fspath(context_json_path.relative_to(repo_root)),
-        "missing_required_files": missing_required,
-    }
+    result = dict(payload)
+    result.update(
+        {
+            "context_dir": os.fspath(out_dir.relative_to(repo_root)),
+            "context_md": os.fspath(context_md_path.relative_to(repo_root)),
+            "context_json": os.fspath(context_json_path.relative_to(repo_root)),
+            "missing_required_files": missing_required,
+        }
+    )
+    return result

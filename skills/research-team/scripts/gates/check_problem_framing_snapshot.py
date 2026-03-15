@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Problem Framing Snapshot gate (PREWORK.md).
+Problem Framing Snapshot gate (research_preflight.md).
 
 Goal: ensure prework decomposition is not "shelfware":
 - Problem Interpretation (P)
@@ -80,7 +80,7 @@ def _extract_problem_framing_section(text: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (used to locate project root).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (used to locate project root).")
     args = ap.parse_args()
 
     if not args.notes.exists():
@@ -99,7 +99,7 @@ def main() -> int:
 
     root = (cfg.path.parent if cfg.path is not None else (args.notes.parent if args.notes.is_file() else args.notes)).resolve()
     prework_cfg = cfg.data.get("prework", {}) if isinstance(cfg.data.get("prework", {}), dict) else {}
-    prework_rel = str(prework_cfg.get("notes_path", "PREWORK.md")).strip() or "PREWORK.md"
+    prework_rel = str(prework_cfg.get("notes_path", "research_preflight.md")).strip() or "research_preflight.md"
     prework = (root / prework_rel).resolve()
 
     try:
@@ -112,7 +112,7 @@ def main() -> int:
     if not prework.is_file():
         print("[fail] problem framing snapshot gate failed")
         print(f"[error] Missing prework file: {prework}")
-        print("[fix] Create PREWORK.md (scaffold) and add '## Problem Framing Snapshot' section.")
+        print("[fix] Create research_preflight.md (scaffold) and add '## Problem Framing Snapshot' section.")
         return 1
 
     text = prework.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
@@ -120,7 +120,7 @@ def main() -> int:
     if not section:
         print("[fail] problem framing snapshot gate failed")
         print(f"[error] Missing required section heading in {prework}: '## Problem Framing Snapshot'")
-        print("[fix] Add the Problem Framing Snapshot block to PREWORK.md (see template).")
+        print("[fix] Add the Problem Framing Snapshot block to research_preflight.md (see template).")
         return 1
 
     issues: list[str] = []
@@ -198,7 +198,7 @@ def main() -> int:
         # Require at least one explicit pointer in D1-D3 (prevents pure ceremony).
         d_join = " ".join(d_lines[:3])
         if re.search(r"`[^`]+`|Draft_Derivation\.md|knowledge_base/|runs/", d_join, flags=re.IGNORECASE) is None:
-            issues.append("Derivation trace D1-D3 should include at least one explicit pointer (e.g. `Draft_Derivation.md`, `knowledge_base/`, `runs/`, or inline code pointers).")
+            issues.append("Derivation trace D1-D3 should include at least one explicit pointer (e.g. `research_contract.md`, `knowledge_base/`, `runs/`, or inline code pointers).")
 
     # Sequential review checklist: require presence of >=3 checkbox lines.
     cb_count = 0
@@ -215,12 +215,12 @@ def main() -> int:
             print(f"- {it}")
         if len(issues) > 20:
             print(f"- ... ({len(issues)-20} more)")
-        print("[fix] Fill PREWORK.md '## Problem Framing Snapshot' fields with concrete content or explicit pointers to RESEARCH_PLAN.md sections.")
+        print("[fix] Fill research_preflight.md '## Problem Framing Snapshot' fields with concrete content or explicit pointers to research_plan.md sections.")
         return 1
 
     print("[ok] problem framing snapshot gate passed")
     print(f"- root: {root}")
-    print(f"- PREWORK.md: {prework}")
+    print(f"- research_preflight.md: {prework}")
     return 0
 
 

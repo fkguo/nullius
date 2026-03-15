@@ -8,7 +8,7 @@ from pathlib import Path
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Find the effective research-team config path for a project.")
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     args = ap.parse_args()
 
     try:

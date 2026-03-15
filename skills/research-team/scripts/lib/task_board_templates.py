@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shared, deterministic Task Board templates for RESEARCH_PLAN.md.
+Shared, deterministic Task Board templates for research_plan.md.
 
 Goal:
 - Improve task decomposition quality (profile-aware).
@@ -40,7 +40,7 @@ def default_task_board_lines(profile: str) -> list[str]:
     if p == "literature_review":
         return [
             "- [ ] T1: (manual) Build PREWORK coverage matrix; run constrained literature search beyond initial; create KB literature notes + update `## References`; run preflight-only",
-            "- [ ] T2: (auto) Write structured synthesis in [Draft_Derivation.md](Draft_Derivation.md) with citations; extract reusable priors/method notes; run full team cycle and converge",
+            "- [ ] T2: (auto) Write structured synthesis in [research_contract.md](research_contract.md) with citations; extract reusable priors/method notes; run full team cycle and converge",
             f"- [ ] T3: {kb_task}",
         ]
 
@@ -74,7 +74,7 @@ def default_task_board_lines(profile: str) -> list[str]:
 
     # Default: mixed (theory + numerics).
     return [
-        "- [ ] T1: (auto) Convert initial instruction -> explicit scope/claims; update [Draft_Derivation.md](Draft_Derivation.md) capsule + excerpt; run preflight-only",
+        "- [ ] T1: (auto) Convert initial instruction -> explicit scope/claims; update [research_contract.md](research_contract.md) capsule + excerpt; run preflight-only",
         f"- [ ] T2: {kb_task}",
         "- [ ] T3: (auto) Draft core derivation/computation + at least one nontrivial audit slice; run full team cycle and converge",
     ]

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Update RESEARCH_PLAN.md progress log and Last updated line.
+Update research_plan.md progress log and Last updated line.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from team_config import load_team_config  # type: ignore
 def _find_plan(notes_path: Path) -> Path | None:
     cur = notes_path.parent.resolve()
     for _ in range(6):
-        cand = cur / "RESEARCH_PLAN.md"
+        cand = cur / "research_plan.md"
         if cand.is_file():
             return cand
         if cur.parent == cur:
@@ -52,7 +52,7 @@ def _update_last_updated(lines: list[str], date_str: str) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md.")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md.")
     ap.add_argument("--tag", default="", help="Milestone tag.")
     ap.add_argument("--status", default="converged", help="Status label.")
     ap.add_argument("--task-id", default="", help="Task id (optional).")
@@ -76,7 +76,7 @@ def main() -> int:
 
     plan_path = _find_plan(args.notes)
     if plan_path is None:
-        print("[skip] RESEARCH_PLAN.md not found")
+        print("[skip] research_plan.md not found")
         return 0
 
     lines = plan_path.read_text(encoding="utf-8", errors="replace").splitlines()

@@ -7,7 +7,7 @@ Goal:
 
 This gate checks (outside fenced code blocks):
 - Disallow wrapping Markdown links in inline code spans (e.g. `[...] ( ... )`), which breaks clickability.
-- Disallow wrapping Markdown file pointers (e.g. `knowledge_base/.../note.md`, `Draft_Derivation.md`) in inline code spans;
+- Disallow wrapping Markdown file pointers (e.g. `knowledge_base/.../note.md`, `research_contract.md`) in inline code spans;
   require Markdown links instead (e.g. [note.md](note.md)).
 
 Config:
@@ -16,10 +16,10 @@ Config:
 - markdown_link_hygiene.exclude_globs: optional exclusion globs relative to project root.
 
 Default scan targets (per user policy):
-- Draft_Derivation.md
-- PREWORK.md
-- RESEARCH_PLAN.md
-- PROJECT_CHARTER.md
+- research_contract.md
+- research_preflight.md
+- research_plan.md
+- project_charter.md
 - knowledge_base/**/*.md
 
 Exit codes:
@@ -46,10 +46,10 @@ def _default_targets() -> list[str]:
     if isinstance(mlh, dict) and isinstance(mlh.get("targets"), list):
         return [str(x) for x in mlh.get("targets", []) if str(x).strip()]
     return [
-        "Draft_Derivation.md",
-        "PREWORK.md",
-        "RESEARCH_PLAN.md",
-        "PROJECT_CHARTER.md",
+        "research_contract.md",
+        "research_preflight.md",
+        "research_plan.md",
+        "project_charter.md",
         "knowledge_base/**/*.md",
     ]
 
@@ -127,7 +127,7 @@ def _validate_link_hygiene(path: Path) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     args = ap.parse_args()
 
     if not args.notes.is_file():

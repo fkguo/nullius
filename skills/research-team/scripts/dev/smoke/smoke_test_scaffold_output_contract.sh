@@ -17,7 +17,7 @@ trap 'rm -rf "${tmp_root}"' EXIT
 
 echo "[smoke] tmp_root=${tmp_root}"
 
-bash "${SCAFFOLD}" --root "${tmp_root}/proj" --project "SmokeProject" --profile "mixed"
-bash "${CHECK}" --root "${tmp_root}/proj"
+bash "${SCAFFOLD}" --root "${tmp_root}/proj" --project "SmokeProject" --profile "mixed" --full
+bash "${CHECK}" --root "${tmp_root}/proj" --variant full
 
 echo "[ok] scaffold output contract smoke test passed"

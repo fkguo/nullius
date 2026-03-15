@@ -154,18 +154,18 @@ def _default_targets() -> list[str]:
     if isinstance(mmh, dict) and isinstance(mmh.get("targets"), list):
         return [str(x) for x in mmh.get("targets", []) if str(x).strip()]
     return [
-        "Draft_Derivation.md",
-        "PREWORK.md",
-        "RESEARCH_PLAN.md",
-        "PROJECT_CHARTER.md",
-        "PROJECT_MAP.md",
+        "research_contract.md",
+        "research_preflight.md",
+        "research_plan.md",
+        "project_charter.md",
+        "project_index.md",
         "knowledge_base/**/*.md",
     ]
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     args = ap.parse_args()
 
     if not args.notes.is_file():
@@ -212,7 +212,7 @@ def main() -> int:
             print(f"[error] ... ({len(violations) - 200} more)")
         print(
             "[hint] To apply deterministic fixes (math regions only): "
-            "python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes <Draft_Derivation.md> --in-place"
+            "python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes <research_contract.md> --in-place"
         )
         return 1
 

@@ -70,7 +70,7 @@ from pathlib import Path
 import re
 
 root = Path("${tmp_root}")
-p = root / "Draft_Derivation.md"
+p = root / "research_contract.md"
 text = p.read_text(encoding="utf-8", errors="replace")
 start="<!-- REPRO_CAPSULE_START -->"
 end="<!-- REPRO_CAPSULE_END -->"
@@ -111,7 +111,7 @@ p.write_text(text, encoding="utf-8")
 print("[ok] patched capsule I")
 PY
 
-python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null
+python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >/dev/null
 
 echo "[smoke][ok] literature_fetch KB note template passes knowledge-layers math hygiene"
 

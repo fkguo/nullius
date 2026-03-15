@@ -38,7 +38,7 @@ p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
 set +e
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/fail.log" 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/fail.log" 2>&1
 code=$?
 set -e
 if [[ ${code} -eq 0 ]]; then
@@ -58,7 +58,7 @@ python3 "${BIN_DIR}/literature_fetch.py" trace-add \
   --kb-notes "[dummy](../literature/dummy.md)" \
   >/dev/null 2>&1
 
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
 echo "[ok] literature trace gate smoke test passed"
 

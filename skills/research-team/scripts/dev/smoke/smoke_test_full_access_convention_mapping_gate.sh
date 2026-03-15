@@ -18,7 +18,7 @@ if [[ ! -f "${GATE}" ]]; then
 fi
 
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeFullAccessConventionMapping" --profile "mixed" >/dev/null 2>&1
-notes="${tmp_root}/Draft_Derivation.md"
+notes="${tmp_root}/research_contract.md"
 
 # Enable full_access + convention_mapping_gate + trigger via config.
 python3 - "${tmp_root}/research_team_config.json" <<'PY'

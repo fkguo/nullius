@@ -42,15 +42,15 @@ p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
 echo "[test0] baseline passes (no warnings)"
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/gate_ok.log" 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/gate_ok.log" 2>&1
 if ! grep -nF "[ok] markdown math portability gate passed" "${tmp_root}/gate_ok.log" >/dev/null 2>&1; then
   echo "[fail] expected baseline OK marker; got:" >&2
   sed -n '1,120p' "${tmp_root}/gate_ok.log" >&2 || true
   exit 1
 fi
 
-echo "[test1] inject warn-only hazards into PREWORK.md"
-cat >>"${tmp_root}/PREWORK.md" <<'EOF'
+echo "[test1] inject warn-only hazards into research_preflight.md"
+cat >>"${tmp_root}/research_preflight.md" <<'EOF'
 
 ## Smoke: Markdown math portability hazards (intentional)
 
@@ -61,7 +61,7 @@ Inline slashed: $\slashed{p}$.
 | abs | $|x|$ |
 EOF
 
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/gate_warn.log" 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/gate_warn.log" 2>&1
 if ! grep -nF "[warn] markdown math portability:" "${tmp_root}/gate_warn.log" >/dev/null 2>&1; then
   echo "[fail] expected warning summary; got:" >&2
   sed -n '1,160p' "${tmp_root}/gate_warn.log" >&2 || true
@@ -96,7 +96,7 @@ p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
 set +e
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/gate_enforce_table.log" 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/gate_enforce_table.log" 2>&1
 code_table=$?
 set -e
 if [[ ${code_table} -eq 0 ]]; then
@@ -128,7 +128,7 @@ p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
 set +e
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/gate_enforce_slashed.log" 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/gate_enforce_slashed.log" 2>&1
 code_slashed=$?
 set -e
 if [[ ${code_slashed} -eq 0 ]]; then

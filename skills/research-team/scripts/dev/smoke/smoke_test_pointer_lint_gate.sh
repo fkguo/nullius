@@ -19,7 +19,7 @@ fi
 
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokePointerLint" --profile "mixed" >/dev/null 2>&1
 
-notes="${tmp_root}/Draft_Derivation.md"
+notes="${tmp_root}/research_contract.md"
 
 # Force a deterministic strategy: file symbol grep (no python import environment needed).
 python3 - "${tmp_root}/research_team_config.json" <<'PY'

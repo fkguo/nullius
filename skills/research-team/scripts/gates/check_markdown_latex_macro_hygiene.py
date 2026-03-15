@@ -17,10 +17,10 @@ Config:
 - latex_macro_hygiene.forbidden_macros: list of macro names without leading backslash.
 
 Default scan targets (per user policy):
-- Draft_Derivation.md
-- PREWORK.md
-- RESEARCH_PLAN.md
-- PROJECT_CHARTER.md
+- research_contract.md
+- research_preflight.md
+- research_plan.md
+- project_charter.md
 - knowledge_base/**/*.md
 
 Exit codes:
@@ -47,10 +47,10 @@ def _default_targets() -> list[str]:
     if isinstance(lm, dict) and isinstance(lm.get("targets"), list):
         return [str(x) for x in lm.get("targets", []) if str(x).strip()]
     return [
-        "Draft_Derivation.md",
-        "PREWORK.md",
-        "RESEARCH_PLAN.md",
-        "PROJECT_CHARTER.md",
+        "research_contract.md",
+        "research_preflight.md",
+        "research_plan.md",
+        "project_charter.md",
         "knowledge_base/**/*.md",
     ]
 
@@ -107,7 +107,7 @@ def _validate_macros(path: Path, macro_re: re.Pattern[str]) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     args = ap.parse_args()
 
     if not args.notes.is_file():

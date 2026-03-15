@@ -148,7 +148,7 @@ command = (
 payload = {
     "files_read": [
         {
-            "path": "Draft_Derivation.md",
+            "path": "research_contract.md",
             "anchor_or_line": "1",
             "purpose": "inspect the primary notebook context",
         }
@@ -250,7 +250,7 @@ command = (
 payload = {
     "files_read": [
         {
-            "path": "PROJECT_CHARTER.md",
+            "path": "project_charter.md",
             "anchor_or_line": "1",
             "purpose": "verify the declared validation scope and profile",
         }
@@ -428,7 +428,7 @@ chmod +x "${tmp_root}/stub_draft_gemini.sh"
 approve_project_charter() {
   local root="$1"
   local profile="$2"
-  python3 - "${root}/PROJECT_CHARTER.md" "${profile}" <<'PY'
+  python3 - "${root}/project_charter.md" "${profile}" <<'PY'
 from __future__ import annotations
 
 import re
@@ -558,7 +558,7 @@ run_profile() {
     cd "${root}"
     bash "${RUN_TEAM}" \
       --tag "${tag_preflight}" \
-      --notes Draft_Derivation.md \
+      --notes research_contract.md \
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
@@ -574,7 +574,7 @@ run_profile() {
     cd "${root}"
     bash "${RUN_TEAM}" \
       --tag "${tag_full}" \
-      --notes Draft_Derivation.md \
+      --notes research_contract.md \
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
@@ -611,7 +611,7 @@ run_brake_not_converged() {
     cd "${root}"
     RESEARCH_TEAM_STUB_FORCE_NOT_CONVERGED=1 bash "${RUN_TEAM}" \
       --tag "${tag}" \
-      --notes Draft_Derivation.md \
+      --notes research_contract.md \
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
@@ -655,7 +655,7 @@ run_brake_sidecar_warn_only() {
     cd "${root}"
     RESEARCH_TEAM_STUB_FAIL_SIDECAR=1 bash "${RUN_TEAM}" \
       --tag "${tag}" \
-      --notes Draft_Derivation.md \
+      --notes research_contract.md \
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
@@ -700,7 +700,7 @@ run_brake_preflight_fail_fast() {
     cd "${root}"
     RESEARCH_TEAM_STUB_MARKER="${marker}" bash "${RUN_TEAM}" \
       --tag "${tag}" \
-      --notes Draft_Derivation.md \
+      --notes research_contract.md \
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
@@ -735,7 +735,7 @@ run_brake_plan_tracking_sentinel() {
   local tag_full="V1-brake-plan-full-r1"
   local log_pre="${tmp_root}/brake_plan_preflight.log"
   local log_full="${tmp_root}/brake_plan_full.log"
-  local plan_path="${root}/RESEARCH_PLAN.md"
+  local plan_path="${root}/research_plan.md"
   local sentinel="SENTINEL__research_team_plan_tracking__DO_NOT_DELETE"
 
   report_append "## Brake check: plan_tracking sentinel preservation"
@@ -750,7 +750,7 @@ run_brake_plan_tracking_sentinel() {
     cd "${root}"
     bash "${RUN_TEAM}" \
       --tag "${tag_pre}" \
-      --notes Draft_Derivation.md \
+      --notes research_contract.md \
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
@@ -770,7 +770,7 @@ run_brake_plan_tracking_sentinel() {
     cd "${root}"
     bash "${RUN_TEAM}" \
       --tag "${tag_full}" \
-      --notes Draft_Derivation.md \
+      --notes research_contract.md \
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \

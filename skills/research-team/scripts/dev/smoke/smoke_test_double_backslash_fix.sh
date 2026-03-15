@@ -21,7 +21,7 @@ echo "[smoke] tmp_root=${tmp_root}"
 bash "${SCAFFOLD}" --root "${tmp_root}/proj" --project "SmokeDoubleBackslash" --profile "mixed" >/dev/null 2>&1
 
 # Introduce the common bug inside math regions.
-cat >>"${tmp_root}/proj/Draft_Derivation.md" <<'EOF'
+cat >>"${tmp_root}/proj/research_contract.md" <<'EOF'
 
 <!-- SMOKE_DOUBLE_BACKSLASH_START -->
 Inline math: $\\Delta = 1$, $k^\\* = 0$.

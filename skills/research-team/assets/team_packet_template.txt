@@ -5,7 +5,7 @@ Date: <YYYY-MM-DD>
 Repo/Root: <PROJECT_ROOT>
 Primary notebook: <NOTEBOOK_PATH>
 Preferred reply language (optional): <LANGUAGE>  # e.g. "English" / "Chinese" / leave blank to inherit
-Innovation log (optional): <INNOVATION_LOG_PATH>  # e.g. INNOVATION_LOG.md
+Idea log (optional): <IDEA_LOG_PATH>  # e.g. idea_log.md
 
 ## Team Contract (Member A + Member B both do both)
 
@@ -113,7 +113,7 @@ For each quantity: definition + code pointer + artifact pointer + uncertainty me
 - New falsifiable claim/diagnostic since last round:
 - What baseline does it discriminate against?
 - What would falsify it / kill criterion?
-- Idea portfolio updates (advance/revise/kill): <IDs from INNOVATION_LOG.md>
+- Idea portfolio updates (advance/revise/kill): <IDs from idea_log.md>
 
 ## 2.75) Sweep semantics / parameter dependence (must be answered)
 

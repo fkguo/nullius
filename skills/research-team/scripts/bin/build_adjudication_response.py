@@ -144,7 +144,7 @@ def main() -> int:
     lines.append("### 3.2 From Member B — Breakthrough Leads")
     lines.append(_emit_items(member_b.novelty_leads).rstrip())
     lines.append("")
-    lines.append("For each proposed lead/kill criterion, decide: accept / modify / reject, and update `INNOVATION_LOG.md` accordingly.")
+    lines.append("For each proposed lead/kill criterion, decide: accept / modify / reject, and update `idea_log.md` accordingly.")
     lines.append("")
 
     lines.append("## 4) What changed (for the next round)")

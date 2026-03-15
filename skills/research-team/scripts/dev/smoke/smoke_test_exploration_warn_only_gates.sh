@@ -28,7 +28,7 @@ print("demo")
 PY
 
 write_capsule() {
-  python3 - "${tmp_root}/Draft_Derivation.md" <<'PY'
+  python3 - "${tmp_root}/research_contract.md" <<'PY'
 from __future__ import annotations
 
 import sys
@@ -122,7 +122,7 @@ set_stage "exploration"
 set +e
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag "${tag_expl}" \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \
@@ -170,7 +170,7 @@ set_stage "development"
 set +e
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag "${tag_dev}" \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \

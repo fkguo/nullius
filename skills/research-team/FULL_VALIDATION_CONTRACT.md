@@ -125,12 +125,12 @@ Pass conditions:
 - Minimum non-triviality for the new KB note:
   - contains at least one external link (arXiv/INSPIRE/DOI/GitHub), and
   - contains substantive synthesized content (not a stub).
-- The choice and rationale must be linked from `PREWORK.md`.
+- The choice and rationale must be linked from `research_preflight.md`.
 - Machine-check hint (recommended): `git diff <scaffold-baseline> --name-only | grep '^knowledge_base/'` shows new files.
 
 8) **Plan tracking updates are non-destructive (when enabled)**
-- If `plan_tracking.enabled=true`, updates to `RESEARCH_PLAN.md` must be append-only (except `Last updated:`) and must not delete/rewrite unrelated user content.
-- Verification hint: add a sentinel paragraph in `RESEARCH_PLAN.md`, run one full cycle, and confirm the sentinel text is preserved verbatim.
+- If `plan_tracking.enabled=true`, updates to `research_plan.md` must be append-only (except `Last updated:`) and must not delete/rewrite unrelated user content.
+- Verification hint: add a sentinel paragraph in `research_plan.md`, run one full cycle, and confirm the sentinel text is preserved verbatim.
 
 ### P1 (should pass; required for “stable”)
 

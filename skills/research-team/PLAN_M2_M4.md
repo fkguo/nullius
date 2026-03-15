@@ -99,8 +99,8 @@ Acceptance (for M2):
 
 Synthetic mini-project definition (must be explicit and testable):
 - Project root created under a temp dir with **at least**:
-  - `Draft_Derivation.md` with a complete Reproducibility Capsule (minimal), and a `## References (required)` section.
-  - `PROJECT_CHARTER.md`, `PROJECT_MAP.md`, `PREWORK.md`, `RESEARCH_PLAN.md`, `research_team_config.json`.
+  - `research_contract.md` with a complete Reproducibility Capsule (minimal), and a `## References (required)` section.
+  - `project_charter.md`, `project_index.md`, `research_preflight.md`, `research_plan.md`, `research_team_config.json`.
   - `knowledge_base/methodology_traces/literature_queries.md` with at least 1 discovery query row.
   - `knowledge_base/literature/<note>.md` KB note linked from References.
 - It must include:
@@ -109,7 +109,7 @@ Synthetic mini-project definition (must be explicit and testable):
     - exploration: warn + debt recording + trace requirement
     - development: fail-fast unless upgraded to stable anchor or audited exception is present
     - Concrete required discovery URL string (no fetch required): `https://example.com/discovery_tmp`
-      - It must appear under `Draft_Derivation.md -> ## References (required)` as a link in a reference entry.
+      - It must appear under `research_contract.md -> ## References (required)` as a link in a reference entry.
 - It must include at least one tiny runnable command (Python or shell) that produces one output file referenced in the capsule outputs (to keep the workflow realistic without heavy compute).
   - Command must be deterministic and dependency-light (stdlib only).
   - Regression asserts BOTH:
@@ -211,7 +211,7 @@ Allow-stub behavior (must be specified):
   - Gates detect stubs via `status=="stub"` in cache/KB note headers, not by interpreting `next_action`.
 - Stage enforcement:
   - `exploration`: stubs allowed, but create exploration debt item(s) referencing the stub(s).
-  - `development/publication`: fail-fast if any stub is referenced by `Draft_Derivation.md -> References`.
+  - `development/publication`: fail-fast if any stub is referenced by `research_contract.md -> References`.
 
 Parallelizable:
 - Member A: cache schema + normalization rules.

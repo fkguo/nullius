@@ -13,8 +13,8 @@ Core: Problem Interpretation Gate + P/D separation (Principle/Derivation) + Atom
 
 ## How to use (bind into the main workflow; one content, multiple pointers)
 
-- Sync “0) Problem Interpretation Gate” into [PREWORK.md](../PREWORK.md) → `## Problem Framing Snapshot` (avoid definition drift).
-- Sync P/D separation and the sequential checklist into [RESEARCH_PLAN.md](../RESEARCH_PLAN.md) milestone DoD (acceptance must cite files/commands/thresholds).
+- Sync “0) Problem Interpretation Gate” into [research_preflight.md](../research_preflight.md) → `## Problem Framing Snapshot` (avoid definition drift).
+- Sync P/D separation and the sequential checklist into [research_plan.md](../research_plan.md) milestone DoD (acceptance must cite files/commands/thresholds).
 - If there is unresolved disagreement, write the outcome into `team/runs/<tag>/<tag>_adjudication.md` and include it in the next packet (otherwise disputes never close).
 
 Hard recommendations (avoid superficial acceptance):

@@ -19,7 +19,7 @@ fi
 
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeScanDependency" --profile "mixed" >/dev/null 2>&1
 
-notes="${tmp_root}/Draft_Derivation.md"
+notes="${tmp_root}/research_contract.md"
 
 mkdir -p "${tmp_root}/runs/scan"
 cat > "${tmp_root}/runs/scan/manifest.json" <<'JSON'

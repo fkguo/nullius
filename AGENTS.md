@@ -346,7 +346,8 @@ Agent 在代码审查和自检时必须检测以下反模式：
 > **SSOT**: `meta/remediation_tracker_v1.json`（机器可读，agent 执行时更新）
 
 - **Phase 0**: 14/14 完成 ✅
-- **Phase 1**: 20/23 完成
+- **Phase 1**: 22/23 完成
+- **Standalone closeout**: `UX-01` + `UX-05` ✅（2026-03-14，执行模型 `gpt-5-codex`；`hepar init` 与 `research-team scaffold` 已统一到 shared `ensure_project_scaffold` authority，canonical minimal root surface 锁定为 `project_charter.md` / `project_index.md` / `research_plan.md` / `research_notebook.md` / `research_contract.md` / `.mcp.json.example`，bounded naming audit 已收口为 `knowledge_base/` optional、`prompts/`/`team/`/`research_team_config.json` host-local、`references/` optional、`.hep/` provider-local。最终 acceptance 全绿：`packages/hep-autoresearch/tests` = 181 passed、`skills/research-team/tests` = 198 passed/1 skipped、prompt-required smokes 全过、`git diff --check` 通过、bounded negative grep 无旧名残留。formal review 最终以 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` 收敛为 0 blocking：首轮 Gemini agentic review 因本地 tool-path 噪声/误用无效，已记录；随后使用同一 Gemini 模型的 packetized rerun 得到有效 `CONVERGED` 结果。GitNexus pre/post `npx gitnexus analyze --force` 均成功，但 MCP `list_repos`/`detect_changes` follow-up 仍报 `Transport closed`，因此 post-change evidence 退回到 direct source inspection + exact acceptance。self-review 0 blocking）
 - **Standalone closeout**: `NEW-05a-shared-boundary` ✅（`packages/shared/` 不再持有具体 `HEP_*` tool-name authority / HEP risk map / `hep://runs` helper；`packages/hep-mcp/` 本地 authority + wrappers 已落地；formal review 经 `Opus` + 用户确认 fallback `GLM-5` + `K2.5` 收敛为 0 blocking；GitNexus 仍会漏报新文件/新 helper callsites，因此 post-change exact verification 继续以源码 grep 为准）
 - **Standalone closeout**: `NEW-05a-formalism-contract-boundary` ✅（`formalism_registry_v1` / `formalism_check` 已从 source schemas、vendored snapshot、OpenRPC 与 idea-core runtime 主线移除；`candidate_formalisms[]` 降级为可选 run-local metadata；built-in HEP packs 不再 shipped concrete `hep/toy` / `hep/eft` / `hep/lattice` authority；graph-viz 不再提升 formalism 节点/边；formal review 经 `Opus + Gemini-3.1-Pro-Preview + OpenCode(kimi-for-coding/k2p5)` R1 收敛为 0 blocking，self-review 0 blocking）
 - **Standalone closeout**: `NEW-05a-idea-core-domain-boundary` ✅（已与 `meta/docs/prompts/prompt-2026-03-10-hep-semantic-deep-cleanup.md` 的 Batch A 合并收口，因为二者共享同一 `idea-core` boundary / acceptance commands / review surface；`hep.bootstrap` / `bootstrap_default` / `HEP_COMPUTE_RUBRIC_RULES` / `toy_laptop` 已从 generic/default authority path 移除，`packages/idea-core/src/idea_core/engine/hep_builtin_domain_packs.json` 仅保留 provider-local `hep.operators.v1` catalog；acceptance 全绿，formal review 经 `Opus + OpenCode(kimi-for-coding/k2p5)` R3 收敛为 0 blocking，Gemini 不可用且人类已批准该 dual-review fallback，self-review 0 blocking）
@@ -534,7 +535,7 @@ hepar report render --run-ids <...> --out md|tex
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-search-step** (8281 symbols, 22265 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-ux01-ux05-impl** (8312 symbols, 22323 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -550,7 +551,7 @@ This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-search-s
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-ux01-ux05-impl/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -589,10 +590,10 @@ This project is indexed by GitNexus as **autoresearch-lab-new05a-stage3-search-s
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-new05a-stage3-search-step/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-ux01-ux05-impl/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-ux01-ux05-impl/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-ux01-ux05-impl/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-ux01-ux05-impl/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 

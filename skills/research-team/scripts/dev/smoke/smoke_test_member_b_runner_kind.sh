@@ -49,8 +49,8 @@ d["plan_tracking"] = {
 p.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
-echo "[setup] approve PROJECT_CHARTER.md (required by project_charter_gate)"
-python3 - "${tmp_root}/PROJECT_CHARTER.md" <<'PY'
+echo "[setup] approve project_charter.md (required by project_charter_gate)"
+python3 - "${tmp_root}/project_charter.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -218,7 +218,7 @@ set +e
   cd "${tmp_root}"
   bash "${BIN_DIR}/run_team_cycle.sh" \
     --tag "${tag}" \
-    --notes Draft_Derivation.md \
+    --notes research_contract.md \
     --out-dir team_cli_kind \
     --member-a-system prompts/_system_member_a.txt \
     --member-b-system prompts/_system_member_b.txt \
@@ -260,7 +260,7 @@ set +e
   cd "${tmp_root}"
   bash "${BIN_DIR}/run_team_cycle.sh" \
     --tag "${tag}" \
-    --notes Draft_Derivation.md \
+    --notes research_contract.md \
     --out-dir team_config_kind \
     --member-a-system prompts/_system_member_a.txt \
     --member-b-system prompts/_system_member_b.txt \
@@ -353,7 +353,7 @@ set +e
   cd "${tmp_root}"
   PATH="${tmp_root}/fakebin:${PATH}" bash "${BIN_DIR}/run_team_cycle.sh" \
     --tag "${tag}" \
-    --notes Draft_Derivation.md \
+    --notes research_contract.md \
     --out-dir team_fallback \
     --member-a-system prompts/_system_member_a.txt \
     --member-b-system prompts/_system_member_b.txt \

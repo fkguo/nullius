@@ -34,7 +34,7 @@ PY
 python3 "${BIN_DIR}/auto_fill_prework.py" --root "${tmp_root}" --deterministic >/dev/null 2>&1
 python3 "${BIN_DIR}/auto_fill_research_plan.py" --root "${tmp_root}" --deterministic >/dev/null 2>&1
 
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
 echo "[ok] autofill outputs satisfy markdown link hygiene gate"
 

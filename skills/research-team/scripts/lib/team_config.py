@@ -21,7 +21,7 @@ DEFAULT_CONFIG: dict = {
     # Scaffold variant hint (purely informational; used by scaffold contract checks).
     # - full: scaffold created optional wrappers/prompts/scaffolds
     # - minimal: scaffold created only core docs+config+2-member review prompts
-    "scaffold_variant": "full",
+    "scaffold_variant": "minimal",
     # Review access mode:
     # - packet_only: members must use only the team packet content (default for backward compatibility)
     # - full_access: members may request file reads / command runs / network fetches via the leader proxy,
@@ -35,7 +35,7 @@ DEFAULT_CONFIG: dict = {
         "capsule_gate": True,
         # Project charter / goal contract (default ON; prevents goal drift across all profiles).
         "project_charter_gate": True,
-        # Navigation front door (PROJECT_MAP.md) to prevent "file swamp" confusion.
+        # Navigation front door (project_index.md) to prevent "file swamp" confusion.
         "project_map_gate": True,
         # hep-research-mcp ecosystem bootstrap: require .hep/workspace.json (per-project MCP entry; local-only).
         "hep_workspace_gate": True,
@@ -60,7 +60,7 @@ DEFAULT_CONFIG: dict = {
         "milestone_dod_gate": False,
         "knowledge_layers_gate": False,
         "packet_completeness_gate": False,
-        # Problem Framing Snapshot in PREWORK.md (Problem Interpretation + P/D separation + sequential review).
+        # Problem Framing Snapshot in research_preflight.md (Problem Interpretation + P/D separation + sequential review).
         "problem_framing_snapshot_gate": False,
         "trajectory_index": True,
         # Claim DAG (knowledge_graph/) gates (disabled by default; enable per project).
@@ -109,11 +109,12 @@ DEFAULT_CONFIG: dict = {
     "markdown_math_hygiene": {
         "_note": "Deterministic scan targets for Markdown math hygiene gate (paths/globs relative to project root).",
         "targets": [
-            "Draft_Derivation.md",
-            "PREWORK.md",
-            "RESEARCH_PLAN.md",
-            "PROJECT_CHARTER.md",
-            "PROJECT_MAP.md",
+            "research_notebook.md",
+            "research_contract.md",
+            "research_preflight.md",
+            "research_plan.md",
+            "project_charter.md",
+            "project_index.md",
             "knowledge_base/**/*.md",
         ],
         "exclude_globs": [],
@@ -122,11 +123,12 @@ DEFAULT_CONFIG: dict = {
         "_note": "Warn (default) on renderer-fragile math patterns in Markdown (domain-neutral).",
         "_note2": "Table policy: avoid literal '|' inside $...$ in Markdown tables; use \\lvert/\\rvert or \\lVert/\\rVert. Macro policy: prefer avoiding \\slashed in Markdown; use \\not\\! fallback if needed.",
         "targets": [
-            "Draft_Derivation.md",
-            "PREWORK.md",
-            "RESEARCH_PLAN.md",
-            "PROJECT_CHARTER.md",
-            "PROJECT_MAP.md",
+            "research_notebook.md",
+            "research_contract.md",
+            "research_preflight.md",
+            "research_plan.md",
+            "project_charter.md",
+            "project_index.md",
             "knowledge_base/**/*.md",
         ],
         "exclude_globs": [],
@@ -136,11 +138,12 @@ DEFAULT_CONFIG: dict = {
     "markdown_link_hygiene": {
         "_note": "Deterministic scan targets for Markdown link hygiene gate (paths/globs relative to project root).",
         "targets": [
-            "Draft_Derivation.md",
-            "PREWORK.md",
-            "RESEARCH_PLAN.md",
-            "PROJECT_CHARTER.md",
-            "PROJECT_MAP.md",
+            "research_notebook.md",
+            "research_contract.md",
+            "research_preflight.md",
+            "research_plan.md",
+            "project_charter.md",
+            "project_index.md",
             "knowledge_base/**/*.md",
         ],
         "exclude_globs": [],
@@ -148,11 +151,12 @@ DEFAULT_CONFIG: dict = {
     "latex_macro_hygiene": {
         "_note": "Disallow project-specific LaTeX macros in Markdown (rendering-safety). Prefer explicit forms like \\mathcal{R}.",
         "targets": [
-            "Draft_Derivation.md",
-            "PREWORK.md",
-            "RESEARCH_PLAN.md",
-            "PROJECT_CHARTER.md",
-            "PROJECT_MAP.md",
+            "research_notebook.md",
+            "research_contract.md",
+            "research_preflight.md",
+            "research_plan.md",
+            "project_charter.md",
+            "project_index.md",
             "knowledge_base/**/*.md",
         ],
         "exclude_globs": [],

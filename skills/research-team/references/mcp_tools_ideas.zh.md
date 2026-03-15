@@ -45,7 +45,7 @@
 ```json
 {
   "success": true,
-  "created_files": ["/abs/path/RESEARCH_PLAN.md"],
+  "created_files": ["/abs/path/research_plan.md"],
   "skipped_files": [],
   "errors": []
 }
@@ -60,7 +60,7 @@
 输入（JSON）：
 ```json
 {
-  "seed_path": "Draft_Derivation.md"
+  "seed_path": "research_contract.md"
 }
 ```
 
@@ -82,8 +82,8 @@
 ```json
 {
   "tag": "M2-r1",
-  "notebook_path": "Draft_Derivation.md",
-  "innovation_log_path": "INNOVATION_LOG.md",
+  "notebook_path": "research_contract.md",
+  "innovation_log_path": "idea_log.md",
   "excerpt_mode": "markers",
   "questions": ["这一步截断是否一致？"],
   "output_path": "prompts/team_packet_M2-r1.txt"
@@ -108,7 +108,7 @@
 输入（JSON）：
 ```json
 {
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "resolve_relative_to": "notebook",
   "strict": false
 }
@@ -134,7 +134,7 @@
 输入（JSON）：
 ```json
 {
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "require_rules": false
 }
 ```
@@ -158,7 +158,7 @@
 输入（JSON）：
 ```json
 {
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "require_when_declared": true
 }
 ```
@@ -182,7 +182,7 @@
 输入（JSON）：
 ```json
 {
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "strategy": "file_symbol_grep",
   "python_import_cmd": null
 }
@@ -262,7 +262,7 @@
 输入：
 ```json
 {
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "claims_path": null,
   "edges_path": null,
   "manifest_path": null,
@@ -288,7 +288,7 @@
 输入：
 ```json
 {
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "manifest_path": null,
   "require_paths_exist": false
 }
@@ -312,7 +312,7 @@
 输入：
 ```json
 {
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "claims_path": null,
   "team_dir": "team",
   "current_tag": "M2-r1"
@@ -338,7 +338,7 @@
 ```json
 {
   "tag": "M2-r1",
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "out_dir": "team",
   "member_a_system_prompt_path": "prompts/_system_member_a.txt",
   "member_b_system_prompt_path": "prompts/_system_member_b.txt"
@@ -475,7 +475,7 @@
 输入：
 ```json
 {
-  "notebook_path": "Draft_Derivation.md",
+  "notebook_path": "research_contract.md",
   "require_min_traces": 1
 }
 ```

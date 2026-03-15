@@ -13,8 +13,8 @@ Profile: `<PROFILE>`  （options: `theory_only | numerics_only | mixed | explora
 
 ## How to use（与主流程绑定；建议一份内容，多处引用）
 
-- 把 “0) Problem Interpretation Gate” 同步到 [PREWORK.md](../PREWORK.md) 的 `## Problem Framing Snapshot`（避免口头/脑内定义漂移）。
-- 把 P/D 分离与顺序审查清单同步到 [RESEARCH_PLAN.md](../RESEARCH_PLAN.md) 的里程碑 DoD（验收要有文件/命令/阈值）。
+- 把 “0) Problem Interpretation Gate” 同步到 [research_preflight.md](../research_preflight.md) 的 `## Problem Framing Snapshot`（避免口头/脑内定义漂移）。
+- 把 P/D 分离与顺序审查清单同步到 [research_plan.md](../research_plan.md) 的里程碑 DoD（验收要有文件/命令/阈值）。
 - 把外部一致性/悖论通道的结论写进 `team/runs/<tag>/<tag>_adjudication.md` 并在下一轮 packet 里带上（否则分歧无法闭环）。
 
 硬性建议（用于避免验收流于表面）：

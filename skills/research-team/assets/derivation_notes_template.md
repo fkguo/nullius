@@ -1,4 +1,4 @@
-# Draft_Derivation.md (Template)
+# research_contract.md (Template)
 
 Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
@@ -17,7 +17,7 @@ Resume / restart rule:
 - Before starting a new milestone (or after an interruption), run `run_team_cycle.sh --preflight-only` once to catch missing gates early.
 
 > Rule: In Markdown math, use single backslashes (e.g. $\Delta\kappa$). Avoid doubled backslashes (a common TOC-escape artifact).
-> If doubled backslashes appear inside math (e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`), fix deterministically (math regions only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes Draft_Derivation.md --in-place`
+> If doubled backslashes appear inside math (e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`), fix deterministically (math regions only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`
 > Math delimiter rule: use `$...$` / `$$...$$` (do NOT use `\(\)` / `\[\]`).
 > Rendering rule: inside `$$...$$`, do not start a new line with `+`, `-`, or `=` (move operators to the previous line).
 > Table rule (important): in Markdown tables, do NOT use literal `|` inside `$...$` (it can break table parsing). Prefer `\lvert ... \rvert` (or `\lVert ... \rVert`; for conditional bars use `\mid`).
@@ -300,7 +300,7 @@ Append new milestone summaries here (do NOT create multiple top-level "Conclusio
 - What is the new falsifiable insight/diagnostic added since the last milestone?
 - What baseline does it discriminate against?
 - What would falsify it?
-- Record/links: [INNOVATION_LOG.md](INNOVATION_LOG.md) (idea portfolio) + relevant figures/tables.
+- Record/links: [idea_log.md](idea_log.md) (idea portfolio) + relevant figures/tables.
 
 ## 11. Audit slices (for complex computations)
 

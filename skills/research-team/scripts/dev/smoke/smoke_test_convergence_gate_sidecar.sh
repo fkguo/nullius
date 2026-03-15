@@ -22,8 +22,8 @@ echo "[smoke] tmp_root=${tmp_root}"
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeConvergenceGate"
 python3 "${BIN_DIR}/generate_demo_milestone.py" --root "${tmp_root}" --tag M0-demo >"${gen_log}" 2>&1
 
-echo "[setup] approve PROJECT_CHARTER.md (required by project_charter_gate)"
-python3 - "${tmp_root}/PROJECT_CHARTER.md" <<'PY'
+echo "[setup] approve project_charter.md (required by project_charter_gate)"
+python3 - "${tmp_root}/project_charter.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -182,7 +182,7 @@ PY
 echo "[test1] full cycle with sidecar forced on reaches convergence gate"
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag M0-demo \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team_sidecar_on" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \
@@ -217,7 +217,7 @@ PY
 echo "[test2] full cycle with --no-sidecar reaches convergence gate"
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag M0-demo \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team_sidecar_off" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \
@@ -258,7 +258,7 @@ PY
 
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag M0-demo \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team_sidecar_cfg_timeout" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \
@@ -305,7 +305,7 @@ echo "[test2c] full cycle with sidecar failure remains non-blocking"
 set +e
 DUMMY_SIDECAR_FAIL=1 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag M0-demo \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team_sidecar_fail" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \

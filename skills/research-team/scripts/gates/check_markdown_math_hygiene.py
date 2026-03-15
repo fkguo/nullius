@@ -18,10 +18,10 @@ Config:
 - markdown_math_hygiene.exclude_globs: optional exclusion globs relative to project root.
 
 Default scan targets (per user policy):
-- Draft_Derivation.md
-- PREWORK.md
-- RESEARCH_PLAN.md
-- PROJECT_CHARTER.md
+- research_contract.md
+- research_preflight.md
+- research_plan.md
+- project_charter.md
 - knowledge_base/**/*.md
 
 Exit codes:
@@ -48,16 +48,16 @@ def _default_targets() -> list[str]:
     if isinstance(mmh, dict) and isinstance(mmh.get("targets"), list):
         return [str(x) for x in mmh.get("targets", []) if str(x).strip()]
     return [
-        "Draft_Derivation.md",
-        "PREWORK.md",
-        "RESEARCH_PLAN.md",
-        "PROJECT_CHARTER.md",
+        "research_contract.md",
+        "research_preflight.md",
+        "research_plan.md",
+        "project_charter.md",
         "knowledge_base/**/*.md",
     ]
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     args = ap.parse_args()
 
     if not args.notes.is_file():

@@ -13,7 +13,7 @@ Lightweight Markdown QA helper: detect common double-backslash LaTeX escapes ins
 that frequently get introduced by TOC generators or LLM over-escaping, e.g. \\Delta, \\gamma\\_{\\rm lin}, k^\\*.
 
 Usage:
-  check_md_double_backslash.sh [--root PATH] [--notes Draft_Derivation.md] [--fail]
+  check_md_double_backslash.sh [--root PATH] [--notes research_contract.md] [--fail]
 
 Options:
   --root PATH   File or directory to scan (default: .)

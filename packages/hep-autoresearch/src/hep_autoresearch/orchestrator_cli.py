@@ -22,6 +22,7 @@ from .toolkit.mcp_config import default_hep_data_dir, load_mcp_server_config, me
 from .toolkit.mcp_stdio_client import McpStdioClient
 from .toolkit.kb_profile import write_kb_profile
 from .toolkit.project_scaffold import ensure_project_scaffold
+from .toolkit.project_surface import PROJECT_CHARTER
 from .toolkit.adapters.registry import (
     adapter_for_workflow,
     adapter_workflow_ids,
@@ -93,9 +94,8 @@ def _looks_like_project_root(path: Path) -> bool:
 
     # Reduce false positives by requiring at least one project marker file/dir in addition to `.autoresearch/*`.
     for marker in [
-        path / "PROJECT_CHARTER.md",
+        path / PROJECT_CHARTER,
         path / "AGENTS.md",
-        path / "knowledge_base",
         path / "docs",
         path / "specs",
         path / "artifacts",
@@ -271,7 +271,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         scaffold = (
             {"created": [], "skipped": []}
             if bool(getattr(args, "runtime_only", False))
-            else ensure_project_scaffold(repo_root=repo_root)
+            else ensure_project_scaffold(repo_root=repo_root, project_name=repo_root.name)
         )
         st_path = state_path(repo_root)
         if st_path.exists() and not args.force:

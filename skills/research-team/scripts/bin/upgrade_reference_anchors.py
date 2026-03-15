@@ -2,7 +2,7 @@
 """
 upgrade_reference_anchors.py
 
-Deterministic helper to stabilize external URLs in `Draft_Derivation.md -> ## References`.
+Deterministic helper to stabilize external URLs in `research_contract.md -> ## References`.
 
 Why:
 - During exploration, you may paste "whatever link you found". Before development/publication,
@@ -18,12 +18,12 @@ Rewrites (in References section only):
 
 Optionally:
 - Add external hosts to `research_team_config.json: references.allowed_external_hosts_extra`
-  (audited exception mechanism; keep it narrow and justified in PREWORK.md).
+  (audited exception mechanism; keep it narrow and justified in research_preflight.md).
 
 Usage:
-  python3 upgrade_reference_anchors.py --notes Draft_Derivation.md
-  python3 upgrade_reference_anchors.py --notes Draft_Derivation.md --in-place
-  python3 upgrade_reference_anchors.py --notes Draft_Derivation.md --add-host hepdata.net --config research_team_config.json --apply-config
+  python3 upgrade_reference_anchors.py --notes research_contract.md
+  python3 upgrade_reference_anchors.py --notes research_contract.md --in-place
+  python3 upgrade_reference_anchors.py --notes research_contract.md --add-host hepdata.net --config research_team_config.json --apply-config
 """
 
 from __future__ import annotations
@@ -164,7 +164,7 @@ def _apply_config_hosts(config_path: Path, hosts: list[str]) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     ap.add_argument("--in-place", action="store_true", help="Rewrite the file in place (default: dry-run).")
     ap.add_argument(
         "--config",

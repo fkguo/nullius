@@ -26,8 +26,8 @@ if ! grep -nF "[ok] demo milestone generated" /tmp/smoke_toolkit_out1.txt >/dev/
   exit 1
 fi
 
-echo "[setup] approve PROJECT_CHARTER.md (required by project_charter_gate)"
-python3 - "${tmp_root}/PROJECT_CHARTER.md" <<'PY'
+echo "[setup] approve project_charter.md (required by project_charter_gate)"
+python3 - "${tmp_root}/project_charter.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -87,9 +87,9 @@ path.write_text(text, encoding="utf-8")
 print("patched:", path)
 PY
 
-echo "[test3] deterministic auto-fill RESEARCH_PLAN.md (removes template markers)"
+echo "[test3] deterministic auto-fill research_plan.md (removes template markers)"
 python3 "${BIN_DIR}/auto_fill_research_plan.py" --root "${tmp_root}" --deterministic --force >/tmp/smoke_toolkit_out_plan.txt 2>&1
-if ! grep -nF "[ok] auto-filled RESEARCH_PLAN.md (deterministic)" /tmp/smoke_toolkit_out_plan.txt >/dev/null 2>&1; then
+if ! grep -nF "[ok] auto-filled research_plan.md (deterministic)" /tmp/smoke_toolkit_out_plan.txt >/dev/null 2>&1; then
   echo "[fail] expected deterministic auto-fill success; got:" >&2
   sed -n '1,200p' /tmp/smoke_toolkit_out_plan.txt >&2
   exit 1
@@ -99,7 +99,7 @@ echo "[test3b] preflight-only fails when Toolkit delta is still placeholders"
 set +e
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag "M0-demo" \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \
@@ -120,7 +120,7 @@ else
 fi
 
 echo "[test4] fill Toolkit delta (required under toolkit_extraction)"
-python3 - "${tmp_root}/RESEARCH_PLAN.md" <<'PY'
+python3 - "${tmp_root}/research_plan.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -141,7 +141,7 @@ pattern = re.compile(
 
 m = pattern.search(text)
 if not m:
-    raise SystemExit("ERROR: could not find M0 Toolkit delta placeholder block in RESEARCH_PLAN.md")
+    raise SystemExit("ERROR: could not find M0 Toolkit delta placeholder block in research_plan.md")
 
 replacement = (
     m.group(1)
@@ -158,7 +158,7 @@ PY
 echo "[test5] preflight-only passes under toolkit_extraction after filling Toolkit delta"
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag "M0-demo" \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \

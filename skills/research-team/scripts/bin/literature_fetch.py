@@ -17,7 +17,7 @@ Scope / safety:
 
 Why this exists:
 - Provide a reproducible way to populate `knowledge_base/` with metadata-rich notes.
-- Generate a ready-to-paste `Draft_Derivation.md` reference entry line that satisfies the references gate.
+- Generate a ready-to-paste `research_contract.md` reference entry line that satisfies the references gate.
 
 Examples:
   # INSPIRE search + fetch a record + write KB note
@@ -1350,7 +1350,7 @@ def main() -> int:
         if args.write_note:
             _write_text(kb_note, _kb_note_template(rec, kb_note_rel), force=bool(args.force))
         print("")
-        print("Reference entry (paste into Draft_Derivation.md -> ## References):")
+        print("Reference entry (paste into research_contract.md -> ## References):")
         print(_format_reference_entry(rec, kb_note_rel))
         if bool(args.write_note) and not bool(getattr(args, "no_trace", False)):
             kb_note_for_trace = _relpath_posix(kb_note, trace_path.resolve().parent)
@@ -1459,7 +1459,7 @@ def main() -> int:
         if args.write_note:
             _write_text(kb_note, _kb_note_template(rec, kb_note_rel), force=bool(args.force))
         print("")
-        print("Reference entry (paste into Draft_Derivation.md -> ## References):")
+        print("Reference entry (paste into research_contract.md -> ## References):")
         print(_format_reference_entry(rec, kb_note_rel))
         if bool(args.write_note) and not bool(getattr(args, "no_trace", False)):
             kb_note_for_trace = _relpath_posix(kb_note, trace_path.resolve().parent)
@@ -1563,7 +1563,7 @@ def main() -> int:
         if args.write_note:
             _write_text(kb_note, _kb_trace_template_github(rec, kb_note_rel), force=bool(args.force))
         print("")
-        print("Reference entry (paste into Draft_Derivation.md -> ## References):")
+        print("Reference entry (paste into research_contract.md -> ## References):")
         print(_format_reference_entry(rec, kb_note_rel))
         if bool(args.write_note) and not bool(getattr(args, "no_trace", False)):
             kb_note_for_trace = _relpath_posix(kb_note, trace_path.resolve().parent)
@@ -1645,7 +1645,7 @@ def main() -> int:
         if args.write_note:
             _write_text(kb_note, _kb_note_template(rec, kb_note_rel), force=bool(args.force))
         print("")
-        print("Reference entry (paste into Draft_Derivation.md -> ## References):")
+        print("Reference entry (paste into research_contract.md -> ## References):")
         print(_format_reference_entry(rec, kb_note_rel))
         if bool(args.write_note) and not bool(getattr(args, "no_trace", False)):
             kb_note_for_trace = _relpath_posix(kb_note, trace_path.resolve().parent)
@@ -1725,7 +1725,7 @@ def main() -> int:
         if args.write_note:
             _write_text(kb_note, _kb_note_template(rec, kb_note_rel), force=bool(args.force))
         print("")
-        print("Reference entry (paste into Draft_Derivation.md -> ## References):")
+        print("Reference entry (paste into research_contract.md -> ## References):")
         print(_format_reference_entry(rec, kb_note_rel))
         if bool(args.write_note) and not bool(getattr(args, "no_trace", False)):
             kb_note_for_trace = _relpath_posix(kb_note, trace_path.resolve().parent)

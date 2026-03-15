@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fail-fast validator for the mandatory "Reproducibility Capsule" in Draft_Derivation.md.
+Fail-fast validator for the mandatory "Reproducibility Capsule" in research_contract.md.
 
 Exit codes:
   0  Capsule present and minimally complete
@@ -960,7 +960,7 @@ def check_capsule(
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     ap.add_argument(
         "--min-headlines",
         type=int,

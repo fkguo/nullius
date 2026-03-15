@@ -14,7 +14,7 @@ Skepticism policy (real research):
 
 - Notes and excerpts from primary sources
 - One file per topic or paper cluster
-- Include a `RefKey: <Key>` line near the top of each note (used in [Draft_Derivation.md](../Draft_Derivation.md) references).
+- Include a `RefKey: <Key>` line near the top of each note (used in [research_contract.md](../research_contract.md) references).
 - Keep the first H1 title meaningful (used for human-readable links in Capsule I).
 - For INSPIRE-based notes, also include:
   - `INSPIRE recid: <integer>`
@@ -22,7 +22,7 @@ Skepticism policy (real research):
   - `Authors: <FirstAuthor et al.>`
   - `Publication: <journal / arXiv / status>`
 - Include an external link if available (prefer INSPIRE/arXiv/DOI; GitHub is allowed for code).
-- In [Draft_Derivation.md](../Draft_Derivation.md) Capsule I, prefer linking like:
+- In [research_contract.md](../research_contract.md) Capsule I, prefer linking like:
   ```md
   - [RefKey — Authors — Title](knowledge_base/literature/<RefKey>.md)
   ```

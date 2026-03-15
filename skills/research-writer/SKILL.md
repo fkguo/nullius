@@ -5,7 +5,7 @@ description: Scaffold or validate an arXiv-ready RevTeX4-2 (12pt, onecolumn) pap
 
 # Research Writer
 
-Agent-first skill: given an existing `research-team` project root (with `Draft_Derivation.md`, `knowledge_base/`, and `artifacts/`), scaffold a **coherent, arXiv-ready paper folder** and provide deterministic hygiene checks so the draft is auditable and safe to iterate.
+Agent-first skill: given an existing `research-team` project root (with `research_notebook.md`, `research_contract.md`, `knowledge_base/`, and `artifacts/`), scaffold a **coherent, arXiv-ready paper folder** and provide deterministic hygiene checks so the draft is auditable and safe to iterate.
 
 Key entry points:
 - `scripts/bin/research_writer_scaffold.sh`: deterministic scaffold `paper/` from a `research-team` project.
@@ -305,7 +305,7 @@ Upstream “artifacts triplet” example mapping (done by the orchestrator, not 
 
 ## What it does (conceptually)
 
-1) Reads `Draft_Derivation.md` and builds a paper skeleton that **points back to source sections** (no hallucinated derivations).
+1) Reads `research_notebook.md` for human narrative plus `research_contract.md` for machine-stable pointers, then builds a paper skeleton that **points back to source sections** (no hallucinated derivations).
 2) Pulls headline numbers/figures from `artifacts/` manifests/summaries and writes a **Results provenance** table (artifact path + JSON/CSV key).
 3) Produces a BibTeX file with **RevTeX4-2 hygiene** (APS-style safety: ensure `@article` has `journal = ""` if unknown).
 4) Runs deterministic hygiene checks, including the **double-backslash-in-math** bug (`\\Delta` instead of `\Delta`) with optional auto-fix.
@@ -332,7 +332,8 @@ This skill does **not**:
 This skill assumes a `research-team`-style project root, with best-effort fallbacks.
 
 ### Required
-- `Draft_Derivation.md` — primary derivation notebook (source of equations/definitions; paper must cite/point to sections, not invent missing steps).
+- `research_notebook.md` — human derivation notebook (equations, explanations, figures).
+- `research_contract.md` — machine-stable contract (capsule, pointers, headline provenance).
 
 ### Strongly recommended
 - `knowledge_base/` — background, priors, methodology traces, and reference notes (for auditability and “UNVERIFIED” validation plans).

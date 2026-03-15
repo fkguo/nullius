@@ -1,4 +1,4 @@
-# PROJECT_CHARTER.md
+# project_charter.md
 
 Status: DRAFT  # change to APPROVED after human review
 Project: <PROJECT_NAME>

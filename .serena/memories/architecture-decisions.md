@@ -580,3 +580,22 @@
 - Naming audits for this lane are **bounded**: scan the scaffold/project-root surface and the files users are directly told to touch, not the entire repository.
 **Why**: The product has not been released, so preserving legacy scaffold names adds long-term architecture drag without offsetting user-compatibility value. Direct role-based names reduce future drift across hosts and make later TS control-plane work cleaner. Plain-language prompt wording lowers execution ambiguity without changing scope.
 **Files**: `meta/docs/prompts/prompt-2026-03-14-ux01-ux05-host-agnostic-bootstrap.md`, `meta/REDESIGN_PLAN.md`, `meta/remediation_tracker_v1.json`
+
+### [2026-03-14] Host-agnostic scaffold invariant: one canonical minimal root, host/provider extras stay optional
+
+**Context**: `UX-01` + `UX-05` implementation closeout across `packages/hep-autoresearch/` and `skills/research-team/`.
+**Decision**:
+- `hepar init` and `research-team scaffold` are thin host entrypoints; neither may own an independent project-root scaffold authority.
+- The canonical minimal project-root surface is:
+  - `project_charter.md`
+  - `project_index.md`
+  - `research_plan.md`
+  - `research_notebook.md`
+  - `research_contract.md`
+  - `.mcp.json.example`
+- `research_notebook.md` is the human-facing primary file; `research_contract.md` is the machine-facing deterministic contract, refreshed by deterministic sync logic rather than by manual structured editing.
+- `knowledge_base/` and `references/` remain optional generic support surfaces, not mandatory minimal-root directories.
+- `prompts/`, `team/`, and `research_team_config.json` remain host-local research-team surfaces, not canonical minimal-root surfaces.
+- `.hep/` remains provider-local debt and must stay out of the canonical minimal scaffold.
+**Why**: The stable substrate boundary at project creation time is a small, host-agnostic root contract plus optional host/provider surfaces layered on top. Locking this boundary now prevents future host-specific drift and keeps later TS control-plane work aligned with a single shared scaffold rule.
+**Files**: `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_surface.py`, `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_scaffold.py`, `packages/hep-autoresearch/src/hep_autoresearch/toolkit/research_contract.py`, `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py`, `skills/research-team/scripts/bin/scaffold_research_workflow.sh`

@@ -105,7 +105,7 @@ class TestParseInnovationLeads:
     """Test _parse_innovation_leads()."""
 
     def test_parse_leads(self, tmp_path):
-        log = tmp_path / "INNOVATION_LOG.md"
+        log = tmp_path / "idea_log.md"
         log.write_text(
             "# Innovation Log\n\n"
             "## Lead 1: Novel dispersion relation\n"
@@ -128,7 +128,7 @@ class TestParseInnovationLeads:
         assert leads[1]["title"] == "New symmetry breaking pattern"
 
     def test_parse_empty_log(self, tmp_path):
-        log = tmp_path / "INNOVATION_LOG.md"
+        log = tmp_path / "idea_log.md"
         log.write_text("# Innovation Log\n\nNo leads yet.\n")
         leads = _parse_innovation_leads(log)
         assert leads == []

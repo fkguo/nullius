@@ -4,7 +4,7 @@ set -euo pipefail
 NAME=""
 ROOT=""
 REGISTRY=""
-NOTES="Draft_Derivation.md"
+NOTES="research_contract.md"
 OUT_DIR="team"
 MEMBER_A_SYSTEM="prompts/_system_member_a.txt"
 MEMBER_B_SYSTEM="prompts/_system_member_b.txt"
@@ -26,7 +26,7 @@ Options:
   --name NAME              Registry name (unique key).
   --root PATH              Project root (absolute or relative; stored as absolute).
   --registry PATH          Registry JSON path (default: <skill_root>/skilldev/regression/real_projects.json).
-  --notes PATH             Notebook path inside project (default: Draft_Derivation.md).
+  --notes PATH             Notebook path inside project (default: research_contract.md).
   --out-dir DIR            Team output dir (default: team).
   --member-a-system PATH   Member A system prompt (default: prompts/_system_member_a.txt).
   --member-b-system PATH   Member B system prompt (default: prompts/_system_member_b.txt).
@@ -90,7 +90,7 @@ def die(msg: str, code: int = 2) -> None:
 registry_path = Path(sys.argv[1]).expanduser()
 name = str(sys.argv[2]).strip()
 root = Path(str(sys.argv[3]).strip()).expanduser()
-notes = str(sys.argv[4]).strip() or "Draft_Derivation.md"
+notes = str(sys.argv[4]).strip() or "research_contract.md"
 out_dir = str(sys.argv[5]).strip() or "team"
 member_a_system = str(sys.argv[6]).strip() or "prompts/_system_member_a.txt"
 member_b_system = str(sys.argv[7]).strip() or "prompts/_system_member_b.txt"

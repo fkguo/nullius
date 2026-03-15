@@ -77,7 +77,7 @@ bash "${SKILL_ROOT}/scripts/dev/check_scaffold_output_contract.sh" --root "${WOR
 pushd "${WORKSPACE}" >/dev/null
 cycle_args=(
   --tag "${TAG}"
-  --notes Draft_Derivation.md
+  --notes research_contract.md
   --out-dir team
   --member-a-system prompts/_system_member_a.txt
   --member-b-system prompts/_system_member_b.txt

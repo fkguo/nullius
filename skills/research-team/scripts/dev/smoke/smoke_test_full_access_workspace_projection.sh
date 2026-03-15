@@ -57,8 +57,8 @@ cfg["plan_tracking"] = {
 path.write_text(json.dumps(cfg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
-echo "[setup] approve PROJECT_CHARTER.md"
-python3 - "${tmp_root}/PROJECT_CHARTER.md" <<'PY'
+echo "[setup] approve project_charter.md"
+python3 - "${tmp_root}/project_charter.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -180,7 +180,7 @@ prompt_path = Path(sys.argv[2])
 text = prompt_path.read_text(encoding="utf-8", errors="replace")
 tag = re.search(r"^Tag:\s*(.+)$", text, re.MULTILINE).group(1).strip()
 payload = {
-    "files_read": [{"path": "Draft_Derivation.md", "anchor_or_line": "1", "purpose": "inspect notebook context"}],
+    "files_read": [{"path": "research_contract.md", "anchor_or_line": "1", "purpose": "inspect notebook context"}],
     "commands_run": [{
         "command": f"python3 -m tools.member_a_workspace_repro {tag}",
         "cwd": ".",
@@ -249,7 +249,7 @@ prompt_path = Path(sys.argv[2])
 text = prompt_path.read_text(encoding="utf-8", errors="replace")
 tag = re.search(r"^Tag:\s*(.+)$", text, re.MULTILINE).group(1).strip()
 payload = {
-    "files_read": [{"path": "PROJECT_CHARTER.md", "anchor_or_line": "1", "purpose": "confirm the declared validation scope"}],
+    "files_read": [{"path": "project_charter.md", "anchor_or_line": "1", "purpose": "confirm the declared validation scope"}],
     "commands_run": [{
         "command": f"python3 -m tools.member_b_workspace_repro {tag}",
         "cwd": ".",
@@ -296,7 +296,7 @@ set +e
   cd "${tmp_root}"
   bash "${BIN_DIR}/run_team_cycle.sh" \
     --tag "${tag}" \
-    --notes Draft_Derivation.md \
+    --notes research_contract.md \
     --out-dir team_full_access \
     --member-a-system prompts/_system_member_a.txt \
     --member-b-system prompts/_system_member_b.txt \
@@ -327,8 +327,8 @@ def load(name: str) -> dict:
     return json.loads((run_dir / f"{name}_evidence.json").read_text(encoding="utf-8", errors="replace"))
 
 for member, note_path, out_name in (
-    ("member_a", "Draft_Derivation.md", "member_a_workspace.txt"),
-    ("member_b", "PROJECT_CHARTER.md", "member_b_workspace.txt"),
+    ("member_a", "research_contract.md", "member_a_workspace.txt"),
+    ("member_b", "project_charter.md", "member_b_workspace.txt"),
 ):
     evidence = load(member)
     files_read = evidence.get("files_read", [])

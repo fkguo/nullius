@@ -58,10 +58,10 @@ def _default_targets() -> list[str]:
     if isinstance(mmh, dict) and isinstance(mmh.get("targets"), list):
         return [str(x) for x in mmh.get("targets", []) if str(x).strip()]
     return [
-        "Draft_Derivation.md",
-        "PREWORK.md",
-        "RESEARCH_PLAN.md",
-        "PROJECT_CHARTER.md",
+        "research_contract.md",
+        "research_preflight.md",
+        "research_plan.md",
+        "project_charter.md",
         "knowledge_base/**/*.md",
     ]
 
@@ -71,7 +71,7 @@ def _find_project_root(seed: Path) -> Path:
     if cur.is_file():
         cur = cur.parent
     for _ in range(12):
-        if (cur / "PROJECT_CHARTER.md").is_file() and (cur / "Draft_Derivation.md").is_file():
+        if (cur / "project_charter.md").is_file() and (cur / "research_contract.md").is_file():
             return cur
         if cur.parent == cur:
             break
@@ -230,7 +230,7 @@ def _scan_file(path: Path) -> list[Finding]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     args = ap.parse_args()
 
     if not args.notes.exists():

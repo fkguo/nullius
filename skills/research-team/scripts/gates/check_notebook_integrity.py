@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Notebook integrity gate for Draft_Derivation.md (deterministic, fail-fast).
+Notebook integrity gate for research_contract.md (deterministic, fail-fast).
 
 This gate focuses on *structure* and *rendering-safety* issues that commonly
 break downstream automation (packet extraction) or Markdown rendering:
@@ -345,7 +345,7 @@ def _check_capsule_contract_only(text: str, capsule_raw: str, capsule_offset: in
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md.")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md.")
     ap.add_argument("--max-issues", type=int, default=80, help="Max issues to print.")
     args = ap.parse_args()
 
@@ -413,7 +413,7 @@ def main() -> int:
 
     if errors:
         print("")
-        print("Fix: update Draft_Derivation.md to remove duplicates, fill excerpt/audit slices, and follow math formatting rules.")
+        print("Fix: update research_contract.md to remove duplicates, fill excerpt/audit slices, and follow math formatting rules.")
         return 1
     return 0
 

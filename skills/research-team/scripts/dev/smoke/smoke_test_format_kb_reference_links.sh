@@ -33,7 +33,7 @@ from pathlib import Path
 import re
 
 root = Path("${tmp_root}")
-p = root / "Draft_Derivation.md"
+p = root / "research_contract.md"
 text = p.read_text(encoding="utf-8", errors="replace").replace("\\r\\n", "\\n").replace("\\r", "\\n")
 
 start="<!-- REPRO_CAPSULE_START -->"
@@ -73,21 +73,21 @@ text = text[:a] + capsule + text[b:]
 p.write_text(text, encoding="utf-8")
 PY
 
-python3 "${BIN_DIR}/format_kb_reference_links.py" --notes "${tmp_root}/Draft_Derivation.md" --in-place >/dev/null
+python3 "${BIN_DIR}/format_kb_reference_links.py" --notes "${tmp_root}/research_contract.md" --in-place >/dev/null
 
-if ! rg -nF "Dummy2026 — A. Author et al. — lit" "${tmp_root}/Draft_Derivation.md" >/dev/null; then
+if ! rg -nF "Dummy2026 — A. Author et al. — lit" "${tmp_root}/research_contract.md" >/dev/null; then
   echo "[smoke][fail] expected literature label rewrite" >&2
-  sed -n '1,220p' "${tmp_root}/Draft_Derivation.md" >&2
+  sed -n '1,220p' "${tmp_root}/research_contract.md" >&2
   exit 1
 fi
-if ! rg -nF -- "- [trace: selection rationale](knowledge_base/methodology_traces/M0/trace.md)" "${tmp_root}/Draft_Derivation.md" >/dev/null; then
+if ! rg -nF -- "- [trace: selection rationale](knowledge_base/methodology_traces/M0/trace.md)" "${tmp_root}/research_contract.md" >/dev/null; then
   echo "[smoke][fail] expected methodology trace label rewrite (title-only)" >&2
-  sed -n '1,220p' "${tmp_root}/Draft_Derivation.md" >&2
+  sed -n '1,220p' "${tmp_root}/research_contract.md" >&2
   exit 1
 fi
-if ! rg -nF -- "- [conventions](knowledge_base/priors/conventions.md)" "${tmp_root}/Draft_Derivation.md" >/dev/null; then
+if ! rg -nF -- "- [conventions](knowledge_base/priors/conventions.md)" "${tmp_root}/research_contract.md" >/dev/null; then
   echo "[smoke][fail] expected priors label rewrite (title-only)" >&2
-  sed -n '1,220p' "${tmp_root}/Draft_Derivation.md" >&2
+  sed -n '1,220p' "${tmp_root}/research_contract.md" >&2
   exit 1
 fi
 

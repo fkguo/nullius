@@ -35,13 +35,14 @@ hep-autoresearch status
 ```
 
 This creates a minimal project root with:
-- `PROJECT_CHARTER.md`
-- `PROJECT_MAP.md`
-- `RESEARCH_PLAN.md`
-- `PREWORK.md`
-- `Draft_Derivation.md`
+- `project_charter.md`
+- `project_index.md`
+- `research_plan.md`
+- `research_notebook.md`
+- `research_contract.md`
+- `.mcp.json.example`
 - `.autoresearch/`
-- `docs/`, `knowledge_base/`, `specs/`
+- `docs/`, `specs/`
 
 After initialization, you can run `hep-autoresearch ...` from any subdirectory; the CLI searches upward for `.autoresearch/`.
 

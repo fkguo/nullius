@@ -7,7 +7,7 @@ Purpose:
 - Make the project profile choice explicit and consistent with research_team_config.
 
 Checks (when enabled):
-1) PROJECT_CHARTER.md exists (searched upward from the notebook directory).
+1) project_charter.md exists (searched upward from the notebook directory).
 2) Status is not DRAFT (must be APPROVED/ACTIVE/FINAL).
 3) Required fields are filled:
    - Primary goal
@@ -190,7 +190,7 @@ def _find_unsafe_kb_paths(root: Path, targets: list[str]) -> list[str]:
 def _find_charter(notes_path: Path) -> Path | None:
     cur = (notes_path.parent if notes_path.is_file() else notes_path).resolve()
     for _ in range(50):
-        cand = cur / "PROJECT_CHARTER.md"
+        cand = cur / "project_charter.md"
         if cand.is_file():
             return cand
         if cur.parent == cur:
@@ -407,7 +407,7 @@ def _contains_clickable_kb_link(text: str, refs: dict[str, str], root: Path) -> 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md (or equivalent).")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
     args = ap.parse_args()
 
     notes = args.notes
@@ -423,14 +423,14 @@ def main() -> int:
     charter = _find_charter(notes)
     if charter is None:
         print("[fail] project charter gate failed")
-        print("[error] Missing PROJECT_CHARTER.md (expected at project root).")
-        print("[fix] Create PROJECT_CHARTER.md from the skill scaffold and set Status: APPROVED.")
+        print("[error] Missing project_charter.md (expected at project root).")
+        print("[fix] Create project_charter.md from the skill scaffold and set Status: APPROVED.")
         return 1
 
     try:
         raw = charter.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:
-        print(f"ERROR: failed to read PROJECT_CHARTER.md: {charter} ({exc})", file=sys.stderr)
+        print(f"ERROR: failed to read project_charter.md: {charter} ({exc})", file=sys.stderr)
         return 2
 
     text = raw.replace("\r\n", "\n").replace("\r", "\n")
@@ -463,8 +463,8 @@ def main() -> int:
         errors.append("Declared profile is missing or still a placeholder. Fill 'Declared profile: ...'.")
     elif declared_profile.strip().lower() != effective_profile.strip().lower():
         errors.append(
-            f"Declared profile mismatch: PROJECT_CHARTER.md has {declared_profile!r} but research_team_config effective profile is {effective_profile!r}. "
-            "Fix: update 'Declared profile:' in PROJECT_CHARTER.md or set 'profile' in research_team_config.json."
+            f"Declared profile mismatch: project_charter.md has {declared_profile!r} but research_team_config effective profile is {effective_profile!r}. "
+            "Fix: update 'Declared profile:' in project_charter.md or set 'profile' in research_team_config.json."
         )
 
     anti = _parse_bullets_after_label(clean, "Anti-goals")

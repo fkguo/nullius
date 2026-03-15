@@ -21,8 +21,8 @@ if ! grep -nF "[ok] demo milestone generated" /tmp/smoke_demo_out1.txt >/dev/nul
   exit 1
 fi
 
-echo "[setup] approve PROJECT_CHARTER.md (required by project_charter_gate)"
-python3 - "${tmp_root}/PROJECT_CHARTER.md" <<'PY'
+echo "[setup] approve project_charter.md (required by project_charter_gate)"
+python3 - "${tmp_root}/project_charter.md" <<'PY'
 from __future__ import annotations
 
 import re
@@ -88,7 +88,7 @@ PY
 echo "[test2] run_team_cycle preflight-only passes after demo bootstrap"
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag M0-demo \
-  --notes "${tmp_root}/Draft_Derivation.md" \
+  --notes "${tmp_root}/research_contract.md" \
   --out-dir "${tmp_root}/team" \
   --member-a-system "${tmp_root}/prompts/_system_member_a.txt" \
   --member-b-system "${tmp_root}/prompts/_system_member_b.txt" \

@@ -49,7 +49,7 @@ cat > "${tmp_root}/references/arxiv_src/2301.12345/main.tex" <<'EOF'
 \DeclareMathOperator*{\im}{Im}
 EOF
 
-cat >> "${tmp_root}/PREWORK.md" <<'EOF'
+cat >> "${tmp_root}/research_preflight.md" <<'EOF'
 
 ## Smoke: macros from arXiv sources (intentional; should be rejected until expanded)
 
@@ -57,7 +57,7 @@ Using $\Rc$, $\Mc$, $\Cc$, $\cK$, plus operators $\re z$ and $\im z$.
 EOF
 
 set +e
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >"${tmp_root}/gate_fail.log" 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >"${tmp_root}/gate_fail.log" 2>&1
 code1=$?
 set -e
 if [[ ${code1} -eq 0 ]]; then
@@ -93,8 +93,8 @@ if "Bad" in exp or "Bad" in forbid:
 print("[ok] config updated with discovered 0-arg macros only")
 PY
 
-python3 "${BIN_DIR}/fix_markdown_latex_macros.py" --root "${tmp_root}/PREWORK.md" --in-place >/dev/null 2>&1
-python3 "${GATE}" --notes "${tmp_root}/Draft_Derivation.md" >/dev/null 2>&1
+python3 "${BIN_DIR}/fix_markdown_latex_macros.py" --root "${tmp_root}/research_preflight.md" --in-place >/dev/null 2>&1
+python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
 echo "[ok] latex 0-arg macro discovery smoke test passed"
 

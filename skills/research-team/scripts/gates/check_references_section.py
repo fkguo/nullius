@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-References gate for Draft_Derivation.md.
+References gate for research_contract.md.
 
 Checks:
 - A "References" section exists (## References / ## 参考文献).
@@ -220,7 +220,7 @@ def _has_placeholder(s: str) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--notes", type=Path, required=True, help="Path to Draft_Derivation.md.")
+    ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md.")
     args = ap.parse_args()
 
     if not args.notes.is_file():
@@ -408,7 +408,7 @@ def main() -> int:
     note_dir = args.notes.parent.resolve()
     project_root = note_dir
     # Prefer resolving root-relative paths from the config location (if any).
-    # This makes the gate robust even if Draft_Derivation.md lives in a subdirectory.
+    # This makes the gate robust even if research_contract.md lives in a subdirectory.
     if getattr(cfg, "path", None):
         try:
             project_root = cfg.path.parent.resolve()  # type: ignore[union-attr]

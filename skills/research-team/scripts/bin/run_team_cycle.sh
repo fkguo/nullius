@@ -590,7 +590,7 @@ Usage:
     --member-a-system SYS_MEMBER_A.txt --member-b-system SYS_MEMBER_B.txt
 
   # Alternative (no manual packet): build team packet from the notebook automatically
-  run_team_cycle.sh --tag TAG --notes Draft_Derivation.md [--out-dir team] \
+  run_team_cycle.sh --tag TAG --notes research_contract.md [--out-dir team] \
     --member-a-system SYS_MEMBER_A.txt --member-b-system SYS_MEMBER_B.txt
 
 Options:
@@ -800,7 +800,7 @@ GATES_DIR="${SCRIPTS_DIR}/gates"
 CAPSULE_CHECK_SCRIPT="${GATES_DIR}/check_reproducibility_capsule.py"
 PLAN_GATE_SCRIPT="${GATES_DIR}/check_research_plan.py"
 PROJECT_CHARTER_GATE_SCRIPT="${GATES_DIR}/check_project_charter.py"
-PROJECT_MAP_GATE_SCRIPT="${GATES_DIR}/check_project_map.py"
+PROJECT_INDEX_GATE_SCRIPT="${GATES_DIR}/check_project_map.py"
 HEP_WORKSPACE_GATE_SCRIPT="${GATES_DIR}/check_hep_workspace.py"
 AGENTS_ANCHOR_GATE_SCRIPT="${GATES_DIR}/check_agents_anchor.py"
 MILESTONE_DOD_GATE_SCRIPT="${GATES_DIR}/check_milestone_dod.py"
@@ -841,7 +841,7 @@ AUTOFILL_ENABLED_SCRIPT="${SCRIPT_DIR}/team_cycle_autofill_enabled.py"
 PATCH_PACKET_SCRIPT="${SCRIPT_DIR}/team_cycle_patch_packet.py"
 SIDECAR_PROBE_SCRIPT="${SCRIPT_DIR}/team_cycle_sidecar_probe.py"
 NEXT_TAG_SCRIPT="${SCRIPT_DIR}/next_team_tag.py"
-PROJECT_MAP_UPDATE_SCRIPT="${SCRIPT_DIR}/update_project_map.py"
+PROJECT_INDEX_UPDATE_SCRIPT="${SCRIPT_DIR}/update_project_map.py"
 TEAM_CONFIG_FILE=""
 NOTEBOOK_PATH=""
 safe_tag=""
@@ -928,9 +928,9 @@ cycle_state_path="${run_dir}/cycle_state.json"
 cycle_state_update "init" "done" "running" ""
 trap on_exit EXIT
 
-# Ensure PROJECT_MAP.md exists early (warn-only). This is a usability affordance, not part of the scientific gates.
-if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-  python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --latest-kind team --tag "${RESOLVED_TAG}" --status "preflight_init" >/dev/null 2>&1 || true
+# Ensure project_index.md exists early (warn-only). This is a usability affordance, not part of the scientific gates.
+if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+  python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --latest-kind team --tag "${RESOLVED_TAG}" --status "preflight_init" >/dev/null 2>&1 || true
 fi
 cycle_state_update "preflight_init" "done" "running" ""
 
@@ -1003,19 +1003,19 @@ if [[ "${PROJECT_STAGE}" != "exploration" && -f "${DEBT_GATE_SCRIPT}" ]]; then
   fi
 fi
 
-# Preflight: PROJECT_MAP.md navigation gate.
-if [[ -f "${PROJECT_MAP_GATE_SCRIPT}" ]]; then
+# Preflight: project_index.md navigation gate.
+if [[ -f "${PROJECT_INDEX_GATE_SCRIPT}" ]]; then
   set +e
-  python3 "${PROJECT_MAP_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
+  python3 "${PROJECT_INDEX_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
   pm_code=$?
   set -e
   if [[ ${pm_code} -ne 0 ]]; then
     echo "" >&2
     if [[ "${PROJECT_STAGE}" == "exploration" && ${pm_code} -ne 2 ]] && should_warn_gate_in_exploration "project_map_gate"; then
-      echo "[warn] (exploration) project map gate failed; continuing. Fill PROJECT_MAP.md before switching to development." >&2
-      record_exploration_debt "project_map_gate" "${pm_code}" "project map gate failed (PROJECT_MAP.md missing/invalid)"
+      echo "[warn] (exploration) project map gate failed; continuing. Fill project_index.md before switching to development." >&2
+      record_exploration_debt "project_map_gate" "${pm_code}" "project map gate failed (project_index.md missing/invalid)"
     else
-      echo "[gate] Fail-fast: project map gate failed. Ensure PROJECT_MAP.md exists and links to the canonical docs + team pointers." >&2
+      echo "[gate] Fail-fast: project map gate failed. Ensure project_index.md exists and links to the canonical docs + team pointers." >&2
       exit ${pm_code}
     fi
   fi
@@ -1096,7 +1096,7 @@ if [[ -f "${PLAN_GATE_SCRIPT}" ]]; then
     fi
 
     if [[ "${AUTO_FILL_ENABLED}" == "1" && -f "${AUTO_FILL_SCRIPT}" ]]; then
-      echo "[info] research plan gate failed; attempting deterministic auto-fill of RESEARCH_PLAN.md" >&2
+      echo "[info] research plan gate failed; attempting deterministic auto-fill of research_plan.md" >&2
       AUTO_ROOT=""
       if [[ -n "${TEAM_CONFIG_FILE}" ]]; then
         AUTO_ROOT="$(cd "$(dirname "${TEAM_CONFIG_FILE}")" && pwd)"
@@ -1122,10 +1122,10 @@ if [[ -f "${PLAN_GATE_SCRIPT}" ]]; then
         exit ${plan_code}
       fi
       if [[ "${PROJECT_STAGE}" == "exploration" ]] && should_warn_gate_in_exploration "research_plan_gate"; then
-        echo "[warn] (exploration) research plan check failed; continuing. Fill RESEARCH_PLAN.md before switching to development." >&2
-        record_exploration_debt "research_plan_gate" "${plan_code}" "research plan check failed (RESEARCH_PLAN.md incomplete/template)"
+        echo "[warn] (exploration) research plan check failed; continuing. Fill research_plan.md before switching to development." >&2
+        record_exploration_debt "research_plan_gate" "${plan_code}" "research plan check failed (research_plan.md incomplete/template)"
       else
-        echo "[gate] Fail-fast: research plan check failed. Fill RESEARCH_PLAN.md (or run auto-fill) before running the team cycle." >&2
+        echo "[gate] Fail-fast: research plan check failed. Fill research_plan.md (or run auto-fill) before running the team cycle." >&2
         exit ${plan_code}
       fi
     fi
@@ -1145,10 +1145,10 @@ if [[ -f "${PROJECT_CHARTER_GATE_SCRIPT}" ]]; then
       exit ${charter_code}
     fi
     if [[ "${PROJECT_STAGE}" == "exploration" ]] && should_warn_gate_in_exploration "project_charter_gate"; then
-      echo "[warn] (exploration) project charter check failed; continuing. Fill/approve PROJECT_CHARTER.md before switching to development." >&2
-      record_exploration_debt "project_charter_gate" "${charter_code}" "project charter check failed (PROJECT_CHARTER.md status/fields incomplete)"
+      echo "[warn] (exploration) project charter check failed; continuing. Fill/approve project_charter.md before switching to development." >&2
+      record_exploration_debt "project_charter_gate" "${charter_code}" "project charter check failed (project_charter.md status/fields incomplete)"
     else
-      echo "[gate] Fail-fast: project charter check failed. Fill/approve PROJECT_CHARTER.md before running the team cycle." >&2
+      echo "[gate] Fail-fast: project charter check failed. Fill/approve project_charter.md before running the team cycle." >&2
       exit ${charter_code}
     fi
   fi
@@ -1170,7 +1170,7 @@ if [[ -f "${MILESTONE_DOD_GATE_SCRIPT}" ]]; then
       echo "[warn] (exploration) milestone DoD check failed; continuing. Make Deliverables/Acceptance concrete before switching to development." >&2
       record_exploration_debt "milestone_dod_gate" "${dod_code}" "milestone DoD check failed (acceptance criteria too vague/template)"
     else
-      echo "[gate] Fail-fast: milestone DoD check failed. Make Deliverables/Acceptance concrete in RESEARCH_PLAN.md before running the team cycle." >&2
+      echo "[gate] Fail-fast: milestone DoD check failed. Make Deliverables/Acceptance concrete in research_plan.md before running the team cycle." >&2
       exit ${dod_code}
     fi
   fi
@@ -1264,7 +1264,7 @@ if [[ -f "${LIT_TRACE_GATE_SCRIPT}" ]]; then
   fi
 fi
 
-# Preflight: Problem Framing Snapshot gate (PREWORK.md; prevents "mechanisms shelfware").
+# Preflight: Problem Framing Snapshot gate (research_preflight.md; prevents "mechanisms shelfware").
 if [[ -f "${PROBLEM_FRAMING_GATE_SCRIPT}" ]]; then
   set +e
   python3 "${PROBLEM_FRAMING_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
@@ -1279,7 +1279,7 @@ if [[ -f "${PROBLEM_FRAMING_GATE_SCRIPT}" ]]; then
     fi
 
     if [[ "${AUTO_FILL_ENABLED}" == "1" && -f "${AUTO_FILL_SCRIPT}" ]]; then
-      echo "[info] problem framing snapshot gate failed; attempting deterministic auto-fill of PREWORK.md" >&2
+      echo "[info] problem framing snapshot gate failed; attempting deterministic auto-fill of research_preflight.md" >&2
       AUTO_ROOT=""
       if [[ -n "${TEAM_CONFIG_FILE}" ]]; then
         AUTO_ROOT="$(cd "$(dirname "${TEAM_CONFIG_FILE}")" && pwd)"
@@ -1305,10 +1305,10 @@ if [[ -f "${PROBLEM_FRAMING_GATE_SCRIPT}" ]]; then
         exit ${problem_framing_code}
       fi
       if [[ "${PROJECT_STAGE}" == "exploration" ]] && should_warn_gate_in_exploration "problem_framing_snapshot_gate"; then
-        echo "[warn] (exploration) Problem Framing Snapshot check failed; continuing. Fill PREWORK.md before switching to development." >&2
-        record_exploration_debt "problem_framing_snapshot_gate" "${problem_framing_code}" "Problem Framing Snapshot check failed (PREWORK.md incomplete/template)"
+        echo "[warn] (exploration) Problem Framing Snapshot check failed; continuing. Fill research_preflight.md before switching to development." >&2
+        record_exploration_debt "problem_framing_snapshot_gate" "${problem_framing_code}" "Problem Framing Snapshot check failed (research_preflight.md incomplete/template)"
       else
-        echo "[gate] Fail-fast: Problem Framing Snapshot check failed. Fill PREWORK.md (or run auto-fill) before running the team cycle." >&2
+        echo "[gate] Fail-fast: Problem Framing Snapshot check failed. Fill research_preflight.md (or run auto-fill) before running the team cycle." >&2
         exit ${problem_framing_code}
       fi
     fi
@@ -1316,7 +1316,7 @@ if [[ -f "${PROBLEM_FRAMING_GATE_SCRIPT}" ]]; then
 fi
 
 # Preflight: global double-backslash math gate (key docs + knowledge_base).
-# Runs after deterministic auto-fills (RESEARCH_PLAN / PREWORK) and before other Markdown hygiene gates.
+# Runs after deterministic auto-fills (research_plan / research_preflight) and before other Markdown hygiene gates.
 if [[ -f "${DBS_MATH_GATE_SCRIPT}" ]]; then
   set +e
   python3 "${DBS_MATH_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
@@ -1361,7 +1361,7 @@ if [[ -f "${DBS_MATH_GATE_SCRIPT}" ]]; then
 fi
 
 # Preflight: global Markdown math hygiene gate (key docs + knowledge_base).
-# Runs after any deterministic auto-fills (RESEARCH_PLAN / PREWORK) to validate final text.
+# Runs after any deterministic auto-fills (research_plan / research_preflight) to validate final text.
 if [[ -f "${MD_MATH_HYGIENE_GATE_SCRIPT}" ]]; then
   set +e
   python3 "${MD_MATH_HYGIENE_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
@@ -1881,8 +1881,8 @@ if [[ -f "${TRAJ_SCRIPT}" ]]; then
   python3 "${TRAJ_SCRIPT}" --notes "${NOTEBOOK_PATH}" --out-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --stage "preflight_ok" --packet "${packet_for_run}" --gate "preflight_ok" >/dev/null 2>&1 || true
 fi
 
-if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-  python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "preflight_ok" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
+if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+  python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "preflight_ok" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
 fi
 cycle_state_update "preflight_ok" "done" "running" ""
 
@@ -3007,8 +3007,8 @@ PY
     if [[ -f "${PLAN_UPDATE_SCRIPT}" ]]; then
       python3 "${PLAN_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --status "error" >/dev/null 2>&1 || true
     fi
-    if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-      python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "convergence_error" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
+    if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+      python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "convergence_error" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
     fi
     CYCLE_FINAL_STATUS="convergence_error"
     cycle_state_update "convergence" "error" "${CYCLE_FINAL_STATUS}" ""
@@ -3045,8 +3045,8 @@ PY
       python3 "${PLAN_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --status "not_converged" >/dev/null 2>&1 || true
     fi
 
-    if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-      python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "not_converged" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
+    if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+      python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "not_converged" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
     fi
 
     CYCLE_FINAL_STATUS="not_converged"
@@ -3160,8 +3160,8 @@ if [[ -f "${CLAIM_RENDER_SCRIPT}" ]]; then
   python3 "${CLAIM_RENDER_SCRIPT}" --notes "${NOTEBOOK_PATH}" >/dev/null || true
 fi
 
-if [[ -f "${PROJECT_MAP_UPDATE_SCRIPT}" ]]; then
-  python3 "${PROJECT_MAP_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "converged" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
+if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
+  python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "converged" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
 fi
 
 # Sidecars are non-blocking with respect to convergence accounting and trajectory updates.
