@@ -1,12 +1,18 @@
 import type { SearchOperatorOutput } from './search-operator.js';
 import { sha256Hex } from './sha256-hex.js';
 
-interface LibrarianRecipeTemplate {
+export interface LibrarianRecipeTemplate {
   provider: string;
   queryTemplate: string;
   recipeId: string;
   relevance: number;
   summaryTemplate: string;
+}
+
+export interface LibrarianRecipeBook {
+  defaultTemplates: readonly LibrarianRecipeTemplate[];
+  providerLandingUri: (provider: string, query: string) => string;
+  templatesByFamily: Readonly<Record<string, readonly LibrarianRecipeTemplate[]>>;
 }
 
 function sanitizeForQuery(text: string): string {
@@ -25,14 +31,15 @@ function compactText(value: unknown, fallback: string): string {
   return compact ? sanitizeForQuery(compact) : fallback;
 }
 
-function providerLandingUri(provider: string, query: string): string {
-  const encoded = encodeURIComponent(query).replaceAll('%20', '+');
-  if (provider === 'INSPIRE') return `https://inspirehep.net/literature?sort=mostrecent&q=${encoded}`;
-  if (provider === 'PDG') return `https://pdg.lbl.gov/search?query=${encoded}`;
-  return `https://example.org/search?provider=${encodeURIComponent(provider)}&q=${encoded}`;
+function templatesForFamily(recipeBook: LibrarianRecipeBook, operatorFamily: string): readonly LibrarianRecipeTemplate[] {
+  return recipeBook.templatesByFamily[operatorFamily] ?? recipeBook.defaultTemplates;
 }
 
-function renderRecipe(template: LibrarianRecipeTemplate, fields: Record<string, string>): Record<string, unknown> {
+function renderRecipe(
+  recipeBook: LibrarianRecipeBook,
+  template: LibrarianRecipeTemplate,
+  fields: Record<string, string>,
+): Record<string, unknown> {
   const query = template.queryTemplate
     .replaceAll('{domain}', fields.domain)
     .replaceAll('{operator_family}', fields.operator_family)
@@ -46,7 +53,7 @@ function renderRecipe(template: LibrarianRecipeTemplate, fields: Record<string, 
     .replaceAll('{hypothesis}', fields.hypothesis)
     .replaceAll('{rationale_title}', fields.rationale_title);
   const hit = {
-    uri: providerLandingUri(template.provider, query),
+    uri: recipeBook.providerLandingUri(template.provider, query),
     summary,
     summary_source: 'template',
     relevance: Number(template.relevance.toFixed(3)),
@@ -63,37 +70,13 @@ function renderRecipe(template: LibrarianRecipeTemplate, fields: Record<string, 
   };
 }
 
-function templatesForFamily(operatorFamily: string): readonly LibrarianRecipeTemplate[] {
-  if (operatorFamily === 'AnomalyAbduction') {
-    return [
-      { recipeId: 'inspire.anomaly_abduction.v1', provider: 'INSPIRE', queryTemplate: 'primarch:{domain} AND fulltext:"{claim_text}" AND fulltext:"anomaly"', summaryTemplate: 'INSPIRE template for anomaly-abduction prior art and correlated-observable checks for {operator_family}.', relevance: 0.92 },
-      { recipeId: 'pdg.anomaly_constraints.v1', provider: 'PDG', queryTemplate: '"{claim_text}" anomaly constraints', summaryTemplate: 'PDG template for anomaly constraints and baseline world averages tied to the current claim.', relevance: 0.88 },
-    ];
-  }
-  if (operatorFamily === 'SymmetryOperator') {
-    return [
-      { recipeId: 'inspire.symmetry_selection_rules.v1', provider: 'INSPIRE', queryTemplate: 'primarch:{domain} AND fulltext:"{hypothesis}" AND fulltext:"symmetry selection rule"', summaryTemplate: 'INSPIRE template for symmetry-based selection rules and allowed/forbidden channels.', relevance: 0.9 },
-      { recipeId: 'pdg.symmetry_baselines.v1', provider: 'PDG', queryTemplate: '"{hypothesis}" branching ratio baseline', summaryTemplate: 'PDG template for symmetry-sensitive observables and branching-ratio baselines.', relevance: 0.86 },
-    ];
-  }
-  if (operatorFamily === 'LimitExplorer') {
-    return [
-      { recipeId: 'inspire.limit_regime.v1', provider: 'INSPIRE', queryTemplate: 'primarch:{domain} AND fulltext:"{hypothesis}" AND fulltext:"limit scaling"', summaryTemplate: 'INSPIRE template for controlled limits (decoupling/large-N/soft-collinear) and scaling checks.', relevance: 0.89 },
-      { recipeId: 'pdg.limit_measurements.v1', provider: 'PDG', queryTemplate: '"{hypothesis}" limit measurement', summaryTemplate: 'PDG template for measurements constraining the proposed limit regime.', relevance: 0.85 },
-    ];
-  }
-  return [
-    { recipeId: 'inspire.generic.hep.v1', provider: 'INSPIRE', queryTemplate: 'primarch:{domain} AND fulltext:"{claim_text}"', summaryTemplate: 'INSPIRE generic HEP retrieval template for claim-level prior art.', relevance: 0.84 },
-    { recipeId: 'pdg.generic.hep.v1', provider: 'PDG', queryTemplate: '"{claim_text}"', summaryTemplate: 'PDG generic HEP retrieval template for data/constraint baselines.', relevance: 0.8 },
-  ];
-}
-
 export function buildLibrarianEvidencePacket(options: {
   campaignId: string;
   domain: string;
   generatedAt: string;
   islandId: string;
   operatorOutput: SearchOperatorOutput;
+  recipeBook: LibrarianRecipeBook;
   stepId: string;
   tick: number;
 }): Record<string, unknown> {
@@ -104,7 +87,8 @@ export function buildLibrarianEvidencePacket(options: {
     operator_family: compactText(options.operatorOutput.operatorFamily, 'UnknownFamily'),
     rationale_title: compactText(options.operatorOutput.rationaleTitle, 'untitled rationale'),
   };
-  const recipes = templatesForFamily(options.operatorOutput.operatorFamily).map(template => renderRecipe(template, fields));
+  const recipes = templatesForFamily(options.recipeBook, options.operatorOutput.operatorFamily)
+    .map(template => renderRecipe(options.recipeBook, template, fields));
   return {
     packet_type: 'librarian_evidence_packet_v1',
     packet_schema_version: 1,

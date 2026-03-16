@@ -4,13 +4,14 @@ import { IdeaEngineContractCatalog, ContractRuntimeError } from '../contracts/ca
 import { hashWithoutIdempotency } from '../hash/payload-hash.js';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot, exhaustedDimensions } from './budget-snapshot.js';
+import { loadBuiltinLibrarianRecipeBook, loadBuiltinSearchDomainPackRuntime } from './domain-pack-registry.js';
 import { initialIslandStates } from './domain-pack.js';
 import { RpcError, schemaValidationError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { advanceIslandStateOneTick, islandBestScore, isScoreImproved, markIslandsExhausted, pickParentNode, refreshIslandPopulationSizes } from './island-state.js';
-import { buildLibrarianEvidencePacket, claimEvidenceUris } from './librarian-recipes.js';
+import { buildLibrarianEvidencePacket, claimEvidenceUris, type LibrarianRecipeBook } from './librarian-recipes.js';
 import { buildOperatorNode } from './operator-node.js';
-import { chooseSearchOperator, loadSearchDomainPackRuntime } from './search-operator.js';
+import { chooseSearchOperator, type SearchDomainPackRuntime } from './search-operator.js';
 import { ensureCampaignRunning, loadCampaignDomainPackMetadata, loadCampaignOrError, setCampaignRunningIfBudgetAvailable, type SearchCampaignRecord } from './search-step-campaign.js';
 
 function utcNowIso(): string {
@@ -60,9 +61,11 @@ export class IdeaEngineSearchStepService {
       const campaign = loadCampaignOrError(this.store, campaignId);
       ensureCampaignRunning(campaign);
       const { packId } = loadCampaignDomainPackMetadata(campaign);
-      let runtimePack;
+      let runtimePack: SearchDomainPackRuntime;
+      let recipeBook: LibrarianRecipeBook;
       try {
-        runtimePack = loadSearchDomainPackRuntime(packId);
+        runtimePack = loadBuiltinSearchDomainPackRuntime(packId);
+        recipeBook = loadBuiltinLibrarianRecipeBook(packId);
       } catch (error) {
         throw schemaValidationError(
           `failed to load campaign domain pack ${packId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -116,7 +119,7 @@ export class IdeaEngineSearchStepService {
           const generatedAt = this.now();
           const evidencePacketName = `${stepId}-tick-${String(tick + 1).padStart(3, '0')}-librarian.json`;
           const evidencePacketRef = pathToFileURL(this.store.artifactPath(campaignId, 'evidence_packets', evidencePacketName)).href;
-          const evidencePacketPayload = buildLibrarianEvidencePacket({ campaignId, domain: String((plannedCampaign.charter as Record<string, unknown>).domain ?? ''), generatedAt, islandId, operatorOutput, stepId, tick: tick + 1 });
+          const evidencePacketPayload = buildLibrarianEvidencePacket({ campaignId, domain: String((plannedCampaign.charter as Record<string, unknown>).domain ?? ''), generatedAt, islandId, operatorOutput, recipeBook, stepId, tick: tick + 1 });
           const newNode = buildOperatorNode({ campaignId, createId: this.createId, evidenceUris: claimEvidenceUris({ operatorEvidenceUris: operatorOutput.evidenceUrisUsed, packetPayload: evidencePacketPayload, packetRef: evidencePacketRef }), islandId, now: generatedAt, operatorOutput, parentNodeId: String(parentNode.node_id) });
           try {
             this.contracts.validateAgainstRef('./idea_node_v1.schema.json', newNode, `search.step/node/${String(newNode.node_id)}`);

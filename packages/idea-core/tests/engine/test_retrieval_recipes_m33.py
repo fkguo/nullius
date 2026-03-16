@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 
 from jsonschema.validators import Draft202012Validator
@@ -114,3 +115,11 @@ def test_m3_3_librarian_recipes_emit_evidence_packets_and_claim_uris(tmp_path: P
         assert evidence_packet_ref in claim_evidence_uris
         for uri in packet_evidence_uris:
             assert uri in claim_evidence_uris
+
+        generic_provider_packet = deepcopy(packet)
+        for recipe in generic_provider_packet["recipes"]:
+            recipe["provider"] = "OpenAlex"
+            recipe["api_source"] = "OpenAlex"
+        for item in generic_provider_packet["evidence_items"]:
+            item["provider"] = "OpenAlex"
+        packet_validator.validate(generic_provider_packet)

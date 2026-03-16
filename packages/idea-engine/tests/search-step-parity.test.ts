@@ -106,7 +106,7 @@ function collectTransientFiles(rootDir: string): string[] {
   return transient.sort();
 }
 
-describe('search.step parity', () => {
+describe('search.step parity through built-in domain-pack seam', () => {
   const tempDirs: string[] = [];
 
   afterEach(() => {

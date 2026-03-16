@@ -49,10 +49,10 @@
         ],
         "properties": {
           "recipe_id": { "type": "string", "minLength": 1 },
-          "provider": { "enum": ["INSPIRE", "PDG"] },
+          "provider": { "type": "string", "minLength": 1 },
           "query_template": { "type": "string", "minLength": 1 },
           "query": { "type": "string", "minLength": 1 },
-          "api_source": { "enum": ["INSPIRE", "PDG"] },
+          "api_source": { "type": "string", "minLength": 1 },
           "api_query": { "type": "string", "minLength": 1 },
           "raw_response_hash": {
             "type": "string",
@@ -84,7 +84,7 @@
         "type": "object",
         "required": ["provider", "recipe_id", "uri", "summary", "relevance"],
         "properties": {
-          "provider": { "enum": ["INSPIRE", "PDG"] },
+          "provider": { "type": "string", "minLength": 1 },
           "recipe_id": { "type": "string", "minLength": 1 },
           "uri": { "type": "string", "format": "uri" },
           "summary": { "type": "string", "minLength": 1 },
