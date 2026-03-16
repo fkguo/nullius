@@ -1,19 +1,8 @@
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-import { fileURLToPath } from 'url';
+import type { DomainPackEntry } from './domain-pack-types.js';
+import { builtinDomainPackById as builtinDomainPackByIdFromRegistry, builtinDomainPacks } from './domain-pack-registry.js';
 import { schemaValidationError } from './errors.js';
 
 const MAX_INITIAL_ISLAND_COUNT = 20;
-const HEP_BUILTIN_PACK_CATALOG = resolve(
-  fileURLToPath(new URL('../../../idea-core/src/idea_core/engine/hep_builtin_domain_packs.json', import.meta.url)),
-);
-
-interface DomainPackEntry {
-  pack_id: string;
-  domain_prefixes: string[];
-  operator_selection_policy?: string;
-  operator_source?: string;
-}
 
 interface DomainPackResolution {
   abstractProblemRegistry: Record<string, unknown>;
@@ -48,13 +37,8 @@ function extensionStringList(extensions: Record<string, unknown>, keys: string[]
   return [];
 }
 
-function builtinDomainPacks(): DomainPackEntry[] {
-  const payload = JSON.parse(readFileSync(HEP_BUILTIN_PACK_CATALOG, 'utf8')) as { packs?: DomainPackEntry[] };
-  return payload.packs ?? [];
-}
-
 export function builtinDomainPackById(packId: string): DomainPackEntry | undefined {
-  return builtinDomainPacks().find(entry => entry.pack_id === packId);
+  return builtinDomainPackByIdFromRegistry(packId);
 }
 
 export function mergeRegistryEntries(
