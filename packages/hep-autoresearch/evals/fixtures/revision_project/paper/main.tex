@@ -1,0 +1,42 @@
+\documentclass[aps,prd,preprint,12pt]{revtex4-2}
+
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+
+\begin{document}
+
+\title{Revision Fixture}
+\author{Autoresearch Maintainers}
+\date{}
+
+\begin{abstract}
+Deterministic LaTeX fixture for the revision workflow regression.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+This fixture is intentionally generic. It exists only to verify that provenance rows can be inserted and the document still compiles.
+
+\appendix
+
+\section{Results provenance}
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.22\linewidth} p{0.60\linewidth}}
+\hline
+Quantity & Provenance (artifact path + key) \\
+\hline
+% AUTOGEN_PROVENANCE_START
+H1 & \texttt{artifacts/runs/M2-revision-devcheck-r1/revision/analysis.json:results.compile\_exit\_code\_after} \\
+H2 & \texttt{artifacts/runs/M2-revision-devcheck-r1/revision/analysis.json:results.provenance\_rows} \\
+% AUTOGEN_PROVENANCE_END
+\hline
+\end{tabular}
+\caption{Results provenance (auto-generated during the revision regression).}
+\end{table}
+
+\bibliographystyle{apsrev4-2}
+\bibliography{references}
+
+\end{document}

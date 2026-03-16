@@ -2,7 +2,7 @@
   "schema_version": 1,
   "case_id": "E5-revision-compile-provenance",
   "workflow": "revision",
-  "description": "revision workflow: a minimal eval fixture project compiles and provenance table rows are populated from the fixture notebook.",
+  "description": "revision workflow: a minimal eval fixture project compiles and provenance table rows are populated from the fixture contract.",
   "inputs": {
     "tag": "M2-revision-devcheck-r1",
     "paper_root": "paper"
@@ -11,7 +11,7 @@
     "required_paths_exist": [
       "scripts/run_revision.py",
       "src/hep_autoresearch/toolkit/revision.py",
-      "evals/fixtures/revision_project/Draft_Derivation.md",
+      "evals/fixtures/revision_project/research_contract.md",
       "evals/fixtures/revision_project/paper/main.tex",
       "evals/fixtures/revision_project/artifacts/runs/M2-revision-devcheck-r1/revision/manifest.json",
       "evals/fixtures/revision_project/artifacts/runs/M2-revision-devcheck-r1/revision/summary.json",
