@@ -4,10 +4,15 @@ from pathlib import Path
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.coordinator import IdeaCoreService
+from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_index
 
 
 def make_service(tmp_path: Path) -> IdeaCoreService:
-    return IdeaCoreService(data_dir=tmp_path / "runs", contract_dir=DEFAULT_CONTRACT_DIR)
+    return IdeaCoreService(
+        data_dir=tmp_path / "runs",
+        contract_dir=DEFAULT_CONTRACT_DIR,
+        domain_pack_index=build_builtin_hep_domain_pack_index(),
+    )
 
 
 def init_campaign(service: IdeaCoreService, *, extensions: dict) -> str:
@@ -93,4 +98,3 @@ def test_m3_2_operator_families_are_diverse_across_islands_and_survive_repopulat
         if event.get("to_state") == "REPOPULATED"
     }
     assert repopulated_islands == {"island-0", "island-1", "island-2"}
-

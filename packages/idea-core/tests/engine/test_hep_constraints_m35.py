@@ -4,10 +4,15 @@ from pathlib import Path
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.coordinator import IdeaCoreService, RpcError
+from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_index
 
 
 def make_service(tmp_path: Path) -> IdeaCoreService:
-    return IdeaCoreService(data_dir=tmp_path / "runs", contract_dir=DEFAULT_CONTRACT_DIR)
+    return IdeaCoreService(
+        data_dir=tmp_path / "runs",
+        contract_dir=DEFAULT_CONTRACT_DIR,
+        domain_pack_index=build_builtin_hep_domain_pack_index(),
+    )
 
 
 def init_campaign(service: IdeaCoreService) -> tuple[str, str]:
@@ -124,4 +129,3 @@ def test_node_promote_fails_on_blocking_hep_constraint_failure_modes(tmp_path: P
         assert blocking_modes
         assert all(mode.startswith("hep:") for mode in blocking_modes)
         assert all(mode.endswith(":critical") for mode in blocking_modes)
-

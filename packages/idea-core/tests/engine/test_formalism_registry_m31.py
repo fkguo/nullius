@@ -4,8 +4,10 @@ from pathlib import Path
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.coordinator import IdeaCoreService
+from idea_core.engine.default_domain_pack import DEFAULT_DOMAIN_PACK_ID
 from idea_core.engine.domain_pack import DomainPackAssets, DomainPackDescriptor, DomainPackIndex
 from idea_core.engine.operators import OperatorOutput
+from idea_core.engine.retrieval import build_default_librarian_recipe_book
 
 
 class _NoopOperator:
@@ -21,7 +23,7 @@ class _NoopOperator:
             rationale_title="M3.1 noop rationale",
             rationale="No-op operator output used by M3.1 tests.",
             thesis_statement="M3.1 noop thesis",
-            hypothesis="M3.1 noop hypothesis remains testable with observable-1",
+            hypothesis="M3.1 noop hypothesis remains testable with primary_outcome",
             claim_text="M3.1 noop claim",
             trace_inputs={"parent_node_id": context.parent_node_id},
             trace_params={"mode": "noop"},
@@ -74,7 +76,7 @@ def test_builtin_pack_campaign_init_no_longer_persists_formalism_registry(tmp_pa
 
     campaign = service.store.load_campaign(campaign_id)
     assert campaign is not None
-    assert campaign["domain_pack"]["pack_id"] == "hep.operators.v1"
+    assert campaign["domain_pack"]["pack_id"] == DEFAULT_DOMAIN_PACK_ID
     assert "formalism_registry" not in campaign
 
     seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))
@@ -102,6 +104,7 @@ def test_campaign_init_succeeds_with_pack_without_formalism_authority(tmp_path: 
                 ]
             },
             search_operators=(_NoopOperator(),),
+            librarian_recipes=build_default_librarian_recipe_book(),
         ),
     )
     service = _make_service(tmp_path, domain_pack_index=DomainPackIndex((descriptor,)))

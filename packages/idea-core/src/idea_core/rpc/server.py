@@ -8,6 +8,7 @@ from typing import Any
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.coordinator import IdeaCoreService, RpcError
+from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_index
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -87,7 +88,11 @@ def handle_request(service: IdeaCoreService, request: dict[str, Any]) -> dict[st
 
 def main() -> int:
     args = parse_args()
-    service = IdeaCoreService(data_dir=args.data_dir, contract_dir=args.contract_dir)
+    service = IdeaCoreService(
+        data_dir=args.data_dir,
+        contract_dir=args.contract_dir,
+        domain_pack_index=build_builtin_hep_domain_pack_index(),
+    )
 
     for raw in sys.stdin:
         line = raw.strip()

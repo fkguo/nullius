@@ -31,7 +31,11 @@ def test_handle_request_fail_closed_internal_error_boundary() -> None:
 
 def test_main_returns_parse_error_for_invalid_json(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(rpc_server, "parse_args", lambda: SimpleNamespace(data_dir=tmp_path / "runs", contract_dir=DEFAULT_CONTRACT_DIR))
-    monkeypatch.setattr(rpc_server, "IdeaCoreService", lambda data_dir, contract_dir: _ExplodingService())
+    monkeypatch.setattr(
+        rpc_server,
+        "IdeaCoreService",
+        lambda data_dir, contract_dir, domain_pack_index=None: _ExplodingService(),
+    )
     monkeypatch.setattr(sys, "stdin", io.StringIO("{invalid\n"))
     stdout = io.StringIO()
     monkeypatch.setattr(sys, "stdout", stdout)
@@ -45,7 +49,11 @@ def test_main_returns_parse_error_for_invalid_json(monkeypatch, tmp_path: Path) 
 
 def test_main_returns_invalid_request_for_non_object_json(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(rpc_server, "parse_args", lambda: SimpleNamespace(data_dir=tmp_path / "runs", contract_dir=DEFAULT_CONTRACT_DIR))
-    monkeypatch.setattr(rpc_server, "IdeaCoreService", lambda data_dir, contract_dir: _ExplodingService())
+    monkeypatch.setattr(
+        rpc_server,
+        "IdeaCoreService",
+        lambda data_dir, contract_dir, domain_pack_index=None: _ExplodingService(),
+    )
     monkeypatch.setattr(sys, "stdin", io.StringIO("[1, 2, 3]\n"))
     stdout = io.StringIO()
     monkeypatch.setattr(sys, "stdout", stdout)

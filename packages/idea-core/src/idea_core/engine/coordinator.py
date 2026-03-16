@@ -14,6 +14,7 @@ from idea_core.engine.domain_pack import (
     DomainPackIndex,
     build_builtin_domain_pack_index,
 )
+from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_index
 from idea_core.engine.operators import (
     OperatorContext,
     OperatorOutput,
@@ -672,15 +673,15 @@ class IdeaCoreService:
         joined = " ".join([operator_id, operator_family, claim_text]).lower()
 
         delta_types: list[str] = []
-        if contains_any(joined, ("anomaly", "mechanism")):
+        if contains_any(joined, ("anomaly", "discrepancy", "mechanism", "explain")):
             delta_types.extend(["new_mechanism", "new_observable"])
-        if contains_any(joined, ("symmetry", "formalism", "selection rule")):
+        if contains_any(joined, ("symmetry", "formalism", "framework", "selection rule")):
             delta_types.extend(["new_formalism", "new_constraint"])
-        if contains_any(joined, ("limit", "scaling", "regime")):
+        if contains_any(joined, ("limit", "scaling", "regime", "boundary")):
             delta_types.extend(["new_regime", "new_constraint"])
-        if contains_any(joined, ("constraint", "forbidden", "allowed transition")):
+        if contains_any(joined, ("constraint", "compatibility", "forbidden", "allowed transition")):
             delta_types.append("new_constraint")
-        if contains_any(joined, ("bridge", "expand", "method", "reformulation")):
+        if contains_any(joined, ("bridge", "expand", "method", "reformulation", "workflow")):
             delta_types.append("new_method")
 
         if not delta_types:
@@ -786,13 +787,12 @@ class IdeaCoreService:
         operator_id = sanitize_text(node.get("operator_id"), fallback="unknown.operator")
         if non_novelty_flags:
             delta_statement = (
-                f"{operator_id} must produce a measurable observable-1 shift beyond the closest prior "
+                f"{operator_id} must produce a measurable delta beyond the closest prior "
                 "baseline; otherwise classify this update as non-novel."
             )
         else:
             delta_statement = (
-                f"{operator_id} proposes a testable delta that should change observable-1 relative to "
-                "the closest prior baseline."
+                f"{operator_id} proposes a testable delta relative to the closest prior baseline."
             )
 
         idea_card = node.get("idea_card", {})
@@ -803,7 +803,7 @@ class IdeaCoreService:
             if isinstance(first_step, dict):
                 method = sanitize_text(first_step.get("method"), fallback=operator_id)
         verification_hook = (
-            f"Run {method} and compare observable-1 against the closest prior evidence baseline."
+            f"Run {method} and compare the claimed output against the closest prior evidence baseline."
         )
 
         return [
@@ -849,18 +849,18 @@ class IdeaCoreService:
 
         cleaned_hypothesis = sanitize_text(
             hypothesis,
-            f"{title} should be testable with observable-1.",
+            f"{title} should be testable with a measurable outcome.",
         )
         cleaned_claim = sanitize_text(
             claim_text,
-            f"{title} provides a falsifiable claim that can be checked against observable-1.",
+            f"{title} provides a falsifiable claim that can be checked against a measurable outcome.",
         )
         cleaned_evidence_uris = cls._sanitize_evidence_uris(evidence_uris)
 
         idea_card = {
             "thesis_statement": thesis_statement,
             "testable_hypotheses": [cleaned_hypothesis],
-            "required_observables": ["observable-1"],
+            "required_observables": ["primary_outcome"],
             "minimal_compute_plan": [
                 {
                     "step": compute_step,
@@ -2655,4 +2655,8 @@ class IdeaCoreService:
 
 
 def default_service(data_dir: Path, contract_dir: Path) -> IdeaCoreService:
-    return IdeaCoreService(data_dir=data_dir, contract_dir=contract_dir)
+    return IdeaCoreService(
+        data_dir=data_dir,
+        contract_dir=contract_dir,
+        domain_pack_index=build_builtin_hep_domain_pack_index(),
+    )

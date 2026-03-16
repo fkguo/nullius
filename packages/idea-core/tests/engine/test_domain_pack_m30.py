@@ -8,6 +8,7 @@ from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.domain_pack import DomainPackAssets, DomainPackDescriptor, DomainPackIndex
 from idea_core.engine.operators import OperatorOutput
 from idea_core.engine.coordinator import IdeaCoreService, RpcError
+from idea_core.engine.retrieval import build_default_librarian_recipe_book
 
 
 class _TaggedOperator:
@@ -59,6 +60,7 @@ def _make_domain_pack_descriptor(
                 ]
             },
             search_operators=(_TaggedOperator(operator_tag),),
+            librarian_recipes=build_default_librarian_recipe_book(),
         )
 
     return DomainPackDescriptor(
@@ -144,6 +146,44 @@ def test_domain_pack_matches_domain_prefix_without_hep_global_default(tmp_path: 
     seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))
     seed_node = service.handle("node.get", {"campaign_id": campaign_id, "node_id": seed_node_id})
     assert "candidate_formalisms" not in seed_node["idea_card"]
+
+
+def test_non_hep_domain_pack_runtime_uses_explicit_non_hep_retrieval(tmp_path: Path) -> None:
+    load_counter = {"math.alpha": 0}
+    index = DomainPackIndex(
+        (
+            _make_domain_pack_descriptor(
+                pack_id="math.alpha",
+                operator_tag="math",
+                load_counter=load_counter,
+                domain_prefixes=("math-",),
+            ),
+        )
+    )
+    service = _make_service(tmp_path, index)
+    campaign_id = _init_campaign(
+        service,
+        idempotency_key="m3.0-non-hep-runtime",
+        domain="math-topology",
+    )
+
+    step_result = service.handle(
+        "search.step",
+        {
+            "campaign_id": campaign_id,
+            "n_steps": 1,
+            "idempotency_key": "m3.0-non-hep-runtime-step",
+        },
+    )
+
+    nodes_artifact = service.store.load_artifact_from_ref(step_result["new_nodes_artifact_ref"])
+    packet = service.store.load_artifact_from_ref(nodes_artifact["operator_events"][0]["evidence_packet_ref"])
+    providers = [recipe["provider"] for recipe in packet["recipes"]]
+    recipe_ids = [recipe["recipe_id"] for recipe in packet["recipes"]]
+
+    assert providers == ["GENERIC_LITERATURE", "GENERIC_EVIDENCE"]
+    assert not any(provider in {"INSPIRE", "PDG"} for provider in providers)
+    assert not any("hep" in recipe_id for recipe_id in recipe_ids)
 
 
 def test_domain_pack_lazy_loads_only_selected_pack_and_reuses_cache(tmp_path: Path) -> None:

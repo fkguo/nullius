@@ -9,9 +9,11 @@ from idea_core.engine.domain_pack import (
     DomainConstraintPolicy,
     DomainPackAssets,
     DomainPackDescriptor,
+    DomainPackIndex,
     build_default_abstract_problem_registry,
 )
 from idea_core.engine.hep_constraint_policy import build_hep_constraint_findings
+from idea_core.engine.hep_librarian_recipe_book import build_hep_librarian_recipe_book
 from idea_core.engine.operators import SearchOperator, hep_operator_families_m32
 
 
@@ -52,6 +54,7 @@ def _build_hep_assets(
         domain_prefixes=domain_prefixes,
         abstract_problem_registry=build_default_abstract_problem_registry(),
         search_operators=_resolve_operator_set(operator_source),
+        librarian_recipes=build_hep_librarian_recipe_book(),
         operator_selection_policy=operator_selection_policy,
         constraint_policy=HEP_CONSTRAINT_POLICY,
     )
@@ -72,3 +75,7 @@ def build_builtin_hep_domain_pack_descriptors() -> tuple[DomainPackDescriptor, .
             )
         )
     return tuple(descriptors)
+
+
+def build_builtin_hep_domain_pack_index() -> DomainPackIndex:
+    return DomainPackIndex(build_builtin_hep_domain_pack_descriptors())

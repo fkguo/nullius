@@ -6,6 +6,7 @@ from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
 from idea_core.engine.coordinator import IdeaCoreService, RpcError
 from idea_core.engine.domain_pack import DomainPackAssets, DomainPackDescriptor, DomainPackIndex
 from idea_core.engine.operators import default_search_operators
+from idea_core.engine.retrieval import build_default_librarian_recipe_book
 
 
 def _test_domain_pack_index() -> DomainPackIndex:
@@ -28,6 +29,7 @@ def _test_domain_pack_index() -> DomainPackIndex:
                 ]
             },
             search_operators=default_search_operators(),
+            librarian_recipes=build_default_librarian_recipe_book(),
         ),
     )
     return DomainPackIndex((descriptor,))

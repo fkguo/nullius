@@ -214,3 +214,34 @@ def test_build_novelty_delta_table_uses_internal_prior_placeholder_when_missing(
     uris = novelty_delta_table[0]["closest_prior_uris"]
     assert uris
     assert uris[0] == "urn:idea-core:novelty-prior-unavailable:node-1"
+
+
+def test_novelty_delta_table_uses_provider_neutral_language(tmp_path: Path) -> None:
+    service = make_service(tmp_path)
+    node = {
+        "operator_id": "math.bridge.operator",
+        "operator_family": "FrameworkBridge",
+        "rationale_draft": {"rationale": "framework bridge"},
+        "idea_card": {
+            "claims": [
+                {
+                    "claim_text": "A framework reformulation introduces a measurable output shift.",
+                    "evidence_uris": ["https://example.org/prior-math"],
+                }
+            ],
+            "minimal_compute_plan": [{"method": "symbolic comparison"}],
+        },
+        "operator_trace": {"evidence_uris_used": ["https://example.org/prior-math"]},
+    }
+
+    novelty_delta_table = service._build_novelty_delta_table(
+        node_id="node-1",
+        node=node,
+        nodes={"node-1": node},
+    )
+
+    entry = novelty_delta_table[0]
+    assert "observable-1" not in entry["delta_statement"]
+    assert "observable-1" not in entry["verification_hook"]
+    assert "closest prior baseline" in entry["delta_statement"]
+    assert "closest prior evidence baseline" in entry["verification_hook"]

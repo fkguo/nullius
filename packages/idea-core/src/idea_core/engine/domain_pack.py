@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from idea_core.engine.operators import (
     SearchOperator,
 )
-from idea_core.engine.retrieval import LibrarianRecipeBook, build_default_librarian_recipe_book
+from idea_core.engine.retrieval import LibrarianRecipeBook
 
 
 DomainConstraintFindingBuilder = Callable[[dict[str, Any]], list[dict[str, str]]]
@@ -26,7 +26,7 @@ class DomainPackAssets:
     domain_prefixes: tuple[str, ...]
     abstract_problem_registry: dict[str, Any]
     search_operators: tuple[SearchOperator, ...]
-    librarian_recipes: LibrarianRecipeBook = field(default_factory=build_default_librarian_recipe_book)
+    librarian_recipes: LibrarianRecipeBook
     operator_selection_policy: str = "round_robin_v1"
     constraint_policy: DomainConstraintPolicy | None = None
 
@@ -107,6 +107,6 @@ def build_default_abstract_problem_registry() -> dict[str, Any]:
 
 
 def build_builtin_domain_pack_index() -> DomainPackIndex:
-    from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_descriptors
+    from idea_core.engine.default_domain_pack import build_builtin_default_domain_pack_descriptors
 
-    return DomainPackIndex(build_builtin_hep_domain_pack_descriptors())
+    return DomainPackIndex(build_builtin_default_domain_pack_descriptors())
