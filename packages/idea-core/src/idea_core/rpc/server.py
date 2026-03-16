@@ -74,7 +74,7 @@ def handle_request(service: IdeaCoreService, request: dict[str, Any]) -> dict[st
         result = service.handle(method, params)
     except RpcError as exc:
         return _jsonrpc_error(req_id, exc.code, exc.message, exc.data)
-    except Exception as exc:  # pragma: no cover - safety belt
+    except Exception as exc:  # CONTRACT-EXEMPT: NEW-R03b fail-closed RPC boundary for unexpected service bugs
         return _jsonrpc_error(
             req_id,
             -32603,
@@ -95,10 +95,13 @@ def main() -> int:
             continue
         try:
             req = json.loads(line)
-            if not isinstance(req, dict):
-                raise ValueError("request must be a JSON object")
-        except Exception:
+        except json.JSONDecodeError:
             resp = _jsonrpc_error(None, -32700, "parse_error", {"reason": "parse_error"})
+            sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+            continue
+        if not isinstance(req, dict):
+            resp = _jsonrpc_error(None, -32600, "invalid_request", {"reason": "invalid_request"})
             sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
             sys.stdout.flush()
             continue

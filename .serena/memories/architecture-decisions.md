@@ -1,5 +1,16 @@
 ## Cross-Component Architecture Decisions
 
+### [2026-03-15] Review packet falsification invariant: packet is an audit aid, not authority
+
+**Context**: 2026-03-15 UX-01 + UX-05 template-sync retrospective found that a prior `NEW-R03b` review packet correctly validated local exception-boundary work, but incorrectly pre-classified shared scaffold-template failures as unrelated debt. The issue was not reviewer laziness; the review system over-trusted packet scope/debt labels and under-specified authority-completeness checks.
+**Decision**:
+- Review packets and review-system prompts are audit aids, not authoritative truth. Reviewer and self-review must explicitly test whether packet claims such as "already closed", "already locked", "out of scope", or "pre-existing unrelated debt" are actually supported by code and acceptance evidence.
+- Shared entrypoint or canonical acceptance failures must default to `packet assumption breach` until disproven; they must not be auto-downgraded to lane-local debt just because the current implementation batch was narrowly scoped.
+- For shared/canonical authority migrations, review and self-review must verify authority completeness, not just naming parity: at minimum `authority map -> concrete artifacts/templates`, `artifact/template -> authority map`, `no inline duplicate authority left`, and `shared entrypoint acceptance still passes`.
+- Any debt deferred as "unrelated" must include an explicit statement of why it does not invalidate packet assumptions, shared closeout claims, or authority-completeness judgment.
+**Why**: Multi-model review only improves outcomes if the rubric can challenge author-supplied assumptions. Without a falsification step, three reviewers can independently converge on the same packet-shaped blind spot, especially when local scope discipline is over-weighted relative to shared authority and end-to-end acceptance.
+**Files**: `AGENTS.md`, `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`
+
 ### [2026-03-13] EVO-01-A bridge invariant: execution plans are audited IR, manifests are materialized execution surfaces
 
 **Context**: `meta/docs/prompts/prompt-2026-03-13-evo01a-compute-bridge.md` closeout (`EVO-01-A` bounded bridge inside `EVO-01`)
@@ -599,3 +610,15 @@
 - `.hep/` remains provider-local debt and must stay out of the canonical minimal scaffold.
 **Why**: The stable substrate boundary at project creation time is a small, host-agnostic root contract plus optional host/provider surfaces layered on top. Locking this boundary now prevents future host-specific drift and keeps later TS control-plane work aligned with a single shared scaffold rule.
 **Files**: `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_surface.py`, `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_scaffold.py`, `packages/hep-autoresearch/src/hep_autoresearch/toolkit/research_contract.py`, `packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py`, `skills/research-team/scripts/bin/scaffold_research_workflow.sh`
+
+### [2026-03-15] Scaffold authority must be template-backed end-to-end and inventory-checked
+
+**Context**: Post-closeout repair for `UX-01` + `UX-05` after `packages/hep-autoresearch/tests` exposed missing scaffold templates and leftover inline support-doc authority in the shared scaffold module.
+**Decision**:
+- Shared scaffold authority is only considered implemented when every user-readable scaffold output owned by `ensure_project_scaffold` is backed by a checked-in template inventory under `packages/hep-autoresearch/src/hep_autoresearch/scaffold_templates/`.
+- The anti-drift check must be bidirectional: every mapped scaffold output must have a template, and every template file must be wired into the scaffold map.
+- User-readable support files such as `AGENTS.md` and `docs/*` must not keep independent inline authority inside `project_scaffold.py`.
+- Structured machine outputs such as `.mcp.json.example` and `specs/plan.schema.json` may remain code-generated because they are schema/config artifacts rather than prose templates.
+- Minimal-root navigation templates must not promote host-local or provider-local extras as default linked root surfaces.
+**Why**: Renaming files and updating constants/tests is insufficient if template inventory and rendered navigation are left behind; that leaves architecture formally locked but operational authority split across code and templates, which later breaks unrelated acceptance on the same worktree.
+**Files**: `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_surface.py`, `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_scaffold.py`, `packages/hep-autoresearch/src/hep_autoresearch/scaffold_templates/`, `packages/hep-autoresearch/tests/test_scaffold_template_sync.py`

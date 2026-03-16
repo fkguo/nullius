@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import zipfile
 from dataclasses import dataclass
@@ -61,7 +62,7 @@ def _json_pointer_get(payload: Any, pointer: str) -> Any:
         if isinstance(cur, list):
             try:
                 idx = int(t)
-            except Exception as e:
+            except (TypeError, ValueError) as e:
                 raise KeyError(f"expected list index, got {t!r}") from e
             cur = cur[idx]
             continue
@@ -105,7 +106,7 @@ def _schema_resolve_ref(root_schema: dict[str, Any], ref: str) -> dict[str, Any]
         if isinstance(cur, list):
             try:
                 cur = cur[int(t)]
-            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback for invalid pointer
+            except (IndexError, TypeError, ValueError):  # CONTRACT-EXEMPT: CODE-01.5 intentional fallback for invalid pointer
                 return None
             continue
         if isinstance(cur, dict):
@@ -166,14 +167,14 @@ def _schema_validate(payload: Any, schema: dict[str, Any], path: str, *, root_sc
         try:
             if float(payload) < float(schema["minimum"]):
                 errors.append(f"{path}: value {payload} < minimum {schema['minimum']}")
-        except Exception:
+        except (TypeError, ValueError):
             errors.append(f"{path}: cannot compare minimum for value {payload!r}")
 
     if isinstance(schema_type, str) and schema_type == "string" and "minLength" in schema:
         try:
             if len(str(payload)) < int(schema["minLength"]):
                 errors.append(f"{path}: string shorter than minLength {schema['minLength']}")
-        except Exception:
+        except (TypeError, ValueError):
             errors.append(f"{path}: cannot validate minLength for value {payload!r}")
 
     if isinstance(schema_type, str) and schema_type == "object":
@@ -242,7 +243,7 @@ def run_eval_case(case_dir: Path, repo_root: Path) -> CaseResult:
             ok = False
             messages.append("case.json schema validation failed:")
             messages.extend([f"- {e}" for e in schema_errors[:10]])
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ok = False
         messages.append(f"case.json schema validation error: {e}")
 
@@ -268,7 +269,7 @@ def run_eval_case(case_dir: Path, repo_root: Path) -> CaseResult:
                     ok = False
                     messages.append(f"schema validation failed for {rel}:")
                     messages.extend([f"- {e}" for e in schema_errors[:10]])
-            except Exception as e:
+            except (OSError, json.JSONDecodeError) as e:
                 ok = False
                 messages.append(f"schema validation error for {rel}: {e}")
 
@@ -312,13 +313,13 @@ def run_eval_case(case_dir: Path, repo_root: Path) -> CaseResult:
                     continue
                 try:
                     payload = read_json(p)
-                except Exception as e:
+                except (OSError, json.JSONDecodeError) as e:
                     ok = False
                     messages.append(f"json_numeric_checks[{idx}] could not read json: {rel_path} ({e})")
                     continue
                 try:
                     v = _json_pointer_get(payload, str(pointer))
-                except Exception as e:
+                except (IndexError, KeyError, ValueError) as e:
                     ok = False
                     messages.append(f"json_numeric_checks[{idx}] missing pointer: {rel_path}{pointer} ({e})")
                     continue
@@ -371,13 +372,13 @@ def run_eval_case(case_dir: Path, repo_root: Path) -> CaseResult:
                     continue
                 try:
                     payload = read_json(p)
-                except Exception as e:
+                except (OSError, json.JSONDecodeError) as e:
                     ok = False
                     messages.append(f"json_value_checks[{idx}] could not read json: {rel_path} ({e})")
                     continue
                 try:
                     v = _json_pointer_get(payload, str(pointer))
-                except Exception as e:
+                except (IndexError, KeyError, ValueError) as e:
                     ok = False
                     messages.append(f"json_value_checks[{idx}] missing pointer: {rel_path}{pointer} ({e})")
                     continue
@@ -423,7 +424,7 @@ def run_eval_case(case_dir: Path, repo_root: Path) -> CaseResult:
                 if "min_length" in check:
                     try:
                         lim = int(check.get("min_length"))
-                    except Exception:
+                    except (TypeError, ValueError):
                         ok = False
                         messages.append(f"json_value_checks[{idx}] min_length must be integer at {rel_path}{pointer}")
                         lim = None
@@ -468,7 +469,7 @@ def run_eval_case(case_dir: Path, repo_root: Path) -> CaseResult:
                     continue
                 try:
                     text = p.read_text(encoding="utf-8", errors="replace")
-                except Exception as e:
+                except OSError as e:
                     ok = False
                     messages.append(f"text_contains_checks[{idx}] could not read file: {rel_path} ({e})")
                     continue
@@ -510,7 +511,7 @@ def run_eval_case(case_dir: Path, repo_root: Path) -> CaseResult:
                 try:
                     with zipfile.ZipFile(p, "r") as zf:
                         names = {n.replace("\\", "/") for n in zf.namelist()}
-                except Exception as e:
+                except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile) as e:
                     ok = False
                     messages.append(f"zip_contains_checks[{idx}] could not read zip: {rel_path} ({e})")
                     continue

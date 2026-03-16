@@ -8,10 +8,11 @@ from typing import Any
 
 from .project_surface import (
     BOUNDARY_NAMING_AUDIT,
-    FULL_ROOT_FILES,
+    FULL_TEMPLATE_FILES,
     MCP_CONFIG_EXAMPLE,
     MINIMAL_CONTEXT_FILES,
-    MINIMAL_ROOT_FILES,
+    MINIMAL_TEMPLATE_FILES,
+    SCAFFOLD_TEMPLATE_MAP,
 )
 from .research_contract import sync_research_contract
 from .scaffold_template_loader import load_scaffold_template
@@ -75,57 +76,21 @@ def ensure_project_scaffold(
     for rel in ("artifacts/runs", "docs", "specs"):
         (repo_root / rel).mkdir(parents=True, exist_ok=True)
 
-    root_files = FULL_ROOT_FILES if variant == "full" else MINIMAL_ROOT_FILES
-    for rel in root_files:
+    template_files = FULL_TEMPLATE_FILES if variant == "full" else MINIMAL_TEMPLATE_FILES
+    for rel in template_files:
         _write_text_if_missing(
             repo_root=repo_root,
             path=repo_root / rel,
-            text=_render_template(rel, project_name=project, project_root=repo_root, profile=profile_name),
+            text=_render_template(
+                SCAFFOLD_TEMPLATE_MAP[rel],
+                project_name=project,
+                project_root=repo_root,
+                profile=profile_name,
+            ),
             created=created,
             skipped=skipped,
             force=force,
         )
-
-    _write_text_if_missing(
-        repo_root=repo_root,
-        path=repo_root / "AGENTS.md",
-        text=(
-            "# AGENTS.md\n\n"
-            "This file anchors the workflow for this research project.\n\n"
-            "## Quick rules\n\n"
-            "- Human notebook: `research_notebook.md`\n"
-            "- Machine contract: `research_contract.md`\n"
-            "- Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<TAG>/`.\n"
-            "- Approval gates A1–A5 remain the default safety contract (see `docs/APPROVAL_GATES.md`).\n"
-        ),
-        created=created,
-        skipped=skipped,
-        force=force,
-    )
-    _write_text_if_missing(
-        repo_root=repo_root,
-        path=repo_root / "docs" / "APPROVAL_GATES.md",
-        text="# Approval gates (A1–A5)\n\nDefault: require human approval before high-risk actions.\n",
-        created=created,
-        skipped=skipped,
-        force=force,
-    )
-    _write_text_if_missing(
-        repo_root=repo_root,
-        path=repo_root / "docs" / "ARTIFACT_CONTRACT.md",
-        text="# Artifact contract\n\nEvery workflow run writes `manifest.json`, `summary.json`, and `analysis.json`.\n",
-        created=created,
-        skipped=skipped,
-        force=force,
-    )
-    _write_text_if_missing(
-        repo_root=repo_root,
-        path=repo_root / "docs" / "EVAL_GATE_CONTRACT.md",
-        text="# Eval gate contract\n\nEvals are deterministic checks over on-disk artifacts.\n",
-        created=created,
-        skipped=skipped,
-        force=force,
-    )
     mcp_path = repo_root / MCP_CONFIG_EXAMPLE
     if not mcp_path.exists() or force:
         mcp_path.write_text(

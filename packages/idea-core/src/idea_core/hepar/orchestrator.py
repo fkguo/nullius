@@ -115,7 +115,7 @@ class TeamRoleOrchestrator:
     def _execute_role(self, *, work_order: WorkOrder, role_message: str) -> WorkResult:
         try:
             return self.runtime_executor.execute_work_order(work_order, role_message=role_message)
-        except Exception as exc:
+        except Exception as exc:  # CONTRACT-EXEMPT: NEW-R03b fail-closed runtime boundary for executor bugs
             self.control_plane_store.append_ledger_event(
                 "team_orchestration.role_failed",
                 work_id=work_order.work_id,

@@ -36,6 +36,7 @@ class TestScaffoldNamingContract(unittest.TestCase):
                 for path in root.rglob("*")
             }
             for rel in (
+                "AGENTS.md",
                 "project_charter.md",
                 "project_index.md",
                 "research_plan.md",

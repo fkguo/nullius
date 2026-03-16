@@ -51,9 +51,7 @@ def call_with_retry(func: Callable[[], T], *, op_name: str, policy: RetryPolicy)
     while True:
         try:
             return _run_with_timeout(func, timeout_s=normalized.timeout_s, op_name=op_name)
-        except Exception as exc:
-            if not isinstance(exc, retryable):
-                raise
+        except retryable as exc:
             if attempt >= normalized.max_attempts:
                 raise
             sleep_s = min(

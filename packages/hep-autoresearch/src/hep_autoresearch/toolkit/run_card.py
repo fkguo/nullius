@@ -153,6 +153,6 @@ def ensure_run_card(
 
     try:
         rel = os.fspath(p.relative_to(repo_root))
-    except Exception:
+    except ValueError:
         rel = os.fspath(p)
     return rel, sha
