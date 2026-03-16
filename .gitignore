@@ -48,6 +48,9 @@ meta/docs/_local/
 runs/
 evidence/
 paper/
+!packages/hep-autoresearch/evals/fixtures/revision_project/paper/
+packages/hep-autoresearch/evals/fixtures/revision_project/paper/*
+!packages/hep-autoresearch/evals/fixtures/revision_project/paper/main.tex
 
 # Lock files are committed
 # !pnpm-lock.yaml
