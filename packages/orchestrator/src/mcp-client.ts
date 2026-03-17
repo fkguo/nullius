@@ -16,6 +16,9 @@ import { handleMcpServerRequest, type SamplingRuntime } from './mcp-server-reque
 import { loadSamplingRoutingConfig } from './routing/sampling-loader.js';
 
 export type { McpToolResult } from './mcp-jsonrpc.js';
+export type ToolCaller = {
+  callTool(toolName: string, args: Record<string, unknown>, timeoutMs?: number): Promise<McpToolResult>;
+};
 
 export interface McpClientSamplingOptions {
   defaultRoute: string;

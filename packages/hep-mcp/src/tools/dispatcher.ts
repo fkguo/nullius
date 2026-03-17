@@ -659,6 +659,16 @@ export async function handleToolCall(
       reportProgress,
       rawArgs: cleanArgs,
       createMessage: ctx?.createMessage,
+      callTool: async (toolName, toolArgs) => handleToolCall(
+        toolName,
+        { ...toolArgs, _chain_depth: chainDepth + 1 },
+        mode,
+        {
+          requestId: ctx?.requestId,
+          spanSink: ctx?.spanSink,
+          createMessage: ctx?.createMessage,
+        },
+      ),
     });
     const resultWithSkillBridgeEnvelope = maybeAttachSkillBridgeJobEnvelope(result);
     recordToolUsage(name);

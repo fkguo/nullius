@@ -5,7 +5,7 @@ import { generateTraceId } from '@autoresearch/shared';
 import type { ApprovalGate } from './approval-gate.js';
 import { createChatBackend, type ChatBackendFactory } from './backends/backend-factory.js';
 import type { ChatBackend, MessageParam, MessagesCreateFn, Tool } from './backends/chat-backend.js';
-import type { McpClient } from './mcp-client.js';
+import type { ToolCaller } from './mcp-client.js';
 import { RunManifestManager, type RunManifest } from './run-manifest.js';
 import type { ResolvedChatRoute } from './routing/types.js';
 import { DEFAULT_CHAT_MAX_TOKENS, loadRoutingConfig, resolveChatRoute } from './routing/loader.js';
@@ -26,7 +26,7 @@ export interface AgentRunnerOptions {
   model: string;
   maxTurns?: number;
   runId: string;
-  mcpClient: McpClient;
+  mcpClient: ToolCaller;
   approvalGate: ApprovalGate;
   spanCollector?: SpanCollector;
   routingConfig?: unknown;
@@ -39,7 +39,7 @@ export class AgentRunner {
   private readonly maxTurns: number;
   readonly runId: string;
   readonly approvalGate: ApprovalGate;
-  private readonly mcpClient: McpClient;
+  private readonly mcpClient: ToolCaller;
   private readonly spanCollector: SpanCollector | null;
   private readonly manifestManager: RunManifestManager | null;
   private readonly route: ResolvedChatRoute;
@@ -77,14 +77,16 @@ export class AgentRunner {
   private async *runImpl(messages: MessageParam[], tools: Tool[], manifest: RunManifest | null): AsyncGenerator<AgentEvent> {
     let currentMessages: MessageParam[] = [...messages];
     const traceId = generateTraceId();
+    const manifestManager = this.manifestManager;
     const checkpointRecorder = async (stepId: string, resultSummary: string) => {
-      this.manifestManager?.saveCheckpoint(this.runId, stepId, resultSummary);
+      manifestManager?.saveCheckpoint(this.runId, stepId, resultSummary);
     };
     const recovery = await resolveIncompleteToolUses({
       messages: currentMessages,
       manifest,
       mcpClient: this.mcpClient,
       checkpointRecorder,
+      shouldSkipStep: manifestManager ? (resumeManifest, stepId) => manifestManager.shouldSkipStep(resumeManifest, stepId) : undefined,
     });
     if (recovery !== null) {
       for (const event of recovery.events) yield event;

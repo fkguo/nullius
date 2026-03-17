@@ -4,15 +4,44 @@ const ProjectRootSchema = z
   .string()
   .min(1)
   .describe('Absolute (or tilde-prefixed) path to the hepar project root directory (contains .autoresearch/)');
+const RunIdSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[a-zA-Z0-9_\-]+$/, 'run_id must be alphanumeric + _ -');
+const AgentTextBlockSchema = z.object({
+  type: z.literal('text'),
+  text: z.string(),
+});
+const AgentToolUseBlockSchema = z.object({
+  type: z.literal('tool_use'),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  input: z.record(z.string(), z.unknown()),
+});
+const AgentToolResultBlockSchema = z.object({
+  type: z.literal('tool_result'),
+  tool_use_id: z.string().min(1),
+  content: z.string(),
+});
+const AgentMessageContentSchema = z.union([
+  AgentTextBlockSchema,
+  AgentToolUseBlockSchema,
+  AgentToolResultBlockSchema,
+]);
+const AgentMessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.union([z.string(), z.array(AgentMessageContentSchema).min(1)]),
+});
+const AgentToolSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  input_schema: z.record(z.string(), z.unknown()),
+});
 
 export const OrchRunCreateSchema = z.object({
   project_root: ProjectRootSchema,
-  run_id: z
-    .string()
-    .min(1)
-    .max(128)
-    .regex(/^[a-zA-Z0-9_\-]+$/, 'run_id must be alphanumeric + _ -')
-    .describe('Run identifier, unique within the project.'),
+  run_id: RunIdSchema.describe('Run identifier, unique within the project.'),
   workflow_id: z.string().optional().describe('Workflow identifier.'),
   idempotency_key: z
     .string()
@@ -96,4 +125,14 @@ export const OrchPolicyQuerySchema = z.object({
     .optional()
     .default(false)
     .describe('Include historical approval precedents for the queried operation.'),
+});
+
+export const OrchRunExecuteAgentSchema = z.object({
+  project_root: ProjectRootSchema,
+  run_id: RunIdSchema.describe('Run identifier whose manifest/checkpoints should be persisted under artifacts/runs/<run_id>/.'),
+  model: z.string().min(1).describe('Preferred model hint for sampling/createMessage.'),
+  messages: z.array(AgentMessageSchema).min(1).describe('Initial agent transcript. The recovery path can start from a pending assistant tool_use message.'),
+  tools: z.array(AgentToolSchema).describe('Tool definitions exposed to the model during sampling.'),
+  resume_from: z.string().optional().describe('Optional step id to resume from explicitly. Defaults to persisted last_completed_step.'),
+  max_turns: z.number().int().positive().max(100).optional().describe('Maximum assistant turns before the runtime stops.'),
 });

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type {
+  CreateMessageRequest,
   CreateMessageRequestParamsBase,
   CreateMessageResult,
+  CreateMessageResultWithTools,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolRiskLevel } from '@autoresearch/shared';
 
@@ -9,11 +11,16 @@ export type ToolExposureMode = 'standard' | 'full';
 export type ToolExposure = 'standard' | 'full';
 export type ToolTier = 'core' | 'consolidated' | 'advanced' | 'writing';
 export type ToolMaturity = 'stable' | 'experimental' | 'deprecated';
+export type ToolSamplingCreateMessage = {
+  (params: CreateMessageRequestParamsBase): Promise<CreateMessageResult>;
+  (params: CreateMessageRequest['params']): Promise<CreateMessageResult | CreateMessageResultWithTools>;
+};
 
 export interface ToolHandlerContext {
   reportProgress?: (progress: number, total?: number, message?: string) => void;
   rawArgs?: Record<string, unknown>;
-  createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+  createMessage?: ToolSamplingCreateMessage;
+  callTool?: (name: string, args: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text?: string }>; isError?: boolean }>;
 }
 
 export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, any>> {

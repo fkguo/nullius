@@ -1,6 +1,6 @@
 import { McpError } from '@autoresearch/shared';
 import type { MessageContent, MessageParam, ToolResultContent, ToolUseContent } from './backends/chat-backend.js';
-import type { McpClient, McpToolResult } from './mcp-client.js';
+import type { McpToolResult, ToolCaller } from './mcp-client.js';
 import type { RunManifest, StepCheckpoint } from './run-manifest.js';
 import type { SpanCollector } from './tracing.js';
 
@@ -31,7 +31,7 @@ async function executeToolCall(params: {
   block: ToolUseContent;
   turnCount: number;
   traceId: string;
-  mcpClient: McpClient;
+  mcpClient: ToolCaller;
   spanCollector: SpanCollector | null;
   checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
 }): Promise<{ events: AgentEvent[]; toolResult: ToolResultContent; done: boolean }> {
@@ -61,7 +61,7 @@ export async function handleAssistantResponse(params: {
   stopReason: string;
   turnCount: number;
   traceId: string;
-  mcpClient: McpClient;
+  mcpClient: ToolCaller;
   spanCollector: SpanCollector | null;
   checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
 }): Promise<{ events: AgentEvent[]; messages: MessageParam[]; done: boolean }> {
@@ -112,8 +112,9 @@ export async function handleAssistantResponse(params: {
 export async function resolveIncompleteToolUses(params: {
   messages: MessageParam[];
   manifest: RunManifest | null;
-  mcpClient: McpClient;
+  mcpClient: ToolCaller;
   checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
+  shouldSkipStep?: ((manifest: RunManifest, stepId: string) => boolean) | null;
 }): Promise<{ events: AgentEvent[]; messages: MessageParam[]; done: boolean } | null> {
   const last = params.messages[params.messages.length - 1];
   if (!last || last.role !== 'assistant' || !Array.isArray(last.content)) return null;
@@ -124,7 +125,10 @@ export async function resolveIncompleteToolUses(params: {
   const toolResults: ToolResultContent[] = [];
   for (const toolUse of pendingToolUses) {
     const checkpoint = params.manifest?.checkpoints.find((item: StepCheckpoint) => item.step_id === toolUse.id);
-    if (checkpoint && params.manifest?.resume_from) {
+    const shouldSkip = checkpoint && params.manifest
+      ? (params.shouldSkipStep?.(params.manifest, toolUse.id) ?? Boolean(params.manifest.resume_from))
+      : false;
+    if (checkpoint && shouldSkip) {
       const cached = checkpoint.result_summary ?? '';
       events.push({ type: 'tool_call', name: toolUse.name, input: toolUse.input, result: cached });
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: cached });

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ORCH_RUN_EXECUTE_AGENT,
   ORCH_POLICY_QUERY,
   ORCH_RUN_APPROVE,
   ORCH_RUN_APPROVALS_LIST,
@@ -16,6 +17,7 @@ import {
   handleOrchRunApprovalsList,
   handleOrchRunReject,
 } from './approval.js';
+import { handleOrchRunExecuteAgent, type AgentToolHandlerContext } from './agent-runtime.js';
 import {
   handleOrchPolicyQuery,
   handleOrchRunExport,
@@ -28,6 +30,7 @@ import {
   handleOrchRunStatus,
 } from './create-status-list.js';
 import {
+  OrchRunExecuteAgentSchema,
   OrchPolicyQuerySchema,
   OrchRunApproveSchema,
   OrchRunApprovalsListSchema,
@@ -46,10 +49,18 @@ type OrchestratorToolSpec<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
   tier: 'core' | 'consolidated' | 'advanced' | 'writing';
   exposure: 'standard' | 'full';
   zodSchema: TSchema;
-  handler: (params: unknown, ctx?: unknown) => Promise<unknown>;
+  handler: (params: unknown, ctx?: AgentToolHandlerContext) => Promise<unknown>;
 };
 
 export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
+  {
+    name: ORCH_RUN_EXECUTE_AGENT,
+    tier: 'advanced',
+    exposure: 'full',
+    description: 'Execute an orchestrator agent runtime with run-scoped manifest checkpoints and crash/re-entry resume semantics.',
+    zodSchema: OrchRunExecuteAgentSchema,
+    handler: async (params, ctx) => handleOrchRunExecuteAgent(params as z.output<typeof OrchRunExecuteAgentSchema>, ctx),
+  },
   {
     name: ORCH_RUN_CREATE,
     tier: 'core',

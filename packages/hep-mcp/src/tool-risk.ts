@@ -81,6 +81,7 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   [T.ORCH_RUN_PAUSE]: 'write',
   [T.ORCH_RUN_RESUME]: 'write',
   [T.ORCH_RUN_APPROVALS_LIST]: 'read',
+  [T.ORCH_RUN_EXECUTE_AGENT]: 'destructive',
   [T.ORCH_POLICY_QUERY]: 'read',
   [T.HEPDATA_SEARCH]: 'read',
   [T.HEPDATA_GET_RECORD]: 'read',

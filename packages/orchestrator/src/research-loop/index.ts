@@ -6,3 +6,4 @@ export * from './handoff-types.js';
 export * from './workspace-validation.js';
 export * from './runtime.js';
 export * from './policy.js';
+export * from './delegated-agent-runtime.js';

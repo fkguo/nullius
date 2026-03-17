@@ -6,11 +6,18 @@
  *   2. approval_packet_sha256 must match SHA-256 of approval_packet_v1.json on disk
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
+
+vi.mock('@autoresearch/zotero-mcp/tooling', () => ({
+  TOOL_SPECS: [],
+}));
+vi.mock('../../src/core/zotero/tools.js', () => ({
+  hepImportFromZotero: vi.fn(),
+}));
 
 import { handleToolCall } from '../../src/tools/index.js';
 
