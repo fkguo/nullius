@@ -24,10 +24,10 @@ Use it to find the human notebook, the machine contract, and the current plan wi
 
 ## Optional expansions
 
-- `research_preflight.md`, `project_brief.md`, and `idea_log.md` are added only when the scaffold expands beyond the minimal root.
-- `knowledge_base/` and `references/` are optional support surfaces, not required at project creation time.
-- `prompts/`, `team/`, and `research_team_config.json` are host-local research-team surfaces, not canonical root files.
-- `.hep/` is provider-local and should only appear when a provider or host layer explicitly needs it.
+- [research_preflight.md](research_preflight.md), [project_brief.md](project_brief.md), and [idea_log.md](idea_log.md) are added only when the scaffold expands beyond the minimal root.
+- [knowledge_base/](knowledge_base/) and [references/](references/) are optional support surfaces, not required at project creation time.
+- [prompts/](prompts/), [team/](team/), and [research_team_config.json](research_team_config.json) are host-local research-team surfaces, not canonical root files.
+- [.hep/](.hep/) is provider-local and should only appear when a provider or host layer explicitly needs it.
 
 ---
 

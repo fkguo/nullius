@@ -5,7 +5,7 @@ Profile: <PROFILE>
 Last updated: <YYYY-MM-DD>
 
 This file declares the stable goal hierarchy and non-negotiable constraints for the project.
-Keep day-to-day execution details in `research_plan.md` and machine-facing state in `research_contract.md`.
+Keep day-to-day execution details in [research_plan.md](research_plan.md) and machine-facing state in [research_contract.md](research_contract.md).
 
 ## Mission
 
@@ -40,6 +40,6 @@ Keep day-to-day execution details in `research_plan.md` and machine-facing state
 
 ## Authority map
 
-- Human narrative and derivations: `research_notebook.md`
-- Actionable task board and progress log: `research_plan.md`
-- Machine-stable contract for gates and packets: `research_contract.md`
+- Human narrative and derivations: [research_notebook.md](research_notebook.md)
+- Actionable task board and progress log: [research_plan.md](research_plan.md)
+- Machine-stable contract for gates and packets: [research_contract.md](research_contract.md)

@@ -20,6 +20,8 @@ bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
   --full
 ```
 
+If the project will actually use the HEP provider bundle, add `--with-hep-provider`; otherwise the default full scaffold stays host-local and does not precreate `.hep/` or enable the HEP workspace gate.
+
 2) Keep derivations in `research_notebook.md`, then refresh / maintain the machine-facing `research_contract.md`.
 
 3) Run a team cycle (preflight + reviewers):

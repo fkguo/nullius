@@ -10,8 +10,9 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 1) [project_charter.md](project_charter.md) — goals, constraints, scope
 2) [research_plan.md](research_plan.md) — Task Board + Progress Log
-3) [research_preflight.md](research_preflight.md) — literature coverage + method selection
-4) [research_contract.md](research_contract.md) — full derivation chain (no skipped steps)
+3) [research_notebook.md](research_notebook.md) — human-readable derivations and interpretation
+4) [research_contract.md](research_contract.md) — machine-stable contract for gates and revision
+5) [AGENTS.md](AGENTS.md) — restart discipline and workflow anchor
 
 ## Latest pointers
 
@@ -21,9 +22,10 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 - Latest artifacts: [artifacts/LATEST.md](artifacts/LATEST.md)
 - Trajectory index: [team/trajectory_index.json](team/trajectory_index.json)
 
-## Ecosystem front door (hep-research-mcp)
+## Optional HEP provider bundle
 
-- Recommended `HEP_DATA_DIR` for this project (run from project root): `export HEP_DATA_DIR="$PWD/.hep-research-mcp"`
+- Only add this bundle when the project explicitly uses the HEP provider/tooling path.
+- Recommended `HEP_DATA_DIR` for this project (run from project root): `export HEP_DATA_DIR="$PWD/.hep-mcp"`
 - Workspace config: [.hep/workspace.json](.hep/workspace.json)
   - Project-root-relative paths for HEP data/PDG/paper locations (v1: one project root → one MCP entry; local-only)
 - Mapping log: [.hep/mappings.json](.hep/mappings.json)

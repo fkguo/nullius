@@ -20,7 +20,7 @@ Language: English is the release default. Chinese docs are kept for bilingual pu
 3) `docs/VISION.md` (vision & scope)
 4) `docs/ARCHITECTURE.md` (architecture & interfaces)
 
-Important: this package repo is the **development home** of `hep-autoresearch`, not the research-project root you operate on day to day. Run `hep-autoresearch init` inside your own research project directory to scaffold the minimal core surface: `project_charter.md`, `project_index.md`, `research_plan.md`, `research_notebook.md`, `research_contract.md`, `.mcp.json.example`, `.autoresearch/`, `docs/`, and `specs/`. Research-team-only surfaces such as `prompts/`, `research_team_config.json`, `knowledge_base/`, `references/`, and `team/` are now optional full-scaffold additions rather than canonical defaults.
+Important: this package repo is the **development home** of `hep-autoresearch`, not the research-project root you operate on day to day. Run `hep-autoresearch init` inside your own research project directory to scaffold the minimal core surface: `project_charter.md`, `project_index.md`, `research_plan.md`, `research_notebook.md`, `research_contract.md`, a provider-neutral `.mcp.json.example`, `.autoresearch/`, `docs/`, and `specs/`. Research-team-only surfaces such as `prompts/`, `research_team_config.json`, `knowledge_base/`, `references/`, and `team/` are now optional full-scaffold additions rather than canonical defaults; provider-local HEP surfaces such as `.hep/` are opt-in rather than part of the shared scaffold baseline.
 
 ## Quickstart
 

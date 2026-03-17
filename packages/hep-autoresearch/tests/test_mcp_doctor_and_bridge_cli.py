@@ -74,6 +74,11 @@ class TestMcpDoctorAndBridgeCLI(unittest.TestCase):
             payload = json.loads(ex.read_text(encoding="utf-8"))
             self.assertIsInstance(payload, dict)
             self.assertIn("mcpServers", payload)
+            servers = payload.get("mcpServers")
+            self.assertEqual(sorted((servers or {}).keys()), ["example-provider"])
+            rendered = json.dumps(payload, sort_keys=True)
+            self.assertNotIn("hep-research", rendered)
+            self.assertNotIn("HEP_DATA_DIR", rendered)
 
     def test_doctor_entrypoint_discovery_warning_non_strict(self) -> None:
         with tempfile.TemporaryDirectory() as td:

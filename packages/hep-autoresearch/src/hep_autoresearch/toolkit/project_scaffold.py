@@ -96,12 +96,12 @@ def ensure_project_scaffold(
         mcp_path.write_text(
             json.dumps(
                 {
-                    "_comment": "Copy this file to .mcp.json and fill in your local MCP server command/args/env.",
+                    "_comment": "Copy this file to .mcp.json and replace the placeholder entry with the provider-local MCP server(s) your project actually uses.",
                     "mcpServers": {
-                        "hep-research": {
+                        "example-provider": {
                             "command": "node",
-                            "args": ["<path-to-hep-research-mcp-entrypoint.js>"],
-                            "env": {"HEP_DATA_DIR": ".hep-research-mcp"},
+                            "args": ["<path-to-provider-entrypoint.js>"],
+                            "env": {"PROVIDER_DATA_DIR": "<provider-local-data-dir>"},
                         }
                     },
                 },

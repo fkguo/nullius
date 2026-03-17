@@ -165,17 +165,19 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Rerun:
   - Preflight-only command.
 
-### hep-research-mcp workspace gate (ecosystem bootstrap)
+### HEP provider bundle gate (optional)
 
 - Gate: [check_hep_workspace.py](scripts/gates/check_hep_workspace.py)
 - Symptom: `missing hep workspace file: .../.hep/workspace.json` or `workspace schemaVersion must be 1.0`
 - Fix:
+  - This gate is opt-in. Enable it only when the project explicitly uses the HEP provider bundle:
+    - scaffold with `--with-hep-provider`, or
+    - set `features.hep_workspace_gate=true` in `research_team_config.json`
   - Create the workspace + mappings files (from project root):
     - `mkdir -p .hep`
     - `cp ~/.codex/skills/research-team/assets/hep_workspace_template.json .hep/workspace.json`
     - `cp ~/.codex/skills/research-team/assets/hep_mappings_template.json .hep/mappings.json`
-  - When using hep-research-mcp tools, recommended env var: `export HEP_DATA_DIR="$PWD/.hep-research-mcp"`
-  - Optional (not recommended): disable via config `features.hep_workspace_gate=false`
+  - When using hep-mcp tools, recommended env var: `export HEP_DATA_DIR="$PWD/.hep-mcp"`
 - Rerun:
   - Preflight-only command.
 

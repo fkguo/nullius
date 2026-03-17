@@ -65,7 +65,7 @@ def sync_research_contract(
     notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
     headings, references = _collect_notebook_sections(notebook_text)
     lines = [
-        "- Source notebook: `research_notebook.md`",
+        "- Source notebook: [research_notebook.md](research_notebook.md)",
         f"- Notebook sha256: `{_sha256_file(notebook)}`",
         "",
         "### Notebook sections",
@@ -79,7 +79,7 @@ def sync_research_contract(
     if references:
         lines.extend(references)
     else:
-        lines.append("- (add references in `research_notebook.md` when available)")
+        lines.append("- (add references in [research_notebook.md](research_notebook.md) when available)")
 
     updated = _replace_sync_block(contract.read_text(encoding="utf-8", errors="replace"), "\n".join(lines))
     contract.write_text(updated.rstrip() + "\n", encoding="utf-8")

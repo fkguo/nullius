@@ -1021,7 +1021,7 @@ if [[ -f "${PROJECT_INDEX_GATE_SCRIPT}" ]]; then
   fi
 fi
 
-# Preflight: hep-research-mcp workspace bootstrap gate (.hep/workspace.json).
+# Preflight: optional HEP provider bundle gate (.hep/workspace.json).
 if [[ -f "${HEP_WORKSPACE_GATE_SCRIPT}" ]]; then
   set +e
   python3 "${HEP_WORKSPACE_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"

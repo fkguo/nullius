@@ -51,10 +51,9 @@ def main() -> int:
     required_links = [
         (r"\[project_charter\.md\]\(project_charter\.md\)", "project_charter.md link"),
         (r"\[research_plan\.md\]\(research_plan\.md\)", "research_plan.md link"),
-        (r"\[research_preflight\.md\]\(research_preflight\.md\)", "research_preflight.md link"),
+        (r"\[research_notebook\.md\]\(research_notebook\.md\)", "research_notebook.md link"),
         (r"\[research_contract\.md\]\(research_contract\.md\)", "research_contract.md link"),
-        (r"\[team/LATEST\.md\]\(team/LATEST\.md\)", "team/LATEST.md pointer link"),
-        (r"\[artifacts/LATEST\.md\]\(artifacts/LATEST\.md\)", "artifacts/LATEST.md pointer link"),
+        (r"\[AGENTS\.md\]\(AGENTS\.md\)", "AGENTS.md link"),
     ]
 
     missing: list[str] = []

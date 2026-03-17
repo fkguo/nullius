@@ -1,9 +1,9 @@
 {
   "schemaVersion": "1.0",
-  "_note": "hep-research-mcp workspace bootstrap (v1). Paths are project-root-relative; set HEP_DATA_DIR to paths.hep_data_dir (resolved to an absolute path).",
+  "_note": "hep-mcp workspace bootstrap (v1). Paths are project-root-relative; set HEP_DATA_DIR to paths.hep_data_dir (resolved to an absolute path).",
   "paths": {
-    "hep_data_dir": ".hep-research-mcp",
-    "pdg_dir": ".hep-research-mcp/pdg",
+    "hep_data_dir": ".hep-mcp",
+    "pdg_dir": ".hep-mcp/pdg",
     "paper_dir": "paper",
     "paper_manifest": "paper/paper_manifest.json"
   },

@@ -17,68 +17,30 @@ echo "[setup] scaffold + demo milestone"
 bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokePacketInput" --profile "mixed" >/dev/null 2>&1
 bash "${BIN_DIR}/generate_demo_milestone.sh" --root "${tmp_root}" --tag "${tag}" >/dev/null 2>&1
 
-echo "[setup] approve project_charter.md (required by project_charter_gate)"
-python3 - "${tmp_root}/project_charter.md" <<'PY'
+echo "[setup] focus the smoke on packet input + explicit hep-provider gating"
+python3 - "${tmp_root}/research_team_config.json" <<'PY'
 from __future__ import annotations
 
-import re
+import json
 import sys
-from datetime import date
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
-today = date.today().isoformat()
-
-text = re.sub(r"^Status:\s*DRAFT\b.*$", "Status: APPROVED", text, flags=re.MULTILINE)
-text = re.sub(r"^Created:\s*.*$", f"Created: {today}", text, flags=re.MULTILINE)
-text = re.sub(r"^Last updated:\s*.*$", f"Last updated: {today}", text, flags=re.MULTILINE)
-
-text = re.sub(r"^Declared profile:\s*.*$", "Declared profile: mixed", text, flags=re.MULTILINE)
-
-# Fill required goal/anti-goal/commitments fields so the deterministic project_charter_gate passes.
-text = re.sub(
-    r"^Primary goal:\s*.*$",
-    "Primary goal: smoke — ensure --packet path reaches deterministic preflight and produces a patched packet",
-    text,
-    flags=re.MULTILINE,
-)
-text = re.sub(
-    r"^Validation goal\(s\):\s*.*$",
-    "Validation goal(s): smoke — run_team_cycle preflight-only passes for tag M0-demo using only --packet input",
-    text,
-    flags=re.MULTILINE,
-)
-
-text = re.sub(
-    r"^\s*-\s*\(fill; e\.g\..*\)\s*$",
-    "- Do not regress the ability to run preflight-only when only a packet is provided.",
-    text,
-    flags=re.MULTILINE,
-)
-
-text = re.sub(
-    r"^\s*-\s*\(fill; KB:.*$",
-    "- KB: [Bezanson2017](knowledge_base/literature/bezanson2017_julia.md) — demo literature note",
-    text,
-    flags=re.MULTILINE,
-)
-text = re.sub(
-    r"^\s*-\s*\(fill; Method:.*$",
-    "- Method: [demo_trace](knowledge_base/methodology_traces/demo_trace.md) — demo methodology trace",
-    text,
-    flags=re.MULTILINE,
-)
-text = re.sub(
-    r"^\s*-\s*\(fill; Toolkit:.*$",
-    "- Toolkit: team packet patching + packet-only entrypoint (smoke target)",
-    text,
-    flags=re.MULTILINE,
-)
-
-path.write_text(text, encoding="utf-8")
-print("patched:", path)
+payload = {
+    "mode": "generic",
+    "features": {
+        "hep_workspace_gate": False,
+        "project_charter_gate": False,
+        "project_map_gate": True,
+    },
+}
+path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+print("wrote:", path)
 PY
+
+mkdir -p "${tmp_root}/prompts"
+printf '%s\n' "System prompt A (smoke)." > "${tmp_root}/prompts/_system_member_a.txt"
+printf '%s\n' "System prompt B (smoke)." > "${tmp_root}/prompts/_system_member_b.txt"
 
 echo "[setup] build a packet (intentionally with wrong Tag line to exercise patcher)"
 src_packet="${tmp_root}/team_packet_src.txt"
@@ -151,8 +113,22 @@ PY
 
 echo "[ok] run_team_cycle --packet smoke test passed"
 
-echo "[test] missing .hep/workspace.json should fail-fast (hep workspace gate)"
-rm -f "${tmp_root}/.hep/workspace.json"
+echo "[test] explicit hep provider opt-in should fail-fast when .hep/workspace.json is missing"
+python3 - "${tmp_root}/research_team_config.json" <<'PY'
+from __future__ import annotations
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = {
+    "mode": "generic",
+    "features": {
+        "hep_workspace_gate": True,
+    },
+}
+path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
 set +e
 bash "${BIN_DIR}/run_team_cycle.sh" \
   --tag "M0-demo-missing-hep" \
@@ -174,4 +150,4 @@ if ! grep -nF "missing hep workspace file" "${tmp_root}/run_missing_hep.log" >/d
   sed -n '1,260p' "${tmp_root}/run_missing_hep.log" >&2 || true
   exit 1
 fi
-echo "[ok] hep workspace gate fail-fast behavior ok"
+echo "[ok] explicit hep provider gate fail-fast behavior ok"

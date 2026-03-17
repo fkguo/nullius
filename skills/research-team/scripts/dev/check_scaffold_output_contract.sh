@@ -136,8 +136,6 @@ fi
 
 if [[ "${VARIANT}" == "full" ]]; then
   full_paths=(
-    ".hep/workspace.json"
-    ".hep/mappings.json"
     "research_preflight.md"
     "project_brief.md"
     "idea_log.md"
@@ -160,7 +158,6 @@ if [[ "${VARIANT}" == "full" ]]; then
     "mechanisms/examples/problem_framing_protocol_example.md"
   )
   full_dirs=(
-    ".hep"
     "team"
     "team/runs"
     "references"

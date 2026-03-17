@@ -45,7 +45,7 @@
     "research_plan_gate": true,
     "project_charter_gate": true,
     "project_map_gate": true,
-    "hep_workspace_gate": true,
+    "hep_workspace_gate": false,
     "agents_anchor_gate": true,
     "milestone_dod_gate": true,
     "packet_completeness_gate": true,

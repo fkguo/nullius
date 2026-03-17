@@ -36,12 +36,14 @@ class TestScaffoldTemplateSync(unittest.TestCase):
             ensure_project_scaffold(repo_root=root, project_name="Template Sync")
             text = (root / "project_index.md").read_text(encoding="utf-8")
 
+        main_surface, _, optional_surface = text.partition("## Optional expansions")
         for token in (
             "[team/LATEST.md](team/LATEST.md)",
             "[.hep/workspace.json](.hep/workspace.json)",
             "[knowledge_graph/](knowledge_graph/)",
             "[research_preflight.md](research_preflight.md)",
         ):
-            self.assertNotIn(token, text)
+            self.assertNotIn(token, main_surface)
+        self.assertIn("[research_preflight.md](research_preflight.md)", optional_surface)
         for token in ("project_charter.md", "research_plan.md", "research_notebook.md", "research_contract.md", "AGENTS.md", ".mcp.json.example"):
             self.assertIn(token, text)

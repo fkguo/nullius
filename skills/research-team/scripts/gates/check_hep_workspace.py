@@ -42,7 +42,7 @@ def _is_rel_path(p: str) -> bool:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Gate: require .hep/workspace.json for hep-research-mcp workspace bootstrap (v1).")
+    ap = argparse.ArgumentParser(description="Gate: require .hep/workspace.json only when the project explicitly enables the HEP provider bundle.")
     ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or any file under project root).")
     args = ap.parse_args()
 
@@ -51,7 +51,7 @@ def main() -> int:
         return 2
 
     cfg = load_team_config(args.notes)
-    if not cfg.feature_enabled("hep_workspace_gate", default=True):
+    if not cfg.feature_enabled("hep_workspace_gate", default=False):
         print("[skip] hep workspace gate disabled by research_team_config")
         return 0
 
@@ -64,8 +64,8 @@ def main() -> int:
         print(f"  cp ~/.codex/skills/research-team/assets/hep_workspace_template.json {workspace}")
         print(f"  cp ~/.codex/skills/research-team/assets/hep_mappings_template.json {root / '.hep' / 'mappings.json'}")
         print("")
-        print("Then (when using hep-research-mcp), recommended env var:")
-        print(f"  export HEP_DATA_DIR=\"{(root / '.hep-research-mcp')}\"")
+        print("Then (when using hep-mcp), recommended env var:")
+        print(f"  export HEP_DATA_DIR=\"{(root / '.hep-mcp')}\"")
         return 1
 
     try:
@@ -106,4 +106,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

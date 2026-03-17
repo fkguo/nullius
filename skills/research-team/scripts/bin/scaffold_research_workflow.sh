@@ -7,11 +7,12 @@ PROFILE="mixed"
 FORCE=0
 SKIP_PREFLIGHT=0
 VARIANT="minimal"
+WITH_HEP_PROVIDER=0
 
 usage() {
   cat <<'EOF'
 Usage:
-  scaffold_research_workflow.sh --root <project_root> --project <project_name> [--profile PROFILE] [--full] [--force] [--skip-prework]
+  scaffold_research_workflow.sh --root <project_root> --project <project_name> [--profile PROFILE] [--full] [--with-hep-provider] [--force] [--skip-prework]
 
 Default behavior creates the canonical minimal project scaffold:
   - project_charter.md
@@ -30,7 +31,10 @@ Use --full to add research-team host-local surfaces:
   - references/
   - team/
   - scripts/
-  - .hep/
+
+Use --with-hep-provider to add provider-local HEP surfaces on top of either scaffold:
+  - .hep/workspace.json
+  - .hep/mappings.json
 EOF
 }
 
@@ -41,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --profile) PROFILE="${2:-}"; shift 2 ;;
     --full) VARIANT="full"; shift ;;
     --minimal) VARIANT="minimal"; shift ;;
+    --with-hep-provider) WITH_HEP_PROVIDER=1; shift ;;
     --force) FORCE=1; shift ;;
     --skip-prework) SKIP_PREFLIGHT=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -103,8 +108,10 @@ mkdir -p "${ROOT}/references/inspire" "${ROOT}/references/arxiv_src" "${ROOT}/re
 mkdir -p "${ROOT}/knowledge_base/literature" "${ROOT}/knowledge_base/methodology_traces" "${ROOT}/knowledge_base/priors"
 mkdir -p "${ROOT}/knowledge_graph" "${ROOT}/mechanisms/examples"
 
-copy_template "${ASSETS_DIR}/hep_workspace_template.json" "${ROOT}/.hep/workspace.json"
-copy_template "${ASSETS_DIR}/hep_mappings_template.json" "${ROOT}/.hep/mappings.json"
+if [[ "${WITH_HEP_PROVIDER}" -eq 1 ]]; then
+  copy_template "${ASSETS_DIR}/hep_workspace_template.json" "${ROOT}/.hep/workspace.json"
+  copy_template "${ASSETS_DIR}/hep_mappings_template.json" "${ROOT}/.hep/mappings.json"
+fi
 copy_template "${ASSETS_DIR}/team_packet_template.txt" "${ROOT}/prompts/_team_packet.txt"
 copy_template "${ASSETS_DIR}/system_member_a.txt" "${ROOT}/prompts/_system_member_a.txt"
 copy_template "${ASSETS_DIR}/system_member_b.txt" "${ROOT}/prompts/_system_member_b.txt"
@@ -149,15 +156,21 @@ do
   fi
 done
 
-python3 - "${ROOT}/research_team_config.json" <<'PY'
+python3 - "${ROOT}/research_team_config.json" "${WITH_HEP_PROVIDER}" <<'PY'
 from __future__ import annotations
 import json
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+with_hep_provider = sys.argv[2] == "1"
 data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
 if isinstance(data, dict):
+    features = data.get("features", {})
+    if not isinstance(features, dict):
+        features = {}
+    features["hep_workspace_gate"] = with_hep_provider
+    data["features"] = features
     data["scaffold_variant"] = "full"
 path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY

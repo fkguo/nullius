@@ -56,7 +56,7 @@ class TestNotebookContractSplit(unittest.TestCase):
             context_payload = payload["payload"]
             contract_text = (root / "research_contract.md").read_text(encoding="utf-8")
 
-            self.assertIn("Source notebook: `research_notebook.md`", contract_text)
+            self.assertIn("Source notebook: [research_notebook.md](research_notebook.md)", contract_text)
             self.assertIn("Notebook sections", contract_text)
             self.assertIn("- Goal", contract_text)
             self.assertIn("- Results", contract_text)

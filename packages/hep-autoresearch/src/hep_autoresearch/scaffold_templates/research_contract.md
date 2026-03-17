@@ -4,10 +4,10 @@ Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
 
 This file is the machine-facing contract for gates, packets, and revision tooling.
-Keep narrative derivations, interpretation, and figure commentary in `research_notebook.md`.
+Keep narrative derivations, interpretation, and figure commentary in [research_notebook.md](research_notebook.md).
 
 <!-- RESEARCH_NOTEBOOK_SYNC_START -->
-- Source notebook: `research_notebook.md`
+- Source notebook: [research_notebook.md](research_notebook.md)
 - Notebook sha256: `(refresh to populate)`
 
 ### Notebook sections
@@ -180,7 +180,7 @@ Optional (recommended for floating-point numerics):
 
 ### I) Knowledge base references (MANDATORY when enabled)
 
-This section is checked by the knowledge layers gate when `knowledge_layers_gate=true` (via `research_team_config.json`).
+This section is checked by the knowledge layers gate when `knowledge_layers_gate=true` (via [research_team_config.json](research_team_config.json)).
 Keep it domain-neutral: cite literature evidence, methodology traces, and priors you relied on or updated for this milestone.
 
 Literature:

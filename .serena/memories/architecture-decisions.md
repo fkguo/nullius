@@ -622,3 +622,14 @@
 - Minimal-root navigation templates must not promote host-local or provider-local extras as default linked root surfaces.
 **Why**: Renaming files and updating constants/tests is insufficient if template inventory and rendered navigation are left behind; that leaves architecture formally locked but operational authority split across code and templates, which later breaks unrelated acceptance on the same worktree.
 **Files**: `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_surface.py`, `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_scaffold.py`, `packages/hep-autoresearch/src/hep_autoresearch/scaffold_templates/`, `packages/hep-autoresearch/tests/test_scaffold_template_sync.py`
+
+### [2026-03-17] Provider bundles must stay opt-in; generic scaffold examples stay provider-neutral
+
+**Context**: A post-closeout audit for `UX-01` + `UX-05` found that the shared scaffold no longer hard-coded old file names, but the rendered defaults still nudged new projects into HEP-specific surfaces through `.mcp.json.example`, default full-scaffold `.hep/`, and stale gate expectations around `project_index.md`.
+**Decision**:
+- `.mcp.json.example` is part of the canonical minimal scaffold, but it must remain provider-neutral and use placeholder provider identifiers/env vars rather than concrete HEP names.
+- Provider bundles such as `.hep/` must never be created by default, including the default `research-team` full scaffold; they may only appear through explicit opt-in flags or provider-local host layers.
+- `hep_workspace_gate` must default to disabled and may only become active when the project explicitly opts into the corresponding provider bundle.
+- Shared navigation and sync gates (`project_index.md`, `research_contract.md`) must validate the canonical minimal root surface rather than stale host/provider-local links.
+**Why**: A scaffold can look generic at the file-name level while still leaking a provider worldview through defaults, gate expectations, or example config payloads. Keeping provider bundles opt-in preserves the generic substrate boundary and prevents the first HEP implementation from becoming de facto authority.
+**Files**: `packages/hep-autoresearch/src/hep_autoresearch/toolkit/project_scaffold.py`, `skills/research-team/scripts/bin/scaffold_research_workflow.sh`, `skills/research-team/scripts/gates/check_hep_workspace.py`, `skills/research-team/scripts/gates/check_project_map.py`, `skills/research-team/scripts/bin/update_project_map.py`

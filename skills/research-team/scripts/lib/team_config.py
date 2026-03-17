@@ -37,8 +37,8 @@ DEFAULT_CONFIG: dict = {
         "project_charter_gate": True,
         # Navigation front door (project_index.md) to prevent "file swamp" confusion.
         "project_map_gate": True,
-        # hep-research-mcp ecosystem bootstrap: require .hep/workspace.json (per-project MCP entry; local-only).
-        "hep_workspace_gate": True,
+        # Optional HEP provider bundle: require .hep/workspace.json only when the project explicitly enables HEP tooling.
+        "hep_workspace_gate": False,
         "scan_dependency_gate": True,
         "branch_semantics_gate": True,
         "pointer_lint_gate": True,
