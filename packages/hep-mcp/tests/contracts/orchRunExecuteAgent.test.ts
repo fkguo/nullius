@@ -39,6 +39,31 @@ afterEach(() => {
 });
 
 describe('orch_run_execute_agent', () => {
+  it('requires _confirm before executing the destructive shared runtime surface', async () => {
+    const projectRoot = makeTmpDir();
+    const res = await handleToolCall(
+      'orch_run_execute_agent',
+      {
+        project_root: projectRoot,
+        run_id: 'run-live',
+        model: 'claude-test',
+        messages: [{ role: 'user', content: 'hello' }],
+        tools: [],
+      },
+      'full',
+    );
+
+    expect(res.isError).toBe(true);
+    const payload = extractPayload(res);
+    const error = payload.error as {
+      code?: string;
+      data?: { tool?: string; next_actions?: Array<{ args?: { _confirm?: boolean } }> };
+    };
+    expect(error.code).toBe('CONFIRMATION_REQUIRED');
+    expect(error.data?.tool).toBe('orch_run_execute_agent');
+    expect(error.data?.next_actions?.[0]?.args?._confirm).toBe(true);
+  });
+
   it('persists a manifest and skips completed tool_use blocks on re-entry through the shared tool surface', async () => {
     const projectRoot = makeTmpDir();
     await handleToolCall(

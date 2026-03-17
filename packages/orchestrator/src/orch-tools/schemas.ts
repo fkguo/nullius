@@ -128,6 +128,7 @@ export const OrchPolicyQuerySchema = z.object({
 });
 
 export const OrchRunExecuteAgentSchema = z.object({
+  _confirm: z.literal(true).describe('Must be true to execute this destructive operation.'),
   project_root: ProjectRootSchema,
   run_id: RunIdSchema.describe('Run identifier whose manifest/checkpoints should be persisted under artifacts/runs/<run_id>/.'),
   model: z.string().min(1).describe('Preferred model hint for sampling/createMessage.'),

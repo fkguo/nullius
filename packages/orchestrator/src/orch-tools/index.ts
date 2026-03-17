@@ -57,7 +57,7 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     name: ORCH_RUN_EXECUTE_AGENT,
     tier: 'advanced',
     exposure: 'full',
-    description: 'Execute an orchestrator agent runtime with run-scoped manifest checkpoints and crash/re-entry resume semantics.',
+    description: 'Execute an orchestrator agent runtime with run-scoped manifest checkpoints and crash/re-entry resume semantics (destructive: persists run-scoped checkpoints/state). Requires _confirm: true.',
     zodSchema: OrchRunExecuteAgentSchema,
     handler: async (params, ctx) => handleOrchRunExecuteAgent(params as z.output<typeof OrchRunExecuteAgentSchema>, ctx),
   },
