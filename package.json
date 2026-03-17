@@ -8,7 +8,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "accept:new-rt-04": "node scripts/verify-new-rt04-closeout.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",

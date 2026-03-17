@@ -1,5 +1,15 @@
 ## Cross-Component Architecture Decisions
 
+### [2026-03-17] Shared tool-surface closeout invariant: cold baseline first, provider host later
+
+**Context**: `NEW-RT-04` post-closeout audit found that the live durable-execution logic was correct, but the exact acceptance story was still vulnerable to ignored `dist/` / `tsbuildinfo` drift: `packages/shared/src/tool-names.ts` had the new `ORCH_RUN_EXECUTE_AGENT` seam while the package entrypoint consumed by sibling workspaces could remain stale until rebuilt.
+**Decision**:
+- Cross-package generic tool-name authority remains at the shared/orchestrator package entrypoints. Leaf provider or aggregator packages may consume these seams and prove host-path behavior, but they must not clone generic tool-name authority into provider-local constants just to paper over export drift.
+- Any closeout that depends on ignored TS build outputs must define a cold-baseline exact acceptance command: clear `dist/` and `tsbuildinfo` for the touched packages, rebuild them in dependency order, then run the host-path contract slice from the consuming package.
+- Host-path anti-drift tests belong in the real consumer/adapter package when they validate a live shared surface, but those tests must assert consumption of the shared seam rather than treating the consumer package as the new authority.
+**Why**: A warmed worktree can make a shared surface look closed even when the package entrypoint visible to sibling workspaces is stale. The stable invariant is: generic/shared owns the seam, provider/aggregator packages prove real consumption, and closeout evidence must be reproducible from a cold baseline.
+**Files**: `package.json`, `scripts/verify-new-rt04-closeout.mjs`, `packages/hep-mcp/tests/contracts/sharedOrchestratorPackageExports.test.ts`
+
 ### [2026-03-15] Review packet falsification invariant: packet is an audit aid, not authority
 
 **Context**: 2026-03-15 UX-01 + UX-05 template-sync retrospective found that a prior `NEW-R03b` review packet correctly validated local exception-boundary work, but incorrectly pre-classified shared scaffold-template failures as unrelated debt. The issue was not reviewer laziness; the review system over-trusted packet scope/debt labels and under-specified authority-completeness checks.
