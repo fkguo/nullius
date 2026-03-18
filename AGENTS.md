@@ -1,6 +1,6 @@
 # Autoresearch Ecosystem — Agent Context
 
-> 本文件为 AI agent 提供跨会话持久上下文。修改本文件需经 autoresearch-meta 治理流程。
+> 本文件为 AI agent 提供跨会话持久上下文。修改本文件需经 `meta/` 治理流程。
 
 ## 根级入口与本地工具文件
 
@@ -31,59 +31,54 @@
 
 ## 生态圈概览
 
-Autoresearch 是一个 evidence-first 自动化研究平台，目标是构建面向理论研究的通用 autoresearch substrate。当前以高能物理（尤其理论高能物理）作为首个高优先级 domain pack / provider 落地方向，但不以此作为长期 scope 边界。系统由 7 个组件组成，通过 MCP (Model Context Protocol) stdio 传输和 JSON-RPC 2.0 协议互联。
+Autoresearch 是一个 evidence-first 的理论研究 substrate / control plane。根目录承担 ecosystem workbench / governance 入口；运行时、provider、shared contracts 与 domain-pack 相关实现主要位于 `packages/`，checked-in 治理与 closeout 文档主要位于 `meta/`。
 
 ## 组件清单
 
-| 组件 | 语言 | 行数 | 角色 |
-|---|---|---|---|
-| `hep-research-mcp` (目录: `hep-research-mcp-main/`) | TypeScript | ~130K | MCP server，71 工具 (standard) / 83 工具 (full)，写作流水线，PDG/Zotero/INSPIRE 集成 |
-| `hep-autoresearch` | Python | ~29K | Orchestrator + CLI (`hepar`)，审批 gate，ledger，MCP client |
-| `idea-core` | Python | ~11K | Idea 评估引擎，JSON-RPC 2.0 server |
-| `idea-generator` | Python | ~370 | Idea 生成，schema SSOT (vendored 到 idea-core) |
-| `skills/` | Python | — | 技能脚本集合 (hep-calc, research-team, etc.) |
-| `skills-market` | Python | — | 技能市场 |
-| `autoresearch-meta` | Mixed | — | 治理仓库：schemas, scripts, contract, remediation plan, audit |
+- `packages/orchestrator/`、`packages/hep-autoresearch/`：control-plane / CLI surfaces；长期方向仍是统一 TS 编排收束。
+- `packages/shared/`：provider-neutral contracts、types、shared helpers。
+- `packages/*-mcp/`、`packages/agent-arxiv/`、`packages/idea-*`：provider、adapter、idea、runtime 相关实现；HEP 是当前优先 domain pack，但不是 core scope 边界。
+- `skills/`、`packages/skills-market/`：checked-in skill workflows 与分发面。
+- `meta/`：contract、redesign plan、tracker、prompt/docs、review-support artifacts。
+- 根级路径以当前工作区实际目录为准；不要把拆仓时期的旧 repo 名、旧目录名或旧 LOC 统计继续当作治理 authority。
 
 ## 关键架构决策
 
-1. **双语言架构 (TS + Python) → 全面迁移至 TS**: 原设计理由"Python 用于科学计算生态"经审计不成立——orchestrator、idea-core、idea-generator 均无科学计算依赖 (零 numpy/scipy/sympy)；idea-core 仅用 jsonschema/jcs/filelock 做 JSON 验证和搜索；HEP 计算工具以 Mathematica 为主 (8/12)，通过 wolframscript 子进程调用，与编排/评估语言无关。**迁移策略**: 分 5 阶段增量迁移——阶段 1: TS orchestrator 骨架；阶段 2: 接管 hep-autoresearch 功能；阶段 3: idea-core → TS idea-engine；阶段 4: idea-generator 验证脚本 → TS；阶段 5: Python 组件退役。新组件 (统一编排器、Agent-arXiv、并行调度) 直接用 TypeScript 编写。详见 REDESIGN_PLAN.md NEW-05a。
-2. **Evidence-First I/O**: artifact 写入磁盘，MCP tool result 仅返回 URI + 摘要。大载荷 (>100KB) 自动溢出。
-3. **Contract-First**: idea-generator schemas 为 SSOT，idea-core 通过 vendored snapshot + SHA256 门禁消费。
-4. **JSON Schema 唯一 SSOT**: 所有跨组件共享类型定义在 `autoresearch-meta/schemas/`，TS 组件直接 import，Python 组件用 `datamodel-code-generator` 生成。全面迁移至 TS 后，跨语言代码生成完全消除，NEW-01 基础设施仅在过渡期需要。
-5. **审批 Gate 体系**: 5 个 gate (A1-A5)，fail-closed，支持超时策略 (block/reject/escalate) 和预算强制。
+- 根级只保留稳定不变量与硬门禁；跨会话可复用的架构结论集中在 `.serena/memories/architecture-decisions.md`。
+- 当前仍有效的根级方向是：TS-first control plane 收束、evidence-first I/O、contract-first shared types、fail-closed approval gates、provider-owned concrete authority 下沉到 leaf packages。
+- `meta/schemas/` 是 checked-in shared schema authority；具体迁移阶段、item closeout、历史决策脉络以 `meta/remediation_tracker_v1.json`、`meta/REDESIGN_PLAN.md` 与相关 checked-in prompts/docs 为准，不在本文件重述长历史。
 
-## 治理文档 (autoresearch-meta/)
+## 治理文档 (`meta/`)
 
-| 文件 | 用途 | 当前版本 |
-|---|---|---|
-| `.review/ARCHITECTURE_AUDIT.md` | 基线审计，~49 缺陷 (4C/21H/17M/7L) | v1.2 Final (冻结) |
-| `REDESIGN_PLAN.md` | 分阶段重构方案 (P0→P5)，85 项 (tracker 口径) | v1.3.0-draft (evomap) |
-| `ECOSYSTEM_DEV_CONTRACT.md` | 42 条强制规则，35 fail-closed / 7 fail-open | v1.2.0-draft (R5+LANG+PLUG) |
+- `meta/ECOSYSTEM_DEV_CONTRACT.md`：normative contract / fail-closed 规则 SSOT。
+- `meta/REDESIGN_PLAN.md`：phase ordering、batch intent、acceptance checklist source。
+- `meta/remediation_tracker_v1.json`：machine-readable item status、closeout evidence、review disposition。
+- `meta/docs/**`：checked-in design memos、implementation prompts、closeout support docs。
+- `.serena/memories/architecture-decisions.md`：稳定的跨会话架构决策；不承载执行流水和逐轮历史。
 
 ## 长期愿景
 
-多 Agent 自主研究社区 (Agent-arXiv)：从 hep-th arXiv 文献池出发，多 Agent 自主选题、并行研究、发布结果、迭代积累。详见 `hep-autoresearch/docs/VISION.zh.md` §长期愿景 + `autoresearch-meta/docs/2026-02-19-opencode-openclaw-design-adoption.md` §5。
+长期方向仍是面向理论研究的多 agent / 多项目基础设施，但根级治理只固定 sequencing-relevant invariants，不在此处维护长篇愿景叙事。
 
-> **近中期澄清 (2026-03-07)**: `single-user research loop` 中的 `single-user` 指单一人类 owner / principal investigator / 治理控制面单一，**不等于** `single-agent`。正确的三层演进为：`NEW-LOOP-01` = 单用户/单项目 substrate，`EVO-13` = 单项目内多 Agent 团队执行 runtime，`EVO-15/16` = 社区级多团队基础设施与自治实验。
-> **设计追踪**: `EVO-13` 的前置设计 memo 固定为 `meta/docs/2026-03-07-evo13-single-project-multi-agent-runtime-memo.md`；runtime governance / control-plane amendment 固定为 `meta/docs/2026-03-08-evo13-runtime-governance-control-plane-amendment.md`；仅当 `NEW-LOOP-01` 完成 closeout 且 substrate 稳定后，才应升格为完整 implementation prompt。
+- `single-user` 指单一治理人类 owner，不等于 `single-agent`。
+- `NEW-LOOP-01` 单项目 substrate 必须先于 `EVO-13` 多 agent runtime 稳定；`P5A` 先于 `P5B`。
+- 详细愿景与设计 memo 以 `packages/hep-autoresearch/docs/VISION.zh.md`、`meta/docs/2026-03-07-evo13-single-project-multi-agent-runtime-memo.md`、`meta/docs/2026-03-08-evo13-runtime-governance-control-plane-amendment.md` 为准。
 
 ## Phase 结构
 
-- **Phase 0 (止血)**: 9 项。Monorepo 迁移 + TS 编排层增量迁移 + 安全漏洞 + 治理绕过。NEW-05 最先执行，NEW-05a 紧随。
-- **Phase 1 (统一抽象)**: 17 项。AutoresearchError, RunState, GateSpec, ArtifactRef, trace_id, risk_level 等共享抽象 + 代码生成基础设施。
-- **Phase 2 (深度集成)**: 19 项。原子写入, 文件锁, 幂等性, JSONL 日志, 审批 UX 三件套, 报告生成。
-- **Phase 3 (扩展性)**: 21 项（原 13 + 7 个 SOTA retrieval/discovery/runtime follow-up + `NEW-LOOP-01`）。Schema 扩展, 凭据管理, 网络治理, AST lint 升级, MCP 工具整合 + federated discovery / retrieval backbone / routing registry + 单研究者非线性 research loop 前置运行时。
-- **Phase 4 (长期演进)**: 8 项。文档, 低优先级缺陷, 发布冻结产物, A2A 适配层。
-- **Phase 5 (端到端闭环、统一执行与研究生态外层（P5A/P5B）)**: 19 项。`P5A` = 单用户 / 单项目端到端闭环与统一执行收束；`P5B` = 社区 / 发布 / 跨实例 / 研究进化外层。条目包括理论计算执行闭环, 结果反馈循环, 统一编排引擎 (TS), 跨 Run 并行调度, Agent 注册表, Domain Pack, 科学诚信, 可复现性验证, 跨实例同步, 失败库生成时查询, 进化提案自动闭环, Bandit 分发策略运行时接入, 技能生命周期自动化, Agent-arXiv 基础设施, Agent 社区自主运行实验, REP 协议核心 (Track A), REP 信号引擎 (Track A), GEP/Evolver Track B 集成。
+- Phase 定义、item inventory、batch 依赖与执行顺序以 `meta/REDESIGN_PLAN.md` 和 tracker 为准；AGENTS 不镜像 item 总数、条目清单或逐 phase 叙事。
+- 这里仅保留稳定读取规则：早期 phase gate 后期 phase；`NEW-LOOP-01` 先于 `EVO-13`；`P5A` 先于 `P5B`。
+- 当前完成度只在 `当前进度` 做摘要，其余 item-level truth 以 `meta/remediation_tracker_v1.json` 为准。
 
 ## Contract 规则域
 
-ERR (4), ID (3), SYNC (6), CFG (4), GATE (5), LOG (4), ART (5), SEC (3), NET (1), RES (1), MIG (1), REL (2), CODE (1), LANG (1), PLUG (1)
+`ERR`、`ID`、`SYNC`、`CFG`、`GATE`、`LOG`、`ART`、`SEC`、`NET`、`RES`、`MIG`、`REL`、`CODE`、`LANG`、`PLUG` 这些 rule-family 简写仍可能出现在 prompt、tests 与 review artifacts 中。
+
+规则正文、fail-open / fail-closed 语义与条目计数只以 `meta/ECOSYSTEM_DEV_CONTRACT.md` 为准；根级 AGENTS 不重复维护第二套 contract 文本。
 
 ## 三模型审核流程
 
-自 2026-03-08 起，所有重大文档变更与实现 closeout 默认采用三模型独立审核：`Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)`。若其中任一模型本地不可用，必须记录失败原因并由人类明确确认 fallback reviewer；禁止静默降级。审核产物存放在 `autoresearch-meta/.review/`（已 gitignore）。
+自 2026-03-08 起，所有重大文档变更与实现 closeout 默认采用三模型独立审核：`Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)`。若其中任一模型本地不可用，必须记录失败原因并由人类明确确认 fallback reviewer；禁止静默降级。审核产物存放在 `meta/.review/`（已 gitignore）。
 
 ### 触发条件
 
@@ -117,7 +112,7 @@ ERR (4), ID (3), SYNC (6), CFG (4), GATE (5), LOG (4), ART (5), SEC (3), NET (1)
 
 ### 执行方式
 
-使用 `claude-cli-runner`、`gemini-cli-runner` 与 `opencode-cli-runner` skills 并行执行。默认 reviewer 固定为 `Opus`、`Gemini-3.1-Pro-Preview` 与 `OpenCode(kimi-for-coding/k2p5)`；prompt 文件存放在 `.review/` 目录。
+使用 `claude-cli-runner`、`gemini-cli-runner` 与 `opencode-cli-runner` skills 并行执行。默认 reviewer 固定为 `Opus`、`Gemini-3.1-Pro-Preview` 与 `OpenCode(kimi-for-coding/k2p5)`；prompt 文件存放在 `meta/.review/` 目录。
 
 ## Superpowers 使用约定
 
@@ -165,7 +160,7 @@ ERR (4), ID (3), SYNC (6), CFG (4), GATE (5), LOG (4), ART (5), SEC (3), NET (1)
 - **authority migration 必须审完整性，不只审命名**：凡任务涉及 shared/canonical authority 迁移、template sync、contract authority 上提/下沉，review 与 self-review 都必须至少核对 `authority map -> concrete artifact/template`、`artifact/template -> authority map`、`no inline duplicate authority left`、`shared entrypoint acceptance still passes` 四项；禁止只因为常量、命名、局部 tests 已更新就判定 closeout。
 - **正式自审 (`self-review`) 也是实现收尾硬门禁**：外部三审收敛后，当前执行 agent 仍必须基于实际代码、调用链 / GitNexus 证据、tests / eval / holdout / baseline、scope boundary 再做一轮自审；blocking issue 必须先修复。自审结论与 adopted / deferred / declined/closed dispositions 必须记录，并明确哪些 amendment 因满足“当前 batch 直接相关 + 高价值 + 低风险 + 可独立验证 + 不依赖后续 phase / lane”而被本轮默认吸收；deferred 项必须给出合法理由，并把仍有后续价值的项同步到持久 SSOT；低价值或已判定不值得跟进的项应标记为 declined/closed，而非 deferred。
 - **完成态门禁**：只有当验收命令通过、`review-swarm` 收敛且三审 `blocking_issues = 0`、`self-review` 通过、tracker / memory / `AGENTS.md` 已同步后，实施项才可标记 `done`。
-- **版本控制门禁**：`git commit` / `git push` 仍需人类在当前任务中明确授权；若已授权，也只能在上述完成态门禁满足后执行，并在 push 前确认工作树只包含本批应交付内容。`.review/` 审核产物保持 gitignored，不进入提交。
+- **版本控制门禁**：`git commit` / `git push` 仍需人类在当前任务中明确授权；若已授权，也只能在上述完成态门禁满足后执行，并在 push 前确认工作树只包含本批应交付内容。`meta/.review/` 审核产物保持 gitignored，不进入提交。
 - **worktree 清理前 Serena memory 迁移是硬门禁**：删除任何非主 `worktree`（含 `git worktree remove` 或等价目录清理）前，必须先盘点该 `worktree` 下的 `.serena/memories/`；可复用的长期结论迁入并提交 `.serena/memories/architecture-decisions.md`，仅本地保留但对后续开发仍有帮助的记忆复制到保留的目标 `worktree` 的 `.serena/memories/`，只有临时 scratch / cache / 不可复用思路才允许随 `worktree` 删除。未完成迁移前不得清理 `worktree`。
 - **worktree 清理前 SOTA preflight 迁档也是硬门禁**：删除任何非主 `worktree` 前，必须盘点该 `worktree` 下本轮实现产出的 SOTA 调查材料（至少包括 `.tmp/*sota-preflight*`、`.tmp/**/*sota-preflight*` 与 prompt 明示要求的 preflight 文件）。有复用价值的原始调查必须迁入稳定本地 archive（默认 `~/.autoresearch-lab-dev/sota-preflight/<YYYY-MM-DD>/<item-id>/`），而不是随 `worktree` 一起删除；archive 至少应包含 `preflight.md`、`summary.md`、`manifest.json`（或等价元数据），记录 prompt 路径、来源 URL / 文献、批次 / item、以及已提炼到哪些 checked-in SSOT。该本地 archive 不是治理 SSOT；真正影响后续实现约束的稳定结论仍必须提炼并写入 `.serena/memories/architecture-decisions.md` 或其他已跟踪 SSOT。未完成迁档前不得清理 `worktree`。
 
@@ -262,87 +257,12 @@ Agent 在代码审查和自检时必须检测以下反模式：
 
 ## 模型选择规则
 
-> 模型选择由人类手动切换（`/model` 或 settings.json），agent 可在输出中建议切换。
-> 本节基于 2026-02 评估，benchmark 数据需定期更新。
-
-### Benchmark 基准 (SWE-bench Verified, 500 实例, 2026-02)
-
-| 模型 | 得分 | 推理深度 | 备注 |
-|---|---|---|---|
-| Claude 4.5 Opus | 76.8% (384/500) | high | 当前 SWE-bench 最高分 |
-| **MiniMax M2.5** | 75.8% (379/500) | high | 国产模型并列第二 |
-| **Claude Opus 4.6** | 75.6% (378/500) | standard | 本生态主力模型 |
-| **Gemini 3 Pro Preview** | 74.2% (371/500) | high | 超长上下文 (≥1M) |
-| **GLM-5** | 72.8% (364/500) | high | 智谱旗舰 |
-| **GPT-5.2** | 72.8% (364/500) | high (xhigh) | OpenAI 通用旗舰 |
-| **Claude 4.5 Sonnet** | 71.4% (357/500) | high | Sonnet 4.6 参考基线 |
-| **Kimi K2.5** | 70.8% (354/500) | high | 月之暗面旗舰 |
-| GPT-5.2 | 69.0% (345/500) | standard | 不开推理时显著下降 |
-| GPT-5.1-codex | 66.0% (330/500) | medium | GPT-5.3-Codex **无 SWE-bench 数据** |
-
-> **注 1**: SWE-bench Verified 测量真实 GitHub issue 修复能力，是 agentic coding 最权威基准。
-> **注 2**: GPT-5.3-Codex 尚未提交 SWE-bench 评测。上表 GPT-5.1-codex (66%) 仅供参考，不代表 5.3 性能。
-> **注 3**: OpenAI `xhigh` = 最大推理 token 分配；Anthropic `extended thinking` = 类似机制。高推理深度显著提升得分但增加延迟和成本。
-
-### 可用模型概览
-
-| 模型 | 厂商 | 定位 | 上下文窗口 | 成本层级 | SWE-bench | 关键能力 |
-|---|---|---|---|---|---|---|
-| **Opus 4.6** | Anthropic | 旗舰推理 + agentic | 200K | 高 ($15/$75 per M) | 75.6% | 深度推理、MCP 原生、extended thinking、工具调用链 |
-| **Sonnet 4.6** | Anthropic | 平衡性能/成本 | 200K | 中 ($3/$15 per M) | ~71%¹ | 编码、MCP 支持、速度快、日常开发首选 |
-| **GPT-5.3-Codex (xhigh)** | OpenAI | 代码专精 | ≥128K | 高 | N/A² | 代码审查、结构化输出、Codex CLI 原生 |
-| **GPT-5.2 (xhigh)** | OpenAI | 通用旗舰 | ≥128K | 高 | 72.8% | 通用推理、数学、科学分析 |
-| **Gemini-3-Pro-Preview** | Google | 通用旗舰 | ≥1M | 中 | 74.2% | 超长上下文、多模态、科学推理 |
-| **MiniMax M2.5** | MiniMax | 通用旗舰 | — | 低 | 75.8% | 高性价比、编码能力强 |
-| **GLM-5** | 智谱 | 通用旗舰 | — | 低 | 72.8% | 中文优势、编码能力强 |
-| **Kimi K2.5** | 月之暗面 | 通用旗舰 | 128K | 低 | 70.8% | 长上下文、中文优势 |
-
-> ¹ Sonnet 4.6 无独立 SWE-bench 条目，基于 Claude 4.5 Sonnet (71.4% high / 70.6% standard) 估算。
-> ² GPT-5.3-Codex 未提交 SWE-bench。前代 GPT-5.1-codex = 66% (medium reasoning)。
-
-### 任务-模型匹配矩阵
-
-| 任务类型 | 首选模型 | 备选模型 | 理由 |
-|---|---|---|---|
-| **Phase 0 全部项 + complexity=high** | Opus 4.6 | Gemini-3-Pro | 高风险/跨组件，Opus SWE-bench 75.6% + 200K 上下文 + MCP 原生 |
-| **跨组件架构变更** | Opus 4.6 | GPT-5.2 (xhigh) | 需全局上下文理解 + agentic 工具调用链 |
-| **TS 迁移 (NEW-05a)** | Opus 4.6 | MiniMax M2.5 | 大规模代码重写，Opus 75.6% / MiniMax 75.8% 均为顶级 |
-| **单组件 complexity=low/medium** | Sonnet 4.6 | GLM-5, Kimi K2.5 | 成本效益，Sonnet ~71% 足够；国产模型成本更低 |
-| **正式三模型审核 (治理文档)** | Opus 4.6 + Gemini-3.1-Pro-Preview + Kimi K2.5 | 若 `Gemini-3.1-Pro-Preview` 不可用，需人类确认 fallback | 三家厂商交叉，兼顾深度推理、长上下文与中文/工程视角 |
-| **正式三模型审核 (代码/架构/实现)** | Opus 4.6 + Gemini-3.1-Pro-Preview + Kimi K2.5 | 若 `Gemini-3.1-Pro-Preview` 不可用，需人类确认 fallback | 统一实现收尾 reviewer trio，避免模型单点偏见 |
-| **idea-engine 迁移 (阶段 3)** | Opus 4.6 | MiniMax M2.5 | ~6,800 行代码迁移，需顶级编码能力 |
-| **Agent-arXiv 设计 (EVO-15/16)** | Opus 4.6 | GPT-5.2 (xhigh) | 复杂系统设计需深度推理 + 长上下文 |
-| **科学诚信框架 (EVO-06)** | GPT-5.2 (xhigh) | Opus 4.6 | 科学推理 + 严谨性验证 |
-| **文档/typo/格式修复** | Sonnet 4.6 | Kimi K2.5, GLM-5 | 简单任务，最小成本 |
-| **Schema 设计/验证** | Sonnet 4.6 | — | 结构化任务，Sonnet 足够 |
-| **超长上下文分析 (>200K)** | Gemini-3-Pro | — | 唯一 ≥1M 上下文模型，全代码库扫描 |
-
-### 模型选择原则
-
-1. **顶级编码 → Opus 4.6 (75.6%) 或 MiniMax M2.5 (75.8%)**: 大规模代码迁移、复杂 bug 修复。MiniMax 成本更低但工具调用生态不如 Anthropic
-2. **深度推理 → Opus 4.6 或 GPT-5.2 (xhigh, 72.8%)**: 跨组件架构、科学推理。GPT-5.2 xhigh 延迟高但推理深度强
-3. **代码审查 → GPT-5.3-Codex (xhigh)**: Codex CLI 原生集成，代码专精。注意：无 SWE-bench 数据，实际能力待验证
-4. **独立审核 → 默认三家厂商交叉**: 避免同源偏见，正式审核默认使用 Anthropic (`Opus`) + Google (`Gemini-3.1-Pro-Preview`) + Moonshot/OpenCode (`Kimi K2.5`)。
-5. **成本敏感 → Sonnet 4.6 (~71%)**: 单组件、低复杂度、日常开发。国产备选：GLM-5 (72.8%)、Kimi K2.5 (70.8%) 成本更低
-6. **超长上下文 (>200K) → Gemini-3-Pro (74.2%)**: 全代码库扫描、大规模文档分析，唯一 ≥1M 上下文
-
-### 国产模型使用策略
-
-国产模型 (MiniMax M2.5, GLM-5, Kimi K2.5) 在 SWE-bench 上表现出色，成本显著低于 Anthropic/OpenAI。适用场景：
-
-- **正式三模型审核中的国产视角**: `Kimi K2.5` 作为默认 reviewer trio 成员，提供中文/工程视角与第三厂商交叉验证，而非事后 tiebreaker。
-- **低复杂度日常任务**: 替代 Sonnet 4.6 进一步降低成本
-- **大规模代码迁移的并行验证**: MiniMax M2.5 (75.8%) 可与 Opus 4.6 并行执行同一迁移任务，交叉验证
-
-**限制**: 国产模型的 MCP 工具调用、agentic 编排、CLI 集成成熟度不如 Anthropic/OpenAI，暂不作为主力 agentic 执行模型。
-
-### 切换时机
-
-- Agent 在开始工作前检查 tracker 中目标项的 `complexity` 字段
-- 如果当前模型与推荐不匹配，在输出中提示：`⚠️ 建议切换至 {model}（原因: {reason}）`
-- 人类决定是否切换，agent 不自动切换
-- **高推理深度仅在以下场景使用**: 正式三模型审核、架构级决策、大规模代码迁移。日常任务使用默认推理深度以控制成本
-- **Benchmark 数据时效**: 本节数据基于 2026-02 SWE-bench Verified。GPT-5.3-Codex 提交评测后需更新推荐
+- 模型选择由人类手动切换（`/model` 或 settings.json）；agent 可建议切换，但不自动切换。
+- 高风险跨组件实现、架构决策、正式 `review-swarm` 与深度 self-review，优先使用最强可用推理模型，并保持跨厂商 reviewer 组合。
+- 单组件日常开发、局部文档修订、边界明确的低风险任务，可优先使用更快/更低成本模型。
+- 超长上下文分析优先最长上下文模型；代码审查或结构化 diff 审查优先代码专精模型；但都不得覆盖正式 reviewer lineup 规则。
+- 默认正式 reviewer trio 为 `Opus` + `Gemini-3.1-Pro-Preview` + `OpenCode(kimi-for-coding/k2p5)`；若任一不可用，必须记录失败原因并获得人类明确确认 fallback。
+- Benchmark 分数、价格、上下文窗口、厂商成熟度等时效性信息属于 SOTA/preflight 或 review packet 证据，不是 AGENTS-level SSOT。
 
 ## 当前进度
 
@@ -364,7 +284,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 
 ## 开发约定
 
-- **审核过程文件 (`autoresearch-meta/.review/`) 为临时产物，禁止 git push**。包括三模型审核的 prompt、输出、中间稿等。已在 `.gitignore` 中排除。
+- **审核过程文件 (`meta/.review/`) 为临时产物，禁止 git push**。包括三模型审核的 prompt、输出、中间稿等。已在 `.gitignore` 中排除。
 - 新代码必须遵守 ECOSYSTEM_DEV_CONTRACT.md 全部规则
 - 存量代码按 REDESIGN_PLAN.md 分阶段对齐
 - 豁免: `# CONTRACT-EXEMPT: {规则ID} {原因}`
@@ -387,8 +307,7 @@ hepar report render --run-ids <...> --out md|tex
 
 ## 运行时产出目录结构
 
-> 三方收敛设计 (Opus 4.6 + Gemini 2.5 Pro + GPT-5.2 xhigh, 2026-02-20, R1 即收敛, 0 blocking)。后续审核统一使用 Gemini-3-Pro-Preview。
-> 审核产物: `autoresearch-meta/.review/r1-{gemini,codex}-output.md`
+> 本节只固定稳定语义与边界；具体 scaffold/template closeout、历史 reviewer 结论与演进细节回到 `meta/remediation_tracker_v1.json`、checked-in scaffold templates 与相关 tests。
 
 ### 设计原则
 
@@ -397,51 +316,26 @@ hepar report render --run-ids <...> --out md|tex
 3. **XDG 合规**: 全局目录遵循 XDG Base Directory 规范，支持 `AUTORESEARCH_HOME` 回退
 4. **原子写入保证**: 项目本地必须有同文件系统 tmp/ (跨文件系统 rename 不原子)
 5. **evidence-first 透明性**: runs/ 和 evidence/ 为可见目录（非隐藏），便于人类发现和审查
+6. **模板拥有精确 surface**: exact root/project tree 由 checked-in scaffold templates 与测试锁定，AGENTS 不镜像完整目录快照
 
 ### 全局目录 (`~/.autoresearch/`)
 
-默认 `AUTORESEARCH_HOME=~/.autoresearch`，内部按 XDG 语义分层。支持环境变量覆盖。
+默认 `AUTORESEARCH_HOME=~/.autoresearch`，内部按 XDG 语义分层。AGENTS 只固定语义，不在此维护完整树形快照：
 
-```
-~/.autoresearch/
-├── data/                        # 持久共享数据（不可随意删除）
-│   ├── arxiv_sources/<arxiv_id>/  # 论文源文件，跨项目复用
-│   ├── pdg/                       # PDG 数据快照（带版本）
-│   └── corpora/                   # 语料库
-├── cache/                       # 可安全删除的缓存
-│   ├── downloads/                 # 临时下载
-│   ├── embeddings/                # 向量索引（可重建）
-│   └── tmp/                       # 全局临时文件
-└── state/                       # 运行时状态
-    ├── run_index.jsonl            # 跨项目 run 注册表
-    ├── locks/                     # 并发锁文件
-    └── logs/                      # 全局日志
-```
+- `data/`：可复用的共享数据与快照。
+- `cache/`：可安全删除的下载、embedding、临时缓存。
+- `state/`：跨项目 run 索引、锁、日志与其他全局运行时状态。
 
 ### 项目本地目录 (`<project_dir>/`)
 
-每个研究项目为独立目录，包含人类可读产物和执行记录。
+每个研究项目为独立目录，包含人类可读产物与执行记录。常见根 surface 由 scaffold templates 锁定；根级 AGENTS 只保留这些稳定语义：
 
-```
-<project_dir>/
-├── project.toml                 # 项目清单（project_id, 名称, 描述）
-├── paper/                       # LaTeX 源文件（人类编辑）
-│   ├── main.tex
-│   ├── references.bib
-│   └── build/                   # 编译产物（.gitignore）
-├── reports/                     # 中间报告、分析（MD/HTML）
-├── evidence/                    # 策展证据（人类精选，引用 runs/ 中的原始产物）
-├── knowledge_base/              # 文献笔记、方法论记录
-├── compute/                     # 计算脚本和结果
-├── runs/<run_id>/               # 执行记录（可见，便于审查）
-│   ├── manifest.json            # 运行清单（输入摘要+环境快照）
-│   ├── summary.json             # 运行摘要
-│   ├── approvals/               # 审批 packet
-│   └── artifacts/               # 运行产物
-├── .autoresearch/               # 机器内部状态（.gitignore）
-│   └── tmp/                     # 项目本地临时文件（保证原子 rename）
-└── .gitignore                   # 排除 .autoresearch/, paper/build/, runs/
-```
+- `paper/`：人类编辑的论文源文件；编译产物与源文件分离。
+- `reports/`、`knowledge_base/`、`compute/`：项目级中间分析、笔记与计算结果。
+- `runs/<run_id>/`：原始执行记录、审批 packet 与运行产物。
+- `evidence/`：从 `runs/` 中策展出来、面向引用与报告的精选证据。
+- `.autoresearch/`：项目本地机器状态；其中 `tmp/` 负责同文件系统原子写入保障。
+- `.gitignore` 与 scaffold templates 负责精确文件列表；不要把某一轮 tree snapshot 升格为根级 SSOT。
 
 **语义区分**:
 - `runs/` = 原始执行记录，机器生成，完整保留
@@ -450,15 +344,10 @@ hepar report render --run-ids <...> --out md|tex
 
 ### 关键设计决策
 
-| 决策 | 结论 | 理由 | 审核来源 |
-|---|---|---|---|
-| 双层分离 | ✅ 采纳 | 共享缓存 vs 项目审计记录，类比 Cargo/npm/DVC | 三方一致 |
-| runs/ 位置 | 项目本地 (`runs/`，可见) | 审计记录属于项目，evidence-first 要求透明可发现 | 三方一致 |
-| 第三层 (campaign) | 不新增文件系统层，用 `campaign.toml` 元数据 | 类比 pnpm-workspace.yaml | 三方一致 |
-| 全局目录命名 | `~/.autoresearch/` + 内部 data/cache/state 分层 | XDG 语义但 macOS 友好路径 | Gemini+Codex 推 XDG，折中 |
-| paper/ 源码与编译分离 | `paper/` = 源码，`paper/build/` = 编译产物 | 避免混淆，类比 LaTeX 构建系统 | Codex 提出 |
-| 项目本地 tmp | `.autoresearch/tmp/` | 跨文件系统 rename() 不原子 | Codex 提出 |
-| evidence/ 语义 | 人类策展的精选证据，引用 runs/ 原始产物 | 避免与 runs/ 重复 | Codex 提出 |
+- 全局 home 与项目本地 SoR 分层长期保留；不要再把两者混成单一隐藏目录。
+- `runs/` 保持项目本地且可见；`evidence/` 是策展层，不是 `runs/` 的别名。
+- 不新增额外文件系统层去承载 `campaign` 等概念；若需要群组语义，优先用元数据表达。
+- `paper/` 源码与构建产物分离；项目本地 `.autoresearch/tmp/` 负责原子 rename 前提。
 
 ### 跨项目引用
 
@@ -470,23 +359,22 @@ hepar report render --run-ids <...> --out md|tex
 
 ### Artifact 命名约定
 
-- 机器产物: `^[a-z]+_[a-z_]+(_\d{3})?_v\d+\.(json|tex|jsonl)$`
-- **人类可读产物例外**: 审批 packet (`.md`)、报告 (`.md`/`.html`) 允许扩展名豁免
-- 所有 artifact 写入必须原子操作 (write .tmp → fsync → rename)，tmp 文件必须与目标在同一文件系统
-- Schemas SSOT: `autoresearch-meta/schemas/`
-- 生成代码: `*/generated/` (禁止手动编辑)
+- Artifact naming regex、原子写入要求与人类可读豁免以 `开发约定` 为准。
+- Schemas SSOT: `meta/schemas/`
+- 生成代码: `*/generated/`（禁止手动编辑）
 
 ## GitNexus MCP
 
-本仓使用 GitNexus 提供代码知识图谱（调用链、blast radius、execution flows、语义搜索）。以下规则是**静态治理文本**；不要在根级策略文件里重新引入自动更新的 GitNexus marker / stats。
+本仓使用 GitNexus 提供代码知识图谱（调用链、blast radius、execution flows、语义搜索）。本节只保留静态治理规则；自动更新的 marker / stats / quick reference 留在下方 generated appendix，不再在根级文本重复维护。
 
 ### Always Start Here
 
 对于任何涉及代码理解、调试、影响分析或重构的任务，必须：
 
 1. 先读 `gitnexus://repo/{name}/context` 检查仓库上下文与 freshness。
-2. 若 context 提示 index stale，先运行 `npx gitnexus analyze`，再继续。
+2. 若 context 提示 index stale，先运行 `npx gitnexus analyze`；dirty worktree 默认用 `npx gitnexus analyze --force`。
 3. 根据任务类型读取对应 skill 文件，并遵循其 workflow / checklist。
+4. 将下方 generated appendix 视为导航辅助上下文，而不是根级治理 SSOT。
 
 ### Skills
 
@@ -497,38 +385,10 @@ hepar report render --run-ids <...> --out md|tex
 | Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/debugging/SKILL.md` |
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/refactoring/SKILL.md` |
 
-### Tools Reference
-
-| Tool | What it gives you |
-|------|-------------------|
-| `query` | Process-grouped code intelligence — execution flows related to a concept |
-| `context` | 360-degree symbol view — categorized refs, processes it participates in |
-| `impact` | Symbol blast radius — what breaks at depth 1/2/3 with confidence |
-| `detect_changes` | Git-diff impact — what do your current changes affect |
-| `rename` | Multi-file coordinated rename with confidence-tagged edits |
-| `cypher` | Raw graph queries (read `gitnexus://repo/{name}/schema` first) |
-| `list_repos` | Discover indexed repos |
-
-### Resources Reference
-
-| Resource | Content |
-|----------|---------|
-| `gitnexus://repo/{name}/context` | Stats + staleness check |
-| `gitnexus://repo/{name}/clusters` | All functional areas |
-| `gitnexus://repo/{name}/cluster/{clusterName}` | Area members |
-| `gitnexus://repo/{name}/processes` | All execution flows |
-| `gitnexus://repo/{name}/process/{processName}` | Step-by-step trace |
-| `gitnexus://repo/{name}/schema` | Graph schema for Cypher |
-
-### Graph Schema
-
-- **Nodes**: `File`, `Function`, `Class`, `Interface`, `Method`, `Community`, `Process`
-- **Edges** (`CodeRelation.type`): `CALLS`, `IMPORTS`, `EXTENDS`, `IMPLEMENTS`, `DEFINES`, `MEMBER_OF`, `STEP_IN_PROCESS`
-
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (10562 symbols, 24942 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (10550 symbols, 24961 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

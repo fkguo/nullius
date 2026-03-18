@@ -15,7 +15,7 @@
 
 ## 工作区路径映射
 
-以 `AGENTS.md` 中的组件清单为当前 monorepo 路径映射；历史 prompt 中出现的旧路径或旧 repo 名，均以当前工作区实际路径为准。
+以当前工作区实际路径、`packages/` 目录结构和 `AGENTS.md` 的根级入口规则为准；不要依赖旧 repo 名、拆仓时期目录名或过时组件表。
 
 ## 跨 Session 知识保留
 
@@ -23,7 +23,7 @@
 
 ## 多模型收敛检查
 
-以 `AGENTS.md` 的双模型审核流程和 `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md` 为准。
+以 `AGENTS.md` 的正式三模型审核流程和 `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md` 为准。
 
 ## GitNexus
 
@@ -32,7 +32,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (10562 symbols, 24942 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (10550 symbols, 24961 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
