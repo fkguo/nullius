@@ -3,11 +3,11 @@
   "module": "sem13_challenge_extractor",
   "timestamp": "2026-03-06T15:00:00.000Z",
   "metrics": {
-    "challenge_precision_overall": 1,
-    "challenge_recall_overall": 0.8,
-    "taxonomy_exact_match": 0.6666666666666666,
-    "no_challenge_uncertain_accuracy": 0.5,
-    "false_positive_rate": 0
+    "challenge_marker_coverage": 1,
+    "status_accuracy": 1,
+    "no_challenge_uncertain_accuracy": 1,
+    "false_positive_rate": 0,
+    "taxonomy_wording_leak_rate": 0
   },
   "evalSetVersion": 1
 }

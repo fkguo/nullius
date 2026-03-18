@@ -14,7 +14,7 @@
       },
       "expected": {
         "status": "detected",
-        "challenge_types": ["systematic_uncertainty", "background_control", "acceptance_or_coverage_limit"]
+        "challenge_markers": ["systematic uncertainties", "detector acceptance", "background contamination"]
       }
     },
     {
@@ -27,7 +27,7 @@
       },
       "expected": {
         "status": "detected",
-        "challenge_types": ["selection_bias", "simulation_mismatch"]
+        "challenge_markers": ["trigger selection bias", "simulation mismatch"]
       }
     },
     {
@@ -40,7 +40,7 @@
       },
       "expected": {
         "status": "detected",
-        "challenge_types": ["model_dependence", "extrapolation_risk"]
+        "challenge_markers": ["model-dependent extrapolation", "outside the measured phase space"]
       }
     },
     {
@@ -63,7 +63,7 @@
       },
       "expected": {
         "status": "detected",
-        "challenge_types": ["fit_instability", "background_control", "cross_cutting_methodology"]
+        "challenge_markers": ["fit instability across priors", "background subtraction depends on sideband modelling"]
       }
     },
     {
@@ -76,7 +76,7 @@
       },
       "expected": {
         "status": "no_challenge_detected",
-        "challenge_types": []
+        "challenge_markers": []
       }
     },
     {
@@ -89,7 +89,7 @@
       },
       "expected": {
         "status": "uncertain",
-        "challenge_types": []
+        "challenge_markers": []
       }
     }
   ]

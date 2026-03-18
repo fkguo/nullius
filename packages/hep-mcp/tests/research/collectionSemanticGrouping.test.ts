@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { groupCollectionSemantics } from '../../src/tools/research/synthesis/collectionSemanticGrouping.js';
 
 describe('groupCollectionSemantics', () => {
-  it('marks terminology-bridging topic assignments as heuristic fallback instead of silent authority', () => {
+  it('keeps terminology-bridging fallback as diagnostic while public keywords stay evidence-first', () => {
     const grouping = groupCollectionSemantics([
       {
         recid: '1',
@@ -21,12 +21,15 @@ describe('groupCollectionSemantics', () => {
     ]);
 
     expect(() => CollectionSemanticGroupingSchema.parse(grouping)).not.toThrow();
-    expect(grouping.topic_assignments['1']).toBe('heavy_neutral_lepton');
+    expect(grouping.topic_assignments['1']).toBe(grouping.topic_assignments['2']);
     expect(grouping.topic_assignment_details['1'].provenance.mode).toBe('heuristic_fallback');
-    expect(grouping.topic_groups[0]?.keywords).toContain('heuristic_fallback');
+    const sharedTopicGroup = grouping.topic_groups.find(group => group.paper_ids.includes('1') && group.paper_ids.includes('2'));
+    expect(sharedTopicGroup?.keywords).toBeDefined();
+    expect(sharedTopicGroup?.keywords).not.toContain('heavy_neutral_lepton');
+    expect(sharedTopicGroup?.keywords).not.toContain('heuristic_fallback');
   });
 
-  it('keeps mixed methods explicit when multiple fallback families are combined', () => {
+  it('keeps mixed-method fallback as diagnostic while public method keywords stay evidence-first', () => {
     const grouping = groupCollectionSemantics([
       {
         recid: 'p9',
@@ -43,8 +46,11 @@ describe('groupCollectionSemantics', () => {
     ]);
 
     expect(() => CollectionSemanticGroupingSchema.parse(grouping)).not.toThrow();
-    expect(grouping.method_assignments['p9']).toBe('mixed_methods');
+    expect(grouping.method_assignments['p9']).toBe(grouping.method_assignments['p10']);
     expect(grouping.method_assignment_details['p9'].provenance.reason_code).toBe('combined_method_signals');
-    expect(grouping.method_groups[0]?.keywords).toContain('heuristic_fallback');
+    const mixedMethodGroup = grouping.method_groups.find(group => group.paper_ids.includes('p9') && group.paper_ids.includes('p10'));
+    expect(mixedMethodGroup?.keywords).toBeDefined();
+    expect(mixedMethodGroup?.keywords).not.toContain('mixed_methods');
+    expect(mixedMethodGroup?.keywords).not.toContain('heuristic_fallback');
   });
 });

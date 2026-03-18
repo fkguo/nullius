@@ -5,7 +5,7 @@ import { extractMethodologyChallenges, renderMethodologyChallenges } from '../..
 import { generateNarrativeSections } from '../../src/tools/research/synthesis/narrative.js';
 
 describe('challenge extraction', () => {
-  it('extracts structured methodological challenges from text and critical signals', () => {
+  it('extracts structured methodological challenges from text and critical signals without narrative taxonomy authority', () => {
     const result = extractMethodologyChallenges(
       [{ recid: '1', title: 'Combined fit', success: true, methodology: 'The combined fit suffers from background subtraction issues.' }],
       [{
@@ -20,7 +20,21 @@ describe('challenge extraction', () => {
     expect(result.status).toBe('detected');
     expect(result.challenge_types).toEqual(expect.arrayContaining(['background_control', 'fit_instability', 'cross_cutting_methodology']));
     expect(result.provenance.mode).toBe('open_text');
-    expect(renderMethodologyChallenges(result)).toContain('background control');
+    const rendered = renderMethodologyChallenges(result);
+    expect(rendered).toContain('"The combined fit suffers from background subtraction issues"');
+    expect(rendered).toContain('"fit instability across priors"');
+    expect(rendered).not.toContain('background control');
+  });
+
+  it('keeps fallback narrative anchored to matched source phrases instead of closed taxonomy wording', () => {
+    const result = extractMethodologyChallenges(
+      [{ recid: '2', title: 'Coverage study', success: true, methodology: 'Control region modelling and detector acceptance set the dominant systematic budget.' }],
+    );
+
+    expect(result.provenance.mode).toBe('heuristic_fallback');
+    const rendered = renderMethodologyChallenges(result);
+    expect(rendered).toContain('"Control region modelling and detector acceptance set the dominant systematic budget"');
+    expect(rendered).not.toContain('acceptance or coverage limits');
   });
 
   it('keeps no-challenge cases silent in narrative output', () => {

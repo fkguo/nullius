@@ -4,7 +4,7 @@
  */
 
 import type { DeepPaperAnalysis } from '../deepAnalyze.js';
-import { groupCollectionSemantics, humanizeSemanticLabel, toGroupingPaper, type SemanticCluster } from './collectionSemanticGrouping.js';
+import { groupCollectionSemantics, toGroupingPaper, type SemanticCluster } from './collectionSemanticGrouping.js';
 
 export interface PaperGroup {
   name: string;
@@ -40,15 +40,22 @@ function extractContribution(paper: DeepPaperAnalysis): string {
 /**
  * Extract group-level insights
  */
-function presentClusterLabel(cluster: SemanticCluster): string {
-  return humanizeSemanticLabel(cluster.provenance.canonical_hint ?? cluster.label);
+function clusterEvidence(cluster: SemanticCluster): string[] {
+  return cluster.keywords
+    .filter(keyword => keyword !== 'uncertain' && keyword !== 'insufficient_signal')
+    .slice(0, 3);
 }
 
 function extractGroupInsights(cluster: SemanticCluster, papers: DeepPaperAnalysis[]): string[] {
   const insights: string[] = [];
-  if (cluster.label !== 'uncertain') {
-    const modeLabel = cluster.provenance.mode === 'open_cluster' ? 'Open-text grouping' : 'Heuristic fallback grouping';
-    insights.push(`${modeLabel}: ${presentClusterLabel(cluster)}`);
+  const evidence = clusterEvidence(cluster);
+  if (evidence.length > 0) {
+    const modeLabel = cluster.provenance.mode === 'open_cluster'
+      ? 'Open-text overlap evidence'
+      : cluster.provenance.mode === 'heuristic_fallback'
+        ? 'Provider-local fallback evidence'
+        : 'Underspecified grouping evidence';
+    insights.push(`${modeLabel}: ${evidence.join(', ')}`);
   }
 
   // Count theorems
@@ -102,16 +109,19 @@ export function groupByMethodology(
   if (papers.length === 0) return [];
   const clusters = groupCollectionSemantics(papers.map(toGroupingPaper)).method_groups;
   const paperMap = new Map(papers.map(paper => [paper.recid, paper]));
-  return clusters.map(cluster => {
+  return clusters.map((cluster, index) => {
     const members = cluster.paper_ids.map(recid => paperMap.get(recid)).filter((paper): paper is DeepPaperAnalysis => !!paper);
-    const presentableLabel = presentClusterLabel(cluster);
+    const evidence = clusterEvidence(cluster);
+    const evidenceSentence = evidence.length > 0
+      ? `Evidence terms: ${evidence.join(', ')}.`
+      : 'Evidence terms remain underspecified.';
     const description = cluster.provenance.mode === 'open_cluster'
-      ? `Papers grouped by recurring open-text methodological overlap around ${presentableLabel}.`
+      ? `Papers grouped by recurring open-text methodological overlap. ${evidenceSentence}`
       : cluster.provenance.mode === 'heuristic_fallback'
-        ? `Papers grouped by provider-local heuristic fallback around ${presentableLabel}; manual review remains advisable.`
-        : 'Papers with insufficient shared methodological signal for a stronger grouping.';
+        ? `Papers grouped by provider-local fallback signals rather than authoritative method categories. ${evidenceSentence} Manual review remains advisable.`
+        : `Papers with insufficient shared methodological signal for a stronger grouping. ${evidenceSentence}`;
     return {
-      name: presentableLabel,
+      name: `Method cluster ${index + 1}`,
       description,
       papers: members.slice(0, maxPerGroup).map(paper => ({ recid: paper.recid, title: paper.title, contribution: extractContribution(paper) })),
       key_insights: extractGroupInsights(cluster, members),

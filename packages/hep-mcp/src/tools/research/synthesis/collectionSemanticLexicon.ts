@@ -54,16 +54,3 @@ export const METHOD_GENERIC_TERMS = new Set([
   'results',
   'study',
 ]);
-
-export const HUMANIZED_LABELS: Record<string, string> = {
-  heavy_neutral_lepton: 'Heavy neutral lepton',
-  exotic_hadron_spectroscopy: 'Exotic hadron spectroscopy',
-  flavor_anomalies: 'Flavor anomalies',
-  hadronic_form_factors: 'Hadronic form factors',
-  experimental_simulation: 'Experimental simulation',
-  dispersive_amplitude: 'Dispersive amplitude',
-  effective_field_theory: 'Effective field theory',
-  lattice_nonperturbative: 'Lattice nonperturbative',
-  mixed_methods: 'Mixed methods',
-  uncertain: 'Uncertain',
-};

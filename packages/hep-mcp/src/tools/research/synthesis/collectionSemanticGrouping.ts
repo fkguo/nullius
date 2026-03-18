@@ -8,7 +8,6 @@ import type {
 import type { DeepPaperAnalysis } from '../deepAnalyze.js';
 import { calculateTFIDF, extractTopTerms, tokenize } from './tfidf.js';
 import {
-  HUMANIZED_LABELS,
   METHOD_COMBINATION_MARKERS,
   METHOD_FALLBACK_HINTS,
   METHOD_GENERIC_TERMS,
@@ -97,13 +96,13 @@ function selectClusterLabel(profile: PaperProfile, profiles: PaperProfile[], foc
   const openEvidence = profile.topTerms.slice(0, 3);
   const openPeers = profiles.filter(other => overlap(profile.topTerms, other.topTerms) >= 2);
   if (focus === 'method' && profile.hasCombinationMarker && profile.bestHint && profile.secondHint && profile.secondHint.score >= profile.bestHint.score * 0.6) {
-    return { label: 'mixed_methods', provenance: { mode: 'heuristic_fallback', used_fallback: true, reason_code: 'combined_method_signals', confidence: 0.7, evidence: [...openEvidence, profile.bestHint.label, profile.secondHint.label].slice(0, 4), canonical_hint: 'mixed_methods' } };
+    return { label: 'mixed_methods', provenance: { mode: 'heuristic_fallback', used_fallback: true, reason_code: 'combined_method_signals', confidence: 0.7, evidence: openEvidence, canonical_hint: 'mixed_methods' } };
   }
   if (openEvidence.length >= 2 && (openPeers.length >= 2 || !profile.bestHint)) {
     return { label: openEvidence.slice(0, 3).join('_'), provenance: { mode: 'open_cluster', used_fallback: false, reason_code: openPeers.length >= 2 ? 'shared_top_terms' : 'single_paper_top_terms', confidence: openPeers.length >= 2 ? 0.75 : 0.55, evidence: openEvidence } };
   }
   if (profile.bestHint && profile.bestHint.score >= 3) {
-    return { label: profile.bestHint.label, provenance: { mode: 'heuristic_fallback', used_fallback: true, reason_code: 'fallback_alias_hint', confidence: Math.min(0.4 + profile.bestHint.score / 10, 0.85), evidence: [...openEvidence, profile.bestHint.label].slice(0, 4), canonical_hint: profile.bestHint.label } };
+    return { label: profile.bestHint.label, provenance: { mode: 'heuristic_fallback', used_fallback: true, reason_code: 'fallback_alias_hint', confidence: Math.min(0.4 + profile.bestHint.score / 10, 0.85), evidence: openEvidence, canonical_hint: profile.bestHint.label } };
   }
   return { label: 'uncertain', provenance: { mode: 'uncertain', used_fallback: true, reason_code: openEvidence.length > 0 ? 'insufficient_shared_signal' : 'no_semantic_signal', confidence: 0, evidence: openEvidence } };
 }
@@ -113,13 +112,11 @@ function representatives(papers: GroupingPaper[], limit: number): string[] {
 }
 
 function buildKeywords(label: string, members: GroupingAssignmentDetail[], focus: GroupingFocus): string[] {
-  const evidence = [...new Set(members.flatMap(member => member.provenance.evidence).filter(term => term !== label))];
-  if (label === 'uncertain') return ['uncertain', ...evidence.slice(0, 2)];
-  if (members.some(member => member.provenance.mode === 'heuristic_fallback')) {
-    const canonical = members.find(member => member.provenance.canonical_hint)?.provenance.canonical_hint ?? label;
-    return [canonical, ...evidence.filter(term => term !== canonical).slice(0, focus === 'topic' ? 2 : 3), 'heuristic_fallback'];
+  const evidence = [...new Set(members.flatMap(member => member.provenance.evidence).map(term => term.trim()).filter(Boolean))];
+  if (evidence.length > 0) {
+    return evidence.slice(0, focus === 'topic' ? 3 : 4);
   }
-  return [label, ...evidence.slice(0, focus === 'topic' ? 2 : 3)];
+  return [label === 'uncertain' ? 'uncertain' : 'insufficient_signal'];
 }
 
 function buildClusters(papers: GroupingPaper[], details: Record<string, GroupingAssignmentDetail>, focus: GroupingFocus): SemanticCluster[] {
@@ -134,10 +131,6 @@ function buildClusters(papers: GroupingPaper[], details: Record<string, Grouping
     const provenance: GroupingProvenance = memberDetails[0]?.provenance ?? { mode: 'uncertain', used_fallback: true, reason_code: 'missing_assignment', confidence: 0, evidence: [] };
     return { label, keywords: buildKeywords(label, memberDetails, focus), paper_ids: members.map(member => member.recid), representative_papers: representatives(members, 5), provenance };
   });
-}
-
-export function humanizeSemanticLabel(label: string): string {
-  return HUMANIZED_LABELS[label] ?? label.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
 }
 
 export function toGroupingPaper(paper: Paper | DeepPaperAnalysis): GroupingPaper {

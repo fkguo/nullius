@@ -16,8 +16,8 @@
         ]
       },
       "expected": {
-        "topic_assignments": { "p1": "heavy_neutral_lepton", "p2": "heavy_neutral_lepton", "p3": "exotic_hadron_spectroscopy", "p4": "exotic_hadron_spectroscopy" },
-        "method_assignments": { "p1": "experimental_simulation", "p2": "experimental_simulation", "p3": "dispersive_amplitude", "p4": "dispersive_amplitude" }
+        "topic_clusters": [["p1", "p2"], ["p3", "p4"]],
+        "method_clusters": [["p1", "p2"], ["p3", "p4"]]
       }
     },
     {
@@ -32,8 +32,8 @@
         ]
       },
       "expected": {
-        "topic_assignments": { "p5": "flavor_anomalies", "p6": "flavor_anomalies", "p7": "hadronic_form_factors", "p8": "hadronic_form_factors" },
-        "method_assignments": { "p5": "effective_field_theory", "p6": "effective_field_theory", "p7": "lattice_nonperturbative", "p8": "lattice_nonperturbative" }
+        "topic_clusters": [["p5", "p6"], ["p7", "p8"]],
+        "method_clusters": [["p5", "p6"], ["p7", "p8"]]
       }
     },
     {
@@ -47,8 +47,8 @@
         ]
       },
       "expected": {
-        "topic_assignments": { "p9": "flavor_anomalies", "p10": "heavy_neutral_lepton", "p11": "heavy_neutral_lepton" },
-        "method_assignments": { "p9": "cross_cutting", "p10": "cross_cutting", "p11": "experimental_simulation" }
+        "topic_clusters": [["p9"], ["p10", "p11"]],
+        "method_clusters": [["p9", "p10"], ["p11"]]
       }
     }
   ]

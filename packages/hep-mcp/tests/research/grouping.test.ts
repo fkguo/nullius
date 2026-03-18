@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { groupByMethodology } from '../../src/tools/research/synthesis/grouping.js';
 
 describe('groupByMethodology', () => {
-  it('surfaces mixed-method groups via explicit heuristic fallback labeling', () => {
+  it('keeps public method groups generic while surfacing fallback evidence in descriptions', () => {
     const groups = groupByMethodology([
       {
         recid: '1',
@@ -21,7 +21,10 @@ describe('groupByMethodology', () => {
       },
     ], 5);
 
-    expect(groups.map(group => group.name)).toEqual(expect.arrayContaining(['Mixed methods', 'Experimental simulation']));
-    expect(groups.find(group => group.name === 'Mixed methods')?.description).toContain('heuristic fallback');
+    expect(groups.every(group => /^Method cluster \d+$/.test(group.name))).toBe(true);
+    expect(groups.some(group => group.description.includes('provider-local fallback signals'))).toBe(true);
+    expect(groups.some(group => group.description.includes('Evidence terms:'))).toBe(true);
+    expect(groups.some(group => group.description.includes('Mixed methods'))).toBe(false);
+    expect(groups.some(group => group.description.includes('Experimental simulation'))).toBe(false);
   });
 });

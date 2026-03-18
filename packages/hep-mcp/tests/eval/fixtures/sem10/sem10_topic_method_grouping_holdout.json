@@ -15,8 +15,8 @@
         ]
       },
       "expected": {
-        "topic_assignments": { "h1": "heavy_neutral_lepton", "h2": "exotic_hadron_spectroscopy", "h3": "exotic_hadron_spectroscopy" },
-        "method_assignments": { "h1": "experimental_simulation", "h2": "dispersive_amplitude", "h3": "dispersive_amplitude" }
+        "topic_clusters": [["h1"], ["h2", "h3"]],
+        "method_clusters": [["h1"], ["h2", "h3"]]
       }
     },
     {
@@ -30,8 +30,8 @@
         ]
       },
       "expected": {
-        "topic_assignments": { "h4": "flavor_anomalies", "h5": "hadronic_form_factors", "h6": "flavor_anomalies" },
-        "method_assignments": { "h4": "effective_field_theory", "h5": "lattice_nonperturbative", "h6": "cross_cutting" }
+        "topic_clusters": [["h4", "h6"], ["h5"]],
+        "method_clusters": [["h4"], ["h5"], ["h6"]]
       }
     }
   ]

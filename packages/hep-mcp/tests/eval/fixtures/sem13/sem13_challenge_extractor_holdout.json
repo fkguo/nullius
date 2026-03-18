@@ -14,7 +14,7 @@
       },
       "expected": {
         "status": "no_challenge_detected",
-        "challenge_types": []
+        "challenge_markers": []
       }
     },
     {
@@ -27,7 +27,7 @@
       },
       "expected": {
         "status": "detected",
-        "challenge_types": ["background_control", "acceptance_or_coverage_limit"]
+        "challenge_markers": ["limited detector coverage", "residual backgrounds"]
       }
     },
     {
@@ -49,7 +49,7 @@
       },
       "expected": {
         "status": "no_challenge_detected",
-        "challenge_types": []
+        "challenge_markers": []
       }
     }
   ]

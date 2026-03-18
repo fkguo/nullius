@@ -8,7 +8,6 @@ import type {
 import {
   CHALLENGE_NORMALIZATION_HINTS,
   EXPLICIT_NO_CHALLENGE,
-  HUMANIZED_CHALLENGES,
   NON_METHODOLOGY_CUES,
   OPEN_CHALLENGE_MARKERS,
   type ChallengeType,
@@ -84,7 +83,7 @@ function fallbackChallenges(texts: TextRecord[]): ExtractedChallenge[] {
     if (evidence.length === 0) return [];
     return [{
       type: hint.type,
-      summary: HUMANIZED_CHALLENGES[hint.type],
+      summary: evidence[0],
       confidence: Math.min(0.5 + evidence.length * 0.15, 0.8),
       evidence,
       provenance: { mode: 'heuristic_fallback' as const, used_fallback: true, reason_code: 'normalization_hint_match' as const },
@@ -125,7 +124,7 @@ export function extractMethodologyChallenges(papers: DeepPaperAnalysis[], critic
 }
 
 function describeChallenge(challenge: ExtractedChallenge): string {
-  return challenge.type ? HUMANIZED_CHALLENGES[challenge.type] : challenge.summary.toLowerCase();
+  return `"${challenge.summary.replace(/\s+/g, ' ').trim()}"`;
 }
 
 export function renderMethodologyChallenges(result: ChallengeExtractionResult): string | undefined {
@@ -136,7 +135,7 @@ export function renderMethodologyChallenges(result: ChallengeExtractionResult): 
   const descriptions = [...new Set(result.challenges.map(describeChallenge))].slice(0, 3);
   if (descriptions.length === 0) return undefined;
   if (result.provenance.mode === 'heuristic_fallback') {
-    return `Heuristic fallback signals suggest methodological concerns around ${descriptions.join(', ')}; manual validation is advisable before treating these categories as authoritative.`;
+    return `Provider-local fallback signals point to methodological concerns reflected in ${descriptions.join(', ')}; manual validation is advisable before treating these summaries as authoritative.`;
   }
-  return `Across the collection, the available descriptions repeatedly flag methodological concerns around ${descriptions.join(', ')}.`;
+  return `Across the collection, the available descriptions repeatedly mention methodological concerns such as ${descriptions.join(', ')}.`;
 }

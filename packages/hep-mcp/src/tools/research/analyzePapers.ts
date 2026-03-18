@@ -128,7 +128,7 @@ function buildTimeline(papers: PaperSummary[]): { year: number; count: number; k
 
 function extractTopics(papers: Paper[]): { keywords: string[]; paper_count: number; representative_papers: string[] }[] {
   return groupCollectionSemantics(papers.map(toGroupingPaper)).topic_groups.map(group => ({
-    keywords: group.keywords,
+    keywords: group.keywords.filter(keyword => keyword !== 'uncertain' && keyword !== 'insufficient_signal'),
     paper_count: group.paper_ids.length,
     representative_papers: group.representative_papers,
   }));
