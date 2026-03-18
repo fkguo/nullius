@@ -78,10 +78,10 @@ export function isConferencePaper(paper: PaperSummary): ConferencePaperAssessmen
 
   if (conferenceSignals.length > 0) {
     return {
-      isConference: true,
-      confidence: 1,
-      decision: 'conference',
-      provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'document_type', signals: conferenceSignals },
+      isConference: false,
+      confidence: 0,
+      decision: 'uncertain',
+      provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'conference_metadata_prior', signals: conferenceSignals },
     };
   }
 
@@ -94,9 +94,9 @@ export function isConferencePaper(paper: PaperSummary): ConferencePaperAssessmen
   if (negativeSignals.length > 0) {
     return {
       isConference: false,
-      confidence: 0.85,
-      decision: 'not_conference',
-      provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'document_type_negative', signals: negativeSignals },
+      confidence: 0,
+      decision: 'uncertain',
+      provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'nonconference_metadata_prior', signals: negativeSignals },
     };
   }
 
@@ -115,10 +115,10 @@ export function isReviewPaper(paper: PaperSummary): ReviewPaperAssessment {
 
   if (reviewSignals.length > 0) {
     return {
-      isReview: true,
-      confidence: 1,
-      decision: 'review',
-      provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'publication_type', signals: reviewSignals },
+      isReview: false,
+      confidence: 0,
+      decision: 'uncertain',
+      provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'review_metadata_prior', signals: reviewSignals },
     };
   }
 
@@ -132,9 +132,9 @@ export function isReviewPaper(paper: PaperSummary): ReviewPaperAssessment {
   if (negativeSignals.length > 0) {
     return {
       isReview: false,
-      confidence: 0.8,
-      decision: 'not_review',
-      provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'publication_type_negative', signals: negativeSignals },
+      confidence: 0,
+      decision: 'uncertain',
+      provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'nonreview_metadata_prior', signals: negativeSignals },
     };
   }
 
@@ -152,15 +152,19 @@ function classifyDocumentRole(paper: PaperSummary): { paper_type: PaperType; con
   const review = isReviewPaper(paper);
   const conference = isConferencePaper(paper);
 
-  if (review.decision === 'review') return { paper_type: 'review', confidence: review.confidence, provenance: review.provenance };
-  if (conference.decision === 'conference') return { paper_type: 'conference', confidence: conference.confidence, provenance: conference.provenance };
+  if (review.provenance.backend === 'metadata' && review.provenance.reason_code === 'review_metadata_prior') {
+    return { paper_type: 'uncertain', confidence: 0, provenance: review.provenance };
+  }
+  if (conference.provenance.backend === 'metadata' && conference.provenance.reason_code === 'conference_metadata_prior') {
+    return { paper_type: 'uncertain', confidence: 0, provenance: conference.provenance };
+  }
 
   const thesisSignals = [
     ...includesMarker(publicationTypes, THESIS_MARKERS),
     ...includesMarker(documentTypes, THESIS_MARKERS),
   ];
   if (thesisSignals.length > 0) {
-    return { paper_type: 'thesis', confidence: 0.95, provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'thesis_metadata', signals: thesisSignals } };
+    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'thesis_metadata_prior', signals: thesisSignals } };
   }
 
   const lectureSignals = [
@@ -168,12 +172,14 @@ function classifyDocumentRole(paper: PaperSummary): { paper_type: PaperType; con
     ...includesMarker(documentTypes, LECTURE_MARKERS),
   ];
   if (lectureSignals.length > 0) {
-    return { paper_type: 'lecture', confidence: 0.9, provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'lecture_metadata', signals: lectureSignals } };
+    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'lecture_metadata_prior', signals: lectureSignals } };
   }
 
   const originalSignals = articleLikeMetadata(paper);
-  if (review.decision === 'not_review' && conference.decision === 'not_conference' && originalSignals.length > 0) {
-    return { paper_type: 'original', confidence: 0.7, provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'article_metadata', signals: originalSignals } };
+  if (review.provenance.reason_code === 'nonreview_metadata_prior'
+    && conference.provenance.reason_code === 'nonconference_metadata_prior'
+    && originalSignals.length > 0) {
+    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'article_metadata_prior', signals: originalSignals } };
   }
 
   return {
@@ -205,10 +211,10 @@ export function classifyPapers(papers: PaperSummary[]): ClassifiedPaper[] {
 
 export function classifyContentType(paper: PaperSummary): ContentClassification {
   const review = isReviewPaper(paper);
-  if (review.decision === 'review') {
+  if (review.provenance.backend === 'metadata' && review.provenance.reason_code === 'review_metadata_prior') {
     return {
-      content_type: 'review',
-      confidence: review.confidence,
+      content_type: 'uncertain',
+      confidence: 0,
       experimental_score: 0,
       theoretical_score: 0,
       method: 'metadata',
@@ -237,32 +243,32 @@ export function classifyContentType(paper: PaperSummary): ContentClassification 
 
   if (mixed > 0 || (experimental > 0 && theoretical > 0)) {
     return {
-      content_type: 'mixed',
-      confidence: 0.9,
+      content_type: 'uncertain',
+      confidence: 0,
       experimental_score: total > 0 ? experimental / total : 0.5,
       theoretical_score: total > 0 ? theoretical / total : 0.5,
       method: 'arxiv',
-      provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'arxiv_category', signals: withSignals(categories) },
+      provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'mixed_arxiv_prior', signals: withSignals(categories) },
     };
   }
   if (experimental > 0) {
     return {
-      content_type: 'experimental',
-      confidence: 0.95,
+      content_type: 'uncertain',
+      confidence: 0,
       experimental_score: 1,
       theoretical_score: 0,
       method: 'arxiv',
-      provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'arxiv_category', signals: withSignals(categories) },
+      provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'experimental_arxiv_prior', signals: withSignals(categories) },
     };
   }
   if (theoretical > 0) {
     return {
-      content_type: 'theoretical',
-      confidence: 0.95,
+      content_type: 'uncertain',
+      confidence: 0,
       experimental_score: 0,
       theoretical_score: 1,
       method: 'arxiv',
-      provenance: { backend: 'metadata', status: 'metadata', used_fallback: false, reason_code: 'arxiv_category', signals: withSignals(categories) },
+      provenance: { backend: 'metadata', status: 'metadata', used_fallback: true, reason_code: 'theoretical_arxiv_prior', signals: withSignals(categories) },
     };
   }
 

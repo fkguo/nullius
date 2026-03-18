@@ -184,7 +184,7 @@ export async function generateCriticalQuestions(
       paper_recid: params.recid,
       paper_title: paper.title,
       paper_year: paper.year,
-      paper_type: contentHint.content_type,
+      paper_type: 'uncertain',
       success: true,
       questions: FALLBACK_QUESTIONS,
       red_flags: metricFlags,

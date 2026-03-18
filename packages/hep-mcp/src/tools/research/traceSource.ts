@@ -138,7 +138,7 @@ function calculateSelfCitationAdjustment(
 function calculateConfidence(
   chainCount: number,
   depth: number,
-  isReview: boolean,
+  reviewDecision: ReviewPaperAssessment['decision'],
   hasOlderRefs: boolean,
   selfCitationChains: number,
   independentChains: number
@@ -151,8 +151,8 @@ function calculateConfidence(
   // Depth: shallower = more likely secondary
   if (depth >= 2) score += 0.2;
 
-  // Not a review paper
-  if (!isReview) score += 0.2;
+  // Only grant the non-review bonus when a caller has a stronger-than-metadata signal.
+  if (reviewDecision === 'not_review') score += 0.2;
 
   // No older references = likely original
   if (!hasOlderRefs) score += 0.2;
@@ -259,7 +259,7 @@ export async function traceOriginalSource(
     const hasOlderRefs = refs.length > 0;
 
     const { confidence, score } = calculateConfidence(
-      chainCount, depth, reviewCheck.isReview, hasOlderRefs,
+      chainCount, depth, reviewCheck.decision, hasOlderRefs,
       selfCitationChains, independentChains
     );
 
@@ -271,7 +271,7 @@ export async function traceOriginalSource(
       independent_chains: independentChains,
       self_citation_chains: selfCitationChains,
       depth,
-      is_review: reviewCheck.isReview,
+      is_review: reviewCheck.decision === 'review',
       review_classification: reviewCheck,
     });
   }

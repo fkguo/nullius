@@ -10,12 +10,14 @@ vi.mock('../../src/api/client.js', () => ({
 
 const api = await import('../../src/api/client.js');
 const { classifyPaper } = await import('../../src/tools/research/paperClassifier.js');
+const { classifyContentType } = await import('../../src/tools/research/paperClassifier.js');
 const { classifyReviews } = await import('../../src/tools/research/reviewClassifier.js');
 const { generateCriticalQuestions } = await import('../../src/tools/research/criticalQuestions.js');
 const { trackAssumptions } = await import('../../src/tools/research/assumptionTracker.js');
 
 type Sem05Input =
   | { kind: 'paper_classifier'; paper: Record<string, unknown> }
+  | { kind: 'content_classifier'; paper: Record<string, unknown> }
   | { kind: 'critical_questions'; recid: string; paper: Record<string, unknown>; comments_exist?: boolean }
   | { kind: 'assumption_tracker'; recid: string; paper: Record<string, unknown>; references?: Array<Record<string, unknown>> }
   | { kind: 'review_classifier'; recid: string; references?: Array<Record<string, unknown>>; fail_get_paper?: boolean };
@@ -54,15 +56,28 @@ async function runSem05Case(input: Sem05Input): Promise<Sem05Actual> {
       const result = classifyPaper(makePaper(input.paper));
       return {
         paper_type: result.paper_type,
+        paper_type_reason_code: result.paper_type_provenance.reason_code,
+        paper_type_used_fallback: result.paper_type_provenance.used_fallback,
         review_decision: result.review_classification.decision,
+        conference_decision: result.conference_classification.decision,
+        conference_reason_code: result.conference_classification.provenance.reason_code,
         used_fallback: result.review_classification.provenance.used_fallback,
         reason_code: result.review_classification.provenance.reason_code,
+      };
+    }
+    case 'content_classifier': {
+      const result = classifyContentType(makePaper(input.paper));
+      return {
+        content_type: result.content_type,
+        used_fallback: result.provenance.used_fallback,
+        reason_code: result.provenance.reason_code,
       };
     }
     case 'critical_questions': {
       vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({ recid: input.recid, ...input.paper }) as never);
       const result = await generateCriticalQuestions({ recid: input.recid });
       return {
+        paper_type: result.paper_type,
         reliability_score: result.reliability_score,
         red_flag_types: result.red_flags.map(flag => flag.type),
         used_fallback: result.provenance.used_fallback,

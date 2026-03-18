@@ -12,7 +12,7 @@ describe('generateSurvey', () => {
     vi.clearAllMocks();
   });
 
-  it('uses metadata-backed review classification instead of title keywords', async () => {
+  it('does not elevate metadata review tags into survey authority', async () => {
     vi.mocked(api.getReferences).mockResolvedValueOnce([
       {
         recid: 'r1',
@@ -45,6 +45,6 @@ describe('generateSurvey', () => {
     });
 
     const reviewSection = result.sections.find(section => section.name === 'Review Articles');
-    expect(reviewSection?.papers.map(paper => paper.recid)).toEqual(['r2']);
+    expect(reviewSection).toBeUndefined();
   });
 });

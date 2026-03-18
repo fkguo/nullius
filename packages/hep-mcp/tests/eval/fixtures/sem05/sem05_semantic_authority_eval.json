@@ -23,6 +23,138 @@
       "tags": ["paper", "keyword_authority", "ood"]
     },
     {
+      "id": "paper-review-metadata-remains-prior-only",
+      "input": {
+        "kind": "paper_classifier",
+        "paper": {
+          "publication_type": ["review"],
+          "document_type": ["article"]
+        }
+      },
+      "expected": {
+        "paper_type": "uncertain",
+        "review_decision": "uncertain",
+        "used_fallback": true,
+        "reason_code": "review_metadata_prior"
+      },
+      "tags": ["paper", "metadata_prior", "authority_cleanup"]
+    },
+    {
+      "id": "paper-conference-metadata-remains-prior-only",
+      "input": {
+        "kind": "paper_classifier",
+        "paper": {
+          "publication_type": ["conference paper"],
+          "document_type": ["article"]
+        }
+      },
+      "expected": {
+        "paper_type": "uncertain",
+        "conference_decision": "uncertain",
+        "conference_reason_code": "conference_metadata_prior",
+        "paper_type_used_fallback": true,
+        "paper_type_reason_code": "conference_metadata_prior"
+      },
+      "tags": ["paper", "conference_prior", "authority_cleanup"]
+    },
+    {
+      "id": "paper-thesis-metadata-remains-prior-only",
+      "input": {
+        "kind": "paper_classifier",
+        "paper": {
+          "publication_type": ["thesis"]
+        }
+      },
+      "expected": {
+        "paper_type": "uncertain",
+        "paper_type_used_fallback": true,
+        "paper_type_reason_code": "thesis_metadata_prior"
+      },
+      "tags": ["paper", "metadata_prior", "authority_cleanup"]
+    },
+    {
+      "id": "paper-lecture-metadata-remains-prior-only",
+      "input": {
+        "kind": "paper_classifier",
+        "paper": {
+          "publication_type": ["lecture notes"]
+        }
+      },
+      "expected": {
+        "paper_type": "uncertain",
+        "paper_type_used_fallback": true,
+        "paper_type_reason_code": "lecture_metadata_prior"
+      },
+      "tags": ["paper", "metadata_prior", "authority_cleanup"]
+    },
+    {
+      "id": "paper-article-metadata-remains-prior-only",
+      "input": {
+        "kind": "paper_classifier",
+        "paper": {
+          "publication_type": ["article"],
+          "document_type": ["article"]
+        }
+      },
+      "expected": {
+        "paper_type": "uncertain",
+        "paper_type_used_fallback": true,
+        "paper_type_reason_code": "article_metadata_prior"
+      },
+      "tags": ["paper", "metadata_prior", "authority_cleanup"]
+    },
+    {
+      "id": "content-theoretical-arxiv-remains-prior-only",
+      "input": {
+        "kind": "content_classifier",
+        "paper": {
+          "arxiv_categories": ["hep-th"],
+          "publication_type": [],
+          "document_type": []
+        }
+      },
+      "expected": {
+        "content_type": "uncertain",
+        "used_fallback": true,
+        "reason_code": "theoretical_arxiv_prior"
+      },
+      "tags": ["content", "arxiv_prior", "authority_cleanup"]
+    },
+    {
+      "id": "content-experimental-arxiv-remains-prior-only",
+      "input": {
+        "kind": "content_classifier",
+        "paper": {
+          "arxiv_categories": ["hep-ex"],
+          "publication_type": [],
+          "document_type": []
+        }
+      },
+      "expected": {
+        "content_type": "uncertain",
+        "used_fallback": true,
+        "reason_code": "experimental_arxiv_prior"
+      },
+      "tags": ["content", "arxiv_prior", "authority_cleanup"]
+    },
+    {
+      "id": "content-mixed-arxiv-remains-prior-only",
+      "input": {
+        "kind": "content_classifier",
+        "paper": {
+          "arxiv_categories": ["hep-lat"],
+          "publication_type": [],
+          "document_type": []
+        }
+      },
+      "expected": {
+        "content_type": "uncertain",
+        "used_fallback": true,
+        "reason_code": "mixed_arxiv_prior"
+      },
+      "tags": ["content", "arxiv_prior", "authority_cleanup"]
+    },
+    {
       "id": "critical-questions-fallback-does-not-emit-claimword-red-flag",
       "input": {
         "kind": "critical_questions",
@@ -36,6 +168,7 @@
         }
       },
       "expected": {
+        "paper_type": "uncertain",
         "reliability_score": null,
         "used_fallback": true,
         "reason_code": "sampling_unavailable",

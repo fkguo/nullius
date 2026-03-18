@@ -68,6 +68,7 @@ describe('fieldSurvey provenance conservatism', () => {
       focus: ['open_questions'],
     });
 
+    expect(traceToOriginal.traceToOriginal).not.toHaveBeenCalled();
     expect(result.citation_network.all_papers.some(paper => paper.recid === 'conf1')).toBe(true);
     expect(result.stats.conference_papers_traced).toBe(0);
   });
