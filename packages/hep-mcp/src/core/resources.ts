@@ -6,6 +6,7 @@ import { getProject, listProjects } from './projects.js';
 import { listRuns } from './runs.js';
 import { getProjectArtifactPath, getProjectPaperEvidenceCatalogPath, getRunArtifactPath, getRunManifestPath } from './paths.js';
 import { getPaper, listPapers } from './papers.js';
+import { makeHepRunManifestUri, makeHepRunsUri } from './runArtifactUri.js';
 
 
 export interface HepResource {
@@ -29,11 +30,11 @@ function paperUri(projectId: string, paperId: string): string {
 }
 
 function runManifestUri(runId: string): string {
-  return `hep://runs/${encodeURIComponent(runId)}/manifest`;
+  return makeHepRunManifestUri(runId);
 }
 
 function runsUri(): string {
-  return 'hep://runs';
+  return makeHepRunsUri();
 }
 
 function guessMimeType(fileName: string): string | undefined {

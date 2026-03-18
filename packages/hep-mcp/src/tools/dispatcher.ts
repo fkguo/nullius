@@ -34,6 +34,7 @@ import { getDataDir } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { writeRunJsonArtifact } from '../core/citations.js';
 import { getRun } from '../core/runs.js';
+import { makeHepRunManifestUri } from '../core/runArtifactUri.js';
 
 import { getToolSpec, isToolExposed, type ToolExposureMode } from './registry.js';
 import { recordToolUsage } from './utils/toolUsageTelemetry.js';
@@ -226,7 +227,7 @@ function maybeAttachSkillBridgeJobEnvelope(result: unknown): unknown {
 
   const manifestUri = typeof record.manifest_uri === 'string' && record.manifest_uri.trim().length > 0
     ? record.manifest_uri.trim()
-    : `hep://runs/${encodeURIComponent(runId)}/manifest`;
+    : makeHepRunManifestUri(runId);
 
   const job: SkillBridgeJobEnvelopeV1 = {
     version: 1,

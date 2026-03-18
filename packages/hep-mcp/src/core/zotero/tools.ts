@@ -16,6 +16,7 @@ import { writeRunJsonArtifact } from '../citations.js';
 import { cachedExternalApiJsonCall } from '../cache/externalApiCache.js';
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
+import { makeHepRunManifestUri } from '../runArtifactUri.js';
 
 import {
   zoteroGetJson,
@@ -254,7 +255,7 @@ export async function hepImportFromZotero(params: {
     return {
       run_id: runId,
       project_id: run.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(runId),
       artifacts,
       summary: {
         items_total: itemKeys.length,

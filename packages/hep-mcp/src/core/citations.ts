@@ -3,6 +3,7 @@ import type { CitekeyMapping } from '../tools/research/latex/citekeyMapper.js';
 import { getRunArtifactPath } from './paths.js';
 import type { RunArtifactRef } from './runs.js';
 import { atomicWriteFileSync } from './atomicWrite.js';
+import { createHepRunArtifactRef } from './runArtifactUri.js';
 
 export interface BibliographyRawArtifact {
   version: 1;
@@ -119,10 +120,5 @@ export function buildCitekeyToInspireStats(mappings: Record<string, CitekeyMappi
 export function writeRunJsonArtifact(runId: string, artifactName: string, data: unknown): RunArtifactRef {
   const artifactPath = getRunArtifactPath(runId, artifactName);
   atomicWriteFileSync(artifactPath, JSON.stringify(data, null, 2));
-  return {
-    name: artifactName,
-    uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`,
-    mimeType: 'application/json',
-  };
+  return createHepRunArtifactRef(runId, artifactName, 'application/json');
 }
-

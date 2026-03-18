@@ -15,6 +15,7 @@ import { createProject } from '../core/projects.js';
 import { createRun } from '../core/runs.js';
 import { getProjectDir } from '../core/paths.js';
 import { writeRunJsonArtifact } from '../core/citations.js';
+import { makeHepRunManifestUri } from '../core/runArtifactUri.js';
 import { HEP_PROJECT_BUILD_EVIDENCE, HEP_RUN_PLAN_COMPUTATION } from '../tool-names.js';
 import { type OutlineSeedV1, resolveHandoffPath } from './idea-staging.js';
 
@@ -132,7 +133,7 @@ export function createFromIdea(params: CreateFromIdeaParams): CreateFromIdeaResu
   return {
     run_id: runId,
     project_id: projectId,
-    manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+    manifest_uri: makeHepRunManifestUri(runId),
     outline_seed_uri: outlineSeedRef.uri,
     next_actions: [
       {

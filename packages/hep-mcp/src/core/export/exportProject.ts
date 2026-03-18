@@ -17,6 +17,7 @@ import { listPapers } from '../papers.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { resolvePathWithinParent } from '../../data/pathGuard.js';
 import { HEP_EXPORT_PROJECT, HEP_IMPORT_PAPER_BUNDLE, HEP_RUN_BUILD_CITATION_MAPPING } from '../../tool-names.js';
+import { createHepRunArtifactRef, makeHepRunManifestUri } from '../runArtifactUri.js';
 
 function pad3(n: number): string {
   return String(n).padStart(3, '0');
@@ -71,11 +72,7 @@ function writeRunTextArtifact(params: {
 }): RunArtifactRef {
   const artifactPath = getRunArtifactPath(params.runId, params.artifactName);
   fs.writeFileSync(artifactPath, params.content, 'utf-8');
-  return {
-    name: params.artifactName,
-    uri: `hep://runs/${encodeURIComponent(params.runId)}/artifact/${encodeURIComponent(params.artifactName)}`,
-    mimeType: params.mimeType,
-  };
+  return createHepRunArtifactRef(params.runId, params.artifactName, params.mimeType);
 }
 
 function writeRunBinaryArtifact(params: {
@@ -86,11 +83,7 @@ function writeRunBinaryArtifact(params: {
 }): RunArtifactRef {
   const artifactPath = getRunArtifactPath(params.runId, params.artifactName);
   fs.writeFileSync(artifactPath, Buffer.from(params.bytes));
-  return {
-    name: params.artifactName,
-    uri: `hep://runs/${encodeURIComponent(params.runId)}/artifact/${encodeURIComponent(params.artifactName)}`,
-    mimeType: params.mimeType,
-  };
+  return createHepRunArtifactRef(params.runId, params.artifactName, params.mimeType);
 }
 
 function computeRunStatus(manifest: RunManifest): RunManifest['status'] {
@@ -152,11 +145,7 @@ function buildManifestAfterStep(params: {
 }
 
 function makeRunArtifactRef(runId: string, artifactName: string, mimeType: string): RunArtifactRef {
-  return {
-    name: artifactName,
-    uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`,
-    mimeType,
-  };
+  return createHepRunArtifactRef(runId, artifactName, mimeType);
 }
 
 function latexToNotebookMarkdown(latex: string): string {
@@ -987,7 +976,7 @@ export async function exportProjectForRun(params: {
     return {
       run_id: runId,
       project_id: run.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(runId),
       artifacts,
       summary: {
         cite_keys: citeKeys.length,

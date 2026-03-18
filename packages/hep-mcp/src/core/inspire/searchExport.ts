@@ -7,6 +7,7 @@ import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
 import { cachedExternalApiJsonCall } from '../cache/externalApiCache.js';
+import { createHepRunArtifactRef, makeHepRunArtifactUri, makeHepRunManifestUri } from '../runArtifactUri.js';
 import { startRunStep, completeRunStep } from '../zotero/runSteps.js';
 
 type SearchExportFormatV1 = 'jsonl' | 'json';
@@ -42,10 +43,6 @@ function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
-function runArtifactUri(runId: string, artifactName: string): string {
-  return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
-}
-
 function makeArtifactNames(params: {
   query: string;
   sort?: string;
@@ -79,7 +76,7 @@ function preprocessQuery(query: string): string {
 }
 
 function artifactRef(runId: string, name: string, mimeType: string): RunArtifactRef {
-  return { name, uri: runArtifactUri(runId, name), mimeType };
+  return createHepRunArtifactRef(runId, name, mimeType);
 }
 
 type ExternalApiCallIndexItemV1 = {
@@ -179,8 +176,8 @@ export async function hepInspireSearchExport(params: {
     meta_artifact_name: params.meta_artifact_name,
   });
 
-  const exportUri = runArtifactUri(runId, exportName);
-  const metaUri = runArtifactUri(runId, metaName);
+  const exportUri = makeHepRunArtifactUri(runId, exportName);
+  const metaUri = makeHepRunArtifactUri(runId, metaName);
 
   let exported = 0;
   let pagesFetched = 0;
@@ -404,7 +401,7 @@ export async function hepInspireSearchExport(params: {
   return {
     run_id: runId,
     project_id: run.project_id,
-    manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+    manifest_uri: makeHepRunManifestUri(runId),
     artifacts,
     export_uri: exportRef.uri,
     meta_uri: metaRef.uri,

@@ -10,6 +10,7 @@ import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunM
 import { assertSafePathSegment, getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
+import { createHepRunArtifactRef, makeHepRunManifestUri } from '../runArtifactUri.js';
 import { HEP_RUN_BUILD_PDF_EVIDENCE } from '../../tool-names.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
 import { zoteroGetBinary } from '@autoresearch/zotero-mcp/shared/zotero';
@@ -371,11 +372,7 @@ function writeRunTextArtifact(params: {
 }): RunArtifactRef {
   const artifactPath = getRunArtifactPath(params.runId, params.artifactName);
   fs.writeFileSync(artifactPath, params.content, 'utf-8');
-  return {
-    name: params.artifactName,
-    uri: `hep://runs/${encodeURIComponent(params.runId)}/artifact/${encodeURIComponent(params.artifactName)}`,
-    mimeType: params.mimeType,
-  };
+  return createHepRunArtifactRef(params.runId, params.artifactName, params.mimeType);
 }
 
 function writeRunBinaryArtifact(params: {
@@ -386,11 +383,7 @@ function writeRunBinaryArtifact(params: {
 }): RunArtifactRef {
   const artifactPath = getRunArtifactPath(params.runId, params.artifactName);
   fs.writeFileSync(artifactPath, Buffer.from(params.bytes));
-  return {
-    name: params.artifactName,
-    uri: `hep://runs/${encodeURIComponent(params.runId)}/artifact/${encodeURIComponent(params.artifactName)}`,
-    mimeType: params.mimeType,
-  };
+  return createHepRunArtifactRef(params.runId, params.artifactName, params.mimeType);
 }
 
 function computeRunStatus(manifest: RunManifest): RunManifest['status'] {
@@ -915,7 +908,7 @@ export async function buildRunPdfEvidence(params: {
     return {
       run_id: runId,
       project_id: run.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(runId),
       artifacts,
       catalog_uri: catalogRef.uri,
       summary: {

@@ -3,6 +3,7 @@ import * as path from 'path';
 import { invalidParams, notFound } from '@autoresearch/shared';
 
 import { getRunArtifactPath } from './paths.js';
+import { makeHepRunArtifactUri } from './runArtifactUri.js';
 
 const MAX_CHUNK_BYTES = 64 * 1024;
 
@@ -88,7 +89,7 @@ export function readRunArtifactChunk(params: {
   return {
     run_id: params.run_id,
     artifact_name: params.artifact_name,
-    artifact_uri: `hep://runs/${encodeURIComponent(params.run_id)}/artifact/${encodeURIComponent(params.artifact_name)}`,
+    artifact_uri: makeHepRunArtifactUri(params.run_id, params.artifact_name),
     mimeType: guessMimeType(params.artifact_name),
     file_size: stat.size,
     offset,

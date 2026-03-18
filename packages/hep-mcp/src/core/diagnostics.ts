@@ -2,6 +2,7 @@ import * as fs from 'fs';
 
 import type { RunArtifactRef } from './runs.js';
 import { getProjectArtifactPath, getRunArtifactPath } from './paths.js';
+import { makeHepRunArtifactUri } from './runArtifactUri.js';
 
 export type BudgetDimensionV1 = 'breadth' | 'depth' | 'budget';
 export type BudgetSourceKindV1 = 'tool_args' | 'env' | 'default';
@@ -201,7 +202,7 @@ export function writeRunStepDiagnosticsArtifact(params: {
   const runArtifactName = suffix;
   const projectArtifactName = `run_${params.run_id}_${suffix}`;
 
-  const runUri = `hep://runs/${encodeURIComponent(params.run_id)}/artifact/${encodeURIComponent(runArtifactName)}`;
+  const runUri = makeHepRunArtifactUri(params.run_id, runArtifactName);
   const projectUri = `hep://projects/${encodeURIComponent(params.project_id)}/artifact/${encodeURIComponent(projectArtifactName)}`;
 
   const payload: RunStepDiagnosticsArtifactV1 = {

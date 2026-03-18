@@ -14,6 +14,7 @@ import { newRunId } from './ids.js';
 import { getRunArtifactsDir, getRunArtifactPath, getRunDir, getRunManifestPath, getRunsDir } from './paths.js';
 import { getProject, updateProjectUpdatedAt } from './projects.js';
 import { writeRunJsonArtifact } from './citations.js';
+import { createHepRunArtifactRef, makeHepRunManifestUri } from './runArtifactUri.js';
 
 // Re-export from shared (H-03, H-18) so existing consumers don't need import changes
 export type { RunArtifactRef, RunState, RunStepState };
@@ -59,7 +60,7 @@ export function getRun(runId: string): RunManifest {
     });
     throw invalidParams('Malformed run manifest JSON (fail-fast)', {
       run_id: runId,
-      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(runId),
       parse_error_uri: parseErrRef.uri,
       parse_error_artifact: parseErrRef.name,
       next_actions: [
@@ -369,7 +370,7 @@ export async function updateRunManifestAtomic(params: {
       });
       throw invalidParams('Malformed run manifest JSON (fail-fast)', {
         run_id: runId,
-        manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+        manifest_uri: makeHepRunManifestUri(runId),
         parse_error_uri: parseErrRef.uri,
         parse_error_artifact: parseErrRef.name,
         next_actions: [
@@ -483,11 +484,7 @@ export function createRun(params: {
     'utf-8'
   );
 
-  const argsArtifactRef: RunArtifactRef = {
-    name: argsArtifactName,
-    uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(argsArtifactName)}`,
-    mimeType: 'application/json',
-  };
+  const argsArtifactRef: RunArtifactRef = createHepRunArtifactRef(runId, argsArtifactName, 'application/json');
   artifacts.push(argsArtifactRef);
 
   // Minimal manifest with step-level records

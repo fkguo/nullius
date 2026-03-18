@@ -7,6 +7,7 @@ import { getRun } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
+import { createHepRunArtifactRef, makeHepRunArtifactUri, makeHepRunManifestUri } from '../runArtifactUri.js';
 import { startRunStep, completeRunStep } from '../zotero/runSteps.js';
 import { canonicalizeUnit, detectUnitCategory } from '../../tools/research/config.js';
 import type { LatexLocatorV1 } from '../evidence.js';
@@ -92,10 +93,6 @@ function nowIso(): string {
 
 function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');
-}
-
-function runArtifactUri(runId: string, artifactName: string): string {
-  return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
 }
 
 function cleanLatexForUnitScan(input: string): string {
@@ -671,12 +668,8 @@ export async function buildRunMeasurements(params: {
     budget.warn({ severity: 'warning', code: 'unknown_unit', message: msg });
   }
 
-  const measurementsUri = runArtifactUri(runId, measurementsName);
-  const measurementsRef: RunArtifactRef = {
-    name: measurementsName,
-    uri: measurementsUri,
-    mimeType: 'application/x-ndjson',
-  };
+  const measurementsUri = makeHepRunArtifactUri(runId, measurementsName);
+  const measurementsRef: RunArtifactRef = createHepRunArtifactRef(runId, measurementsName, 'application/x-ndjson');
   artifacts.push(measurementsRef);
 
   const diag = writeRunStepDiagnosticsArtifact({
@@ -711,7 +704,7 @@ export async function buildRunMeasurements(params: {
     warnings,
     artifacts: {
       measurements_uri: measurementsUri,
-      meta_uri: runArtifactUri(runId, metaName),
+      meta_uri: makeHepRunArtifactUri(runId, metaName),
       diagnostics_uri: diag.run.uri,
     },
   };
@@ -732,7 +725,7 @@ export async function buildRunMeasurements(params: {
   return {
     run_id: runId,
     project_id: run.project_id,
-    manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+    manifest_uri: makeHepRunManifestUri(runId),
     artifacts,
     measurements_uri: measurementsUri,
     meta_uri: metaRef.uri,

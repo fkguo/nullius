@@ -8,6 +8,7 @@ import { HEP_RUN_BUILD_WRITING_EVIDENCE } from '../../tool-names.js';
 import { buildProjectEvidenceCatalog, type EvidenceCatalogItemV1, type EvidenceType } from '../evidence.js';
 import { buildRunPdfEvidence, type PdfEvidenceCatalogItemV1, type PdfEvidenceType, type PdfExtractMode } from '../pdf/evidence.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
+import { createHepRunArtifactRef, makeHepRunManifestUri } from '../runArtifactUri.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
 
 function nowIso(): string {
@@ -98,11 +99,7 @@ function writeRunTextArtifact(params: {
 }): RunArtifactRef {
   const artifactPath = getRunArtifactPath(params.runId, params.artifactName);
   fs.writeFileSync(artifactPath, params.content, 'utf-8');
-  return {
-    name: params.artifactName,
-    uri: `hep://runs/${encodeURIComponent(params.runId)}/artifact/${encodeURIComponent(params.artifactName)}`,
-    mimeType: params.mimeType,
-  };
+  return createHepRunArtifactRef(params.runId, params.artifactName, params.mimeType);
 }
 
 function normalizeText(text: string): string {
@@ -863,7 +860,7 @@ export async function buildRunWritingEvidence(params: {
     return {
       run_id: runId,
       project_id: run.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(runId),
       artifacts,
       summary: {
         bridge_sources: bridgeSummaries.length,

@@ -8,6 +8,12 @@ import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunM
 import { assertSafePathSegment, getRunArtifactPath, getRunArtifactsDir, getRunDir } from '../paths.js';
 import { resolvePathWithinParent } from '../../data/pathGuard.js';
 import { HEP_EXPORT_PAPER_SCAFFOLD, HEP_RUN_BUILD_CITATION_MAPPING, HEP_RUN_STAGE_CONTENT } from '../../tool-names.js';
+import {
+  createHepRunArtifactRef,
+  makeHepRunArtifactUri,
+  makeHepRunManifestUri,
+  parseHepRunArtifactUri,
+} from '../runArtifactUri.js';
 
 function pad3(n: number): string {
   return String(n).padStart(3, '0');
@@ -39,12 +45,8 @@ function mergeArtifactRefs(existing: RunStep['artifacts'] | undefined, added: Ru
   return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function runArtifactUri(runId: string, artifactName: string): string {
-  return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
-}
-
 function makeRunArtifactRef(runId: string, artifactName: string, mimeType: string): RunArtifactRef {
-  return { name: artifactName, uri: runArtifactUri(runId, artifactName), mimeType };
+  return createHepRunArtifactRef(runId, artifactName, mimeType);
 }
 
 function writeRunTextArtifact(params: { run_id: string; artifact_name: string; content: string; mimeType: string }): RunArtifactRef {
@@ -294,19 +296,6 @@ function failIfContainsHepUri(text: string, what: string, runId: string): void {
   }
 }
 
-function parseRunArtifactUri(uri: string): { run_id: string; artifact_name: string } | null {
-  const raw = String(uri ?? '').trim();
-  const m = raw.match(/^hep:\/\/runs\/([^/]+)\/artifact\/(.+)$/);
-  if (!m) return null;
-  try {
-    const runId = decodeURIComponent(m[1] ?? '');
-    const artifactName = decodeURIComponent(m[2] ?? '');
-    return { run_id: runId, artifact_name: artifactName };
-  } catch {
-    return null;
-  }
-}
-
 function rewriteIncludeGraphicsAndMaterialize(params: {
   latex: string;
   run_id: string;
@@ -338,7 +327,10 @@ function rewriteIncludeGraphicsAndMaterialize(params: {
     let sourceUri: string | null = null;
     let sourcePath: string | null = null;
 
-    const parsed = rawPath.startsWith('hep://') ? parseRunArtifactUri(rawPath) : null;
+    const parsedUri = rawPath.startsWith('hep://') ? parseHepRunArtifactUri(rawPath) : null;
+    const parsed = parsedUri
+      ? { run_id: parsedUri.runId, artifact_name: parsedUri.artifactName }
+      : null;
     if (parsed) {
       if (parsed.run_id !== runId) {
         throw invalidParams('includegraphics hep:// URI must refer to the same run_id (fail-fast)', {
@@ -363,7 +355,7 @@ function rewriteIncludeGraphicsAndMaterialize(params: {
       if (!base) continue;
       assertSafePathSegment(base, 'includegraphics file');
       artifactName = base;
-      sourceUri = runArtifactUri(runId, artifactName);
+      sourceUri = makeHepRunArtifactUri(runId, artifactName);
       sourcePath = resolvePathWithinParent(runArtifactsDir, path.join(runArtifactsDir, artifactName), 'includegraphics source');
       if (!fs.existsSync(sourcePath)) {
         throw invalidParams('includegraphics references a file that is not available as a run artifact (fail-fast)', {
@@ -387,7 +379,7 @@ function rewriteIncludeGraphicsAndMaterialize(params: {
       id: artifactName,
       kind: 'figure',
       localPath,
-      sourceUri: sourceUri ?? runArtifactUri(runId, artifactName),
+      sourceUri: sourceUri ?? makeHepRunArtifactUri(runId, artifactName),
       sha256: sha256FileSync(dst),
     });
 
@@ -753,7 +745,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
       generator: { name: HEP_EXPORT_PAPER_SCAFFOLD },
       source: {
         hepRunId: runId,
-        hepRunUri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+        hepRunUri: makeHepRunManifestUri(runId),
         projectId: run.project_id,
       },
       version: version ?? 1,
@@ -841,7 +833,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
     return {
       run_id: runId,
       project_id: run.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(runId),
       artifacts,
       summary: {
         paper_dir: paperDir,

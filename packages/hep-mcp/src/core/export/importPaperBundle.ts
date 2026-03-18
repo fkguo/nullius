@@ -8,6 +8,7 @@ import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunM
 import { assertSafePathSegment, getRunArtifactPath, getRunDir } from '../paths.js';
 import { isPathInside, resolvePathWithinParent } from '../../data/pathGuard.js';
 import { HEP_EXPORT_PAPER_SCAFFOLD, HEP_IMPORT_PAPER_BUNDLE } from '../../tool-names.js';
+import { createHepRunArtifactRef, makeHepRunManifestUri } from '../runArtifactUri.js';
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -80,11 +81,7 @@ function buildManifestAfterStep(params: {
 }
 
 function makeRunArtifactRef(runId: string, artifactName: string, mimeType: string): RunArtifactRef {
-  return {
-    name: artifactName,
-    uri: `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`,
-    mimeType,
-  };
+  return createHepRunArtifactRef(runId, artifactName, mimeType);
 }
 
 function writeRunTextArtifact(params: { run_id: string; artifact_name: string; content: string; mimeType: string }): RunArtifactRef {
@@ -367,7 +364,7 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
       importer: { name: HEP_IMPORT_PAPER_BUNDLE },
       source: {
         hepRunId: runId,
-        hepRunUri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+        hepRunUri: makeHepRunManifestUri(runId),
         projectId: run.project_id,
         paperDir,
         paperManifest: { schemaVersion, mainTex: mainTexRel },
@@ -436,7 +433,7 @@ export async function importPaperBundleForRun(params: ImportPaperBundleParams): 
     return {
       run_id: runId,
       project_id: run.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(runId),
       artifacts,
       summary: {
         paper_dir: paperDir,

@@ -7,6 +7,7 @@ import { getRunArtifactPath } from './paths.js';
 import { writeRunJsonArtifact } from './citations.js';
 import { HEP_PROJECT_QUERY_EVIDENCE, HEP_RUN_BUILD_WRITING_EVIDENCE } from '../tool-names.js';
 import { queryProjectEvidence, type EvidenceType, type QueryEvidenceHit, type QueryEvidenceResult } from './evidence.js';
+import { makeHepRunManifestUri } from './runArtifactUri.js';
 import { buildRetrievalSubstrateSnapshot } from './evidenceRetrievalSubstrate.js';
 import { buildEvidenceLocalization, type LocalizationCandidate, type LocalizationCatalogItem } from './evidence-localization/localize.js';
 import { applyMultimodalFusion } from './evidence-multimodal/fusion.js';
@@ -374,7 +375,7 @@ export async function queryProjectEvidenceSemantic(params: {
     return {
       run_id: params.run_id,
       project_id: params.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(params.run_id)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(params.run_id),
       artifacts: [artifact],
       summary: {
         total_hits: result.total_hits,
@@ -591,7 +592,7 @@ export async function queryProjectEvidenceSemantic(params: {
   return {
     run_id: params.run_id,
     project_id: params.project_id,
-    manifest_uri: `hep://runs/${encodeURIComponent(params.run_id)}/manifest`,
+    manifest_uri: makeHepRunManifestUri(params.run_id),
     artifacts: [artifact],
     summary: {
       total_hits: result.total_hits,

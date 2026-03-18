@@ -34,6 +34,7 @@ import { hepInspireSearchExport } from '../../core/inspire/searchExport.js';
 import { hepInspireResolveIdentifiers } from '../../core/inspire/resolveIdentifiers.js';
 import { buildRunMeasurements } from '../../core/hep/measurements.js';
 import { compareProjectMeasurements } from '../../core/hep/compareMeasurements.js';
+import { makeHepRunManifestUri } from '../../core/runArtifactUri.js';
 import { getHepHealth } from '../utils/health.js';
 import type { ToolSpec } from './types.js';
 import {
@@ -218,7 +219,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       return {
         run_id: manifest.run_id,
         project_id: manifest.project_id,
-        manifest_uri: `hep://runs/${encodeURIComponent(manifest.run_id)}/manifest`,
+        manifest_uri: makeHepRunManifestUri(manifest.run_id),
         artifacts,
         summary: {
           status: manifest.status,

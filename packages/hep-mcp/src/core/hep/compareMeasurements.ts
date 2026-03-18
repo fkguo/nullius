@@ -7,6 +7,7 @@ import { getRun } from '../runs.js';
 import { getRunArtifactPath, getRunArtifactsDir } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
+import { makeHepRunManifestUri } from '../runArtifactUri.js';
 import { startRunStep, completeRunStep } from '../zotero/runSteps.js';
 import { HEP_PROJECT_QUERY_EVIDENCE, HEP_RUN_BUILD_MEASUREMENTS } from '../../tool-names.js';
 import { canonicalizeUnit } from '../../tools/research/config.js';
@@ -741,7 +742,7 @@ export async function compareProjectMeasurements(params: {
     return {
       run_id: runId,
       project_id: outputRun.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(runId),
       artifacts,
       compare_uri: compareRef.uri,
       summary: {

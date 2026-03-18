@@ -1,6 +1,7 @@
 import { invalidParams } from '@autoresearch/shared';
 import { getRun, updateRunManifestAtomic, type RunArtifactRef, type RunManifest } from '../../core/runs.js';
 import { buildAllowedCitationsArtifact, buildCitekeyToInspireStats, writeRunJsonArtifact } from '../../core/citations.js';
+import { makeHepRunManifestUri } from '../../core/runArtifactUri.js';
 import { HEP_RUN_BUILD_CITATION_MAPPING } from '../../tool-names.js';
 import type { ToolSpec } from './types.js';
 import { HepRunBuildCitationMappingToolSchema } from './projectSchemas.js';
@@ -117,7 +118,7 @@ export const RAW_PROJECT_CITATION_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         return {
           run_id: params.run_id,
           project_id: run.project_id,
-          manifest_uri: `hep://runs/${encodeURIComponent(params.run_id)}/manifest`,
+          manifest_uri: makeHepRunManifestUri(params.run_id),
           artifacts,
           summary: {
             bibliography_entries: bib.total,

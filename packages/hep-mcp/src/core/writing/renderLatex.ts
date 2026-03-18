@@ -5,7 +5,7 @@ import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunM
 import { getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { HEP_RENDER_LATEX } from '../../tool-names.js';
-import { createHepRunArtifactRef } from '../runArtifactUri.js';
+import { createHepRunArtifactRef, makeHepRunManifestUri } from '../runArtifactUri.js';
 
 import type { SentenceAttribution, SentenceType } from './writingTypes.js';
 
@@ -312,7 +312,7 @@ export async function renderLatexForRun(params: {
     return {
       run_id: params.run_id,
       project_id: run.project_id,
-      manifest_uri: `hep://runs/${encodeURIComponent(params.run_id)}/manifest`,
+      manifest_uri: makeHepRunManifestUri(params.run_id),
       artifacts,
       summary: {
         sentences: rendered.attributions.length,

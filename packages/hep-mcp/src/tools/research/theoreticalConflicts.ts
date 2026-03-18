@@ -13,6 +13,7 @@ import * as api from '../../api/client.js';
 import { writeRunJsonArtifact } from '../../core/citations.js';
 import { getRunArtifactPath } from '../../core/paths.js';
 import { getRun, type RunArtifactRef } from '../../core/runs.js';
+import { createHepRunArtifactRef, makeHepRunArtifactUri, makeHepRunManifestUri } from '../../core/runArtifactUri.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import {
@@ -219,10 +220,6 @@ function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
-function runArtifactUri(runId: string, artifactName: string): string {
-  return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
-}
-
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0;
   if (n < 0) return 0;
@@ -234,7 +231,7 @@ function writeRunJsonlArtifact(runId: string, artifactName: string, rows: unknow
   const p = getRunArtifactPath(runId, artifactName);
   const lines = rows.map(r => JSON.stringify(r));
   fs.writeFileSync(p, `${lines.join('\n')}\n`, 'utf-8');
-  return { name: artifactName, uri: runArtifactUri(runId, artifactName), mimeType: 'application/x-ndjson' };
+  return createHepRunArtifactRef(runId, artifactName, 'application/x-ndjson');
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -1128,15 +1125,15 @@ export async function performTheoreticalConflicts(params: {
       llm_responses_failed: responsesJsonl.filter(r => r.ok === false).length,
     },
     artifacts: {
-      meta_uri: runArtifactUri(params.run_id, 'theoretical_meta_v1.json'),
-      source_status_uri: runArtifactUri(params.run_id, 'theoretical_source_status_v1.json'),
-      claim_candidates_uri: runArtifactUri(params.run_id, 'theoretical_claim_candidates.jsonl'),
-      claims_normalized_uri: runArtifactUri(params.run_id, 'theoretical_claims_normalized.jsonl'),
-      conflict_candidates_uri: runArtifactUri(params.run_id, 'theoretical_conflict_candidates.jsonl'),
-      llm_requests_uri: runArtifactUri(params.run_id, 'theoretical_llm_requests.jsonl'),
-      llm_responses_uri: responsesJsonl.length > 0 ? runArtifactUri(params.run_id, 'theoretical_llm_responses.jsonl') : null,
-      debate_map_uri: runArtifactUri(params.run_id, 'theoretical_debate_map_v1.json'),
-      conflicts_uri: runArtifactUri(params.run_id, 'theoretical_conflicts_v1.json'),
+      meta_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_meta_v1.json'),
+      source_status_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_source_status_v1.json'),
+      claim_candidates_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_claim_candidates.jsonl'),
+      claims_normalized_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_claims_normalized.jsonl'),
+      conflict_candidates_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_conflict_candidates.jsonl'),
+      llm_requests_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_llm_requests.jsonl'),
+      llm_responses_uri: responsesJsonl.length > 0 ? makeHepRunArtifactUri(params.run_id, 'theoretical_llm_responses.jsonl') : null,
+      debate_map_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_debate_map_v1.json'),
+      conflicts_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_conflicts_v1.json'),
     },
     warnings,
   };
@@ -1172,7 +1169,7 @@ export async function performTheoreticalConflicts(params: {
   return {
     run_id: params.run_id,
     project_id: run.project_id,
-    manifest_uri: `hep://runs/${encodeURIComponent(params.run_id)}/manifest`,
+    manifest_uri: makeHepRunManifestUri(params.run_id),
     artifacts,
     summary: conflictsPayload.summary,
     next_actions: nextActions.length > 0 ? nextActions : undefined,

@@ -12,6 +12,7 @@ import { writeRunJsonArtifact } from '../citations.js';
 import { getRun, type RunArtifactRef } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
 import { cachedExternalApiJsonCall } from '../cache/externalApiCache.js';
+import { makeHepRunArtifactUri, makeHepRunManifestUri } from '../runArtifactUri.js';
 import { startRunStep, completeRunStep } from '../zotero/runSteps.js';
 
 export type ResolveStatusV1 = 'matched' | 'not_found' | 'error';
@@ -63,10 +64,6 @@ function isLikelyArxivId(input: string): boolean {
     /^\d{4}\.\d{4,5}(v\d+)?$/i.test(trimmed)
     || /^[a-z-]+\/\d{7}(v\d+)?$/i.test(trimmed)
   );
-}
-
-function runArtifactUri(runId: string, artifactName: string): string {
-  return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
 }
 
 function makeArtifactNames(params: {
@@ -176,8 +173,8 @@ export async function hepInspireResolveIdentifiers(params: {
     meta_artifact_name: params.meta_artifact_name,
   });
 
-  const mappingUri = runArtifactUri(runId, mappingName);
-  const metaUri = runArtifactUri(runId, metaName);
+  const mappingUri = makeHepRunArtifactUri(runId, mappingName);
+  const metaUri = makeHepRunArtifactUri(runId, metaName);
 
   const { stepIndex, step } = await startRunStep(runId, 'inspire_resolve_identifiers');
 
@@ -377,7 +374,7 @@ export async function hepInspireResolveIdentifiers(params: {
   return {
     run_id: runId,
     project_id: run.project_id,
-    manifest_uri: `hep://runs/${encodeURIComponent(runId)}/manifest`,
+    manifest_uri: makeHepRunManifestUri(runId),
     artifacts,
     mapping_uri: mappingUri,
     meta_uri: metaRef.uri,

@@ -11,6 +11,14 @@ import { assertSafePathSegment } from './paths.js';
 
 const HEP_RUN_URI_EXPECTATION = { scheme: 'hep', scope: 'runs' } as const;
 
+export function makeHepRunsUri(): string {
+  return `${HEP_RUN_URI_EXPECTATION.scheme}://${HEP_RUN_URI_EXPECTATION.scope}`;
+}
+
+export function makeHepRunManifestUri(runId: string): string {
+  return `${makeHepRunsUri()}/${encodeURIComponent(runId)}/manifest`;
+}
+
 export function makeHepRunArtifactUri(runId: string, artifactName: string): string {
   return makeScopedArtifactUri({
     scheme: HEP_RUN_URI_EXPECTATION.scheme,
