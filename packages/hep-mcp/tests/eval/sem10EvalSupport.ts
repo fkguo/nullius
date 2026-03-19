@@ -72,6 +72,9 @@ function pairwiseF1(assignments: Record<string, string>): Set<string> {
 function f1(expected: Record<string, string>, actual: Record<string, string>): number {
   const expectedPairs = pairwiseF1(expected);
   const actualPairs = pairwiseF1(actual);
+  if (expectedPairs.size === 0 && actualPairs.size === 0) {
+    return exactAccuracy(expected, actual);
+  }
   const truePositives = [...actualPairs].filter(pair =>
     expectedPairs.has(pair),
   ).length;

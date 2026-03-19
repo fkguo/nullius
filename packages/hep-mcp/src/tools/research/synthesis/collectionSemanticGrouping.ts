@@ -27,6 +27,9 @@ type HintScore = { label: string; score: number };
 type PaperProfile = { paper: GroupingPaper; topTerms: string[]; bestHint?: HintScore; secondHint?: HintScore; hasCombinationMarker: boolean; };
 
 const SOURCE_WEIGHTS = { title: 3, abstract: 2, keywords: 2, methodology: 3, conclusions: 1 } as const;
+const TOPIC_HINT_SCORE_MIN = 2;
+const METHOD_HINT_SCORE_MIN = 3;
+const MIXED_METHOD_SECONDARY_RATIO = 0.5;
 
 function normalize(text: string): string {
   return ` ${text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()} `;
@@ -93,13 +96,14 @@ function overlap(left: string[], right: string[]): number {
 function selectClusterLabel(profile: PaperProfile, profiles: PaperProfile[], focus: GroupingFocus): GroupingAssignmentDetail {
   const openEvidence = profile.topTerms.slice(0, 3);
   const openPeers = profiles.filter(other => overlap(profile.topTerms, other.topTerms) >= 2);
-  if (focus === 'method' && profile.hasCombinationMarker && profile.bestHint && profile.secondHint && profile.secondHint.score >= profile.bestHint.score * 0.6) {
+  if (focus === 'method' && profile.hasCombinationMarker && profile.bestHint && profile.secondHint && profile.secondHint.score >= profile.bestHint.score * MIXED_METHOD_SECONDARY_RATIO) {
     return { label: 'mixed_methods', provenance: { mode: 'heuristic_fallback', used_fallback: true, reason_code: 'combined_method_signals', confidence: 0.7, evidence: openEvidence, canonical_hint: 'mixed_methods' } };
   }
   if (openEvidence.length >= 2 && (openPeers.length >= 2 || !profile.bestHint)) {
     return { label: openEvidence.slice(0, 3).join('_'), provenance: { mode: 'open_cluster', used_fallback: false, reason_code: openPeers.length >= 2 ? 'shared_top_terms' : 'single_paper_top_terms', confidence: openPeers.length >= 2 ? 0.75 : 0.55, evidence: openEvidence } };
   }
-  if (profile.bestHint && profile.bestHint.score >= 3) {
+  const hintScoreMin = focus === 'topic' ? TOPIC_HINT_SCORE_MIN : METHOD_HINT_SCORE_MIN;
+  if (profile.bestHint && profile.bestHint.score >= hintScoreMin) {
     return { label: profile.bestHint.label, provenance: { mode: 'heuristic_fallback', used_fallback: true, reason_code: 'fallback_alias_hint', confidence: Math.min(0.4 + profile.bestHint.score / 10, 0.85), evidence: openEvidence, canonical_hint: profile.bestHint.label } };
   }
   return { label: 'uncertain', provenance: { mode: 'uncertain', used_fallback: true, reason_code: openEvidence.length > 0 ? 'insufficient_shared_signal' : 'no_semantic_signal', confidence: 0, evidence: openEvidence } };

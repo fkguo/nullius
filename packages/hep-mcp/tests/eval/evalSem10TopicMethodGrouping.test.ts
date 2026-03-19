@@ -14,6 +14,35 @@ import {
 } from './sem10EvalSupport.js';
 
 describe('eval: SEM-10 topic/method grouping', () => {
+  it('treats exact singleton clustering matches as full-credit membership alignment', () => {
+    const expected: Sem10Expected = {
+      topic_clusters: [['a'], ['b']],
+      method_clusters: [['a'], ['b'], ['c']],
+    };
+    const normalized = normalizeExpected(expected);
+    const aggregate = aggregateSem10([
+      {
+        id: 'singleton_exact_match',
+        tags: [],
+        input: { papers: [] },
+        expected,
+        actual: {
+          ...normalized,
+          fallback_rate: 0,
+          permutation_stability: 1,
+          public_keyword_leak_rate: 0,
+          public_label_leak_rate: 0,
+        },
+        passed: true,
+        metrics: { passed: 1 },
+      },
+    ]);
+
+    expect(aggregate.topic_pairwise_f1).toBe(1);
+    expect(aggregate.method_pairwise_f1).toBe(1);
+    expect(aggregate.grouping_f1_overall).toBe(1);
+  });
+
   it('locks grouping quality to membership plus public-keyword anti-leak checks', async () => {
     const evalSet = readEvalSetFixture('sem10/sem10_topic_method_grouping_eval.json');
     const lockedBaseline = loadBaseline(evalSet.name, BASELINES_DIR);

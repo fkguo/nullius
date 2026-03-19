@@ -63,4 +63,34 @@ describe('groupCollectionSemantics', () => {
     expect(mixedMethodGroup?.keywords).not.toContain('mixed_methods');
     expect(mixedMethodGroup?.keywords).not.toContain('heuristic_fallback');
   });
+
+  it('keeps cross-topic and mixed-method membership aligned for the SEM-10 holdout bridge paper', () => {
+    const grouping = groupCollectionSemantics([
+      {
+        recid: 'h4',
+        title: 'Global SMEFT fits to flavor anomalies',
+        abstract: 'Rare B-decay anomalies are interpreted in an operator language.',
+        methodology: 'A global effective theory fit is used.',
+      },
+      {
+        recid: 'h5',
+        title: 'Lattice form factors for rare semileptonic decays',
+        abstract: 'Hadronic form factors are computed nonperturbatively.',
+        methodology: 'A lattice Monte Carlo calculation is presented.',
+      },
+      {
+        recid: 'h6',
+        title: 'Lattice-assisted effective-theory constraints',
+        abstract: 'Rare-decay form factors feed into operator analyses.',
+        methodology: 'Lattice inputs are matched onto an effective theory fit.',
+      },
+    ]);
+
+    expect(grouping.topic_assignments['h4']).toBe(grouping.topic_assignments['h6']);
+    expect(grouping.topic_assignments['h4']).not.toBe(grouping.topic_assignments['h5']);
+    expect(grouping.method_assignments['h4']).not.toBe(grouping.method_assignments['h6']);
+    expect(grouping.method_assignments['h5']).not.toBe(grouping.method_assignments['h6']);
+    expect(grouping.method_assignment_details['h6'].provenance.canonical_hint).toBe('mixed_methods');
+    expect(grouping.method_assignment_details['h6'].provenance.reason_code).toBe('combined_method_signals');
+  });
 });

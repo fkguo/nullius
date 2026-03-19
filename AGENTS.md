@@ -247,13 +247,13 @@ Agent 在代码审查和自检时必须检测以下反模式：
 > **Stable memory**: `.serena/memories/architecture-decisions.md`（仅记录跨会话、可复用的稳定架构决策）
 
 - 本节只保留 tracker 对齐的摘要；item 级 closeout 叙事、review 轮次、精确验收命令、commit/PR 号、以及工具故障流水一律回到 tracker note 与相关 checked-in prompt/docs。
+- 本节唯一允许的状态信息是 phase 级完成度数字与全局 blocker 摘要；禁止新增或保留任何 item-specific bullet、item id、reopened/done/blocked/follow-up 叙事、review/self-review/validation/tool-failure 信息。
 - Phase 0: 14/14 完成
 - Phase 1: 22/23 完成
 - Phase 2: 38/49 完成
 - Phase 3: 36/50 完成
 - Phase 4: 0/8 完成，blocked by earlier phases
 - Phase 5: 3/22 完成，blocked by earlier phases
-- `Phase 1` 当前唯一非 `done` 条目是 tracker 中记录为条件性 `cut` 的 `NEW-R09`；其余 item-level 状态以 tracker 为准，不在本文件重复维护 narrative truth。
 - 当前已锁定的高层边界与长期决策，应分别查看：
   - 根治理 / 硬门禁：本文件其余章节
   - 稳定架构决策：`.serena/memories/architecture-decisions.md`
@@ -294,7 +294,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-new-sem05-rereview** (8486 symbols, 22877 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-new-sem05-rereview** (8491 symbols, 22878 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
