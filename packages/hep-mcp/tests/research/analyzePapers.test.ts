@@ -61,8 +61,12 @@ describe('Research Tools', () => {
 
       expect(result.topics).toHaveLength(2);
       expect(result.topics?.map(group => group.paper_count).sort((a, b) => b - a)).toEqual([2, 1]);
-      expect(result.topics?.some(group => group.keywords[0] === 'heavy_neutral_lepton')).toBe(true);
-      expect(result.topics?.some(group => group.keywords[0] === 'exotic_hadron_spectroscopy')).toBe(true);
+      expect(result.topics?.every(group => group.keywords.length > 0)).toBe(true);
+      expect(result.topics?.some(group => group.representative_papers.includes('1') && group.representative_papers.includes('2'))).toBe(true);
+      expect(result.topics?.some(group => group.representative_papers.includes('3'))).toBe(true);
+      const flattenedKeywords = result.topics?.flatMap(group => group.keywords) ?? [];
+      expect(flattenedKeywords).not.toContain('heavy_neutral_lepton');
+      expect(flattenedKeywords).not.toContain('exotic_hadron_spectroscopy');
     });
   });
 });

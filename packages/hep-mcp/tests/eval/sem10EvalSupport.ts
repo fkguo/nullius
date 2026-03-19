@@ -15,6 +15,7 @@ export type Sem10Actual = {
   fallback_rate: number;
   permutation_stability: number;
   public_keyword_leak_rate: number;
+  public_label_leak_rate: number;
 };
 
 const PUBLIC_AUTHORITY_LABELS = new Set([
@@ -111,6 +112,22 @@ function publicKeywordLeakRate(result: CollectionSemanticGrouping): number {
   return leaking / groups.length;
 }
 
+function publicLabelLeakRate(result: CollectionSemanticGrouping): number {
+  const labels = [
+    ...result.topic_groups.map(group => group.label),
+    ...result.method_groups.map(group => group.label),
+    ...Object.values(result.topic_assignments),
+    ...Object.values(result.method_assignments),
+    ...Object.values(result.topic_assignment_details).map(detail => detail.label),
+    ...Object.values(result.method_assignment_details).map(detail => detail.label),
+  ];
+  if (labels.length === 0) return 0;
+  const leaking = labels.filter(label =>
+    PUBLIC_AUTHORITY_LABELS.has(canonicalText(label)),
+  ).length;
+  return leaking / labels.length;
+}
+
 export function normalizeGrouping(result: CollectionSemanticGrouping): Sem10Actual {
   return {
     topic_assignments: normalizeActualAssignments(result.topic_assignments),
@@ -118,6 +135,7 @@ export function normalizeGrouping(result: CollectionSemanticGrouping): Sem10Actu
     fallback_rate: (result.topic_fallback_rate + result.method_fallback_rate) / 2,
     permutation_stability: 1,
     public_keyword_leak_rate: publicKeywordLeakRate(result),
+    public_label_leak_rate: publicLabelLeakRate(result),
   };
 }
 
@@ -161,6 +179,10 @@ export function aggregateSem10(results: Array<EvalResult<Sem10Actual>>) {
     ) / Math.max(results.length, 1),
     public_keyword_leak_rate: results.reduce(
       (sum, result) => sum + result.actual.public_keyword_leak_rate,
+      0,
+    ) / Math.max(results.length, 1),
+    public_label_leak_rate: results.reduce(
+      (sum, result) => sum + result.actual.public_label_leak_rate,
       0,
     ) / Math.max(results.length, 1),
   };

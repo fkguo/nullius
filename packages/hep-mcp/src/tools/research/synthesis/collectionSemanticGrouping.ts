@@ -19,8 +19,6 @@ import {
 export interface GroupingPaper { recid: string; title: string; abstract?: string; keywords?: string[]; methodology?: string; conclusions?: string; citation_count?: number; }
 export type {
   CollectionSemanticGrouping,
-  GroupingAssignmentDetail,
-  GroupingProvenance,
   SemanticCluster,
 } from '@autoresearch/shared';
 
@@ -119,18 +117,39 @@ function buildKeywords(label: string, members: GroupingAssignmentDetail[], focus
   return [label === 'uncertain' ? 'uncertain' : 'insufficient_signal'];
 }
 
-function buildClusters(papers: GroupingPaper[], details: Record<string, GroupingAssignmentDetail>, focus: GroupingFocus): SemanticCluster[] {
+function groupKey(detail?: GroupingAssignmentDetail): string {
+  return `${detail?.provenance.mode ?? 'uncertain'}:${detail?.provenance.canonical_hint ?? detail?.label ?? 'uncertain'}`;
+}
+
+function buildGroupingSurface(
+  papers: GroupingPaper[],
+  details: Record<string, GroupingAssignmentDetail>,
+  focus: GroupingFocus,
+): {
+  assignments: Record<string, string>;
+  assignmentDetails: Record<string, GroupingAssignmentDetail>;
+  clusters: SemanticCluster[];
+} {
   const groups = new Map<string, GroupingPaper[]>();
   for (const paper of papers) {
-    const key = `${details[paper.recid]?.provenance.mode ?? 'uncertain'}:${details[paper.recid]?.label ?? 'uncertain'}`;
+    const key = groupKey(details[paper.recid]);
     groups.set(key, [...(groups.get(key) ?? []), paper]);
   }
-  return [...groups.entries()].sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0])).map(([key, members]) => {
-    const label = key.slice(key.indexOf(':') + 1);
-    const memberDetails = members.map(member => details[member.recid]);
+  const assignments: Record<string, string> = {};
+  const assignmentDetails: Record<string, GroupingAssignmentDetail> = {};
+  let fallbackIndex = 0;
+  const clusters = [...groups.entries()].sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0])).map(([key, members]) => {
+    const rawLabel = key.slice(key.indexOf(':') + 1);
+    const memberDetails = members.map(member => details[member.recid] ?? { label: 'uncertain', provenance: { mode: 'uncertain', used_fallback: true, reason_code: 'missing_assignment', confidence: 0, evidence: [] } });
     const provenance: GroupingProvenance = memberDetails[0]?.provenance ?? { mode: 'uncertain', used_fallback: true, reason_code: 'missing_assignment', confidence: 0, evidence: [] };
+    const label = provenance.mode === 'heuristic_fallback' ? `fallback_cluster_${++fallbackIndex}` : rawLabel;
+    for (const member of members) {
+      assignments[member.recid] = label;
+      assignmentDetails[member.recid] = { ...(details[member.recid] ?? memberDetails[0]!), label };
+    }
     return { label, keywords: buildKeywords(label, memberDetails, focus), paper_ids: members.map(member => member.recid), representative_papers: representatives(members, 5), provenance };
   });
+  return { assignments, assignmentDetails, clusters };
 }
 
 export function toGroupingPaper(paper: Paper | DeepPaperAnalysis): GroupingPaper {
@@ -151,19 +170,17 @@ function buildAssignments(papers: GroupingPaper[], focus: GroupingFocus): Record
 }
 
 export function groupCollectionSemantics(papers: GroupingPaper[]): CollectionSemanticGrouping {
-  const topicAssignmentDetails = buildAssignments(papers, 'topic');
-  const methodAssignmentDetails = buildAssignments(papers, 'method');
-  const topicAssignments = Object.fromEntries(Object.entries(topicAssignmentDetails).map(([recid, detail]) => [recid, detail.label]));
-  const methodAssignments = Object.fromEntries(Object.entries(methodAssignmentDetails).map(([recid, detail]) => [recid, detail.label]));
+  const topicGrouping = buildGroupingSurface(papers, buildAssignments(papers, 'topic'), 'topic');
+  const methodGrouping = buildGroupingSurface(papers, buildAssignments(papers, 'method'), 'method');
   const fallbackRate = (details: Record<string, GroupingAssignmentDetail>) => papers.length === 0 ? 0 : papers.filter(paper => details[paper.recid]?.provenance.mode !== 'open_cluster').length / papers.length;
   return {
-    topic_groups: buildClusters(papers, topicAssignmentDetails, 'topic'),
-    method_groups: buildClusters(papers, methodAssignmentDetails, 'method'),
-    topic_assignments: topicAssignments,
-    method_assignments: methodAssignments,
-    topic_assignment_details: topicAssignmentDetails,
-    method_assignment_details: methodAssignmentDetails,
-    topic_fallback_rate: fallbackRate(topicAssignmentDetails),
-    method_fallback_rate: fallbackRate(methodAssignmentDetails),
+    topic_groups: topicGrouping.clusters,
+    method_groups: methodGrouping.clusters,
+    topic_assignments: topicGrouping.assignments,
+    method_assignments: methodGrouping.assignments,
+    topic_assignment_details: topicGrouping.assignmentDetails,
+    method_assignment_details: methodGrouping.assignmentDetails,
+    topic_fallback_rate: fallbackRate(topicGrouping.assignmentDetails),
+    method_fallback_rate: fallbackRate(methodGrouping.assignmentDetails),
   };
 }

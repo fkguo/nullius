@@ -10,7 +10,8 @@
     "hard_subset_f1": 0.9166666666666666,
     "permutation_stability_overall": 1,
     "fallback_rate_overall": 1,
-    "public_keyword_leak_rate": 0
+    "public_keyword_leak_rate": 0,
+    "public_label_leak_rate": 0
   },
   "evalSetVersion": 1
 }

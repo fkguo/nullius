@@ -60,7 +60,8 @@ describe('eval: SEM-10 topic/method grouping', () => {
             key =>
               exp.method_assignments[key] === actual.method_assignments[key],
           ) &&
-          actual.public_keyword_leak_rate === 0;
+          actual.public_keyword_leak_rate === 0 &&
+          actual.public_label_leak_rate === 0;
         return { passed: pass, metrics: { passed: pass ? 1 : 0 } };
       },
       aggregate: aggregateSem10,
@@ -81,6 +82,11 @@ describe('eval: SEM-10 topic/method grouping', () => {
       improved.aggregateMetrics.public_keyword_leak_rate ?? 1,
     ).toBeLessThanOrEqual(
       lockedBaseline.metrics.public_keyword_leak_rate ?? 0,
+    );
+    expect(
+      improved.aggregateMetrics.public_label_leak_rate ?? 1,
+    ).toBeLessThanOrEqual(
+      lockedBaseline.metrics.public_label_leak_rate ?? 0,
     );
   });
 
@@ -108,7 +114,8 @@ describe('eval: SEM-10 topic/method grouping', () => {
             key =>
               exp.method_assignments[key] === actual.method_assignments[key],
           ) &&
-          actual.public_keyword_leak_rate === 0;
+          actual.public_keyword_leak_rate === 0 &&
+          actual.public_label_leak_rate === 0;
         return { passed: pass, metrics: { passed: pass ? 1 : 0 } };
       },
       aggregate: aggregateSem10,
@@ -119,5 +126,6 @@ describe('eval: SEM-10 topic/method grouping', () => {
       report.aggregateMetrics.permutation_stability_overall ?? 0,
     ).toBeGreaterThanOrEqual(0.85);
     expect(report.aggregateMetrics.public_keyword_leak_rate ?? 1).toBe(0);
+    expect(report.aggregateMetrics.public_label_leak_rate ?? 1).toBe(0);
   });
 });
