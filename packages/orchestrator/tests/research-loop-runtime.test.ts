@@ -101,6 +101,9 @@ describe('research-loop runtime', () => {
     expect(autonomousTask.status).toBe('active');
     expect(Object.keys(interactive.getState()).sort()).toEqual(Object.keys(autonomous.getState()).sort());
     expect(interactive.getState().workspace.workspace_id).toBe(autonomous.getState().workspace.workspace_id);
+    expect(interactive.getState().packet.scope).toBe('single_project');
+    expect(interactive.getState().packet.advancement.allowed_followups).toContainEqual({ from_task_kind: 'literature', to_task_kind: 'idea' });
+    expect(autonomous.getState().packet.rollback.allowed_backtracks).toContainEqual({ from_task_kind: 'compute', to_task_kind: 'idea' });
   });
 
   it('creates and restores checkpoints without forking the event-log state format', () => {

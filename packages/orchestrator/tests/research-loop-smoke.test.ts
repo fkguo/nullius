@@ -56,6 +56,10 @@ describe('research-loop smoke paths', () => {
 
     expect(review.kind).toBe('review');
     expect(runtime.getState().events.length).toBeGreaterThanOrEqual(12);
+    expect(runtime.getState().packet.gate_conditions.filter((condition) => condition.condition_kind === 'handoff_registered').map((condition) => condition.handoff_kind)).toEqual(
+      expect.arrayContaining(['compute', 'feedback', 'writing', 'review']),
+    );
+    expect(runtime.getState().packet.stop_conditions).toContainEqual({ condition_kind: 'no_active_tasks' });
   });
 
   it('provides compute and feedback handoff smoke paths through the delegated-task seam', () => {

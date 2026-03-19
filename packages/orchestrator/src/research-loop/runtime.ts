@@ -5,6 +5,7 @@ import { ALLOWED_TASK_FOLLOWUPS, TASK_TRANSITIONS, interactiveResearchLoopPolicy
 import type { ResearchCheckpoint } from './checkpoint-types.js';
 import type { LoopIntervention, ResearchEvent } from './event-types.js';
 import type { ResearchHandoff } from './handoff-types.js';
+import { assertResearchLoopPacket, createResearchLoopPacket, type ResearchLoopPacket } from './packet-types.js';
 import type { ResearchTask, ResearchTaskInput, ResearchTaskStatus } from './task-types.js';
 import type { ResearchWorkspace } from './workspace-types.js';
 
@@ -19,6 +20,7 @@ export interface ResearchLoopPolicy {
 export interface ResearchLoopRuntimeState {
   workspace: ResearchWorkspace;
   policy: ResearchLoopPolicy;
+  packet: ResearchLoopPacket;
   tasks: ResearchTask[];
   events: ResearchEvent[];
   checkpoints: ResearchCheckpoint[];
@@ -30,10 +32,16 @@ export interface ResearchLoopRuntimeState {
 export class ResearchLoopRuntime {
   private readonly state: ResearchLoopRuntimeState;
 
-  constructor(options: { workspace: ResearchWorkspace; policy?: ResearchLoopPolicy }) {
+  constructor(options: { workspace: ResearchWorkspace; policy?: ResearchLoopPolicy; packet?: ResearchLoopPacket }) {
+    const policy = options.policy ?? interactiveResearchLoopPolicy();
+    const packet = options.packet ?? createResearchLoopPacket({ workspace: options.workspace });
+    if (options.packet) {
+      assertResearchLoopPacket(packet, options.workspace);
+    }
     this.state = {
       workspace: options.workspace,
-      policy: options.policy ?? interactiveResearchLoopPolicy(),
+      policy,
+      packet,
       tasks: [],
       events: [],
       checkpoints: [],

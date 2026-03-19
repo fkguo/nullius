@@ -24,6 +24,7 @@ from .paper_manifest_v2 import *  # noqa: F401,F403
 from .rep_envelope_v1 import *  # noqa: F401,F403
 from .reproducibility_report_v1 import *  # noqa: F401,F403
 from .research_event_v1 import *  # noqa: F401,F403
+from .research_loop_packet_v1 import *  # noqa: F401,F403
 from .research_outcome_v1 import *  # noqa: F401,F403
 from .research_signal_v1 import *  # noqa: F401,F403
 from .research_strategy_v1 import *  # noqa: F401,F403

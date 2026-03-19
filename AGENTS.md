@@ -251,7 +251,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - Phase 0: 14/14 完成
 - Phase 1: 22/23 完成
 - Phase 2: 38/49 完成
-- Phase 3: 36/50 完成
+- Phase 3: 37/51 完成
 - Phase 4: 0/8 完成，blocked by earlier phases
 - Phase 5: 3/22 完成，blocked by earlier phases
 - 当前已锁定的高层边界与长期决策，应分别查看：
@@ -294,7 +294,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-new-sem05-rereview** (8491 symbols, 22878 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-research-loop-packet** (8499 symbols, 22932 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -310,7 +310,7 @@ This project is indexed by GitNexus as **autoresearch-lab-new-sem05-rereview** (
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-new-sem05-rereview/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-research-loop-packet/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -349,10 +349,10 @@ This project is indexed by GitNexus as **autoresearch-lab-new-sem05-rereview** (
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-new-sem05-rereview/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-new-sem05-rereview/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-new-sem05-rereview/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-new-sem05-rereview/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-research-loop-packet/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-research-loop-packet/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-research-loop-packet/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-research-loop-packet/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 

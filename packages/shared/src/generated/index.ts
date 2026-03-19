@@ -50,6 +50,17 @@ export * from "./paper-manifest-v2.js";
 export * from "./rep-envelope-v1.js";
 export * from "./reproducibility-report-v1.js";
 export * from "./research-event-v1.js";
+export type {
+  SurfaceRef,
+  TaskKind,
+  HandoffKind,
+  GateCondition,
+  TaskStatus,
+  StopCondition,
+  InterventionKind,
+  ResearchLoopPacketV1,
+  TaskTransition,
+} from "./research-loop-packet-v1.js";
 export type { ResearchOutcomeV1 } from "./research-outcome-v1.js";
 export * from "./research-signal-v1.js";
 export * from "./research-strategy-v1.js";
