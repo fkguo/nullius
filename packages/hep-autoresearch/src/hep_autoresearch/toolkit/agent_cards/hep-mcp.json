@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "agent_id": "hep-mcp",
+  "name": "HEP MCP",
+  "description": "MCP-backed HEP capability surface exposed through the host control plane.",
+  "version": "0.3.0",
+  "cost_tier": "variable",
+  "capabilities": [
+    {
+      "capability_id": "mcp.list_tools",
+      "description": "List MCP tool metadata exposed by the configured HEP MCP server.",
+      "input_contract_ids": ["mcp_list_tools_request"],
+      "output_contract_ids": ["mcp_list_tools_result"]
+    },
+    {
+      "capability_id": "mcp.call_tool",
+      "description": "Call an MCP tool exposed by the configured HEP MCP server.",
+      "input_contract_ids": ["mcp_tool_call_request"],
+      "output_contract_ids": ["mcp_tool_call_result"]
+    }
+  ],
+  "input_contracts": [
+    {
+      "contract_id": "mcp_list_tools_request",
+      "format": "protocol",
+      "description": "MCP tools/list request params."
+    },
+    {
+      "contract_id": "mcp_tool_call_request",
+      "format": "protocol",
+      "description": "MCP tools/call request params: tool_name + arguments."
+    }
+  ],
+  "output_contracts": [
+    {
+      "contract_id": "mcp_list_tools_result",
+      "format": "protocol",
+      "description": "MCP tools/list result surface."
+    },
+    {
+      "contract_id": "mcp_tool_call_result",
+      "format": "protocol",
+      "description": "MCP tools/call result surface including parsed JSON payloads and error metadata."
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 # AUTO-GENERATED — DO NOT EDIT. Source: meta/schemas/
 
+from .agent_card_v1 import *  # noqa: F401,F403
+from .agent_message_v1 import *  # noqa: F401,F403
 from .analysis_types_v1 import *  # noqa: F401,F403
 from .approval_packet_v1 import *  # noqa: F401,F403
 from .approval_packet_v2 import *  # noqa: F401,F403

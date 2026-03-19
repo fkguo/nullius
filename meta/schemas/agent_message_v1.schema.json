@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/agent_message_v1.schema.json",
+  "title": "AgentMessageV1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "trace_id",
+    "run_id",
+    "source_agent_id",
+    "target_agent_id",
+    "message_kind",
+    "requested_capability"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "run_id": {
+      "type": ["string", "null"]
+    },
+    "source_agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "message_kind": {
+      "type": "string",
+      "enum": ["request", "response", "error"]
+    },
+    "requested_capability": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object"
+    },
+    "error": {
+      "$ref": "#/$defs/error_envelope"
+    }
+  },
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "properties": {
+        "message_kind": {
+          "const": "request"
+        }
+      },
+      "required": ["payload"],
+      "not": {
+        "required": ["error"]
+      }
+    },
+    {
+      "properties": {
+        "message_kind": {
+          "const": "response"
+        }
+      },
+      "required": ["payload"],
+      "not": {
+        "required": ["error"]
+      }
+    },
+    {
+      "properties": {
+        "message_kind": {
+          "const": "error"
+        }
+      },
+      "required": ["error"],
+      "not": {
+        "required": ["payload"]
+      }
+    }
+  ],
+  "$defs": {
+    "error_envelope": {
+      "type": "object",
+      "required": [
+        "domain",
+        "code",
+        "message",
+        "retryable",
+        "run_id",
+        "trace_id",
+        "data"
+      ],
+      "properties": {
+        "domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "run_id": {
+          "type": ["string", "null"]
+        },
+        "trace_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "data": {
+          "type": ["object", "null"]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

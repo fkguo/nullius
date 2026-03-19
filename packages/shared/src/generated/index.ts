@@ -1,5 +1,7 @@
 /* AUTO-GENERATED — DO NOT EDIT. Source: meta/schemas/ */
 
+export * from "./agent-card-v1.js";
+export * from "./agent-message-v1.js";
 export type {
   SurveyPriority,
   TopicTrend,

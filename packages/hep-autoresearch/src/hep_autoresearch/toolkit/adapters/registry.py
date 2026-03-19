@@ -2,55 +2,73 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
+from .adapter_plugin import AdapterPlugin
 from .base import Adapter
-from .shell import ShellAdapter
+from .shell_plugin import shell_adapter_plugin
 
 
-def adapter_workflow_ids() -> set[str]:
-    return {"shell_adapter_smoke"}
+def _registered_plugins(extra_plugins: Iterable[AdapterPlugin] | None = None) -> tuple[AdapterPlugin, ...]:
+    return (shell_adapter_plugin(), *(tuple(extra_plugins) if extra_plugins is not None else ()))
 
 
-def adapter_for_workflow(workflow_id: str) -> Adapter:
+def _workflow_plugin_map(extra_plugins: Iterable[AdapterPlugin] | None = None) -> dict[str, AdapterPlugin]:
+    workflow_map: dict[str, AdapterPlugin] = {}
+    for plugin in _registered_plugins(extra_plugins):
+        plugin_id = str(plugin.plugin_id).strip()
+        if not plugin_id:
+            raise RuntimeError("adapter plugin_id must be non-empty")
+        if not plugin.workflow_ids:
+            raise RuntimeError(f"adapter plugin {plugin_id} must expose at least one workflow_id")
+        for workflow_id in plugin.workflow_ids:
+            wid = str(workflow_id).strip()
+            if not wid:
+                raise RuntimeError(f"adapter plugin {plugin_id} declares an empty workflow_id")
+            existing = workflow_map.get(wid)
+            if existing is not None:
+                raise RuntimeError(
+                    f"adapter workflow_id collision: {wid} ({existing.plugin_id} vs {plugin_id})"
+                )
+            workflow_map[wid] = plugin
+    return workflow_map
+
+
+def adapter_workflow_ids(*, extra_plugins: Iterable[AdapterPlugin] | None = None) -> set[str]:
+    return set(_workflow_plugin_map(extra_plugins))
+
+
+def adapter_for_workflow(workflow_id: str, *, extra_plugins: Iterable[AdapterPlugin] | None = None) -> Adapter:
     wid = str(workflow_id)
-    if wid == "shell_adapter_smoke":
-        return ShellAdapter()
-    raise KeyError(f"unknown adapter workflow_id: {workflow_id}")
+    plugin = _workflow_plugin_map(extra_plugins).get(wid)
+    if plugin is None:
+        raise KeyError(f"unknown adapter workflow_id: {workflow_id}")
+    adapter = plugin.create_adapter()
+    if not isinstance(adapter, Adapter):
+        raise RuntimeError(f"adapter plugin {plugin.plugin_id} returned a non-Adapter instance for workflow_id: {wid}")
+    return adapter
 
 
-def default_run_card_for_workflow(*, workflow_id: str, run_id: str, state: dict[str, Any]) -> dict[str, Any]:
+def default_run_card_for_workflow(
+    *,
+    workflow_id: str,
+    run_id: str,
+    state: dict[str, Any],
+    extra_plugins: Iterable[AdapterPlugin] | None = None,
+) -> dict[str, Any]:
     wid = str(workflow_id)
     rid = str(run_id)
-    if wid == "shell_adapter_smoke":
-        artifacts = state.get("artifacts") if isinstance(state.get("artifacts"), dict) else {}
-        return {
-            "schema_version": 1,
-            "run_id": rid,
-            "workflow_id": wid,
-            "adapter_id": "shell",
-            "artifact_step": "shell_adapter_smoke",
-            # Gate floor is enforced by Orchestrator approval_policy.json; run-card may add more gates.
-            "required_gates": [],
-            "gate_resolution_mode": "union",
-            "budgets": {"timeout_seconds": 30},
-            "prompt": {
-                "system": "",
-                "user": "Adapter smoke (shell): run a deterministic local command and capture provenance.",
-            },
-            "tools": [],
-            "evidence_bundle": {
-                "context_md": artifacts.get("context_md"),
-                "context_json": artifacts.get("context_json"),
-            },
-            "backend": {
-                "kind": "shell",
-                "argv": ["python3", "-c", "print('ok')"],
-                "cwd": ".",
-                "env": {},
-            },
-        }
-    raise KeyError(f"no default run-card for workflow_id: {workflow_id}")
+    plugin = _workflow_plugin_map(extra_plugins).get(wid)
+    if plugin is None:
+        raise KeyError(f"no default run-card for workflow_id: {workflow_id}")
+    run_card = plugin.build_default_run_card(workflow_id=wid, run_id=rid, state=state)
+    if not isinstance(run_card, dict):
+        raise RuntimeError(f"adapter plugin {plugin.plugin_id} returned a non-object run-card for workflow_id: {wid}")
+    if str(run_card.get("workflow_id")) != wid:
+        raise RuntimeError(f"adapter plugin {plugin.plugin_id} returned mismatched workflow_id for {wid}")
+    if str(run_card.get("run_id")) != rid:
+        raise RuntimeError(f"adapter plugin {plugin.plugin_id} returned mismatched run_id for {wid}")
+    return run_card
 
 
 def load_run_card(path: Path) -> dict[str, Any]:
@@ -60,12 +78,26 @@ def load_run_card(path: Path) -> dict[str, Any]:
     return payload
 
 
-def validate_adapter_registry() -> None:
+def validate_adapter_registry(*, extra_plugins: Iterable[AdapterPlugin] | None = None) -> None:
     missing: list[str] = []
-    for wid in sorted(adapter_workflow_ids()):
+    workflow_map = _workflow_plugin_map(extra_plugins)
+    for wid in sorted(workflow_map):
         try:
-            adapter_for_workflow(wid)
-        except Exception:
-            missing.append(wid)
+            adapter = adapter_for_workflow(wid, extra_plugins=extra_plugins)
+            run_card = default_run_card_for_workflow(
+                workflow_id=wid,
+                run_id="REGISTRY-VALIDATION",
+                state={},
+                extra_plugins=extra_plugins,
+            )
+            adapter_id = str(run_card.get("adapter_id") or "").strip()
+            if not adapter_id:
+                raise RuntimeError(f"adapter plugin {workflow_map[wid].plugin_id} returned an empty adapter_id for {wid}")
+            if adapter_id != adapter.adapter_id:
+                raise RuntimeError(
+                    f"adapter plugin {workflow_map[wid].plugin_id} mismatched adapter_id for {wid}: {adapter_id} != {adapter.adapter_id}"
+                )
+        except Exception as exc:
+            missing.append(f"{wid}: {exc}")
     if missing:
-        raise RuntimeError(f"adapter registry inconsistency (workflow_id missing implementation): {', '.join(missing)}")
+        raise RuntimeError(f"adapter registry inconsistency: {', '.join(missing)}")

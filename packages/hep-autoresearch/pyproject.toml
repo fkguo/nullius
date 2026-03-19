@@ -26,4 +26,4 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-hep_autoresearch = ["specs/*.json", "scaffold_templates/*.md"]
+hep_autoresearch = ["specs/*.json", "scaffold_templates/*.md", "toolkit/agent_cards/*.json"]

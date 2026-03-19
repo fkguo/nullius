@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "agent_id": "idea-engine",
+  "name": "Idea Engine",
+  "description": "Stable idea/campaign agent surface aligned to the future TS idea-engine contract.",
+  "version": "0.0.1",
+  "cost_tier": "medium",
+  "capabilities": [
+    {
+      "capability_id": "campaign.init",
+      "description": "Initialize a campaign.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "campaign.status",
+      "description": "Read campaign status.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "campaign.topup",
+      "description": "Top up campaign budget.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "campaign.pause",
+      "description": "Pause a campaign.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "campaign.resume",
+      "description": "Resume a campaign.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "campaign.complete",
+      "description": "Complete a campaign.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "search.step",
+      "description": "Advance campaign search by one or more steps.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "node.get",
+      "description": "Read one node from a campaign.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "node.list",
+      "description": "List nodes from a campaign.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "node.promote",
+      "description": "Promote a node inside a campaign.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "eval.run",
+      "description": "Run evaluator passes on campaign nodes.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    },
+    {
+      "capability_id": "rank.compute",
+      "description": "Compute rankings from campaign outputs.",
+      "input_contract_ids": ["idea_core_rpc_v1"],
+      "output_contract_ids": ["idea_core_rpc_v1"]
+    }
+  ],
+  "input_contracts": [
+    {
+      "contract_id": "idea_core_rpc_v1",
+      "format": "openrpc",
+      "description": "Shared OpenRPC authority currently consumed by idea-core and idea-engine.",
+      "source_path": "packages/idea-core/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json"
+    }
+  ],
+  "output_contracts": [
+    {
+      "contract_id": "idea_core_rpc_v1",
+      "format": "openrpc",
+      "description": "Shared OpenRPC authority currently consumed by idea-core and idea-engine.",
+      "source_path": "packages/idea-core/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json"
+    }
+  ]
+}
