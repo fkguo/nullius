@@ -22,7 +22,7 @@ export interface ResearchEvent {
   payload: Record<string, unknown>;
 }
 
-export type LoopInterventionKind = 'pause' | 'resume' | 'redirect' | 'inject_task' | 'approve';
+export type LoopInterventionKind = 'pause' | 'resume' | 'redirect' | 'inject_task' | 'approve' | 'cancel' | 'cascade_stop';
 
 export interface LoopIntervention {
   intervention_id: string;

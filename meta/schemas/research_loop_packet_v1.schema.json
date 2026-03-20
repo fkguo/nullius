@@ -139,7 +139,9 @@
         "resume",
         "redirect",
         "inject_task",
-        "approve"
+        "approve",
+        "cancel",
+        "cascade_stop"
       ]
     },
     "surface_ref": {

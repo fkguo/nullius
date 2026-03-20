@@ -110,6 +110,8 @@ function defaultStopConditions(workspace: ResearchWorkspace): ResearchLoopPacket
     { condition_kind: 'no_active_tasks' },
     { condition_kind: 'task_terminal', task_kind: 'review', terminal_statuses: ['completed', 'cancelled'] },
     { condition_kind: 'intervention', intervention_kind: 'pause' },
+    { condition_kind: 'intervention', intervention_kind: 'cancel' },
+    { condition_kind: 'intervention', intervention_kind: 'cascade_stop' },
   ];
   for (const node of workspace.nodes) {
     if (node.kind === 'decision') {

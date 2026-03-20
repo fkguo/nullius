@@ -4,6 +4,7 @@ import { ApprovalGate } from '../approval-gate.js';
 import type { MessageContent, MessageParam, MessagesCreateFn } from '../backends/chat-backend.js';
 import type { McpToolResult, ToolCaller } from '../mcp-client.js';
 import { executeDelegatedAgentRuntime } from '../research-loop/delegated-agent-runtime.js';
+import { executeTeamRuntimeFromToolParams } from '../team-execution-bridge.js';
 import { OrchRunExecuteAgentSchema } from './schemas.js';
 
 type SamplingTextBlock = { type: 'text'; text: string };
@@ -134,6 +135,9 @@ export async function handleOrchRunExecuteAgent(
     throw invalidParams('orch_run_execute_agent requires host tool-call loopback support.', {
       missing_context: 'callTool',
     });
+  }
+  if (params.team) {
+    return executeTeamRuntimeFromToolParams(params, ctx);
   }
   return executeDelegatedAgentRuntime({
     projectRoot: params.project_root,

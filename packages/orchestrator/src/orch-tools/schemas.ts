@@ -39,6 +39,46 @@ const AgentToolSchema = z.object({
   input_schema: z.record(z.string(), z.unknown()),
 });
 
+const TeamExecutionPermissionEntrySchema = z.object({
+  from_role: z.string().min(1),
+  to_role: z.string().min(1),
+  allowed_task_kinds: z.array(z.enum(['literature', 'idea', 'compute', 'evidence_search', 'finding', 'draft_update', 'review'])).min(1),
+  allowed_handoff_kinds: z.array(z.enum(['compute', 'feedback', 'literature', 'review', 'writing'])).min(1),
+});
+const TeamInterventionPermissionSchema = z.object({
+  actor_role: z.string().min(1),
+  allowed_scopes: z.array(z.enum(['task', 'team', 'project'])).min(1),
+  allowed_kinds: z.array(z.enum(['pause', 'resume', 'redirect', 'inject_task', 'approve', 'cancel', 'cascade_stop'])).min(1),
+});
+const TeamInterventionCommandSchema = z.object({
+  kind: z.enum(['pause', 'resume', 'redirect', 'inject_task', 'approve', 'cancel', 'cascade_stop']),
+  scope: z.enum(['task', 'team', 'project']),
+  actor_role: z.string().min(1),
+  actor_id: z.string().optional().nullable(),
+  target_assignment_id: z.string().optional().nullable(),
+  task_id: z.string().optional().nullable(),
+  checkpoint_id: z.string().optional().nullable(),
+  note: z.string().optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+const TeamExecutionConfigSchema = z.object({
+  workspace_id: z.string().min(1).optional(),
+  task_id: z.string().min(1).optional(),
+  task_kind: z.enum(['literature', 'idea', 'compute', 'evidence_search', 'finding', 'draft_update', 'review']).optional(),
+  owner_role: z.string().min(1).optional(),
+  delegate_role: z.string().min(1).optional(),
+  delegate_id: z.string().min(1).optional(),
+  coordination_policy: z.enum(['sequential', 'parallel', 'stage_gated', 'supervised_delegate']).optional(),
+  handoff_id: z.string().optional().nullable(),
+  handoff_kind: z.enum(['compute', 'feedback', 'literature', 'review', 'writing']).optional().nullable(),
+  checkpoint_id: z.string().optional().nullable(),
+  permissions: z.object({
+    delegation: z.array(TeamExecutionPermissionEntrySchema).min(1),
+    interventions: z.array(TeamInterventionPermissionSchema).min(1),
+  }).optional(),
+  interventions: z.array(TeamInterventionCommandSchema).optional(),
+});
+
 export const OrchRunCreateSchema = z.object({
   project_root: ProjectRootSchema,
   run_id: RunIdSchema.describe('Run identifier, unique within the project.'),
@@ -136,4 +176,5 @@ export const OrchRunExecuteAgentSchema = z.object({
   tools: z.array(AgentToolSchema).describe('Tool definitions exposed to the model during sampling.'),
   resume_from: z.string().optional().describe('Optional step id to resume from explicitly. Defaults to persisted last_completed_step.'),
   max_turns: z.number().int().positive().max(100).optional().describe('Maximum assistant turns before the runtime stops.'),
+  team: TeamExecutionConfigSchema.optional().describe('Optional bounded EVO-13 team-local execution bridge. References workspace/task/handoff/checkpoint ids without replacing substrate state.'),
 });

@@ -1,0 +1,80 @@
+import { randomUUID } from 'node:crypto';
+import { utcNowIso } from './util.js';
+import { clonePermissions } from './team-execution-clone.js';
+import { assertDelegationAllowed } from './team-execution-permissions.js';
+import type {
+  TeamDelegateAssignment,
+  TeamExecutionAssignmentInput,
+  TeamExecutionInput,
+  TeamExecutionState,
+} from './team-execution-types.js';
+import { applyTeamIntervention } from './team-execution-interventions.js';
+import { activeAssignmentIds } from './team-execution-assignment-state.js';
+
+export function createTeamExecutionState(input: TeamExecutionInput, runId: string): TeamExecutionState {
+  assertDelegationAllowed(input.permissions, input.assignment);
+  const timestamp = utcNowIso();
+  const assignmentId = input.assignment.assignment_id ?? randomUUID();
+  const assignment: TeamDelegateAssignment = {
+    assignment_id: assignmentId,
+    owner_role: input.assignment.owner_role,
+    delegate_role: input.assignment.delegate_role,
+    delegate_id: input.assignment.delegate_id,
+    task_id: input.assignment.task_id,
+    task_kind: input.assignment.task_kind,
+    handoff_id: input.assignment.handoff_id ?? null,
+    handoff_kind: input.assignment.handoff_kind ?? null,
+    checkpoint_id: input.assignment.checkpoint_id ?? null,
+    status: 'pending',
+    timeout_at: input.assignment.timeout_at ?? null,
+    last_heartbeat_at: null,
+    last_completed_step: null,
+    resume_from: null,
+    updated_at: timestamp,
+  };
+  const state: TeamExecutionState = {
+    schema_version: 1,
+    run_id: runId,
+    workspace_id: input.workspace_id,
+    coordination_policy: input.coordination_policy,
+    permissions: clonePermissions(input.permissions),
+    delegate_assignments: [assignment],
+    active_assignment_ids: [assignment.assignment_id],
+    checkpoints: [],
+    interventions: [],
+    updated_at: timestamp,
+  };
+  for (const command of input.interventions ?? []) {
+    applyTeamIntervention(state, command);
+  }
+  return state;
+}
+
+export function registerDelegateAssignment(
+  state: TeamExecutionState,
+  assignmentInput: TeamExecutionAssignmentInput,
+): TeamDelegateAssignment {
+  assertDelegationAllowed(state.permissions, assignmentInput);
+  const timestamp = utcNowIso();
+  const assignment: TeamDelegateAssignment = {
+    assignment_id: assignmentInput.assignment_id ?? randomUUID(),
+    owner_role: assignmentInput.owner_role,
+    delegate_role: assignmentInput.delegate_role,
+    delegate_id: assignmentInput.delegate_id,
+    task_id: assignmentInput.task_id,
+    task_kind: assignmentInput.task_kind,
+    handoff_id: assignmentInput.handoff_id ?? null,
+    handoff_kind: assignmentInput.handoff_kind ?? null,
+    checkpoint_id: assignmentInput.checkpoint_id ?? null,
+    status: 'pending',
+    timeout_at: assignmentInput.timeout_at ?? null,
+    last_heartbeat_at: null,
+    last_completed_step: null,
+    resume_from: null,
+    updated_at: timestamp,
+  };
+  state.delegate_assignments.push(assignment);
+  state.active_assignment_ids = activeAssignmentIds(state.delegate_assignments);
+  state.updated_at = timestamp;
+  return assignment;
+}
