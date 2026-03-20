@@ -5,7 +5,7 @@ Produces:
   - packet.md        (full details)
   - approval_packet_v1.json (structured, schema-validated)
 
-UX-07 adds gate-specific context enrichment via GateContextSummary + per-gate assemblers.
+UX-07 adds approval-specific context enrichment via GateContextSummary + per-gate assemblers.
 """
 from __future__ import annotations
 
@@ -27,9 +27,9 @@ class KeyResult:
 
 @dataclass
 class GateContextSummary:
-    """Gate-specific context assembled for human reviewers (UX-07).
+    """Approval-specific context assembled for human reviewers (UX-07).
 
-    Provides a concise, gate-aware summary to help reviewers make informed
+    Provides a concise, approval-aware summary to help reviewers make informed
     decisions from ``packet_short.md`` without needing to read full details.
     """
 
@@ -38,7 +38,7 @@ class GateContextSummary:
     key_results: list[KeyResult] = field(default_factory=list)
     integrity_flags: list[str] = field(default_factory=list)  # warnings / anomaly flags
     recommendation: str = ""  # e.g. "APPROVE", "REVIEW CAREFULLY", "REQUEST REVISION"
-    details: dict[str, Any] = field(default_factory=dict)  # gate-specific structured data
+    details: dict[str, Any] = field(default_factory=dict)  # approval-specific structured data
 
 
 @dataclass
@@ -90,8 +90,8 @@ def _budget_table(budgets: dict[str, Any]) -> str:
 
 
 def _gate_context_section(ctx: GateContextSummary) -> list[str]:
-    """Render a compact gate context block (≤12 lines) for packet_short."""
-    lines: list[str] = ["## Gate Context", ""]
+    """Render a compact approval context block (≤12 lines) for packet_short."""
+    lines: list[str] = ["## Approval Context", ""]
     if ctx.summary:
         lines.append(ctx.summary.strip())
         lines.append("")
@@ -165,7 +165,7 @@ def render_short(data: ApprovalPacketData) -> str:
 
 
 def render_full(data: ApprovalPacketData) -> str:
-    """Render the full packet (all details, gate resolution trace)."""
+    """Render the full packet (all details, approval-resolution provenance)."""
     plan_steps = ", ".join(data.plan_step_ids) if data.plan_step_ids else "(unknown)"
     lines: list[str] = [
         f"# Approval packet — {data.approval_id} ({data.gate_id})",
@@ -220,7 +220,7 @@ def render_full(data: ApprovalPacketData) -> str:
         "",
     ])
     if data.gate_resolution_trace:
-        lines.extend(["## Gate resolution trace", ""])
+        lines.extend(["## Approval resolution trace", ""])
         for item in data.gate_resolution_trace:
             gate = item.get("gate_id", "(unknown)")
             triggered = item.get("triggered_by", "(unknown)")

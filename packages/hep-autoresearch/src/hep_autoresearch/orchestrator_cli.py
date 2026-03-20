@@ -62,7 +62,7 @@ from .toolkit.reproduce import ReproduceInputs, reproduce_one
 from .toolkit.paper_reviser import PaperReviserInputs, paper_reviser_one
 from .toolkit.revision import RevisionInputs, revise_one
 from .toolkit.computation import ComputationInputs, computation_one
-from .toolkit.run_card import ensure_run_card
+from .toolkit.run_card import ensure_run_card, normalize_approval_run_card_fields
 from .toolkit.run_card_schema import load_run_card_v2, normalize_and_validate_run_card_v2
 from .toolkit.logging_config import configure_logging
 
@@ -390,7 +390,7 @@ _REVISION_SUBSTEP_ORDER = ("A", "B", "C", "D", "E", "APPLY")
 
 
 class GateResolutionError(ValueError):
-    """Raised when gate resolution mode/policy combination is invalid."""
+    """Raised when approval resolution mode/policy combination is invalid."""
 
 
 def _status_warning(*, code: str, message: str, path: str | None = None) -> dict[str, str]:
@@ -1416,7 +1416,7 @@ def _request_approval(
     outputs: list[str],
     rollback: str | None,
     details_md: str | None = None,
-    gate_resolution_trace: list[dict[str, str]] | None = None,
+    approval_resolution_trace: list[dict[str, str]] | None = None,
     note: str | None,
     force: bool,
 ) -> tuple[str, str]:
@@ -1489,7 +1489,7 @@ def _request_approval(
         plan_step_ids=step_ids,
         active_branch_id=active_branch_id,
         gate_resolution_trace=[
-            item for item in (gate_resolution_trace or []) if isinstance(item, dict)
+            item for item in (approval_resolution_trace or []) if isinstance(item, dict)
         ],
         details_md=details_md,
     )
@@ -2276,92 +2276,92 @@ def _resolve_adapter_gate_resolution(
     strict_mode: bool,
     is_default_run_card: bool,
 ) -> tuple[set[str], str, list[dict[str, str]], list[dict[str, str]]]:
-    raw = run_card.get("required_gates")
+    raw = run_card.get("required_approvals")
     if isinstance(raw, list):
-        run_card_gates = {str(x).strip() for x in raw if isinstance(x, str) and str(x).strip()}
+        run_card_approvals = {str(x).strip() for x in raw if isinstance(x, str) and str(x).strip()}
     elif raw is None:
-        run_card_gates = set()
+        run_card_approvals = set()
     else:
-        raise ValueError("run-card.required_gates must be a list of strings (or omitted)")
+        raise ValueError("run-card.required_approvals must be a list of strings (or omitted)")
 
-    mode_raw = run_card.get("gate_resolution_mode")
+    mode_raw = run_card.get("approval_resolution_mode")
     mode = str(mode_raw or "union").strip().lower()
     allowed_modes = {"union", "policy_only", "run_card_only"}
     if mode not in allowed_modes:
         raise ValueError(
-            f"run-card.gate_resolution_mode must be one of {sorted(allowed_modes)} when provided"
+            f"run-card.approval_resolution_mode must be one of {sorted(allowed_modes)} when provided"
         )
 
     policy_req = policy.get("require_approval_for")
     policy_req_obj = policy_req if isinstance(policy_req, dict) else {}
-    policy_gates = _policy_floor_gates_for_backend(backend_kind=str(backend_kind), policy_req=policy_req_obj)
+    policy_approvals = _policy_floor_gates_for_backend(backend_kind=str(backend_kind), policy_req=policy_req_obj)
 
-    cli_gates: set[str] = set()
+    cli_approvals: set[str] = set()
     if isinstance(cli_gate, str) and cli_gate.strip():
-        cli_gates.add(cli_gate.strip())
+        cli_approvals.add(cli_gate.strip())
 
     if mode == "union":
-        resolved_gates = set(run_card_gates) | set(policy_gates) | set(cli_gates)
+        resolved_approvals = set(run_card_approvals) | set(policy_approvals) | set(cli_approvals)
     elif mode == "policy_only":
-        resolved_gates = set(policy_gates) | set(cli_gates)
+        resolved_approvals = set(policy_approvals) | set(cli_approvals)
     else:
-        resolved_gates = set(run_card_gates) | set(cli_gates)
+        resolved_approvals = set(run_card_approvals) | set(cli_approvals)
 
     trace: list[dict[str, str]] = []
-    for gate in sorted(resolved_gates):
-        if gate in cli_gates:
+    for approval in sorted(resolved_approvals):
+        if approval in cli_approvals:
             trace.append(
                 _build_gate_trace_entry(
-                    gate_id=gate,
+                    gate_id=approval,
                     triggered_by="cli_override",
-                    reason="gate requested by CLI --gate override",
+                    reason="approval requested by CLI --gate override",
                 )
             )
             continue
-        if gate in policy_gates and gate in run_card_gates:
+        if approval in policy_approvals and approval in run_card_approvals:
             trace.append(
                 _build_gate_trace_entry(
-                    gate_id=gate,
+                    gate_id=approval,
                     triggered_by="both",
-                    reason="gate required by both run-card and approval policy floor",
+                    reason="approval required by both run-card and approval policy floor",
                 )
             )
             continue
-        if gate in policy_gates:
+        if approval in policy_approvals:
             trace.append(
                 _build_gate_trace_entry(
-                    gate_id=gate,
+                    gate_id=approval,
                     triggered_by="policy",
-                    reason="gate injected by approval policy floor",
+                    reason="approval injected by approval policy floor",
                 )
             )
             continue
-        if gate in run_card_gates and is_default_run_card:
+        if approval in run_card_approvals and is_default_run_card:
             trace.append(
                 _build_gate_trace_entry(
-                    gate_id=gate,
+                    gate_id=approval,
                     triggered_by="workflow_default",
-                    reason="gate comes from workflow default run-card",
+                    reason="approval comes from workflow default run-card",
                 )
             )
             continue
         trace.append(
             _build_gate_trace_entry(
-                gate_id=gate,
+                gate_id=approval,
                 triggered_by="run_card",
-                reason="gate requested by run-card.required_gates",
+                reason="approval requested by run-card.required_approvals",
             )
         )
 
     warnings: list[dict[str, str]] = []
-    if mode == "run_card_only" and not run_card_gates and not cli_gates:
+    if mode == "run_card_only" and not run_card_approvals and not cli_approvals:
         msg = (
-            "run_card_only with empty required_gates suppresses policy floor gates; "
+            "run_card_only with empty required_approvals suppresses policy floor approvals; "
             "no approvals will be requested unless CLI overrides are provided"
         )
         warnings.append(
             _status_warning(
-                code="gate_resolution_policy_suppressed",
+                code="approval_resolution_policy_suppressed",
                 message=msg,
             )
         )
@@ -2369,21 +2369,21 @@ def _resolve_adapter_gate_resolution(
             _build_gate_trace_entry(
                 gate_id="(none)",
                 triggered_by="cli_override",
-                reason="all policy gates suppressed by run_card_only + empty gate list",
+                reason="all policy approvals suppressed by run_card_only + empty approval list",
             )
         )
         if strict_mode:
             raise GateResolutionError(msg)
 
-    return resolved_gates, mode, trace, warnings
+    return resolved_approvals, mode, trace, warnings
 
 
-def _inject_gate_resolution_trace_into_manifest(
+def _inject_approval_resolution_trace_into_manifest(
     *,
     repo_root: Path,
     artifact_paths: dict[str, str],
-    gate_resolution_mode: str,
-    gate_resolution_trace: list[dict[str, str]],
+    approval_resolution_mode: str,
+    approval_resolution_trace: list[dict[str, str]],
 ) -> None:
     manifest_rel = artifact_paths.get("manifest") if isinstance(artifact_paths, dict) else None
     if not isinstance(manifest_rel, str) or not manifest_rel.strip():
@@ -2395,21 +2395,21 @@ def _inject_gate_resolution_trace_into_manifest(
     try:
         manifest = read_json(manifest_path)
     except Exception as e:
-        print(f"[warn][gate-resolution] failed to read manifest for trace injection: {e} ({manifest_path})", file=sys.stderr)
+        print(f"[warn][approval-resolution] failed to read manifest for trace injection: {e} ({manifest_path})", file=sys.stderr)
         return
     if not isinstance(manifest, dict):
         print(
-            f"[warn][gate-resolution] manifest is not a JSON object; cannot inject gate trace ({manifest_path})",
+            f"[warn][approval-resolution] manifest is not a JSON object; cannot inject approval trace ({manifest_path})",
             file=sys.stderr,
         )
         return
 
-    manifest["gate_resolution_mode"] = str(gate_resolution_mode)
-    manifest["gate_resolution_trace"] = [x for x in gate_resolution_trace if isinstance(x, dict)]
+    manifest["approval_resolution_mode"] = str(approval_resolution_mode)
+    manifest["approval_resolution_trace"] = [x for x in approval_resolution_trace if isinstance(x, dict)]
     try:
         write_json(manifest_path, manifest)
     except Exception as e:
-        print(f"[warn][gate-resolution] failed to write manifest trace fields: {e} ({manifest_path})", file=sys.stderr)
+        print(f"[warn][approval-resolution] failed to write manifest trace fields: {e} ({manifest_path})", file=sys.stderr)
         return
 
     summary_rel = artifact_paths.get("summary") if isinstance(artifact_paths, dict) else None
@@ -2425,7 +2425,7 @@ def _inject_gate_resolution_trace_into_manifest(
         analysis = read_json(analysis_path)
     except Exception as e:
         print(
-            f"[warn][gate-resolution] failed to reload summary/analysis for report regeneration: {e} "
+            f"[warn][approval-resolution] failed to reload summary/analysis for report regeneration: {e} "
             f"({summary_path}, {analysis_path})",
             file=sys.stderr,
         )
@@ -2437,7 +2437,7 @@ def _inject_gate_resolution_trace_into_manifest(
         write_artifact_report(repo_root=repo_root, artifact_dir=artifact_dir, manifest=manifest, summary=summary, analysis=analysis)
     except Exception as e:
         print(
-            f"[warn][gate-resolution] failed to regenerate report after trace injection: {e} ({artifact_dir})",
+            f"[warn][approval-resolution] failed to regenerate report after trace injection: {e} ({artifact_dir})",
             file=sys.stderr,
         )
 
@@ -3207,6 +3207,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 run_card_from_file = True
             else:
                 run_card = default_run_card_for_workflow(workflow_id=str(args.workflow_id), run_id=str(args.run_id), state=st)
+            run_card = normalize_approval_run_card_fields(run_card)
 
             # Enforce run_id/workflow_id coherence (Orchestrator is the single entrypoint).
             run_card["run_id"] = str(args.run_id)
@@ -3283,7 +3284,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
             strict_gate_resolution = bool(getattr(args, "strict_gate_resolution", False))
             try:
-                resolved_gates, gate_resolution_mode, gate_resolution_trace, gate_resolution_warnings = _resolve_adapter_gate_resolution(
+                resolved_approvals, approval_resolution_mode, approval_resolution_trace, approval_resolution_warnings = _resolve_adapter_gate_resolution(
                     run_card=run_card,
                     policy=policy,
                     backend_kind=backend_kind,
@@ -3302,17 +3303,17 @@ def cmd_run(args: argparse.Namespace) -> int:
                     f"{e} (run_id={args.run_id}, workflow_id={args.workflow_id}, run_card={run_card_ref})"
                 ) from e
 
-            for w in gate_resolution_warnings:
-                print(f"[warn][gate-resolution] {w.get('code')}: {w.get('message')}", file=sys.stderr)
+            for w in approval_resolution_warnings:
+                print(f"[warn][approval-resolution] {w.get('code')}: {w.get('message')}", file=sys.stderr)
 
-            run_card["required_gates"] = sorted(resolved_gates)
-            run_card["gate_resolution_mode"] = gate_resolution_mode
-            run_card["gate_resolution_trace"] = gate_resolution_trace
+            run_card["required_approvals"] = sorted(resolved_approvals)
+            run_card["approval_resolution_mode"] = approval_resolution_mode
+            run_card["approval_resolution_trace"] = approval_resolution_trace
 
             prep = adapter.prepare(run_card, st, repo_root=repo_root, force=bool(args.force))
 
-            # Gate handling is adapter-local (to allow SSOT artifacts even when awaiting approval).
-            for gate in prep.required_gates:
+            # Approval handling is adapter-local (to allow SSOT artifacts even when awaiting approval).
+            for gate in prep.required_approvals:
                 gate_satisfied = (st.get("gate_satisfied") or {}).get(gate)
                 if gate_satisfied and not _approval_history_has_approved(st, category=str(gate), approval_id=str(gate_satisfied)):
                     st.setdefault("gate_satisfied", {}).pop(str(gate), None)
@@ -3340,13 +3341,13 @@ def cmd_run(args: argparse.Namespace) -> int:
                         category=str(gate),
                         run_id=args.run_id,
                         plan_step_ids=[str(step_id)] if step_id else None,
-                        purpose=f"Gate {gate} before running {args.workflow_id}",
+                        purpose=f"Approval {gate} before running {args.workflow_id}",
                         plan=plan,
                         risks=risks,
                         outputs=outputs,
                         rollback=rollback,
-                        gate_resolution_trace=gate_resolution_trace,
-                        note="adapter gate requested by run-card/policy",
+                        approval_resolution_trace=approval_resolution_trace,
+                        note="adapter approval requested by run-card/policy",
                         force=False,
                     )
                     print(f"[info] requested approval: {approval_id}")
@@ -3388,11 +3389,11 @@ def cmd_run(args: argparse.Namespace) -> int:
                     errors.extend([m for m in verify.messages if m != "PASS"])
                 res = {"errors": errors, "artifact_paths": collected.artifact_paths}
 
-            _inject_gate_resolution_trace_into_manifest(
+            _inject_approval_resolution_trace_into_manifest(
                 repo_root=repo_root,
                 artifact_paths=res.get("artifact_paths") if isinstance(res.get("artifact_paths"), dict) else {},
-                gate_resolution_mode=gate_resolution_mode,
-                gate_resolution_trace=gate_resolution_trace,
+                approval_resolution_mode=approval_resolution_mode,
+                approval_resolution_trace=approval_resolution_trace,
             )
         else:
             if not (args.inspire_recid or args.arxiv_id or args.doi):
@@ -3420,7 +3421,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             status="failed",
         )
         st["run_status"] = "failed"
-        st["notes"] = f"{args.workflow_id} failed: gate resolution error: {e}"
+        st["notes"] = f"{args.workflow_id} failed: approval resolution error: {e}"
         save_state(repo_root, st)
         append_ledger_event(
             repo_root,
@@ -3428,7 +3429,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             run_id=st.get("run_id"),
             workflow_id=st.get("workflow_id"),
             step_id=step_id,
-            details={"error": str(e), "error_type": "gate_resolution"},
+            details={"error": str(e), "error_type": "approval_resolution"},
         )
         return 2
     except Exception as e:
@@ -5931,7 +5932,7 @@ def main() -> int:
     p_run.add_argument(
         "--strict-gate-resolution",
         action="store_true",
-        help="Adapter workflows: treat unsafe gate-resolution combinations as hard errors (e.g. run_card_only + empty required_gates).",
+        help="Adapter workflows: treat unsafe approval-resolution combinations as hard errors (e.g. run_card_only + empty required_approvals).",
     )
     p_run.set_defaults(fn=cmd_run)
 

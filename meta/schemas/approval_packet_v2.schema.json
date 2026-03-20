@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://autoresearch.dev/schemas/approval_packet_v2.schema.json",
   "title": "ApprovalPacket V2",
-  "description": "Approval packet with gate-specific context enrichment (UX-07). Extends V1 by adding optional context_summary, key_results, integrity_flags, and recommendation fields. All new fields are optional for backward compatibility.",
+  "description": "Approval packet with approval-specific context enrichment (UX-07). Extends V1 by adding optional context_summary, key_results, integrity_flags, and recommendation fields. All new fields are optional for backward compatibility.",
   "type": "object",
   "required": [
     "schema_version",
@@ -31,7 +31,7 @@
     },
     "gate_id": {
       "type": "string",
-      "description": "Gate category (A0–A5)."
+      "description": "Approval category identifier (A0–A5) for the approval checkpoint being requested."
     },
     "run_id": {
       "type": "string",
@@ -129,7 +129,7 @@
         },
         "additionalProperties": false
       },
-      "description": "Trace of gate resolution events leading to this approval."
+      "description": "Approval-resolution provenance for this request, showing how A0–A5 approval requirements were derived from policy, run-card, workflow defaults, or CLI overrides."
     },
     "details_md": {
       "type": "string",

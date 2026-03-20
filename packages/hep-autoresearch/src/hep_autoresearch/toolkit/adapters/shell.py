@@ -384,13 +384,13 @@ class ShellAdapter(Adapter):
         run_card_path.write_text(json.dumps(run_card, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
         run_card_sha = sha256_json(run_card)
 
-        required_gates_raw = run_card.get("required_gates")
-        if required_gates_raw is None:
-            required_gates = ()
-        elif isinstance(required_gates_raw, list):
-            required_gates = tuple(str(x) for x in required_gates_raw if isinstance(x, str) and x.strip())
+        required_approvals_raw = run_card.get("required_approvals")
+        if required_approvals_raw is None:
+            required_approvals = ()
+        elif isinstance(required_approvals_raw, list):
+            required_approvals = tuple(str(x) for x in required_approvals_raw if isinstance(x, str) and x.strip())
         else:
-            raise ValueError("run_card.required_gates must be a list of strings (or omitted)")
+            raise ValueError("run_card.required_approvals must be a list of strings (or omitted)")
 
         backend = run_card.get("backend") if isinstance(run_card.get("backend"), dict) else {}
         sandbox = backend.get("sandbox") if isinstance(backend.get("sandbox"), dict) else None
@@ -407,7 +407,7 @@ class ShellAdapter(Adapter):
                 if net not in {"disabled", "none", "host"}:
                     raise ValueError(f"sandbox.network must be disabled/none/host, got {net!r}")
                 if net not in {"disabled", "none"}:
-                    required_gates = tuple(sorted(set(required_gates) | {"A1"}))
+                    required_approvals = tuple(sorted(set(required_approvals) | {"A1"}))
 
         # Idempotence: if already completed with the same run-card hash, skip unless forced.
         analysis_path = artifact_dir / "analysis.json"
@@ -419,7 +419,7 @@ class ShellAdapter(Adapter):
                 if prev_sha == run_card_sha and prev_status == "completed":
                     return PrepareResult(
                         artifact_dir=artifact_dir,
-                        required_gates=required_gates,
+                        required_approvals=required_approvals,
                         run_card=run_card,
                         run_card_path=run_card_path,
                         run_card_sha256=run_card_sha,
@@ -434,7 +434,7 @@ class ShellAdapter(Adapter):
 
         return PrepareResult(
             artifact_dir=artifact_dir,
-            required_gates=required_gates,
+            required_approvals=required_approvals,
             run_card=run_card,
             run_card_path=run_card_path,
             run_card_sha256=run_card_sha,
@@ -473,8 +473,8 @@ class ShellAdapter(Adapter):
         sandbox_docker_image = str(sandbox.get("docker_image") or "").strip() if isinstance(sandbox, dict) else ""
         if sandbox_enabled and sandbox_network not in {"disabled", "none", "host"}:
             raise ValueError(f"sandbox.network must be disabled/none/host, got {sandbox_network!r}")
-        if sandbox_enabled and sandbox_network not in {"disabled", "none"} and "A1" not in prep.required_gates:
-            raise ValueError("sandbox network policy requires A1 gate (missing from required_gates)")
+        if sandbox_enabled and sandbox_network not in {"disabled", "none"} and "A1" not in prep.required_approvals:
+            raise ValueError("sandbox network policy requires A1 approval (missing from required_approvals)")
         if sandbox_enabled and sandbox_provider in {"none", "off", "false", "0"}:
             raise ValueError("backend.sandbox.enabled=true requires sandbox.provider to be auto/local_copy/docker (not 'none')")
 
@@ -838,14 +838,14 @@ class ShellAdapter(Adapter):
             params=params,
             run_card_path=prep.run_card_path,
             run_card_sha256=prep.run_card_sha256,
-            required_gates=prep.required_gates,
+            required_approvals=prep.required_approvals,
             backend_kind=self.backend_kind,
             provenance=provenance,
             exec_result=exec_payload,
             errors=errors,
             status=status,
-            gate_resolution_mode=(str(prep.run_card.get("gate_resolution_mode")) if isinstance(prep.run_card.get("gate_resolution_mode"), str) else None),
-            gate_resolution_trace=(prep.run_card.get("gate_resolution_trace") if isinstance(prep.run_card.get("gate_resolution_trace"), list) else None),
+            approval_resolution_mode=(str(prep.run_card.get("approval_resolution_mode")) if isinstance(prep.run_card.get("approval_resolution_mode"), str) else None),
+            approval_resolution_trace=(prep.run_card.get("approval_resolution_trace") if isinstance(prep.run_card.get("approval_resolution_trace"), list) else None),
         )
 
         return CollectResult(artifact_dir=prep.artifact_dir, artifact_paths=artifact_paths, errors=errors)

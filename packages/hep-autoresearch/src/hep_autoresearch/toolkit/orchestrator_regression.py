@@ -788,7 +788,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "workflow_id": "shell_adapter_smoke",
             "adapter_id": "shell",
             "artifact_step": step_dir,
-            "required_gates": [],
+            "required_approvals": [],
             "budgets": {"timeout_seconds": 60},
             "prompt": {"system": "", "user": "Sandbox regression: forbid writes outside artifacts; allow artifacts writes."},
             "tools": [],

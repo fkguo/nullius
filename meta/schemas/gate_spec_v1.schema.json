@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/gate_spec_v1.schema.json",
+  "title": "GateSpec V1",
+  "description": "Generic gate authority contract shared across approval, quality, and convergence checkpoints.",
+  "type": "object",
+  "required": [
+    "gate_id",
+    "gate_type",
+    "scope",
+    "policy",
+    "fail_behavior",
+    "audit_required"
+  ],
+  "properties": {
+    "gate_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+      "description": "Stable gate identifier, e.g. A1 or team_convergence."
+    },
+    "gate_type": {
+      "type": "string",
+      "enum": ["approval", "quality", "convergence"],
+      "description": "Generic gate taxonomy. Approval checkpoints are one gate type, not the whole abstraction."
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable authority boundary or workflow scope for the gate."
+    },
+    "policy": {
+      "type": "object",
+      "description": "Gate-specific policy metadata or parameters.",
+      "default": {},
+      "additionalProperties": true
+    },
+    "fail_behavior": {
+      "type": "string",
+      "enum": ["fail-open", "fail-closed"],
+      "default": "fail-closed",
+      "description": "Enforcement posture when the gate cannot be evaluated."
+    },
+    "audit_required": {
+      "type": "boolean",
+      "description": "Whether the gate must emit auditable provenance when enforced."
+    }
+  },
+  "additionalProperties": false
+}

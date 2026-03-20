@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://autoresearch.dev/schemas/approval_packet_v1.schema.json",
   "title": "ApprovalPacket V1",
-  "description": "Structured approval packet for human review of orchestrator gate decisions. Contains purpose, plan, risks, budgets, outputs, rollback, and checklist.",
+  "description": "Structured approval packet for human review of orchestrator approval decisions. Contains purpose, plan, risks, budgets, outputs, rollback, and checklist.",
   "type": "object",
   "required": [
     "schema_version",
@@ -31,7 +31,7 @@
     },
     "gate_id": {
       "type": "string",
-      "description": "Gate category (A1–A5)."
+      "description": "Approval category identifier (A1–A5) for the approval checkpoint being requested."
     },
     "run_id": {
       "type": "string",
@@ -129,7 +129,7 @@
         },
         "additionalProperties": false
       },
-      "description": "Trace of gate resolution events leading to this approval."
+      "description": "Approval-resolution provenance for this request, showing how A0–A5 approval requirements were derived from policy, run-card, workflow defaults, or CLI overrides."
     },
     "details_md": {
       "type": "string",

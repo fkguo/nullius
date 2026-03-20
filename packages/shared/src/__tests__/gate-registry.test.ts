@@ -1,55 +1,64 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   GATE_REGISTRY,
+  GateValidationError,
   getGateSpec,
   getRegisteredGateNames,
-  validateGates,
   isRegisteredGate,
-  GateValidationError,
   type GateType,
+  validateGates,
 } from '../gate-registry.js';
 
 describe('GATE_REGISTRY', () => {
-  it('should have unique gate names', () => {
-    const names = GATE_REGISTRY.map(g => g.name);
-    expect(new Set(names).size).toBe(names.length);
+  it('should have unique gate ids', () => {
+    const gateIds = GATE_REGISTRY.map((gate) => gate.gate_id);
+    expect(new Set(gateIds).size).toBe(gateIds.length);
   });
 
-  it('should have all gate names in snake_case', () => {
+  it('should use stable gate id formats', () => {
     for (const gate of GATE_REGISTRY) {
-      expect(gate.name).toMatch(/^[a-z][a-z0-9_]*$/);
+      expect(gate.gate_id).toMatch(/^(?:A[1-5]|[a-z][a-z0-9_]*)$/);
     }
   });
 
   it('should have valid gate types', () => {
-    const validTypes: GateType[] = ['approval', 'quality', 'budget'];
+    const validTypes: GateType[] = ['approval', 'quality', 'convergence'];
     for (const gate of GATE_REGISTRY) {
-      expect(validTypes).toContain(gate.type);
+      expect(validTypes).toContain(gate.gate_type);
     }
   });
 
-  it('should have valid required_risk_level', () => {
-    const validLevels = ['read', 'write', 'destructive'];
+  it('should keep concrete registry entries fail-closed', () => {
     for (const gate of GATE_REGISTRY) {
-      expect(validLevels).toContain(gate.required_risk_level);
+      expect(gate.fail_behavior).toBe('fail-closed');
     }
   });
 
-  it('should contain expected approval gates', () => {
-    const names = GATE_REGISTRY.map(g => g.name);
-    expect(names).toContain('approval_run_start');
-    expect(names).toContain('approval_paperset');
-    expect(names).toContain('approval_outline');
-    expect(names).toContain('approval_draft');
-    expect(names).toContain('approval_export');
+  it('should require audit trails for every registered gate', () => {
+    for (const gate of GATE_REGISTRY) {
+      expect(gate.audit_required).toBe(true);
+      expect(typeof gate.policy).toBe('object');
+    }
+  });
+
+  it('should contain expected approval and convergence gates', () => {
+    const gateIds = GATE_REGISTRY.map((gate) => gate.gate_id);
+    expect(gateIds).toContain('A1');
+    expect(gateIds).toContain('A2');
+    expect(gateIds).toContain('A3');
+    expect(gateIds).toContain('A4');
+    expect(gateIds).toContain('A5');
+    expect(gateIds).toContain('team_convergence');
+    expect(gateIds).toContain('draft_convergence');
   });
 });
 
 describe('getGateSpec', () => {
   it('should return spec for registered gates', () => {
-    const spec = getGateSpec('approval_run_start');
+    const spec = getGateSpec('A1');
     expect(spec).toBeDefined();
-    expect(spec!.type).toBe('approval');
+    expect(spec!.gate_type).toBe('approval');
+    expect(spec!.scope).toBe('mass_search');
   });
 
   it('should return undefined for unknown gates', () => {
@@ -58,17 +67,17 @@ describe('getGateSpec', () => {
 });
 
 describe('getRegisteredGateNames', () => {
-  it('should return all registered names', () => {
-    const names = getRegisteredGateNames();
-    expect(names.length).toBe(GATE_REGISTRY.length);
-    expect(names).toContain('approval_run_start');
-    expect(names).toContain('budget_token');
+  it('should return all registered gate ids', () => {
+    const gateIds = getRegisteredGateNames();
+    expect(gateIds.length).toBe(GATE_REGISTRY.length);
+    expect(gateIds).toContain('A1');
+    expect(gateIds).toContain('team_convergence');
   });
 });
 
 describe('validateGates', () => {
   it('should pass for valid gates', () => {
-    expect(() => validateGates(['approval_run_start', 'approval_outline'])).not.toThrow();
+    expect(() => validateGates(['A1', 'quality_compile'])).not.toThrow();
   });
 
   it('should pass for empty list', () => {
@@ -77,7 +86,7 @@ describe('validateGates', () => {
 
   it('should throw GateValidationError for unknown gates', () => {
     try {
-      validateGates(['approval_run_start', 'A6', 'mystery']);
+      validateGates(['A1', 'A6', 'mystery']);
       expect.fail('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(GateValidationError);
@@ -88,8 +97,9 @@ describe('validateGates', () => {
 
 describe('isRegisteredGate', () => {
   it('should return true for registered gates', () => {
-    expect(isRegisteredGate('approval_run_start')).toBe(true);
+    expect(isRegisteredGate('A1')).toBe(true);
     expect(isRegisteredGate('quality_compile')).toBe(true);
+    expect(isRegisteredGate('team_convergence')).toBe(true);
   });
 
   it('should return false for unregistered gates', () => {

@@ -12,7 +12,7 @@ BackendKind = Literal["shell", "mcp", "internal"]
 @dataclass(frozen=True)
 class PrepareResult:
     artifact_dir: Path
-    required_gates: tuple[str, ...]
+    required_approvals: tuple[str, ...]
     run_card: dict[str, Any]
     run_card_path: Path
     run_card_sha256: str
@@ -54,7 +54,7 @@ class Adapter(abc.ABC):
     - Adapters must be deterministic and auditable: all executions must be captured into SSOT artifacts
       (manifest/summary/analysis) under artifacts/runs/<tag>/<step>/.
     - Adapters must be safe-by-default: any action that triggers network / code edits / paper edits / compute
-      must be routed through Orchestrator approvals (A1–A5). Adapters express required gates via prepare().
+      must be routed through Orchestrator approvals (A1–A5). Adapters express required approvals via prepare().
     """
 
     @property

@@ -56,14 +56,14 @@ def write_adapter_artifacts(
     params: dict[str, Any],
     run_card_path: Path,
     run_card_sha256: str,
-    required_gates: tuple[str, ...],
+    required_approvals: tuple[str, ...],
     backend_kind: str,
     provenance: dict[str, Any] | None,
     exec_result: dict[str, Any] | None,
     errors: list[str],
     status: str,
-    gate_resolution_mode: str | None = None,
-    gate_resolution_trace: list[dict[str, Any]] | None = None,
+    approval_resolution_mode: str | None = None,
+    approval_resolution_trace: list[dict[str, Any]] | None = None,
 ) -> dict[str, str]:
     """Write manifest/summary/analysis (+ report.md) for an adapter run.
 
@@ -98,12 +98,12 @@ def write_adapter_artifacts(
     if git_meta:
         manifest["git"] = git_meta
 
-    if required_gates:
-        manifest["required_gates"] = list(required_gates)
-    if isinstance(gate_resolution_mode, str) and gate_resolution_mode.strip():
-        manifest["gate_resolution_mode"] = gate_resolution_mode.strip()
-    if isinstance(gate_resolution_trace, list):
-        manifest["gate_resolution_trace"] = [x for x in gate_resolution_trace if isinstance(x, dict)]
+    if required_approvals:
+        manifest["required_approvals"] = list(required_approvals)
+    if isinstance(approval_resolution_mode, str) and approval_resolution_mode.strip():
+        manifest["approval_resolution_mode"] = approval_resolution_mode.strip()
+    if isinstance(approval_resolution_trace, list):
+        manifest["approval_resolution_trace"] = [x for x in approval_resolution_trace if isinstance(x, dict)]
     manifest["backend_kind"] = str(backend_kind)
     if provenance is not None:
         manifest["provenance"] = provenance
@@ -161,7 +161,7 @@ def write_adapter_artifacts(
         "inputs": {
             "run_card_sha256": run_card_sha256,
             "backend_kind": backend_kind,
-            "required_gates": list(required_gates),
+            "required_approvals": list(required_approvals),
         },
         "results": {
             "status": status,

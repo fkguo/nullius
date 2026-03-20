@@ -16,12 +16,12 @@
     "artifact_step": { "type": "string" },
     "step_id": { "type": "string" },
     "adapter_id": { "type": "string" },
-    "required_gates": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-    "gate_resolution_mode": {
+    "required_approvals": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "approval_resolution_mode": {
       "type": "string",
       "enum": ["union", "policy_only", "run_card_only"]
     },
-    "gate_resolution_trace": {
+    "approval_resolution_trace": {
       "type": "array",
       "items": {
         "type": "object",

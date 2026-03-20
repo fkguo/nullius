@@ -6,6 +6,7 @@ from typing import Any, Iterable
 
 from .adapter_plugin import AdapterPlugin
 from .base import Adapter
+from ..run_card import normalize_approval_run_card_fields
 from .shell_plugin import shell_adapter_plugin
 
 
@@ -68,14 +69,14 @@ def default_run_card_for_workflow(
         raise RuntimeError(f"adapter plugin {plugin.plugin_id} returned mismatched workflow_id for {wid}")
     if str(run_card.get("run_id")) != rid:
         raise RuntimeError(f"adapter plugin {plugin.plugin_id} returned mismatched run_id for {wid}")
-    return run_card
+    return normalize_approval_run_card_fields(run_card)
 
 
 def load_run_card(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("run-card JSON must be an object")
-    return payload
+    return normalize_approval_run_card_fields(payload)
 
 
 def validate_adapter_registry(*, extra_plugins: Iterable[AdapterPlugin] | None = None) -> None:

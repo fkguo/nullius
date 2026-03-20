@@ -55,14 +55,14 @@ Init scaffolds a starter template:
 - `status` reconcile is display-layer only; it does not write back to `.autoresearch/state.json`.
 - If manifest is missing/corrupt or `steps` schema is malformed, status falls back to state and emits structured warnings.
 
-### Adapter gate resolution mode
+### Adapter approval resolution mode
 
-- Adapter run-card supports optional `gate_resolution_mode`:
+- Adapter run-card supports optional `approval_resolution_mode`:
   - `union` (default), `policy_only`, `run_card_only`
 - Resolution details are persisted to adapter `manifest.json` as:
-  - `gate_resolution_mode`
-  - `gate_resolution_trace`
-- For `run_card_only + required_gates=[]`, CLI warns loudly (stderr + trace). Use `--strict-gate-resolution` to upgrade this to a hard error.
+  - `approval_resolution_mode`
+  - `approval_resolution_trace`
+- For `run_card_only + required_approvals=[]`, CLI warns loudly (stderr + trace). Use `--strict-gate-resolution` to upgrade this to a hard error.
 
 ## Safe cleanup (two-phase)
 

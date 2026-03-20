@@ -64,7 +64,12 @@ class ApprovalpacketV2(BaseModel):
     approval_id: Annotated[
         str, Field(description='Unique approval identifier, e.g. A1-0001.')
     ]
-    gate_id: Annotated[str, Field(description='Gate category (A0–A5).')]
+    gate_id: Annotated[
+        str,
+        Field(
+            description='Approval category identifier (A0–A5) for the approval checkpoint being requested.'
+        ),
+    ]
     run_id: Annotated[
         str, Field(description='Run identifier this approval belongs to.')
     ]
@@ -118,7 +123,9 @@ class ApprovalpacketV2(BaseModel):
     ] = None
     gate_resolution_trace: Annotated[
         list[GateResolutionTraceItem] | None,
-        Field(description='Trace of gate resolution events leading to this approval.'),
+        Field(
+            description='Approval-resolution provenance for this request, showing how A0–A5 approval requirements were derived from policy, run-card, workflow defaults, or CLI overrides.'
+        ),
     ] = None
     details_md: Annotated[
         str | None, Field(description='Optional extended details in Markdown format.')

@@ -79,7 +79,7 @@ def test_render_full_with_gate_trace(sample_data: ApprovalPacketData) -> None:
         {"gate_id": "A1", "triggered_by": "policy", "reason": "budget exceeded"}
     ]
     text = render_full(sample_data)
-    assert "## Gate resolution trace" in text
+    assert "## Approval resolution trace" in text
     assert "budget exceeded" in text
 
 
@@ -300,7 +300,7 @@ def test_gate_context_in_render_short(sample_data: ApprovalPacketData) -> None:
         recommendation="APPROVE",
     )
     text = render_short(sample_data)
-    assert "Gate Context" in text
+    assert "Approval Context" in text
     assert "18" in text
     assert "APPROVE" in text
     # Must still respect line limit
@@ -326,10 +326,10 @@ def test_gate_context_in_render_json(sample_data: ApprovalPacketData) -> None:
 
 
 def test_no_gate_context_no_section(sample_data: ApprovalPacketData) -> None:
-    """When gate_context is None, no Gate Context section appears."""
+    """When gate_context is None, no Approval Context section appears."""
     assert sample_data.gate_context is None
     text = render_short(sample_data)
-    assert "Gate Context" not in text
+    assert "Approval Context" not in text
     obj = render_json(sample_data)
     assert "context_summary" not in obj
     assert "key_results" not in obj
@@ -360,7 +360,7 @@ def test_gate_context_write_trio(
 
     # packet_short must still contain the gate context section
     short = (approval_dir / "packet_short.md").read_text("utf-8")
-    assert "Gate Context" in short
+    assert "Approval Context" in short
 
 
 def test_write_trio_no_v2_file_when_no_context(

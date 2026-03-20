@@ -1,139 +1,131 @@
 /**
- * Gate Registry — Approval checkpoint abstraction (H-04).
+ * Generic Gate Registry (H-04, M-22).
  *
- * Gates are named checkpoints in automated workflows where human approval,
- * quality checks, or budget limits may block progression.
- * This module defines the schema and static registry; execution logic is Phase 2 (H-11b).
+ * Gates are provider-neutral authority checkpoints used by approval,
+ * quality, and convergence flows. Approval checkpoints are one gate type,
+ * not the entire abstraction.
  */
 
-import type { ToolRiskLevel } from './tool-risk.js';
-
-// ── Gate Types ───────────────────────────────────────────────────────────────
-
-/**
- * Categories of gates:
- * - approval:  Requires human sign-off before proceeding
- * - quality:   Automated quality check (e.g., compile, test, originality)
- * - budget:    Token/cost budget limit enforcement
- */
-export type GateType = 'approval' | 'quality' | 'budget';
-
-// ── GateSpec ─────────────────────────────────────────────────────────────────
+export type GateType = 'approval' | 'quality' | 'convergence';
+export type GateFailBehavior = 'fail-open' | 'fail-closed';
+export type GatePolicy = Readonly<Record<string, unknown>>;
 
 export interface GateSpec {
-  /** Unique gate name (snake_case, must be unique in the registry) */
-  name: string;
-  /** Gate category */
-  type: GateType;
-  /** Human-readable description of what this gate checks/approves */
-  description: string;
-  /** Minimum tool risk level that triggers this gate (relates to H-11a) */
-  required_risk_level: ToolRiskLevel;
+  gate_id: string;
+  gate_type: GateType;
+  scope: string;
+  policy: GatePolicy;
+  fail_behavior: GateFailBehavior;
+  audit_required: boolean;
 }
 
-// ── Built-in Gate Registry ───────────────────────────────────────────────────
-
-/**
- * Static gate registry. All gate names must be unique.
- * Convention: gate names use snake_case, prefixed by domain.
- *
- * Current gates (from REDESIGN_PLAN):
- * - A1..A5: Approval gates for the research workflow
- */
 export const GATE_REGISTRY: readonly GateSpec[] = [
   {
-    name: 'approval_run_start',
-    type: 'approval',
-    description: 'Human approval required before starting a run',
-    required_risk_level: 'write',
+    gate_id: 'A1',
+    gate_type: 'approval',
+    scope: 'mass_search',
+    policy: { approval_category: 'mass_search' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
   },
   {
-    name: 'approval_paperset',
-    type: 'approval',
-    description: 'Human approval of curated paper set before outline generation',
-    required_risk_level: 'write',
+    gate_id: 'A2',
+    gate_type: 'approval',
+    scope: 'code_changes',
+    policy: { approval_category: 'code_changes' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
   },
   {
-    name: 'approval_outline',
-    type: 'approval',
-    description: 'Human approval of outline before section writing begins',
-    required_risk_level: 'write',
+    gate_id: 'A3',
+    gate_type: 'approval',
+    scope: 'compute_runs',
+    policy: { approval_category: 'compute_runs' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
   },
   {
-    name: 'approval_draft',
-    type: 'approval',
-    description: 'Human approval of draft before export/publish',
-    required_risk_level: 'write',
+    gate_id: 'A4',
+    gate_type: 'approval',
+    scope: 'paper_edits',
+    policy: { approval_category: 'paper_edits' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
   },
   {
-    name: 'approval_export',
-    type: 'approval',
-    description: 'Human approval before destructive export operations',
-    required_risk_level: 'destructive',
+    gate_id: 'A5',
+    gate_type: 'approval',
+    scope: 'final_conclusions',
+    policy: { approval_category: 'final_conclusions' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
   },
   {
-    name: 'quality_compile',
-    type: 'quality',
-    description: 'LaTeX compilation must succeed',
-    required_risk_level: 'write',
+    gate_id: 'quality_compile',
+    gate_type: 'quality',
+    scope: 'paper_compile',
+    policy: { check: 'latex_compile' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
   },
   {
-    name: 'quality_originality',
-    type: 'quality',
-    description: 'Originality check must pass (no ungrounded claims)',
-    required_risk_level: 'write',
+    gate_id: 'quality_originality',
+    gate_type: 'quality',
+    scope: 'evidence_grounding',
+    policy: { check: 'originality' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
   },
   {
-    name: 'budget_token',
-    type: 'budget',
-    description: 'Token budget must not be exceeded for the current step',
-    required_risk_level: 'read',
+    gate_id: 'team_convergence',
+    gate_type: 'convergence',
+    scope: 'research_team',
+    policy: { result_schema: 'convergence_gate_result_v1' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
+  },
+  {
+    gate_id: 'draft_convergence',
+    gate_type: 'convergence',
+    scope: 'draft_review',
+    policy: { result_schema: 'convergence_gate_result_v1' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
   },
 ] as const;
 
-// ── Lookup & Validation ──────────────────────────────────────────────────────
-
-const GATE_BY_NAME = new Map<string, GateSpec>(
-  GATE_REGISTRY.map(g => [g.name, g])
+const GATE_BY_ID = new Map<string, GateSpec>(
+  GATE_REGISTRY.map((gate) => [gate.gate_id, gate]),
 );
 
-// Module-load uniqueness check: if any duplicate name exists, the Map
-// constructor silently overwrites. We detect this at module load.
-if (GATE_BY_NAME.size !== GATE_REGISTRY.length) {
-  const names = GATE_REGISTRY.map(g => g.name);
-  const dupes = names.filter((n, i) => names.indexOf(n) !== i);
-  throw new Error(`GATE_REGISTRY has duplicate gate names: ${dupes.join(', ')}`);
+if (GATE_BY_ID.size !== GATE_REGISTRY.length) {
+  const gateIds = GATE_REGISTRY.map((gate) => gate.gate_id);
+  const duplicates = gateIds.filter((gateId, index) => gateIds.indexOf(gateId) !== index);
+  throw new Error(`GATE_REGISTRY has duplicate gate ids: ${duplicates.join(', ')}`);
 }
 
-/** Get a gate spec by name, or undefined if not registered. */
-export function getGateSpec(name: string): GateSpec | undefined {
-  return GATE_BY_NAME.get(name);
+export function getGateSpec(gateId: string): GateSpec | undefined {
+  return GATE_BY_ID.get(gateId);
 }
 
-/** Get all registered gate names. */
 export function getRegisteredGateNames(): string[] {
-  return [...GATE_BY_NAME.keys()];
+  return [...GATE_BY_ID.keys()];
 }
 
 export class GateValidationError extends Error {
   constructor(public readonly invalidGates: string[]) {
-    super(`Unknown gate(s): ${invalidGates.join(', ')}. Registered: ${[...GATE_BY_NAME.keys()].join(', ')}`);
+    super(`Unknown gate(s): ${invalidGates.join(', ')}. Registered: ${[...GATE_BY_ID.keys()].join(', ')}`);
     this.name = 'GateValidationError';
   }
 }
 
-/**
- * Validate that all gate names in the list are registered.
- * @throws GateValidationError if any gate name is unknown.
- */
 export function validateGates(gates: string[]): void {
-  const invalid = gates.filter(g => !GATE_BY_NAME.has(g));
+  const invalid = gates.filter((gateId) => !GATE_BY_ID.has(gateId));
   if (invalid.length > 0) {
     throw new GateValidationError(invalid);
   }
 }
 
-/** Check if a gate name is registered (non-throwing). */
-export function isRegisteredGate(name: string): boolean {
-  return GATE_BY_NAME.has(name);
+export function isRegisteredGate(gateId: string): boolean {
+  return GATE_BY_ID.has(gateId);
 }

@@ -1,6 +1,6 @@
 /* AUTO-GENERATED — DO NOT EDIT. Source: meta/schemas/ */
 /**
- * Approval packet with gate-specific context enrichment (UX-07). Extends V1 by adding optional context_summary, key_results, integrity_flags, and recommendation fields. All new fields are optional for backward compatibility.
+ * Approval packet with approval-specific context enrichment (UX-07). Extends V1 by adding optional context_summary, key_results, integrity_flags, and recommendation fields. All new fields are optional for backward compatibility.
  */
 export interface ApprovalPacketV2 {
   /**
@@ -12,7 +12,7 @@ export interface ApprovalPacketV2 {
    */
   approval_id: string;
   /**
-   * Gate category (A0–A5).
+   * Approval category identifier (A0–A5) for the approval checkpoint being requested.
    */
   gate_id: string;
   /**
@@ -90,7 +90,7 @@ export interface ApprovalPacketV2 {
    */
   active_branch_id?: string;
   /**
-   * Trace of gate resolution events leading to this approval.
+   * Approval-resolution provenance for this request, showing how A0–A5 approval requirements were derived from policy, run-card, workflow defaults, or CLI overrides.
    */
   gate_resolution_trace?: {
     gate_id?: string;

@@ -85,32 +85,32 @@ Trigger A5 (or force `UNVERIFIED`) for outputs that contain:
 - “first / novel / new discovery / best to our knowledge / better than prior work / we have solved …”
 - any strong attribution claim about other work (e.g. “they are wrong because…”) without explicit citations + artifact pointers.
 
-### 2.5 Adapter run-card gate resolution (union/policy_only/run_card_only)
+### 2.5 Adapter run-card approval resolution (union/policy_only/run_card_only)
 
-For adapter workflows (for example `shell_adapter_smoke`), gate resolution is controlled by run-card field:
+For adapter workflows (for example `shell_adapter_smoke`), approval resolution is controlled by run-card field:
 
-- `gate_resolution_mode: union` (default; safe-compatible)
-  - effective gates = `run_card.required_gates ∪ policy floor ∪ CLI --gate`
-- `gate_resolution_mode: policy_only`
-  - effective gates = `policy floor ∪ CLI --gate`
-  - ignores `run_card.required_gates`
-- `gate_resolution_mode: run_card_only`
-  - effective gates = `run_card.required_gates ∪ CLI --gate`
-  - suppresses policy floor gates
+- `approval_resolution_mode: union` (default; safe-compatible)
+  - effective approvals = `run_card.required_approvals ∪ policy floor ∪ CLI --gate`
+- `approval_resolution_mode: policy_only`
+  - effective approvals = `policy floor ∪ CLI --gate`
+  - ignores `run_card.required_approvals`
+- `approval_resolution_mode: run_card_only`
+  - effective approvals = `run_card.required_approvals ∪ CLI --gate`
+  - suppresses policy floor approvals
 
 Safety note:
 
-- `run_card_only + required_gates=[]` emits a highlighted warning to stderr and records a trace entry indicating policy-floor suppression.
+- `run_card_only + required_approvals=[]` emits a highlighted warning to stderr and records a trace entry indicating policy-floor suppression.
 - `hepar run --strict-gate-resolution` upgrades this case to a hard error.
 
 Auditability:
 
 - Adapter `manifest.json` records both:
-  - `gate_resolution_mode`
-  - `gate_resolution_trace`
-- Approval packets include a `## Gate resolution trace` section when approvals are requested.
+  - `approval_resolution_mode`
+  - `approval_resolution_trace`
+- Approval packets include a `## Approval resolution trace` section when approvals are requested.
 
-`gate_resolution_trace` entry shape:
+`approval_resolution_trace` entry shape:
 
 - `gate_id: string`
 - `triggered_by: policy | run_card | both | workflow_default | cli_override`

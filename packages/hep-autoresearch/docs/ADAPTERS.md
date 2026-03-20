@@ -45,7 +45,7 @@ Minimal example:
   "workflow_id": "shell_adapter_smoke",
   "adapter_id": "shell",
   "artifact_step": "shell_adapter_smoke",
-  "required_gates": ["A3"],
+  "required_approvals": ["A3"],
   "budgets": { "timeout_seconds": 30 },
   "backend": {
     "kind": "shell",
@@ -57,7 +57,7 @@ Minimal example:
 ```
 
 Notes:
-- `required_gates` is the adapter’s safety floor; Orchestrator policy may enforce additional gates.
+- `required_approvals` is the adapter’s approval floor; Orchestrator policy may enforce additional approvals.
 
 ### 2.1) Optional: sandboxed execution (T40 v0)
 

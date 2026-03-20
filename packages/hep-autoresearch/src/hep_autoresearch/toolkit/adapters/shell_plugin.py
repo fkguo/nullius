@@ -16,8 +16,8 @@ def _default_shell_run_card(workflow_id: str, run_id: str, state: dict[str, Any]
         "workflow_id": wid,
         "adapter_id": "shell",
         "artifact_step": "shell_adapter_smoke",
-        "required_gates": [],
-        "gate_resolution_mode": "union",
+        "required_approvals": [],
+        "approval_resolution_mode": "union",
         "budgets": {"timeout_seconds": 30},
         "prompt": {
             "system": "",

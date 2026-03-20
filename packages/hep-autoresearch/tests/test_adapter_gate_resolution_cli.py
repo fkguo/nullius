@@ -54,8 +54,8 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
             "workflow_id": "shell_adapter_smoke",
             "adapter_id": "shell",
             "artifact_step": "shell_adapter_smoke",
-            "required_gates": list(gates),
-            "gate_resolution_mode": mode,
+            "required_approvals": list(gates),
+            "approval_resolution_mode": mode,
             "budgets": {"timeout_seconds": 30},
             "prompt": {"system": "", "user": "smoke"},
             "tools": [],
@@ -108,17 +108,17 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
             packet_path = self._packet_path(repo_root)
             self.assertIsNotNone(packet_path)
             packet = (packet_path or Path()).read_text(encoding="utf-8")
-            self.assertIn("Gate resolution trace", packet)
+            self.assertIn("Approval resolution trace", packet)
             self.assertIn("gate=A3", packet)
 
             manifest_path = repo_root / "artifacts" / "runs" / "R-UNION" / "shell_adapter_smoke" / "manifest.json"
             self.assertTrue(manifest_path.exists())
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual(manifest.get("gate_resolution_mode"), "union")
-            trace = manifest.get("gate_resolution_trace") or []
+            self.assertEqual(manifest.get("approval_resolution_mode"), "union")
+            trace = manifest.get("approval_resolution_trace") or []
             self.assertTrue(any((isinstance(x, dict) and x.get("gate_id") == "A3") for x in trace))
 
-    def test_policy_only_ignores_run_card_required_gates(self) -> None:
+    def test_policy_only_ignores_run_card_required_approvals(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
             self._init_and_policy(repo_root)
@@ -171,12 +171,12 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
                 ]
             )
             self.assertEqual(rc, 0, msg=out + err)
-            self.assertIn("gate_resolution_policy_suppressed", err)
+            self.assertIn("approval_resolution_policy_suppressed", err)
 
             manifest_path = repo_root / "artifacts" / "runs" / "R-RC" / "shell_adapter_smoke" / "manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual(manifest.get("gate_resolution_mode"), "run_card_only")
-            trace = manifest.get("gate_resolution_trace") or []
+            self.assertEqual(manifest.get("approval_resolution_mode"), "run_card_only")
+            trace = manifest.get("approval_resolution_trace") or []
             self.assertTrue(any((isinstance(x, dict) and x.get("reason") and "suppressed" in str(x.get("reason"))) for x in trace))
 
     def test_run_card_only_empty_strict_errors(self) -> None:

@@ -15,6 +15,28 @@ from ._time import utc_now_iso
 
 
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_APPROVAL_RUN_CARD_FIELD_ALIASES: tuple[tuple[str, str], ...] = (
+    ("required_approvals", "required_gates"),
+    ("approval_resolution_mode", "gate_resolution_mode"),
+    ("approval_resolution_trace", "gate_resolution_trace"),
+)
+
+
+def normalize_approval_run_card_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise TypeError("run-card payload must be a JSON object")
+    normalized = dict(payload)
+    for canonical_key, legacy_key in _APPROVAL_RUN_CARD_FIELD_ALIASES:
+        has_canonical = canonical_key in normalized
+        has_legacy = legacy_key in normalized
+        if has_canonical and has_legacy and normalized[canonical_key] != normalized[legacy_key]:
+            raise ValueError(
+                f"run-card defines both {canonical_key} and legacy {legacy_key} with different values"
+            )
+        if not has_canonical and has_legacy:
+            normalized[canonical_key] = normalized[legacy_key]
+        normalized.pop(legacy_key, None)
+    return normalized
 
 
 def run_card_path(*, repo_root: Path, run_id: str) -> Path:
@@ -43,6 +65,7 @@ def sha256_json(payload: Any) -> str:
 def validate_run_card(payload: dict[str, Any]) -> None:
     if not isinstance(payload, dict):
         raise TypeError("run-card payload must be a JSON object")
+    payload = normalize_approval_run_card_fields(payload)
     v = payload.get("schema_version")
     if not isinstance(v, int) or isinstance(v, bool) or v < 1:
         raise ValueError("run-card.schema_version must be an integer >= 1")
@@ -80,6 +103,9 @@ def build_run_card(
     budgets: dict[str, Any] | None = None,
     evidence_bundle: dict[str, Any] | None = None,
     notes: str | None = None,
+    required_approvals: list[str] | None = None,
+    approval_resolution_mode: str | None = None,
+    approval_resolution_trace: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     created_at = utc_now_iso().replace("+00:00", "Z")
     payload: dict[str, Any] = {
@@ -106,7 +132,13 @@ def build_run_card(
         payload["git"] = git_meta
     if notes:
         payload["notes"] = str(notes)
-    return payload
+    if required_approvals:
+        payload["required_approvals"] = [str(x) for x in required_approvals if str(x).strip()]
+    if isinstance(approval_resolution_mode, str) and approval_resolution_mode.strip():
+        payload["approval_resolution_mode"] = approval_resolution_mode.strip()
+    if isinstance(approval_resolution_trace, list):
+        payload["approval_resolution_trace"] = [x for x in approval_resolution_trace if isinstance(x, dict)]
+    return normalize_approval_run_card_fields(payload)
 
 
 def ensure_run_card(
@@ -131,6 +163,7 @@ def ensure_run_card(
     p = run_card_path(repo_root=repo_root, run_id=run_id)
     if p.exists() and not overwrite:
         payload = json.loads(p.read_text(encoding="utf-8"))
+        payload = normalize_approval_run_card_fields(payload)
         validate_run_card(payload)
         sha = sha256_json(payload)
     else:
