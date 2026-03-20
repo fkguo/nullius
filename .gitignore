@@ -36,6 +36,7 @@ Thumbs.db
 .tmp/
 .review/
 .claude/
+.agents/
 .npm/
 tmp/
 packages/hep-autoresearch/.autopilot/
