@@ -1,64 +1,27 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { buildTeamConfigForDelegatedFollowupTask } from '../src/computation/feedback-followups.js';
 import { executeComputationManifest } from '../src/computation/index.js';
-import { compileExecutionPlan } from '../src/computation/execution-plan.js';
-import { executionPlanArtifactPath, materializeExecutionPlan } from '../src/computation/materialize-execution-plan.js';
+import { handleOrchRunExecuteAgent } from '../src/orch-tools/agent-runtime.js';
 import {
   cleanupRegisteredDirs,
   initRunState,
   makeTmpDir,
   markA3Satisfied,
   registerCleanup,
-  writeJson,
 } from './executeManifestTestUtils.js';
+import {
+  createBridgeRun,
+  readOutcome,
+  stageContextArtifact,
+  textResponse,
+} from './computeLoopWritingReviewBridgeTestSupport.js';
 
 afterEach(() => {
   cleanupRegisteredDirs();
 });
-
-function createBridgeRun(runId: string, projectRoot: string) {
-  const runDir = path.join(projectRoot, runId);
-  fs.mkdirSync(runDir, { recursive: true });
-  const executionPlan = compileExecutionPlan(runId, {
-    outline_seed_path: 'artifacts/outline_seed_v1.json',
-    outline: {
-      thesis: 'Computation result should bridge into writing and review substrate deterministically.',
-      claims: [{ claim_text: 'Claim A' }],
-      hypotheses: ['Hypothesis A'],
-      source_handoff_uri: '/tmp/idea-handoff.json',
-    },
-    hints: {
-      minimal_compute_plan: [{ step: 'Evaluate the writing bridge task', method: 'generic execution', estimated_difficulty: 'low' }],
-    },
-  });
-  writeJson(executionPlanArtifactPath(runDir), executionPlan);
-  const { manifestPath } = materializeExecutionPlan(runDir, executionPlan);
-  return { runDir, manifestPath };
-}
-
-function stageContextArtifact(runDir: string, contentType: 'section_output' | 'reviewer_report' | 'revision_plan', suffix: string): void {
-  const artifactPath = path.join(runDir, 'artifacts', `staged_${contentType}_${suffix}.json`);
-  writeJson(artifactPath, {
-    version: 1,
-    staged_at: '2026-03-13T00:00:00Z',
-    content_type: contentType,
-    content: JSON.stringify({ section_number: '1', title: 'Seed context', content: 'Seed content' }),
-  });
-}
-
-function readOutcome(runDir: string) {
-  return JSON.parse(
-    fs.readFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), 'utf-8'),
-  ) as {
-    followup_bridge_refs: Array<{ uri: string }>;
-    workspace_feedback: {
-      tasks: Array<{ kind: string; status: string }>;
-      handoffs: Array<{ handoff_kind: string; payload: Record<string, unknown> }>;
-    };
-  };
-}
 
 describe('compute-loop writing/review bridges', () => {
   it('creates a writing bridge and draft_update follow-up without fabricating a review loop', async () => {
@@ -96,7 +59,7 @@ describe('compute-loop writing/review bridges', () => {
     expect(writingBridge.handoff).toBeUndefined();
   });
 
-  it('creates writing and review handoffs only when staged draft context already exists', async () => {
+  it('launches the real computation writing follow-up through orch_run_execute_agent.team and resumes from persisted team state', async () => {
     const projectRoot = makeTmpDir();
     const runId = 'run-writing-review-bridge';
     registerCleanup(projectRoot);
@@ -112,16 +75,81 @@ describe('compute-loop writing/review bridges', () => {
     expect(result.followup_bridge_refs).toHaveLength(2);
 
     const outcome = readOutcome(runDir);
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'draft_update' && task.status === 'pending')).toBe(true);
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'review' && task.status === 'pending')).toBe(true);
-    expect(outcome.workspace_feedback.handoffs.map(handoff => handoff.handoff_kind)).toEqual(['writing', 'review']);
+    const draftTask = outcome.workspace_feedback.tasks.find(task => task.kind === 'draft_update')!;
+    const reviewTask = outcome.workspace_feedback.tasks.find(task => task.kind === 'review')!;
+    const writingTeam = buildTeamConfigForDelegatedFollowupTask(draftTask);
+    const reviewTeam = buildTeamConfigForDelegatedFollowupTask(reviewTask);
+    const writingHandoff = outcome.workspace_feedback.handoffs.find(handoff => handoff.handoff_id === writingTeam.handoff_id)!;
+    expect(reviewTeam.handoff_kind).toBe('review');
+    expect(writingHandoff.workspace_id).toBe(writingTeam.workspace_id);
+
+    const runtimeArgs = {
+      _confirm: true as const,
+      project_root: projectRoot,
+      run_id: runId,
+      model: 'claude-test',
+      messages: [{
+        role: 'assistant' as const,
+        content: [{ type: 'tool_use' as const, id: 'tu_bridge', name: 'do_thing', input: {} }],
+      }],
+      tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+      team: writingTeam,
+    };
+
+    const first = await handleOrchRunExecuteAgent(runtimeArgs, {
+      callTool: vi.fn(async () => ({ content: [{ type: 'text', text: 'tool-result' }], isError: false })),
+      createMessage: async () => { throw new Error('interrupt after checkpoint'); },
+    }) as {
+      last_completed_step: string;
+      team_state_path: string;
+      team_state: {
+        workspace_id: string;
+        delegate_assignments: Array<{
+          task_id: string;
+          task_kind: string;
+          handoff_id: string | null;
+          handoff_kind: string | null;
+          checkpoint_id: string | null;
+        }>;
+        checkpoints: Array<{ checkpoint_id: string; task_id: string; handoff_id: string | null }>;
+      };
+    };
+    expect(first.last_completed_step).toBe('tu_bridge');
+    expect(fs.existsSync(first.team_state_path)).toBe(true);
+    expect(first.team_state.workspace_id).toBe(writingTeam.workspace_id);
+    expect(first.team_state.delegate_assignments[0]).toMatchObject({
+      task_id: draftTask.task_id,
+      task_kind: 'draft_update',
+      handoff_id: writingHandoff.handoff_id,
+      handoff_kind: 'writing',
+    });
+    expect(first.team_state.checkpoints[0]).toMatchObject({
+      task_id: draftTask.task_id,
+      handoff_id: writingHandoff.handoff_id,
+    });
+
+    const resumedCall = vi.fn(async () => ({ content: [{ type: 'text', text: 'should-not-run' }], isError: false }));
+    const resumed = await handleOrchRunExecuteAgent(runtimeArgs, {
+      callTool: resumedCall,
+      createMessage: async () => textResponse('resumed'),
+    }) as {
+      resumed: boolean;
+      skipped_step_ids: string[];
+      team_state: {
+        checkpoints: Array<{ checkpoint_id: string; resume_from: string | null }>;
+        delegate_assignments: Array<{ resume_from: string | null }>;
+      };
+    };
+    expect(resumed.resumed).toBe(true);
+    expect(resumed.skipped_step_ids).toEqual(['tu_bridge']);
+    expect(resumed.team_state.delegate_assignments[0]?.resume_from).toBe('tu_bridge');
+    expect(resumed.team_state.checkpoints[0]?.checkpoint_id).toBe(first.team_state.checkpoints[0]?.checkpoint_id);
+    expect(resumed.team_state.checkpoints[0]?.resume_from).toBe('tu_bridge');
+    expect(resumedCall).not.toHaveBeenCalled();
 
     const writingBridge = JSON.parse(
       fs.readFileSync(path.join(runDir, 'artifacts', 'writing_followup_bridge_v1.json'), 'utf-8'),
-    ) as {
-      context: { draft_context_mode: string; draft_source_artifact_name: string };
-      handoff?: { handoff_kind: string };
-    };
+    ) as { context: { draft_context_mode: string; draft_source_artifact_name: string }; handoff?: { handoff_kind: string } };
     const reviewBridge = JSON.parse(
       fs.readFileSync(path.join(runDir, 'artifacts', 'review_followup_bridge_v1.json'), 'utf-8'),
     ) as {

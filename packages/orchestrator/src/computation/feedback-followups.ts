@@ -1,13 +1,93 @@
 import { randomUUID } from 'node:crypto';
 import { utcNowIso } from '../util.js';
-import { type ResearchHandoff, type ResearchLoopRuntime } from '../research-loop/index.js';
+import {
+  type ResearchHandoff,
+  type ResearchLoopRuntime,
+  type ResearchTask,
+} from '../research-loop/index.js';
 import type { WritingFollowupWorkspaceSeed } from './followup-bridges.js';
+
+type DelegatedFollowupTask = Pick<ResearchTask, 'task_id' | 'kind' | 'metadata'>;
+type DelegatedFollowupTaskKind = Extract<ResearchTask['kind'], 'draft_update' | 'review'>;
+type DelegatedFollowupHandoffKind = Extract<ResearchHandoff['handoff_kind'], 'writing' | 'review'>;
+type DelegatedFollowupHandoff = Extract<ResearchHandoff, { handoff_kind: DelegatedFollowupHandoffKind }>;
+type DelegatedFollowupTeamExecutionMetadata = {
+  workspace_id: string;
+  owner_role: 'lead';
+  delegate_role: 'delegate';
+  delegate_id: 'delegate-1';
+  coordination_policy: 'supervised_delegate';
+  handoff_id: string;
+  handoff_kind: DelegatedFollowupHandoffKind;
+  checkpoint_id: null;
+};
+
+export type DelegatedFollowupTeamConfig = DelegatedFollowupTeamExecutionMetadata & {
+  task_id: string;
+  task_kind: DelegatedFollowupTaskKind;
+};
+
+function isDelegatedFollowupTaskKind(kind: ResearchTask['kind']): kind is DelegatedFollowupTaskKind {
+  return kind === 'draft_update' || kind === 'review';
+}
+
+function isDelegatedFollowupTeamExecutionMetadata(
+  value: unknown,
+): value is DelegatedFollowupTeamExecutionMetadata {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.workspace_id !== undefined
+    && typeof candidate.workspace_id === 'string'
+    && candidate.owner_role === 'lead'
+    && candidate.delegate_role === 'delegate'
+    && candidate.delegate_id === 'delegate-1'
+    && candidate.coordination_policy === 'supervised_delegate'
+    && typeof candidate.handoff_id === 'string'
+    && (candidate.handoff_kind === 'writing' || candidate.handoff_kind === 'review')
+    && candidate.checkpoint_id === null;
+}
+
+function attachTeamExecutionMetadata(task: ResearchTask, handoff: DelegatedFollowupHandoff): void {
+  const metadata = task.metadata ?? {};
+  task.metadata = {
+    ...metadata,
+    team_execution: {
+      workspace_id: handoff.workspace_id,
+      owner_role: 'lead',
+      delegate_role: 'delegate',
+      delegate_id: 'delegate-1',
+      coordination_policy: 'supervised_delegate',
+      handoff_id: handoff.handoff_id,
+      handoff_kind: handoff.handoff_kind,
+      checkpoint_id: null,
+    },
+  };
+}
+
+export function buildTeamConfigForDelegatedFollowupTask(
+  task: DelegatedFollowupTask,
+): DelegatedFollowupTeamConfig {
+  if (!isDelegatedFollowupTaskKind(task.kind)) {
+    throw new Error(`task ${task.task_id} is not a delegated writing/review follow-up`);
+  }
+  const teamExecution = task.metadata && typeof task.metadata === 'object'
+    ? (task.metadata as Record<string, unknown>).team_execution
+    : null;
+  if (!isDelegatedFollowupTeamExecutionMetadata(teamExecution)) {
+    throw new Error(`task ${task.task_id} is missing delegated team execution metadata`);
+  }
+  return {
+    ...teamExecution,
+    task_id: task.task_id,
+    task_kind: task.kind,
+  };
+}
 
 function runtimeHandoff(
   runId: string,
   sourceTaskId: string,
   seed: NonNullable<WritingFollowupWorkspaceSeed['handoff']> | NonNullable<WritingFollowupWorkspaceSeed['reviewTask']>['handoff'],
-): ResearchHandoff {
+): DelegatedFollowupHandoff {
   const base = {
     handoff_id: randomUUID(),
     workspace_id: `workspace:${runId}`,
@@ -30,15 +110,20 @@ export function appendWritingFollowups(
   writingSeed?: WritingFollowupWorkspaceSeed,
 ): void {
   if (!writingSeed) return;
-  const draftTask = writingSeed.handoff
-    ? runtime.appendDelegatedTask({
-        handoff: runtimeHandoff(runId, findingTaskId, writingSeed.handoff),
-        task: writingSeed.task,
-      })
+  const draftHandoff = writingSeed.handoff
+    ? runtimeHandoff(runId, findingTaskId, writingSeed.handoff)
+    : null;
+  const draftTask = draftHandoff
+    ? runtime.appendDelegatedTask({ handoff: draftHandoff, task: writingSeed.task })
     : runtime.spawnFollowupTask(findingTaskId, writingSeed.task);
+  if (draftHandoff) {
+    attachTeamExecutionMetadata(draftTask, draftHandoff);
+  }
   if (!writingSeed.reviewTask) return;
-  runtime.appendDelegatedTask({
-    handoff: runtimeHandoff(runId, draftTask.task_id, writingSeed.reviewTask.handoff),
+  const reviewHandoff = runtimeHandoff(runId, draftTask.task_id, writingSeed.reviewTask.handoff);
+  const reviewTask = runtime.appendDelegatedTask({
+    handoff: reviewHandoff,
     task: writingSeed.reviewTask.task,
   });
+  attachTeamExecutionMetadata(reviewTask, reviewHandoff);
 }
