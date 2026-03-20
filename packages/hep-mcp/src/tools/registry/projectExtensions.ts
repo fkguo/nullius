@@ -36,7 +36,7 @@ export const RAW_PROJECT_EXTENSION_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     description:
       'Execute a computation_manifest_v1 plan from the current run. dry_run validates only; real execution requires A3 approval and returns a packet when approval is pending.',
     zodSchema: HepRunExecuteManifestToolSchema,
-    handler: async params => executeManifest(params),
+    handler: async (params, ctx) => executeManifest(params, ctx),
   },
   {
     name: HEP_RUN_CREATE_FROM_IDEA,

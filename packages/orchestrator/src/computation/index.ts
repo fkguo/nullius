@@ -45,6 +45,10 @@ export async function executeComputationManifest(
 }
 
 export { bridgeStagedIdeaToComputation, type ComputeBridgeInput, type ComputeBridgeResult } from './bridge.js';
+export {
+  buildTeamConfigForDelegatedFollowupTask,
+  type DelegatedFollowupTeamConfig,
+} from './feedback-followups.js';
 export type {
   ExecuteComputationManifestInput,
   ExecuteComputationManifestResult,

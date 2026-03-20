@@ -32,9 +32,11 @@ export {
 } from './run-manifest.js';
 export {
   bridgeStagedIdeaToComputation,
+  buildTeamConfigForDelegatedFollowupTask,
   executeComputationManifest,
   type ComputeBridgeInput,
   type ComputeBridgeResult,
+  type DelegatedFollowupTeamConfig,
   type ExecuteComputationManifestInput,
   type ExecuteComputationManifestResult,
 } from './computation/index.js';

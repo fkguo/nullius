@@ -4,6 +4,8 @@ import { executeComputationManifest } from '@autoresearch/orchestrator';
 import { getRun } from '../core/runs.js';
 import { getRunDir } from '../core/paths.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
+import { maybeLaunchDelegatedComputationFollowup } from './computation-followup-launch.js';
+import type { ToolHandlerContext } from './registry/types.js';
 
 export const HepRunExecuteManifestToolSchema = z.object({
   _confirm: z.boolean().optional().describe('Must be true to execute this destructive operation.'),
@@ -17,16 +19,29 @@ export type HepRunExecuteManifestParams = z.output<typeof HepRunExecuteManifestT
 
 export async function executeManifest(
   params: HepRunExecuteManifestParams,
+  ctx: ToolHandlerContext = {},
 ) {
   getRun(params.run_id);
   const runDir = getRunDir(params.run_id);
   const manifestPath = resolvePathWithinParent(runDir, params.manifest_path, 'manifest_path');
   resolvePathWithinParent(path.join(runDir, 'computation'), manifestPath, 'manifest_path');
-  return executeComputationManifest({
+  const result = await executeComputationManifest({
     dryRun: params.dry_run,
     manifestPath,
     projectRoot: params.project_root,
     runDir,
     runId: params.run_id,
   });
+  if (result.status !== 'completed') {
+    return result;
+  }
+  return {
+    ...result,
+    delegated_launch: await maybeLaunchDelegatedComputationFollowup({
+      ctx,
+      result,
+      projectRoot: params.project_root,
+      runId: params.run_id,
+    }),
+  };
 }
