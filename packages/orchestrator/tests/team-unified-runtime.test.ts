@@ -27,6 +27,27 @@ function toolUseResponse(id: string, name: string, input: Record<string, unknown
   };
 }
 
+function extractTaskId(params: {
+  messages: Array<{ role: string; content: unknown }>;
+}): string {
+  const protocol = params.messages
+    .filter(message => message.role === 'user' && typeof message.content === 'string')
+    .map(message => message.content)
+    .find(content => content.includes('## TASK'));
+  if (!protocol || typeof protocol !== 'string') {
+    throw new Error('missing delegation protocol');
+  }
+  if (protocol.includes('task-parallel-1')) return 'task-parallel-1';
+  if (protocol.includes('task-parallel-2')) return 'task-parallel-2';
+  if (protocol.includes('task-recover-1')) return 'task-recover-1';
+  if (protocol.includes('task-recover-2')) return 'task-recover-2';
+  if (protocol.includes('task-recover-timeout-2')) return 'task-recover-timeout-2';
+  if (protocol.includes('task-timeout-3')) return 'task-timeout-3';
+  if (protocol.includes('task-complete-1')) return 'task-complete-1';
+  if (protocol.includes('task-review-2')) return 'task-review-2';
+  return 'task-compute-1';
+}
+
 const PERMISSIONS: TeamPermissionMatrix = {
   delegation: [
     {
@@ -39,7 +60,7 @@ const PERMISSIONS: TeamPermissionMatrix = {
   interventions: [
     {
       actor_role: 'lead',
-      allowed_scopes: ['task', 'team', 'project'],
+      allowed_scopes: ['task', 'team'],
       allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
     },
   ],
@@ -167,6 +188,243 @@ describe('team unified runtime control paths', () => {
       expect(result.replay.some(entry => entry.kind === 'stage_completed' && entry.payload.stage === 1)).toBe(true);
       expect(createMessage).toHaveBeenCalledTimes(2);
     } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('fans out parallel assignments concurrently while keeping result ordering deterministic', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      let releaseBarrier: (() => void) | null = null;
+      const barrier = new Promise<void>(resolve => {
+        releaseBarrier = resolve;
+      });
+      let readyResolve: (() => void) | null = null;
+      const ready = new Promise<void>(resolve => {
+        readyResolve = resolve;
+      });
+      const callOrder: string[] = [];
+
+      const createMessage = vi.fn(async params => {
+        const taskId = extractTaskId(params);
+        const last = params.messages.at(-1);
+        const hasToolResult = Boolean(
+          last
+            && last.role === 'user'
+            && Array.isArray(last.content)
+            && last.content.some(block => block.type === 'tool_result'),
+        );
+        return hasToolResult
+          ? textResponse(`${taskId} complete`)
+          : toolUseResponse(`tu_${taskId}`, 'do_thing', { task_id: taskId });
+      });
+      const callTool = vi.fn(async (_name: string, input: { task_id: string }) => {
+        callOrder.push(input.task_id);
+        if (callOrder.length === 2) readyResolve?.();
+        await barrier;
+        return { ok: true, isError: false, rawText: `tool:${input.task_id}`, json: null, errorCode: null };
+      });
+
+      const runtimePromise = executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-parallel',
+        workspaceId: 'workspace:run-parallel',
+        coordinationPolicy: 'parallel',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-parallel-1', task_kind: 'compute', handoff_id: 'handoff-parallel-1', handoff_kind: 'compute' },
+          { stage: 1, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-2', task_id: 'task-parallel-2', task_kind: 'review', handoff_id: 'handoff-parallel-2', handoff_kind: 'review' },
+        ],
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: createMessage,
+      });
+
+      const launched = await Promise.race([
+        ready.then(() => true),
+        new Promise<boolean>(resolve => setTimeout(() => resolve(false), 50)),
+      ]);
+      expect(launched).toBe(true);
+      releaseBarrier?.();
+      const result = await runtimePromise;
+
+      expect(callTool).toHaveBeenCalledTimes(2);
+      expect(callOrder.slice().sort()).toEqual(['task-parallel-1', 'task-parallel-2']);
+      expect(result.assignment_results.map(item => item.task_id)).toEqual(['task-parallel-1', 'task-parallel-2']);
+      expect(result.assignment_results.every(item => item.status === 'completed')).toBe(true);
+      expect(result.live_status.terminal_assignments.map(item => item.task_id)).toEqual(['task-parallel-1', 'task-parallel-2']);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps completed work terminal while resuming only recoverable parallel assignments', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const firstToolCall = vi.fn(async (_name: string, input: { task_id: string }) => ({
+        ok: true,
+        isError: false,
+        rawText: `tool:${input.task_id}`,
+        json: null,
+        errorCode: null,
+      }));
+      const firstCreateMessage = vi.fn(async params => {
+        const taskId = extractTaskId(params);
+        const last = params.messages.at(-1);
+        const hasToolResult = Boolean(
+          last
+            && last.role === 'user'
+            && Array.isArray(last.content)
+            && last.content.some(block => block.type === 'tool_result'),
+        );
+        if (taskId === 'task-recover-1') return textResponse('task-recover-1 complete');
+        if (taskId === 'task-recover-2' && !hasToolResult) {
+          return toolUseResponse('tu_recover', 'do_thing', { task_id: taskId });
+        }
+        if (taskId === 'task-recover-2' && hasToolResult) {
+          throw new Error('interrupt after checkpoint');
+        }
+        return textResponse('expired assignment should not run');
+      });
+
+      const first = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-recover-parallel',
+        workspaceId: 'workspace:run-recover-parallel',
+        coordinationPolicy: 'parallel',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-recover-1', task_kind: 'compute', handoff_id: 'handoff-recover-1', handoff_kind: 'compute' },
+          { stage: 1, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-2', task_id: 'task-recover-2', task_kind: 'review', handoff_id: 'handoff-recover-2', handoff_kind: 'review' },
+          { stage: 2, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-3', task_id: 'task-timeout-3', task_kind: 'compute', handoff_id: 'handoff-timeout-3', handoff_kind: 'compute', timeout_at: '2020-01-01T00:00:00Z' },
+        ],
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: firstToolCall },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: firstCreateMessage,
+      });
+
+      expect(first.assignment_results.map(item => [item.task_id, item.status])).toEqual([
+        ['task-recover-1', 'completed'],
+        ['task-recover-2', 'needs_recovery'],
+        ['task-timeout-3', 'timed_out'],
+      ]);
+      expect(first.live_status.active_assignments.map(item => item.task_id)).toEqual(['task-recover-2']);
+      expect(first.live_status.terminal_assignments.map(item => item.task_id).sort()).toEqual(['task-recover-1', 'task-timeout-3']);
+      expect(first.live_status.terminal_assignments.find(item => item.task_id === 'task-timeout-3')?.timeout_at).toBe('2020-01-01T00:00:00Z');
+      expect(first.replay.some(entry => entry.kind === 'assignment_timed_out')).toBe(true);
+      expect(firstToolCall).toHaveBeenCalledTimes(1);
+
+      const resumedToolCall = vi.fn(async () => ({
+        ok: true,
+        isError: false,
+        rawText: 'should-not-run',
+        json: null,
+        errorCode: null,
+      }));
+      const resumedCreateMessage = vi.fn(async params => {
+        const taskId = extractTaskId(params);
+        return textResponse(`${taskId} resumed`);
+      });
+
+      const resumed = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-recover-parallel',
+        workspaceId: 'workspace:run-recover-parallel',
+        coordinationPolicy: 'parallel',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-recover-1', task_kind: 'compute', handoff_id: 'handoff-recover-1', handoff_kind: 'compute' },
+          { stage: 1, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-2', task_id: 'task-recover-2', task_kind: 'review', handoff_id: 'handoff-recover-2', handoff_kind: 'review' },
+          { stage: 2, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-3', task_id: 'task-timeout-3', task_kind: 'compute', handoff_id: 'handoff-timeout-3', handoff_kind: 'compute', timeout_at: '2020-01-01T00:00:00Z' },
+        ],
+        messages: [
+          { role: 'user', content: 'resume' },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'tu_recover', name: 'do_thing', input: { task_id: 'task-recover-2' } }] },
+        ],
+        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: resumedToolCall },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: resumedCreateMessage,
+      });
+
+      expect(resumed.assignment_results.map(item => [item.task_id, item.status])).toEqual([
+        ['task-recover-1', 'completed'],
+        ['task-recover-2', 'completed'],
+        ['task-timeout-3', 'timed_out'],
+      ]);
+      expect(resumedCreateMessage).toHaveBeenCalledTimes(1);
+      expect(resumedToolCall).not.toHaveBeenCalled();
+      expect(resumed.replay.filter(entry => entry.kind === 'checkpoint_restored')).toHaveLength(1);
+      expect(resumed.live_status.active_assignments).toEqual([]);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('marks still-active recoverable assignments timed out only after concurrent bucket merges settle', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-21T00:00:00Z'));
+    const projectRoot = makeTmpDir();
+    try {
+      const toolCall = vi.fn(async () => ({
+        ok: true,
+        isError: false,
+        rawText: 'tool-result',
+        json: null,
+        errorCode: null,
+      }));
+      const createMessage = vi.fn(async params => {
+        const taskId = extractTaskId(params);
+        const last = params.messages.at(-1);
+        const hasToolResult = Boolean(
+          last
+            && last.role === 'user'
+            && Array.isArray(last.content)
+            && last.content.some(block => block.type === 'tool_result'),
+        );
+        if (taskId === 'task-complete-1') {
+          vi.setSystemTime(new Date('2026-03-21T00:01:00Z'));
+          return textResponse('task-complete-1 complete');
+        }
+        if (!hasToolResult) {
+          return toolUseResponse('tu_recover_timeout', 'do_thing', { task_id: taskId });
+        }
+        throw new Error('interrupt after checkpoint');
+      });
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-timeout-after-merge',
+        workspaceId: 'workspace:run-timeout-after-merge',
+        coordinationPolicy: 'parallel',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-complete-1', task_kind: 'compute', handoff_id: 'handoff-complete-1', handoff_kind: 'compute' },
+          { stage: 1, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-2', task_id: 'task-recover-timeout-2', task_kind: 'review', handoff_id: 'handoff-recover-timeout-2', handoff_kind: 'review', timeout_at: '2026-03-21T00:00:30Z' },
+        ],
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: toolCall },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: createMessage,
+      });
+
+      expect(result.assignment_results.map(item => [item.task_id, item.status])).toEqual([
+        ['task-complete-1', 'completed'],
+        ['task-recover-timeout-2', 'timed_out'],
+      ]);
+      expect(result.replay.filter(entry => entry.kind === 'assignment_timed_out')).toHaveLength(1);
+      expect(result.live_status.terminal_assignments.find(item => item.task_id === 'task-recover-timeout-2')?.status).toBe('timed_out');
+    } finally {
+      vi.useRealTimers();
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
   });

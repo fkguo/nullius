@@ -8,7 +8,9 @@ import {
   buildTeamControlPlaneView,
   createTeamExecutionState,
   markTimedOutAssignments,
+  recordHeartbeat,
   recordTeamCheckpoint,
+  registerDelegateAssignment,
   restoreTeamCheckpoint,
   TeamExecutionStateManager,
   type TeamPermissionMatrix,
@@ -30,7 +32,7 @@ const PERMISSIONS: TeamPermissionMatrix = {
   interventions: [
     {
       actor_role: 'lead',
-      allowed_scopes: ['task', 'team', 'project'],
+      allowed_scopes: ['task', 'team'],
       allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
     },
   ],
@@ -146,6 +148,127 @@ describe('team execution state', () => {
     expect(view.replay.some(entry => entry.kind === 'intervention_applied')).toBe(true);
   });
 
+  it('applies team-scoped pause to all active assignments and fails closed on unsupported scope/kind before mutating state', () => {
+    const state = createTeamExecutionState({
+      workspace_id: 'ws-team-scope',
+      coordination_policy: 'parallel',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-team-1',
+        task_kind: 'compute',
+        handoff_kind: 'compute',
+      },
+      permissions: PERMISSIONS,
+    }, 'run-team-scope');
+    registerDelegateAssignment(state, {
+      owner_role: 'lead',
+      delegate_role: 'delegate',
+      delegate_id: 'delegate-2',
+      task_id: 'task-team-2',
+      task_kind: 'review',
+      handoff_kind: 'review',
+    });
+
+    applyTeamIntervention(state, {
+      kind: 'pause',
+      scope: 'team',
+      actor_role: 'lead',
+      actor_id: 'pi',
+      note: 'pause whole team',
+    });
+
+    expect(state.delegate_assignments.map(item => item.status)).toEqual(['paused', 'paused']);
+    const pauseEvents = state.event_log.filter(event =>
+      event.kind === 'assignment_status_changed' && event.payload.reason === 'intervention',
+    );
+    expect(pauseEvents).toHaveLength(2);
+
+    const customPermissions: TeamPermissionMatrix = {
+      ...PERMISSIONS,
+      interventions: [{ actor_role: 'lead', allowed_scopes: ['task', 'team', 'project'], allowed_kinds: ['redirect'] }],
+    };
+    const negativeState = createTeamExecutionState({
+      workspace_id: 'ws-negative',
+      coordination_policy: 'parallel',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-negative',
+        task_kind: 'compute',
+        handoff_kind: 'compute',
+      },
+      permissions: customPermissions,
+    }, 'run-negative');
+    const originalEventCount = negativeState.event_log.length;
+    const originalInterventionCount = negativeState.interventions.length;
+    const originalStatus = negativeState.delegate_assignments[0]?.status;
+
+    expect(() => applyTeamIntervention(negativeState, {
+      kind: 'redirect',
+      scope: 'project',
+      actor_role: 'lead',
+      actor_id: 'pi',
+      note: 'not implemented here',
+    })).toThrow(/does not implement/);
+    expect(negativeState.event_log).toHaveLength(originalEventCount);
+    expect(negativeState.interventions).toHaveLength(originalInterventionCount);
+    expect(negativeState.delegate_assignments[0]?.status).toBe(originalStatus);
+  });
+
+  it('restores paused assignments back to their original recoverable statuses on resume', () => {
+    const state = createTeamExecutionState({
+      workspace_id: 'ws-resume-preserve',
+      coordination_policy: 'parallel',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-awaiting',
+        task_kind: 'compute',
+        handoff_kind: 'compute',
+      },
+      permissions: PERMISSIONS,
+    }, 'run-resume-preserve');
+    const recoverable = registerDelegateAssignment(state, {
+      owner_role: 'lead',
+      delegate_role: 'delegate',
+      delegate_id: 'delegate-2',
+      task_id: 'task-recover',
+      task_kind: 'review',
+      handoff_kind: 'review',
+    });
+
+    state.delegate_assignments[0]!.status = 'awaiting_approval';
+    recoverable.status = 'needs_recovery';
+
+    applyTeamIntervention(state, {
+      kind: 'pause',
+      scope: 'team',
+      actor_role: 'lead',
+      actor_id: 'pi',
+    });
+
+    expect(state.delegate_assignments.map(item => [item.task_id, item.status, item.paused_from_status])).toEqual([
+      ['task-awaiting', 'paused', 'awaiting_approval'],
+      ['task-recover', 'paused', 'needs_recovery'],
+    ]);
+
+    applyTeamIntervention(state, {
+      kind: 'resume',
+      scope: 'team',
+      actor_role: 'lead',
+      actor_id: 'pi',
+    });
+
+    expect(state.delegate_assignments.map(item => [item.task_id, item.status, item.paused_from_status])).toEqual([
+      ['task-awaiting', 'awaiting_approval', null],
+      ['task-recover', 'needs_recovery', null],
+    ]);
+  });
+
   it('persists state atomically through the team state manager', () => {
     const projectRoot = makeTmpDir();
     try {
@@ -187,9 +310,14 @@ describe('team execution state', () => {
       },
       permissions: PERMISSIONS,
     }, 'run-6');
+    const assignmentId = state.delegate_assignments[0]!.assignment_id;
+    recordHeartbeat(state, assignmentId, '2026-03-19T12:00:00Z');
 
     const timedOut = markTimedOutAssignments(state, '2026-03-20T00:00:00Z');
     expect(timedOut).toHaveLength(1);
     expect(state.delegate_assignments[0]?.status).toBe('timed_out');
+    const view = buildTeamControlPlaneView(state);
+    expect(view.live_status.terminal_assignments[0]?.timeout_at).toBe('2026-03-19T00:00:00Z');
+    expect(view.live_status.terminal_assignments[0]?.last_heartbeat_at).toBe('2026-03-19T12:00:00Z');
   });
 });

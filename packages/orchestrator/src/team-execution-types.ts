@@ -84,6 +84,7 @@ export interface TeamDelegateAssignment {
   checkpoint_id: string | null;
   status: TeamAssignmentStatus;
   timeout_at: string | null;
+  paused_from_status: TeamAssignmentStatus | null;
   last_heartbeat_at: string | null;
   last_completed_step: string | null;
   resume_from: string | null;

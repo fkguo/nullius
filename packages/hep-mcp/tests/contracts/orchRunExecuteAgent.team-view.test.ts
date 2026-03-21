@@ -51,4 +51,75 @@ describe('orch_run_execute_agent team control-plane views', () => {
     expect(payload.live_status.terminal_assignments).toHaveLength(2);
     expect(payload.replay.some(entry => entry.kind === 'stage_started' && entry.payload.stage === 0)).toBe(true);
   });
+
+  it('surfaces timed-out lifecycle fields through the live team control-plane view without launching the expired assignment', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-team-timeout', workflow_id: 'runtime' },
+      'full',
+    );
+    let createMessageCalls = 0;
+    let callToolCalls = 0;
+    const payload = extractPayload(await handleToolCall(
+      'orch_run_execute_agent',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: 'run-team-timeout',
+        model: 'claude-test',
+        messages: [{ role: 'user', content: 'coordinate the team' }],
+        tools: [],
+        team: {
+          workspace_id: 'workspace:run-team-timeout',
+          owner_role: 'lead',
+          coordination_policy: 'parallel',
+          assignments: [
+            {
+              stage: 0,
+              task_id: 'task-timeout-1',
+              task_kind: 'compute',
+              delegate_role: 'delegate',
+              delegate_id: 'delegate-1',
+              handoff_id: 'handoff-timeout-1',
+              handoff_kind: 'compute',
+              timeout_at: '2020-01-01T00:00:00Z',
+            },
+          ],
+        },
+      },
+      'full',
+      {
+        callTool: async () => {
+          callToolCalls += 1;
+          return { content: [{ type: 'text', text: 'should-not-run' }], isError: false };
+        },
+        createMessage: async () => {
+          createMessageCalls += 1;
+          return {
+            model: 'claude-test',
+            role: 'assistant',
+            content: { type: 'text', text: 'done' },
+            stopReason: 'endTurn',
+          };
+        },
+      },
+    )) as {
+      assignment_results: Array<{ status: string }>;
+      live_status: {
+        terminal_assignments: Array<{ status: string; timeout_at: string | null; last_heartbeat_at: string | null }>;
+      };
+      replay: Array<{ kind: string }>;
+    };
+
+    expect(createMessageCalls).toBe(0);
+    expect(callToolCalls).toBe(0);
+    expect(payload.assignment_results[0]?.status).toBe('timed_out');
+    expect(payload.live_status.terminal_assignments[0]).toMatchObject({
+      status: 'timed_out',
+      timeout_at: '2020-01-01T00:00:00Z',
+      last_heartbeat_at: null,
+    });
+    expect(payload.replay.some(entry => entry.kind === 'assignment_timed_out')).toBe(true);
+  });
 });
