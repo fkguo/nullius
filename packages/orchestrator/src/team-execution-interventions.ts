@@ -1,6 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { utcNowIso } from './util.js';
+import {
+  appendRegisteredAssignment,
+  buildTeamDelegateAssignment,
+  findMatchingAssignment,
+} from './team-execution-assignment-builder.js';
 import { appendTeamEvent } from './team-execution-events.js';
+import {
+  buildInjectedAssignmentInput,
+  buildPendingRedirect,
+} from './team-execution-intervention-payloads.js';
 import { assertInterventionAllowed } from './team-execution-permissions.js';
 import {
   applyAssignmentUpdate,
@@ -36,6 +45,9 @@ function nextAssignmentUpdate(
   assignment: TeamExecutionState['delegate_assignments'][number],
   command: TeamInterventionCommand['kind'],
 ): {
+  approval_id?: string | null;
+  approval_packet_path?: string | null;
+  approval_requested_at?: string | null;
   status: TeamExecutionState['delegate_assignments'][number]['status'];
   paused_from_status?: TeamExecutionState['delegate_assignments'][number]['paused_from_status'];
 } {
@@ -55,16 +67,25 @@ function nextAssignmentUpdate(
       paused_from_status: null,
     };
   }
+  if (command === 'approve') {
+    return {
+      status: 'pending',
+      paused_from_status: null,
+      approval_id: null,
+      approval_packet_path: null,
+      approval_requested_at: null,
+    };
+  }
   if (command === 'cancel') return { status: 'cancelled', paused_from_status: null };
   return { status: 'cascade_stopped', paused_from_status: null };
 }
 
 function assertInterventionImplemented(command: TeamInterventionCommand): void {
-  if (!['pause', 'resume', 'cancel', 'cascade_stop'].includes(command.kind)) {
-    throw new Error(`team runtime does not implement intervention kind '${command.kind}'`);
-  }
   if (command.scope === 'project') {
     throw new Error('team runtime does not implement project-scoped interventions');
+  }
+  if (['approve', 'redirect', 'inject_task'].includes(command.kind) && command.scope !== 'task') {
+    throw new Error(`team runtime only implements task-scoped '${command.kind}' interventions`);
   }
 }
 
@@ -72,7 +93,6 @@ function resolveAffectedAssignments(
   state: TeamExecutionState,
   command: TeamInterventionCommand,
 ): TeamDelegateAssignment[] {
-  assertInterventionImplemented(command);
   if (command.kind === 'cascade_stop' || command.scope === 'team') {
     return state.delegate_assignments.filter(assignment => !isTerminalAssignmentStatus(assignment.status));
   }
@@ -83,14 +103,8 @@ function resolveAffectedAssignments(
   return [assignment];
 }
 
-export function applyTeamIntervention(
-  state: TeamExecutionState,
-  command: TeamInterventionCommand,
-): TeamInterventionRecord {
-  assertInterventionAllowed(state.permissions, command);
-  const affectedAssignments = resolveAffectedAssignments(state, command);
-  const timestamp = utcNowIso();
-  const record: TeamInterventionRecord = {
+function buildRecord(command: TeamInterventionCommand, timestamp: string): TeamInterventionRecord {
+  return {
     intervention_id: randomUUID(),
     kind: command.kind,
     scope: command.scope,
@@ -103,6 +117,97 @@ export function applyTeamIntervention(
     created_at: timestamp,
     payload: { ...(command.payload ?? {}) },
   };
+}
+
+export function applyTeamIntervention(
+  state: TeamExecutionState,
+  command: TeamInterventionCommand,
+): TeamInterventionRecord {
+  assertInterventionAllowed(state.permissions, command);
+  assertInterventionImplemented(command);
+  const timestamp = utcNowIso();
+
+  if (command.kind === 'redirect') {
+    const assignment = resolveTargetAssignment(state, command);
+    if (!assignment) throw new Error('unknown team assignment for intervention target');
+    if (isTerminalAssignmentStatus(assignment.status)) {
+      throw new Error('cannot redirect a terminal team assignment');
+    }
+    const pending = buildPendingRedirect(command, timestamp);
+    const record = buildRecord(command, timestamp);
+    state.interventions.push(record);
+    applyAssignmentUpdate(assignment, { pending_redirect: pending }, timestamp);
+    appendTeamEvent(state, {
+      kind: 'intervention_applied',
+      assignment,
+      checkpoint_id: command.checkpoint_id ?? null,
+      payload: {
+        actor_role: command.actor_role,
+        actor_id: command.actor_id ?? null,
+        scope: command.scope,
+        kind: command.kind,
+        note: command.note ?? null,
+        target_assignment_id: assignment.assignment_id,
+        target_assignment_ids: [assignment.assignment_id],
+        task_id: assignment.task_id,
+      },
+    });
+    updateStateTimestamp(state, timestamp);
+    return record;
+  }
+
+  if (command.kind === 'inject_task') {
+    const source = resolveTargetAssignment(state, command);
+    if (!source) throw new Error('unknown team assignment for intervention target');
+    if (isTerminalAssignmentStatus(source.status)) {
+      throw new Error('cannot inject a follow-on task from a terminal team assignment');
+    }
+    const assignmentInput = buildInjectedAssignmentInput(source, command);
+    const existing = findMatchingAssignment(state.delegate_assignments, assignmentInput);
+    const injected = existing ?? appendRegisteredAssignment(
+      state,
+      buildTeamDelegateAssignment(
+        state,
+        assignmentInput,
+        source.delegation_protocol.REQUIRED_TOOLS.tool_names,
+        timestamp,
+      ),
+    );
+    const record = buildRecord(command, timestamp);
+    state.interventions.push(record);
+    appendTeamEvent(state, {
+      kind: 'intervention_applied',
+      assignment: source,
+      checkpoint_id: command.checkpoint_id ?? null,
+      payload: {
+        actor_role: command.actor_role,
+        actor_id: command.actor_id ?? null,
+        scope: command.scope,
+        kind: command.kind,
+        note: command.note ?? null,
+        target_assignment_id: source.assignment_id,
+        target_assignment_ids: [source.assignment_id],
+        task_id: source.task_id,
+        injected_assignment_id: injected.assignment_id,
+        injected_task_id: injected.task_id,
+      },
+    });
+    updateStateTimestamp(state, timestamp);
+    return record;
+  }
+
+  const affectedAssignments = resolveAffectedAssignments(state, command);
+  if (command.kind === 'approve') {
+    const [assignment] = affectedAssignments;
+    if (!assignment) throw new Error('unknown team assignment for intervention target');
+    if (assignment.status !== 'awaiting_approval') {
+      throw new Error("approve intervention requires assignment status 'awaiting_approval'");
+    }
+    if (!assignment.approval_id || !assignment.approval_packet_path || !assignment.approval_requested_at) {
+      throw new Error('approve intervention requires persisted approval metadata');
+    }
+  }
+  const record = buildRecord(command, timestamp);
   state.interventions.push(record);
   appendTeamEvent(state, {
     kind: 'intervention_applied',

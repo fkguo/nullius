@@ -174,4 +174,138 @@ describe('orch_run_execute_agent team bridge', () => {
     const error = payload.error as { message?: string };
     expect(error.message).toMatch(/delegation denied/i);
   });
+
+  it('surfaces nested approval metadata in team state and resumes after a task-scoped approve intervention', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-team-approval', workflow_id: 'runtime' },
+      'full',
+    );
+
+    const runtimeArgs = {
+      _confirm: true,
+      project_root: projectRoot,
+      run_id: 'run-team-approval',
+      model: 'claude-test',
+      messages: [{
+        role: 'assistant',
+        content: [{
+          type: 'tool_use',
+          id: 'tu_nested',
+          name: 'do_thing',
+          input: { section: 'results' },
+        }],
+      }],
+      tools: [{
+        name: 'do_thing',
+        description: 'Perform a delegated writing action.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            section: { type: 'string' },
+          },
+          required: ['section'],
+        },
+      }],
+      team: {
+        workspace_id: 'workspace:run-team-approval',
+        task_id: 'task-team-approval',
+        task_kind: 'draft_update',
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        coordination_policy: 'supervised_delegate',
+      },
+    };
+
+    const first = extractPayload(await handleToolCall(
+      'orch_run_execute_agent',
+      runtimeArgs,
+      'full',
+      {
+        callTool: async () => ({
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              requires_approval: true,
+              approval_id: 'apr_nested_team',
+              packet_path: 'artifacts/runs/run-team-approval__nested/approval_packet_v1.json',
+            }),
+          }],
+          isError: false,
+        }),
+        createMessage: async () => ({
+          model: 'claude-test',
+          role: 'assistant',
+          content: {
+            type: 'tool_use',
+            id: 'tu_nested',
+            name: 'do_thing',
+            input: { section: 'results' },
+          },
+          stopReason: 'tool_use',
+        }),
+      },
+    )) as {
+      team_state: {
+        delegate_assignments: Array<{
+          status: string;
+          approval_id: string | null;
+          approval_packet_path: string | null;
+          approval_requested_at: string | null;
+        }>;
+      };
+    };
+
+    expect(first.team_state.delegate_assignments[0]).toMatchObject({
+      status: 'awaiting_approval',
+      approval_id: 'apr_nested_team',
+      approval_packet_path: 'artifacts/runs/run-team-approval__nested/approval_packet_v1.json',
+    });
+    expect(first.team_state.delegate_assignments[0]?.approval_requested_at).toBeTruthy();
+
+    const resumedCallTool = vi.fn(async () => ({ content: [{ type: 'text', text: 'should-not-run' }], isError: false }));
+    const resumed = extractPayload(await handleToolCall(
+      'orch_run_execute_agent',
+      {
+        ...runtimeArgs,
+        team: {
+          ...runtimeArgs.team,
+          interventions: [{ kind: 'approve', scope: 'task', actor_role: 'lead', actor_id: 'pi', task_id: 'task-team-approval' }],
+        },
+      },
+      'full',
+      {
+        callTool: resumedCallTool,
+        createMessage: async () => ({
+          model: 'claude-test',
+          role: 'assistant',
+          content: { type: 'text', text: 'approved and resumed' },
+          stopReason: 'endTurn',
+        }),
+      },
+    )) as {
+      resumed: boolean;
+      skipped_step_ids: string[];
+      team_state: {
+        delegate_assignments: Array<{
+          status: string;
+          approval_id: string | null;
+          approval_packet_path: string | null;
+          approval_requested_at: string | null;
+        }>;
+      };
+    };
+
+    expect(resumed.resumed).toBe(true);
+    expect(resumed.skipped_step_ids).toEqual(['tu_nested']);
+    expect(resumed.team_state.delegate_assignments[0]).toMatchObject({
+      status: 'completed',
+      approval_id: null,
+      approval_packet_path: null,
+      approval_requested_at: null,
+    });
+    expect(resumedCallTool).not.toHaveBeenCalled();
+  });
 });

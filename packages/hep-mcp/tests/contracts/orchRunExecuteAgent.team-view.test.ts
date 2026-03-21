@@ -122,4 +122,81 @@ describe('orch_run_execute_agent team control-plane views', () => {
     });
     expect(payload.replay.some(entry => entry.kind === 'assignment_timed_out')).toBe(true);
   });
+
+  it('surfaces nested approval metadata through the live team control-plane view', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-team-approval-view', workflow_id: 'runtime' },
+      'full',
+    );
+
+    const payload = extractPayload(await handleToolCall(
+      'orch_run_execute_agent',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: 'run-team-approval-view',
+        model: 'claude-test',
+        messages: [{ role: 'user', content: 'coordinate the team' }],
+        tools: [{
+          name: 'do_thing',
+          input_schema: {
+            type: 'object',
+            properties: {},
+          },
+        }],
+        team: {
+          workspace_id: 'workspace:run-team-approval-view',
+          task_id: 'task-team-approval-view',
+          task_kind: 'compute',
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+        },
+      },
+      'full',
+      {
+        callTool: async () => ({
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              requires_approval: true,
+              approval_id: 'apr_view',
+              packet_path: 'artifacts/runs/run-team-approval-view__nested/approval_packet_v1.json',
+            }),
+          }],
+          isError: false,
+        }),
+        createMessage: async () => ({
+          model: 'claude-test',
+          role: 'assistant',
+          content: {
+            type: 'tool_use',
+            id: 'tu_view',
+            name: 'do_thing',
+            input: {},
+          },
+          stopReason: 'tool_use',
+        }),
+      },
+    )) as {
+      live_status: {
+        active_assignments: Array<{
+          status: string;
+          approval_id: string | null;
+          approval_packet_path: string | null;
+          approval_requested_at: string | null;
+        }>;
+      };
+    };
+
+    expect(payload.live_status.active_assignments[0]).toMatchObject({
+      status: 'awaiting_approval',
+      approval_id: 'apr_view',
+      approval_packet_path: 'artifacts/runs/run-team-approval-view__nested/approval_packet_v1.json',
+    });
+    expect(payload.live_status.active_assignments[0]?.approval_requested_at).toBeTruthy();
+  });
 });

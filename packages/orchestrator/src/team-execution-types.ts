@@ -30,6 +30,12 @@ export interface TeamInterventionPermission {
   allowed_kinds: TeamInterventionKind[];
 }
 
+export interface TeamPendingRedirect {
+  note: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface TeamPermissionMatrix {
   delegation: TeamDelegationPermission[];
   interventions: TeamInterventionPermission[];
@@ -88,6 +94,10 @@ export interface TeamDelegateAssignment {
   last_heartbeat_at: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
+  approval_id: string | null;
+  approval_packet_path: string | null;
+  approval_requested_at: string | null;
+  pending_redirect: TeamPendingRedirect | null;
   updated_at: string;
 }
 

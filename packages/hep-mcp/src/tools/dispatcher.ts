@@ -53,6 +53,7 @@ export interface ToolCallContext {
   sendNotification?: (notification: Notification) => Promise<void>;
   spanSink?: SpanSink;
   createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
+  callTool?: (name: string, args: Record<string, unknown>) => Promise<{ content: ToolResultContentBlock[]; isError?: boolean }>;
 }
 
 function createProgressReporter(
@@ -656,11 +657,9 @@ export async function handleToolCall(
     }
 
     const parsedArgs = parseToolArgs(name, spec.zodSchema, cleanArgs) as unknown as Record<string, unknown>;
-    const result = await spec.handler(parsedArgs, {
-      reportProgress,
-      rawArgs: cleanArgs,
-      createMessage: ctx?.createMessage,
-      callTool: async (toolName, toolArgs) => handleToolCall(
+    const loopbackCallTool = ctx?.callTool
+      ? (toolName: string, toolArgs: Record<string, unknown>) => ctx.callTool!(toolName, { ...toolArgs, _chain_depth: chainDepth + 1 })
+      : (toolName: string, toolArgs: Record<string, unknown>) => handleToolCall(
         toolName,
         { ...toolArgs, _chain_depth: chainDepth + 1 },
         mode,
@@ -669,7 +668,13 @@ export async function handleToolCall(
           spanSink: ctx?.spanSink,
           createMessage: ctx?.createMessage,
         },
-      ),
+      );
+
+    const result = await spec.handler(parsedArgs, {
+      reportProgress,
+      rawArgs: cleanArgs,
+      createMessage: ctx?.createMessage,
+      callTool: loopbackCallTool,
     });
     const resultWithSkillBridgeEnvelope = maybeAttachSkillBridgeJobEnvelope(result);
     recordToolUsage(name);

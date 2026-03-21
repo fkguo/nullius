@@ -35,6 +35,11 @@ const PERMISSIONS: TeamPermissionMatrix = {
       allowed_scopes: ['task', 'team'],
       allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
     },
+    {
+      actor_role: 'lead',
+      allowed_scopes: ['task'],
+      allowed_kinds: ['approve', 'redirect', 'inject_task'],
+    },
   ],
 };
 
@@ -216,6 +221,128 @@ describe('team execution state', () => {
     expect(negativeState.event_log).toHaveLength(originalEventCount);
     expect(negativeState.interventions).toHaveLength(originalInterventionCount);
     expect(negativeState.delegate_assignments[0]?.status).toBe(originalStatus);
+  });
+
+  it('clears persisted approval metadata when a task-scoped approve intervention resumes an awaiting assignment', () => {
+    const state = createTeamExecutionState({
+      workspace_id: 'ws-approve',
+      coordination_policy: 'supervised_delegate',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-approve',
+        task_kind: 'compute',
+      },
+      permissions: PERMISSIONS,
+    }, 'run-approve');
+
+    state.delegate_assignments[0]!.status = 'awaiting_approval';
+    state.delegate_assignments[0]!.approval_id = 'apr_nested';
+    state.delegate_assignments[0]!.approval_packet_path = 'artifacts/runs/run-approve__assignment/approval_packet_v1.json';
+    state.delegate_assignments[0]!.approval_requested_at = '2026-03-21T00:00:00Z';
+
+    applyTeamIntervention(state, {
+      kind: 'approve',
+      scope: 'task',
+      actor_role: 'lead',
+      actor_id: 'pi',
+      task_id: 'task-approve',
+    });
+
+    expect(state.delegate_assignments[0]).toMatchObject({
+      status: 'pending',
+      approval_id: null,
+      approval_packet_path: null,
+      approval_requested_at: null,
+    });
+  });
+
+  it('stores task-scoped redirect payloads on the targeted assignment without mutating sibling assignments', () => {
+    const state = createTeamExecutionState({
+      workspace_id: 'ws-redirect',
+      coordination_policy: 'parallel',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-redirect-1',
+        task_kind: 'compute',
+        handoff_kind: 'compute',
+      },
+      permissions: PERMISSIONS,
+    }, 'run-redirect');
+    registerDelegateAssignment(state, {
+      owner_role: 'lead',
+      delegate_role: 'delegate',
+      delegate_id: 'delegate-2',
+      task_id: 'task-redirect-2',
+      task_kind: 'review',
+      handoff_kind: 'review',
+    });
+
+    const record = applyTeamIntervention(state, {
+      kind: 'redirect',
+      scope: 'task',
+      actor_role: 'lead',
+      actor_id: 'pi',
+      task_id: 'task-redirect-1',
+      note: 're-check the error budget',
+      payload: { focus: 'error-budget', preserve_evidence: true },
+    });
+
+    expect(record.kind).toBe('redirect');
+    expect(state.delegate_assignments[0]?.pending_redirect).toMatchObject({
+      note: 're-check the error budget',
+      payload: { focus: 'error-budget', preserve_evidence: true },
+      created_at: expect.any(String),
+    });
+    expect(state.delegate_assignments[1]?.pending_redirect).toBeNull();
+  });
+
+  it('registers an injected follow-on assignment through the normal team state path', () => {
+    const state = createTeamExecutionState({
+      workspace_id: 'ws-inject',
+      coordination_policy: 'stage_gated',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-seed',
+        task_kind: 'compute',
+        handoff_kind: 'compute',
+      },
+      permissions: PERMISSIONS,
+    }, 'run-inject');
+
+    applyTeamIntervention(state, {
+      kind: 'inject_task',
+      scope: 'task',
+      actor_role: 'lead',
+      actor_id: 'pi',
+      task_id: 'task-seed',
+      payload: {
+        stage: 1,
+        task_id: 'task-followup',
+        task_kind: 'review',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-2',
+        handoff_kind: 'review',
+      },
+    });
+
+    expect(state.delegate_assignments).toHaveLength(2);
+    expect(state.delegate_assignments[1]).toMatchObject({
+      stage: 1,
+      task_id: 'task-followup',
+      task_kind: 'review',
+      delegate_role: 'delegate',
+      delegate_id: 'delegate-2',
+      owner_role: 'lead',
+      handoff_kind: 'review',
+      status: 'pending',
+    });
+    expect(state.event_log.filter(event => event.kind === 'assignment_registered')).toHaveLength(2);
   });
 
   it('restores paused assignments back to their original recoverable statuses on resume', () => {

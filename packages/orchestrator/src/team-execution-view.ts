@@ -25,6 +25,9 @@ export interface TeamAssignmentView {
   manifest_path: string;
   last_completed_step: string | null;
   resume_from: string | null;
+  approval_id: string | null;
+  approval_packet_path: string | null;
+  approval_requested_at: string | null;
   delegation_protocol: TeamDelegationProtocol;
 }
 
@@ -67,6 +70,9 @@ function toAssignmentView(
     manifest_path: manifestPath(state.run_id, assignment.assignment_id),
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,
+    approval_id: assignment.approval_id,
+    approval_packet_path: assignment.approval_packet_path,
+    approval_requested_at: assignment.approval_requested_at,
     delegation_protocol: assignment.delegation_protocol,
   };
 }

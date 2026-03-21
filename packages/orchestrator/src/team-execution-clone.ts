@@ -4,6 +4,7 @@ import type {
   TeamExecutionEvent,
   TeamExecutionState,
   TeamInterventionRecord,
+  TeamPendingRedirect,
   TeamPermissionMatrix,
 } from './team-execution-types.js';
 
@@ -49,7 +50,20 @@ function cloneAssignment(assignment: TeamDelegateAssignment): TeamDelegateAssign
     last_heartbeat_at: assignment.last_heartbeat_at,
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,
+    approval_id: assignment.approval_id,
+    approval_packet_path: assignment.approval_packet_path,
+    approval_requested_at: assignment.approval_requested_at,
+    pending_redirect: clonePendingRedirect(assignment.pending_redirect),
     updated_at: assignment.updated_at,
+  };
+}
+
+function clonePendingRedirect(pending: TeamPendingRedirect | null): TeamPendingRedirect | null {
+  if (!pending) return null;
+  return {
+    note: pending.note,
+    payload: structuredClone(pending.payload),
+    created_at: pending.created_at,
   };
 }
 

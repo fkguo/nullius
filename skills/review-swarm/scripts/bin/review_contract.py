@@ -32,6 +32,26 @@ JSON_REQUIRED_FIELDS = {"blocking_issues", "verdict", "summary"}
 JSON_VALID_VERDICTS = {"PASS", "FAIL"}
 
 _RE_GEMINI_HOOK_PREAMBLE = re.compile(r"^Hook registry initialized with \d+ hook entries\s*$")
+_RE_GEMINI_STARTUP_LINES = [
+    _RE_GEMINI_HOOK_PREAMBLE,
+    re.compile(r"^Registering notification handlers for server '.*'\. Capabilities: .*$"),
+    re.compile(r"^(completions|resources|tools): .*$"),
+    re.compile(r"^\}$"),
+    re.compile(
+        r"^Server '.*' has tools but did not declare 'listChanged' capability\. Listening anyway for robustness\.\.\.\s*$"
+    ),
+    re.compile(
+        r"^Server '.*' has resources but did not declare 'listChanged' capability\. Listening anyway for robustness\.\.\.\s*$"
+    ),
+    re.compile(
+        r"^Server '.*' has prompts but did not declare 'listChanged' capability\. Listening anyway for robustness\.\.\.\s*$"
+    ),
+    re.compile(r"^Server '.*' supports tool updates\. Listening for changes\.\.\.\s*$"),
+    re.compile(r"^Server '.*' supports resource updates\. Listening for changes\.\.\.\s*$"),
+    re.compile(r"^Scheduling MCP context refresh\.\.\.\s*$"),
+    re.compile(r"^Executing MCP context refresh\.\.\.\s*$"),
+    re.compile(r"^MCP context refresh complete\.\s*$"),
+]
 _RE_VERDICT_LINE = re.compile(r"^VERDICT: (READY|NOT_READY)\s*$")
 
 
@@ -131,10 +151,15 @@ def sanitize_gemini_output(path: Path) -> bool:
     i = 0
     while i < len(lines) and not lines[i].strip():
         i += 1
-    if i < len(lines) and _RE_GEMINI_HOOK_PREAMBLE.match(lines[i]):
-        i += 1
-        while i < len(lines) and not lines[i].strip():
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
             i += 1
+            continue
+        if any(pattern.match(line) for pattern in _RE_GEMINI_STARTUP_LINES):
+            i += 1
+            continue
+        break
 
     cleaned = "\n".join(lines[i:]).rstrip() + "\n"
     cleaned = sanitize_contract_text(cleaned)

@@ -9,6 +9,7 @@ import {
   executeDelegatedAgentRuntime,
   type ExecuteDelegatedAgentRuntimeResult,
 } from './research-loop/delegated-agent-runtime.js';
+import { renderPendingRedirect } from './team-execution-intervention-payloads.js';
 import {
   isTerminalAssignmentStatus,
   markTimedOutAssignments,
@@ -25,6 +26,7 @@ import type {
   TeamAssignmentExecutionResult,
   TeamRuntimeAssignmentInput,
 } from './team-unified-runtime-types.js';
+import { utcNowIso } from './util.js';
 
 export function runtimeRunId(runId: string, assignmentId: string): string {
   return `${runId}__${assignmentId}`;
@@ -40,13 +42,33 @@ export function hasPendingAssistantToolUse(messages: MessageParam[]): boolean {
   );
 }
 
-export function buildRuntimeMessages(messages: MessageParam[], protocol: TeamDelegationProtocol): MessageParam[] {
+export function buildRuntimeMessages(
+  messages: MessageParam[],
+  protocol: TeamDelegationProtocol,
+  pendingRedirect: TeamExecutionState['delegate_assignments'][number]['pending_redirect'],
+): MessageParam[] {
   const protocolMessage: MessageParam = { role: 'user', content: renderTeamDelegationProtocol(protocol) };
+  const redirectMessageText = renderPendingRedirect(pendingRedirect);
+  const redirectMessage = redirectMessageText ? [{ role: 'user' as const, content: redirectMessageText }] : [];
   const last = messages.at(-1);
   if (last?.role === 'assistant') {
-    return [...messages.slice(0, -1), protocolMessage, last];
+    return [...messages.slice(0, -1), protocolMessage, ...redirectMessage, last];
   }
-  return [...messages, protocolMessage];
+  return [...messages, protocolMessage, ...redirectMessage];
+}
+
+function approvalMetadataFromEvents(events: AgentEvent[]): {
+  approval_id: string;
+  approval_packet_path: string;
+  approval_requested_at: string;
+} | null {
+  const event = events.find((item): item is Extract<AgentEvent, { type: 'approval_required' }> => item.type === 'approval_required');
+  if (!event) return null;
+  return {
+    approval_id: event.approvalId,
+    approval_packet_path: event.packetPath,
+    approval_requested_at: utcNowIso(),
+  };
 }
 
 export function deriveAssignmentStatus(
@@ -213,7 +235,7 @@ async function executeLaunch(
       projectRoot: input.projectRoot,
       runId: launch.delegatedRunId,
       model: input.model,
-      messages: buildRuntimeMessages(input.messages, assignment.delegation_protocol),
+      messages: buildRuntimeMessages(input.messages, assignment.delegation_protocol, assignment.pending_redirect),
       tools: input.tools,
       mcpClient: input.mcpClient,
       approvalGate: input.approvalGate,
@@ -278,10 +300,17 @@ function mergeLaunchOutcome(
   }
   const runtimeResult = launch.runtimeResult!;
   const status = deriveAssignmentStatus(runtimeResult, current);
+  const approval = status === 'awaiting_approval'
+    ? approvalMetadataFromEvents(runtimeResult.events)
+    : null;
   updateDelegateAssignment(state, current.assignment_id, {
     status,
     last_completed_step: runtimeResult.last_completed_step,
     resume_from: runtimeResult.resume_from,
+    approval_id: approval?.approval_id ?? null,
+    approval_packet_path: approval?.approval_packet_path ?? null,
+    approval_requested_at: approval?.approval_requested_at ?? null,
+    pending_redirect: null,
   });
   const updated = state.delegate_assignments.find(item => item.assignment_id === current.assignment_id)!;
   appendTeamEvent(state, {

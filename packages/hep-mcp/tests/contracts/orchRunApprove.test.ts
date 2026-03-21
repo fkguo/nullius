@@ -233,6 +233,86 @@ describe('orch_run_approve — SHA-256 verification', () => {
     expect(payload.run_status).toBe('running');
   });
 
+  it('does not treat nested team approval metadata as top-level pending_approval authority', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-team-nested-approval', workflow_id: 'runtime' },
+      'full',
+    );
+
+    const nested = await handleToolCall(
+      'orch_run_execute_agent',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: 'run-team-nested-approval',
+        model: 'claude-test',
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [{
+          name: 'do_thing',
+          input_schema: { type: 'object', properties: {} },
+        }],
+        team: {
+          workspace_id: 'workspace:run-team-nested-approval',
+          task_id: 'task-team-nested-approval',
+          task_kind: 'compute',
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+        },
+      },
+      'full',
+      {
+        callTool: async () => ({
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              requires_approval: true,
+              approval_id: 'apr_nested_only',
+              packet_path: 'artifacts/runs/run-team-nested-approval__nested/approval_packet_v1.json',
+            }),
+          }],
+          isError: false,
+        }),
+        createMessage: async () => ({
+          model: 'claude-test',
+          role: 'assistant',
+          content: {
+            type: 'tool_use',
+            id: 'tu_nested_only',
+            name: 'do_thing',
+            input: {},
+          },
+          stopReason: 'tool_use',
+        }),
+      },
+    );
+
+    const nestedPayload = extractPayload(nested) as {
+      team_state: {
+        delegate_assignments: Array<{ approval_id: string | null }>;
+      };
+    };
+    expect(nestedPayload.team_state.delegate_assignments[0]?.approval_id).toBe('apr_nested_only');
+
+    const approve = await handleToolCall(
+      'orch_run_approve',
+      {
+        project_root: projectRoot,
+        approval_id: 'apr_nested_only',
+        approval_packet_sha256: 'a'.repeat(64),
+        _confirm: true,
+      },
+      'full',
+    );
+
+    expect((approve as Record<string, unknown>).isError).toBe(true);
+    const err = extractErrorPayload(approve);
+    expect(JSON.stringify(err)).toMatch(/No pending approval|current status/i);
+  });
+
   it('rejects when SHA-256 is wrong (tampered packet)', async () => {
     const projectRoot = makeTmpDir();
     setupProject(projectRoot, { runId: 'run-tamper', approvalId: 'A1-0001' });

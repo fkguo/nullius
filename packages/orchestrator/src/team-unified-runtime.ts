@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { appendTeamEvent } from './team-execution-events.js';
+import { findMatchingAssignment } from './team-execution-assignment-builder.js';
 import {
   applyTeamIntervention,
   createTeamExecutionState,
@@ -32,16 +33,7 @@ function ensureAssignmentRegistration(
   input: ExecuteUnifiedTeamRuntimeInput,
   assignment: TeamRuntimeAssignmentInput & { assignment_id: string },
 ): TeamExecutionState['delegate_assignments'][number] {
-  const existing = state.delegate_assignments.find(candidate =>
-    candidate.task_id === assignment.task_id
-    && candidate.delegate_id === assignment.delegate_id
-    && candidate.stage === (assignment.stage ?? 0)
-    && candidate.task_kind === assignment.task_kind
-    && candidate.owner_role === assignment.owner_role
-    && candidate.delegate_role === assignment.delegate_role
-    && candidate.handoff_id === (assignment.handoff_id ?? null)
-    && candidate.handoff_kind === (assignment.handoff_kind ?? null)
-  );
+  const existing = findMatchingAssignment(state.delegate_assignments, assignment);
   if (existing) return existing;
   return registerDelegateAssignment(state, {
     ...assignment,
@@ -68,16 +60,22 @@ export async function executeUnifiedTeamRuntime(
     },
     permissions: input.permissions,
   }, input.runId);
+  for (const assignment of state.delegate_assignments) {
+    assignment.approval_id ??= null;
+    assignment.approval_packet_path ??= null;
+    assignment.approval_requested_at ??= null;
+    assignment.pending_redirect ??= null;
+  }
   state.blocked_stage ??= null;
   state.event_log ??= [];
-  const ensuredAssignments = preparedAssignments.map(assignment =>
+  preparedAssignments.forEach(assignment =>
     ensureAssignmentRegistration(state, input, assignment),
   );
   for (const command of input.interventions ?? []) applyTeamIntervention(state, command);
   state.blocked_stage = null;
   manager.save(state);
 
-  const orderedAssignments = [...ensuredAssignments].sort((left, right) => left.stage - right.stage);
+  const orderedAssignments = [...state.delegate_assignments].sort((left, right) => left.stage - right.stage);
   const buckets = buildRuntimeBuckets(input.coordinationPolicy, orderedAssignments);
   const assignmentResults: TeamAssignmentExecutionResult[] = [];
 

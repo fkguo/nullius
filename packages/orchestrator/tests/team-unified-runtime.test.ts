@@ -63,6 +63,11 @@ const PERMISSIONS: TeamPermissionMatrix = {
       allowed_scopes: ['task', 'team'],
       allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
     },
+    {
+      actor_role: 'lead',
+      allowed_scopes: ['task'],
+      allowed_kinds: ['approve', 'redirect', 'inject_task'],
+    },
   ],
 };
 
@@ -144,6 +149,186 @@ describe('team unified runtime control paths', () => {
 
       expect(cascade.team_state.interventions.at(-1)?.kind).toBe('cascade_stop');
       expect(cascade.team_state.delegate_assignments[0]?.status).toBe('cascade_stopped');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('persists nested approval metadata and resumes after a task-scoped approve intervention', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const approvalClient = vi.fn(async () => ({
+        ok: true,
+        isError: false,
+        rawText: '{"requires_approval":true,"approval_id":"apr_nested","packet_path":"artifacts/runs/run-approval/approval_packet_v1.json"}',
+        json: {
+          requires_approval: true,
+          approval_id: 'apr_nested',
+          packet_path: 'artifacts/runs/run-approval/approval_packet_v1.json',
+        },
+        errorCode: null,
+      }));
+
+      const first = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-approval',
+        workspaceId: 'workspace:run-approval',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-approval', task_kind: 'compute' },
+        ],
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: approvalClient },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn().mockResolvedValue(toolUseResponse('tu_approval', 'do_thing', { task_id: 'task-approval' })),
+      });
+
+      expect(first.assignment_results[0]?.status).toBe('awaiting_approval');
+      expect(first.team_state.delegate_assignments[0]).toMatchObject({
+        status: 'awaiting_approval',
+        approval_id: 'apr_nested',
+        approval_packet_path: 'artifacts/runs/run-approval/approval_packet_v1.json',
+      });
+
+      const resumedCallTool = vi.fn(async () => ({
+        ok: true,
+        isError: false,
+        rawText: 'should-not-run',
+        json: null,
+        errorCode: null,
+      }));
+      const resumed = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-approval',
+        workspaceId: 'workspace:run-approval',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-approval', task_kind: 'compute' },
+        ],
+        interventions: [{ kind: 'approve', scope: 'task', actor_role: 'lead', actor_id: 'pi', task_id: 'task-approval' }],
+        messages: [
+          { role: 'user', content: 'resume' },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'tu_approval', name: 'do_thing', input: { task_id: 'task-approval' } }] },
+        ],
+        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: resumedCallTool },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn().mockResolvedValue(textResponse('approved and resumed')),
+      });
+
+      expect(resumed.assignment_results[0]?.status).toBe('completed');
+      expect(resumed.assignment_results[0]?.resumed).toBe(true);
+      expect(resumed.assignment_results[0]?.skipped_step_ids).toEqual(['tu_approval']);
+      expect(resumed.team_state.delegate_assignments[0]).toMatchObject({
+        status: 'completed',
+        approval_id: null,
+        approval_packet_path: null,
+        approval_requested_at: null,
+      });
+      expect(resumedCallTool).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('injects redirect context into the next assignment launch and clears it after launch succeeds', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const createMessage = vi.fn(async params => {
+        const redirectMessage = params.messages.find((message: { role: string; content: unknown }) =>
+          message.role === 'user'
+          && typeof message.content === 'string'
+          && message.content.includes('## OPERATOR REDIRECT'),
+        );
+        expect(redirectMessage).toBeDefined();
+        expect((redirectMessage as { content: string }).content).toContain('revise the computation plan');
+        return textResponse('redirected run completed');
+      });
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-redirect',
+        workspaceId: 'workspace:run-redirect',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-redirect', task_kind: 'compute' },
+        ],
+        interventions: [{
+          kind: 'redirect',
+          scope: 'task',
+          actor_role: 'lead',
+          actor_id: 'pi',
+          task_id: 'task-redirect',
+          note: 'revise the computation plan',
+          payload: { focus: 'error budget', preserve_evidence: true },
+        }],
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: createMessage,
+      });
+
+      expect(result.assignment_results[0]?.status).toBe('completed');
+      expect(result.team_state.delegate_assignments[0]?.pending_redirect).toBeNull();
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('runs injected follow-on assignments through the same unified runtime bucket planning', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const createMessage = vi.fn(async params => {
+        const protocol = params.messages
+          .filter((message: { role: string; content: unknown }) => message.role === 'user' && typeof message.content === 'string')
+          .map((message: { content: string }) => message.content)
+          .find((content: string) => content.includes('## TASK'));
+        return textResponse(protocol?.includes('task-review-followup') ? 'review followup done' : 'seed compute done');
+      });
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-inject',
+        workspaceId: 'workspace:run-inject',
+        coordinationPolicy: 'stage_gated',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-compute-seed', task_kind: 'compute', handoff_kind: 'compute' },
+        ],
+        interventions: [{
+          kind: 'inject_task',
+          scope: 'task',
+          actor_role: 'lead',
+          actor_id: 'pi',
+          task_id: 'task-compute-seed',
+          payload: {
+            stage: 1,
+            task_id: 'task-review-followup',
+            task_kind: 'review',
+            delegate_role: 'delegate',
+            delegate_id: 'delegate-2',
+            handoff_kind: 'review',
+          },
+        }],
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: createMessage,
+      });
+
+      expect(result.assignment_results.map(item => item.task_id)).toEqual(['task-compute-seed', 'task-review-followup']);
+      expect(result.assignment_results.every(item => item.status === 'completed')).toBe(true);
+      expect(result.team_state.delegate_assignments).toHaveLength(2);
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

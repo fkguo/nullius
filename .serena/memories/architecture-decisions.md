@@ -108,3 +108,12 @@
 - Host/provider extras remain optional, and provider bundles stay opt-in; generic scaffold examples must remain provider-neutral by default.
 
 **Why**: A stable host-agnostic root surface prevents later control-plane drift and stops provider-specific defaults from becoming de facto core authority.
+
+### [2026-03-21] Orchestrator package boundary invariant: workspace source is singular, host adapters consume the package surface
+
+**Decision**:
+- `packages/orchestrator/` is the single source workspace for the workspace package `@autoresearch/orchestrator`; this is not a second implementation boundary.
+- Host adapters such as `packages/hep-mcp/` must consume exported orchestrator surfaces (for example `ORCH_TOOL_SPECS`) from `@autoresearch/orchestrator` rather than re-defining generic orchestrator authority locally.
+- The practical anti-drift risk is `src` vs built `dist` divergence, so shared-surface changes must keep `build + downstream host-path contract` in acceptance to catch stale package output.
+
+**Why**: Treating the workspace package name as a duplicate implementation would hide the real failure mode. The stable boundary is one source package plus downstream consumers, not parallel generic runtimes.

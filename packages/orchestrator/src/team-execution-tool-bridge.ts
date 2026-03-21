@@ -29,6 +29,11 @@ export function defaultTeamPermissions(): TeamPermissionMatrix {
         allowed_scopes: ['task', 'team'],
         allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
       },
+      {
+        actor_role: 'lead',
+        allowed_scopes: ['task'],
+        allowed_kinds: ['approve', 'redirect', 'inject_task'],
+      },
     ],
   };
 }

@@ -38,9 +38,13 @@ export function updateStateTimestamp(state: TeamExecutionState, timestamp: strin
 export function applyAssignmentUpdate(
   assignment: TeamDelegateAssignment,
   update: {
+    approval_id?: string | null;
+    approval_packet_path?: string | null;
+    approval_requested_at?: string | null;
     checkpoint_id?: string | null;
     last_completed_step?: string | null;
     last_heartbeat_at?: string | null;
+    pending_redirect?: TeamDelegateAssignment['pending_redirect'];
     paused_from_status?: TeamDelegateAssignment['paused_from_status'];
     resume_from?: string | null;
     status?: TeamDelegateAssignment['status'];
@@ -49,12 +53,16 @@ export function applyAssignmentUpdate(
   timestamp: string,
 ): void {
   if (update.status !== undefined) assignment.status = update.status;
+  if (update.approval_id !== undefined) assignment.approval_id = update.approval_id;
+  if (update.approval_packet_path !== undefined) assignment.approval_packet_path = update.approval_packet_path;
+  if (update.approval_requested_at !== undefined) assignment.approval_requested_at = update.approval_requested_at;
   if (update.checkpoint_id !== undefined) assignment.checkpoint_id = update.checkpoint_id;
   if (update.timeout_at !== undefined) assignment.timeout_at = update.timeout_at;
   if (update.status !== undefined && update.status !== 'paused' && update.paused_from_status === undefined) {
     assignment.paused_from_status = null;
   }
   if (update.paused_from_status !== undefined) assignment.paused_from_status = update.paused_from_status;
+  if (update.pending_redirect !== undefined) assignment.pending_redirect = update.pending_redirect;
   if (update.last_completed_step !== undefined) assignment.last_completed_step = update.last_completed_step;
   if (update.resume_from !== undefined) assignment.resume_from = update.resume_from;
   if (update.last_heartbeat_at !== undefined) assignment.last_heartbeat_at = update.last_heartbeat_at;
@@ -65,10 +73,14 @@ export function updateDelegateAssignment(
   state: TeamExecutionState,
   assignmentId: string,
   update: {
+    approval_id?: string | null;
+    approval_packet_path?: string | null;
+    approval_requested_at?: string | null;
     status?: TeamDelegateAssignment['status'];
     checkpoint_id?: string | null;
     timeout_at?: string | null;
     paused_from_status?: TeamDelegateAssignment['paused_from_status'];
+    pending_redirect?: TeamDelegateAssignment['pending_redirect'];
     last_completed_step?: string | null;
     resume_from?: string | null;
     last_heartbeat_at?: string | null;

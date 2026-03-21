@@ -26,14 +26,15 @@ export function assertInterventionAllowed(
   permissions: TeamPermissionMatrix,
   command: TeamInterventionCommand,
 ): void {
-  const match = permissions.interventions.find(entry => entry.actor_role === command.actor_role);
-  if (!match) {
+  const candidates = permissions.interventions.filter(entry => entry.actor_role === command.actor_role);
+  if (candidates.length === 0) {
     throw new Error(`intervention denied: role ${command.actor_role} has no intervention permissions`);
   }
-  if (!match.allowed_scopes.includes(command.scope)) {
+  const scoped = candidates.filter(entry => entry.allowed_scopes.includes(command.scope));
+  if (scoped.length === 0) {
     throw new Error(`intervention denied: scope ${command.scope} is not allowed for role ${command.actor_role}`);
   }
-  if (!match.allowed_kinds.includes(command.kind)) {
+  if (!scoped.some(entry => entry.allowed_kinds.includes(command.kind))) {
     throw new Error(`intervention denied: kind ${command.kind} is not allowed for role ${command.actor_role}`);
   }
 }
