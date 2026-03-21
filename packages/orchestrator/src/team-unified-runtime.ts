@@ -76,7 +76,6 @@ export async function executeUnifiedTeamRuntime(
     ensureAssignmentRegistration(state, input, assignment),
   );
   for (const command of input.interventions ?? []) applyTeamIntervention(state, command);
-  state.blocked_stage = null;
   manager.save(state);
 
   const orderedAssignments = [...state.delegate_assignments].sort((left, right) => left.stage - right.stage);
@@ -103,6 +102,9 @@ export async function executeUnifiedTeamRuntime(
         appendTeamEvent(state, { kind: 'stage_blocked', payload: { stage: bucket.stage } });
         manager.save(state);
         break;
+      }
+      if (state.blocked_stage === bucket.stage) {
+        state.blocked_stage = null;
       }
       appendTeamEvent(state, { kind: 'stage_completed', payload: { stage: bucket.stage } });
       manager.save(state);

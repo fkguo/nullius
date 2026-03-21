@@ -266,7 +266,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - Phase 2: 38/49 完成
 - Phase 3: 37/51 完成
 - Phase 4: 3/8 完成，blocked by earlier phases
-- Phase 5: 3/22 完成，blocked by earlier phases
+- Phase 5: 4/22 完成，blocked by earlier phases
 - 当前已锁定的高层边界与长期决策，应分别查看：
   - 根治理 / 硬门禁：本文件其余章节
   - 稳定架构决策：`.serena/memories/architecture-decisions.md`
@@ -307,7 +307,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (11767 symbols, 25997 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (11788 symbols, 26034 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

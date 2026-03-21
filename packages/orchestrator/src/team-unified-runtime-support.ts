@@ -42,19 +42,64 @@ export function hasPendingAssistantToolUse(messages: MessageParam[]): boolean {
   );
 }
 
+function scopeAssistantResumeMessage(
+  messages: MessageParam[],
+  taskId: TeamDelegationProtocol['TASK']['task_id'],
+): MessageParam[] {
+  const last = messages.at(-1);
+  if (!last || last.role !== 'assistant' || !Array.isArray(last.content)) {
+    return messages;
+  }
+  const hasToolUse = last.content.some(block => block.type === 'tool_use');
+  if (!hasToolUse) {
+    return messages;
+  }
+  const scopedContent = last.content.filter(block => block.type !== 'tool_use'
+    || typeof block.input !== 'object'
+    || block.input === null
+    || !('task_id' in block.input)
+    || block.input.task_id === taskId);
+  if (scopedContent.length === last.content.length) {
+    return messages;
+  }
+  if (scopedContent.length === 0) {
+    return messages.slice(0, -1);
+  }
+  return [...messages.slice(0, -1), { ...last, content: scopedContent }];
+}
+
+function pendingResumeStepId(
+  messages: MessageParam[],
+  taskId: TeamExecutionState['delegate_assignments'][number]['task_id'],
+): string | undefined {
+  const last = messages.at(-1);
+  if (!last || last.role !== 'assistant' || !Array.isArray(last.content)) {
+    return undefined;
+  }
+  const toolUse = last.content.find((block): block is Extract<typeof last.content[number], { type: 'tool_use' }> =>
+    block.type === 'tool_use'
+    && typeof block.input === 'object'
+    && block.input !== null
+    && 'task_id' in block.input
+    && block.input.task_id === taskId,
+  );
+  return toolUse?.id;
+}
+
 export function buildRuntimeMessages(
   messages: MessageParam[],
   protocol: TeamDelegationProtocol,
   pendingRedirect: TeamExecutionState['delegate_assignments'][number]['pending_redirect'],
 ): MessageParam[] {
+  const scopedMessages = scopeAssistantResumeMessage(messages, protocol.TASK.task_id);
   const protocolMessage: MessageParam = { role: 'user', content: renderTeamDelegationProtocol(protocol) };
   const redirectMessageText = renderPendingRedirect(pendingRedirect);
   const redirectMessage = redirectMessageText ? [{ role: 'user' as const, content: redirectMessageText }] : [];
-  const last = messages.at(-1);
+  const last = scopedMessages.at(-1);
   if (last?.role === 'assistant') {
-    return [...messages.slice(0, -1), protocolMessage, ...redirectMessage, last];
+    return [...scopedMessages.slice(0, -1), protocolMessage, ...redirectMessage, last];
   }
-  return [...messages, protocolMessage, ...redirectMessage];
+  return [...scopedMessages, protocolMessage, ...redirectMessage];
 }
 
 function approvalMetadataFromEvents(events: AgentEvent[]): {
@@ -241,7 +286,12 @@ async function executeLaunch(
       tools: input.tools,
       mcpClient: input.mcpClient,
       approvalGate: input.approvalGate,
-      resumeFrom: input.resumeFrom ?? assignment.resume_from ?? undefined,
+      resumeFrom:
+        input.resumeFrom
+        ?? assignment.resume_from
+        ?? assignment.last_completed_step
+        ?? pendingResumeStepId(input.messages, assignment.task_id)
+        ?? undefined,
       maxTurns: input.maxTurns,
       routingConfig: input.routingConfig,
       spanCollector: input.spanCollector,
