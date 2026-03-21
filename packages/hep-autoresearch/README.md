@@ -22,6 +22,8 @@ Language: English is the release default. Chinese docs are kept for bilingual pu
 
 Important: this package repo is the **development home** of `hep-autoresearch`, not the research-project root you operate on day to day. Run `hep-autoresearch init` inside your own research project directory to scaffold the minimal core surface: `project_charter.md`, `project_index.md`, `research_plan.md`, `research_notebook.md`, `research_contract.md`, a provider-neutral `.mcp.json.example`, `.autoresearch/`, `docs/`, and `specs/`. Research-team-only surfaces such as `prompts/`, `research_team_config.json`, `knowledge_base/`, `references/`, and `team/` are now optional full-scaffold additions rather than canonical defaults; provider-local HEP surfaces such as `.hep/` are opt-in rather than part of the shared scaffold baseline.
 
+Lifecycle note: `hep-autoresearch` and its installable alias `hepar` are the current **Pipeline A** Python CLI surface. They remain usable today, but `meta/REDESIGN_PLAN.md` treats them as a transitional control-plane surface that should retire together once the TS orchestrator becomes the sole orchestrator authority. Unless a later design decision explicitly repoints one of these names, retirement semantics apply to both names together.
+
 ## Quickstart
 
 - Documentation index (English): `docs/INDEX.md`
@@ -30,7 +32,7 @@ Important: this package repo is the **development home** of `hep-autoresearch`, 
 ## Status
 
 2026-02-03: v0 executable loop is working, with reliability mechanisms gated by artifacts + evals:
-- Installable CLI: `hep-autoresearch` (aliases: `hep-autopilot`, `hepar`)
+- Installable CLI: `hep-autoresearch` (aliases: `hep-autopilot`, `hepar`) for the current transitional Pipeline A surface
 - Web entry v0: FastAPI minimal panel (`src/hep_autoresearch/web/app.py`)
 - Workflows v0: ingest, reproduce, computation, revision, literature survey polish, and orchestrator/eval regressions
 - Eval suite: `python3 scripts/run_evals.py --tag <TAG>`

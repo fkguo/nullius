@@ -109,6 +109,15 @@
 
 **Why**: A stable host-agnostic root surface prevents later control-plane drift and stops provider-specific defaults from becoming de facto core authority.
 
+### [2026-03-21] Pipeline A lifecycle invariant: `hep-autoresearch` and `hepar` move together
+
+**Decision**:
+- `hep-autoresearch` and its installable alias `hepar` are the same Pipeline A Python control-plane surface; they must not be governed as if one were retired while the other remained the default long-term authority.
+- Current docs may still describe `hep-autoresearch` / `hepar` as usable transitional entrypoints, but long-term retirement semantics are shared unless a later design decision explicitly repoints one of those names onto the TS orchestrator surface.
+- When a batch changes lifecycle status for a package / CLI / pipeline surface (`current`, `transitional`, `retired`, `repointed`), the checked-in governance/docs set must distinguish present usability from target architecture so user docs do not silently contradict `REDESIGN_PLAN`.
+
+**Why**: The repository now has both a still-usable Python Pipeline A and a target TS control plane. Without an explicit invariant tying `hep-autoresearch` and `hepar` together and forcing current-vs-target wording, docs drift into contradictory states where one source says “retired” and another still presents the same surface as the default authority.
+
 ### [2026-03-21] Orchestrator package boundary invariant: workspace source is singular, host adapters consume the package surface
 
 **Decision**:

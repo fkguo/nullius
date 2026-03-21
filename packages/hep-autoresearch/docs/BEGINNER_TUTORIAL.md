@@ -2,6 +2,8 @@
 
 This quickstart assumes you are using `hep-autoresearch` in an **external research project directory**. The package repo itself is a development repo, not the default place to run your day-to-day project.
 
+Lifecycle note: this tutorial describes the current usable **Pipeline A** Python CLI (`hep-autoresearch` / `hepar`). `meta/REDESIGN_PLAN.md` still plans to retire that surface once the TS orchestrator becomes the sole orchestrator authority, so treat this as current operational guidance for the transitional Python path rather than the long-term control-plane authority.
+
 ## 0) Core ideas
 
 1) **Agent is not model**: reliability comes from artifacts, approval gates, replayable commands, and independent review.

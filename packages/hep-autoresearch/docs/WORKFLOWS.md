@@ -2,6 +2,8 @@
 
 Chinese version: `docs/WORKFLOWS.zh.md`.
 
+Lifecycle note: this document covers the current usable **Pipeline A** Python CLI surface (`hep-autoresearch` / `hepar`). The long-term plan is still to retire that surface together once the TS orchestrator becomes the sole orchestrator authority; until then, these commands remain valid operational guidance for the transitional Python path.
+
 English workflow specs live under `workflows/`:
 
 ## Naming boundary

@@ -4,6 +4,8 @@ English quickstart: `docs/BEGINNER_TUTORIAL.md`。本文件是中文详版。
 
 本教程默认你是在**外部研究项目目录**里使用 `hep-autoresearch`。`packages/hep-autoresearch` 所在仓库是开发仓库，不应再被当作日常研究项目根目录。
 
+生命周期说明：本教程描述的是当前仍可使用的 **Pipeline A** Python CLI（`hep-autoresearch` / `hepar`）。`meta/REDESIGN_PLAN.md` 的长期目标仍然是在 TS orchestrator 成为唯一编排器后将这一整组 surface 一起退役，因此这里应理解为过渡期 Python 路径的现行操作说明，而不是长期唯一 control-plane authority。
+
 ## 0）先建立 4 个概念
 
 1) **Agent 不等于模型**：可信度来自 artifacts、审批 gate、可回放命令、独立复核，而不是“提示词写得好”。
