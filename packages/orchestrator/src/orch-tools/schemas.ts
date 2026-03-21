@@ -71,6 +71,7 @@ const TeamAssignmentConfigSchema = z.object({
   handoff_id: z.string().optional().nullable(),
   handoff_kind: z.enum(['compute', 'feedback', 'literature', 'review', 'writing']).optional().nullable(),
   checkpoint_id: z.string().optional().nullable(),
+  timeout_at: z.string().datetime().optional().nullable(),
 });
 const TeamExecutionConfigSchema = z.object({
   workspace_id: z.string().min(1).optional(),
@@ -83,6 +84,7 @@ const TeamExecutionConfigSchema = z.object({
   handoff_id: z.string().optional().nullable(),
   handoff_kind: z.enum(['compute', 'feedback', 'literature', 'review', 'writing']).optional().nullable(),
   checkpoint_id: z.string().optional().nullable(),
+  timeout_at: z.string().datetime().optional().nullable(),
   assignments: z.array(TeamAssignmentConfigSchema).min(1).optional(),
   permissions: z.object({
     delegation: z.array(TeamExecutionPermissionEntrySchema).min(1),

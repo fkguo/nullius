@@ -45,6 +45,7 @@ function cloneAssignment(assignment: TeamDelegateAssignment): TeamDelegateAssign
     },
     status: assignment.status,
     timeout_at: assignment.timeout_at,
+    paused_from_status: assignment.paused_from_status,
     last_heartbeat_at: assignment.last_heartbeat_at,
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,

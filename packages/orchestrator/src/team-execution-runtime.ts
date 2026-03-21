@@ -19,6 +19,7 @@ export interface ExecuteTeamDelegatedRuntimeInput
   handoffId?: string | null;
   handoffKind?: TeamPermissionMatrix['delegation'][number]['allowed_handoff_kinds'][number] | null;
   checkpointId?: string | null;
+  timeoutAt?: string | null;
   interventions?: TeamInterventionCommand[];
   resumeFrom?: string;
 }
@@ -42,6 +43,7 @@ export async function executeTeamDelegatedRuntime(
       handoff_id: input.handoffId ?? null,
       handoff_kind: input.handoffKind ?? null,
       checkpoint_id: input.checkpointId ?? null,
+      timeout_at: input.timeoutAt ?? null,
     }],
     messages: input.messages,
     tools: input.tools,

@@ -20,6 +20,8 @@ export interface TeamAssignmentView {
   handoff_id: string | null;
   handoff_kind: TeamExecutionState['delegate_assignments'][number]['handoff_kind'];
   checkpoint_id: string | null;
+  timeout_at: string | null;
+  last_heartbeat_at: string | null;
   manifest_path: string;
   last_completed_step: string | null;
   resume_from: string | null;
@@ -60,6 +62,8 @@ function toAssignmentView(
     handoff_id: assignment.handoff_id,
     handoff_kind: assignment.handoff_kind,
     checkpoint_id: assignment.checkpoint_id,
+    timeout_at: assignment.timeout_at,
+    last_heartbeat_at: assignment.last_heartbeat_at,
     manifest_path: manifestPath(state.run_id, assignment.assignment_id),
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,

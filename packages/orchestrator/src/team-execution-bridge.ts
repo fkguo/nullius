@@ -4,13 +4,19 @@ import { executeTeamDelegatedRuntime } from './team-execution-runtime.js';
 import { executeUnifiedTeamRuntime } from './team-unified-runtime.js';
 import type { AgentToolHandlerContext } from './orch-tools/agent-runtime.js';
 import type { ExecuteTeamDelegatedRuntimeInput } from './team-execution-runtime.js';
+import type { ExecuteTeamDelegatedRuntimeResult } from './team-execution-runtime-types.js';
 import type { TeamPermissionMatrix } from './team-execution-types.js';
+import type { ExecuteUnifiedTeamRuntimeResult } from './team-unified-runtime-types.js';
 import {
   buildTeamAssignments,
   createLoopbackToolCaller,
   createSamplingAdapter,
   defaultTeamPermissions,
 } from './team-execution-tool-bridge.js';
+
+type ExecuteTeamRuntimeFromToolParamsResult =
+  ExecuteTeamDelegatedRuntimeResult
+  & Pick<ExecuteUnifiedTeamRuntimeResult, 'assignment_results' | 'blocked_stage' | 'live_status' | 'replay'>;
 
 export async function executeDefaultTeamDelegatedRuntime(
   input: Omit<ExecuteTeamDelegatedRuntimeInput, 'permissions'>,
@@ -38,6 +44,7 @@ export async function executeTeamRuntimeFromToolParams(
       handoff_id?: string | null;
       handoff_kind?: ExecuteTeamDelegatedRuntimeInput['handoffKind'];
       checkpoint_id?: string | null;
+      timeout_at?: string | null;
       assignments?: Array<{
         stage?: number;
         task_id: string;
@@ -48,13 +55,14 @@ export async function executeTeamRuntimeFromToolParams(
         handoff_id?: string | null;
         handoff_kind?: ExecuteTeamDelegatedRuntimeInput['handoffKind'];
         checkpoint_id?: string | null;
+        timeout_at?: string | null;
       }>;
       permissions?: TeamPermissionMatrix;
       interventions?: ExecuteTeamDelegatedRuntimeInput['interventions'];
     };
   },
   ctx: AgentToolHandlerContext,
-): Promise<ReturnType<typeof executeTeamDelegatedRuntime>> {
+): Promise<ExecuteTeamRuntimeFromToolParamsResult> {
   const { manager, projectRoot } = createStateManager(params.project_root);
   const state = requireState(projectRoot, manager);
   const team = params.team ?? {};

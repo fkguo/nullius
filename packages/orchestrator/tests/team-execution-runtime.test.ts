@@ -21,7 +21,7 @@ const PERMISSIONS: TeamPermissionMatrix = {
   interventions: [
     {
       actor_role: 'lead',
-      allowed_scopes: ['task', 'team', 'project'],
+      allowed_scopes: ['task', 'team'],
       allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
     },
   ],
@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('executeTeamDelegatedRuntime', () => {
-  it('persists team-local checkpoint state and resumes through the delegated runtime seam', async () => {
+  it('persists team-local checkpoint state and keeps completed work terminal on re-entry', async () => {
     const projectRoot = makeTmpDir();
     try {
       const messages: MessageParam[] = [{ role: 'user', content: 'go' }];
@@ -104,9 +104,9 @@ describe('executeTeamDelegatedRuntime', () => {
         _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('resumed')),
       });
 
-      expect(resumed.resumed).toBe(true);
-      expect(resumed.skipped_step_ids).toEqual(['tu_team']);
-      expect(resumed.team_state.delegate_assignments[0]?.resume_from).toBe('tu_team');
+      expect(resumed.resumed).toBe(false);
+      expect(resumed.skipped_step_ids).toEqual([]);
+      expect(resumed.team_state.delegate_assignments[0]?.resume_from).toBeNull();
       expect(resumedClient.callTool).not.toHaveBeenCalled();
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });

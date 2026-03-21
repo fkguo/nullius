@@ -26,8 +26,8 @@ export function defaultTeamPermissions(): TeamPermissionMatrix {
     interventions: [
       {
         actor_role: 'lead',
-        allowed_scopes: ['task', 'team', 'project'],
-        allowed_kinds: ['pause', 'resume', 'redirect', 'inject_task', 'approve', 'cancel', 'cascade_stop'],
+        allowed_scopes: ['task', 'team'],
+        allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
       },
     ],
   };
@@ -93,6 +93,7 @@ export function buildTeamAssignments(
     handoff_id?: string | null;
     handoff_kind?: ExecuteTeamDelegatedRuntimeInput['handoffKind'];
     checkpoint_id?: string | null;
+    timeout_at?: string | null;
     assignments?: Array<{
       stage?: number;
       task_id: string;
@@ -103,6 +104,7 @@ export function buildTeamAssignments(
       handoff_id?: string | null;
       handoff_kind?: ExecuteTeamDelegatedRuntimeInput['handoffKind'];
       checkpoint_id?: string | null;
+      timeout_at?: string | null;
     }>;
   },
   fallbackTaskId: string,
@@ -122,6 +124,7 @@ export function buildTeamAssignments(
       handoff_id: assignment.handoff_id ?? null,
       handoff_kind: assignment.handoff_kind ?? null,
       checkpoint_id: assignment.checkpoint_id ?? null,
+      timeout_at: assignment.timeout_at ?? null,
     }));
   }
   return [{
@@ -134,5 +137,6 @@ export function buildTeamAssignments(
     handoff_id: team.handoff_id ?? null,
     handoff_kind: team.handoff_kind ?? null,
     checkpoint_id: team.checkpoint_id ?? null,
+    timeout_at: team.timeout_at ?? null,
   }];
 }

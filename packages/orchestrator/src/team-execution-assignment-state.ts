@@ -41,6 +41,7 @@ export function applyAssignmentUpdate(
     checkpoint_id?: string | null;
     last_completed_step?: string | null;
     last_heartbeat_at?: string | null;
+    paused_from_status?: TeamDelegateAssignment['paused_from_status'];
     resume_from?: string | null;
     status?: TeamDelegateAssignment['status'];
     timeout_at?: string | null;
@@ -50,6 +51,10 @@ export function applyAssignmentUpdate(
   if (update.status !== undefined) assignment.status = update.status;
   if (update.checkpoint_id !== undefined) assignment.checkpoint_id = update.checkpoint_id;
   if (update.timeout_at !== undefined) assignment.timeout_at = update.timeout_at;
+  if (update.status !== undefined && update.status !== 'paused' && update.paused_from_status === undefined) {
+    assignment.paused_from_status = null;
+  }
+  if (update.paused_from_status !== undefined) assignment.paused_from_status = update.paused_from_status;
   if (update.last_completed_step !== undefined) assignment.last_completed_step = update.last_completed_step;
   if (update.resume_from !== undefined) assignment.resume_from = update.resume_from;
   if (update.last_heartbeat_at !== undefined) assignment.last_heartbeat_at = update.last_heartbeat_at;
@@ -63,6 +68,7 @@ export function updateDelegateAssignment(
     status?: TeamDelegateAssignment['status'];
     checkpoint_id?: string | null;
     timeout_at?: string | null;
+    paused_from_status?: TeamDelegateAssignment['paused_from_status'];
     last_completed_step?: string | null;
     resume_from?: string | null;
     last_heartbeat_at?: string | null;
@@ -186,6 +192,7 @@ export function markTimedOutAssignments(
     const timeoutMs = new Date(assignment.timeout_at).getTime();
     if (Number.isNaN(timeoutMs) || timeoutMs > nowMs) continue;
     applyAssignmentUpdate(assignment, { status: 'timed_out' }, now);
+    assignment.paused_from_status = null;
     timedOut.push(assignment);
     appendTeamEvent(state, {
       kind: 'assignment_timed_out',
