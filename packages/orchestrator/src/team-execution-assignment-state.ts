@@ -1,4 +1,5 @@
 import { utcNowIso } from './util.js';
+import { appendTeamEvent } from './team-execution-events.js';
 import type {
   TeamCheckpointBinding,
   TeamDelegateAssignment,
@@ -118,6 +119,15 @@ export function recordTeamCheckpoint(
     timestamp,
   );
   updateStateTimestamp(state, timestamp);
+  appendTeamEvent(state, {
+    kind: 'checkpoint_recorded',
+    assignment,
+    checkpoint_id: binding.checkpoint_id,
+    payload: {
+      last_completed_step: binding.last_completed_step,
+      resume_from: binding.resume_from,
+    },
+  });
   return binding;
 }
 
@@ -145,6 +155,15 @@ export function restoreTeamCheckpoint(
     timestamp,
   );
   updateStateTimestamp(state, timestamp);
+  appendTeamEvent(state, {
+    kind: 'checkpoint_restored',
+    assignment,
+    checkpoint_id: binding.checkpoint_id,
+    payload: {
+      last_completed_step: binding.last_completed_step,
+      resume_from: binding.resume_from,
+    },
+  });
   return binding;
 }
 
@@ -168,6 +187,11 @@ export function markTimedOutAssignments(
     if (Number.isNaN(timeoutMs) || timeoutMs > nowMs) continue;
     applyAssignmentUpdate(assignment, { status: 'timed_out' }, now);
     timedOut.push(assignment);
+    appendTeamEvent(state, {
+      kind: 'assignment_timed_out',
+      assignment,
+      payload: { timeout_at: assignment.timeout_at },
+    });
   }
   if (timedOut.length > 0) {
     updateStateTimestamp(state, now);

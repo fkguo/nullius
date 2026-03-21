@@ -1,6 +1,7 @@
 import type {
   TeamCheckpointBinding,
   TeamDelegateAssignment,
+  TeamExecutionEvent,
   TeamExecutionState,
   TeamInterventionRecord,
   TeamPermissionMatrix,
@@ -33,6 +34,15 @@ function cloneAssignment(assignment: TeamDelegateAssignment): TeamDelegateAssign
     handoff_id: assignment.handoff_id,
     handoff_kind: assignment.handoff_kind,
     checkpoint_id: assignment.checkpoint_id,
+    stage: assignment.stage,
+    delegation_protocol: {
+      TASK: { ...assignment.delegation_protocol.TASK },
+      EXPECTED_OUTCOME: { ...assignment.delegation_protocol.EXPECTED_OUTCOME },
+      REQUIRED_TOOLS: { tool_names: [...assignment.delegation_protocol.REQUIRED_TOOLS.tool_names] },
+      MUST_DO: { items: [...assignment.delegation_protocol.MUST_DO.items] },
+      MUST_NOT_DO: { items: [...assignment.delegation_protocol.MUST_NOT_DO.items] },
+      CONTEXT: { ...assignment.delegation_protocol.CONTEXT },
+    },
     status: assignment.status,
     timeout_at: assignment.timeout_at,
     last_heartbeat_at: assignment.last_heartbeat_at,
@@ -70,6 +80,18 @@ function cloneIntervention(intervention: TeamInterventionRecord): TeamInterventi
   };
 }
 
+function cloneEvent(event: TeamExecutionEvent): TeamExecutionEvent {
+  return {
+    event_id: event.event_id,
+    kind: event.kind,
+    created_at: event.created_at,
+    assignment_id: event.assignment_id,
+    task_id: event.task_id,
+    checkpoint_id: event.checkpoint_id,
+    payload: { ...event.payload },
+  };
+}
+
 export function cloneTeamExecutionState(state: TeamExecutionState): TeamExecutionState {
   return {
     schema_version: 1,
@@ -81,6 +103,8 @@ export function cloneTeamExecutionState(state: TeamExecutionState): TeamExecutio
     active_assignment_ids: [...state.active_assignment_ids],
     checkpoints: state.checkpoints.map(cloneCheckpoint),
     interventions: state.interventions.map(cloneIntervention),
+    blocked_stage: state.blocked_stage,
+    event_log: state.event_log.map(cloneEvent),
     updated_at: state.updated_at,
   };
 }

@@ -1,3 +1,4 @@
+import type { TeamDelegationProtocol } from './delegation-protocol.js';
 import type { ResearchHandoff } from './research-loop/handoff-types.js';
 import type { ResearchTaskKind } from './research-loop/task-types.js';
 
@@ -36,6 +37,8 @@ export interface TeamPermissionMatrix {
 
 export interface TeamExecutionAssignmentInput {
   assignment_id?: string;
+  stage?: number;
+  delegation_protocol?: TeamDelegationProtocol;
   owner_role: string;
   delegate_role: string;
   delegate_id: string;
@@ -69,6 +72,8 @@ export interface TeamExecutionInput {
 
 export interface TeamDelegateAssignment {
   assignment_id: string;
+  stage: number;
+  delegation_protocol: TeamDelegationProtocol;
   owner_role: string;
   delegate_role: string;
   delegate_id: string;
@@ -109,6 +114,28 @@ export interface TeamInterventionRecord {
   payload: Record<string, unknown>;
 }
 
+export type TeamExecutionEventKind =
+  | 'assignment_registered'
+  | 'assignment_started'
+  | 'assignment_status_changed'
+  | 'checkpoint_recorded'
+  | 'checkpoint_restored'
+  | 'intervention_applied'
+  | 'assignment_timed_out'
+  | 'stage_started'
+  | 'stage_completed'
+  | 'stage_blocked';
+
+export interface TeamExecutionEvent {
+  event_id: string;
+  kind: TeamExecutionEventKind;
+  created_at: string;
+  assignment_id: string | null;
+  task_id: string | null;
+  checkpoint_id: string | null;
+  payload: Record<string, unknown>;
+}
+
 export interface TeamExecutionState {
   schema_version: 1;
   run_id: string;
@@ -119,5 +146,7 @@ export interface TeamExecutionState {
   active_assignment_ids: string[];
   checkpoints: TeamCheckpointBinding[];
   interventions: TeamInterventionRecord[];
+  blocked_stage: number | null;
+  event_log: TeamExecutionEvent[];
   updated_at: string;
 }

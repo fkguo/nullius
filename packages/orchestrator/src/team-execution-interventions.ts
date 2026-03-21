@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { utcNowIso } from './util.js';
+import { appendTeamEvent } from './team-execution-events.js';
 import { assertInterventionAllowed } from './team-execution-permissions.js';
 import {
   applyAssignmentUpdate,
@@ -61,6 +62,20 @@ export function applyTeamIntervention(
     payload: { ...(command.payload ?? {}) },
   };
   state.interventions.push(record);
+  appendTeamEvent(state, {
+    kind: 'intervention_applied',
+    assignment: command.kind === 'cascade_stop' ? null : resolveTargetAssignment(state, command),
+    checkpoint_id: command.checkpoint_id ?? null,
+    payload: {
+      actor_role: command.actor_role,
+      actor_id: command.actor_id ?? null,
+      scope: command.scope,
+      kind: command.kind,
+      note: command.note ?? null,
+      target_assignment_id: command.target_assignment_id ?? null,
+      task_id: command.task_id ?? null,
+    },
+  });
   if (command.kind === 'cascade_stop') {
     for (const assignment of state.delegate_assignments) {
       if (isTerminalAssignmentStatus(assignment.status)) continue;

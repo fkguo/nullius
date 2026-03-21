@@ -42,8 +42,11 @@ export {
 } from './computation/index.js';
 export { ORCH_TOOL_SPECS } from './orch-tools/index.js';
 export * from './research-loop/index.js';
+export * from './delegation-protocol.js';
 export * from './team-execution-state.js';
 export * from './team-execution-types.js';
 export * from './team-execution-storage.js';
 export * from './team-execution-runtime.js';
 export * from './team-execution-bridge.js';
+export * from './team-execution-view.js';
+export * from './team-unified-runtime.js';

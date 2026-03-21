@@ -5,6 +5,7 @@ import * as path from 'node:path';
 
 import {
   applyTeamIntervention,
+  buildTeamControlPlaneView,
   createTeamExecutionState,
   markTimedOutAssignments,
   recordTeamCheckpoint,
@@ -140,6 +141,9 @@ describe('team execution state', () => {
     expect(cascadeRecord.kind).toBe('cascade_stop');
     expect(cascadeState.delegate_assignments.every(item => item.status === 'cascade_stopped')).toBe(true);
     expect(cascadeState.active_assignment_ids).toEqual([]);
+    const view = buildTeamControlPlaneView(cascadeState);
+    expect(view.live_status.terminal_assignments[0]?.status).toBe('cascade_stopped');
+    expect(view.replay.some(entry => entry.kind === 'intervention_applied')).toBe(true);
   });
 
   it('persists state atomically through the team state manager', () => {
