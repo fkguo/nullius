@@ -124,7 +124,7 @@ Autoresearch 是一个 evidence-first 的理论研究 substrate / control plane�
 ## Superpowers 使用约定
 
 - **默认不使用 `superpowers` 通用 skills 作为执行依据**。本仓库的权威执行依据始终是：`AGENTS.md`、batch prompt、`meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`、GitNexus 证据、`review-swarm` 与 `self-review` 门禁。
-- **worktree 默认使用与主仓平行的本地路径**，例如主仓为 `/home/user/Coding/Agents/autoresearch-lab` 时，优先使用 `/home/user/Coding/Agents/autoresearch-lab-<branch-or-batch>`；除非人类明确要求，否则不默认使用 `~/.config/superpowers/worktrees/...`。
+- **默认直接在主仓 `main` worktree 工作**；只有当存在并行 lane、需要隔离未收敛实现、或人类明确要求保留独立工作区时，才创建与主仓平行的本地 `worktree`（例如 `/home/user/Coding/Agents/autoresearch-lab-<branch-or-batch>`）；除非人类明确要求，否则不默认使用 `~/.config/superpowers/worktrees/...`。
 - **通用 skill 不得覆盖项目级硬门禁**：不得覆盖实现 prompt、GitNexus freshness / post-change evidence、正式 `review-swarm`、正式 `self-review`、tracker / memory / `AGENTS.md` 同步、以及版本控制门禁。
 - 若某个通用 skill 与本仓库规则冲突，**一律以本仓库规则为准**；必要时直接忽略该 skill 的默认建议。
 
@@ -304,7 +304,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-evo13-batch2** (10292 symbols, 24447 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (11720 symbols, 25870 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -320,7 +320,7 @@ This project is indexed by GitNexus as **autoresearch-lab-evo13-batch2** (10292 
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-evo13-batch2/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -359,10 +359,10 @@ This project is indexed by GitNexus as **autoresearch-lab-evo13-batch2** (10292 
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-evo13-batch2/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-evo13-batch2/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-evo13-batch2/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-evo13-batch2/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 
