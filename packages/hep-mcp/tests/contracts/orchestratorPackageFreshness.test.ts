@@ -37,7 +37,7 @@ function runFreshnessCheck(args: string[]) {
 }
 
 describe('orchestrator package freshness gate', () => {
-  it('passes when emitted js and d.ts outputs are at least as fresh as the source file', () => {
+  it('passes when emitted js is fresh and the declaration output exists', () => {
     const { root, srcRoot, distRoot } = makeTempRoots();
     try {
       const sourceTime = new Date('2026-03-21T09:00:00.000Z');
@@ -45,6 +45,33 @@ describe('orchestrator package freshness gate', () => {
       writeFileWithMtime(path.join(srcRoot, 'index.ts'), 'export const value = 1;\n', sourceTime);
       writeFileWithMtime(path.join(distRoot, 'index.js'), 'export const value = 1;\n', artifactTime);
       writeFileWithMtime(path.join(distRoot, 'index.d.ts'), 'export declare const value = 1;\n', artifactTime);
+
+      const result = runFreshnessCheck([
+        '--src-root',
+        srcRoot,
+        '--dist-root',
+        distRoot,
+        '--package-label',
+        'temp-orchestrator',
+      ]);
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('[ok] temp-orchestrator package output is fresh.');
+      expect(result.stderr).toBe('');
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('passes when the declaration file is older than the source but still present', () => {
+    const { root, srcRoot, distRoot } = makeTempRoots();
+    try {
+      const declarationTime = new Date('2026-03-21T09:00:00.000Z');
+      const sourceTime = new Date('2026-03-21T09:05:00.000Z');
+      const jsTime = new Date('2026-03-21T09:06:00.000Z');
+      writeFileWithMtime(path.join(srcRoot, 'index.ts'), 'export const value = 1;\n', sourceTime);
+      writeFileWithMtime(path.join(distRoot, 'index.js'), 'export const value = 1;\n', jsTime);
+      writeFileWithMtime(path.join(distRoot, 'index.d.ts'), 'export declare const value = 1;\n', declarationTime);
 
       const result = runFreshnessCheck([
         '--src-root',
@@ -112,7 +139,7 @@ describe('orchestrator package freshness gate', () => {
       expect(result.stderr).toContain('stale emitted artifact');
       expect(result.stderr).toContain('src/orch-tools/index.ts');
       expect(result.stderr).toContain('dist/orch-tools/index.js');
-      expect(result.stderr).toContain('dist/orch-tools/index.d.ts');
+      expect(result.stderr).not.toContain('dist/orch-tools/index.d.ts');
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

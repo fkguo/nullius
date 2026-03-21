@@ -180,6 +180,8 @@ export function buildRuntimeBuckets(
       concurrent: true,
     }));
   }
+  // Sequential now owns its own explicit multi-assignment path, so the
+  // remaining serial fallback is reserved for supervised_delegate.
   return assignments.map((assignment, index) => ({
     stage: assignment.stage ?? index,
     assignments: [assignment],

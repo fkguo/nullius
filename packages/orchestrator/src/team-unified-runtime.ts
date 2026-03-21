@@ -13,6 +13,10 @@ import {
   buildRuntimeProtocol,
   executeRuntimeBucket,
 } from './team-unified-runtime-support.js';
+import {
+  assertSequentialPolicyBoundary,
+  executeSequentialRuntime,
+} from './team-unified-runtime-sequential.js';
 import type { TeamExecutionState } from './team-execution-types.js';
 import type {
   ExecuteUnifiedTeamRuntimeInput,
@@ -76,28 +80,33 @@ export async function executeUnifiedTeamRuntime(
   manager.save(state);
 
   const orderedAssignments = [...state.delegate_assignments].sort((left, right) => left.stage - right.stage);
-  const buckets = buildRuntimeBuckets(input.coordinationPolicy, orderedAssignments);
   const assignmentResults: TeamAssignmentExecutionResult[] = [];
+  assertSequentialPolicyBoundary(input.coordinationPolicy, orderedAssignments);
 
-  for (const bucket of buckets) {
-    if (input.coordinationPolicy === 'stage_gated') {
-      appendTeamEvent(state, {
-        kind: 'stage_started',
-        payload: { stage: bucket.stage, assignment_count: bucket.assignments.length },
-      });
+  if (input.coordinationPolicy === 'sequential') {
+    assignmentResults.push(...await executeSequentialRuntime(input, state, manager, orderedAssignments));
+  } else {
+    const buckets = buildRuntimeBuckets(input.coordinationPolicy, orderedAssignments);
+    for (const bucket of buckets) {
+      if (input.coordinationPolicy === 'stage_gated') {
+        appendTeamEvent(state, {
+          kind: 'stage_started',
+          payload: { stage: bucket.stage, assignment_count: bucket.assignments.length },
+        });
+        manager.save(state);
+      }
+      const bucketResults = await executeRuntimeBucket(input, state, manager, bucket);
+      assignmentResults.push(...bucketResults);
+      if (input.coordinationPolicy !== 'stage_gated') continue;
+      if (bucketResults.some(result => result.status !== 'completed')) {
+        state.blocked_stage = bucket.stage;
+        appendTeamEvent(state, { kind: 'stage_blocked', payload: { stage: bucket.stage } });
+        manager.save(state);
+        break;
+      }
+      appendTeamEvent(state, { kind: 'stage_completed', payload: { stage: bucket.stage } });
       manager.save(state);
     }
-    const bucketResults = await executeRuntimeBucket(input, state, manager, bucket);
-    assignmentResults.push(...bucketResults);
-    if (input.coordinationPolicy !== 'stage_gated') continue;
-    if (bucketResults.some(result => result.status !== 'completed')) {
-      state.blocked_stage = bucket.stage;
-      appendTeamEvent(state, { kind: 'stage_blocked', payload: { stage: bucket.stage } });
-      manager.save(state);
-      break;
-    }
-    appendTeamEvent(state, { kind: 'stage_completed', payload: { stage: bucket.stage } });
-    manager.save(state);
   }
 
   const { live_status, replay } = buildTeamControlPlaneView(state);

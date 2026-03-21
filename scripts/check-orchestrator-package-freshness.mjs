@@ -70,8 +70,8 @@ function buildArtifactPaths(sourcePath, srcRoot, distRoot) {
   const relative = path.relative(srcRoot, sourcePath);
   const stem = relative.slice(0, -'.ts'.length);
   return {
-    jsPath: path.join(distRoot, `${stem}.js`),
-    dtsPath: path.join(distRoot, `${stem}.d.ts`),
+    primaryPath: path.join(distRoot, `${stem}.js`),
+    declarationPath: path.join(distRoot, `${stem}.d.ts`),
   };
 }
 
@@ -91,21 +91,25 @@ function collectFreshnessErrors({ srcRoot, distRoot }) {
   const errors = [];
   for (const sourcePath of sourceFiles) {
     const sourceStat = statSync(sourcePath);
-    const { jsPath, dtsPath } = buildArtifactPaths(sourcePath, srcRoot, distRoot);
-    for (const artifactPath of [jsPath, dtsPath]) {
-      if (!existsSync(artifactPath)) {
-        errors.push(
-          `missing emitted artifact: source=${toDisplayPath(sourcePath)} artifact=${toDisplayPath(artifactPath)}`
-        );
-        continue;
-      }
+    const { primaryPath, declarationPath } = buildArtifactPaths(sourcePath, srcRoot, distRoot);
+    if (!existsSync(primaryPath)) {
+      errors.push(
+        `missing emitted artifact: source=${toDisplayPath(sourcePath)} artifact=${toDisplayPath(primaryPath)}`
+      );
+      continue;
+    }
+    if (!existsSync(declarationPath)) {
+      errors.push(
+        `missing emitted artifact: source=${toDisplayPath(sourcePath)} artifact=${toDisplayPath(declarationPath)}`
+      );
+      continue;
+    }
 
-      const artifactStat = statSync(artifactPath);
-      if (artifactStat.mtimeMs < sourceStat.mtimeMs) {
-        errors.push(
-          `stale emitted artifact: source=${toDisplayPath(sourcePath)} artifact=${toDisplayPath(artifactPath)}`
-        );
-      }
+    const artifactStat = statSync(primaryPath);
+    if (artifactStat.mtimeMs < sourceStat.mtimeMs) {
+      errors.push(
+        `stale emitted artifact: source=${toDisplayPath(sourcePath)} artifact=${toDisplayPath(primaryPath)}`
+      );
     }
   }
 
