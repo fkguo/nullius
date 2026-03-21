@@ -10,7 +10,7 @@
     "hep-research-mcp": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node ../../scripts/check-orchestrator-package-freshness.mjs && tsc",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "dev": "tsx watch src/index.ts",

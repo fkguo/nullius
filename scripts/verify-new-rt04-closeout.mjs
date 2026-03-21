@@ -27,6 +27,9 @@ const coldArtifacts = [
 const steps = [
   ['pnpm', ['--filter', '@autoresearch/shared', 'build']],
   ['pnpm', ['--filter', '@autoresearch/orchestrator', 'build']],
+  // Keep an explicit cold-baseline freshness assertion before hep-mcp build,
+  // even though hep-mcp's build script also embeds the same guard.
+  ['node', ['scripts/check-orchestrator-package-freshness.mjs']],
   ['pnpm', ['--filter', '@autoresearch/zotero-mcp', 'build']],
   ['pnpm', ['--filter', '@autoresearch/pdg-mcp', 'build']],
   ['pnpm', ['--filter', '@autoresearch/arxiv-mcp', 'build']],
