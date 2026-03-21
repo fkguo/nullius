@@ -176,14 +176,14 @@ Only Claude CLI uses a true system role with elevated priority. The other three 
 | Runner | File access | Notes |
 |--------|-------------|-------|
 | Codex | `--sandbox read-only` | Can browse the codebase |
-| Gemini | `--approval-mode plan` (read-only agentic) | `--no-proxy-first` is always passed to ensure the agentic CLI path is used (not the generateContent API) |
+| Gemini | Default headless Gemini CLI mode | `--no-proxy-first` is always passed to ensure the local Gemini CLI path is used (not the generateContent API fallback); `--approval-mode plan` is now opt-in rather than the default |
 | Claude | `--tools` parameter | Depends on configuration |
 | OpenCode | Agent-dependent | Depends on agent configuration |
 
 ### Implications for review weight
 
 - Codex reviews may reference specific files/lines thanks to sandbox access — treat as higher-confidence for implementation details.
-- Gemini reviews use `--approval-mode plan` (read-only agentic mode) and can read local files — comparable to Codex for code-level specifics.
+- Gemini reviews now default to Gemini CLI's standard headless mode with clean `stdout`/`stderr` separation, and still can read local files in common review flows. `--approval-mode plan` remains available as an opt-in, but should not be assumed as the default review path.
 - Claude reviews can be either, depending on `--tools` configuration.
 - OpenCode reviews are prompt-only — stronger on high-level reasoning, weaker on code-level specifics.
 - System prompt parity ensures all backends share the same review criteria (BLOCKING/HIGH/LOW taxonomy, output format).

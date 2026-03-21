@@ -2,14 +2,19 @@
 set -euo pipefail
 
 # Gemini CLI runner: one-shot with file-based prompt input and model fallback.
+# Default to the CLI's standard headless mode. `--approval-mode plan` remains
+# available as an opt-in, but official Gemini CLI docs describe plan mode as
+# not yet fully functional, so it should not be the default invocation path.
 
 SYSTEM_PROMPT_FILE=""
 PROMPT_FILE=""
 OUT=""
 MODEL=""
 OUTPUT_FORMAT="text"
+APPROVAL_MODE="default"
 DRY_RUN=0
 NO_FALLBACK=0
+NO_PROXY_FIRST=0
 GEMINI_CLI_HOME_OVERRIDE="${GEMINI_CLI_HOME:-}"
 
 usage() {
@@ -22,11 +27,13 @@ Usage:
 Options:
   --model MODEL           Optional (e.g. gemini-3.1-pro-preview). If invalid, script falls back to default model.
   --output-format FORMAT  Default: text (choices depend on gemini CLI; typically text/json/stream-json)
+  --approval-mode MODE    Default: default. Choices: default, auto_edit, yolo, plan.
   --system-prompt-file F  Optional. If set, it is prepended to stdin before the prompt file (separated by a blank line).
   --gemini-cli-home DIR   Optional. If set, run Gemini with GEMINI_CLI_HOME=DIR (isolated state dir).
   --prompt-file FILE      Required
   --out PATH              Required
   --no-fallback           If set, do not retry without -m when the model alias is invalid (strict mode).
+  --no-proxy-first        Skip the generateContent fast-path and force the local Gemini CLI path.
   --dry-run               Do not call gemini. Print the planned command + prompt file size/hash. Returns 0.
 EOF
 }
@@ -104,14 +111,54 @@ text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").
 lines = text.split("\n")
 
 hook_re = re.compile(r"^Hook registry initialized with \d+ hook entries$")
-while lines and hook_re.match(lines[0]):
-    lines.pop(0)
+startup_res = [
+    hook_re,
+    re.compile(r"^Registering notification handlers for server '.*'\. Capabilities: .*"),
+    re.compile(r"^(completions|resources|tools): .*"),
+    re.compile(r"^\}$"),
+    re.compile(r"^Server '.*' has tools but did not declare 'listChanged' capability\. Listening anyway for robustness\.\.\.$"),
+    re.compile(r"^Server '.*' has resources but did not declare 'listChanged' capability\. Listening anyway for robustness\.\.\.$"),
+    re.compile(r"^Server '.*' has prompts but did not declare 'listChanged' capability\. Listening anyway for robustness\.\.\.$"),
+    re.compile(r"^Server '.*' supports tool updates\. Listening for changes\.\.\.$"),
+    re.compile(r"^Server '.*' supports resource updates\. Listening for changes\.\.\.$"),
+    re.compile(r"^Scheduling MCP context refresh\.\.\.$"),
+    re.compile(r"^Executing MCP context refresh\.\.\.$"),
+    re.compile(r"^MCP context refresh complete\.$"),
+]
+
+while lines:
+    line = lines[0].strip()
+    if line == "":
+        lines.pop(0)
+        continue
+    if any(pattern.match(line) for pattern in startup_res):
+        lines.pop(0)
+        continue
+    break
 
 # Strip leading empty lines for deterministic first-line checks.
 while lines and lines[0].strip() == "":
     lines.pop(0)
 
 path.write_text("\n".join(lines), encoding="utf-8")
+PY
+}
+
+require_meaningful_output() {
+  local f="$1"
+  [[ -f "${f}" ]] || return 1
+  if ! command -v python3 >/dev/null 2>&1; then
+    [[ -s "${f}" ]]
+    return
+  fi
+
+  python3 - "${f}" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8", errors="replace").strip()
+raise SystemExit(0 if text else 1)
 PY
 }
 
@@ -276,11 +323,13 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --model) MODEL="$2"; shift 2;;
     --output-format) OUTPUT_FORMAT="$2"; shift 2;;
+    --approval-mode) APPROVAL_MODE="$2"; shift 2;;
     --system-prompt-file) SYSTEM_PROMPT_FILE="$2"; shift 2;;
     --gemini-cli-home) GEMINI_CLI_HOME_OVERRIDE="$2"; shift 2;;
     --prompt-file) PROMPT_FILE="$2"; shift 2;;
     --out) OUT="$2"; shift 2;;
     --no-fallback) NO_FALLBACK=1; shift 1;;
+    --no-proxy-first) NO_PROXY_FIRST=1; shift 1;;
     --dry-run) DRY_RUN=1; shift 1;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
@@ -344,6 +393,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "stdin: ${stdin_desc}"
   echo "out: ${OUT}"
   echo "output_format: ${OUTPUT_FORMAT}"
+  echo "approval_mode: ${APPROVAL_MODE}"
   if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
     echo "gemini_cli_home: ${GEMINI_CLI_HOME_OVERRIDE}"
   else
@@ -352,13 +402,13 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   if [[ -n "${MODEL}" ]]; then
     echo "model: ${MODEL}"
     echo "no_fallback: ${NO_FALLBACK}"
-    echo -n "command: "; print_gemini_cmd -m "${MODEL}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+    echo -n "command: "; print_gemini_cmd -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
     if [[ "${NO_FALLBACK}" -ne 1 ]]; then
-      echo -n "fallback_command: "; print_gemini_cmd -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+      echo -n "fallback_command: "; print_gemini_cmd --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
     fi
   else
     echo "model: (default)"
-    echo -n "command: "; print_gemini_cmd -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+    echo -n "command: "; print_gemini_cmd --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
   fi
   exit 0
 fi
@@ -366,6 +416,8 @@ fi
 tmp_out=""
 stdin_file="${PROMPT_FILE}"
 combined_stdin=""
+tmp_raw_out=""
+tmp_err=""
 if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
   mkdir -p "${GEMINI_CLI_HOME_OVERRIDE}"
 fi
@@ -373,6 +425,12 @@ cleanup() {
   # Do not let cleanup affect the script exit status.
   if [[ -n "${tmp_out}" ]]; then
     rm -f "${tmp_out}" || true
+  fi
+  if [[ -n "${tmp_raw_out}" ]]; then
+    rm -f "${tmp_raw_out}" || true
+  fi
+  if [[ -n "${tmp_err}" ]]; then
+    rm -f "${tmp_err}" || true
   fi
   if [[ -n "${combined_stdin}" ]]; then
     rm -f "${combined_stdin}" || true
@@ -389,23 +447,28 @@ if [[ -n "${SYSTEM_PROMPT_FILE}" ]]; then
 fi
 
 tmp_out="$(mktemp)"
+tmp_raw_out="$(mktemp)"
+tmp_err="$(mktemp)"
 
 # Proxy-first fast path:
 # In some environments GEMINI_API_KEY is a placeholder (e.g. PROXY_MANAGED) while
 # GOOGLE_GEMINI_BASE_URL points at a local proxy that injects credentials.
 # The `gemini` CLI may then fail/hang in streaming mode. Try generateContent first.
+# Skipped when --no-proxy-first is set (e.g. for agentic reviews needing file access).
 dotenv_path="${HOME}/.gemini/.env"
 proxy_first=0
-if [[ "${GEMINI_API_KEY:-}" == "PROXY_MANAGED" ]]; then
-  proxy_first=1
-fi
-if [[ "${GOOGLE_GEMINI_BASE_URL:-}" == *"127.0.0.1:5000"* || "${GOOGLE_GEMINI_BASE_URL:-}" == *"localhost:5000"* ]]; then
-  proxy_first=1
-fi
-if [[ -f "${dotenv_path}" ]]; then
-  if grep -q '^GEMINI_API_KEY=PROXY_MANAGED' "${dotenv_path}" \
-    && grep -Eq '^GOOGLE_GEMINI_BASE_URL=.*(127\.0\.0\.1|localhost):5000' "${dotenv_path}"; then
+if [[ "${NO_PROXY_FIRST}" -eq 0 ]]; then
+  if [[ "${GEMINI_API_KEY:-}" == "PROXY_MANAGED" ]]; then
     proxy_first=1
+  fi
+  if [[ "${GOOGLE_GEMINI_BASE_URL:-}" == *"127.0.0.1:5000"* || "${GOOGLE_GEMINI_BASE_URL:-}" == *"localhost:5000"* ]]; then
+    proxy_first=1
+  fi
+  if [[ -f "${dotenv_path}" ]]; then
+    if grep -q '^GEMINI_API_KEY=PROXY_MANAGED' "${dotenv_path}" \
+      && grep -Eq '^GOOGLE_GEMINI_BASE_URL=.*(127\.0\.0\.1|localhost):5000' "${dotenv_path}"; then
+      proxy_first=1
+    fi
   fi
 fi
 if [[ "${proxy_first}" -eq 1 ]]; then
@@ -417,10 +480,10 @@ fi
 
 set +e
 if [[ -n "${MODEL}" ]]; then
-  run_gemini_cmd -m "${MODEL}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>&1
+  run_gemini_cmd -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
   code=$?
 else
-  run_gemini_cmd -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>&1
+  run_gemini_cmd --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
   code=$?
 fi
 set -e
@@ -429,7 +492,7 @@ if [[ $code -ne 0 && -n "${MODEL}" ]]; then
   # Fallback: omit -m in case the local CLI uses different model aliases.
   if [[ "${NO_FALLBACK}" -ne 1 ]]; then
     set +e
-    run_gemini_cmd -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>&1
+    run_gemini_cmd --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
     code=$?
     set -e
   fi
@@ -437,17 +500,42 @@ fi
 
 if [[ $code -ne 0 ]]; then
   # Try a non-streaming proxy fallback via GOOGLE_GEMINI_BASE_URL (if configured).
-  if try_generatecontent_fallback "${MODEL}" "${stdin_file}" "${OUT}"; then
+  # Skip this fallback when --no-proxy-first is set — agentic mode is required.
+  if [[ "${NO_PROXY_FIRST}" -eq 0 ]] && try_generatecontent_fallback "${MODEL}" "${stdin_file}" "${OUT}"; then
     echo "Note: gemini CLI failed; used generateContent fallback via GOOGLE_GEMINI_BASE_URL." >&2
     exit 0
   fi
 
-  cat "${tmp_out}" >&2
+  if [[ -s "${tmp_err}" ]]; then
+    cat "${tmp_err}" >&2
+  fi
+  if [[ -s "${tmp_out}" ]]; then
+    echo "--- raw Gemini stdout preview ---" >&2
+    sed -n '1,120p' "${tmp_out}" >&2 || true
+    echo "--- end raw Gemini stdout preview ---" >&2
+  fi
   exit $code
 fi
 
+cp "${tmp_out}" "${tmp_raw_out}"
+
 if ! sanitize_gemini_output "${tmp_out}"; then
   echo "Warning: output sanitization failed (non-fatal)." >&2
+fi
+
+if ! require_meaningful_output "${tmp_out}"; then
+  echo "Gemini CLI returned no meaningful output after sanitization." >&2
+  if [[ -s "${tmp_err}" ]]; then
+    echo "--- raw Gemini stderr preview ---" >&2
+    sed -n '1,120p' "${tmp_err}" >&2 || true
+    echo "--- end raw Gemini stderr preview ---" >&2
+  fi
+  if [[ -s "${tmp_raw_out}" ]]; then
+    echo "--- raw Gemini stdout preview ---" >&2
+    sed -n '1,120p' "${tmp_raw_out}" >&2 || true
+    echo "--- end raw Gemini stdout preview ---" >&2
+  fi
+  exit 1
 fi
 
 mkdir -p "$(dirname "${OUT}")"
