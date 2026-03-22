@@ -16,10 +16,12 @@ from __future__ import annotations
 
 import argparse
 import codecs
+import contextlib
 import itertools
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -33,6 +35,17 @@ from typing import Any, Optional
 _TRACE_LOCK = threading.Lock()
 _RE_MODEL_SLUG = re.compile(r"[^A-Za-z0-9._-]+")
 _EXIT_NEEDS_USER_DECISION = 4
+_DEFAULT_TIMEOUT_SECS = 900
+_DEFAULT_BACKEND_TOOL_MODES = {
+    "claude": "none",
+    "gemini": "none",
+    "opencode": "none",
+}
+_ALLOWED_BACKEND_TOOL_MODES = {
+    "claude": {"none", "review"},
+    "gemini": {"none", "review"},
+    "opencode": {"none", "workspace"},
+}
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -466,6 +479,12 @@ def _resolve_output_override_path(raw: str, *, out_dir: Path) -> Path:
     return (out_dir / p).resolve()
 
 
+def _resolve_backend_tool_mode(backend: str, overrides: dict[str, str]) -> Optional[str]:
+    if backend in overrides:
+        return overrides[backend]
+    return _DEFAULT_BACKEND_TOOL_MODES.get(backend)
+
+
 class AgentPlan:
     __slots__ = ("index", "backend", "requested_model", "runner_model", "runner_path")
 
@@ -581,8 +600,9 @@ def _build_cmd(
     out: Path,
     opencode_agent: Optional[str],
     opencode_variant: Optional[str],
+    backend_tool_modes: dict[str, str],
+    review_workspace_dir: Path,
     gemini_cli_home: Optional[str],
-    gemini_no_proxy_first: bool = False,
 ) -> list[str]:
     cmd = ["bash", str(plan.runner_path)]
     if system is not None:
@@ -597,16 +617,56 @@ def _build_cmd(
     )
     if plan.runner_model:
         cmd.extend(["--model", plan.runner_model])
+    tool_mode = _resolve_backend_tool_mode(plan.backend, backend_tool_modes)
+    if tool_mode:
+        cmd.extend(["--tool-mode", tool_mode])
     if plan.backend == "opencode":
         if opencode_agent:
             cmd.extend(["--agent", opencode_agent])
         if opencode_variant:
             cmd.extend(["--variant", opencode_variant])
+        if tool_mode == "workspace":
+            cmd.extend(["--workspace-dir", str(review_workspace_dir)])
     if plan.backend == "gemini" and gemini_cli_home:
         cmd.extend(["--gemini-cli-home", gemini_cli_home])
-    if plan.backend == "gemini" and gemini_no_proxy_first:
-        cmd.append("--no-proxy-first")
     return cmd
+
+
+def _run_with_timeout(cmd: list[str], *, timeout_secs: int) -> dict[str, Any]:
+    if timeout_secs <= 0:
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        return {
+            "timed_out": False,
+            "exit_code": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+        }
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_secs)
+        return {
+            "timed_out": False,
+            "exit_code": proc.returncode,
+            "stdout": stdout,
+            "stderr": stderr,
+        }
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        stdout, stderr = proc.communicate()
+        return {
+            "timed_out": True,
+            "exit_code": None,
+            "stdout": stdout,
+            "stderr": stderr,
+        }
 
 
 def _run_one(
@@ -619,8 +679,10 @@ def _run_one(
     trace_path: Path,
     opencode_agent: Optional[str],
     opencode_variant: Optional[str],
+    backend_tool_modes: dict[str, str],
+    review_workspace_dir: Path,
     gemini_cli_home: Optional[str],
-    gemini_no_proxy_first: bool = False,
+    timeout_secs: int,
     output_path: Optional[Path] = None,
 ) -> dict[str, Any]:
     out_path = output_path or (out_dir / f"{output_prefix}_{plan.index + 1}_{_model_slug(plan.requested_model)}.txt")
@@ -632,8 +694,9 @@ def _run_one(
         out=out_path,
         opencode_agent=opencode_agent,
         opencode_variant=opencode_variant,
+        backend_tool_modes=backend_tool_modes,
+        review_workspace_dir=review_workspace_dir,
         gemini_cli_home=gemini_cli_home,
-        gemini_no_proxy_first=gemini_no_proxy_first,
     )
 
     _append_jsonl(
@@ -649,14 +712,15 @@ def _run_one(
     )
 
     try:
-        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        proc = _run_with_timeout(cmd, timeout_secs=timeout_secs)
         result = {
             "index": plan.index,
             "backend": plan.backend,
             "model": plan.requested_model,
             "runner_model": plan.runner_model,
-            "exit_code": proc.returncode,
-            "success": proc.returncode == 0,
+            "exit_code": proc["exit_code"],
+            "timed_out": bool(proc["timed_out"]),
+            "success": bool((not proc["timed_out"]) and proc["exit_code"] == 0),
             "out": str(out_path),
         }
         event: dict[str, Any] = {
@@ -665,10 +729,13 @@ def _run_one(
             "index": plan.index,
             "backend": plan.backend,
             "model": plan.requested_model,
-            "exit_code": proc.returncode,
+            "exit_code": proc["exit_code"],
+            "timed_out": bool(proc["timed_out"]),
         }
-        if proc.stderr:
-            event["stderr_preview"] = proc.stderr[:800]
+        if proc["stdout"]:
+            event["stdout_preview"] = proc["stdout"][:800]
+        if proc["stderr"]:
+            event["stderr_preview"] = proc["stderr"][:800]
         _append_jsonl(trace_path, event)
         return result
     except Exception as exc:
@@ -758,7 +825,9 @@ def _postprocess_result(
 
     command_success = bool(result.get("command_success", result.get("success", False)))
     failure_reason: Optional[str] = None
-    if not command_success:
+    if bool(result.get("timed_out")):
+        failure_reason = "timeout"
+    elif not command_success:
         failure_reason = f"exit_code_{result.get('exit_code', 'unknown')}"
     elif blank_output:
         failure_reason = "empty_output"
@@ -829,6 +898,7 @@ _CONFIG_SIMPLE_KEYS: dict[str, str] = {
     "max_prompt_chars": "max_prompt_chars",
     "max_prompt_overflow": "max_prompt_overflow",
     "gemini_cli_home": "gemini_cli_home",
+    "timeout_secs": "timeout_secs",
 }
 
 
@@ -899,6 +969,7 @@ def _apply_config_defaults(args: argparse.Namespace, cfg: dict[str, Any]) -> Non
         ("backend_system", "backend_system"),
         ("backend_prompt", "backend_prompt"),
         ("backend_output", "backend_output"),
+        ("backend_tool_mode", "backend_tool_mode"),
     ]:
         if dict_key not in cfg:
             continue
@@ -1024,6 +1095,22 @@ def _parse_args() -> argparse.Namespace:
             "Relative paths are resolved under --out-dir."
         ),
     )
+    ap.add_argument(
+        "--backend-tool-mode",
+        action="append",
+        default=[],
+        metavar="BACKEND=MODE",
+        help=(
+            "Per-backend tool-mode override. Repeatable. "
+            "Supported: claude=none|review, gemini=none|review, opencode=none|workspace."
+        ),
+    )
+    ap.add_argument(
+        "--timeout-secs",
+        type=int,
+        default=_DEFAULT_TIMEOUT_SECS,
+        help=f"Per-backend timeout seconds (0 disables, default: {_DEFAULT_TIMEOUT_SECS}).",
+    )
 
     guard = ap.add_mutually_exclusive_group()
     guard.add_argument("--max-prompt-bytes", type=int, help="Optional per-file max prompt size in bytes.")
@@ -1126,12 +1213,16 @@ def main() -> int:
     backend_prompt_overrides: dict[str, Path] = {}
     backend_system_overrides: dict[str, Optional[Path]] = {}
     backend_output_overrides: dict[str, Path] = {}
+    backend_tool_modes: dict[str, str] = {}
+    review_workspace_dir = Path.cwd().resolve()
 
     try:
         if args.max_prompt_bytes is not None and args.max_prompt_bytes <= 0:
             raise ValueError("--max-prompt-bytes must be a positive integer")
         if args.max_prompt_chars is not None and args.max_prompt_chars <= 0:
             raise ValueError("--max-prompt-chars must be a positive integer")
+        if args.timeout_secs < 0:
+            raise ValueError("--timeout-secs must be >= 0")
         if not (0.0 <= args.convergence_threshold <= 1.0):
             raise ValueError("--convergence-threshold must be between 0 and 1")
         if args.fallback_mode != "off" and not fallback_order:
@@ -1164,6 +1255,12 @@ def main() -> int:
             allowed_backends=allowed_backends,
             allow_none=False,
         )
+        raw_backend_tool_modes = _parse_backend_assignments(
+            args.backend_tool_mode,
+            flag="--backend-tool-mode",
+            allowed_backends=set(_ALLOWED_BACKEND_TOOL_MODES),
+            allow_none=False,
+        )
 
         for backend, raw in raw_backend_prompt_overrides.items():
             p = Path(str(raw)).expanduser().resolve()
@@ -1182,6 +1279,15 @@ def main() -> int:
 
         for backend, raw in raw_backend_output_overrides.items():
             backend_output_overrides[backend] = _resolve_output_override_path(str(raw), out_dir=out_dir)
+
+        for backend, raw in raw_backend_tool_modes.items():
+            mode = str(raw).strip().lower()
+            allowed_modes = _ALLOWED_BACKEND_TOOL_MODES[backend]
+            if mode not in allowed_modes:
+                raise ValueError(
+                    f"--backend-tool-mode {backend}=... must be one of: {','.join(sorted(allowed_modes))}"
+                )
+            backend_tool_modes[backend] = mode
 
         _require_file(system_prompt, label="System prompt")
         _require_file(user_prompt, label="User prompt")
@@ -1309,6 +1415,7 @@ def main() -> int:
             "agent_name": args.agent or None,
             "variant": args.variant or None,
             "parallel": bool(args.parallel),
+            "timeout_secs": int(args.timeout_secs),
             "check_review_contract": bool(args.check_review_contract),
             "fallback_mode": args.fallback_mode,
             "fallback_order": fallback_order,
@@ -1316,6 +1423,10 @@ def main() -> int:
             "backend_prompt_overrides": {k: str(v) for k, v in backend_prompt_overrides.items()},
             "backend_system_overrides": {k: (str(v) if v is not None else None) for k, v in backend_system_overrides.items()},
             "backend_output_overrides": {k: str(v) for k, v in backend_output_overrides.items()},
+            "backend_tool_modes": {
+                backend: _resolve_backend_tool_mode(backend, backend_tool_modes)
+                for backend in sorted({plan.backend for plan in plans} & set(_DEFAULT_BACKEND_TOOL_MODES))
+            },
         },
     )
 
@@ -1358,8 +1469,10 @@ def main() -> int:
                     trace_path=trace_path,
                     opencode_agent=args.agent or None,
                     opencode_variant=args.variant or None,
+                    backend_tool_modes=backend_tool_modes,
+                    review_workspace_dir=review_workspace_dir,
                     gemini_cli_home=gemini_cli_home,
-                    gemini_no_proxy_first=True,
+                    timeout_secs=int(args.timeout_secs),
                     output_path=plan_out,
                 ): (plan, plan_out)
                 for plan, plan_system, plan_prompt, plan_out in run_specs
@@ -1404,8 +1517,10 @@ def main() -> int:
                     trace_path=trace_path,
                     opencode_agent=args.agent or None,
                     opencode_variant=args.variant or None,
+                    backend_tool_modes=backend_tool_modes,
+                    review_workspace_dir=review_workspace_dir,
                     gemini_cli_home=gemini_cli_home,
-                    gemini_no_proxy_first=True,
+                    timeout_secs=int(args.timeout_secs),
                     output_path=plan_out,
                 )
             )
@@ -1502,8 +1617,10 @@ def main() -> int:
                         trace_path=trace_path,
                         opencode_agent=args.agent or None,
                         opencode_variant=args.variant or None,
+                        backend_tool_modes=backend_tool_modes,
+                        review_workspace_dir=review_workspace_dir,
                         gemini_cli_home=gemini_cli_home,
-                        gemini_no_proxy_first=True,
+                        timeout_secs=int(args.timeout_secs),
                         output_path=out_path,
                     )
                     r["resolved"] = {"backend": backend, "model": model}

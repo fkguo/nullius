@@ -50,6 +50,8 @@ python3 scripts/bin/run_multi_task.py \
   --system /path/to/reviewer_system_claude.md \
   --prompt /path/to/packet.md \
   --models claude/default,gemini/default \
+  --backend-tool-mode claude=review \
+  --backend-tool-mode gemini=review \
   --backend-prompt gemini=/path/to/gemini_prompt.txt \
   --backend-output claude=claude_output.md \
   --backend-output gemini=gemini_output.md \
@@ -63,6 +65,8 @@ python3 scripts/bin/run_multi_task.py \
 - `--backend-prompt @/path/to/overrides.json` (batch mode)
 - `--backend-system backend=/path/to/system` or `backend=none`
 - `--backend-output backend=relative_or_absolute_path`
+- `--backend-tool-mode backend=mode`
+- `--timeout-secs N`
 
 Notes:
 - These flags are repeatable.
@@ -72,6 +76,27 @@ Notes:
 - Relative `--backend-output` paths are resolved under `--out-dir`.
 - `claude=none` for `--backend-system` is rejected (Claude runner requires a system prompt file).
 - For a single run, `--backend-output` does not allow one path for repeated same-backend agents (to avoid output clobbering).
+- `--timeout-secs` is a per-backend hard timeout. Default: `900` seconds. Use `0` to disable.
+- `--backend-tool-mode` is explicit and backend-specific:
+  - `claude=none|review`
+  - `gemini=none|review`
+  - `opencode=none|workspace`
+
+## Reviewer Tool Modes
+
+Default behavior is explicit:
+- Claude, Gemini, and OpenCode now receive an explicit tool mode from `review-swarm`.
+- The default mode is `none` for all three backends.
+- Tool access must be opted into per backend with `--backend-tool-mode`.
+
+Reviewer-safe modes:
+- `claude=review`: maps to a read-only built-in tool profile (`Read,Glob,Grep`).
+- `gemini=review`: maps to Gemini CLI `--approval-mode plan` plus local CLI execution (`--no-proxy-first`) and sandboxing, which is Gemini's read-only review path.
+
+OpenCode caveat:
+- `opencode=workspace` explicitly grants workspace visibility by passing `--workspace-dir`.
+- Current `opencode run` CLI does not expose a built-in read-only tool allowlist comparable to Claude/Gemini, so `workspace` is explicit workspace access, not a hard no-mutation guarantee.
+- For formal reviewer use, prefer Claude/Gemini for source-grounded read-only review guarantees; treat OpenCode workspace mode as best-effort and prompt-governed.
 
 ## Model selection
 
@@ -176,16 +201,16 @@ Only Claude CLI uses a true system role with elevated priority. The other three 
 | Runner | File access | Notes |
 |--------|-------------|-------|
 | Codex | `--sandbox read-only` | Can browse the codebase |
-| Gemini | Default headless Gemini CLI mode | `--no-proxy-first` is always passed to ensure the local Gemini CLI path is used (not the generateContent API fallback); `--approval-mode plan` is now opt-in rather than the default |
-| Claude | `--tools` parameter | Depends on configuration |
-| OpenCode | Agent-dependent | Depends on agent configuration |
+| Gemini | Default headless Gemini CLI mode | Review-safe tool access is opt-in via `--backend-tool-mode gemini=review` |
+| Claude | `--tools` parameter | Review-safe tool access is opt-in via `--backend-tool-mode claude=review` |
+| OpenCode | Workspace exposure is explicit | `--backend-tool-mode opencode=workspace` exposes the workspace, but not with a hard read-only allowlist |
 
 ### Implications for review weight
 
 - Codex reviews may reference specific files/lines thanks to sandbox access — treat as higher-confidence for implementation details.
-- Gemini reviews now default to Gemini CLI's standard headless mode with clean `stdout`/`stderr` separation, and still can read local files in common review flows. `--approval-mode plan` remains available as an opt-in, but should not be assumed as the default review path.
-- Claude reviews can be either, depending on `--tools` configuration.
-- OpenCode reviews are prompt-only — stronger on high-level reasoning, weaker on code-level specifics.
+- Gemini reviews now default to standard headless mode unless review-safe tools are explicitly enabled.
+- Claude reviews now default to no built-in tools unless review-safe tools are explicitly enabled.
+- OpenCode reviews default to isolated, prompt-driven runs unless workspace access is explicitly enabled.
 - System prompt parity ensures all backends share the same review criteria (BLOCKING/HIGH/LOW taxonomy, output format).
 
 ## Skill name note

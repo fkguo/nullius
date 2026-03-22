@@ -272,8 +272,10 @@ while true; do
   set -e
 
   if [[ $code -eq 0 ]]; then
-    if [[ -f "${OUT}" ]]; then
+    if [[ -s "${OUT}" ]]; then
       exit 0
+    elif [[ -f "${OUT}" ]]; then
+      echo "Warning: codex exited 0 but output file is empty: ${OUT} — treating as failure, will retry" >&2
     else
       echo "Warning: codex exited 0 but output file not found: ${OUT}" >&2
       exit 1

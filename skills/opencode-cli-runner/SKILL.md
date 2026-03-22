@@ -38,6 +38,9 @@ bash "${CODEX_HOME:-$HOME/.codex}/skills/opencode-cli-runner/scripts/run_opencod
 
 - The runner calls `opencode run --format json` and feeds prompt text via stdin, so large prompt files avoid shell argument-size limits.
 - If `--system-prompt-file` is provided, it is prepended to stdin before `--prompt-file` (separated by a blank line).
+- Workspace visibility is now explicit:
+  - Default is `--tool-mode none`, which runs OpenCode in an isolated temp directory.
+  - Use `--tool-mode workspace` to expose a workspace via `--workspace-dir DIR` (defaults to the current cwd).
 - The runner parses JSON events and writes only assistant text (`type=text`) to `--out`.
 - The runner treats JSON `type=error` events as failures even when `opencode` exits with code `0`.
 - If a response includes any `type=error` event, partial text chunks are not emitted to `--out`.
@@ -45,6 +48,7 @@ bash "${CODEX_HOME:-$HOME/.codex}/skills/opencode-cli-runner/scripts/run_opencod
 - If a specific `--model` fails with model-not-found, the runner can retry with OpenCode's default model by omitting `-m` (disable with `--no-fallback`).
 - Retry behavior uses `--max-attempts` (legacy alias: `--max-retries`) and `--sleep-secs`.
 - Guardrails: `--model` must use `provider/model`, `--max-attempts` must be `1..20`, and `--sleep-secs` must be `1..300`.
+- Current OpenCode `run` mode does not expose a built-in read-only tool allowlist like Claude/Gemini. `--tool-mode workspace` is explicit workspace access, not a hard no-mutation guarantee by itself.
 
 ## Exit Codes
 

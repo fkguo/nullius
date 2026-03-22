@@ -89,6 +89,17 @@ TXT
     path.chmod(0o755)
 
 
+def _write_stub_runner_sleep(path: Path, *, sleep_secs: int) -> None:
+    path.write_text(
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+sleep {sleep_secs}
+""",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
 @contextlib.contextmanager
 def _temp_env(**updates: str):
     old = {}
@@ -558,6 +569,107 @@ class MultiTaskTests(unittest.TestCase):
             self.assertTrue(input_errors)
             self.assertIn("repeated backend", input_errors[-1].get("error", ""))
 
+    def test_backend_tool_modes_are_forwarded_to_runner_commands(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            sys_prompt = td_path / "system.md"
+            user_prompt = td_path / "prompt.md"
+            claude_runner = td_path / "run_claude.sh"
+            gemini_runner = td_path / "run_gemini.sh"
+            opencode_runner = td_path / "run_opencode.sh"
+
+            _write_stub_runner(claude_runner)
+            _write_stub_runner(gemini_runner)
+            _write_stub_runner(opencode_runner)
+            sys_prompt.write_text("SYSTEM\n", encoding="utf-8")
+            user_prompt.write_text("PROMPT\n", encoding="utf-8")
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir",
+                str(out_dir),
+                "--claude-runner",
+                str(claude_runner),
+                "--gemini-runner",
+                str(gemini_runner),
+                "--opencode-runner",
+                str(opencode_runner),
+                "--system",
+                str(sys_prompt),
+                "--prompt",
+                str(user_prompt),
+                "--models",
+                "claude/default,gemini/default,default",
+                "--backend-tool-mode",
+                "claude=review",
+                "--backend-tool-mode",
+                "gemini=review",
+                "--backend-tool-mode",
+                "opencode=workspace",
+                "--no-parallel",
+            ]
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 0)
+
+            events = _read_trace_events(out_dir / "trace.jsonl")
+            config_event = next(e for e in events if e.get("event") == "config")
+            self.assertEqual(
+                config_event["backend_tool_modes"],
+                {"claude": "review", "gemini": "review", "opencode": "workspace"},
+            )
+
+            start_events = [e for e in events if e.get("event", "").endswith("_start")]
+            cmd_by_backend = {e["backend"]: e["cmd"] for e in start_events}
+
+            self.assertIn("--tool-mode", cmd_by_backend["claude"])
+            self.assertIn("review", cmd_by_backend["claude"])
+            self.assertIn("--tool-mode", cmd_by_backend["gemini"])
+            self.assertIn("review", cmd_by_backend["gemini"])
+            self.assertIn("--tool-mode", cmd_by_backend["opencode"])
+            self.assertIn("workspace", cmd_by_backend["opencode"])
+            self.assertIn("--workspace-dir", cmd_by_backend["opencode"])
+
+    def test_timeout_marks_agent_failure_and_returns_nonzero(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            sys_prompt = td_path / "system.md"
+            user_prompt = td_path / "prompt.md"
+            runner = td_path / "run_opencode.sh"
+
+            _write_stub_runner_sleep(runner, sleep_secs=3)
+            sys_prompt.write_text("SYSTEM\n", encoding="utf-8")
+            user_prompt.write_text("PROMPT\n", encoding="utf-8")
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir",
+                str(out_dir),
+                "--opencode-runner",
+                str(runner),
+                "--system",
+                str(sys_prompt),
+                "--prompt",
+                str(user_prompt),
+                "--model",
+                "default",
+                "--timeout-secs",
+                "1",
+                "--no-parallel",
+            ]
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 2)
+
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["success_count"], 0)
+            self.assertTrue(meta["agents"][0]["timed_out"])
+            self.assertEqual(meta["agents"][0]["failure_reason"], "timeout")
+
+            events = _read_trace_events(out_dir / "trace.jsonl")
+            end_event = next(e for e in events if e.get("event") == "agent_0_end")
+            self.assertTrue(end_event["timed_out"])
+
     def test_codex_default_does_not_pass_model_arg(self):
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
@@ -744,6 +856,43 @@ class ProjectConfigTests(unittest.TestCase):
             trace = _read_trace_events(out_dir / "trace.jsonl")
             config_evt = next(e for e in trace if e.get("event") == "config")
             self.assertIsNone(config_evt["backend_system_overrides"]["gemini"])
+
+    def test_config_backend_tool_mode_applies(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            cfg = td_path / "review-swarm.json"
+            cfg.write_text(json.dumps({
+                "backend_tool_mode": {"claude": "review"},
+            }), encoding="utf-8")
+
+            out_dir = td_path / "out"
+            sys_prompt = td_path / "system.md"
+            user_prompt = td_path / "prompt.md"
+            sys_prompt.write_text("system", encoding="utf-8")
+            user_prompt.write_text("prompt", encoding="utf-8")
+            claude_runner = td_path / "run_claude.sh"
+            opencode_runner = td_path / "run_opencode.sh"
+            _write_stub_runner(claude_runner)
+            _write_stub_runner(opencode_runner)
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir", str(out_dir),
+                "--claude-runner", str(claude_runner),
+                "--opencode-runner", str(opencode_runner),
+                "--system", str(sys_prompt),
+                "--prompt", str(user_prompt),
+                "--config", str(cfg),
+                "--models", "claude/default",
+                "--no-parallel",
+            ]
+            with _temp_env(REVIEW_SWARM_NO_AUTO_CONFIG="1"):
+                code = _run_main_with_argv(self.mod, argv)
+
+            self.assertEqual(code, 0)
+            trace = _read_trace_events(out_dir / "trace.jsonl")
+            config_evt = next(e for e in trace if e.get("event") == "config")
+            self.assertEqual(config_evt["backend_tool_modes"]["claude"], "review")
 
     def test_auto_discovery_finds_autoresearch_dir(self):
         """Auto-discovery finds .autoresearch/review-swarm.json at git root."""

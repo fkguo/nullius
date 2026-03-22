@@ -24,7 +24,10 @@ bash /home/user/.codex/skills/claude-cli-runner/scripts/run_claude.sh \
 Notes:
 - The runner always uses `--print` + `--no-session-persistence`.
 - `--model` is optional. If omitted (or set to `default` upstream), the runner uses Claude CLI's configured default model.
-- It disables tools by default (`--tools ""`) and enables `--strict-mcp-config` by default to avoid side effects and MCP schema loading issues (disable with `--no-strict-mcp-config`).
+- It disables tools by default (`--tool-mode none`, equivalent to `--tools ""`).
+- Use `--tool-mode review` for the read-only review profile (`Read,Glob,Grep`).
+- `--tools ...` remains available as an explicit advanced override when you need a custom built-in tool list.
+- It enables `--strict-mcp-config` by default to avoid side effects and MCP schema loading issues (disable with `--no-strict-mcp-config`).
 - It retries on failures with exponential backoff (useful for transient 5xx/overload).
 - It feeds the user prompt via stdin (`--input-format text` + `< --prompt-file`) to avoid macOS/Linux `ARG_MAX` limits (fixes `Argument list too long` with 1–5MB prompt packets).
 - For offline/CI validation, use `--dry-run` to print the planned invocation without calling Claude (prints only paths + size + sha256; never the full prompt).

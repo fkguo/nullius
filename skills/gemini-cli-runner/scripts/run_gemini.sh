@@ -11,7 +11,10 @@ PROMPT_FILE=""
 OUT=""
 MODEL=""
 OUTPUT_FORMAT="text"
+TOOL_MODE="none"
 APPROVAL_MODE="default"
+APPROVAL_MODE_EXPLICIT=0
+SANDBOX=0
 DRY_RUN=0
 NO_FALLBACK=0
 NO_PROXY_FIRST=0
@@ -27,7 +30,9 @@ Usage:
 Options:
   --model MODEL           Optional (e.g. gemini-3.1-pro-preview). If invalid, script falls back to default model.
   --output-format FORMAT  Default: text (choices depend on gemini CLI; typically text/json/stream-json)
+  --tool-mode MODE        Default: none. Choices: none, review. "review" maps to approval-mode=plan + sandbox.
   --approval-mode MODE    Default: default. Choices: default, auto_edit, yolo, plan.
+  --sandbox               Run Gemini CLI in sandbox mode.
   --system-prompt-file F  Optional. If set, it is prepended to stdin before the prompt file (separated by a blank line).
   --gemini-cli-home DIR   Optional. If set, run Gemini with GEMINI_CLI_HOME=DIR (isolated state dir).
   --prompt-file FILE      Required
@@ -323,7 +328,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --model) MODEL="$2"; shift 2;;
     --output-format) OUTPUT_FORMAT="$2"; shift 2;;
-    --approval-mode) APPROVAL_MODE="$2"; shift 2;;
+    --tool-mode) TOOL_MODE="$2"; shift 2;;
+    --approval-mode) APPROVAL_MODE="$2"; APPROVAL_MODE_EXPLICIT=1; shift 2;;
+    --sandbox) SANDBOX=1; shift 1;;
     --system-prompt-file) SYSTEM_PROMPT_FILE="$2"; shift 2;;
     --gemini-cli-home) GEMINI_CLI_HOME_OVERRIDE="$2"; shift 2;;
     --prompt-file) PROMPT_FILE="$2"; shift 2;;
@@ -349,6 +356,30 @@ if [[ ! -f "${PROMPT_FILE}" ]]; then
   echo "Prompt file not found: ${PROMPT_FILE}" >&2
   exit 2
 fi
+
+case "${TOOL_MODE}" in
+  none)
+    ;;
+  review)
+    if [[ "${APPROVAL_MODE_EXPLICIT}" -eq 1 && "${APPROVAL_MODE}" != "plan" ]]; then
+      echo "--tool-mode review requires --approval-mode plan (or no explicit --approval-mode)." >&2
+      exit 2
+    fi
+    APPROVAL_MODE="plan"
+    NO_PROXY_FIRST=1
+    SANDBOX=1
+    ;;
+  *)
+    echo "Invalid --tool-mode: ${TOOL_MODE}. Expected one of: none, review" >&2
+    exit 2
+    ;;
+esac
+
+SANDBOX_ARG=()
+if [[ "${SANDBOX}" -eq 1 ]]; then
+  SANDBOX_ARG=(--sandbox)
+fi
+
 if [[ "${DRY_RUN}" -ne 1 ]]; then
   if ! command -v gemini >/dev/null 2>&1; then
     echo "gemini CLI not found in PATH" >&2
@@ -392,8 +423,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "prompt_sha256: ${prompt_sha256}"
   echo "stdin: ${stdin_desc}"
   echo "out: ${OUT}"
+  echo "tool_mode: ${TOOL_MODE}"
   echo "output_format: ${OUTPUT_FORMAT}"
   echo "approval_mode: ${APPROVAL_MODE}"
+  echo "sandbox: ${SANDBOX}"
+  echo "no_proxy_first: ${NO_PROXY_FIRST}"
   if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
     echo "gemini_cli_home: ${GEMINI_CLI_HOME_OVERRIDE}"
   else
@@ -402,13 +436,13 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   if [[ -n "${MODEL}" ]]; then
     echo "model: ${MODEL}"
     echo "no_fallback: ${NO_FALLBACK}"
-    echo -n "command: "; print_gemini_cmd -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+    echo -n "command: "; print_gemini_cmd "${SANDBOX_ARG[@]}" -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
     if [[ "${NO_FALLBACK}" -ne 1 ]]; then
-      echo -n "fallback_command: "; print_gemini_cmd --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+      echo -n "fallback_command: "; print_gemini_cmd "${SANDBOX_ARG[@]}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
     fi
   else
     echo "model: (default)"
-    echo -n "command: "; print_gemini_cmd --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+    echo -n "command: "; print_gemini_cmd "${SANDBOX_ARG[@]}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
   fi
   exit 0
 fi
@@ -480,10 +514,10 @@ fi
 
 set +e
 if [[ -n "${MODEL}" ]]; then
-  run_gemini_cmd -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+  run_gemini_cmd "${SANDBOX_ARG[@]}" -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
   code=$?
 else
-  run_gemini_cmd --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+  run_gemini_cmd "${SANDBOX_ARG[@]}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
   code=$?
 fi
 set -e
@@ -492,7 +526,7 @@ if [[ $code -ne 0 && -n "${MODEL}" ]]; then
   # Fallback: omit -m in case the local CLI uses different model aliases.
   if [[ "${NO_FALLBACK}" -ne 1 ]]; then
     set +e
-    run_gemini_cmd --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+    run_gemini_cmd "${SANDBOX_ARG[@]}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
     code=$?
     set -e
   fi

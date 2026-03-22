@@ -10,6 +10,8 @@ OUT=""
 MODEL=""
 AGENT=""
 VARIANT=""
+TOOL_MODE="none"
+WORKSPACE_DIR=""
 THINKING=0
 DRY_RUN=0
 NO_FALLBACK=0
@@ -29,6 +31,8 @@ Options:
   --model MODEL           Optional model in provider/model format (e.g. openai/gpt-5)
   --agent AGENT           Optional OpenCode agent name
   --variant VARIANT       Optional model variant (provider-specific)
+  --tool-mode MODE        Default: none. Choices: none, workspace.
+  --workspace-dir DIR     Optional workspace path used when --tool-mode workspace (default: current cwd).
   --thinking              Show thinking blocks in OpenCode output events
   --system-prompt-file F  Optional. Prepended to stdin before prompt file.
   --prompt-file FILE      Required
@@ -186,6 +190,16 @@ while [[ $# -gt 0 ]]; do
       VARIANT="$2"
       shift 2
       ;;
+    --tool-mode)
+      require_value "$1" "${2-}"
+      TOOL_MODE="$2"
+      shift 2
+      ;;
+    --workspace-dir)
+      require_value "$1" "${2-}"
+      WORKSPACE_DIR="$2"
+      shift 2
+      ;;
     --thinking) THINKING=1; shift 1;;
     --system-prompt-file)
       require_value "$1" "${2-}"
@@ -257,6 +271,22 @@ if [[ "${SLEEP_SECS}" -gt "${MAX_BACKOFF_SECS}" ]]; then
   echo "--sleep-secs must be <= ${MAX_BACKOFF_SECS}" >&2
   exit 2
 fi
+case "${TOOL_MODE}" in
+  none|workspace)
+    ;;
+  *)
+    echo "Invalid --tool-mode: '${TOOL_MODE}'. Expected none or workspace." >&2
+    exit 2
+    ;;
+esac
+if [[ "${TOOL_MODE}" == "none" && -n "${WORKSPACE_DIR}" ]]; then
+  echo "--workspace-dir requires --tool-mode workspace" >&2
+  exit 2
+fi
+if [[ "${TOOL_MODE}" == "workspace" && -n "${WORKSPACE_DIR}" && ! -d "${WORKSPACE_DIR}" ]]; then
+  echo "Workspace directory not found: ${WORKSPACE_DIR}" >&2
+  exit 2
+fi
 if [[ -n "${MODEL}" ]]; then
   if [[ ! "${MODEL}" =~ ^[^/]+/[^/]+$ ]]; then
     echo "Invalid --model format: '${MODEL}'. Expected provider/model." >&2
@@ -303,6 +333,16 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   if [[ -n "${VARIANT}" ]]; then
     echo "variant: ${VARIANT}"
   fi
+  echo "tool_mode: ${TOOL_MODE}"
+  if [[ "${TOOL_MODE}" == "workspace" ]]; then
+    if [[ -n "${WORKSPACE_DIR}" ]]; then
+      echo "workspace_dir: ${WORKSPACE_DIR}"
+    else
+      echo "workspace_dir: ${PWD}"
+    fi
+  else
+    echo "workspace_dir: (isolated temp dir at runtime)"
+  fi
   echo "thinking: ${THINKING}"
   echo "no_fallback: ${NO_FALLBACK}"
 
@@ -316,6 +356,15 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   if [[ -n "${VARIANT}" ]]; then
     cmd+=(--variant "${VARIANT}")
   fi
+  if [[ "${TOOL_MODE}" == "workspace" ]]; then
+    if [[ -n "${WORKSPACE_DIR}" ]]; then
+      cmd+=(--dir "${WORKSPACE_DIR}")
+    else
+      cmd+=(--dir "${PWD}")
+    fi
+  else
+    cmd+=(--dir "<isolated-temp-dir>")
+  fi
   if [[ "${THINKING}" -eq 1 ]]; then
     cmd+=(--thinking)
   fi
@@ -327,6 +376,15 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     fi
     if [[ -n "${VARIANT}" ]]; then
       fallback_cmd+=(--variant "${VARIANT}")
+    fi
+    if [[ "${TOOL_MODE}" == "workspace" ]]; then
+      if [[ -n "${WORKSPACE_DIR}" ]]; then
+        fallback_cmd+=(--dir "${WORKSPACE_DIR}")
+      else
+        fallback_cmd+=(--dir "${PWD}")
+      fi
+    else
+      fallback_cmd+=(--dir "<isolated-temp-dir>")
     fi
     if [[ "${THINKING}" -eq 1 ]]; then
       fallback_cmd+=(--thinking)
@@ -351,6 +409,7 @@ combined_stdin=""
 last_raw=""
 last_err=""
 last_stderr=""
+run_dir=""
 
 cleanup() {
   rm -rf "${tmp_dir}" || true
@@ -368,6 +427,17 @@ prompt = Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace")
 Path(sys.argv[3]).write_text(system + "\n\n" + prompt, encoding="utf-8")
 PY
   stdin_file="${combined_stdin}"
+fi
+
+if [[ "${TOOL_MODE}" == "workspace" ]]; then
+  if [[ -n "${WORKSPACE_DIR}" ]]; then
+    run_dir="$(cd "${WORKSPACE_DIR}" && pwd -P)"
+  else
+    run_dir="$(pwd -P)"
+  fi
+else
+  run_dir="${tmp_dir}/isolated_workspace"
+  mkdir -p "${run_dir}"
 fi
 
 run_once() {
@@ -390,6 +460,7 @@ run_once() {
   if [[ -n "${VARIANT}" ]]; then
     cmd+=(--variant "${VARIANT}")
   fi
+  cmd+=(--dir "${run_dir}")
   if [[ "${THINKING}" -eq 1 ]]; then
     cmd+=(--thinking)
   fi

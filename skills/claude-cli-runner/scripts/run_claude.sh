@@ -14,7 +14,9 @@ PROMPT_FILE=""
 OUT=""
 MAX_RETRIES=6
 SLEEP_SECS=10
-TOOLS='""'
+TOOL_MODE="none"
+TOOLS=""
+TOOLS_EXPLICIT=0
 STRICT_MCP_CONFIG=1
 DRY_RUN=0
 
@@ -27,7 +29,8 @@ Usage:
 
 Options:
   --model MODEL            Optional. If omitted, uses Claude CLI configured default model.
-  --tools TOOLS            Default: "" (disable tools). Example: "default"
+  --tool-mode MODE         Default: "none". Choices: none, review. "review" maps to Read,Glob,Grep.
+  --tools TOOLS            Explicit tool list override. Use "" to disable all tools.
   --strict-mcp-config      Default: enabled (skip MCP tool loading)
   --no-strict-mcp-config   Disable --strict-mcp-config
   --system-prompt-file F   Required
@@ -42,7 +45,8 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --model) MODEL="$2"; shift 2;;
-    --tools) TOOLS="$2"; shift 2;;
+    --tool-mode) TOOL_MODE="$2"; shift 2;;
+    --tools) TOOLS="$2"; TOOLS_EXPLICIT=1; shift 2;;
     --strict-mcp-config) STRICT_MCP_CONFIG=1; shift 1;;
     --no-strict-mcp-config) STRICT_MCP_CONFIG=0; shift 1;;
     --system-prompt-file) SYSTEM_PROMPT_FILE="$2"; shift 2;;
@@ -69,6 +73,23 @@ if [[ ! -f "${PROMPT_FILE}" ]]; then
   echo "Prompt file not found: ${PROMPT_FILE}" >&2
   exit 2
 fi
+
+case "${TOOL_MODE}" in
+  none)
+    if [[ "${TOOLS_EXPLICIT}" -ne 1 ]]; then
+      TOOLS=""
+    fi
+    ;;
+  review)
+    if [[ "${TOOLS_EXPLICIT}" -ne 1 ]]; then
+      TOOLS='Read,Glob,Grep'
+    fi
+    ;;
+  *)
+    echo "Invalid --tool-mode: ${TOOL_MODE}. Expected one of: none, review" >&2
+    exit 2
+    ;;
+esac
 
 STRICT_ARG=()
 if [[ "${STRICT_MCP_CONFIG}" -eq 1 ]]; then
@@ -127,6 +148,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   else
     echo "Model: (Claude CLI default)"
   fi
+  echo "Tool mode: ${TOOL_MODE}"
   echo "Tools: ${TOOLS}"
   if [[ "${STRICT_MCP_CONFIG}" -eq 1 ]]; then
     echo "Strict MCP config: enabled (--strict-mcp-config)"
@@ -144,8 +166,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   if [[ -n "${MODEL}" ]]; then
     echo -n " --model ${MODEL}"
   fi
-  # shellcheck disable=SC2086
-  echo " --tools ${TOOLS} --input-format text --system-prompt <omitted> < ${PROMPT_FILE} > ${OUT}"
+  printf ' --tools %q --input-format text --system-prompt <omitted> < %q > %q\n' "${TOOLS}" "${PROMPT_FILE}" "${OUT}"
   exit 0
 fi
 
@@ -242,8 +263,7 @@ while true; do
   : >"${tmp_stdout}"
   : >"${tmp_stderr}"
   set +e
-  # shellcheck disable=SC2086
-  claude --print --no-session-persistence "${STRICT_ARG[@]}" "${MODEL_ARG[@]+"${MODEL_ARG[@]}"}" --tools ${TOOLS} \
+  claude --print --no-session-persistence "${STRICT_ARG[@]}" "${MODEL_ARG[@]+"${MODEL_ARG[@]}"}" --tools "${TOOLS}" \
     --input-format text \
     --system-prompt "${SYSTEM_PROMPT}" \
     <"${PROMPT_FILE}" >"${tmp_stdout}" 2>"${tmp_stderr}"
