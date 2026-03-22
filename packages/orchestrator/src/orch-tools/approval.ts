@@ -3,7 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { invalidParams, notFound } from '@autoresearch/shared';
 import { z } from 'zod';
-import { createStateManager, readJson, requireState } from './common.js';
+import { createStateManager, requireState } from './common.js';
+import { readApprovalsView } from './run-read-model.js';
 import {
   OrchRunApproveSchema,
   OrchRunApprovalsListSchema,
@@ -87,81 +88,6 @@ export async function handleOrchRunApprovalsList(
 ): Promise<unknown> {
   const { manager, projectRoot } = createStateManager(params.project_root);
   const state = requireState(projectRoot, manager);
-  const runId = params.run_id ?? state.run_id;
-  if (!runId) {
-    throw invalidParams('No run_id in state and none provided.', {});
-  }
-
-  const approvals: Record<string, unknown>[] = [];
-  const byApprovalId = new Map<string, Record<string, unknown>>();
-  const upsertApproval = (entry: Record<string, unknown>) => {
-    const approvalId = typeof entry.approval_id === 'string' ? entry.approval_id : null;
-    if (!approvalId) {
-      approvals.push(entry);
-      return;
-    }
-    const existing = byApprovalId.get(approvalId);
-    if (existing) {
-      Object.assign(existing, entry);
-      return;
-    }
-    byApprovalId.set(approvalId, entry);
-    approvals.push(entry);
-  };
-
-  if (state.pending_approval) {
-    const category = state.pending_approval.category ?? '';
-    if (params.gate_filter === 'all' || category === params.gate_filter) {
-      upsertApproval({ ...state.pending_approval, status: 'pending' });
-    }
-  }
-
-  const approvalsDir = path.join(projectRoot, 'artifacts', 'runs', runId, 'approvals');
-  if (fs.existsSync(approvalsDir)) {
-    for (const dirName of fs.readdirSync(approvalsDir).sort()) {
-      const dirPath = path.join(approvalsDir, dirName);
-      if (!fs.statSync(dirPath).isDirectory()) {
-        continue;
-      }
-      const gatePrefix = dirName.slice(0, 2);
-      if (params.gate_filter !== 'all' && gatePrefix !== params.gate_filter) {
-        continue;
-      }
-      const jsonPath = path.join(dirPath, 'approval_packet_v1.json');
-      const shortPath = path.join(dirPath, 'packet_short.md');
-      const approvalEntry: Record<string, unknown> = { dir: dirName };
-      if (fs.existsSync(jsonPath)) {
-        try {
-          const packet = readJson(jsonPath) as Record<string, unknown>;
-          approvalEntry.approval_id = packet.approval_id;
-          approvalEntry.gate_id = packet.gate_id;
-          approvalEntry.requested_at = packet.requested_at;
-          approvalEntry.approval_packet_sha256 = createHash('sha256').update(fs.readFileSync(jsonPath)).digest('hex');
-          approvalEntry.uri = `orch://runs/${runId}/approvals/${dirName}`;
-          approvalEntry.packet_short_uri = shortPath;
-        } catch {
-          approvalEntry.parse_error = true;
-        }
-      }
-
-      const historyEntry = state.approval_history.find(entry => entry.approval_id === approvalEntry.approval_id);
-      if (historyEntry) {
-        approvalEntry.status = historyEntry.decision === 'approved' ? 'approved' : 'rejected';
-        approvalEntry.resolved_at = historyEntry.ts;
-        approvalEntry.note = historyEntry.note;
-        if (!params.include_history) {
-          continue;
-        }
-      } else {
-        approvalEntry.status = state.pending_approval?.approval_id === approvalEntry.approval_id ? 'pending' : 'unknown';
-      }
-      upsertApproval(approvalEntry);
-    }
-  }
-
-  return {
-    run_id: runId,
-    approvals,
-    total: approvals.length,
-  };
+  const { run_id, approvals, total } = readApprovalsView(projectRoot, state, params);
+  return { run_id, approvals, total };
 }

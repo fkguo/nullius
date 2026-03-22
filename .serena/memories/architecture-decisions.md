@@ -126,3 +126,12 @@
 - The practical anti-drift risk is `src` vs built `dist` divergence, so shared-surface changes must keep `build + downstream host-path contract` in acceptance to catch stale package output.
 
 **Why**: Treating the workspace package name as a duplicate implementation would hide the real failure mode. The stable boundary is one source package plus downstream consumers, not parallel generic runtimes.
+
+### [2026-03-22] EVO-14 fleet visibility invariant: explicit-project-roots read model before queue/scheduler
+
+**Decision**:
+- EVO-14 begins with a read-only fleet visibility surface over explicit `project_roots`; Batch 1 aggregates only the existing run-level truth in `.autoresearch/state.json`, `.autoresearch/ledger.jsonl`, and current-run approval packets.
+- Persistent fleet registry, queue/claim/lease, scheduler/worker/resource budgeting, global health, and reassignment remain later EVO-14 batches rather than entering the first visibility slice.
+- EVO-13 team-local artifacts and views such as `team-execution-state.json`, `live_status`, and `replay` do not become fleet authority.
+
+**Why**: This gives bounded cross-run operator visibility on the live TS-first shared -> orchestrator -> hep-mcp host path without reopening team-local runtime semantics or inventing scheduler authority early.

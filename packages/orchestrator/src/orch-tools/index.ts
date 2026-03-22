@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ORCH_FLEET_STATUS,
   ORCH_RUN_EXECUTE_AGENT,
   ORCH_POLICY_QUERY,
   ORCH_RUN_APPROVE,
@@ -29,7 +30,9 @@ import {
   handleOrchRunList,
   handleOrchRunStatus,
 } from './create-status-list.js';
+import { handleOrchFleetStatus } from './fleet-status.js';
 import {
+  OrchFleetStatusSchema,
   OrchRunExecuteAgentSchema,
   OrchPolicyQuerySchema,
   OrchRunApproveSchema,
@@ -53,6 +56,14 @@ type OrchestratorToolSpec<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
 };
 
 export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
+  {
+    name: ORCH_FLEET_STATUS,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Aggregate read-only fleet visibility across explicit project roots using existing run-level state, ledger, and approval packet surfaces (local-only).',
+    zodSchema: OrchFleetStatusSchema,
+    handler: async params => handleOrchFleetStatus(params as z.output<typeof OrchFleetStatusSchema>),
+  },
   {
     name: ORCH_RUN_EXECUTE_AGENT,
     tier: 'advanced',

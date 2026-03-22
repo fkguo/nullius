@@ -22,7 +22,7 @@ Autoresearch Lab 是 Autoresearch 生态的 monorepo / workbench：承载 domain
 | 包 | 角色 | 状态 |
 | --- | --- | --- |
 | `@autoresearch/orchestrator` | `.autoresearch` state、routing、approval、research-loop 的 runtime/control-plane nucleus | Active |
-| `@autoresearch/hep-mcp` | 当前最成熟的首个 provider family：INSPIRE-HEP + evidence-first HEP workflow（`hep_*`、`zotero_*`、`pdg_*`） (67 std / 86) | Active |
+| `@autoresearch/hep-mcp` | 当前最成熟的首个 provider family：INSPIRE-HEP + evidence-first HEP workflow（`hep_*`、`zotero_*`、`pdg_*`） (67 std / 87) | Active |
 | `@autoresearch/openalex-mcp` | 独立的 OpenAlex scholarly graph provider | Active |
 | `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | 可与 runtime 组合的 literature/data provider | Active |
 | `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | 本地离线 / reference provider | Active |
@@ -255,14 +255,14 @@ pnpm exec tsx test-check.ts
 说明：
 - `inspire_*` 工具可直接调用（不需要 Project/Run）。Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
 
-工具数量：**`standard` 模式 67 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 86 个**（额外暴露 advanced 工具）。
+工具数量：**`standard` 模式 67 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 87 个**（额外暴露 advanced 工具）。
 
 ### 工具暴露模式
 
 | 模式 | 工具数 | 说明 |
 |------|--------|------|
 | `standard` | 67 | 默认：紧凑、推荐 |
-| `full` | 86 | `standard` + advanced 工具 |
+| `full` | 87 | `standard` + advanced 工具 |
 
 ```bash
 # 使用 full 模式（可选）

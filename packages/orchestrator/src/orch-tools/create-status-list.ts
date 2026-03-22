@@ -2,7 +2,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { invalidParams } from '@autoresearch/shared';
 import { z } from 'zod';
-import { createStateManager, pauseFilePath, requireState } from './common.js';
+import { createStateManager, requireState } from './common.js';
+import { buildRunStatusView, readRunListView } from './run-read-model.js';
 import { OrchRunCreateSchema, OrchRunListSchema, OrchRunStatusSchema } from './schemas.js';
 
 function buildIdleState(runId: string, workflowId?: string) {
@@ -79,63 +80,13 @@ export async function handleOrchRunStatus(
 ): Promise<unknown> {
   const { manager, projectRoot } = createStateManager(params.project_root);
   const state = requireState(projectRoot, manager);
-  const paused = fs.existsSync(pauseFilePath(projectRoot));
-  return {
-    run_id: state.run_id,
-    run_status: paused ? 'paused' : state.run_status,
-    workflow_id: state.workflow_id ?? null,
-    current_step: state.current_step ?? null,
-    pending_approval: state.pending_approval ?? null,
-    gate_satisfied: state.gate_satisfied ?? {},
-    notes: state.notes ?? '',
-    uri: state.run_id ? `orch://runs/${state.run_id}` : null,
-    is_paused: paused,
-  };
+  return buildRunStatusView(projectRoot, state);
 }
 
 export async function handleOrchRunList(
   params: z.output<typeof OrchRunListSchema>,
 ): Promise<unknown> {
   const { manager } = createStateManager(params.project_root);
-  if (!fs.existsSync(manager.ledgerPath)) {
-    return { runs: [], total: 0 };
-  }
-
-  const runMap = new Map<string, { run_id: string; last_event: string; last_status: string; timestamp_utc: string }>();
-  const lines = fs.readFileSync(manager.ledgerPath, 'utf-8').split('\n').filter(line => line.trim());
-  for (const line of lines) {
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-    const runId = typeof event.run_id === 'string' ? event.run_id : null;
-    if (!runId) {
-      continue;
-    }
-    const eventType = typeof event.event_type === 'string' ? event.event_type : '';
-    const timestamp = typeof event.ts === 'string'
-      ? event.ts
-      : (typeof event.timestamp_utc === 'string' ? event.timestamp_utc : '');
-    const entry = runMap.get(runId) ?? { run_id: runId, last_event: eventType, last_status: 'unknown', timestamp_utc: timestamp };
-    entry.last_event = eventType;
-    entry.timestamp_utc = timestamp;
-    if (eventType === 'initialized') entry.last_status = 'idle';
-    else if (eventType === 'approval_requested') entry.last_status = 'awaiting_approval';
-    else if (eventType === 'approval_approved' || eventType === 'resumed') entry.last_status = 'running';
-    else if (eventType === 'approval_rejected' || eventType === 'paused') entry.last_status = 'paused';
-    runMap.set(runId, entry);
-  }
-
-  let runs = [...runMap.values()].sort((left, right) => right.timestamp_utc.localeCompare(left.timestamp_utc));
-  if (params.status_filter !== 'all') {
-    runs = runs.filter(run => run.last_status === params.status_filter);
-  }
-  const limited = runs.slice(0, params.limit);
-  return {
-    runs: limited.map(run => ({ ...run, uri: `orch://runs/${run.run_id}` })),
-    total: runMap.size,
-    returned: limited.length,
-  };
+  const { runs, total, returned } = readRunListView(manager, params);
+  return { runs, total, returned };
 }

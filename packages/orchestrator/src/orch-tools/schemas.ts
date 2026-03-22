@@ -39,6 +39,11 @@ const AgentToolSchema = z.object({
   description: z.string().optional(),
   input_schema: z.record(z.string(), z.unknown()),
 });
+const VisibleRunStatusFilterSchema = z
+  .enum(['idle', 'running', 'awaiting_approval', 'paused', 'completed', 'complete', 'failed', 'all'])
+  .optional()
+  .default('all')
+  .transform(value => (value === 'complete' ? 'completed' : value));
 
 export const OrchRunCreateSchema = z.object({
   project_root: ProjectRootSchema,
@@ -57,11 +62,7 @@ export const OrchRunStatusSchema = z.object({
 export const OrchRunListSchema = z.object({
   project_root: ProjectRootSchema,
   limit: z.number().int().positive().optional().default(20).describe('Max runs to return.'),
-  status_filter: z
-    .enum(['idle', 'running', 'awaiting_approval', 'paused', 'complete', 'failed', 'all'])
-    .optional()
-    .default('all')
-    .describe('Filter by run_status.'),
+  status_filter: VisibleRunStatusFilterSchema.describe('Filter by run_status.'),
 });
 
 export const OrchRunApproveSchema = z.object({
@@ -126,6 +127,17 @@ export const OrchPolicyQuerySchema = z.object({
     .optional()
     .default(false)
     .describe('Include historical approval precedents for the queried operation.'),
+});
+
+export const OrchFleetStatusSchema = z.object({
+  project_roots: z.array(ProjectRootSchema).min(1).describe('Absolute or tilde-prefixed project roots to aggregate.'),
+  limit_per_project: z.number().int().positive().optional().default(20).describe('Max runs returned per project root.'),
+  status_filter: VisibleRunStatusFilterSchema.describe('Filter visible runs by run_status before per-project limiting.'),
+  include_history: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include resolved approvals for the current run when available.'),
 });
 
 export const OrchRunExecuteAgentSchema = z.object({
