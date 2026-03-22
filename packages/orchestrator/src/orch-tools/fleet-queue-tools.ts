@@ -11,6 +11,7 @@ import {
   type FleetQueueItem,
 } from './fleet-queue-store.js';
 import {
+  OrchFleetAdjudicateStaleClaimSchema,
   OrchFleetClaimSchema,
   OrchFleetEnqueueSchema,
   OrchFleetReleaseSchema,
@@ -58,6 +59,21 @@ function clearClaim(item: FleetQueueItem, nextStatus: FleetQueueItem['status']):
   const nextItem: FleetQueueItem = { ...item, status: nextStatus };
   delete nextItem.claim;
   return nextItem;
+}
+
+function requireClaimedItem(queue: FleetQueueV1, queueItemId: string, projectRoot: string): FleetQueueItem {
+  const item = queue.items.find(entry => entry.queue_item_id === queueItemId);
+  if (!item) {
+    throw notFound(`unknown queue_item_id '${queueItemId}'`, { queue_item_id: queueItemId, project_root: projectRoot });
+  }
+  if (item.status !== 'claimed' || !item.claim) {
+    throw invalidParams(`queue item '${queueItemId}' is not currently claimed`, {
+      queue_item_id: queueItemId,
+      status: item.status,
+      project_root: projectRoot,
+    });
+  }
+  return item;
 }
 
 function missingClaimResponse(projectRoot: string, runId?: string): {
@@ -154,18 +170,19 @@ export async function handleOrchFleetRelease(
   const parsed = OrchFleetReleaseSchema.parse(params);
   const { manager, projectRoot } = createStateManager(parsed.project_root);
   const queue = requireValidQueue(projectRoot);
-  const item = queue.items.find(entry => entry.queue_item_id === parsed.queue_item_id);
-  if (!item) {
-    throw notFound(`unknown queue_item_id '${parsed.queue_item_id}'`, { queue_item_id: parsed.queue_item_id, project_root: projectRoot });
+  const item = requireClaimedItem(queue, parsed.queue_item_id, projectRoot);
+  const claim = item.claim;
+  if (!claim) {
+    throw invalidParams(`queue item '${parsed.queue_item_id}' is missing claim metadata`, {
+      queue_item_id: parsed.queue_item_id,
+      project_root: projectRoot,
+    });
   }
-  if (item.status !== 'claimed' || !item.claim) {
-    throw invalidParams(`queue item '${parsed.queue_item_id}' is not currently claimed`, { queue_item_id: parsed.queue_item_id, status: item.status });
-  }
-  if (item.claim.owner_id !== parsed.owner_id) {
-    throw invalidParams(`queue item '${parsed.queue_item_id}' is owned by '${item.claim.owner_id}', not '${parsed.owner_id}'`, {
+  if (claim.owner_id !== parsed.owner_id) {
+    throw invalidParams(`queue item '${parsed.queue_item_id}' is owned by '${claim.owner_id}', not '${parsed.owner_id}'`, {
       queue_item_id: parsed.queue_item_id,
       owner_id: parsed.owner_id,
-      current_owner_id: item.claim.owner_id,
+      current_owner_id: claim.owner_id,
     });
   }
 
@@ -178,4 +195,63 @@ export async function handleOrchFleetRelease(
   writeFleetQueue(projectRoot, queue);
   manager.appendLedger('fleet_released', { run_id: item.run_id, workflow_id: null, details: { queue_item_id: item.queue_item_id, owner_id: parsed.owner_id, disposition } });
   return { released: true, project_root: projectRoot, queue_item: { ...item } };
+}
+
+export async function handleOrchFleetAdjudicateStaleClaim(
+  params: Parameters<typeof OrchFleetAdjudicateStaleClaimSchema.parse>[0],
+): Promise<unknown> {
+  const parsed = OrchFleetAdjudicateStaleClaimSchema.parse(params);
+  const { manager, projectRoot } = createStateManager(parsed.project_root);
+  const queue = requireValidQueue(projectRoot);
+  const item = requireClaimedItem(queue, parsed.queue_item_id, projectRoot);
+  const claim = item.claim;
+  if (!claim) {
+    throw invalidParams(`queue item '${parsed.queue_item_id}' is missing claim metadata`, {
+      queue_item_id: parsed.queue_item_id,
+      project_root: projectRoot,
+    });
+  }
+
+  if (claim.claim_id !== parsed.expected_claim_id) {
+    throw invalidParams(`queue item '${parsed.queue_item_id}' claim_id changed since the operator inspected it`, {
+      queue_item_id: parsed.queue_item_id,
+      expected_claim_id: parsed.expected_claim_id,
+      current_claim_id: claim.claim_id,
+      project_root: projectRoot,
+    });
+  }
+  if (claim.owner_id !== parsed.expected_owner_id) {
+    throw invalidParams(`queue item '${parsed.queue_item_id}' owner changed since the operator inspected it`, {
+      queue_item_id: parsed.queue_item_id,
+      expected_owner_id: parsed.expected_owner_id,
+      current_owner_id: claim.owner_id,
+      project_root: projectRoot,
+    });
+  }
+
+  const priorClaimId = claim.claim_id;
+  const priorOwnerId = claim.owner_id;
+  const nextItem = parsed.disposition === 'requeue'
+    ? { ...clearClaim(item, 'queued'), attempt_count: item.attempt_count + 1 }
+    : clearClaim(item, parsed.disposition);
+  Object.assign(item, nextItem);
+  delete item.claim;
+  writeFleetQueue(projectRoot, queue);
+  manager.appendLedger('fleet_claim_adjudicated', {
+    run_id: item.run_id,
+    workflow_id: null,
+    details: {
+      queue_item_id: item.queue_item_id,
+      prior_claim_id: priorClaimId,
+      prior_owner_id: priorOwnerId,
+      adjudicated_by: parsed.adjudicated_by,
+      disposition: parsed.disposition,
+      note: parsed.note,
+    },
+  });
+  return {
+    adjudicated: true,
+    project_root: projectRoot,
+    queue_item: { ...item },
+  };
 }

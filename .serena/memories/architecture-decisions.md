@@ -156,3 +156,14 @@
 - Batch 3 still excludes central tick/daemon authority, `scheduler_state.json`, TTL reclaim, heartbeat takeover, auto reassignment, and promotion of `state.json`, `ledger.jsonl`, `team-execution-state.json`, `live_status`, or `replay` into fleet authority.
 
 **Why**: This keeps queue ownership, worker health/resource truth, and scheduling behavior from collapsing into competing authorities while still enabling bounded worker-pull scheduling and slot accounting.
+
+### [2026-03-22] EVO-14 stale-claim intervention invariant: explicit manual adjudication only
+
+**Decision**:
+- EVO-14 Batch 4 adds a single explicit stale-claim intervention surface, `orch_fleet_adjudicate_stale_claim`, which may settle only a currently claimed queue item and must require exact `queue_item_id + claim_id + owner_id` match to fail closed on stale reads or concurrent mutation.
+- Queue truth remains only `.autoresearch/fleet_queue.json`; worker/resource truth remains only `.autoresearch/fleet_workers.json`; and manual adjudication does not create any second persisted intervention authority file.
+- Whether a claim is considered stale is operator judgment informed by existing read-only signals, not a new canonical persisted enum or an automatic authority decision.
+- After adjudication, control returns to the existing Batch 3 path: queue mutation plus audit ledger event, followed later by ordinary `orch_fleet_worker_poll` claiming if the item was requeued.
+- Batch 4 still excludes TTL expiry, heartbeat auto-release, auto takeover, auto reassignment, central tick/daemon authority, and promotion of `state.json`, `ledger.jsonl`, `team-execution-state.json`, `live_status`, or `replay` into fleet authority.
+
+**Why**: This closes the operational gap around stale claims without prematurely turning health observations into ownership-breaking authority or introducing a second scheduler/intervention control plane.

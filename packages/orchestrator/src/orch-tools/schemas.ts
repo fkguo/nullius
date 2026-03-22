@@ -167,6 +167,16 @@ export const OrchFleetReleaseSchema = z.object({
   disposition: QueueDispositionSchema.describe('How to settle the claimed queue item.'),
 });
 
+export const OrchFleetAdjudicateStaleClaimSchema = z.object({
+  project_root: ProjectRootSchema,
+  queue_item_id: QueueItemIdSchema.describe('Claimed queue item identifier to adjudicate.'),
+  expected_claim_id: z.string().min(1).describe('Expected current claim_id. Used to fail closed on stale reads or concurrent mutation.'),
+  expected_owner_id: QueueOwnerSchema.describe('Expected current claim owner id. Used to fail closed on stale reads or concurrent mutation.'),
+  adjudicated_by: QueueOwnerSchema.describe('Operator or subsystem explicitly performing the stale-claim adjudication.'),
+  disposition: QueueDispositionSchema.describe('How to settle the claimed queue item after manual adjudication.'),
+  note: z.string().min(1).describe('Required human-readable adjudication note explaining why the existing claim was considered stale.'),
+});
+
 export const OrchFleetWorkerPollSchema = z.object({
   project_root: ProjectRootSchema,
   worker_id: WorkerIdSchema.describe('Worker identifier used as the fleet queue claim owner.'),

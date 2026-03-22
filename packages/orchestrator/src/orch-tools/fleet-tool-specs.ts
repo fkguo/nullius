@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ORCH_FLEET_ADJUDICATE_STALE_CLAIM,
   ORCH_FLEET_CLAIM,
   ORCH_FLEET_ENQUEUE,
   ORCH_FLEET_RELEASE,
@@ -8,6 +9,7 @@ import {
   ORCH_FLEET_WORKER_POLL,
 } from '@autoresearch/shared';
 import {
+  handleOrchFleetAdjudicateStaleClaim,
   handleOrchFleetClaim,
   handleOrchFleetEnqueue,
   handleOrchFleetRelease,
@@ -18,6 +20,7 @@ import {
   handleOrchFleetWorkerPoll,
 } from './fleet-worker-tools.js';
 import {
+  OrchFleetAdjudicateStaleClaimSchema,
   OrchFleetClaimSchema,
   OrchFleetEnqueueSchema,
   OrchFleetReleaseSchema,
@@ -27,6 +30,14 @@ import {
 } from './schemas.js';
 
 export const FLEET_TOOL_SPECS = [
+  {
+    name: ORCH_FLEET_ADJUDICATE_STALE_CLAIM,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Manually adjudicate a currently claimed fleet queue item that appears stale, then settle it back onto the existing queue substrate without creating automatic takeover semantics (local-only).',
+    zodSchema: OrchFleetAdjudicateStaleClaimSchema,
+    handler: async (params: unknown) => handleOrchFleetAdjudicateStaleClaim(params as z.output<typeof OrchFleetAdjudicateStaleClaimSchema>),
+  },
   {
     name: ORCH_FLEET_WORKER_POLL,
     tier: 'core',
