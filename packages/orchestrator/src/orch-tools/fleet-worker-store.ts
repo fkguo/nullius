@@ -33,6 +33,10 @@ export type FleetWorkersView = {
   total: number;
   returned: number;
   by_health: Record<FleetWorkerHealth, number>;
+  claim_acceptance: {
+    accepting_workers: number;
+    not_accepting_workers: number;
+  };
   capacity: {
     total_slots: number;
     claimed_slots: number;
@@ -153,6 +157,7 @@ export function upsertFleetWorker(
     last_heartbeat_at: nowIso,
     max_concurrent_claims: workerInput.max_concurrent_claims,
     heartbeat_timeout_seconds: workerInput.heartbeat_timeout_seconds,
+    accepts_claims: existing?.accepts_claims ?? true,
     ...(workerInput.note !== undefined
       ? { note: workerInput.note }
       : (existing?.note !== undefined ? { note: existing.note } : {})),
@@ -178,6 +183,7 @@ export function summarizeFleetWorkers(
       total: 0,
       returned: 0,
       by_health: { healthy: 0, stale: 0 },
+      claim_acceptance: { accepting_workers: 0, not_accepting_workers: 0 },
       capacity: { total_slots: 0, claimed_slots: 0, available_slots: 0 },
     };
   }
@@ -186,12 +192,19 @@ export function summarizeFleetWorkers(
     .sort((left, right) => right.last_heartbeat_at.localeCompare(left.last_heartbeat_at) || left.worker_id.localeCompare(right.worker_id))
     .map(worker => buildFleetWorkerView(worker, activeClaimsByWorker[worker.worker_id] ?? 0, nowIso));
   const byHealth: Record<FleetWorkerHealth, number> = { healthy: 0, stale: 0 };
+  let acceptingWorkers = 0;
+  let notAcceptingWorkers = 0;
   let totalSlots = 0;
   let claimedSlots = 0;
   let availableSlots = 0;
 
   for (const worker of allWorkers) {
     byHealth[worker.health_status] += 1;
+    if (worker.accepts_claims) {
+      acceptingWorkers += 1;
+    } else {
+      notAcceptingWorkers += 1;
+    }
     totalSlots += worker.max_concurrent_claims;
     claimedSlots += worker.active_claim_count;
     availableSlots += worker.available_slots;
@@ -203,6 +216,10 @@ export function summarizeFleetWorkers(
     total: allWorkers.length,
     returned: Math.min(limit, allWorkers.length),
     by_health: byHealth,
+    claim_acceptance: {
+      accepting_workers: acceptingWorkers,
+      not_accepting_workers: notAcceptingWorkers,
+    },
     capacity: {
       total_slots: totalSlots,
       claimed_slots: claimedSlots,

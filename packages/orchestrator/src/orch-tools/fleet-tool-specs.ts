@@ -7,6 +7,7 @@ import {
   ORCH_FLEET_STATUS,
   ORCH_FLEET_WORKER_HEARTBEAT,
   ORCH_FLEET_WORKER_POLL,
+  ORCH_FLEET_WORKER_SET_CLAIM_ACCEPTANCE,
 } from '@autoresearch/shared';
 import {
   handleOrchFleetAdjudicateStaleClaim,
@@ -14,6 +15,7 @@ import {
   handleOrchFleetEnqueue,
   handleOrchFleetRelease,
 } from './fleet-queue-tools.js';
+import { handleOrchFleetWorkerSetClaimAcceptance } from './fleet-worker-claim-acceptance.js';
 import { handleOrchFleetStatus } from './fleet-status.js';
 import {
   handleOrchFleetWorkerHeartbeat,
@@ -27,6 +29,7 @@ import {
   OrchFleetStatusSchema,
   OrchFleetWorkerHeartbeatSchema,
   OrchFleetWorkerPollSchema,
+  OrchFleetWorkerSetClaimAcceptanceSchema,
 } from './schemas.js';
 
 export const FLEET_TOOL_SPECS = [
@@ -53,6 +56,14 @@ export const FLEET_TOOL_SPECS = [
     description: 'Refresh or register fleet worker liveness/resource-slot metadata without claiming queue ownership (local-only).',
     zodSchema: OrchFleetWorkerHeartbeatSchema,
     handler: async (params: unknown) => handleOrchFleetWorkerHeartbeat(params as z.output<typeof OrchFleetWorkerHeartbeatSchema>),
+  },
+  {
+    name: ORCH_FLEET_WORKER_SET_CLAIM_ACCEPTANCE,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Update whether an existing fleet worker may claim new queue items, without changing queue ownership or creating a second scheduler surface (local-only).',
+    zodSchema: OrchFleetWorkerSetClaimAcceptanceSchema,
+    handler: async (params: unknown) => handleOrchFleetWorkerSetClaimAcceptance(params as z.output<typeof OrchFleetWorkerSetClaimAcceptanceSchema>),
   },
   {
     name: ORCH_FLEET_ENQUEUE,

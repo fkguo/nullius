@@ -231,6 +231,7 @@ describe('orch_fleet_status', () => {
           worker_id: 'worker-healthy',
           registered_at: '2026-03-22T00:00:00Z',
           last_heartbeat_at: recentHeartbeat,
+          accepts_claims: true,
           max_concurrent_claims: 2,
           heartbeat_timeout_seconds: 30,
         },
@@ -238,6 +239,7 @@ describe('orch_fleet_status', () => {
           worker_id: 'worker-stale',
           registered_at: '2026-03-22T00:00:00Z',
           last_heartbeat_at: staleHeartbeat,
+          accepts_claims: false,
           max_concurrent_claims: 1,
           heartbeat_timeout_seconds: 5,
         },
@@ -251,6 +253,8 @@ describe('orch_fleet_status', () => {
         worker_count: number;
         healthy_worker_count: number;
         stale_worker_count: number;
+        accepting_worker_count: number;
+        not_accepting_worker_count: number;
         total_worker_slots: number;
         claimed_worker_slots: number;
         available_worker_slots: number;
@@ -259,8 +263,9 @@ describe('orch_fleet_status', () => {
         workers: {
           total: number;
           by_health: Record<string, number>;
+          claim_acceptance: { accepting_workers: number; not_accepting_workers: number };
           capacity: { total_slots: number; claimed_slots: number; available_slots: number };
-          workers: Array<{ worker_id: string; active_claim_count: number; health_status: string; available_slots: number }>;
+          workers: Array<{ worker_id: string; active_claim_count: number; health_status: string; available_slots: number; accepts_claims: boolean }>;
         };
       }>;
     };
@@ -269,21 +274,26 @@ describe('orch_fleet_status', () => {
       worker_count: 2,
       healthy_worker_count: 1,
       stale_worker_count: 1,
+      accepting_worker_count: 1,
+      not_accepting_worker_count: 1,
       total_worker_slots: 3,
       claimed_worker_slots: 1,
       available_worker_slots: 2,
     });
     expect(payload.projects[0]?.workers.by_health).toEqual({ healthy: 1, stale: 1 });
+    expect(payload.projects[0]?.workers.claim_acceptance).toEqual({ accepting_workers: 1, not_accepting_workers: 1 });
     expect(payload.projects[0]?.workers.capacity).toEqual({ total_slots: 3, claimed_slots: 1, available_slots: 2 });
     expect(payload.projects[0]?.workers.workers.find(item => item.worker_id === 'worker-healthy')).toMatchObject({
       health_status: 'healthy',
       active_claim_count: 1,
       available_slots: 1,
+      accepts_claims: true,
     });
     expect(payload.projects[0]?.workers.workers.find(item => item.worker_id === 'worker-stale')).toMatchObject({
       health_status: 'stale',
       active_claim_count: 0,
       available_slots: 1,
+      accepts_claims: false,
     });
   });
 
@@ -331,6 +341,7 @@ describe('orch_fleet_status', () => {
         worker_id: 'worker-1',
         registered_at: '2026-03-22T00:00:00Z',
         last_heartbeat_at: new Date().toISOString(),
+        accepts_claims: true,
         max_concurrent_claims: 3,
         heartbeat_timeout_seconds: 60,
       }],
@@ -439,6 +450,7 @@ describe('orch_fleet_status', () => {
           worker_id: 'worker-healthy',
           registered_at: '2026-03-22T00:00:00Z',
           last_heartbeat_at: healthyHeartbeat,
+          accepts_claims: true,
           max_concurrent_claims: 1,
           heartbeat_timeout_seconds: 30,
         },
@@ -446,6 +458,7 @@ describe('orch_fleet_status', () => {
           worker_id: 'worker-stale',
           registered_at: '2026-03-22T00:00:00Z',
           last_heartbeat_at: staleHeartbeat,
+          accepts_claims: false,
           max_concurrent_claims: 1,
           heartbeat_timeout_seconds: 5,
         },

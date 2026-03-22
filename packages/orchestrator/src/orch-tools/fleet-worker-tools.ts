@@ -97,7 +97,7 @@ function appendAutoReleasedEvents(
 function noClaimResponse(
   projectRoot: string,
   worker: ReturnType<typeof buildFleetWorkerView>,
-  reason: 'NO_QUEUED_ITEM' | 'AT_CAPACITY',
+  reason: 'NO_QUEUED_ITEM' | 'AT_CAPACITY' | 'WORKER_NOT_ACCEPTING_CLAIMS',
   diagnostic: string,
 ) {
   return {
@@ -160,6 +160,19 @@ export async function handleOrchFleetWorkerPoll(
   const claimsByWorker = activeClaimsByWorker(queue);
 
   const workerView = buildFleetWorkerView(worker, claimsByWorker[worker.worker_id] ?? 0, nowIso);
+  if (!worker.accepts_claims) {
+    if (queue && queueChanged) {
+      writeFleetQueue(projectRoot, queue);
+      appendAutoReleasedEvents(manager, autoReleased, worker.worker_id);
+    }
+    return noClaimResponse(
+      projectRoot,
+      workerView,
+      'WORKER_NOT_ACCEPTING_CLAIMS',
+      `worker '${worker.worker_id}' is not accepting new queue claims`,
+    );
+  }
+
   if (workerView.available_slots < 1) {
     if (queue && queueChanged) {
       writeFleetQueue(projectRoot, queue);

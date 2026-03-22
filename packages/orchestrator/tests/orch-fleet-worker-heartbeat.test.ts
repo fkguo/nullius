@@ -23,7 +23,7 @@ describe('orch_fleet_worker_heartbeat', () => {
 
     expect(first).toMatchObject({
       heartbeat_recorded: true,
-      worker: { worker_id: 'worker-1', health_status: 'healthy', note: 'baseline worker' },
+      worker: { worker_id: 'worker-1', health_status: 'healthy', note: 'baseline worker', accepts_claims: true },
     });
 
     const firstWorkers = readFleetWorkers(projectRoot).registry;
@@ -31,6 +31,7 @@ describe('orch_fleet_worker_heartbeat', () => {
       worker_id: 'worker-1',
       max_concurrent_claims: 2,
       heartbeat_timeout_seconds: 45,
+      accepts_claims: true,
       note: 'baseline worker',
     });
     const registeredAt = firstWorkers?.workers[0]?.registered_at;
@@ -53,7 +54,45 @@ describe('orch_fleet_worker_heartbeat', () => {
       registered_at: registeredAt,
       max_concurrent_claims: 3,
       heartbeat_timeout_seconds: 60,
+      accepts_claims: true,
       note: 'baseline worker',
+    });
+  });
+
+  it('preserves an existing accepts_claims=false gate when refreshing worker liveness', async () => {
+    const projectRoot = makeTmpDir();
+    writeWorkers(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:00Z',
+      workers: [{
+        worker_id: 'worker-1',
+        registered_at: '2026-03-22T00:00:00Z',
+        last_heartbeat_at: '2026-03-22T00:00:00Z',
+        accepts_claims: false,
+        max_concurrent_claims: 1,
+        heartbeat_timeout_seconds: 30,
+        note: 'maintenance gate',
+      }],
+    });
+
+    const payload = await handleOrchFleetWorkerHeartbeat(OrchFleetWorkerHeartbeatSchema.parse({
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      max_concurrent_claims: 2,
+      heartbeat_timeout_seconds: 45,
+    })) as { worker: { accepts_claims: boolean; health_status: string; note?: string } };
+
+    expect(payload.worker).toMatchObject({
+      accepts_claims: false,
+      health_status: 'healthy',
+      note: 'maintenance gate',
+    });
+    expect(readFleetWorkers(projectRoot).registry?.workers[0]).toMatchObject({
+      worker_id: 'worker-1',
+      accepts_claims: false,
+      max_concurrent_claims: 2,
+      heartbeat_timeout_seconds: 45,
+      note: 'maintenance gate',
     });
   });
 

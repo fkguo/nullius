@@ -166,6 +166,8 @@ export async function handleOrchFleetStatus(
   let workerCount = 0;
   let healthyWorkerCount = 0;
   let staleWorkerCount = 0;
+  let acceptingWorkerCount = 0;
+  let notAcceptingWorkerCount = 0;
   let totalWorkerSlots = 0;
   let claimedWorkerSlots = 0;
   let availableWorkerSlots = 0;
@@ -184,6 +186,8 @@ export async function handleOrchFleetStatus(
     workerCount += project.workers.total;
     healthyWorkerCount += project.workers.by_health.healthy;
     staleWorkerCount += project.workers.by_health.stale;
+    acceptingWorkerCount += project.workers.claim_acceptance.accepting_workers;
+    notAcceptingWorkerCount += project.workers.claim_acceptance.not_accepting_workers;
     totalWorkerSlots += project.workers.capacity.total_slots;
     claimedWorkerSlots += project.workers.capacity.claimed_slots;
     availableWorkerSlots += project.workers.capacity.available_slots;
@@ -203,6 +207,8 @@ export async function handleOrchFleetStatus(
       worker_count: workerCount,
       healthy_worker_count: healthyWorkerCount,
       stale_worker_count: staleWorkerCount,
+      accepting_worker_count: acceptingWorkerCount,
+      not_accepting_worker_count: notAcceptingWorkerCount,
       total_worker_slots: totalWorkerSlots,
       claimed_worker_slots: claimedWorkerSlots,
       available_worker_slots: availableWorkerSlots,

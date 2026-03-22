@@ -201,6 +201,7 @@ describe('orch_fleet_status contract', () => {
         worker_id: 'worker-stale',
         registered_at: '2026-03-22T00:00:00Z',
         last_heartbeat_at: '2026-03-22T00:00:00Z',
+        accepts_claims: false,
         max_concurrent_claims: 1,
         heartbeat_timeout_seconds: 5,
       }],
@@ -219,6 +220,8 @@ describe('orch_fleet_status contract', () => {
     expect(summary.attention_claim_count).toBe(1);
     expect(summary.claimed_with_stale_worker_count).toBe(1);
     expect(summary.expired_claim_count).toBe(1);
+    expect(summary.accepting_worker_count).toBe(0);
+    expect(summary.not_accepting_worker_count).toBe(1);
     expect(queue.attention_claim_count).toBe(1);
     expect(queue.claimed_with_stale_worker_count).toBe(1);
     expect(queue.expired_claim_count).toBe(1);
@@ -230,5 +233,6 @@ describe('orch_fleet_status contract', () => {
     expect(typeof item.claim_age_seconds).toBe('number');
     expect(typeof item.last_heartbeat_age_seconds).toBe('number');
     expect(typeof item.lease_expires_at).toBe('string');
+    expect((((payload.projects as Array<Record<string, unknown>>)[0]?.workers as Record<string, unknown>).workers as Array<Record<string, unknown>>)[0]?.accepts_claims).toBe(false);
   });
 });

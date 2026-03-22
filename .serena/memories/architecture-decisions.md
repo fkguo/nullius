@@ -188,3 +188,14 @@
 - `orch_fleet_status` remains the only cross-root fleet read surface; lease-related fields and expired counters are derived read-model output only and do not become a second authority.
 
 **Why**: Batch 6 closes the minimum explicit-expiry contract without turning worker liveness into a second lease authority, without adding a daemon or hidden sweep, and without letting audit/read models back-propagate into mutation truth.
+
+### [2026-03-22] EVO-14 claim-acceptance invariant: worker registry gate only, no drain/takeover semantics
+
+**Decision**:
+- EVO-14 Batch 7 extends `.autoresearch/fleet_workers.json` with explicit `workers[].accepts_claims`; that field is the sole authority for whether an existing worker may take new queue claims.
+- `orch_fleet_worker_set_claim_acceptance` is the only mutation surface allowed to change that gate. It must fail closed for unknown workers, write only the worker registry, and append audit-only ledger evidence.
+- `orch_fleet_worker_heartbeat` and `orch_fleet_worker_poll` may continue to upsert worker liveness/capacity, but they must preserve existing `accepts_claims` rather than infer or overwrite it.
+- `orch_fleet_worker_poll` may still heartbeat, renew owned leases, and sweep same-project expired claims before evaluating the gate; when `accepts_claims = false`, it returns deterministic non-error `WORKER_NOT_ACCEPTING_CLAIMS` and must not claim new queued work.
+- Stopping new claims does not imply draining, releasing, takeover, reassignment, daemonized scheduling, or any second fleet read/authority surface. `orch_fleet_status` remains the only cross-root read surface and may expose only derived `accepts_claims` visibility/counters.
+
+**Why**: Batch 7 adds the minimal operator-controlled worker-eligibility primitive needed after queue, worker, stale-signal, and lease authority were already split, while explicitly avoiding a second lifecycle authority or premature drain/takeover semantics.

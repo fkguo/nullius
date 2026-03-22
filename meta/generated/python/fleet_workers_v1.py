@@ -20,6 +20,7 @@ class FleetWorker(BaseModel):
     worker_id: Annotated[str, Field(min_length=1)]
     registered_at: AwareDatetime
     last_heartbeat_at: AwareDatetime
+    accepts_claims: bool
     max_concurrent_claims: Annotated[int, Field(ge=1)]
     heartbeat_timeout_seconds: Annotated[int, Field(ge=1)]
     note: str | None = None

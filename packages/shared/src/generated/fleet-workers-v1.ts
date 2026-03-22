@@ -15,6 +15,7 @@ export interface FleetWorker {
   worker_id: string;
   registered_at: string;
   last_heartbeat_at: string;
+  accepts_claims: boolean;
   max_concurrent_claims: number;
   heartbeat_timeout_seconds: number;
   note?: string;

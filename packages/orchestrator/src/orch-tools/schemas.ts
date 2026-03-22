@@ -196,6 +196,14 @@ export const OrchFleetWorkerHeartbeatSchema = z.object({
   note: z.string().optional().describe('Optional operator-visible worker note stored in fleet_workers.json.'),
 });
 
+export const OrchFleetWorkerSetClaimAcceptanceSchema = z.object({
+  project_root: ProjectRootSchema,
+  worker_id: WorkerIdSchema.describe('Existing worker identifier whose new-claim acceptance gate should be updated.'),
+  accepts_claims: z.boolean().describe('Whether the worker may claim new queue items when polling.'),
+  updated_by: QueueOwnerSchema.describe('Operator or subsystem explicitly changing the worker claim-acceptance gate.'),
+  note: z.string().min(1).describe('Required human-readable note explaining why claim acceptance changed.'),
+});
+
 export const OrchRunExecuteAgentSchema = z.object({
   _confirm: z.literal(true).describe('Must be true to execute this destructive operation.'),
   project_root: ProjectRootSchema,

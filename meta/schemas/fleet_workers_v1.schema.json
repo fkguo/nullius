@@ -29,6 +29,7 @@
         "worker_id",
         "registered_at",
         "last_heartbeat_at",
+        "accepts_claims",
         "max_concurrent_claims",
         "heartbeat_timeout_seconds"
       ],
@@ -44,6 +45,9 @@
         "last_heartbeat_at": {
           "type": "string",
           "format": "date-time"
+        },
+        "accepts_claims": {
+          "type": "boolean"
         },
         "max_concurrent_claims": {
           "type": "integer",

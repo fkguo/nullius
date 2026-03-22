@@ -63,6 +63,7 @@ describe('orch_fleet_worker_poll', () => {
     expect(payload.worker).toMatchObject({
       active_claim_count: 1,
       available_slots: 1,
+      accepts_claims: true,
       note: 'primary worker',
       health_status: 'healthy',
     });
@@ -78,6 +79,7 @@ describe('orch_fleet_worker_poll', () => {
       worker_id: 'worker-1',
       max_concurrent_claims: 2,
       heartbeat_timeout_seconds: 60,
+      accepts_claims: true,
       note: 'primary worker',
     });
     expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_claimed"');
@@ -135,6 +137,93 @@ describe('orch_fleet_worker_poll', () => {
       worker: { active_claim_count: 1, available_slots: 0 },
     });
     expect(readFleetQueue(cappedProjectRoot).queue?.items.find(item => item.queue_item_id === 'fq_waiting')?.status).toBe('queued');
+  });
+
+  it('honors accepts_claims=false after renew/sweep while leaving queued work untouched', async () => {
+    const projectRoot = makeTmpDir();
+    writeProject(projectRoot);
+    const expiredAt = new Date(Date.now() - 120_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const stillValidAt = new Date(Date.now() - 5_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:01Z',
+      items: [
+        {
+          queue_item_id: 'fq_owned',
+          run_id: 'run-1',
+          status: 'claimed',
+          priority: 10,
+          enqueued_at: '2026-03-22T00:00:00Z',
+          requested_by: 'operator',
+          attempt_count: 0,
+          claim: buildLeaseClaim({
+            claim_id: 'fqc_owned',
+            owner_id: 'worker-1',
+            claimed_at: stillValidAt,
+            lease_duration_seconds: 60,
+          }),
+        },
+        {
+          queue_item_id: 'fq_expired',
+          run_id: 'run-2',
+          status: 'claimed',
+          priority: 5,
+          enqueued_at: '2026-03-22T00:00:01Z',
+          requested_by: 'operator',
+          attempt_count: 2,
+          claim: buildLeaseClaim({
+            claim_id: 'fqc_expired',
+            owner_id: 'worker-2',
+            claimed_at: expiredAt,
+            lease_duration_seconds: 30,
+          }),
+        },
+        { queue_item_id: 'fq_waiting', run_id: 'run-3', status: 'queued', priority: 9, enqueued_at: '2026-03-22T00:00:02Z', requested_by: 'operator', attempt_count: 0 },
+      ],
+    });
+    writeWorkers(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:01Z',
+      workers: [{
+        worker_id: 'worker-1',
+        registered_at: '2026-03-22T00:00:00Z',
+        last_heartbeat_at: '2026-03-22T00:00:00Z',
+        accepts_claims: false,
+        max_concurrent_claims: 3,
+        heartbeat_timeout_seconds: 60,
+        note: 'maintenance mode',
+      }],
+    });
+
+    const payload = await handleOrchFleetWorkerPoll(OrchFleetWorkerPollSchema.parse({
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      max_concurrent_claims: 3,
+    })) as {
+      claimed: boolean;
+      reason: string;
+      queue_item: null;
+      worker: { active_claim_count: number; available_slots: number; accepts_claims: boolean };
+    };
+
+    expect(payload).toMatchObject({
+      claimed: false,
+      reason: 'WORKER_NOT_ACCEPTING_CLAIMS',
+      queue_item: null,
+      worker: { active_claim_count: 1, available_slots: 2, accepts_claims: false },
+    });
+    const queue = readFleetQueue(projectRoot).queue;
+    const renewedItem = queue?.items.find(item => item.queue_item_id === 'fq_owned');
+    const autoReleasedItem = queue?.items.find(item => item.queue_item_id === 'fq_expired');
+    const waitingItem = queue?.items.find(item => item.queue_item_id === 'fq_waiting');
+    expect(renewedItem?.claim?.lease_expires_at).not.toBe(buildLeaseClaim({
+      claim_id: 'fqc_owned',
+      owner_id: 'worker-1',
+      claimed_at: stillValidAt,
+      lease_duration_seconds: 60,
+    }).lease_expires_at);
+    expect(autoReleasedItem).toMatchObject({ status: 'queued', attempt_count: 3 });
+    expect(waitingItem).toMatchObject({ status: 'queued', attempt_count: 0 });
   });
 
   it('fails closed when the worker registry or queue file is invalid', async () => {

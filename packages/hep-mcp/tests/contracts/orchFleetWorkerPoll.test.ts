@@ -106,7 +106,7 @@ describe('orch_fleet_worker_* host contract', () => {
     expect((poll as { isError?: boolean }).isError).toBeFalsy();
     expect(extractPayload(poll)).toMatchObject({
       claimed: true,
-      worker: { worker_id: 'worker-1', active_claim_count: 1, available_slots: 0 },
+      worker: { worker_id: 'worker-1', active_claim_count: 1, available_slots: 0, accepts_claims: true },
       queue_item: { run_id: 'run-1', claim: { owner_id: 'worker-1', lease_duration_seconds: 60 } },
     });
 
@@ -119,7 +119,7 @@ describe('orch_fleet_worker_* host contract', () => {
     expect((heartbeat as { isError?: boolean }).isError).toBeFalsy();
     expect(extractPayload(heartbeat)).toMatchObject({
       heartbeat_recorded: true,
-      worker: { worker_id: 'worker-1', health_status: 'healthy' },
+      worker: { worker_id: 'worker-1', health_status: 'healthy', accepts_claims: true },
     });
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'fleet_workers.json'))).toBe(true);
   });
@@ -222,6 +222,44 @@ describe('orch_fleet_worker_* host contract', () => {
     const queue = JSON.parse(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'fleet_queue.json'), 'utf-8')) as { items: Array<Record<string, unknown>> };
     expect(queue.items.find(item => item.queue_item_id === 'fq_expired')).toMatchObject({ status: 'queued', attempt_count: 3 });
     expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_claim_auto_released"');
+  });
+
+  it('returns WORKER_NOT_ACCEPTING_CLAIMS without claiming queued work when the worker gate is closed', async () => {
+    const projectRoot = makeTmpDir();
+    writeProject(projectRoot);
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:00Z',
+      items: [{ queue_item_id: 'fq_1', run_id: 'run-1', status: 'queued', priority: 3, enqueued_at: '2026-03-22T00:00:00Z', requested_by: 'operator', attempt_count: 0 }],
+    });
+    fs.writeFileSync(path.join(projectRoot, '.autoresearch', 'fleet_workers.json'), JSON.stringify({
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:00Z',
+      workers: [{
+        worker_id: 'worker-1',
+        registered_at: '2026-03-22T00:00:00Z',
+        last_heartbeat_at: '2026-03-22T00:00:00Z',
+        accepts_claims: false,
+        max_concurrent_claims: 1,
+        heartbeat_timeout_seconds: 30,
+      }],
+    }, null, 2) + '\n', 'utf-8');
+
+    const poll = await handleToolCall('orch_fleet_worker_poll', {
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      max_concurrent_claims: 1,
+      heartbeat_timeout_seconds: 30,
+    }, 'full');
+    expect((poll as { isError?: boolean }).isError).toBeFalsy();
+    expect(extractPayload(poll)).toMatchObject({
+      claimed: false,
+      reason: 'WORKER_NOT_ACCEPTING_CLAIMS',
+      queue_item: null,
+      worker: { worker_id: 'worker-1', accepts_claims: false },
+    });
+    const queue = JSON.parse(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'fleet_queue.json'), 'utf-8')) as { items: Array<Record<string, unknown>> };
+    expect(queue.items[0]).toMatchObject({ queue_item_id: 'fq_1', status: 'queued' });
   });
 
   it('fails closed for invalid worker registry payloads', async () => {
