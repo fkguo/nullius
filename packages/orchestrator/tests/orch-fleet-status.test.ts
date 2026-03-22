@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { handleOrchFleetStatus } from '../src/orch-tools/fleet-status.js';
+import { buildFleetQueueDiagnosticItems } from '../src/orch-tools/fleet-status-diagnostics.js';
 import { OrchFleetStatusSchema } from '../src/orch-tools/schemas.js';
 import {
   baseState,
@@ -362,5 +363,214 @@ describe('orch_fleet_status', () => {
       active_claim_count: 2,
       available_slots: 1,
     });
+  });
+
+  it('adds operator stale-signal diagnostics for healthy, stale, and missing worker claims', async () => {
+    const projectRoot = makeTmpDir();
+    const now = new Date();
+    const healthyHeartbeat = new Date(now.getTime() - 4_000).toISOString();
+    const staleHeartbeat = new Date(now.getTime() - 70_000).toISOString();
+    writeState(projectRoot, baseState({ run_id: 'run-1', run_status: 'running' }));
+    writeLedger(projectRoot, [{
+      ts: '2026-03-22T00:00:00Z',
+      event_type: 'run_started',
+      run_id: 'run-1',
+      workflow_id: 'runtime',
+      step_id: null,
+      details: {},
+    }]);
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: now.toISOString(),
+      items: [
+        {
+          queue_item_id: 'fq_healthy',
+          run_id: 'run-healthy',
+          status: 'claimed',
+          priority: 3,
+          enqueued_at: '2026-03-22T00:00:00Z',
+          requested_by: 'operator',
+          attempt_count: 0,
+          claim: { claim_id: 'fqc_healthy', owner_id: 'worker-healthy', claimed_at: new Date(now.getTime() - 25_000).toISOString() },
+        },
+        {
+          queue_item_id: 'fq_stale',
+          run_id: 'run-stale',
+          status: 'claimed',
+          priority: 2,
+          enqueued_at: '2026-03-22T00:00:01Z',
+          requested_by: 'operator',
+          attempt_count: 0,
+          claim: { claim_id: 'fqc_stale', owner_id: 'worker-stale', claimed_at: new Date(now.getTime() - 40_000).toISOString() },
+        },
+        {
+          queue_item_id: 'fq_missing',
+          run_id: 'run-missing',
+          status: 'claimed',
+          priority: 1,
+          enqueued_at: '2026-03-22T00:00:02Z',
+          requested_by: 'operator',
+          attempt_count: 0,
+          claim: { claim_id: 'fqc_missing', owner_id: 'worker-missing', claimed_at: new Date(now.getTime() - 15_000).toISOString() },
+        },
+      ],
+    });
+    writeWorkers(projectRoot, {
+      schema_version: 1,
+      updated_at: now.toISOString(),
+      workers: [
+        {
+          worker_id: 'worker-healthy',
+          registered_at: '2026-03-22T00:00:00Z',
+          last_heartbeat_at: healthyHeartbeat,
+          max_concurrent_claims: 1,
+          heartbeat_timeout_seconds: 30,
+        },
+        {
+          worker_id: 'worker-stale',
+          registered_at: '2026-03-22T00:00:00Z',
+          last_heartbeat_at: staleHeartbeat,
+          max_concurrent_claims: 1,
+          heartbeat_timeout_seconds: 5,
+        },
+      ],
+    });
+
+    const payload = await handleOrchFleetStatus(OrchFleetStatusSchema.parse({
+      project_roots: [projectRoot],
+    })) as {
+      summary: {
+        attention_claim_count: number;
+        claimed_without_worker_count: number;
+        claimed_with_stale_worker_count: number;
+      };
+      projects: Array<{
+        queue: {
+          attention_claim_count: number;
+          claimed_without_worker_count: number;
+          claimed_with_stale_worker_count: number;
+          items: Array<{
+            queue_item_id: string;
+            claim_age_seconds: number | null;
+            last_heartbeat_at: string | null;
+            last_heartbeat_age_seconds: number | null;
+            owner_worker_health: string | null;
+            attention_required: boolean;
+            attention_reasons: string[];
+          }>;
+        };
+      }>;
+    };
+
+    expect(payload.summary).toMatchObject({
+      attention_claim_count: 2,
+      claimed_without_worker_count: 1,
+      claimed_with_stale_worker_count: 1,
+    });
+    expect(payload.projects[0]?.queue).toMatchObject({
+      attention_claim_count: 2,
+      claimed_without_worker_count: 1,
+      claimed_with_stale_worker_count: 1,
+    });
+    expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_healthy')).toMatchObject({
+      owner_worker_health: 'healthy',
+      attention_required: false,
+      attention_reasons: [],
+      last_heartbeat_at: healthyHeartbeat,
+    });
+    expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_healthy')?.claim_age_seconds).not.toBeNull();
+    expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_healthy')?.last_heartbeat_age_seconds).not.toBeNull();
+    expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_stale')).toMatchObject({
+      owner_worker_health: 'stale',
+      attention_required: true,
+      attention_reasons: ['OWNER_WORKER_STALE'],
+      last_heartbeat_at: staleHeartbeat,
+    });
+    expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_missing')).toMatchObject({
+      owner_worker_health: null,
+      attention_required: true,
+      attention_reasons: ['OWNER_WORKER_MISSING'],
+      last_heartbeat_at: null,
+      last_heartbeat_age_seconds: null,
+    });
+  });
+
+  it('flags claimed items when the worker registry is invalid without mutating queue truth', async () => {
+    const projectRoot = makeTmpDir();
+    const claimedAt = new Date(Date.now() - 10_000).toISOString();
+    writeState(projectRoot, baseState({ run_id: 'run-1', run_status: 'running' }));
+    writeLedger(projectRoot, [{
+      ts: '2026-03-22T00:00:00Z',
+      event_type: 'run_started',
+      run_id: 'run-1',
+      workflow_id: 'runtime',
+      step_id: null,
+      details: {},
+    }]);
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:05Z',
+      items: [{
+        queue_item_id: 'fq_invalid_workers',
+        run_id: 'run-1',
+        status: 'claimed',
+        priority: 1,
+        enqueued_at: '2026-03-22T00:00:00Z',
+        requested_by: 'operator',
+        attempt_count: 0,
+        claim: { claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: claimedAt },
+      }],
+    });
+    writeWorkers(projectRoot, '{not-valid-json\n');
+
+    const payload = await handleOrchFleetStatus(OrchFleetStatusSchema.parse({
+      project_roots: [projectRoot],
+    })) as {
+      summary: { attention_claim_count: number };
+      projects: Array<{
+        errors: Array<{ code: string }>;
+        queue: {
+          attention_claim_count: number;
+          items: Array<{ queue_item_id: string; attention_required: boolean; attention_reasons: string[] }>;
+        };
+      }>;
+    };
+
+    expect(payload.projects[0]?.errors.map(item => item.code)).toContain('FLEET_WORKERS_PARSE_ERROR');
+    expect(payload.summary.attention_claim_count).toBe(1);
+    expect(payload.projects[0]?.queue.attention_claim_count).toBe(1);
+    expect(payload.projects[0]?.queue.items).toEqual([
+      expect.objectContaining({
+        queue_item_id: 'fq_invalid_workers',
+        attention_required: true,
+        attention_reasons: ['QUEUE_OR_WORKER_REGISTRY_INVALID'],
+      }),
+    ]);
+  });
+
+  it('flags missing claim owner metadata without inventing a worker fallback', () => {
+    const items = buildFleetQueueDiagnosticItems([
+      {
+        queue_item_id: 'fq_missing_owner',
+        run_id: 'run-1',
+        status: 'claimed',
+        priority: 1,
+        enqueued_at: '2026-03-22T00:00:00Z',
+        requested_by: 'operator',
+        attempt_count: 0,
+        claim: { claim_id: 'fqc_1', owner_id: '', claimed_at: '2026-03-22T00:00:01Z' },
+      },
+    ], [], []);
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        queue_item_id: 'fq_missing_owner',
+        attention_required: true,
+        attention_reasons: ['CLAIM_WITHOUT_OWNER'],
+        owner_worker_health: null,
+        last_heartbeat_at: null,
+        last_heartbeat_age_seconds: null,
+      }),
+    ]);
   });
 });

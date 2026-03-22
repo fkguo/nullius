@@ -80,6 +80,13 @@ function writeQueue(projectRoot: string, content: unknown): void {
   fs.writeFileSync(path.join(controlDir, 'fleet_queue.json'), payload, 'utf-8');
 }
 
+function writeWorkers(projectRoot: string, content: unknown): void {
+  const controlDir = path.join(projectRoot, '.autoresearch');
+  fs.mkdirSync(controlDir, { recursive: true });
+  const payload = typeof content === 'string' ? content : JSON.stringify(content, null, 2) + '\n';
+  fs.writeFileSync(path.join(controlDir, 'fleet_workers.json'), payload, 'utf-8');
+}
+
 function extractPayload(res: unknown): Record<string, unknown> {
   const result = res as { content: Array<{ text: string }> };
   return JSON.parse(result.content[0]?.text ?? '{}') as Record<string, unknown>;
@@ -148,5 +155,55 @@ describe('orch_fleet_status contract', () => {
     const projects = payload.projects as Array<Record<string, unknown>>;
     expect((projects[0]?.runs as Array<Record<string, unknown>>).map(item => item.last_status)).toEqual(['completed']);
     expect((projects[0]?.queue as Record<string, unknown>).queue_initialized).toBe(false);
+  });
+
+  it('returns operator stale-signal diagnostics through the host tool path', async () => {
+    const projectRoot = makeTmpDir();
+    writeProject(projectRoot);
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:02:00Z',
+      items: [{
+        queue_item_id: 'fq_001',
+        run_id: 'run-awaiting',
+        status: 'claimed',
+        priority: 3,
+        enqueued_at: '2026-03-22T00:01:30Z',
+        requested_by: 'operator',
+        attempt_count: 0,
+        claim: { claim_id: 'fqc_001', owner_id: 'worker-stale', claimed_at: '2026-03-22T00:01:40Z' },
+      }],
+    });
+    writeWorkers(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:02:05Z',
+      workers: [{
+        worker_id: 'worker-stale',
+        registered_at: '2026-03-22T00:00:00Z',
+        last_heartbeat_at: '2026-03-22T00:00:00Z',
+        max_concurrent_claims: 1,
+        heartbeat_timeout_seconds: 5,
+      }],
+    });
+
+    const res = await handleToolCall('orch_fleet_status', {
+      project_roots: [projectRoot],
+    }, 'full');
+    expect((res as { isError?: boolean }).isError).toBeFalsy();
+
+    const payload = extractPayload(res);
+    const summary = payload.summary as Record<string, unknown>;
+    const queue = ((payload.projects as Array<Record<string, unknown>>)[0]?.queue ?? {}) as Record<string, unknown>;
+    const item = ((queue.items as Array<Record<string, unknown>>) ?? [])[0] ?? {};
+
+    expect(summary.attention_claim_count).toBe(1);
+    expect(summary.claimed_with_stale_worker_count).toBe(1);
+    expect(queue.attention_claim_count).toBe(1);
+    expect(queue.claimed_with_stale_worker_count).toBe(1);
+    expect(item.owner_worker_health).toBe('stale');
+    expect(item.attention_required).toBe(true);
+    expect(item.attention_reasons).toEqual(['OWNER_WORKER_STALE']);
+    expect(typeof item.claim_age_seconds).toBe('number');
+    expect(typeof item.last_heartbeat_age_seconds).toBe('number');
   });
 });

@@ -167,3 +167,13 @@
 - Batch 4 still excludes TTL expiry, heartbeat auto-release, auto takeover, auto reassignment, central tick/daemon authority, and promotion of `state.json`, `ledger.jsonl`, `team-execution-state.json`, `live_status`, or `replay` into fleet authority.
 
 **Why**: This closes the operational gap around stale claims without prematurely turning health observations into ownership-breaking authority or introducing a second scheduler/intervention control plane.
+
+### [2026-03-22] EVO-14 stale-signal visibility invariant: operator diagnostics stay read-only
+
+**Decision**:
+- EVO-14 Batch 5 extends `orch_fleet_status` with operator-facing stale-signal diagnostics only; it does not add TTL, lease expiry, auto release, takeover, or a second fleet read surface.
+- Claimed-item diagnostics such as claim age, owner heartbeat age, owner worker health, and `attention_reasons` are derived read-model output only from the existing queue and worker authorities.
+- The first bounded attention reasons are `OWNER_WORKER_MISSING`, `OWNER_WORKER_STALE`, `CLAIM_WITHOUT_OWNER`, and `QUEUE_OR_WORKER_REGISTRY_INVALID`; these are operator diagnostics, not persisted scheduler/intervention authority.
+- Per-project counters for attention claims remain part of the read model and must not be written back into `.autoresearch/fleet_queue.json`, `.autoresearch/fleet_workers.json`, or any new derived fleet file.
+
+**Why**: Fleet operators need a stable, source-grounded stale-signal surface before TTL or lease automation can be introduced. Locking that visibility contract first avoids smuggling expiry or takeover semantics into the read path and preserves a single authority split between queue truth, worker truth, and transient scheduler behavior.
