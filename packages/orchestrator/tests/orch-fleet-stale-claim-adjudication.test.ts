@@ -6,6 +6,7 @@ import { handleOrchFleetAdjudicateStaleClaim } from '../src/orch-tools/fleet-que
 import { OrchFleetAdjudicateStaleClaimSchema } from '../src/orch-tools/schemas.js';
 import {
   baseState,
+  buildLeaseClaim,
   cleanupTmpDirs,
   makeTmpDir,
   writeLedger,
@@ -51,7 +52,7 @@ describe('orch_fleet_adjudicate_stale_claim', () => {
         enqueued_at: '2026-03-22T00:00:00Z',
         requested_by: 'operator',
         attempt_count: 2,
-        claim: { claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' },
+        claim: buildLeaseClaim({ claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' }),
       }],
     });
 
@@ -89,6 +90,8 @@ describe('orch_fleet_adjudicate_stale_claim', () => {
         queue_item_id: 'fq_claimed',
         prior_claim_id: 'claim-1',
         prior_owner_id: 'worker-1',
+        prior_lease_expires_at: buildLeaseClaim({ claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' }).lease_expires_at,
+        lease_duration_seconds: 60,
         adjudicated_by: 'operator-1',
         disposition: 'requeue',
         note: 'worker heartbeat is stale and the operator explicitly chose to requeue',
@@ -112,7 +115,7 @@ describe('orch_fleet_adjudicate_stale_claim', () => {
           enqueued_at: '2026-03-22T00:00:00Z',
           requested_by: 'operator',
           attempt_count: 2,
-          claim: { claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' },
+          claim: buildLeaseClaim({ claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' }),
         }],
       });
 
@@ -148,7 +151,7 @@ describe('orch_fleet_adjudicate_stale_claim', () => {
         enqueued_at: '2026-03-22T00:00:00Z',
         requested_by: 'operator',
         attempt_count: 2,
-        claim: { claim_id: 'claim-2', owner_id: 'worker-2', claimed_at: '2026-03-22T00:01:00Z' },
+        claim: buildLeaseClaim({ claim_id: 'claim-2', owner_id: 'worker-2', claimed_at: '2026-03-22T00:01:00Z' }),
       }],
     });
 

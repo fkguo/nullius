@@ -11,6 +11,11 @@ import {
   upsertFleetWorker,
   writeFleetWorkers,
 } from './fleet-worker-store.js';
+import {
+  autoReleaseExpiredFleetClaims,
+  buildFleetLeaseClaim,
+  renewOwnedFleetClaims,
+} from './fleet-lease.js';
 import { sortQueuedItems } from './fleet-queue-tools.js';
 import { OrchFleetWorkerHeartbeatSchema, OrchFleetWorkerPollSchema } from './schemas.js';
 
@@ -45,18 +50,64 @@ function requireValidQueue(projectRoot: string) {
   return readResult.queue;
 }
 
-function claimNextQueuedItem(queue: FleetQueueV1, workerId: string, claimedAt: string): FleetQueueItem | null {
+function claimNextQueuedItem(
+  queue: FleetQueueV1,
+  workerId: string,
+  claimedAt: string,
+  leaseDurationSeconds?: number,
+): FleetQueueItem | null {
   const target = sortQueuedItems(queue.items.filter(item => item.status === 'queued'))[0];
   if (!target) {
     return null;
   }
   target.status = 'claimed';
-  target.claim = {
+  target.claim = buildFleetLeaseClaim({
     claim_id: `fqc_${randomUUID()}`,
     owner_id: workerId,
     claimed_at: claimedAt,
-  };
+    lease_duration_seconds: leaseDurationSeconds,
+  });
   return { ...target };
+}
+
+function appendAutoReleasedEvents(
+  manager: ReturnType<typeof createStateManager>['manager'],
+  autoReleased: ReturnType<typeof autoReleaseExpiredFleetClaims>,
+  workerId: string,
+): void {
+  for (const released of autoReleased) {
+    manager.appendLedger('fleet_claim_auto_released', {
+      run_id: released.run_id,
+      workflow_id: null,
+      details: {
+        queue_item_id: released.queue_item_id,
+        prior_claim_id: released.prior_claim_id,
+        prior_owner_id: released.prior_owner_id,
+        prior_lease_expires_at: released.prior_lease_expires_at,
+        lease_duration_seconds: released.lease_duration_seconds,
+        disposition: 'requeue',
+        reason: 'LEASE_EXPIRED',
+        triggered_by: 'worker_poll',
+        trigger_worker_id: workerId,
+      },
+    });
+  }
+}
+
+function noClaimResponse(
+  projectRoot: string,
+  worker: ReturnType<typeof buildFleetWorkerView>,
+  reason: 'NO_QUEUED_ITEM' | 'AT_CAPACITY',
+  diagnostic: string,
+) {
+  return {
+    claimed: false,
+    project_root: projectRoot,
+    reason,
+    diagnostic,
+    queue_item: null,
+    worker,
+  };
 }
 
 export async function handleOrchFleetWorkerHeartbeat(
@@ -90,7 +141,6 @@ export async function handleOrchFleetWorkerPoll(
   const registry = requireValidFleetWorkers(projectRoot);
   const queue = requireValidQueue(projectRoot);
   const worker = upsertFleetWorker(registry, parsed, nowIso);
-  const claimsByWorker = activeClaimsByWorker(queue);
 
   writeFleetWorkers(projectRoot, registry);
   manager.appendLedger('fleet_worker_heartbeat', {
@@ -99,42 +149,50 @@ export async function handleOrchFleetWorkerPoll(
     details: { worker_id: worker.worker_id, max_concurrent_claims: worker.max_concurrent_claims },
   });
 
+  let queueChanged = false;
+  let autoReleased = [] as ReturnType<typeof autoReleaseExpiredFleetClaims>;
+  if (queue) {
+    queueChanged = renewOwnedFleetClaims(queue, worker.worker_id, nowIso) > 0;
+    autoReleased = autoReleaseExpiredFleetClaims(queue, nowIso);
+    queueChanged = queueChanged || autoReleased.length > 0;
+  }
+
+  const claimsByWorker = activeClaimsByWorker(queue);
+
   const workerView = buildFleetWorkerView(worker, claimsByWorker[worker.worker_id] ?? 0, nowIso);
   if (workerView.available_slots < 1) {
-    return {
-      claimed: false,
-      project_root: projectRoot,
-      reason: 'AT_CAPACITY',
-      diagnostic: `worker '${worker.worker_id}' is already at ${workerView.active_claim_count}/${worker.max_concurrent_claims} claim slots`,
-      queue_item: null,
-      worker: workerView,
-    };
+    if (queue && queueChanged) {
+      writeFleetQueue(projectRoot, queue);
+      appendAutoReleasedEvents(manager, autoReleased, worker.worker_id);
+    }
+    return noClaimResponse(
+      projectRoot,
+      workerView,
+      'AT_CAPACITY',
+      `worker '${worker.worker_id}' is already at ${workerView.active_claim_count}/${worker.max_concurrent_claims} claim slots`,
+    );
   }
 
   if (!queue) {
-    return {
-      claimed: false,
-      project_root: projectRoot,
-      reason: 'NO_QUEUED_ITEM',
-      diagnostic: 'no queued fleet item is available to claim',
-      queue_item: null,
-      worker: workerView,
-    };
+    return noClaimResponse(projectRoot, workerView, 'NO_QUEUED_ITEM', 'no queued fleet item is available to claim');
   }
 
-  const claimedItem = claimNextQueuedItem(queue, worker.worker_id, nowIso);
+  const claimedItem = claimNextQueuedItem(
+    queue,
+    worker.worker_id,
+    nowIso,
+    parsed.lease_duration_seconds,
+  );
   if (!claimedItem) {
-    return {
-      claimed: false,
-      project_root: projectRoot,
-      reason: 'NO_QUEUED_ITEM',
-      diagnostic: 'no queued fleet item is available to claim',
-      queue_item: null,
-      worker: workerView,
-    };
+    if (queueChanged) {
+      writeFleetQueue(projectRoot, queue);
+      appendAutoReleasedEvents(manager, autoReleased, worker.worker_id);
+    }
+    return noClaimResponse(projectRoot, workerView, 'NO_QUEUED_ITEM', 'no queued fleet item is available to claim');
   }
 
   writeFleetQueue(projectRoot, queue);
+  appendAutoReleasedEvents(manager, autoReleased, worker.worker_id);
   manager.appendLedger('fleet_claimed', {
     run_id: claimedItem.run_id,
     workflow_id: null,
@@ -142,6 +200,8 @@ export async function handleOrchFleetWorkerPoll(
       queue_item_id: claimedItem.queue_item_id,
       owner_id: worker.worker_id,
       claim_id: claimedItem.claim?.claim_id,
+      lease_duration_seconds: claimedItem.claim?.lease_duration_seconds,
+      lease_expires_at: claimedItem.claim?.lease_expires_at,
       claimed_via: 'worker_poll',
     },
   });

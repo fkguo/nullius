@@ -177,3 +177,14 @@
 - Per-project counters for attention claims remain part of the read model and must not be written back into `.autoresearch/fleet_queue.json`, `.autoresearch/fleet_workers.json`, or any new derived fleet file.
 
 **Why**: Fleet operators need a stable, source-grounded stale-signal surface before TTL or lease automation can be introduced. Locking that visibility contract first avoids smuggling expiry or takeover semantics into the read path and preserves a single authority split between queue truth, worker truth, and transient scheduler behavior.
+
+### [2026-03-22] EVO-14 lease-expiry invariant: explicit queue-claim lease authority only
+
+**Decision**:
+- EVO-14 Batch 6 introduces lease semantics only by extending `.autoresearch/fleet_queue.json` claim records with explicit `lease_duration_seconds` and `lease_expires_at`; that claim record is the sole lease authority.
+- Expiry is decided only from the persisted claim expiry timestamp against current time. Missing worker, stale worker, or missing heartbeat remain Batch 5 diagnostics only and cannot independently expire or release a claim.
+- `orch_fleet_worker_poll` remains the only scheduler path allowed to act on lease truth: before claiming it may requeue expired claims in the same project and renew still-valid claims already owned by the polling worker, using the persisted claim duration rather than recomputing from defaults or heartbeat timeout.
+- `orch_fleet_worker_heartbeat` remains worker-registry-only and never mutates queue truth; invalid `.autoresearch/fleet_workers.json` still fails closed for worker-poll mutation paths, including lease sweep.
+- `orch_fleet_status` remains the only cross-root fleet read surface; lease-related fields and expired counters are derived read-model output only and do not become a second authority.
+
+**Why**: Batch 6 closes the minimum explicit-expiry contract without turning worker liveness into a second lease authority, without adding a daemon or hidden sweep, and without letting audit/read models back-propagate into mutation truth.

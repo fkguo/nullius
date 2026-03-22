@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://autoresearch.dev/schemas/fleet_queue_v1.schema.json",
   "title": "FleetQueue V1",
-  "description": "Provider-neutral per-project fleet queue substrate. Records queue truth only; scheduler, lease expiry, and global health remain later layers.",
+  "description": "Provider-neutral per-project fleet queue substrate. Records queue truth, including explicit claim lease authority; scheduler and global health remain later layers.",
   "type": "object",
   "required": ["schema_version", "updated_at", "items"],
   "properties": {
@@ -25,7 +25,7 @@
   "$defs": {
     "FleetQueueClaim": {
       "type": "object",
-      "required": ["claim_id", "owner_id", "claimed_at"],
+      "required": ["claim_id", "owner_id", "claimed_at", "lease_duration_seconds", "lease_expires_at"],
       "properties": {
         "claim_id": {
           "type": "string",
@@ -36,6 +36,14 @@
           "minLength": 1
         },
         "claimed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lease_duration_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lease_expires_at": {
           "type": "string",
           "format": "date-time"
         }

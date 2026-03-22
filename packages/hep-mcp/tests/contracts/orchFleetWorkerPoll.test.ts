@@ -14,6 +14,26 @@ import { handleToolCall } from '../../src/tools/index.js';
 
 let tmpDirs: string[] = [];
 
+function buildLeaseClaim(overrides: {
+  claim_id?: string;
+  owner_id?: string;
+  claimed_at?: string;
+  lease_duration_seconds?: number;
+  lease_expires_at?: string;
+} = {}): Record<string, unknown> {
+  const claimedAt = overrides.claimed_at ?? '2026-03-22T00:00:00Z';
+  const leaseDurationSeconds = overrides.lease_duration_seconds ?? 60;
+  const leaseExpiresAt = overrides.lease_expires_at
+    ?? new Date(Date.parse(claimedAt) + (leaseDurationSeconds * 1000)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return {
+    claim_id: overrides.claim_id ?? 'claim-1',
+    owner_id: overrides.owner_id ?? 'worker-1',
+    claimed_at: claimedAt,
+    lease_duration_seconds: leaseDurationSeconds,
+    lease_expires_at: leaseExpiresAt,
+  };
+}
+
 function makeTmpDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-fleet-worker-contract-'));
   tmpDirs.push(dir);
@@ -87,7 +107,7 @@ describe('orch_fleet_worker_* host contract', () => {
     expect(extractPayload(poll)).toMatchObject({
       claimed: true,
       worker: { worker_id: 'worker-1', active_claim_count: 1, available_slots: 0 },
-      queue_item: { run_id: 'run-1', claim: { owner_id: 'worker-1' } },
+      queue_item: { run_id: 'run-1', claim: { owner_id: 'worker-1', lease_duration_seconds: 60 } },
     });
 
     const heartbeat = await handleToolCall('orch_fleet_worker_heartbeat', {
@@ -122,6 +142,7 @@ describe('orch_fleet_worker_* host contract', () => {
 
     const cappedRoot = makeTmpDir();
     writeProject(cappedRoot);
+    const activeClaimedAt = new Date(Date.now() - 5_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
     writeQueue(cappedRoot, {
       schema_version: 1,
       updated_at: '2026-03-22T00:00:00Z',
@@ -134,7 +155,7 @@ describe('orch_fleet_worker_* host contract', () => {
           enqueued_at: '2026-03-22T00:00:00Z',
           requested_by: 'operator',
           attempt_count: 0,
-          claim: { claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:00:00Z' },
+          claim: buildLeaseClaim({ claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: activeClaimedAt }),
         },
         { queue_item_id: 'fq_waiting', run_id: 'run-2', status: 'queued', priority: 1, enqueued_at: '2026-03-22T00:00:01Z', requested_by: 'operator', attempt_count: 0 },
       ],
@@ -152,6 +173,55 @@ describe('orch_fleet_worker_* host contract', () => {
       queue_item: null,
       worker: { active_claim_count: 1, available_slots: 0 },
     });
+  });
+
+  it('auto-releases expired leases through the host path before claiming the next queued item', async () => {
+    const projectRoot = makeTmpDir();
+    writeProject(projectRoot);
+    const expiredAt = new Date(Date.now() - 120_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const validAt = new Date(Date.now() - 5_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:00Z',
+      items: [
+        {
+          queue_item_id: 'fq_owned',
+          run_id: 'run-1',
+          status: 'claimed',
+          priority: 8,
+          enqueued_at: '2026-03-22T00:00:00Z',
+          requested_by: 'operator',
+          attempt_count: 0,
+          claim: buildLeaseClaim({ claim_id: 'fqc_owned', owner_id: 'worker-1', claimed_at: validAt, lease_duration_seconds: 60 }),
+        },
+        {
+          queue_item_id: 'fq_expired',
+          run_id: 'run-2',
+          status: 'claimed',
+          priority: 5,
+          enqueued_at: '2026-03-22T00:00:01Z',
+          requested_by: 'operator',
+          attempt_count: 2,
+          claim: buildLeaseClaim({ claim_id: 'fqc_expired', owner_id: 'worker-2', claimed_at: expiredAt, lease_duration_seconds: 30 }),
+        },
+        { queue_item_id: 'fq_waiting', run_id: 'run-3', status: 'queued', priority: 9, enqueued_at: '2026-03-22T00:00:02Z', requested_by: 'operator', attempt_count: 0 },
+      ],
+    });
+
+    const poll = await handleToolCall('orch_fleet_worker_poll', {
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      max_concurrent_claims: 3,
+    }, 'full');
+    expect((poll as { isError?: boolean }).isError).toBeFalsy();
+    expect(extractPayload(poll)).toMatchObject({
+      claimed: true,
+      queue_item: { queue_item_id: 'fq_waiting', claim: { lease_duration_seconds: 60 } },
+      worker: { active_claim_count: 2, available_slots: 1 },
+    });
+    const queue = JSON.parse(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'fleet_queue.json'), 'utf-8')) as { items: Array<Record<string, unknown>> };
+    expect(queue.items.find(item => item.queue_item_id === 'fq_expired')).toMatchObject({ status: 'queued', attempt_count: 3 });
+    expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_claim_auto_released"');
   });
 
   it('fails closed for invalid worker registry payloads', async () => {

@@ -14,6 +14,26 @@ import { handleToolCall } from '../../src/tools/index.js';
 
 let tmpDirs: string[] = [];
 
+function buildLeaseClaim(overrides: {
+  claim_id?: string;
+  owner_id?: string;
+  claimed_at?: string;
+  lease_duration_seconds?: number;
+  lease_expires_at?: string;
+} = {}): Record<string, unknown> {
+  const claimedAt = overrides.claimed_at ?? '2026-03-22T00:00:00Z';
+  const leaseDurationSeconds = overrides.lease_duration_seconds ?? 60;
+  const leaseExpiresAt = overrides.lease_expires_at
+    ?? new Date(Date.parse(claimedAt) + (leaseDurationSeconds * 1000)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return {
+    claim_id: overrides.claim_id ?? 'claim-1',
+    owner_id: overrides.owner_id ?? 'worker-1',
+    claimed_at: claimedAt,
+    lease_duration_seconds: leaseDurationSeconds,
+    lease_expires_at: leaseExpiresAt,
+  };
+}
+
 function makeTmpDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-fleet-adjudicate-contract-'));
   tmpDirs.push(dir);
@@ -82,7 +102,7 @@ describe('orch_fleet_adjudicate_stale_claim host contract', () => {
         enqueued_at: '2026-03-22T00:00:00Z',
         requested_by: 'operator',
         attempt_count: 1,
-        claim: { claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' },
+        claim: buildLeaseClaim({ claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' }),
       }],
     });
 
@@ -124,7 +144,7 @@ describe('orch_fleet_adjudicate_stale_claim host contract', () => {
         enqueued_at: '2026-03-22T00:00:00Z',
         requested_by: 'operator',
         attempt_count: 1,
-        claim: { claim_id: 'claim-2', owner_id: 'worker-2', claimed_at: '2026-03-22T00:01:00Z' },
+        claim: buildLeaseClaim({ claim_id: 'claim-2', owner_id: 'worker-2', claimed_at: '2026-03-22T00:01:00Z' }),
       }],
     });
 

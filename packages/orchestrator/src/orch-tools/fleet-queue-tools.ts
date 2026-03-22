@@ -10,6 +10,7 @@ import {
   type FleetQueueClaim,
   type FleetQueueItem,
 } from './fleet-queue-store.js';
+import { buildFleetLeaseClaim } from './fleet-lease.js';
 import {
   OrchFleetAdjudicateStaleClaimSchema,
   OrchFleetClaimSchema,
@@ -152,15 +153,26 @@ export async function handleOrchFleetClaim(
     return missingClaimResponse(projectRoot, parsed.run_id);
   }
 
-  const claim: FleetQueueClaim = {
+  const claim: FleetQueueClaim = buildFleetLeaseClaim({
     claim_id: `fqc_${randomUUID()}`,
     owner_id: parsed.owner_id,
     claimed_at: utcNowIso(),
-  };
+    lease_duration_seconds: parsed.lease_duration_seconds,
+  });
   target.status = 'claimed';
   target.claim = claim;
   writeFleetQueue(projectRoot, queue);
-  manager.appendLedger('fleet_claimed', { run_id: target.run_id, workflow_id: null, details: { queue_item_id: target.queue_item_id, owner_id: parsed.owner_id, claim_id: claim.claim_id } });
+  manager.appendLedger('fleet_claimed', {
+    run_id: target.run_id,
+    workflow_id: null,
+    details: {
+      queue_item_id: target.queue_item_id,
+      owner_id: parsed.owner_id,
+      claim_id: claim.claim_id,
+      lease_duration_seconds: claim.lease_duration_seconds,
+      lease_expires_at: claim.lease_expires_at,
+    },
+  });
   return { claimed: true, project_root: projectRoot, queue_item: { ...target } };
 }
 
@@ -193,7 +205,18 @@ export async function handleOrchFleetRelease(
   Object.assign(item, nextItem);
   delete item.claim;
   writeFleetQueue(projectRoot, queue);
-  manager.appendLedger('fleet_released', { run_id: item.run_id, workflow_id: null, details: { queue_item_id: item.queue_item_id, owner_id: parsed.owner_id, disposition } });
+  manager.appendLedger('fleet_released', {
+    run_id: item.run_id,
+    workflow_id: null,
+    details: {
+      queue_item_id: item.queue_item_id,
+      owner_id: parsed.owner_id,
+      disposition,
+      prior_claim_id: claim.claim_id,
+      prior_lease_expires_at: claim.lease_expires_at,
+      lease_duration_seconds: claim.lease_duration_seconds,
+    },
+  });
   return { released: true, project_root: projectRoot, queue_item: { ...item } };
 }
 
@@ -244,6 +267,8 @@ export async function handleOrchFleetAdjudicateStaleClaim(
       queue_item_id: item.queue_item_id,
       prior_claim_id: priorClaimId,
       prior_owner_id: priorOwnerId,
+      prior_lease_expires_at: claim.lease_expires_at,
+      lease_duration_seconds: claim.lease_duration_seconds,
       adjudicated_by: parsed.adjudicated_by,
       disposition: parsed.disposition,
       note: parsed.note,

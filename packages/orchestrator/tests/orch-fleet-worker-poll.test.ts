@@ -5,7 +5,16 @@ import { readFleetQueue } from '../src/orch-tools/fleet-queue-store.js';
 import { readFleetWorkers } from '../src/orch-tools/fleet-worker-store.js';
 import { handleOrchFleetWorkerPoll } from '../src/orch-tools/fleet-worker-tools.js';
 import { OrchFleetWorkerPollSchema } from '../src/orch-tools/schemas.js';
-import { baseState, cleanupTmpDirs, makeTmpDir, writeLedger, writeQueue, writeState, writeWorkers } from './orchFleetTestSupport.js';
+import {
+  baseState,
+  buildLeaseClaim,
+  cleanupTmpDirs,
+  makeTmpDir,
+  writeLedger,
+  writeQueue,
+  writeState,
+  writeWorkers,
+} from './orchFleetTestSupport.js';
 
 function writeProject(projectRoot: string, runId = 'run-1'): void {
   writeState(projectRoot, baseState({ run_id: runId }));
@@ -94,6 +103,7 @@ describe('orch_fleet_worker_poll', () => {
 
     const cappedProjectRoot = makeTmpDir();
     writeProject(cappedProjectRoot);
+    const activeClaimedAt = new Date(Date.now() - 5_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
     writeQueue(cappedProjectRoot, {
       schema_version: 1,
       updated_at: '2026-03-22T00:00:01Z',
@@ -106,7 +116,7 @@ describe('orch_fleet_worker_poll', () => {
           enqueued_at: '2026-03-22T00:00:00Z',
           requested_by: 'operator',
           attempt_count: 1,
-          claim: { claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:00:00Z' },
+          claim: buildLeaseClaim({ claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: activeClaimedAt }),
         },
         { queue_item_id: 'fq_waiting', run_id: 'run-2', status: 'queued', priority: 8, enqueued_at: '2026-03-22T00:00:01Z', requested_by: 'operator', attempt_count: 0 },
       ],
@@ -168,5 +178,79 @@ describe('orch_fleet_worker_poll', () => {
       code: 'INVALID_PARAMS',
       data: { fleet_queue_path: `${invalidQueueProjectRoot}/.autoresearch/fleet_queue.json` },
     });
+  });
+
+  it('renews the polling worker lease and auto-releases expired claims before the next claim', async () => {
+    const projectRoot = makeTmpDir();
+    writeProject(projectRoot);
+    const expiredAt = new Date(Date.now() - 120_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const stillValidAt = new Date(Date.now() - 5_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:01Z',
+      items: [
+        {
+          queue_item_id: 'fq_owned',
+          run_id: 'run-1',
+          status: 'claimed',
+          priority: 10,
+          enqueued_at: '2026-03-22T00:00:00Z',
+          requested_by: 'operator',
+          attempt_count: 0,
+          claim: buildLeaseClaim({
+            claim_id: 'fqc_owned',
+            owner_id: 'worker-1',
+            claimed_at: stillValidAt,
+            lease_duration_seconds: 60,
+          }),
+        },
+        {
+          queue_item_id: 'fq_expired',
+          run_id: 'run-2',
+          status: 'claimed',
+          priority: 5,
+          enqueued_at: '2026-03-22T00:00:01Z',
+          requested_by: 'operator',
+          attempt_count: 2,
+          claim: buildLeaseClaim({
+            claim_id: 'fqc_expired',
+            owner_id: 'worker-2',
+            claimed_at: expiredAt,
+            lease_duration_seconds: 30,
+          }),
+        },
+        { queue_item_id: 'fq_waiting', run_id: 'run-3', status: 'queued', priority: 9, enqueued_at: '2026-03-22T00:00:02Z', requested_by: 'operator', attempt_count: 0 },
+      ],
+    });
+
+    const payload = await handleOrchFleetWorkerPoll(OrchFleetWorkerPollSchema.parse({
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      max_concurrent_claims: 3,
+    })) as {
+      claimed: boolean;
+      queue_item: { queue_item_id: string; claim?: { lease_duration_seconds: number; lease_expires_at: string } };
+      worker: { active_claim_count: number; available_slots: number };
+    };
+
+    expect(payload.claimed).toBe(true);
+    expect(payload.queue_item.queue_item_id).toBe('fq_waiting');
+    expect(payload.queue_item.claim).toMatchObject({ lease_duration_seconds: 60 });
+    expect(payload.worker).toMatchObject({ active_claim_count: 2, available_slots: 1 });
+
+    const queue = readFleetQueue(projectRoot).queue;
+    const renewedItem = queue?.items.find(item => item.queue_item_id === 'fq_owned');
+    const autoReleasedItem = queue?.items.find(item => item.queue_item_id === 'fq_expired');
+    expect(renewedItem?.claim?.lease_expires_at).not.toBe(buildLeaseClaim({
+      claim_id: 'fqc_owned',
+      owner_id: 'worker-1',
+      claimed_at: stillValidAt,
+      lease_duration_seconds: 60,
+    }).lease_expires_at);
+    expect(autoReleasedItem).toMatchObject({ status: 'queued', attempt_count: 3 });
+    expect(autoReleasedItem?.claim).toBeUndefined();
+    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    expect(ledger).toContain('"event_type":"fleet_claim_auto_released"');
+    expect(ledger).toContain('"reason":"LEASE_EXPIRED"');
   });
 });

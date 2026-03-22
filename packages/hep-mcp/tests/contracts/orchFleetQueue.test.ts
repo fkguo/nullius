@@ -85,9 +85,10 @@ describe('orch_fleet_queue host contract', () => {
     expect((claim as { isError?: boolean }).isError).toBeFalsy();
 
     const claimedPayload = extractPayload(claim) as {
-      queue_item: { queue_item_id: string; run_id: string };
+      queue_item: { queue_item_id: string; run_id: string; claim?: { lease_duration_seconds: number; lease_expires_at: string } };
     };
     expect(claimedPayload.queue_item.run_id).toBe('run-1');
+    expect(claimedPayload.queue_item.claim).toMatchObject({ lease_duration_seconds: 60 });
 
     const release = await handleToolCall('orch_fleet_release', {
       project_root: projectRoot,
@@ -105,6 +106,7 @@ describe('orch_fleet_queue host contract', () => {
     expect(releasedPayload.queue_item.status).toBe('completed');
     expect(releasedPayload.queue_item.claim).toBeUndefined();
     expect((readQueue(projectRoot).items as Array<Record<string, unknown>>)[0]?.status).toBe('completed');
+    expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8')).toContain('"lease_duration_seconds":60');
   });
 
   it('returns a deterministic non-error when no queued item exists', async () => {

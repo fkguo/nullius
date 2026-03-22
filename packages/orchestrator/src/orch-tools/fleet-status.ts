@@ -172,6 +172,7 @@ export async function handleOrchFleetStatus(
   let attentionClaimCount = 0;
   let claimedWithoutWorkerCount = 0;
   let claimedWithStaleWorkerCount = 0;
+  let expiredClaimCount = 0;
 
   for (const project of projects) {
     for (const status of uniqueRunStatuses(project)) {
@@ -189,6 +190,7 @@ export async function handleOrchFleetStatus(
     attentionClaimCount += project.queue.attention_claim_count;
     claimedWithoutWorkerCount += project.queue.claimed_without_worker_count;
     claimedWithStaleWorkerCount += project.queue.claimed_with_stale_worker_count;
+    expiredClaimCount += project.queue.expired_claim_count;
   }
 
   return {
@@ -207,6 +209,7 @@ export async function handleOrchFleetStatus(
       attention_claim_count: attentionClaimCount,
       claimed_without_worker_count: claimedWithoutWorkerCount,
       claimed_with_stale_worker_count: claimedWithStaleWorkerCount,
+      expired_claim_count: expiredClaimCount,
     },
     projects,
   };

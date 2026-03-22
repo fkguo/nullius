@@ -14,6 +14,26 @@ import { handleToolCall } from '../../src/tools/index.js';
 
 let tmpDirs: string[] = [];
 
+function buildLeaseClaim(overrides: {
+  claim_id?: string;
+  owner_id?: string;
+  claimed_at?: string;
+  lease_duration_seconds?: number;
+  lease_expires_at?: string;
+} = {}): Record<string, unknown> {
+  const claimedAt = overrides.claimed_at ?? '2026-03-22T00:00:00Z';
+  const leaseDurationSeconds = overrides.lease_duration_seconds ?? 60;
+  const leaseExpiresAt = overrides.lease_expires_at
+    ?? new Date(Date.parse(claimedAt) + (leaseDurationSeconds * 1000)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return {
+    claim_id: overrides.claim_id ?? 'claim-1',
+    owner_id: overrides.owner_id ?? 'worker-1',
+    claimed_at: claimedAt,
+    lease_duration_seconds: leaseDurationSeconds,
+    lease_expires_at: leaseExpiresAt,
+  };
+}
+
 function makeTmpDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-fleet-contract-'));
   tmpDirs.push(dir);
@@ -171,7 +191,7 @@ describe('orch_fleet_status contract', () => {
         enqueued_at: '2026-03-22T00:01:30Z',
         requested_by: 'operator',
         attempt_count: 0,
-        claim: { claim_id: 'fqc_001', owner_id: 'worker-stale', claimed_at: '2026-03-22T00:01:40Z' },
+        claim: buildLeaseClaim({ claim_id: 'fqc_001', owner_id: 'worker-stale', claimed_at: '2026-03-22T00:01:40Z', lease_duration_seconds: 15 }),
       }],
     });
     writeWorkers(projectRoot, {
@@ -198,12 +218,17 @@ describe('orch_fleet_status contract', () => {
 
     expect(summary.attention_claim_count).toBe(1);
     expect(summary.claimed_with_stale_worker_count).toBe(1);
+    expect(summary.expired_claim_count).toBe(1);
     expect(queue.attention_claim_count).toBe(1);
     expect(queue.claimed_with_stale_worker_count).toBe(1);
+    expect(queue.expired_claim_count).toBe(1);
     expect(item.owner_worker_health).toBe('stale');
     expect(item.attention_required).toBe(true);
     expect(item.attention_reasons).toEqual(['OWNER_WORKER_STALE']);
+    expect(item.lease_expired).toBe(true);
+    expect(item.lease_duration_seconds).toBeUndefined();
     expect(typeof item.claim_age_seconds).toBe('number');
     expect(typeof item.last_heartbeat_age_seconds).toBe('number');
+    expect(typeof item.lease_expires_at).toBe('string');
   });
 });

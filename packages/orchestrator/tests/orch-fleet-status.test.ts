@@ -6,6 +6,7 @@ import { buildFleetQueueDiagnosticItems } from '../src/orch-tools/fleet-status-d
 import { OrchFleetStatusSchema } from '../src/orch-tools/schemas.js';
 import {
   baseState,
+  buildLeaseClaim,
   cleanupTmpDirs,
   makeTmpDir,
   writeApprovalPacket,
@@ -219,7 +220,7 @@ describe('orch_fleet_status', () => {
         enqueued_at: '2026-03-22T00:00:00Z',
         requested_by: 'operator',
         attempt_count: 0,
-        claim: { claim_id: 'fqc_1', owner_id: 'worker-healthy', claimed_at: '2026-03-22T00:00:00Z' },
+        claim: buildLeaseClaim({ claim_id: 'fqc_1', owner_id: 'worker-healthy', claimed_at: '2026-03-22T00:00:00Z' }),
       }],
     });
     writeWorkers(projectRoot, {
@@ -309,7 +310,7 @@ describe('orch_fleet_status', () => {
           enqueued_at: '2026-03-22T00:00:00Z',
           requested_by: 'operator',
           attempt_count: 0,
-          claim: { claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:00:00Z' },
+          claim: buildLeaseClaim({ claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:00:00Z' }),
         },
         {
           queue_item_id: 'fq_claimed_2',
@@ -319,7 +320,7 @@ describe('orch_fleet_status', () => {
           enqueued_at: '2026-03-22T00:00:10Z',
           requested_by: 'operator',
           attempt_count: 0,
-          claim: { claim_id: 'fqc_2', owner_id: 'worker-1', claimed_at: '2026-03-22T00:00:10Z' },
+          claim: buildLeaseClaim({ claim_id: 'fqc_2', owner_id: 'worker-1', claimed_at: '2026-03-22T00:00:10Z' }),
         },
       ],
     });
@@ -391,7 +392,12 @@ describe('orch_fleet_status', () => {
           enqueued_at: '2026-03-22T00:00:00Z',
           requested_by: 'operator',
           attempt_count: 0,
-          claim: { claim_id: 'fqc_healthy', owner_id: 'worker-healthy', claimed_at: new Date(now.getTime() - 25_000).toISOString() },
+          claim: buildLeaseClaim({
+            claim_id: 'fqc_healthy',
+            owner_id: 'worker-healthy',
+            claimed_at: new Date(now.getTime() - 25_000).toISOString(),
+            lease_duration_seconds: 60,
+          }),
         },
         {
           queue_item_id: 'fq_stale',
@@ -401,7 +407,12 @@ describe('orch_fleet_status', () => {
           enqueued_at: '2026-03-22T00:00:01Z',
           requested_by: 'operator',
           attempt_count: 0,
-          claim: { claim_id: 'fqc_stale', owner_id: 'worker-stale', claimed_at: new Date(now.getTime() - 40_000).toISOString() },
+          claim: buildLeaseClaim({
+            claim_id: 'fqc_stale',
+            owner_id: 'worker-stale',
+            claimed_at: new Date(now.getTime() - 40_000).toISOString(),
+            lease_duration_seconds: 30,
+          }),
         },
         {
           queue_item_id: 'fq_missing',
@@ -411,7 +422,12 @@ describe('orch_fleet_status', () => {
           enqueued_at: '2026-03-22T00:00:02Z',
           requested_by: 'operator',
           attempt_count: 0,
-          claim: { claim_id: 'fqc_missing', owner_id: 'worker-missing', claimed_at: new Date(now.getTime() - 15_000).toISOString() },
+          claim: buildLeaseClaim({
+            claim_id: 'fqc_missing',
+            owner_id: 'worker-missing',
+            claimed_at: new Date(now.getTime() - 15_000).toISOString(),
+            lease_duration_seconds: 60,
+          }),
         },
       ],
     });
@@ -443,15 +459,20 @@ describe('orch_fleet_status', () => {
         attention_claim_count: number;
         claimed_without_worker_count: number;
         claimed_with_stale_worker_count: number;
+        expired_claim_count: number;
       };
       projects: Array<{
         queue: {
           attention_claim_count: number;
           claimed_without_worker_count: number;
           claimed_with_stale_worker_count: number;
+          expired_claim_count: number;
           items: Array<{
             queue_item_id: string;
             claim_age_seconds: number | null;
+            lease_expires_at: string | null;
+            lease_remaining_seconds: number | null;
+            lease_expired: boolean;
             last_heartbeat_at: string | null;
             last_heartbeat_age_seconds: number | null;
             owner_worker_health: string | null;
@@ -466,25 +487,30 @@ describe('orch_fleet_status', () => {
       attention_claim_count: 2,
       claimed_without_worker_count: 1,
       claimed_with_stale_worker_count: 1,
+      expired_claim_count: 1,
     });
     expect(payload.projects[0]?.queue).toMatchObject({
       attention_claim_count: 2,
       claimed_without_worker_count: 1,
       claimed_with_stale_worker_count: 1,
+      expired_claim_count: 1,
     });
     expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_healthy')).toMatchObject({
       owner_worker_health: 'healthy',
       attention_required: false,
       attention_reasons: [],
       last_heartbeat_at: healthyHeartbeat,
+      lease_expired: false,
     });
     expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_healthy')?.claim_age_seconds).not.toBeNull();
     expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_healthy')?.last_heartbeat_age_seconds).not.toBeNull();
+    expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_healthy')?.lease_remaining_seconds).not.toBeNull();
     expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_stale')).toMatchObject({
       owner_worker_health: 'stale',
       attention_required: true,
       attention_reasons: ['OWNER_WORKER_STALE'],
       last_heartbeat_at: staleHeartbeat,
+      lease_expired: true,
     });
     expect(payload.projects[0]?.queue.items.find(item => item.queue_item_id === 'fq_missing')).toMatchObject({
       owner_worker_health: null,
@@ -518,7 +544,7 @@ describe('orch_fleet_status', () => {
         enqueued_at: '2026-03-22T00:00:00Z',
         requested_by: 'operator',
         attempt_count: 0,
-        claim: { claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: claimedAt },
+        claim: buildLeaseClaim({ claim_id: 'fqc_1', owner_id: 'worker-1', claimed_at: claimedAt }),
       }],
     });
     writeWorkers(projectRoot, '{not-valid-json\n');
@@ -558,7 +584,7 @@ describe('orch_fleet_status', () => {
         enqueued_at: '2026-03-22T00:00:00Z',
         requested_by: 'operator',
         attempt_count: 0,
-        claim: { claim_id: 'fqc_1', owner_id: '', claimed_at: '2026-03-22T00:00:01Z' },
+        claim: buildLeaseClaim({ claim_id: 'fqc_1', owner_id: '', claimed_at: '2026-03-22T00:00:01Z' }),
       },
     ], [], []);
 

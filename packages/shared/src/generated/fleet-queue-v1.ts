@@ -16,7 +16,7 @@ export type FleetQueueItem = {
 };
 
 /**
- * Provider-neutral per-project fleet queue substrate. Records queue truth only; scheduler, lease expiry, and global health remain later layers.
+ * Provider-neutral per-project fleet queue substrate. Records queue truth, including explicit claim lease authority; scheduler and global health remain later layers.
  */
 export interface FleetQueueV1 {
   schema_version: 1;
@@ -31,4 +31,6 @@ export interface FleetQueueClaim {
   claim_id: string;
   owner_id: string;
   claimed_at: string;
+  lease_duration_seconds: number;
+  lease_expires_at: string;
 }

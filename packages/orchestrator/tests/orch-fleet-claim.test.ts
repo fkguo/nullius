@@ -6,6 +6,7 @@ import { handleOrchFleetClaim, handleOrchFleetRelease } from '../src/orch-tools/
 import { OrchFleetClaimSchema, OrchFleetReleaseSchema } from '../src/orch-tools/schemas.js';
 import {
   baseState,
+  buildLeaseClaim,
   cleanupTmpDirs,
   makeTmpDir,
   writeLedger,
@@ -125,7 +126,7 @@ describe('orch_fleet_claim and orch_fleet_release', () => {
           enqueued_at: '2026-03-22T00:00:00Z',
           requested_by: 'operator',
           attempt_count: 1,
-          claim: { claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' },
+          claim: buildLeaseClaim({ claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' }),
         },
         { queue_item_id: 'fq_queued', run_id: 'run-2', status: 'queued', priority: 0, enqueued_at: '2026-03-22T00:00:01Z', requested_by: 'operator', attempt_count: 0 },
       ],
@@ -169,7 +170,7 @@ describe('orch_fleet_claim and orch_fleet_release', () => {
           enqueued_at: '2026-03-22T00:00:00Z',
           requested_by: 'operator',
           attempt_count: 2,
-          claim: { claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' },
+          claim: buildLeaseClaim({ claim_id: 'claim-1', owner_id: 'worker-1', claimed_at: '2026-03-22T00:01:00Z' }),
         }],
       });
 
@@ -187,4 +188,39 @@ describe('orch_fleet_claim and orch_fleet_release', () => {
       expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_released"');
     },
   );
+
+  it('persists resolved lease authority on new claims and audits it', async () => {
+    const projectRoot = makeTmpDir();
+    writeProject(projectRoot);
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:00:02Z',
+      items: [
+        { queue_item_id: 'fq_default', run_id: 'run-1', status: 'queued', priority: 5, enqueued_at: '2026-03-22T00:00:00Z', requested_by: 'operator', attempt_count: 0 },
+        { queue_item_id: 'fq_custom', run_id: 'run-2', status: 'queued', priority: 4, enqueued_at: '2026-03-22T00:00:01Z', requested_by: 'operator', attempt_count: 0 },
+      ],
+    });
+
+    const defaultClaim = await handleOrchFleetClaim(OrchFleetClaimSchema.parse({
+      project_root: projectRoot,
+      owner_id: 'worker-default',
+      run_id: 'run-1',
+    })) as { queue_item: { claim?: { lease_duration_seconds: number; lease_expires_at: string } } };
+    const customClaim = await handleOrchFleetClaim(OrchFleetClaimSchema.parse({
+      project_root: projectRoot,
+      owner_id: 'worker-custom',
+      run_id: 'run-2',
+      lease_duration_seconds: 15,
+    })) as { queue_item: { claim?: { lease_duration_seconds: number; lease_expires_at: string } } };
+
+    expect(defaultClaim.queue_item.claim).toMatchObject({ lease_duration_seconds: 60 });
+    expect(customClaim.queue_item.claim).toMatchObject({ lease_duration_seconds: 15 });
+    expect(typeof defaultClaim.queue_item.claim?.lease_expires_at).toBe('string');
+    expect(typeof customClaim.queue_item.claim?.lease_expires_at).toBe('string');
+
+    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    expect(ledger).toContain('"lease_duration_seconds":60');
+    expect(ledger).toContain('"lease_duration_seconds":15');
+    expect(ledger).toContain('"lease_expires_at"');
+  });
 });

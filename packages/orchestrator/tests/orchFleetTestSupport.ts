@@ -74,3 +74,25 @@ export function writeWorkers(projectRoot: string, content: unknown): void {
   const payload = typeof content === 'string' ? content : JSON.stringify(content, null, 2) + '\n';
   fs.writeFileSync(path.join(controlDir(projectRoot), 'fleet_workers.json'), payload, 'utf-8');
 }
+
+function addSecondsToIso(baseIso: string, seconds: number): string {
+  return new Date(Date.parse(baseIso) + (seconds * 1000)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+export function buildLeaseClaim(overrides: {
+  claim_id?: string;
+  owner_id?: string;
+  claimed_at?: string;
+  lease_duration_seconds?: number;
+  lease_expires_at?: string;
+} = {}) {
+  const claimedAt = overrides.claimed_at ?? '2026-03-22T00:00:00Z';
+  const leaseDurationSeconds = overrides.lease_duration_seconds ?? 60;
+  return {
+    claim_id: overrides.claim_id ?? 'claim-1',
+    owner_id: overrides.owner_id ?? 'worker-1',
+    claimed_at: claimedAt,
+    lease_duration_seconds: leaseDurationSeconds,
+    lease_expires_at: overrides.lease_expires_at ?? addSecondsToIso(claimedAt, leaseDurationSeconds),
+  };
+}

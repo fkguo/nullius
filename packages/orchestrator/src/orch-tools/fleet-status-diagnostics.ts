@@ -1,4 +1,5 @@
 import { utcNowIso } from '../util.js';
+import { getFleetLeaseRemainingSeconds, isFleetLeaseExpired } from './fleet-lease.js';
 import type { ReadModelError } from './run-read-model.js';
 import type { FleetQueueItemView, FleetQueueView } from './fleet-queue-store.js';
 import type { FleetWorkerHealth, FleetWorkerView } from './fleet-worker-store.js';
@@ -11,6 +12,9 @@ export type FleetAttentionReason =
 
 export type FleetQueueDiagnosticItemView = FleetQueueItemView & {
   claim_age_seconds: number | null;
+  lease_expires_at: string | null;
+  lease_remaining_seconds: number | null;
+  lease_expired: boolean;
   last_heartbeat_at: string | null;
   last_heartbeat_age_seconds: number | null;
   owner_worker_health: FleetWorkerHealth | null;
@@ -22,6 +26,7 @@ export type FleetQueueAttentionSummary = {
   attention_claim_count: number;
   claimed_without_worker_count: number;
   claimed_with_stale_worker_count: number;
+  expired_claim_count: number;
 };
 
 export type FleetQueueDiagnosticView = Omit<FleetQueueView, 'items'> & FleetQueueAttentionSummary & {
@@ -59,6 +64,9 @@ export function buildFleetQueueDiagnosticItems(
       return {
         ...item,
         claim_age_seconds: null,
+        lease_expires_at: null,
+        lease_remaining_seconds: null,
+        lease_expired: false,
         last_heartbeat_at: null,
         last_heartbeat_age_seconds: null,
         owner_worker_health: null,
@@ -78,6 +86,9 @@ export function buildFleetQueueDiagnosticItems(
     return {
       ...item,
       claim_age_seconds: ageSeconds(item.claim?.claimed_at, nowIso),
+      lease_expires_at: item.claim?.lease_expires_at ?? null,
+      lease_remaining_seconds: getFleetLeaseRemainingSeconds(item.claim, nowIso),
+      lease_expired: isFleetLeaseExpired(item.claim, nowIso),
       last_heartbeat_at: ownerWorker?.last_heartbeat_at ?? null,
       last_heartbeat_age_seconds: ageSeconds(ownerWorker?.last_heartbeat_at, nowIso),
       owner_worker_health: ownerWorker?.health_status ?? null,
@@ -91,17 +102,20 @@ export function summarizeFleetQueueAttention(items: FleetQueueDiagnosticItemView
   let attentionClaimCount = 0;
   let claimedWithoutWorkerCount = 0;
   let claimedWithStaleWorkerCount = 0;
+  let expiredClaimCount = 0;
 
   for (const item of items) {
     if (item.status !== 'claimed') continue;
     if (item.attention_required) attentionClaimCount += 1;
     if (item.attention_reasons.includes('OWNER_WORKER_MISSING')) claimedWithoutWorkerCount += 1;
     if (item.attention_reasons.includes('OWNER_WORKER_STALE')) claimedWithStaleWorkerCount += 1;
+    if (item.lease_expired) expiredClaimCount += 1;
   }
 
   return {
     attention_claim_count: attentionClaimCount,
     claimed_without_worker_count: claimedWithoutWorkerCount,
     claimed_with_stale_worker_count: claimedWithStaleWorkerCount,
+    expired_claim_count: expiredClaimCount,
   };
 }

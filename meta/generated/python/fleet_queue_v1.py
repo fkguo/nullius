@@ -20,6 +20,8 @@ class FleetQueueClaim(BaseModel):
     claim_id: Annotated[str, Field(min_length=1)]
     owner_id: Annotated[str, Field(min_length=1)]
     claimed_at: AwareDatetime
+    lease_duration_seconds: Annotated[int, Field(ge=1)]
+    lease_expires_at: AwareDatetime
 
 
 class Status(StrEnum):
