@@ -87,6 +87,8 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   [T.ORCH_FLEET_CLAIM]: 'write',
   [T.ORCH_FLEET_RELEASE]: 'write',
   [T.ORCH_FLEET_STATUS]: 'read',
+  [T.ORCH_FLEET_WORKER_POLL]: 'write',
+  [T.ORCH_FLEET_WORKER_HEARTBEAT]: 'write',
   [T.HEPDATA_SEARCH]: 'read',
   [T.HEPDATA_GET_RECORD]: 'read',
   [T.HEPDATA_GET_TABLE]: 'read',

@@ -30,6 +30,7 @@ export type {
 } from "./evidence-catalog-item-v1.js";
 export * from "./execution-plan-v1.js";
 export * from "./fleet-queue-v1.js";
+export * from "./fleet-workers-v1.js";
 export * from "./gate-spec-v1.js";
 export type { GeneV1, ConstraintPolicy, EpigeneticMark } from "./gene-v1.js";
 export * from "./integrity-check-v1.js";

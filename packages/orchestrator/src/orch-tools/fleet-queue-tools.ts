@@ -46,7 +46,7 @@ function assertKnownRun(projectRoot: string, runId: string): void {
   });
 }
 
-function sortQueuedItems(items: FleetQueueItem[]): FleetQueueItem[] {
+export function sortQueuedItems(items: FleetQueueItem[]): FleetQueueItem[] {
   return [...items].sort((left, right) =>
     (right.priority - left.priority)
     || left.enqueued_at.localeCompare(right.enqueued_at)

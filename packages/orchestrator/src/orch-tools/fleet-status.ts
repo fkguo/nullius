@@ -9,7 +9,8 @@ import {
   readRunListView,
   type ReadModelError,
 } from './run-read-model.js';
-import { readFleetQueue, summarizeFleetQueue, type FleetQueueView } from './fleet-queue-store.js';
+import { readFleetQueue, summarizeFleetQueue, type FleetQueueItem, type FleetQueueView } from './fleet-queue-store.js';
+import { readFleetWorkers, summarizeFleetWorkers, type FleetWorkersView } from './fleet-worker-store.js';
 
 type FleetProjectSnapshot = {
   project_root: string;
@@ -32,8 +33,20 @@ type FleetProjectSnapshot = {
   }>;
   approvals: Array<Record<string, unknown>>;
   queue: FleetQueueView;
+  workers: FleetWorkersView;
   errors: ReadModelError[];
 };
+
+function activeClaimsByWorker(queueItems: FleetQueueItem[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of queueItems) {
+    if (item.status !== 'claimed') continue;
+    const ownerId = item.claim?.owner_id;
+    if (!ownerId) continue;
+    counts[ownerId] = (counts[ownerId] ?? 0) + 1;
+  }
+  return counts;
+}
 
 function normalizeProjectRoots(projectRoots: string[]): string[] {
   const seen = new Set<string>();
@@ -112,6 +125,13 @@ function readProjectSnapshot(
   const queueRead = readFleetQueue(projectRoot);
   const queue = summarizeFleetQueue(queueRead, params.limit_per_project);
   errors.push(...queueRead.errors);
+  const workersRead = readFleetWorkers(projectRoot);
+  const workers = summarizeFleetWorkers(
+    workersRead,
+    params.limit_per_project,
+    activeClaimsByWorker(queueRead.queue?.items ?? []),
+  );
+  errors.push(...workersRead.errors);
 
   return {
     project_root: projectRoot,
@@ -120,6 +140,7 @@ function readProjectSnapshot(
     runs: runList.runs,
     approvals,
     queue,
+    workers,
     errors,
   };
 }
@@ -132,6 +153,12 @@ export async function handleOrchFleetStatus(
   let runCount = 0;
   let pendingApprovalCount = 0;
   let errorCount = 0;
+  let workerCount = 0;
+  let healthyWorkerCount = 0;
+  let staleWorkerCount = 0;
+  let totalWorkerSlots = 0;
+  let claimedWorkerSlots = 0;
+  let availableWorkerSlots = 0;
 
   for (const project of projects) {
     for (const status of uniqueRunStatuses(project)) {
@@ -140,6 +167,12 @@ export async function handleOrchFleetStatus(
     }
     pendingApprovalCount += project.approvals.filter(item => item.status === 'pending').length;
     errorCount += project.errors.length;
+    workerCount += project.workers.total;
+    healthyWorkerCount += project.workers.by_health.healthy;
+    staleWorkerCount += project.workers.by_health.stale;
+    totalWorkerSlots += project.workers.capacity.total_slots;
+    claimedWorkerSlots += project.workers.capacity.claimed_slots;
+    availableWorkerSlots += project.workers.capacity.available_slots;
   }
 
   return {
@@ -149,6 +182,12 @@ export async function handleOrchFleetStatus(
       pending_approval_count: pendingApprovalCount,
       by_status: byStatus,
       error_count: errorCount,
+      worker_count: workerCount,
+      healthy_worker_count: healthyWorkerCount,
+      stale_worker_count: staleWorkerCount,
+      total_worker_slots: totalWorkerSlots,
+      claimed_worker_slots: claimedWorkerSlots,
+      available_worker_slots: availableWorkerSlots,
     },
     projects,
   };

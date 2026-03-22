@@ -15,6 +15,7 @@ from .domain_pack_manifest_v1 import *  # noqa: F401,F403
 from .evidence_catalog_item_v1 import *  # noqa: F401,F403
 from .execution_plan_v1 import *  # noqa: F401,F403
 from .fleet_queue_v1 import *  # noqa: F401,F403
+from .fleet_workers_v1 import *  # noqa: F401,F403
 from .gate_spec_v1 import *  # noqa: F401,F403
 from .gene_v1 import *  # noqa: F401,F403
 from .integrity_check_v1 import *  # noqa: F401,F403

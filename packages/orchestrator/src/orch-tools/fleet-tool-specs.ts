@@ -1,0 +1,78 @@
+import { z } from 'zod';
+import {
+  ORCH_FLEET_CLAIM,
+  ORCH_FLEET_ENQUEUE,
+  ORCH_FLEET_RELEASE,
+  ORCH_FLEET_STATUS,
+  ORCH_FLEET_WORKER_HEARTBEAT,
+  ORCH_FLEET_WORKER_POLL,
+} from '@autoresearch/shared';
+import {
+  handleOrchFleetClaim,
+  handleOrchFleetEnqueue,
+  handleOrchFleetRelease,
+} from './fleet-queue-tools.js';
+import { handleOrchFleetStatus } from './fleet-status.js';
+import {
+  handleOrchFleetWorkerHeartbeat,
+  handleOrchFleetWorkerPoll,
+} from './fleet-worker-tools.js';
+import {
+  OrchFleetClaimSchema,
+  OrchFleetEnqueueSchema,
+  OrchFleetReleaseSchema,
+  OrchFleetStatusSchema,
+  OrchFleetWorkerHeartbeatSchema,
+  OrchFleetWorkerPollSchema,
+} from './schemas.js';
+
+export const FLEET_TOOL_SPECS = [
+  {
+    name: ORCH_FLEET_WORKER_POLL,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Refresh worker liveness and claim the next queued run for that worker when capacity is available (local-only). This is the only Batch 3 scheduler surface.',
+    zodSchema: OrchFleetWorkerPollSchema,
+    handler: async (params: unknown) => handleOrchFleetWorkerPoll(params as z.output<typeof OrchFleetWorkerPollSchema>),
+  },
+  {
+    name: ORCH_FLEET_WORKER_HEARTBEAT,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Refresh or register fleet worker liveness/resource-slot metadata without claiming queue ownership (local-only).',
+    zodSchema: OrchFleetWorkerHeartbeatSchema,
+    handler: async (params: unknown) => handleOrchFleetWorkerHeartbeat(params as z.output<typeof OrchFleetWorkerHeartbeatSchema>),
+  },
+  {
+    name: ORCH_FLEET_ENQUEUE,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Enqueue a known run into the per-project fleet queue substrate (local-only). Fails closed if the run is unknown or already has an active queue item.',
+    zodSchema: OrchFleetEnqueueSchema,
+    handler: async (params: unknown) => handleOrchFleetEnqueue(params as z.output<typeof OrchFleetEnqueueSchema>),
+  },
+  {
+    name: ORCH_FLEET_CLAIM,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Claim the next queued run, or a specific queued run, from the per-project fleet queue substrate (local-only). Does not start a scheduler; Batch 3 scheduling lives only in orch_fleet_worker_poll.',
+    zodSchema: OrchFleetClaimSchema,
+    handler: async (params: unknown) => handleOrchFleetClaim(params as z.output<typeof OrchFleetClaimSchema>),
+  },
+  {
+    name: ORCH_FLEET_RELEASE,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Release a claimed queue item back to queued, or settle it to a terminal fleet-queue status, inside the per-project fleet queue substrate (local-only).',
+    zodSchema: OrchFleetReleaseSchema,
+    handler: async (params: unknown) => handleOrchFleetRelease(params as z.output<typeof OrchFleetReleaseSchema>),
+  },
+  {
+    name: ORCH_FLEET_STATUS,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Aggregate read-only fleet visibility across explicit project roots using existing run-level state, ledger, approval packet, queue, and worker surfaces (local-only).',
+    zodSchema: OrchFleetStatusSchema,
+    handler: async (params: unknown) => handleOrchFleetStatus(params as z.output<typeof OrchFleetStatusSchema>),
+  },
+] as const;

@@ -68,3 +68,9 @@ export function writeQueue(projectRoot: string, content: unknown): void {
   const payload = typeof content === 'string' ? content : JSON.stringify(content, null, 2) + '\n';
   fs.writeFileSync(path.join(controlDir(projectRoot), 'fleet_queue.json'), payload, 'utf-8');
 }
+
+export function writeWorkers(projectRoot: string, content: unknown): void {
+  fs.mkdirSync(controlDir(projectRoot), { recursive: true });
+  const payload = typeof content === 'string' ? content : JSON.stringify(content, null, 2) + '\n';
+  fs.writeFileSync(path.join(controlDir(projectRoot), 'fleet_workers.json'), payload, 'utf-8');
+}

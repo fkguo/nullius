@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/fleet_workers_v1.schema.json",
+  "title": "FleetWorkers V1",
+  "description": "Provider-neutral per-project fleet worker registry. Records worker liveness and resource-slot truth only; queue ownership stays in fleet_queue_v1 and scheduler decisions remain transient.",
+  "type": "object",
+  "required": ["schema_version", "updated_at", "workers"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [1]
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "workers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FleetWorker"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "FleetWorker": {
+      "type": "object",
+      "required": [
+        "worker_id",
+        "registered_at",
+        "last_heartbeat_at",
+        "max_concurrent_claims",
+        "heartbeat_timeout_seconds"
+      ],
+      "properties": {
+        "worker_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "registered_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_heartbeat_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "max_concurrent_claims": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "heartbeat_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

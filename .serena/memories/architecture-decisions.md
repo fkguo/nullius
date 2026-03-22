@@ -145,3 +145,14 @@
 - Claim semantics are explicit non-expiring records only in Batch 2; TTL expiry, heartbeat takeover, auto-reclaim, scheduler authority, fleet health monitoring, and reassignment remain later EVO-14 work.
 
 **Why**: This keeps queue truth singular and durable without smuggling Batch 3 scheduler/health semantics or a second ownership authority into the control plane early.
+
+### [2026-03-22] EVO-14 worker-poll invariant: worker truth separate from queue truth and scheduler truth
+
+**Decision**:
+- EVO-14 Batch 3 introduces a per-project worker/resource registry at `.autoresearch/fleet_workers.json`; that file is the sole worker liveness and slot-capacity authority for fleet work.
+- Queue truth remains only `.autoresearch/fleet_queue.json`; active claim counts and available worker slots must be derived from the full queue authority rather than persisted a second time in the worker registry.
+- Scheduler truth remains transient `worker poll` behavior: `orch_fleet_worker_poll` is the only Batch 3 scheduler surface, while `orch_fleet_worker_heartbeat` only refreshes worker liveness and never mutates queue ownership.
+- `orch_fleet_status` remains the only cross-root fleet surface and stays read-only over explicit `project_roots`.
+- Batch 3 still excludes central tick/daemon authority, `scheduler_state.json`, TTL reclaim, heartbeat takeover, auto reassignment, and promotion of `state.json`, `ledger.jsonl`, `team-execution-state.json`, `live_status`, or `replay` into fleet authority.
+
+**Why**: This keeps queue ownership, worker health/resource truth, and scheduling behavior from collapsing into competing authorities while still enabling bounded worker-pull scheduling and slot accounting.

@@ -47,6 +47,9 @@ const VisibleRunStatusFilterSchema = z
 const QueueOwnerSchema = z.string().min(1).max(128);
 const QueueItemIdSchema = z.string().min(1);
 const QueueDispositionSchema = z.enum(['requeue', 'completed', 'failed', 'cancelled']);
+const WorkerIdSchema = z.string().min(1).max(128);
+const WorkerSlotSchema = z.number().int().positive();
+const HeartbeatTimeoutSchema = z.number().int().positive();
 
 export const OrchRunCreateSchema = z.object({
   project_root: ProjectRootSchema,
@@ -162,6 +165,22 @@ export const OrchFleetReleaseSchema = z.object({
   queue_item_id: QueueItemIdSchema.describe('Queue item identifier returned by orch_fleet_enqueue.'),
   owner_id: QueueOwnerSchema.describe('Current claim owner id.'),
   disposition: QueueDispositionSchema.describe('How to settle the claimed queue item.'),
+});
+
+export const OrchFleetWorkerPollSchema = z.object({
+  project_root: ProjectRootSchema,
+  worker_id: WorkerIdSchema.describe('Worker identifier used as the fleet queue claim owner.'),
+  max_concurrent_claims: WorkerSlotSchema.optional().default(1).describe('Max simultaneous queue claims this worker may hold.'),
+  heartbeat_timeout_seconds: HeartbeatTimeoutSchema.optional().default(60).describe('Heartbeat staleness threshold used only for health/read-model reporting.'),
+  note: z.string().optional().describe('Optional operator-visible worker note stored in fleet_workers.json.'),
+});
+
+export const OrchFleetWorkerHeartbeatSchema = z.object({
+  project_root: ProjectRootSchema,
+  worker_id: WorkerIdSchema.describe('Worker identifier to register or refresh.'),
+  max_concurrent_claims: WorkerSlotSchema.optional().default(1).describe('Worker slot count recorded in fleet_workers.json.'),
+  heartbeat_timeout_seconds: HeartbeatTimeoutSchema.optional().default(60).describe('Heartbeat staleness threshold used only for health/read-model reporting.'),
+  note: z.string().optional().describe('Optional operator-visible worker note stored in fleet_workers.json.'),
 });
 
 export const OrchRunExecuteAgentSchema = z.object({

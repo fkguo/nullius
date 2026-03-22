@@ -168,6 +168,8 @@ describe('Tool risk level contracts (H-11a)', () => {
       [T.ORCH_FLEET_CLAIM]: 'write',
       [T.ORCH_FLEET_RELEASE]: 'write',
       [T.ORCH_FLEET_STATUS]: 'read',
+      [T.ORCH_FLEET_WORKER_POLL]: 'write',
+      [T.ORCH_FLEET_WORKER_HEARTBEAT]: 'write',
     };
     const specsByName = new Map(getToolSpecs('full').map(spec => [spec.name, spec]));
     expect(Object.keys(expected).every(name => specsByName.has(name))).toBe(true);
