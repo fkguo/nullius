@@ -164,6 +164,9 @@ describe('Tool risk level contracts (H-11a)', () => {
       [T.ORCH_RUN_APPROVALS_LIST]: 'read',
       [T.ORCH_RUN_EXECUTE_AGENT]: 'destructive',
       [T.ORCH_POLICY_QUERY]: 'read',
+      [T.ORCH_FLEET_ENQUEUE]: 'write',
+      [T.ORCH_FLEET_CLAIM]: 'write',
+      [T.ORCH_FLEET_RELEASE]: 'write',
       [T.ORCH_FLEET_STATUS]: 'read',
     };
     const specsByName = new Map(getToolSpecs('full').map(spec => [spec.name, spec]));

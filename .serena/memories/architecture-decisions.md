@@ -135,3 +135,13 @@
 - EVO-13 team-local artifacts and views such as `team-execution-state.json`, `live_status`, and `replay` do not become fleet authority.
 
 **Why**: This gives bounded cross-run operator visibility on the live TS-first shared -> orchestrator -> hep-mcp host path without reopening team-local runtime semantics or inventing scheduler authority early.
+
+### [2026-03-22] EVO-14 fleet queue invariant: per-project queue authority before scheduler/health
+
+**Decision**:
+- EVO-14 Batch 2 introduces a per-project persistent queue registry at `.autoresearch/fleet_queue.json`; that file is the sole queue/claim ownership authority for fleet work.
+- Cross-root fleet mutation is still forbidden at this stage. `orch_fleet_status` remains the only cross-root surface and stays read-only over explicit `project_roots`, while `orch_fleet_enqueue`, `orch_fleet_claim`, and `orch_fleet_release` mutate only one `project_root` at a time.
+- `state.json` remains current-run authority, `ledger.jsonl` remains audit/provenance only, and EVO-13 team-local artifacts/views such as `team-execution-state.json`, `live_status`, and `replay` do not participate in fleet queue ownership decisions.
+- Claim semantics are explicit non-expiring records only in Batch 2; TTL expiry, heartbeat takeover, auto-reclaim, scheduler authority, fleet health monitoring, and reassignment remain later EVO-14 work.
+
+**Why**: This keeps queue truth singular and durable without smuggling Batch 3 scheduler/health semantics or a second ownership authority into the control plane early.

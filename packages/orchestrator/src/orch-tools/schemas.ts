@@ -44,6 +44,9 @@ const VisibleRunStatusFilterSchema = z
   .optional()
   .default('all')
   .transform(value => (value === 'complete' ? 'completed' : value));
+const QueueOwnerSchema = z.string().min(1).max(128);
+const QueueItemIdSchema = z.string().min(1);
+const QueueDispositionSchema = z.enum(['requeue', 'completed', 'failed', 'cancelled']);
 
 export const OrchRunCreateSchema = z.object({
   project_root: ProjectRootSchema,
@@ -138,6 +141,27 @@ export const OrchFleetStatusSchema = z.object({
     .optional()
     .default(false)
     .describe('Include resolved approvals for the current run when available.'),
+});
+
+export const OrchFleetEnqueueSchema = z.object({
+  project_root: ProjectRootSchema,
+  run_id: RunIdSchema.describe('Run identifier to enqueue in the per-project fleet queue.'),
+  requested_by: QueueOwnerSchema.describe('Operator or subsystem requesting the queue entry.'),
+  priority: z.number().int().optional().default(0).describe('Higher values are claimed first.'),
+  note: z.string().optional().describe('Optional operator-visible enqueue note.'),
+});
+
+export const OrchFleetClaimSchema = z.object({
+  project_root: ProjectRootSchema,
+  owner_id: QueueOwnerSchema.describe('Claim owner identifier.'),
+  run_id: RunIdSchema.optional().describe('Optional specific run_id to claim instead of the highest-priority queued item.'),
+});
+
+export const OrchFleetReleaseSchema = z.object({
+  project_root: ProjectRootSchema,
+  queue_item_id: QueueItemIdSchema.describe('Queue item identifier returned by orch_fleet_enqueue.'),
+  owner_id: QueueOwnerSchema.describe('Current claim owner id.'),
+  disposition: QueueDispositionSchema.describe('How to settle the claimed queue item.'),
 });
 
 export const OrchRunExecuteAgentSchema = z.object({

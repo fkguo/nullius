@@ -73,6 +73,13 @@ function writeProject(projectRoot: string, opts: { completed?: boolean; invalidL
   }
 }
 
+function writeQueue(projectRoot: string, content: unknown): void {
+  const controlDir = path.join(projectRoot, '.autoresearch');
+  fs.mkdirSync(controlDir, { recursive: true });
+  const payload = typeof content === 'string' ? content : JSON.stringify(content, null, 2) + '\n';
+  fs.writeFileSync(path.join(controlDir, 'fleet_queue.json'), payload, 'utf-8');
+}
+
 function extractPayload(res: unknown): Record<string, unknown> {
   const result = res as { content: Array<{ text: string }> };
   return JSON.parse(result.content[0]?.text ?? '{}') as Record<string, unknown>;
@@ -91,6 +98,20 @@ describe('orch_fleet_status contract', () => {
     const badRoot = makeTmpDir();
     writeProject(goodRoot);
     writeProject(badRoot, { invalidLedger: true });
+    writeQueue(goodRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-22T00:02:00Z',
+      items: [{
+        queue_item_id: 'fq_001',
+        run_id: 'run-awaiting',
+        status: 'queued',
+        priority: 3,
+        enqueued_at: '2026-03-22T00:01:30Z',
+        requested_by: 'operator',
+        attempt_count: 0,
+      }],
+    });
+    writeQueue(badRoot, '{not-valid-json\n');
 
     const res = await handleToolCall('orch_fleet_status', {
       project_roots: [goodRoot, badRoot],
@@ -104,9 +125,12 @@ describe('orch_fleet_status contract', () => {
     expect(summary.project_count).toBe(2);
     expect(summary.pending_approval_count).toBe(1);
     expect((projects[0]?.approvals as Array<Record<string, unknown>>)[0]?.status).toBe('pending');
+    expect((projects[0]?.queue as Record<string, unknown>).queue_initialized).toBe(true);
+    expect(((projects[0]?.queue as Record<string, unknown>).by_status as Record<string, number>).queued).toBe(1);
     expect((projects[1]?.errors as Array<Record<string, unknown>>).map(item => item.code)).toEqual([
       'STATE_MISSING',
       'LEDGER_PARSE_ERROR',
+      'FLEET_QUEUE_PARSE_ERROR',
     ]);
   });
 
@@ -123,5 +147,6 @@ describe('orch_fleet_status contract', () => {
     const payload = extractPayload(res);
     const projects = payload.projects as Array<Record<string, unknown>>;
     expect((projects[0]?.runs as Array<Record<string, unknown>>).map(item => item.last_status)).toEqual(['completed']);
+    expect((projects[0]?.queue as Record<string, unknown>).queue_initialized).toBe(false);
   });
 });

@@ -22,7 +22,7 @@ Autoresearch Lab is the monorepo/workbench for the Autoresearch ecosystem: a dom
 | Package | Role | Status |
 | --- | --- | --- |
 | `@autoresearch/orchestrator` | Runtime/control-plane nucleus for `.autoresearch` state, routing, approvals, and research-loop execution | Active |
-| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (67 std / 87) | Active |
+| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (67 std / 90) | Active |
 | `@autoresearch/openalex-mcp` | Standalone OpenAlex scholarly graph provider | Active |
 | `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | Literature/data providers composable with the ecosystem runtime | Active |
 | `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | Local offline/reference providers | Active |
@@ -291,14 +291,14 @@ This server exposes four tool families:
 Notes:
 - `inspire_*` tools can be called directly (no Project/Run required). Projects/Runs and `hep://...` resources are for evidence-first local workflows (`hep_*`).
 
-Tool counts: **67 tools in `standard` mode** (default, compact surface) and **87 tools in `full` mode** (adds advanced tools).
+Tool counts: **67 tools in `standard` mode** (default, compact surface) and **90 tools in `full` mode** (adds advanced tools).
 
 ### Tool Exposure Modes
 
 | Mode | Tools | Description |
 |------|-------|-------------|
 | `standard` | 67 | Default: compact, recommended |
-| `full` | 87 | `standard` + advanced tools |
+| `full` | 90 | `standard` + advanced tools |
 
 ```bash
 # Use full mode (optional)

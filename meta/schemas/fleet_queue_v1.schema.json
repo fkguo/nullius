@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/fleet_queue_v1.schema.json",
+  "title": "FleetQueue V1",
+  "description": "Provider-neutral per-project fleet queue substrate. Records queue truth only; scheduler, lease expiry, and global health remain later layers.",
+  "type": "object",
+  "required": ["schema_version", "updated_at", "items"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [1]
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FleetQueueItem"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "FleetQueueClaim": {
+      "type": "object",
+      "required": ["claim_id", "owner_id", "claimed_at"],
+      "properties": {
+        "claim_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "claimed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FleetQueueItem": {
+      "type": "object",
+      "required": [
+        "queue_item_id",
+        "run_id",
+        "status",
+        "priority",
+        "enqueued_at",
+        "requested_by",
+        "attempt_count"
+      ],
+      "properties": {
+        "queue_item_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["queued", "claimed", "completed", "failed", "cancelled"]
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "enqueued_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requested_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attempt_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "note": {
+          "type": "string"
+        },
+        "claim": {
+          "$ref": "#/$defs/FleetQueueClaim"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "claimed"
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["claim"]
+          }
+        }
+      ]
+    }
+  }
+}

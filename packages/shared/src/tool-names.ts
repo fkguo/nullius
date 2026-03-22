@@ -74,6 +74,9 @@ export const ORCH_RUN_APPROVALS_LIST = 'orch_run_approvals_list' as const;
 export const ORCH_RUN_EXECUTE_AGENT = 'orch_run_execute_agent' as const;
 export const ORCH_POLICY_QUERY = 'orch_policy_query' as const;
 export const ORCH_FLEET_STATUS = 'orch_fleet_status' as const;
+export const ORCH_FLEET_ENQUEUE = 'orch_fleet_enqueue' as const;
+export const ORCH_FLEET_CLAIM = 'orch_fleet_claim' as const;
+export const ORCH_FLEET_RELEASE = 'orch_fleet_release' as const;
 
 // ── OpenAlex Tools ──────────────────────────────────────────────────────────
 

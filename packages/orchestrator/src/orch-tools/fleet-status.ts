@@ -9,6 +9,7 @@ import {
   readRunListView,
   type ReadModelError,
 } from './run-read-model.js';
+import { readFleetQueue, summarizeFleetQueue, type FleetQueueView } from './fleet-queue-store.js';
 
 type FleetProjectSnapshot = {
   project_root: string;
@@ -30,6 +31,7 @@ type FleetProjectSnapshot = {
     uri: string;
   }>;
   approvals: Array<Record<string, unknown>>;
+  queue: FleetQueueView;
   errors: ReadModelError[];
 };
 
@@ -107,6 +109,9 @@ function readProjectSnapshot(
       errors.push({ code: 'APPROVAL_READ_ERROR', message });
     }
   }
+  const queueRead = readFleetQueue(projectRoot);
+  const queue = summarizeFleetQueue(queueRead, params.limit_per_project);
+  errors.push(...queueRead.errors);
 
   return {
     project_root: projectRoot,
@@ -114,6 +119,7 @@ function readProjectSnapshot(
     current_run: currentRun,
     runs: runList.runs,
     approvals,
+    queue,
     errors,
   };
 }

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { ORCH_FLEET_STATUS, ORCH_RUN_EXECUTE_AGENT } from '@autoresearch/shared';
+import {
+  ORCH_FLEET_CLAIM,
+  ORCH_FLEET_ENQUEUE,
+  ORCH_FLEET_RELEASE,
+  ORCH_FLEET_STATUS,
+  ORCH_RUN_EXECUTE_AGENT,
+} from '@autoresearch/shared';
 import { ORCH_TOOL_SPECS } from '@autoresearch/orchestrator';
 
 import { getToolSpecs } from '../../src/tools/index.js';
@@ -12,6 +18,9 @@ describe('shared orchestrator package export boundary', () => {
 
   it('keeps orchestrator package entrypoint aligned with the shared tool-name seam', () => {
     expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_RUN_EXECUTE_AGENT)).toBe(true);
+    expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_FLEET_ENQUEUE)).toBe(true);
+    expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_FLEET_CLAIM)).toBe(true);
+    expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_FLEET_RELEASE)).toBe(true);
     expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_FLEET_STATUS)).toBe(true);
   });
 
@@ -25,5 +34,13 @@ describe('shared orchestrator package export boundary', () => {
     const spec = getToolSpecs('full').find(item => item.name === ORCH_FLEET_STATUS);
     expect(spec?.riskLevel).toBe('read');
     expect(spec?.exposure).toBe('full');
+  });
+
+  it('surfaces fleet queue mutation tools through the same shared/orchestrator host path', () => {
+    for (const name of [ORCH_FLEET_ENQUEUE, ORCH_FLEET_CLAIM, ORCH_FLEET_RELEASE]) {
+      const spec = getToolSpecs('full').find(item => item.name === name);
+      expect(spec?.riskLevel).toBe('write');
+      expect(spec?.exposure).toBe('full');
+    }
   });
 });

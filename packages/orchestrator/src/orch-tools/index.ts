@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import {
+  ORCH_FLEET_CLAIM,
+  ORCH_FLEET_ENQUEUE,
+  ORCH_FLEET_RELEASE,
   ORCH_FLEET_STATUS,
   ORCH_RUN_EXECUTE_AGENT,
   ORCH_POLICY_QUERY,
@@ -30,8 +33,16 @@ import {
   handleOrchRunList,
   handleOrchRunStatus,
 } from './create-status-list.js';
+import {
+  handleOrchFleetClaim,
+  handleOrchFleetEnqueue,
+  handleOrchFleetRelease,
+} from './fleet-queue-tools.js';
 import { handleOrchFleetStatus } from './fleet-status.js';
 import {
+  OrchFleetClaimSchema,
+  OrchFleetEnqueueSchema,
+  OrchFleetReleaseSchema,
   OrchFleetStatusSchema,
   OrchRunExecuteAgentSchema,
   OrchPolicyQuerySchema,
@@ -56,6 +67,30 @@ type OrchestratorToolSpec<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
 };
 
 export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
+  {
+    name: ORCH_FLEET_ENQUEUE,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Enqueue a known run into the per-project fleet queue substrate (local-only). Fails closed if the run is unknown or already has an active queue item.',
+    zodSchema: OrchFleetEnqueueSchema,
+    handler: async params => handleOrchFleetEnqueue(params as z.output<typeof OrchFleetEnqueueSchema>),
+  },
+  {
+    name: ORCH_FLEET_CLAIM,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Claim the next queued run, or a specific queued run, from the per-project fleet queue substrate (local-only). Does not start a scheduler.',
+    zodSchema: OrchFleetClaimSchema,
+    handler: async params => handleOrchFleetClaim(params as z.output<typeof OrchFleetClaimSchema>),
+  },
+  {
+    name: ORCH_FLEET_RELEASE,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Release a claimed queue item back to queued, or settle it to a terminal fleet-queue status, inside the per-project fleet queue substrate (local-only).',
+    zodSchema: OrchFleetReleaseSchema,
+    handler: async params => handleOrchFleetRelease(params as z.output<typeof OrchFleetReleaseSchema>),
+  },
   {
     name: ORCH_FLEET_STATUS,
     tier: 'core',

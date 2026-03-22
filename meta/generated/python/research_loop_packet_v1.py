@@ -41,6 +41,8 @@ class InterventionKind(StrEnum):
     redirect = 'redirect'
     inject_task = 'inject_task'
     approve = 'approve'
+    cancel = 'cancel'
+    cascade_stop = 'cascade_stop'
 
 
 class SurfaceRef1(BaseModel):
