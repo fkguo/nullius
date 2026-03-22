@@ -87,6 +87,6 @@ export async function handleOrchRunList(
   params: z.output<typeof OrchRunListSchema>,
 ): Promise<unknown> {
   const { manager } = createStateManager(params.project_root);
-  const { runs, total, returned } = readRunListView(manager, params);
-  return { runs, total, returned };
+  const { runs, total, returned, errors } = readRunListView(manager, params);
+  return { runs, total, returned, errors };
 }

@@ -184,6 +184,39 @@ describe('orch_run_list', () => {
     expect(payload.total).toBe(1);
     expect(runs.some(run => run.run_id === 'run-list-1')).toBe(true);
   });
+
+  it('surfaces degraded ledger diagnostics instead of silently returning partial results', async () => {
+    const projectRoot = makeTmpDir();
+    setupProject(projectRoot, { runId: 'run-list-2' });
+    fs.writeFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), [
+      '{not-valid-json',
+      JSON.stringify({
+        ts: '2026-03-22T00:00:00Z',
+        event_type: 'custom_operator_note',
+        run_id: 'run-list-2',
+        workflow_id: 'runtime',
+        step_id: null,
+        details: {},
+      }),
+    ].join('\n') + '\n', { encoding: 'utf-8' });
+
+    const res = await handleToolCall('orch_run_list', { project_root: projectRoot }, 'full');
+    const payload = extractPayload(res);
+    const runs = payload.runs as Array<Record<string, unknown>>;
+    const errors = payload.errors as Array<Record<string, unknown>>;
+
+    expect(runs).toEqual([
+      {
+        run_id: 'run-list-2',
+        last_event: 'custom_operator_note',
+        last_status: 'unknown',
+        timestamp_utc: '2026-03-22T00:00:00Z',
+        uri: 'orch://runs/run-list-2',
+      },
+    ]);
+    expect(errors.map(item => item.code)).toEqual(['LEDGER_PARSE_ERROR', 'LEDGER_EVENT_UNMAPPED']);
+    expect(errors[1]?.message).toContain('custom_operator_note x1');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

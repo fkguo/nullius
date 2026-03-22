@@ -171,4 +171,32 @@ describe('orch_fleet_status', () => {
       { run_id: 'run-completed', last_event: 'status_completed', last_status: 'completed', timestamp_utc: '2026-03-22T00:00:00Z', uri: 'orch://runs/run-completed' },
     ]);
   });
+
+  it('surfaces unmapped ledger events instead of silently hiding the status fallback', async () => {
+    const projectRoot = makeTmpDir();
+    writeState(projectRoot, baseState({
+      run_id: 'run-unknown',
+      run_status: 'idle',
+    }));
+    writeLedger(projectRoot, [
+      {
+        ts: '2026-03-22T00:00:00Z',
+        event_type: 'custom_operator_note',
+        run_id: 'run-unknown',
+        workflow_id: 'runtime',
+        step_id: null,
+        details: {},
+      },
+    ]);
+
+    const payload = await handleOrchFleetStatus(OrchFleetStatusSchema.parse({
+      project_roots: [projectRoot],
+    })) as {
+      projects: Array<{ runs: Array<{ last_status: string }>; errors: Array<{ code: string; message: string }> }>;
+    };
+
+    expect(payload.projects[0]?.runs[0]?.last_status).toBe('unknown');
+    expect(payload.projects[0]?.errors.map(item => item.code)).toContain('LEDGER_EVENT_UNMAPPED');
+    expect(payload.projects[0]?.errors.find(item => item.code === 'LEDGER_EVENT_UNMAPPED')?.message).toContain('custom_operator_note x1');
+  });
 });

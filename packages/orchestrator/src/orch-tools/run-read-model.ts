@@ -27,22 +27,31 @@ export type RunListEntry = {
 
 export type ApprovalEntry = Record<string, unknown>;
 
-function deriveLedgerStatus(eventType: string, details: Record<string, unknown>, previous: string): string {
-  if (eventType === 'initialized') return 'idle';
-  if (eventType === 'run_started' || eventType === 'approval_approved' || eventType === 'resumed') return 'running';
-  if (eventType === 'approval_requested') return 'awaiting_approval';
-  if (eventType === 'approval_rejected' || eventType === 'paused') return 'paused';
-  if (eventType === 'approval_budget_exhausted') return 'blocked';
+function deriveLedgerStatus(
+  eventType: string,
+  details: Record<string, unknown>,
+  previous: string,
+): { status: string; unmappedEvent: string | null } {
+  if (eventType === 'initialized') return { status: 'idle', unmappedEvent: null };
+  if (eventType === 'run_started' || eventType === 'approval_approved' || eventType === 'resumed') {
+    return { status: 'running', unmappedEvent: null };
+  }
+  if (eventType === 'approval_requested') return { status: 'awaiting_approval', unmappedEvent: null };
+  if (eventType === 'approval_rejected' || eventType === 'paused') return { status: 'paused', unmappedEvent: null };
+  if (eventType === 'approval_budget_exhausted') return { status: 'blocked', unmappedEvent: null };
   if (eventType === 'approval_timeout') {
     const policyAction = typeof details.policy_action === 'string' ? details.policy_action : '';
-    if (policyAction === 'reject') return 'rejected';
-    if (policyAction === 'escalate') return 'needs_recovery';
-    return 'blocked';
+    if (policyAction === 'reject') return { status: 'rejected', unmappedEvent: null };
+    if (policyAction === 'escalate') return { status: 'needs_recovery', unmappedEvent: null };
+    return { status: 'blocked', unmappedEvent: null };
   }
   if (eventType.startsWith('status_')) {
-    return eventType.slice('status_'.length) || previous;
+    const status = eventType.slice('status_'.length);
+    return status
+      ? { status, unmappedEvent: null }
+      : { status: previous, unmappedEvent: 'status_(empty)' };
   }
-  return previous;
+  return { status: previous, unmappedEvent: eventType || '(missing event_type)' };
 }
 
 export function buildRunStatusView(projectRoot: string, state: RunState) {
@@ -75,6 +84,7 @@ export function readRunListView(
 
   const runMap = new Map<string, RunListEntry>();
   let invalidLines = 0;
+  const unmappedEvents = new Map<string, number>();
   const lines = fs.readFileSync(manager.ledgerPath, 'utf-8').split('\n').filter(line => line.trim());
   for (const line of lines) {
     let event: Record<string, unknown>;
@@ -94,10 +104,14 @@ export function readRunListView(
       ? event.details as Record<string, unknown>
       : {};
     const previous = runMap.get(runId)?.last_status ?? 'unknown';
+    const { status, unmappedEvent } = deriveLedgerStatus(eventType, details, previous);
+    if (unmappedEvent) {
+      unmappedEvents.set(unmappedEvent, (unmappedEvents.get(unmappedEvent) ?? 0) + 1);
+    }
     runMap.set(runId, {
       run_id: runId,
       last_event: eventType,
-      last_status: deriveLedgerStatus(eventType, details, previous),
+      last_status: status,
       timestamp_utc: timestamp,
       uri: `orch://runs/${runId}`,
     });
@@ -108,9 +122,20 @@ export function readRunListView(
     runs = runs.filter(run => run.last_status === params.status_filter);
   }
   const limited = runs.slice(0, params.limit);
-  const errors = invalidLines > 0
-    ? [{ code: 'LEDGER_PARSE_ERROR', message: `Skipped ${invalidLines} invalid ledger line(s) in ${manager.ledgerPath}.` }]
-    : [];
+  const errors: ReadModelError[] = [];
+  if (invalidLines > 0) {
+    errors.push({ code: 'LEDGER_PARSE_ERROR', message: `Skipped ${invalidLines} invalid ledger line(s) in ${manager.ledgerPath}.` });
+  }
+  if (unmappedEvents.size > 0) {
+    const summary = [...unmappedEvents.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([eventType, count]) => `${eventType} x${count}`)
+      .join(', ');
+    errors.push({
+      code: 'LEDGER_EVENT_UNMAPPED',
+      message: `Preserved previous status for ${[...unmappedEvents.values()].reduce((sum, count) => sum + count, 0)} ledger event(s) with no read-model mapping in ${manager.ledgerPath}: ${summary}.`,
+    });
+  }
   return {
     runs: limited,
     total: runMap.size,
