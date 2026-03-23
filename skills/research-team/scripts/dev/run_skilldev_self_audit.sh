@@ -79,6 +79,7 @@ cycle_args=(
   --tag "${TAG}"
   --notes research_contract.md
   --out-dir team
+  --project-policy maintainer_fixture
   --member-a-system prompts/_system_member_a.txt
   --member-b-system prompts/_system_member_b.txt
 )

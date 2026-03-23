@@ -15,7 +15,7 @@ proj="${tmp_root}/proj"
 registry="${tmp_root}/registry.json"
 runs_dir="${tmp_root}/runs"
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${proj}" --project "SmokeRealRegression" --profile "exploratory" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${proj}" --project "SmokeRealRegression" --profile "exploratory" --full >/dev/null 2>&1
 bash "${BIN_DIR}/generate_demo_milestone.sh" --root "${proj}" --tag "M0-demo" --force >/dev/null 2>&1
 
 # Force exploration stage so warn-only gates won't block this harness smoke.
@@ -49,4 +49,3 @@ test -f "${runs_dir}/"*_summary.md
 test -f "${runs_dir}/"*_summary.json
 
 echo "[ok] real-project regression harness smoke test passed"
-

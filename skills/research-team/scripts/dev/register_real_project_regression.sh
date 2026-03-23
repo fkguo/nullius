@@ -69,9 +69,23 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+PROJECT_CONTRACTS_SRC="${REPO_ROOT}/packages/project-contracts/src"
 
 if [[ -z "${REGISTRY}" ]]; then
   REGISTRY="${SKILL_ROOT}/skilldev/regression/real_projects.json"
+fi
+
+if [[ -d "${PROJECT_CONTRACTS_SRC}" ]]; then
+  PYTHONPATH="${PROJECT_CONTRACTS_SRC}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m project_contracts.project_policy_cli \
+    assert-root \
+    --project-root "${ROOT}" \
+    --project-policy real_project >/dev/null
+else
+  python3 -m project_contracts.project_policy_cli \
+    assert-root \
+    --project-root "${ROOT}" \
+    --project-policy real_project >/dev/null
 fi
 
 python3 - "${REGISTRY}" "${NAME}" "${ROOT}" "${NOTES}" "${OUT_DIR}" "${MEMBER_A_SYSTEM}" "${MEMBER_B_SYSTEM}" "${STAGE_OVERRIDE}" "${REPLACE}" <<'PY'
@@ -157,4 +171,3 @@ print(f"[ok] registered realism regression project: {name}")
 print(f"[ok] registry: {registry_path}")
 print(f"[ok] root: {root_abs}")
 PY
-

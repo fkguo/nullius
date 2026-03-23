@@ -19,6 +19,9 @@
 - **禁止不透明历史前缀命名进入新抽象**：`W1/W2/W3/W4/W_*` 这类依赖历史上下文才能理解的阶段号/工作流前缀，不应继续进入新的 root governance、shared contracts、user-facing workflow ids 或长期保留的核心抽象；新命名应直接表达语义（如 `ingest`、`reproduce`、`revision`、`computation`）。
 - **Commit 消息不加 AI co-author**：若未来得到人类授权执行 `git commit`，不要在提交消息中写 `Co-Authored-By: Claude ...` 或类似 AI 标注。
 - **SOTA 原则**：凡涉及架构选择、LLM 能力判断、retrieval/reranking/evidence 策略或“某功能是否仍有价值”的判断，应优先基于最新论文、benchmark、最佳实践和竞品动态，而不是仅凭过期记忆。
+- **真实研究项目必须使用开发仓外部 project root**：面向真实研究工作的 public scaffold/init surface，必须 fail-closed 到仓外绝对路径；`/home/user/Coding/Agents/autoresearch-lab` 及其子目录不得再作为 real-project authority。
+- **真实研究中间产物不得回流开发仓**：real-project 的 team runs、planning/intermediate outputs、显式/env provider data dirs 等运行期输出，默认必须落在开发仓外；repo 内 gitignored 目录只能作为显式 maintainer fixture，不得被 public flow 静默复用成 real-project 输出面。
+- **repo 内 maintainer fixture 仅限显式 gitignored 工作区**：如 `skills/research-team/skilldev`、`skills/research-team/.tmp/` 这类 maintainer workspaces 只用于自演进/回归/快照，不得注册、文档化或包装成真实研究项目入口。
 
 ## 理论研究通用内核约束
 
@@ -318,7 +321,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (11964 symbols, 26488 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (12030 symbols, 26680 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

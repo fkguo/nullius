@@ -2,7 +2,7 @@
 
 English quickstart: `docs/BEGINNER_TUTORIAL.md`。本文件是中文详版。
 
-本教程默认你是在**外部研究项目目录**里使用 `hep-autoresearch`。`packages/hep-autoresearch` 所在仓库是开发仓库，不应再被当作日常研究项目根目录。
+本教程默认你是在**外部研究项目目录**里使用 `hep-autoresearch`。`packages/hep-autoresearch` 所在仓库是开发仓库，不应再被当作日常研究项目根目录；真实研究项目的中间产物也不应再写回这个开发仓。
 
 生命周期说明：本教程描述的是当前仍可使用的 **Pipeline A** Python CLI（`hep-autoresearch` / `hepar`）。`meta/REDESIGN_PLAN.md` 的长期目标仍然是在 TS orchestrator 成为唯一编排器后将这一整组 surface 一起退役，因此这里应理解为过渡期 Python 路径的现行操作说明，而不是长期唯一 control-plane authority。
 
@@ -39,17 +39,18 @@ hep-autoresearch status
 ```
 
 这一步会在你的项目目录里生成最小骨架：
-- `PROJECT_CHARTER.md`
-- `PROJECT_MAP.md`
-- `RESEARCH_PLAN.md`
-- `PREWORK.md`
-- `Draft_Derivation.md`
+- `project_charter.md`
+- `project_index.md`
+- `research_plan.md`
+- `research_notebook.md`
+- `research_contract.md`
+- `.mcp.json.example`
 - `.autoresearch/`
 - `docs/`
-- `knowledge_base/`
 - `specs/`
 
 之后你可以在任意子目录运行 `hep-autoresearch ...`；CLI 会自动向上寻找 `.autoresearch/`。
+如果你显式传 `HEP_DATA_DIR`，它也应留在开发仓外；public real-project flow 现在会对 repo 内 override 直接 fail-close。
 
 ## 3）先跑一个不依赖外部 LLM 的烟测
 

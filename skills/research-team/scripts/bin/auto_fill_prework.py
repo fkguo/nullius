@@ -28,6 +28,13 @@ DEFAULT_INSTRUCTION_PATHS = (
     "README.md",
 )
 
+TEMPLATE_LINE_MARKERS = (
+    "paste the user's initial project instruction here.",
+    "this file is used for auto-fill.",
+    "recommended next step",
+    "example:",
+)
+
 
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
@@ -41,6 +48,25 @@ def _find_first_nonempty(root: Path, rels: list[str]) -> tuple[Path | None, str]
             if txt:
                 return p, txt
     return None, ""
+
+
+def _extract_goal_line(text: str) -> str:
+    fallback = ""
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not fallback:
+            fallback = line
+        low = line.lower()
+        if line.startswith("#"):
+            continue
+        if any(marker in low for marker in TEMPLATE_LINE_MARKERS):
+            continue
+        if re.match(r"^[-*]\s*(goal|background|required references \(if any\)|constraints)\s*:?\s*$", low):
+            continue
+        return line
+    return fallback
 
 
 def _render_problem_framing_block(*, goal_line: str) -> str:
@@ -64,11 +90,11 @@ def _render_problem_framing_block(*, goal_line: str) -> str:
             "### Principle / Derivation Separation (P/D)",
             "",
             "- Principles (P): (>=1; each must have a source pointer)",
-            "- P1: Reproducibility contract: every used formula is linked formula -> code pointer -> artifact; no skipped steps. | Source: [research_contract.md](research_contract.md)",
+            "- P1: Keep every touched claim auditable from plan to notebook to artifact; do not skip the evidence trail. | Source: [research_plan.md](research_plan.md) | Confidence: med | Verification: spot-checked",
             "- Derivation trace (D): (>=3 atomic steps; link to where each step lives)",
-            "- D1: Lock definitions/notation/conventions for touched quantities. Pointer: [research_contract.md](research_contract.md)",
-            "- D2: Write the milestone's key derivation step-by-step (>=3 critical steps); no hand-waving. Pointer: [research_contract.md](research_contract.md)",
-            "- D3: Map formula -> code pointer -> artifact, and add at least one nontrivial Audit slice/proxy headline number. Pointer: [research_contract.md](research_contract.md)",
+            "- D1: Lock scope, inputs, and kill criteria in [project_brief.md](project_brief.md) and [research_plan.md](research_plan.md) before any team cycle.",
+            "- D2: Record the working derivation or audit steps in [research_contract.md](research_contract.md) and supporting notes under [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/).",
+            "- D3: Map formula -> code pointer -> artifact and verify outputs under [runs/](runs/) or other declared artifact directories.",
             "",
             "### Sequential Review Checklist (do not skip)",
             "",
@@ -108,7 +134,7 @@ def _has_nonempty_p_line(line: str) -> bool:
 
 def _ensure_p_and_d(lines: list[str], start: int, end: int) -> None:
     # Ensure at least one filled principle line (P1) exists.
-    default_p1 = "- P1: Reproducibility contract: every used formula is linked formula -> code pointer -> artifact; no skipped steps. | Source: [research_contract.md](research_contract.md)"
+    default_p1 = "- P1: Keep every touched claim auditable from plan to notebook to artifact; do not skip the evidence trail. | Source: [research_plan.md](research_plan.md) | Confidence: med | Verification: spot-checked"
     p1_idx = None
     for i in range(start, end):
         if lines[i].lstrip().startswith("- P1:"):
@@ -129,9 +155,9 @@ def _ensure_p_and_d(lines: list[str], start: int, end: int) -> None:
 
     # Ensure D1-D3 exist and are non-empty (process-level defaults are fine).
     defaults = {
-        "D1": "Lock definitions/notation/conventions for touched quantities. Pointer: [research_contract.md](research_contract.md)",
-        "D2": "Write the milestone's key derivation step-by-step (>=3 critical steps); no hand-waving. Pointer: [research_contract.md](research_contract.md)",
-        "D3": "Map formula -> code pointer -> artifact, and add at least one nontrivial Audit slice/proxy headline number. Pointer: [research_contract.md](research_contract.md)",
+        "D1": "Lock scope, inputs, and kill criteria in [project_brief.md](project_brief.md) and [research_plan.md](research_plan.md) before any team cycle.",
+        "D2": "Record the working derivation or audit steps in [research_contract.md](research_contract.md) and supporting notes under [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/).",
+        "D3": "Map formula -> code pointer -> artifact and verify outputs under [runs/](runs/) or other declared artifact directories.",
     }
     d_present: dict[str, int] = {}
     for i in range(start, end):
@@ -204,7 +230,7 @@ def main() -> int:
             pass
 
     instr_path, instr_text = _find_first_nonempty(root, instr_paths)
-    goal_line = instr_text.splitlines()[0].strip() if instr_text.strip() else ""
+    goal_line = _extract_goal_line(instr_text) if instr_text.strip() else ""
 
     prework = root / "research_preflight.md"
     if not prework.is_file():

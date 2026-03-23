@@ -48,6 +48,8 @@ bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
   --profile mixed
 ```
 
+Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into `/home/user/Coding/Agents/autoresearch-lab`.
+
 3) Run a team cycle:
 
 ```bash
@@ -77,6 +79,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 ```
 
 If a gate fails, fix the minimal root cause (docs/artifacts/config), then rerun with a new tag (e.g. `M0-r2`).
+Keep `--out-dir` on the real-project side as well; repo-internal `skilldev/` / `.tmp/` paths are reserved for explicit maintainer fixtures.
 
 ## Review access modes (packet_only vs full_access)
 

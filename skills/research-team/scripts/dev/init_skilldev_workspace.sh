@@ -85,6 +85,7 @@ scaffold_args=( --root "${WORKSPACE}" --project "${PROJECT}" )
 if [[ -n "${PROFILE}" ]]; then
   scaffold_args+=( --profile "${PROFILE}" )
 fi
+scaffold_args+=( --full --project-policy maintainer_fixture )
 if [[ "${FORCE_SCAFFOLD}" -eq 1 ]]; then
   scaffold_args+=( --force )
 fi
@@ -143,64 +144,7 @@ if [[ "${SKIP_DEMO}" -ne 1 ]]; then
   bash "${SKILL_ROOT}/scripts/bin/generate_demo_milestone.sh" --root "${WORKSPACE}" --tag "${TAG}" --force
 fi
 
-CHARTER="${WORKSPACE}/project_charter.md"
-if [[ -f "${CHARTER}" ]]; then
-  PROFILE_FOR_CHARTER="${PROFILE}"
-  python3 - "${CHARTER}" "${PROFILE_FOR_CHARTER}" <<'PY'
-from __future__ import annotations
-
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-profile = str(sys.argv[2] or "").strip() or "methodology_dev"
-
-text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
-
-def sub_line(pat: str, repl: str) -> None:
-    global text
-    text = re.sub(pat, repl, text, flags=re.MULTILINE)
-
-sub_line(r"^Status:\s*.*$", "Status: APPROVED")
-sub_line(r"^Primary goal:\s*.*$", "Primary goal: Improve the research-team skill via a reproducible, auditable self-evolution workspace")
-sub_line(
-    r"^Validation goal\(s\):\s*.*$",
-    "Validation goal(s): Run deterministic self-audit (preflight-only + smoke tests) and keep docs/contracts aligned with real research workflows",
-)
-sub_line(r"^Declared profile:\s*.*$", f"Declared profile: {profile}")
-sub_line(r"^Rationale:\s*.*$", "Rationale: This is methodology/tooling development for the skill itself (not a user research project).")
-
-text = re.sub(
-    r"(^Anti-goals / non-goals.*\n)(?:[-*+]\s+.*\n)+",
-    r"\1- Do NOT introduce hard cutoffs that break real research workflows; prefer warn+debt in exploration and enforce in development/publication.\n",
-    text,
-    flags=re.MULTILINE,
-)
-
-commitments_block = (
-    "Project-specific commitments (fill at least 2 bullets; must include at least 1 KB link):\n"
-    "- [KB] Keep an auditable query/decision trail: [demo_trace](knowledge_base/methodology_traces/demo_trace.md)\n"
-    "- [DOC] Keep docs/templates aligned with gates and agent-first usage; record any policy exceptions in KB traces.\n"
-)
-text = re.sub(
-    r"^Project-specific commitments \(fill at least 2 bullets; must include at least 1 KB link\):\n(?:[-*+]\s+.*\n)+",
-    commitments_block,
-    text,
-    flags=re.MULTILINE,
-)
-
-text = re.sub(
-    r"^\s*-\s*Allowed\s+sources\s+for\s+discovery\s*:\s*.*$",
-    "- Allowed sources for discovery: prefer stable anchors (INSPIRE/arXiv/DOI/GitHub) + official docs/archives; general scholarly search is OK for discovery if logged in KB traces and stabilized to final anchors.",
-    text,
-    flags=re.MULTILINE,
-)
-
-path.write_text(text.rstrip() + "\n", encoding="utf-8")
-print("[ok] patched:", path)
-PY
-fi
+python3 "${SKILL_ROOT}/scripts/dev/seed_skilldev_workspace.py" --workspace "${WORKSPACE}" --profile "${PROFILE}"
 
 echo "[ok] skilldev workspace ready: ${WORKSPACE}" >&2
 echo "[ok] stage=${STAGE} profile=${PROFILE} tag=${TAG}" >&2

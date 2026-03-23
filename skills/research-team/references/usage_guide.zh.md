@@ -26,6 +26,8 @@ bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
   --profile mixed
 ```
 
+真实研究请使用仓外 project root。现在 public `research-team` scaffold / contract-refresh / team-cycle 会对 project root 和真实运行中间产物做 fail-closed：如果它们回指到 `/home/user/Coding/Agents/autoresearch-lab`，命令会直接报错。repo 内 `skilldev/` 与 `.tmp/` 仅保留给显式 maintainer fixture。
+
 3) 跑一轮 team cycle：
 
 ```bash
@@ -53,6 +55,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 ```
 
 若 gate 失败：先修复最小根因（文档/产物/配置），再用新 tag 重跑（例如 `M0-r2`）。
+`--out-dir` 也应留在真实项目侧，不要把真实项目的 `team/` 产物再写回开发仓。
 
 ## review_access_mode（packet_only vs full_access）
 

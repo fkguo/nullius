@@ -9,7 +9,7 @@ description = "Evidence-first HEP research workflow automation (orchestrator + d
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "fkg" }]
-dependencies = []
+dependencies = ["project-contracts"]
 
 [project.optional-dependencies]
 web = ["fastapi>=0.110", "uvicorn>=0.27"]
@@ -26,4 +26,4 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-hep_autoresearch = ["specs/*.json", "scaffold_templates/*.md", "toolkit/agent_cards/*.json"]
+hep_autoresearch = ["toolkit/agent_cards/*.json"]

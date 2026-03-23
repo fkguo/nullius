@@ -24,7 +24,7 @@ EOF
 
 python3 "${BIN_DIR}/refresh_research_contract.py" --root "${proj}" >/dev/null
 
-if ! rg -nF -- "Source notebook: \`research_notebook.md\`" "${proj}/research_contract.md" >/dev/null; then
+if ! rg -nF -- "Source notebook: [research_notebook.md](research_notebook.md)" "${proj}/research_contract.md" >/dev/null; then
   echo "ERROR: contract sync block missing source notebook marker" >&2
   exit 1
 fi

@@ -1,6 +1,6 @@
 # Beginner tutorial (English)
 
-This quickstart assumes you are using `hep-autoresearch` in an **external research project directory**. The package repo itself is a development repo, not the default place to run your day-to-day project.
+This quickstart assumes you are using `hep-autoresearch` in an **external research project directory**. The package repo itself is a development repo, not the default place to run your day-to-day project, and real-project intermediate outputs should not be routed back into the repo either.
 
 Lifecycle note: this tutorial describes the current usable **Pipeline A** Python CLI (`hep-autoresearch` / `hepar`). `meta/REDESIGN_PLAN.md` still plans to retire that surface once the TS orchestrator becomes the sole orchestrator authority, so treat this as current operational guidance for the transitional Python path rather than the long-term control-plane authority.
 
@@ -47,6 +47,7 @@ This creates a minimal project root with:
 - `docs/`, `specs/`
 
 After initialization, you can run `hep-autoresearch ...` from any subdirectory; the CLI searches upward for `.autoresearch/`.
+If you pass an explicit `HEP_DATA_DIR`, keep that directory outside the dev repo as well; public real-project flows now fail closed on repo-internal overrides.
 
 ## 3) Smoke test without external LLM calls
 

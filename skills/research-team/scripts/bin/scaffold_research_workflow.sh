@@ -8,11 +8,12 @@ FORCE=0
 SKIP_PREFLIGHT=0
 VARIANT="minimal"
 WITH_HEP_PROVIDER=0
+PROJECT_POLICY="real_project"
 
 usage() {
   cat <<'EOF'
 Usage:
-  scaffold_research_workflow.sh --root <project_root> --project <project_name> [--profile PROFILE] [--full] [--with-hep-provider] [--force] [--skip-prework]
+  scaffold_research_workflow.sh --root <project_root> --project <project_name> [--profile PROFILE] [--full] [--with-hep-provider] [--project-policy real_project|maintainer_fixture] [--force] [--skip-prework]
 
 Default behavior creates the canonical minimal project scaffold:
   - project_charter.md
@@ -46,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --full) VARIANT="full"; shift ;;
     --minimal) VARIANT="minimal"; shift ;;
     --with-hep-provider) WITH_HEP_PROVIDER=1; shift ;;
+    --project-policy) PROJECT_POLICY="${2:-}"; shift 2 ;;
     --force) FORCE=1; shift ;;
     --skip-prework) SKIP_PREFLIGHT=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -63,7 +65,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 ASSETS_DIR="${SKILL_ROOT}/assets"
-PY_SRC="${REPO_ROOT}/packages/hep-autoresearch/src"
+PROJECT_CONTRACTS_SRC="${REPO_ROOT}/packages/project-contracts/src"
+
+case "${PROJECT_POLICY}" in
+  real_project|maintainer_fixture) ;;
+  *)
+    echo "ERROR: invalid --project-policy: ${PROJECT_POLICY} (expected real_project|maintainer_fixture)" >&2
+    exit 2
+    ;;
+esac
 
 copy_template() {
   local src="$1"
@@ -91,12 +101,23 @@ PY
 }
 
 echo "[step] render canonical scaffold (${VARIANT})"
-PYTHONPATH="${PY_SRC}" python3 -m hep_autoresearch.toolkit.project_scaffold_cli \
-  --root "${ROOT}" \
-  --project "${PROJECT}" \
-  --profile "${PROFILE}" \
-  --variant "${VARIANT}" \
-  $([[ "${FORCE}" -eq 1 ]] && printf '%s' -- '--force')
+if [[ -d "${PROJECT_CONTRACTS_SRC}" ]]; then
+  PYTHONPATH="${PROJECT_CONTRACTS_SRC}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m project_contracts.project_scaffold_cli \
+    --root "${ROOT}" \
+    --project "${PROJECT}" \
+    --profile "${PROFILE}" \
+    --variant "${VARIANT}" \
+    --project-policy "${PROJECT_POLICY}" \
+    $([[ "${FORCE}" -eq 1 ]] && printf '%s' -- '--force')
+else
+  python3 -m project_contracts.project_scaffold_cli \
+    --root "${ROOT}" \
+    --project "${PROJECT}" \
+    --profile "${PROFILE}" \
+    --variant "${VARIANT}" \
+    --project-policy "${PROJECT_POLICY}" \
+    $([[ "${FORCE}" -eq 1 ]] && printf '%s' -- '--force')
+fi
 
 if [[ "${VARIANT}" != "full" ]]; then
   echo "[done] minimal scaffold created in: ${ROOT}"

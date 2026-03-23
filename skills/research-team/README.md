@@ -20,6 +20,8 @@ bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
   --full
 ```
 
+Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into `/home/user/Coding/Agents/autoresearch-lab`.
+
 If the project will actually use the HEP provider bundle, add `--with-hep-provider`; otherwise the default full scaffold stays host-local and does not precreate `.hep/` or enable the HEP workspace gate.
 
 2) Keep derivations in `research_notebook.md`, then refresh / maintain the machine-facing `research_contract.md`.
@@ -62,6 +64,8 @@ See:
 - Self-audit entrypoint (creates a local `skilldev/` workspace and runs preflight-only by default): `bash scripts/dev/run_skilldev_self_audit.sh`
 - Exploration debt dashboard (for projects that used `project_stage=exploration`): `python3 scripts/bin/exploration_debt_dashboard.py summary --team-dir team`
 - Realism regression (run preflight-only on registered real projects, snapshot-by-default): `bash scripts/dev/run_real_project_regression.sh`
+
+Maintainer note: repo-internal `skilldev/` and `.tmp/` directories are explicit maintainer fixtures only. They are valid for self-audit / regression snapshots, but they must not be treated as real project roots or as destinations for real-project outputs.
 
 ## Repository layout
 

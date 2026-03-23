@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
+from .project_contracts_bridge import load_project_contracts_module
 
 
-def scaffold_template_dir() -> Path:
-    return Path(__file__).resolve().parent.parent / "scaffold_templates"
+_module = load_project_contracts_module("scaffold_template_loader")
 
-
-def load_scaffold_template(name: str) -> str:
-    path = scaffold_template_dir() / name
-    if not path.is_file():
-        raise FileNotFoundError(f"scaffold template not found: {path}")
-    return path.read_text(encoding="utf-8")
+scaffold_template_dir = _module.scaffold_template_dir
+load_scaffold_template = _module.load_scaffold_template

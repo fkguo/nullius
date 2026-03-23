@@ -2,6 +2,7 @@
 
 This runbook is for diagnosing deterministic gate failures and rerunning the workflow cleanly.
 Agent-first note: paste a rerun command into your tool-using agent; run it manually only if you want local reproduction/debugging.
+All public real-project commands below assume the project root is outside `/home/user/Coding/Agents/autoresearch-lab`, and real-project outputs such as `team/` stay outside the dev repo as well. Repo-internal `skilldev/` / `.tmp/` paths are maintainer fixtures only.
 
 Where to start:
 - Skill entry (trigger-loaded, lean): `SKILL.md`
@@ -444,12 +445,14 @@ bash scripts/dev/run_all_smoke_tests.sh
 ```
 
 - One-shot self-audit (creates/refreshes a local `skilldev/` workspace and runs preflight-only by default):
+  - This is the explicit maintainer-fixture carve-out; it is not a normal real-project path.
 
 ```bash
 bash scripts/dev/run_skilldev_self_audit.sh
 ```
 
 - Realism regression (preflight-only on registered real projects; snapshot-by-default):
+  - Registry entries must point at external real project roots; repo-internal snapshots under `skilldev/regression/runs/` remain maintainer fixtures only.
 
 ```bash
 bash scripts/dev/run_real_project_regression.sh

@@ -271,6 +271,7 @@ PY
     --tag "${safe_tag}"
     --notes "${notes}"
     --out-dir "${out_dir}"
+    --project-policy "$([[ ${IN_PLACE} -eq 1 ]] && echo real_project || echo maintainer_fixture)"
     --member-a-system "${member_a_system}"
     --member-b-system "${member_b_system}"
   )

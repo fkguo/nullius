@@ -1,0 +1,17 @@
+from __future__ import annotations
+
+from .project_contracts_bridge import load_project_contracts_module
+
+
+_module = load_project_contracts_module("project_policy")
+
+PROJECT_POLICY_CHOICES = _module.PROJECT_POLICY_CHOICES
+PROJECT_POLICY_MAINTAINER_FIXTURE = _module.PROJECT_POLICY_MAINTAINER_FIXTURE
+PROJECT_POLICY_REAL_PROJECT = _module.PROJECT_POLICY_REAL_PROJECT
+assert_path_allowed = _module.assert_path_allowed
+assert_path_within_project = _module.assert_path_within_project
+assert_project_root_allowed = _module.assert_project_root_allowed
+dev_repo_root = _module.dev_repo_root
+maintainer_fixture_roots = _module.maintainer_fixture_roots
+resolve_user_path = _module.resolve_user_path
+validate_project_policy = _module.validate_project_policy

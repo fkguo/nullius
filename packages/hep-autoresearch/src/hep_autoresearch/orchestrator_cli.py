@@ -20,6 +20,7 @@ from .toolkit.artifact_report import write_artifact_report
 from .toolkit.context_pack import ContextPackInputs, build_context_pack
 from .toolkit.mcp_config import default_hep_data_dir, load_mcp_server_config, merged_env
 from .toolkit.mcp_stdio_client import McpStdioClient
+from .toolkit.project_policy import PROJECT_POLICY_REAL_PROJECT, assert_path_allowed, assert_project_root_allowed
 from .toolkit.kb_profile import write_kb_profile
 from .toolkit.project_scaffold import ensure_project_scaffold
 from .toolkit.project_surface import PROJECT_CHARTER
@@ -265,13 +266,20 @@ def cmd_init(args: argparse.Namespace) -> int:
             "refusing init: a parent directory is already a project root "
             f"({parent_root}); run init at the intended root, or pass --allow-nested"
         )
+    scaffold_root = repo_root
+    if not bool(getattr(args, "runtime_only", False)):
+        scaffold_root = assert_project_root_allowed(repo_root, project_policy=PROJECT_POLICY_REAL_PROJECT)
 
     with state_lock(repo_root):
         ensure_runtime_dirs(repo_root)
         scaffold = (
             {"created": [], "skipped": []}
             if bool(getattr(args, "runtime_only", False))
-            else ensure_project_scaffold(repo_root=repo_root, project_name=repo_root.name)
+            else ensure_project_scaffold(
+                repo_root=scaffold_root,
+                project_name=scaffold_root.name,
+                project_policy=PROJECT_POLICY_REAL_PROJECT,
+            )
         )
         st_path = state_path(repo_root)
         if st_path.exists() and not args.force:
@@ -3681,7 +3689,14 @@ def _mcp_config_path(repo_root: Path, args: argparse.Namespace) -> Path:
     return (repo_root / ".mcp.json").resolve()
 
 
-def _mcp_env(repo_root: Path, cfg_env: dict[str, str], args: argparse.Namespace, *, create_data_dir: bool) -> dict[str, str]:
+def _mcp_env(
+    repo_root: Path,
+    cfg_env: dict[str, str],
+    args: argparse.Namespace,
+    *,
+    create_data_dir: bool,
+    project_policy: str | None = None,
+) -> dict[str, str]:
     # Prefer explicit CLI override, then process env, else project-local default.
     hep_data_dir_arg = getattr(args, "hep_data_dir", None)
     env_data_dir: str | None = None
@@ -3704,6 +3719,8 @@ def _mcp_env(repo_root: Path, cfg_env: dict[str, str], args: argparse.Namespace,
     # Safety: avoid creating arbitrary directories outside the repo by default.
     if hep_data_dir.exists() and not hep_data_dir.is_dir():
         raise ValueError(f"HEP_DATA_DIR is not a directory: {hep_data_dir}")
+    if project_policy is not None and hep_data_dir_source in {"cli", "env"}:
+        assert_path_allowed(hep_data_dir, project_policy=project_policy, label="HEP_DATA_DIR")
 
     overrides = dict(cfg_env or {})
     if create_data_dir:
@@ -3994,7 +4011,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         return _die(f"failed to load MCP server config: {e}")
 
     try:
-        env = _mcp_env(repo_root, cfg.env, args, create_data_dir=False)
+        env = _mcp_env(repo_root, cfg.env, args, create_data_dir=False, project_policy=PROJECT_POLICY_REAL_PROJECT)
     except Exception as e:
         return _die(str(e))
 
@@ -4106,7 +4123,7 @@ def cmd_bridge(args: argparse.Namespace) -> int:
         # `_mcp_env` builds a *sanitized* environment for the MCP subprocess (allowlisted base env +
         # explicit overrides like HEP_DATA_DIR). Do not forward the full parent env (secret leakage risk).
         # See: toolkit/mcp_config.py `merged_env()` allowlist.
-        env = _mcp_env(repo_root, cfg.env, args, create_data_dir=True)
+        env = _mcp_env(repo_root, cfg.env, args, create_data_dir=True, project_policy=PROJECT_POLICY_REAL_PROJECT)
     except Exception as e:
         return _die(str(e))
 
@@ -4790,7 +4807,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
         return _die(f"failed to load MCP server config: {e}")
 
     try:
-        env = _mcp_env(repo_root, cfg.env, args, create_data_dir=True)
+        env = _mcp_env(repo_root, cfg.env, args, create_data_dir=True, project_policy=PROJECT_POLICY_REAL_PROJECT)
     except Exception as e:
         return _die(str(e))
 
@@ -6211,4 +6228,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        raise SystemExit(1)

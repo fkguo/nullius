@@ -5,6 +5,7 @@ TAG=""
 PACKET=""
 OUT_DIR="" # default set later
 NOTES=""
+PROJECT_POLICY="real_project"
 
 # Canonical naming is "Member A / Member B".
 MEMBER_A_SYSTEM=""
@@ -599,6 +600,7 @@ Options:
                               Also auto-enabled when TAG is malformed like M3-r1-r1-r1 (prevents tag explosion).
   --notes PATH                Optional. Primary notebook path. If provided and --packet is omitted, the script
                               auto-builds a team packet (and enforces all preflight gates).
+  --project-policy POLICY     Optional. real_project|maintainer_fixture (default: real_project).
   --member-a-system PATH      Required. Member A system prompt file.
   --member-b-system PATH      Required. Member B system prompt file.
   --member-b-runner-kind KIND Optional. gemini|claude|codex|auto (default: config member_b.runner_kind or gemini).
@@ -638,6 +640,7 @@ while [[ $# -gt 0 ]]; do
     --packet) PACKET="${2:-}"; shift 2 ;;
     --notes) NOTES="${2:-}"; shift 2 ;;
     --out-dir) OUT_DIR="${2:-}"; shift 2 ;;
+    --project-policy) PROJECT_POLICY="${2:-}"; shift 2 ;;
     --member-a-system) MEMBER_A_SYSTEM="${2:-}"; shift 2 ;;
     --member-b-system) MEMBER_B_SYSTEM="${2:-}"; shift 2 ;;
     --member-b-runner-kind) MEMBER_B_RUNNER_KIND="${2:-}"; MEMBER_B_RUNNER_KIND_FROM_CLI=1; shift 2 ;;
@@ -691,6 +694,14 @@ done
 if [[ -z "${OUT_DIR}" ]]; then
   OUT_DIR="team"
 fi
+
+case "${PROJECT_POLICY}" in
+  real_project|maintainer_fixture) ;;
+  *)
+    echo "ERROR: invalid --project-policy: ${PROJECT_POLICY} (expected real_project|maintainer_fixture)" >&2
+    exit 2
+    ;;
+esac
 
 if [[ ${SIDECAR_TIMEOUT_OVERRIDE_PROVIDED} -eq 1 ]]; then
   case "${SIDECAR_TIMEOUT_OVERRIDE}" in
@@ -796,6 +807,16 @@ SCRIPTS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILL_ROOT="$(cd "${SCRIPTS_DIR}/.." && pwd)"
 SKILLS_DIR="$(cd "${SKILL_ROOT}/.." && pwd)"
 GATES_DIR="${SCRIPTS_DIR}/gates"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+PROJECT_CONTRACTS_SRC="${REPO_ROOT}/packages/project-contracts/src"
+
+project_contracts_policy_cli() {
+  if [[ -d "${PROJECT_CONTRACTS_SRC}" ]]; then
+    PYTHONPATH="${PROJECT_CONTRACTS_SRC}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m project_contracts.project_policy_cli "$@"
+    return
+  fi
+  python3 -m project_contracts.project_policy_cli "$@"
+}
 
 CAPSULE_CHECK_SCRIPT="${GATES_DIR}/check_reproducibility_capsule.py"
 PLAN_GATE_SCRIPT="${GATES_DIR}/check_research_plan.py"
@@ -885,6 +906,13 @@ if [[ -f "${CAPSULE_CHECK_SCRIPT}" ]]; then
   if [[ -n "${TEAM_CONFIG_FILE}" ]]; then
     export RESEARCH_TEAM_CONFIG="${TEAM_CONFIG_FILE}"
   fi
+  PROJECT_ROOT="$(cd "$(dirname "${NOTEBOOK_PATH}")" && pwd)"
+  project_contracts_policy_cli assert-run-paths \
+    --project-root "${PROJECT_ROOT}" \
+    --notes "${NOTEBOOK_PATH}" \
+    --out-dir "${OUT_DIR}" \
+    --project-policy "${PROJECT_POLICY}" \
+    --resolve-from "$(pwd)" >/dev/null
 
   set +e
   python3 "${CAPSULE_CHECK_SCRIPT}" --notes "${NOTEBOOK_PATH}"
