@@ -4427,8 +4427,7 @@ def cmd_bridge(args: argparse.Namespace) -> int:
 def _extract_field_survey_recids(payload: object, *, max_recids: int) -> list[str]:
     """Best-effort recid extraction from field-survey style output.
 
-    Expected source today is `inspire_research_navigator(mode='field_survey')`, while older MCP
-    servers may still expose `inspire_field_survey` with compatible sections.
+    Expected source today is `inspire_field_survey`.
     """
     out: list[str] = []
 
@@ -4942,12 +4941,9 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
                 tool_names = {t.name for t in tools}
                 mcp_tools = sorted(tool_names)
 
-                has_navigator = "inspire_research_navigator" in tool_names
-                has_legacy = "inspire_field_survey" in tool_names
-                if not has_navigator and not has_legacy:
+                if "inspire_field_survey" not in tool_names:
                     return _die(
-                        "MCP server missing tools for literature-gap discover: "
-                        "need inspire_research_navigator (preferred) or inspire_field_survey (legacy)"
+                        "MCP server missing tools for literature-gap discover: need inspire_field_survey"
                     )
 
                 fs_args: dict[str, Any] = {
@@ -4966,32 +4962,12 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
                 if seed_recid:
                     fs_args["seed_recid"] = seed_recid
 
-                if has_navigator:
-                    nav_args: dict[str, Any] = {
-                        "mode": "field_survey",
-                        "topic": topic,
-                        "iterations": int(getattr(args, "iterations", 2) or 2),
-                        "limit": int(getattr(args, "max_papers", 40) or 40),
-                        "prefer_journal": bool(getattr(args, "prefer_journal", False)),
-                    }
-                    if focus_terms:
-                        nav_args["focus"] = list(focus_terms)
-                    if seed_recid:
-                        nav_args["seed_recid"] = seed_recid
-
-                    fs = client.call_tool_json(tool_name="inspire_research_navigator", arguments=nav_args, timeout_seconds=300.0)
-                    field_ok = bool(fs.ok)
-                    _record("inspire_research_navigator", "ok" if fs.ok else "error", mode="field_survey")
-                    if not fs.ok:
-                        errors.append(f"inspire_research_navigator(field_survey): {fs.raw_text or '(error)'}")
-                    field_json = fs.json
-                else:
-                    fs = client.call_tool_json(tool_name="inspire_field_survey", arguments=fs_args, timeout_seconds=300.0)
-                    field_ok = bool(fs.ok)
-                    _record("inspire_field_survey", "ok" if fs.ok else "error", legacy_fallback=True)
-                    if not fs.ok:
-                        errors.append(f"inspire_field_survey: {fs.raw_text or '(error)'}")
-                    field_json = fs.json
+                fs = client.call_tool_json(tool_name="inspire_field_survey", arguments=fs_args, timeout_seconds=300.0)
+                field_ok = bool(fs.ok)
+                _record("inspire_field_survey", "ok" if fs.ok else "error")
+                if not fs.ok:
+                    errors.append(f"inspire_field_survey: {fs.raw_text or '(error)'}")
+                field_json = fs.json
 
                 if isinstance(field_json, dict):
                     schema_issues = _validate_field_survey_schema(field_json)
@@ -5214,55 +5190,33 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
             tool_names = {t.name for t in tools}
             mcp_tools = sorted(tool_names)
 
-            has_navigator = "inspire_research_navigator" in tool_names
-            has_topic_legacy = "inspire_topic_analysis" in tool_names
-            has_network_legacy = "inspire_network_analysis" in tool_names
             has_critical = "inspire_critical_research" in tool_names
 
             missing_tools: list[str] = []
             if not has_critical:
                 missing_tools.append("inspire_critical_research")
-            if not has_navigator and not has_topic_legacy:
-                missing_tools.append("inspire_research_navigator(mode=topic_analysis) or inspire_topic_analysis")
-            if not has_navigator and not has_network_legacy:
-                missing_tools.append("inspire_research_navigator(mode=network) or inspire_network_analysis")
+            if "inspire_topic_analysis" not in tool_names:
+                missing_tools.append("inspire_topic_analysis")
+            if "inspire_network_analysis" not in tool_names:
+                missing_tools.append("inspire_network_analysis")
             if missing_tools:
                 return _die("MCP server missing tools for literature-gap analyze: " + ", ".join(missing_tools))
 
             topic_mode = str(getattr(args, "topic_mode", "timeline") or "timeline").strip()
-            if has_navigator:
-                ta = client.call_tool_json(
-                    tool_name="inspire_research_navigator",
-                    arguments={
-                        "mode": "topic_analysis",
-                        "topic": topic,
-                        "topic_mode": topic_mode,
-                        "limit": int(getattr(args, "topic_limit", 40) or 40),
-                        "topic_options": {
-                            "granularity": str(getattr(args, "topic_granularity", "5year") or "5year")
-                        },
-                    },
-                    timeout_seconds=180.0,
-                )
-                _record("inspire_research_navigator", "ok" if ta.ok else "error", mode="topic_analysis")
-                if not ta.ok:
-                    errors.append(f"inspire_research_navigator(topic_analysis): {ta.raw_text or '(error)'}")
-                topic_json = ta.json
-            else:
-                ta = client.call_tool_json(
-                    tool_name="inspire_topic_analysis",
-                    arguments={
-                        "mode": topic_mode,
-                        "topic": topic,
-                        "limit": int(getattr(args, "topic_limit", 40) or 40),
-                        "options": {"granularity": str(getattr(args, "topic_granularity", "5year") or "5year")},
-                    },
-                    timeout_seconds=180.0,
-                )
-                _record("inspire_topic_analysis", "ok" if ta.ok else "error", legacy_fallback=True)
-                if not ta.ok:
-                    errors.append(f"inspire_topic_analysis: {ta.raw_text or '(error)'}")
-                topic_json = ta.json
+            ta = client.call_tool_json(
+                tool_name="inspire_topic_analysis",
+                arguments={
+                    "mode": topic_mode,
+                    "topic": topic,
+                    "limit": int(getattr(args, "topic_limit", 40) or 40),
+                    "options": {"granularity": str(getattr(args, "topic_granularity", "5year") or "5year")},
+                },
+                timeout_seconds=180.0,
+            )
+            _record("inspire_topic_analysis", "ok" if ta.ok else "error")
+            if not ta.ok:
+                errors.append(f"inspire_topic_analysis: {ta.raw_text or '(error)'}")
+            topic_json = ta.json
 
             critical_mode = str(getattr(args, "critical_mode", "analysis") or "analysis").strip()
             cr = client.call_tool_json(
@@ -5284,51 +5238,30 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
                 "in": "citations",
                 "out": "refs",
             }
-            network_direction_nav = direction_map.get(network_direction_cli, "both")
+            network_direction_tool = direction_map.get(network_direction_cli, "both")
 
-            if has_navigator:
-                na = client.call_tool_json(
-                    tool_name="inspire_research_navigator",
-                    arguments={
-                        "mode": "network",
-                        "network_mode": network_mode,
-                        "seed": seed,
-                        "limit": int(getattr(args, "network_limit", 80) or 80),
-                        "network_options": {
-                            "depth": int(getattr(args, "network_depth", 1) or 1),
-                            "direction": network_direction_nav,
-                        },
+            na = client.call_tool_json(
+                tool_name="inspire_network_analysis",
+                arguments={
+                    "mode": network_mode,
+                    "seed": seed,
+                    "limit": int(getattr(args, "network_limit", 80) or 80),
+                    "options": {
+                        "depth": int(getattr(args, "network_depth", 1) or 1),
+                        "direction": network_direction_tool,
                     },
-                    timeout_seconds=300.0,
-                )
-                _record(
-                    "inspire_research_navigator",
-                    "ok" if na.ok else "error",
-                    mode="network",
-                    network_direction_cli=network_direction_cli,
-                    network_direction_nav=network_direction_nav,
-                )
-                if not na.ok:
-                    errors.append(f"inspire_research_navigator(network): {na.raw_text or '(error)'}")
-                network_json = na.json
-            else:
-                na = client.call_tool_json(
-                    tool_name="inspire_network_analysis",
-                    arguments={
-                        "mode": network_mode,
-                        "seed": seed,
-                        "limit": int(getattr(args, "network_limit", 80) or 80),
-                        "options": {
-                            "depth": int(getattr(args, "network_depth", 1) or 1),
-                            "direction": network_direction_cli,
-                        },
-                    },
-                    timeout_seconds=300.0,
-                )
-                _record("inspire_network_analysis", "ok" if na.ok else "error", legacy_fallback=True)
-                if not na.ok:
-                    errors.append(f"inspire_network_analysis: {na.raw_text or '(error)'}")
-                network_json = na.json
+                },
+                timeout_seconds=300.0,
+            )
+            _record(
+                "inspire_network_analysis",
+                "ok" if na.ok else "error",
+                network_direction_cli=network_direction_cli,
+                network_direction_tool=network_direction_tool,
+            )
+            if not na.ok:
+                errors.append(f"inspire_network_analysis: {na.raw_text or '(error)'}")
+            network_json = na.json
     except Exception as e:
         errors.append(f"exception: {e}")
 

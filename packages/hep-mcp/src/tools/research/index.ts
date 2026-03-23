@@ -22,20 +22,6 @@ export {
 } from './timeline.js';
 
 export {
-  findExperts,
-  type FindExpertsParams,
-  type FindExpertsResult,
-  type Expert,
-} from './experts.js';
-
-// Phase 2 Deep Research Tools
-export {
-  analyzePapers,
-  type AnalyzePapersParams,
-  type CollectionAnalysis,
-} from './analyzePapers.js';
-
-export {
   findConnections,
   type FindConnectionsParams,
   type ConnectionsResult,

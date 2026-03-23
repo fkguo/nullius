@@ -341,34 +341,27 @@ interface ToolSpec {
 }
 ```
 
-### 6.1.1 Phase 2：导航门面收敛（Facade Consolidation）
+### 6.1.1 Phase 2：导航门面收敛（历史态，已被 M-24 supersede）
 
-- 旧的分散工具 `inspire_discover_papers` / `inspire_field_survey` / `inspire_topic_analysis` / `inspire_network_analysis` 在 Phase 2 已收敛为单一门面：`inspire_research_navigator`
-- 门面以 `mode` 分派能力：
-  - `discover`（原 paper discovery）
-  - `field_survey`（原 field survey）
-  - `topic_analysis`（原 topic analysis）
-  - `network`（原 network analysis）
-- 影响范围：
-  - 工具面数量在 Phase 2 边界从 `standard/full = 73/85` 收敛到 `70/82`（后续 Phase 4 新增 quality-core 工具后当前为 `71/83`）
-  - 文档与调用示例统一改为 `inspire_research_navigator(mode=...)`
-  - ToolSpec 元数据（`intent` / `maturity`）用于描述该门面工具的语义角色与生命周期
+- Phase 2 曾将 `inspire_discover_papers` / `inspire_field_survey` / `inspire_topic_analysis` / `inspire_network_analysis` 临时收敛为单一门面 `inspire_research_navigator`
+- 该设计在当时降低了 tool 数量，但也把大量 mode-specific 无效参数暴露到统一公开 schema 顶层
+- **Superseded (2026-03-23, M-24)**：当前公开 truth 已不再使用这个 facade；保留这里只是记录历史阶段，而不是现行接口建议
 
-### 6.1.2 Phase 3：导航扩展 + LaTeX 解析独立（Facade Expansion + Parse Split）
+### 6.1.2 当前公开 surface：专用导航工具 + 独立 LaTeX 解析
 
-- 在保持 Phase 3 边界工具总数基线 `standard/full = 70/82` 不变的前提下，完成导航能力扩展与工具职责拆分（当前基线为 `71/83`）：
-  - `inspire_research_navigator` 模式扩展为：
-    - `discover` / `field_survey` / `topic_analysis` / `network`
-    - `experts` / `connections` / `trace_source` / `analyze`（兼容分析路径）
-  - 旧的 advanced 聚合中的 LaTeX parse 子模式从导航/聚合语义中剥离，独立为 `inspire_parse_latex`
-- `inspire_parse_latex` 采用 Evidence-first 语义：
+- 当前标准公开面恢复为 dedicated first-class tools：
+  - `inspire_discover_papers`
+  - `inspire_field_survey`
+  - `inspire_topic_analysis`
+  - `inspire_network_analysis`
+  - `inspire_find_connections`
+  - `inspire_trace_original_source`
+- `experts` / `analyze` 公开入口已移除；不再保留 `inspire_research_navigator`
+- 设计目标从“最少工具数”转为“让 MCP client 看到干净、语义清晰、无顶层无效参数暴露的 object schema”
+- `inspire_parse_latex` 继续保持独立 Evidence-first 语义：
   - 入参必须包含 `run_id`
   - 产物写入 `parse_latex_<hash>.json`（run artifact）
   - tool result 仅返回 `uri + summary`
-- 影响范围：
-  - 工具门面说明与调用示例同步到 Phase 3 模式集合
-  - 文档中移除 legacy advanced parse 入口的 active 引导
-  - 与 vNext artifacts/resources 约束对齐（run-scoped parsing outputs）
 
 ### 6.2 调度流程
 
@@ -673,6 +666,7 @@ body: {
 
 | 日期 | 变更 | 作者 |
 |------|------|------|
+| 2026-03-23 | M-24：删除 `inspire_research_navigator`，恢复 dedicated discovery/survey/topic/network/connections/trace tool surface；移除 `experts` / `analyze` 公开入口；tool counts updated to `72/100`. | AI Agent |
 | 2026-02-12 | Phase 4（4.10）首轮落地：dispatcher 对 run-scoped 结果统一补充 `job` envelope（`job_id=run_id`、`status_uri=hep://runs/{run_id}/manifest`、`polling.strategy=manifest_resource`），以统一 Skill↔MCP 长任务轮询语义；失败语义保持 `INVALID_PARAMS + next_actions`。 | AI Agent |
 | 2026-02-12 | Phase 4（4.1/4.9）落地：`inspire_validate_bibliography` 改为 usability-first（manual-only 默认 + 非阻断 warning + 可选 INSPIRE 交叉验证）；新增 opt-in 工具调用遥测（dispatcher 记录 + `hep_health.telemetry` 暴露）。 | AI Agent |
 | 2026-02-12 | Phase 4（4.5/4.7/4.8/4.11）落地：Zotero find/search 内部桥接统一读路径；PDG 文档强调版本透明化而非新鲜度裁决；新增 Skill↔MCP 与 Style Corpus 对齐文档；中英文档语言策略同步。 | AI Agent |

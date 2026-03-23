@@ -186,7 +186,7 @@ class TestLiteratureGapCLI(unittest.TestCase):
             self.assertNotEqual(rc2, 0, msg=out2 + err2)
             self.assertIn("seed_selection contains recids not present in candidates.json", out2 + err2)
 
-    def test_literature_gap_discover_prefers_navigator_when_available(self) -> None:
+    def test_literature_gap_discover_uses_field_survey_tool(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
             _write_stub_mcp_config(repo_root)
@@ -200,28 +200,19 @@ class TestLiteratureGapCLI(unittest.TestCase):
             actions = gap.get("agent_actions") or []
             self.assertTrue(actions)
             first = actions[0] if isinstance(actions[0], dict) else {}
-            self.assertEqual(first.get("tool"), "inspire_research_navigator")
-            self.assertEqual(first.get("mode"), "field_survey")
+            self.assertEqual(first.get("tool"), "inspire_field_survey")
 
-    def test_literature_gap_discover_falls_back_to_legacy_when_navigator_missing(self) -> None:
+    def test_literature_gap_discover_fails_closed_when_field_survey_missing(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            _write_stub_mcp_config(repo_root, extra_env={"MCP_STUB_DISABLE_NAVIGATOR": "1"})
+            _write_stub_mcp_config(repo_root, extra_env={"MCP_STUB_DISABLE_FIELD_SURVEY": "1"})
 
-            tag = "M73-gap-discover-legacy-fallback"
+            tag = "M73-gap-discover-missing-field-survey"
             rc, out, err = _run_cli(repo_root, ["literature-gap", "--tag", tag, "--topic", "test topic"])
-            self.assertEqual(rc, 0, msg=out + err)
+            self.assertNotEqual(rc, 0, msg=out + err)
+            self.assertIn("need inspire_field_survey", out + err)
 
-            out_dir = repo_root / "artifacts" / "runs" / tag / "literature_gap" / "discover"
-            gap = json.loads((out_dir / "gap_report.json").read_text(encoding="utf-8"))
-            actions = [a for a in (gap.get("agent_actions") or []) if isinstance(a, dict)]
-            self.assertTrue(actions)
-            first = actions[0]
-            self.assertEqual(first.get("tool"), "inspire_field_survey")
-            self.assertEqual(first.get("legacy_fallback"), True)
-            self.assertTrue(all(a.get("tool") != "inspire_research_navigator" for a in actions))
-
-    def test_literature_gap_analyze_prefers_navigator_topic_and_network(self) -> None:
+    def test_literature_gap_analyze_uses_topic_and_network_tools(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
             _write_stub_mcp_config(repo_root)
@@ -257,12 +248,44 @@ class TestLiteratureGapCLI(unittest.TestCase):
             out_dir = repo_root / "artifacts" / "runs" / tag / "literature_gap" / "analyze"
             gap = json.loads((out_dir / "gap_report.json").read_text(encoding="utf-8"))
             actions = [a for a in (gap.get("agent_actions") or []) if isinstance(a, dict)]
-            topic_actions = [a for a in actions if a.get("tool") == "inspire_research_navigator" and a.get("mode") == "topic_analysis"]
-            network_actions = [a for a in actions if a.get("tool") == "inspire_research_navigator" and a.get("mode") == "network"]
+            topic_actions = [a for a in actions if a.get("tool") == "inspire_topic_analysis"]
+            network_actions = [a for a in actions if a.get("tool") == "inspire_network_analysis"]
             self.assertTrue(topic_actions, msg=str(actions))
             self.assertTrue(network_actions, msg=str(actions))
             self.assertEqual(network_actions[0].get("network_direction_cli"), "in")
-            self.assertEqual(network_actions[0].get("network_direction_nav"), "citations")
+            self.assertEqual(network_actions[0].get("network_direction_tool"), "citations")
+
+    def test_literature_gap_analyze_fails_closed_when_topic_tool_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo_root = Path(td)
+            _write_stub_mcp_config(repo_root, extra_env={"MCP_STUB_DISABLE_TOPIC_ANALYSIS": "1"})
+
+            tag = "M73-gap-analyze-missing-topic-tool"
+            rc, out, err = _run_cli(repo_root, ["literature-gap", "--tag", tag, "--topic", "test topic"])
+            self.assertEqual(rc, 0, msg=out + err)
+
+            seed_path = repo_root / "seed_selection.json"
+            seed = {
+                "schema_version": 1,
+                "selection_logic": "Test selection for missing tool path.",
+                "items": [{"recid": "1001", "reason_for_inclusion": "Seminal."}],
+            }
+            seed_path.write_text(json.dumps(seed, indent=2) + "\n", encoding="utf-8")
+
+            rc2, out2, err2 = _run_cli(
+                repo_root,
+                [
+                    "literature-gap",
+                    "--phase",
+                    "analyze",
+                    "--tag",
+                    tag,
+                    "--seed-selection",
+                    "seed_selection.json",
+                ],
+            )
+            self.assertNotEqual(rc2, 0, msg=out2 + err2)
+            self.assertIn("inspire_topic_analysis", out2 + err2)
 
     def test_literature_gap_analyze_without_discover_fails(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -1,4 +1,4 @@
-# Tool Categories（standard=67 / full=95）
+# Tool Categories（standard=72 / full=100）
 
 本文件把 `hep-mcp` 的 **standard 暴露**工具按"场景/闭环"分组，目的是让你不必理解全部工具，也能快速完成闭环。
 
@@ -18,14 +18,12 @@
 | 获取单篇论文元数据/引用/被引 | `inspire_literature` | 原子化访问 |
 | 深度分析论文集 | `inspire_deep_research` (`mode=analyze`) | |
 | 文献综述 | `inspire_deep_research` (`mode=synthesize`) | |
-| 发现奠基性/相关论文 | `inspire_research_navigator` (`mode=discover`) | 子模式: `seminal/related/expansion/survey`（`discover_mode`） |
-| 物理学家式文献调研 | `inspire_research_navigator` (`mode=field_survey`) | reviews → seminal → expansion → controversies |
-| 主题时间线/趋势/新兴方向 | `inspire_research_navigator` (`mode=topic_analysis`) | 子模式: `timeline/evolution/emerging/all`（`topic_mode`） |
-| 引用/合作网络分析 | `inspire_research_navigator` (`mode=network`) | 子模式: `citation/collaboration`（`network_mode`） |
-| 识别领域专家 | `inspire_research_navigator` (`mode=experts`) | 输入 `topic`；可用 `format=markdown` |
-| 发现跨论文关联 | `inspire_research_navigator` (`mode=connections`) | 输入 `seed` 或 `seed_recids` |
-| 追溯原始来源链 | `inspire_research_navigator` (`mode=trace_source`) | 输入 `seed`（或单个 `seed_recids`） |
-| 论文集画像分析（兼容路径） | `inspire_research_navigator` (`mode=analyze`) | 输入 `recids` / `seed_recids` / `seed` + `analysis_type` |
+| 发现奠基性/相关论文 | `inspire_discover_papers` | 模式: `seminal/related/expansion/survey` |
+| 物理学家式文献调研 | `inspire_field_survey` | reviews → seminal → expansion → controversies |
+| 主题时间线/趋势/新兴方向 | `inspire_topic_analysis` | 模式: `timeline/evolution/emerging/all` |
+| 引用/合作网络分析 | `inspire_network_analysis` | 模式: `citation/collaboration` |
+| 发现跨论文关联 | `inspire_find_connections` | 输入 `recids`；可选 external hubs |
+| 追溯原始来源链 | `inspire_trace_original_source` | 输入 `recid` |
 | 证据质量/冲突分析 | `inspire_critical_research` | 模式: `evidence/conflicts/analysis/reviews/theoretical` |
 | 下载论文源码 (LaTeX/PDF) | `inspire_paper_source` (`mode=content`) | |
 | LaTeX 结构解析 | `inspire_parse_latex` | 需 `run_id`；返回 artifact URI + summary |
@@ -38,7 +36,7 @@
 
 **"我想写一篇关于 X 的综述论文"**
 1. `inspire_search` 搜索领域
-2. `inspire_research_navigator(mode='field_survey')` 文献调研
+2. `inspire_field_survey` 文献调研
 3. `hep_project_create` + `hep_run_create`
 4. `hep_run_build_writing_evidence` 构建证据
 5. `inspire_deep_research(mode='synthesize')` 综合分析
@@ -53,7 +51,7 @@
 **"我想找到某个测量值的历史"**
 1. `pdg_find_particle` 查找粒子
 2. `pdg_get_measurements` 获取测量历史
-3. `inspire_research_navigator(mode='topic_analysis', topic_mode='timeline')` 查看研究时间线
+3. `inspire_topic_analysis(mode='timeline')` 查看研究时间线
 
 ## A) Core 闭环（Project/Run + Evidence-first）
 
@@ -129,7 +127,12 @@
 - `inspire_resolve_citekey`
 - `inspire_paper_source`
 - `inspire_parse_latex`
-- `inspire_research_navigator`
+- `inspire_discover_papers`
+- `inspire_field_survey`
+- `inspire_topic_analysis`
+- `inspire_network_analysis`
+- `inspire_find_connections`
+- `inspire_trace_original_source`
 - `inspire_critical_research`
 - `inspire_deep_research`
 

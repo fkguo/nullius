@@ -23,9 +23,9 @@ A research session progresses through these stages:
 
 **Recommended tools**:
 - `inspire_search` — broad keyword survey
-- `inspire_research_navigator(mode=discover)` — topic discovery
-- `inspire_research_navigator(mode=field_survey)` — landscape mapping
-- `inspire_research_navigator(mode=topic_analysis)` — trend analysis
+- `inspire_discover_papers` — topic discovery
+- `inspire_field_survey` — landscape mapping
+- `inspire_topic_analysis` — trend analysis
 
 **Typical flow**:
 1. User describes interest → Agent identifies relevant keywords
@@ -43,8 +43,9 @@ A research session progresses through these stages:
 - `inspire_search` / `inspire_search_next` — targeted queries
 - `inspire_literature(mode=get_references)` — reference chains
 - `inspire_literature(mode=get_citations)` — forward citations
-- `inspire_research_navigator(mode=network)` — citation networks
-- `inspire_research_navigator(mode=experts)` — key researchers
+- `inspire_network_analysis` — citation networks
+- `inspire_find_connections` — paper-set relationship mining
+- `inspire_trace_original_source` — provenance tracing
 - `inspire_deep_research(mode=analyze)` — deep paper analysis
 - `inspire_critical_research(mode=evidence)` — evidence grading
 - `inspire_critical_research(mode=conflicts)` — measurement conflicts

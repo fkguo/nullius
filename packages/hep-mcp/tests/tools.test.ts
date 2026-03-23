@@ -65,14 +65,6 @@ vi.mock('../src/tools/research/parseLatexContent.js', () => ({
   parseLatexContent: vi.fn(),
 }));
 
-vi.mock('../src/tools/research/experts.js', () => ({
-  findExperts: vi.fn(),
-}));
-
-vi.mock('../src/tools/research/analyzePapers.js', () => ({
-  analyzePapers: vi.fn(),
-}));
-
 vi.mock('../src/tools/research/findConnections.js', () => ({
   findConnections: vi.fn(),
 }));
@@ -122,8 +114,6 @@ const arxivTooling = await import('@autoresearch/arxiv-mcp/tooling');
 const deepResearch = await import('../src/tools/research/deepResearch.js');
 const fieldSurvey = await import('../src/tools/research/fieldSurvey.js');
 const parseLatexContent = await import('../src/tools/research/parseLatexContent.js');
-const experts = await import('../src/tools/research/experts.js');
-const analyzePapers = await import('../src/tools/research/analyzePapers.js');
 const findConnections = await import('../src/tools/research/findConnections.js');
 const traceSource = await import('../src/tools/research/traceSource.js');
 const crossoverTopics = await import('../src/tools/research/crossoverTopics.js');
@@ -486,52 +476,38 @@ describe('Tool Handlers (current exposure)', () => {
   });
 
   // Consolidated tools (Tier 2)
-  it('inspire_research_navigator(topic_analysis) should call analyzeTopicUnified', async () => {
+  it('inspire_topic_analysis should call analyzeTopicUnified', async () => {
     vi.mocked(topicAnalysis.analyzeTopicUnified).mockResolvedValueOnce({ ok: true } as any);
-    const res = await handleToolCall('inspire_research_navigator', {
-      mode: 'topic_analysis',
+    const res = await handleToolCall('inspire_topic_analysis', {
       topic: 'qcd',
-      topic_mode: 'timeline',
+      mode: 'timeline',
     });
     expect(topicAnalysis.analyzeTopicUnified).toHaveBeenCalled();
     expect(res.isError).toBeFalsy();
   });
 
-  it('inspire_research_navigator(discover) should call discoverPapers', async () => {
+  it('inspire_discover_papers should call discoverPapers', async () => {
     vi.mocked(discoverPapers.discoverPapers).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_research_navigator', {
-      mode: 'discover',
-      discover_mode: 'seminal',
+    await handleToolCall('inspire_discover_papers', {
+      mode: 'seminal',
       topic: 'qcd',
     });
     expect(discoverPapers.discoverPapers).toHaveBeenCalled();
   });
 
-  it('inspire_research_navigator(network) should call analyzeNetwork', async () => {
+  it('inspire_network_analysis should call analyzeNetwork', async () => {
     vi.mocked(networkAnalysis.analyzeNetwork).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_research_navigator', {
-      mode: 'network',
-      network_mode: 'citation',
+    await handleToolCall('inspire_network_analysis', {
+      mode: 'citation',
       seed: '123',
     });
     expect(networkAnalysis.analyzeNetwork).toHaveBeenCalled();
   });
 
-  it('inspire_research_navigator(experts) should call findExperts', async () => {
-    vi.mocked(experts.findExperts).mockResolvedValueOnce({ topic: 'qcd', experts: [] } as any);
-    await handleToolCall('inspire_research_navigator', {
-      mode: 'experts',
-      topic: 'qcd',
-      limit: 5,
-    });
-    expect(experts.findExperts).toHaveBeenCalledWith({ topic: 'qcd', limit: 5 });
-  });
-
-  it('inspire_research_navigator(connections) should call findConnections', async () => {
+  it('inspire_find_connections should call findConnections', async () => {
     vi.mocked(findConnections.findConnections).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_research_navigator', {
-      mode: 'connections',
-      seed_recids: ['1', '2'],
+    await handleToolCall('inspire_find_connections', {
+      recids: ['1', '2'],
       include_external: true,
       max_external_depth: 2,
     });
@@ -542,11 +518,10 @@ describe('Tool Handlers (current exposure)', () => {
     });
   });
 
-  it('inspire_research_navigator(trace_source) should call traceOriginalSource', async () => {
+  it('inspire_trace_original_source should call traceOriginalSource', async () => {
     vi.mocked(traceSource.traceOriginalSource).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_research_navigator', {
-      mode: 'trace_source',
-      seed: '1',
+    await handleToolCall('inspire_trace_original_source', {
+      recid: '1',
       max_depth: 3,
       max_refs_per_level: 2,
       cross_validate: true,
@@ -557,16 +532,6 @@ describe('Tool Handlers (current exposure)', () => {
       max_refs_per_level: 2,
       cross_validate: true,
     });
-  });
-
-  it('inspire_research_navigator(analyze) should call analyzePapers', async () => {
-    vi.mocked(analyzePapers.analyzePapers).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_research_navigator', {
-      mode: 'analyze',
-      recids: ['1'],
-      analysis_type: ['overview'],
-    });
-    expect(analyzePapers.analyzePapers).toHaveBeenCalledWith({ recids: ['1'], analysis_type: ['overview'] });
   });
 
   it('inspire_critical_research should call performCriticalResearch', async () => {
@@ -601,9 +566,9 @@ describe('Tool Handlers (current exposure)', () => {
     expect(deepResearch.performDeepResearch).toHaveBeenCalled();
   });
 
-  it('inspire_research_navigator(field_survey) should call performFieldSurvey', async () => {
+  it('inspire_field_survey should call performFieldSurvey', async () => {
     vi.mocked(fieldSurvey.performFieldSurvey).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_research_navigator', { mode: 'field_survey', topic: 'qcd' });
+    await handleToolCall('inspire_field_survey', { topic: 'qcd' });
     expect(fieldSurvey.performFieldSurvey).toHaveBeenCalled();
   });
 

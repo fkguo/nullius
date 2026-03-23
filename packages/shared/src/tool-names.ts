@@ -10,7 +10,12 @@
 
 export const INSPIRE_SEARCH = 'inspire_search' as const;
 export const INSPIRE_SEARCH_NEXT = 'inspire_search_next' as const;
-export const INSPIRE_RESEARCH_NAVIGATOR = 'inspire_research_navigator' as const;
+export const INSPIRE_DISCOVER_PAPERS = 'inspire_discover_papers' as const;
+export const INSPIRE_FIELD_SURVEY = 'inspire_field_survey' as const;
+export const INSPIRE_TOPIC_ANALYSIS = 'inspire_topic_analysis' as const;
+export const INSPIRE_NETWORK_ANALYSIS = 'inspire_network_analysis' as const;
+export const INSPIRE_FIND_CONNECTIONS = 'inspire_find_connections' as const;
+export const INSPIRE_TRACE_ORIGINAL_SOURCE = 'inspire_trace_original_source' as const;
 export const INSPIRE_DEEP_RESEARCH = 'inspire_deep_research' as const;
 
 // ── INSPIRE Literature Access & Analysis ────────────────────────────────────

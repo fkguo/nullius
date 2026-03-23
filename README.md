@@ -22,7 +22,7 @@ Autoresearch Lab is the monorepo/workbench for the Autoresearch ecosystem: a dom
 | Package | Role | Status |
 | --- | --- | --- |
 | `@autoresearch/orchestrator` | Runtime/control-plane nucleus for `.autoresearch` state, routing, approvals, and research-loop execution | Active |
-| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (67 std / 95) | Active |
+| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (72 std / 100) | Active |
 | `@autoresearch/openalex-mcp` | Standalone OpenAlex scholarly graph provider | Active |
 | `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | Literature/data providers composable with the ecosystem runtime | Active |
 | `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | Local offline/reference providers | Active |
@@ -63,7 +63,7 @@ The most mature provider surface in this repo today is the HEP-first local-first
 ### 2. Navigate the literature (INSPIRE)
 
 - Search with safe pagination (`inspire_search` + `inspire_search_next`) or export large result sets (`hep_inspire_search_export`)
-- Discover, map, and trace a field: `inspire_research_navigator(mode=discover|field_survey|topic_analysis|network|experts|connections|trace_source|analyze)`
+- Discover, map, and trace a field: `inspire_discover_papers`, `inspire_field_survey`, `inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`
 - (Optional) Cross-check particle properties/measurements via offline PDG tools (`pdg_*`)
 
 ### 3. Run-based writing and export
@@ -84,7 +84,7 @@ The AI will automatically:
 1. Search related literature → Identify seminal papers
 2. Build citation network → Find core papers
 3. Generate research timeline → Show development trajectory
-4. Identify domain experts → Recommend key authors
+4. Identify bridge papers and provenance roots → Recommend what to read next
 
 ### Scenario B: Deep Analysis of Papers
 
@@ -148,9 +148,13 @@ BAI (INSPIRE author identifier) is a stable disambiguation key like `E.Witten.1`
 ```
 Pick paper `recid` values from the `IDs:` line for downstream calls.
 
-3. Summarize the portfolio (timeline/topics/citations over the selected recids via `inspire_research_navigator(mode=analyze)`)
+3. Summarize the portfolio with dedicated tools (`inspire_topic_analysis` for field evolution + `inspire_find_connections` for paper-set structure)
 ```json
-{ "mode": "analyze", "recids": ["1234567", "2345678"], "analysis_type": ["overview", "timeline", "topics"] }
+{ "mode": "timeline", "topic": "conformal bootstrap", "limit": 25 }
+```
+
+```json
+{ "recids": ["1234567", "2345678"], "include_external": true, "max_external_depth": 1 }
 ```
 
 4. Deep-dive a key paper (verify LaTeX was actually fetched via `provenance.retrieval_level`)
@@ -291,14 +295,14 @@ This server exposes four tool families:
 Notes:
 - `inspire_*` tools can be called directly (no Project/Run required). Projects/Runs and `hep://...` resources are for evidence-first local workflows (`hep_*`).
 
-Tool counts: **67 tools in `standard` mode** (default, compact surface) and **95 tools in `full` mode** (adds advanced tools).
+Tool counts: **72 tools in `standard` mode** (default, compact surface) and **100 tools in `full` mode** (adds advanced tools).
 
 ### Tool Exposure Modes
 
 | Mode | Tools | Description |
 |------|-------|-------------|
-| `standard` | 67 | Default: compact, recommended |
-| `full` | 95 | `standard` + advanced tools |
+| `standard` | 72 | Default: compact, recommended |
+| `full` | 100 | `standard` + advanced tools |
 
 ```bash
 # Use full mode (optional)
@@ -387,9 +391,9 @@ For run-scoped responses (with `run_id`), dispatcher now adds a compact `job` en
 
 `job` is a bridge-level contract only; canonical evidence remains artifacts + resources. Failure semantics remain fail-fast (`INVALID_PARAMS + next_actions`).
 
-### Recommended: Consolidated Tools (8)
+### Recommended Research Entrypoints
 
-These polymorphic tools cover most use cases with simple interfaces:
+These tools cover most research-navigation and writing use cases without a facade schema:
 
 | Tool | Modes | Description |
 |------|-------|-------------|
@@ -397,7 +401,12 @@ These polymorphic tools cover most use cases with simple interfaces:
 | `inspire_resolve_citekey` | - | Resolve INSPIRE citekey + BibTeX + canonical links for recid(s) |
 | `inspire_parse_latex` | `components=[sections/equations/theorems/citations/figures/tables/bibliography/all]` | Parse LaTeX into a run artifact (`run_id` required; returns URI + summary) |
 | `inspire_deep_research` | `analyze` / `synthesize` | **Deep research & report generation** |
-| `inspire_research_navigator` | `discover` / `field_survey` / `topic_analysis` / `network` / `experts` / `connections` / `trace_source` / `analyze` | Unified research navigation facade (Phase 3) |
+| `inspire_discover_papers` | `seminal` / `related` / `expansion` / `survey` | Dedicated paper discovery surface |
+| `inspire_field_survey` | - | Physicist-style literature survey workflow |
+| `inspire_topic_analysis` | `timeline` / `evolution` / `emerging` / `all` | Topic evolution and trend analysis |
+| `inspire_network_analysis` | `citation` / `collaboration` | Seed-centered citation/collaboration network analysis |
+| `inspire_find_connections` | - | Paper-set relationship mining (`internal_edges`, `bridge_papers`, `isolated_papers`, `external_hubs`) |
+| `inspire_trace_original_source` | - | Original-source / provenance tracing for a paper |
 | `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | Critical research (incl. theoretical debate map; `theoretical` requires `run_id`) |
 | `inspire_paper_source` | `urls` / `content` / `metadata` / `auto` | Paper source access |
 | `zotero_local` | `list_collections` / `list_collection_paths` / `list_items` / `get_item` / `get_item_attachments` / `download_attachment` / `get_attachment_fulltext` / `list_tags` | Unified Zotero Local API tool (standard; returns JSON) |
@@ -440,85 +449,60 @@ Returns: extracted components (e.g., equations, key sections) plus a compact sum
 ```
 Returns: structured review grouped by methodology/timeline/comparison.
 
-### `inspire_research_navigator` - Discovery/Survey/Network/Experts/Trace
+### Dedicated INSPIRE Navigation Tools
 
-#### Mode: `discover` - Foundational/Related/Expansion/Survey
+#### `inspire_discover_papers` - Foundational/Related/Expansion/Survey Discovery
 ```json
 {
-  "mode": "discover",
-  "discover_mode": "seminal",
+  "mode": "seminal",
   "topic": "QCD sum rules",
   "limit": 20
 }
 ```
 
-#### Mode: `field_survey` - Physicist-Style Literature Survey
+#### `inspire_field_survey` - Physicist-Style Literature Survey
 ```json
 {
-  "mode": "field_survey",
   "topic": "nucleon structure",
-  "limit": 30,
+  "max_papers": 30,
   "iterations": 2,
   "focus": ["open_questions", "controversies"]
 }
 ```
 
-#### Mode: `topic_analysis` - Timeline/Evolution/Emerging Trends
+#### `inspire_topic_analysis` - Timeline/Evolution/Emerging Trends
 ```json
 {
-  "mode": "topic_analysis",
+  "mode": "timeline",
   "topic": "pentaquark",
-  "topic_mode": "timeline",
-  "topic_options": { "granularity": "year" }
+  "options": { "granularity": "year" }
 }
 ```
 
-#### Mode: `network` - Citation/Collaboration Network Analysis
+#### `inspire_network_analysis` - Citation/Collaboration Network Analysis
 ```json
 {
-  "mode": "network",
-  "network_mode": "citation",
+  "mode": "citation",
   "seed": "1833986",
-  "network_options": { "depth": 2 }
+  "options": { "depth": 2 }
 }
 ```
 
-#### Mode: `experts` - Domain Expert Discovery
+#### `inspire_find_connections` - Cross-Paper Connection Mining
 ```json
 {
-  "mode": "experts",
-  "topic": "nucleon structure",
-  "limit": 10,
-  "format": "markdown"
-}
-```
-
-#### Mode: `connections` - Cross-Paper Connection Mining
-```json
-{
-  "mode": "connections",
-  "seed_recids": ["1833986", "627760"],
+  "recids": ["1833986", "627760"],
   "include_external": true,
   "max_external_depth": 2
 }
 ```
 
-#### Mode: `trace_source` - Original Source Tracing
+#### `inspire_trace_original_source` - Original Source Tracing
 ```json
 {
-  "mode": "trace_source",
-  "seed": "1833986",
+  "recid": "1833986",
   "max_depth": 3,
   "cross_validate": true
-}
-```
-
-#### Mode: `analyze` - Portfolio Analysis (Compatibility Path)
-```json
-{
-  "mode": "analyze",
-  "recids": ["1833986", "627760"],
-  "analysis_type": ["overview", "timeline", "topics"]
 }
 ```
 

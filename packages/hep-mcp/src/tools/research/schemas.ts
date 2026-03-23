@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import { optionalBudgetInt } from '@autoresearch/shared';
 
-const JsonMarkdownSchema = z.enum(['json', 'markdown']);
-
 export const TimeRangeSchema = z
   .object({
     start: z.number().optional(),
@@ -10,7 +8,7 @@ export const TimeRangeSchema = z
   })
   .optional();
 
-export const TopicAnalysisToolSchema_legacy = z.object({
+export const TopicAnalysisToolSchema = z.object({
   topic: z.string().min(1),
   mode: z.enum(['timeline', 'evolution', 'emerging', 'all']),
   time_range: TimeRangeSchema,
@@ -46,7 +44,7 @@ export const TopicAnalysisToolSchema_legacy = z.object({
         .optional(),
     })
     .optional(),
-});
+}).strict();
 
 export const DiscoverPapersOptionsSchema = z
   .object({
@@ -77,7 +75,7 @@ export const DiscoverPapersOptionsSchema = z
   })
   .optional();
 
-export const DiscoverPapersToolSchema_legacy = z
+export const DiscoverPapersToolSchema = z
   .object({
     mode: z.enum(['seminal', 'related', 'expansion', 'survey']),
     topic: z.string().min(1).optional(),
@@ -107,7 +105,7 @@ export const DiscoverPapersToolSchema_legacy = z
     }
   });
 
-export const NetworkAnalysisToolSchema_legacy = z.object({
+export const NetworkAnalysisToolSchema = z.object({
   mode: z.enum(['citation', 'collaboration']),
   seed: z.string().min(1),
   limit: optionalBudgetInt({ min: 1 }),
@@ -124,9 +122,9 @@ export const NetworkAnalysisToolSchema_legacy = z.object({
       max_seed_authors_for_expansion: optionalBudgetInt({ min: 1 }),
     })
     .optional(),
-});
+}).strict();
 
-export const FieldSurveyToolSchema_legacy = z.object({
+export const FieldSurveyToolSchema = z.object({
   topic: z.string().min(1),
   seed_recid: z.string().optional(),
   iterations: optionalBudgetInt({ min: 0 }),
@@ -135,76 +133,11 @@ export const FieldSurveyToolSchema_legacy = z.object({
     .array(z.enum(['controversies', 'open_questions', 'methodology', 'recent_progress']))
     .optional(),
   prefer_journal: z.boolean().optional(),
-});
+}).strict();
 
-export const InspireAdvancedToolSchema_legacy = z
-  .object({
-    mode: z.enum([
-      'parse_latex_content',
-      'find_experts',
-      'analyze_papers',
-      'find_connections',
-      'trace_original_source',
-    ]),
-
-    identifier: z.string().min(1).optional(),
-    components: z
-      .array(
-        z.enum([
-          'sections',
-          'equations',
-          'theorems',
-          'citations',
-          'figures',
-          'tables',
-          'bibliography',
-          'measurements',
-          'all',
-        ])
-      )
-      .min(1)
-      .optional(),
-    options: z.object({}).passthrough().optional(),
-
-    topic: z.string().min(1).optional(),
-    limit: optionalBudgetInt({ min: 1 }),
-    format: JsonMarkdownSchema.optional(),
-
-    recids: z.array(z.string().min(1)).min(1).optional(),
-    analysis_type: z.array(z.enum(['overview', 'timeline', 'authors', 'topics', 'all'])).optional(),
-
-    include_external: z.boolean().optional(),
-    max_external_depth: optionalBudgetInt({ min: 1 }),
-
-    recid: z.string().min(1).optional(),
-    max_depth: optionalBudgetInt({ min: 1 }),
-    max_refs_per_level: optionalBudgetInt({ min: 1 }),
-    cross_validate: z.boolean().optional(),
-  })
-  .strict()
-  .superRefine((v, ctx) => {
-    const requireKey = (key: string, message: string) => {
-      if (!(key in v)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: [key] });
-      }
-    };
-
-    switch (v.mode) {
-      case 'parse_latex_content':
-        requireKey('identifier', "mode='parse_latex_content' requires identifier");
-        requireKey('components', "mode='parse_latex_content' requires components");
-        break;
-      case 'find_experts':
-        requireKey('topic', "mode='find_experts' requires topic");
-        break;
-      case 'analyze_papers':
-      case 'find_connections':
-        requireKey('recids', `mode='${v.mode}' requires recids`);
-        break;
-      case 'trace_original_source':
-        requireKey('recid', "mode='trace_original_source' requires recid");
-        break;
-      default:
-        break;
-    }
-  });
+export const TraceOriginalSourceToolSchema = z.object({
+  recid: z.string().min(1),
+  max_depth: optionalBudgetInt({ min: 1 }),
+  max_refs_per_level: optionalBudgetInt({ min: 1 }),
+  cross_validate: z.boolean().optional(),
+}).strict();

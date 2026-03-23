@@ -1,6 +1,11 @@
 import {
+  INSPIRE_DISCOVER_PAPERS,
+  INSPIRE_FIELD_SURVEY,
+  INSPIRE_TOPIC_ANALYSIS,
+  INSPIRE_NETWORK_ANALYSIS,
+  INSPIRE_FIND_CONNECTIONS,
+  INSPIRE_TRACE_ORIGINAL_SOURCE,
   INSPIRE_PARSE_LATEX,
-  INSPIRE_RESEARCH_NAVIGATOR,
   INSPIRE_CRITICAL_RESEARCH,
   INSPIRE_PAPER_SOURCE,
   INSPIRE_DEEP_RESEARCH,
@@ -10,13 +15,17 @@ import {
   INSPIRE_VALIDATE_BIBLIOGRAPHY,
 } from '@autoresearch/shared';
 import { notFound } from '@autoresearch/shared';
-import { formatExpertsMarkdown } from '../../utils/formatters.js';
 import { writeRunJsonArtifact } from '../../core/citations.js';
 import { deepResearchAnalyzeNextActions, discoveryNextActions, withNextActions } from '../utils/discoveryHints.js';
 import type { ToolSpec } from './types.js';
 import {
-  ResearchNavigatorToolSchema,
+  DiscoverPapersToolSchema,
+  FieldSurveyToolSchema,
+  FindConnectionsToolSchema,
   CriticalResearchToolSchema,
+  TopicAnalysisToolSchema,
+  NetworkAnalysisToolSchema,
+  TraceOriginalSourceToolSchema,
   PaperSourceToolSchema,
   DeepResearchToolSchema,
   InspireParseLatexToolSchema,
@@ -27,6 +36,40 @@ import {
   hashParseLatexRequest,
   isNoLatexSourceError,
 } from './inspireSchemas.js';
+
+function extractDiscoverPapersForNextActions(result: unknown): unknown {
+  if (!result || typeof result !== 'object') return [];
+
+  const record = result as Record<string, unknown>;
+  switch (record.mode) {
+    case 'seminal':
+      return (record.seminal as Record<string, unknown> | undefined)?.seminal_papers ?? [];
+    case 'related':
+      return (record.related as Record<string, unknown> | undefined)?.papers ?? [];
+    case 'expansion':
+      return (record.expansion as Record<string, unknown> | undefined)?.papers ?? [];
+    case 'survey': {
+      const sections = (record.survey as Record<string, unknown> | undefined)?.sections;
+      if (!Array.isArray(sections)) return [];
+      return sections.flatMap(section => {
+        if (!section || typeof section !== 'object') return [];
+        const papers = (section as Record<string, unknown>).papers;
+        return Array.isArray(papers) ? papers : [];
+      });
+    }
+    default:
+      return [];
+  }
+}
+
+function extractFieldSurveyPapersForNextActions(result: unknown): unknown {
+  if (!result || typeof result !== 'object') return [];
+  const record = result as Record<string, unknown>;
+  const citationPapers = ((record.citation_network as Record<string, unknown> | undefined)?.all_papers);
+  if (Array.isArray(citationPapers) && citationPapers.length > 0) return citationPapers;
+  const seminalPapers = ((record.seminal_papers as Record<string, unknown> | undefined)?.papers);
+  return Array.isArray(seminalPapers) ? seminalPapers : [];
+}
 
 export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   {
@@ -96,98 +139,88 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     },
   },
   {
-    name: INSPIRE_RESEARCH_NAVIGATOR,
+    name: INSPIRE_DISCOVER_PAPERS,
     tier: 'consolidated',
     exposure: 'standard',
     intent: 'paper_discovery',
     maturity: 'stable',
     description:
-      'Unified research navigation tool (network). Modes: discover/field_survey/topic_analysis/network/experts/connections/trace_source/analyze.',
-    zodSchema: ResearchNavigatorToolSchema,
+      'Unified paper discovery tool (network). Modes: seminal/related/expansion/survey.',
+    zodSchema: DiscoverPapersToolSchema,
+    handler: async params => {
+      const { discoverPapers } = await import('../research/discoverPapers.js');
+      const result = await discoverPapers(params);
+      return withNextActions(result, discoveryNextActions(extractDiscoverPapersForNextActions(result)));
+    },
+  },
+  {
+    name: INSPIRE_FIELD_SURVEY,
+    tier: 'consolidated',
+    exposure: 'standard',
+    intent: 'paper_discovery',
+    maturity: 'stable',
+    description:
+      'Physicist-style literature review workflow (network): reviews → seminal papers → citation expansion → controversies/open questions.',
+    zodSchema: FieldSurveyToolSchema,
     handler: async (params, ctx) => {
-      const result = await (async () => {
-        switch (params.mode) {
-          case 'discover': {
-            const { discoverPapers } = await import('../research/discoverPapers.js');
-            return discoverPapers({
-              mode: params.discover_mode!,
-              topic: params.topic,
-              seed_recids: params.seed_recids,
-              limit: params.limit,
-              options: params.discover_options,
-            });
-          }
-          case 'field_survey': {
-            const { performFieldSurvey } = await import('../research/fieldSurvey.js');
-            return performFieldSurvey({
-              topic: params.topic!,
-              seed_recid: params.seed_recid,
-              iterations: params.iterations,
-              max_papers: params.limit,
-              focus: params.focus,
-              prefer_journal: params.prefer_journal,
-              ...(ctx.createMessage ? { _mcp: { createMessage: ctx.createMessage } } : {}),
-            });
-          }
-          case 'topic_analysis': {
-            const { analyzeTopicUnified } = await import('../research/topicAnalysis.js');
-            return analyzeTopicUnified({
-              topic: params.topic!,
-              mode: params.topic_mode!,
-              time_range: params.time_range,
-              limit: params.limit,
-              options: params.topic_options,
-            });
-          }
-          case 'network': {
-            const { analyzeNetwork } = await import('../research/networkAnalysis.js');
-            return analyzeNetwork({
-              mode: params.network_mode!,
-              seed: params.seed!,
-              limit: params.limit,
-              options: params.network_options,
-            });
-          }
-          case 'experts': {
-            const { findExperts } = await import('../research/experts.js');
-            const res = await findExperts({ topic: params.topic!, limit: params.limit ?? 10 });
-            if (params.format === 'markdown') {
-              return formatExpertsMarkdown(res.topic, res.experts);
-            }
-            return res;
-          }
-          case 'connections': {
-            const { findConnections } = await import('../research/findConnections.js');
-            const recids = params.seed_recids ?? (params.seed ? [params.seed] : []);
-            return findConnections({
-              recids,
-              include_external: params.include_external,
-              max_external_depth: params.max_external_depth,
-            });
-          }
-          case 'trace_source': {
-            const { traceOriginalSource } = await import('../research/traceSource.js');
-            const recid = params.seed ?? params.seed_recids?.[0];
-            return traceOriginalSource({
-              recid: recid!,
-              max_depth: params.max_depth,
-              max_refs_per_level: params.max_refs_per_level,
-              cross_validate: params.cross_validate,
-            });
-          }
-          case 'analyze': {
-            const { analyzePapers } = await import('../research/analyzePapers.js');
-            const recids = params.recids ?? params.seed_recids ?? (params.seed ? [params.seed] : []);
-            return analyzePapers({ recids, analysis_type: params.analysis_type });
-          }
-          default:
-            throw new Error(`Unknown inspire_research_navigator mode: ${String((params as { mode?: unknown }).mode)}`);
-        }
-      })();
-      const papers = result && typeof result === 'object' && 'papers' in result
-        ? (result as Record<string, unknown>).papers
-        : undefined;
-      return withNextActions(result, discoveryNextActions(papers));
+      const { performFieldSurvey } = await import('../research/fieldSurvey.js');
+      const result = await performFieldSurvey({
+        ...params,
+        ...(ctx.createMessage ? { _mcp: { createMessage: ctx.createMessage } } : {}),
+      });
+      return withNextActions(result, discoveryNextActions(extractFieldSurveyPapersForNextActions(result)));
+    },
+  },
+  {
+    name: INSPIRE_TOPIC_ANALYSIS,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description:
+      'Unified topic analysis tool (network). Modes: timeline/evolution/emerging/all.',
+    zodSchema: TopicAnalysisToolSchema,
+    handler: async params => {
+      const { analyzeTopicUnified } = await import('../research/topicAnalysis.js');
+      return analyzeTopicUnified(params);
+    },
+  },
+  {
+    name: INSPIRE_NETWORK_ANALYSIS,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description:
+      'Unified network analysis tool (network). Modes: citation/collaboration.',
+    zodSchema: NetworkAnalysisToolSchema,
+    handler: async params => {
+      const { analyzeNetwork } = await import('../research/networkAnalysis.js');
+      return analyzeNetwork(params);
+    },
+  },
+  {
+    name: INSPIRE_FIND_CONNECTIONS,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description:
+      'Find structural relationships inside a paper set (network): internal edges, bridge papers, isolated papers, and optional external hubs.',
+    zodSchema: FindConnectionsToolSchema,
+    handler: async params => {
+      const { findConnections } = await import('../research/findConnections.js');
+      return findConnections(params);
+    },
+  },
+  {
+    name: INSPIRE_TRACE_ORIGINAL_SOURCE,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description:
+      'Trace citation chains to identify likely original sources behind a paper (network).',
+    zodSchema: TraceOriginalSourceToolSchema,
+    handler: async params => {
+      const { traceOriginalSource } = await import('../research/traceSource.js');
+      return traceOriginalSource(params);
     },
   },
   {
@@ -195,7 +228,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'consolidated',
     exposure: 'standard',
     description:
-      'Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (createMessage) provided by the MCP client. NOT FOR broad paper discovery/navigation; use inspire_research_navigator for discovery workflows.',
+      'Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (createMessage) provided by the MCP client. NOT FOR broad paper discovery/navigation; use dedicated INSPIRE discovery/survey/topic/network/trace tools for exploration workflows.',
     zodSchema: CriticalResearchToolSchema,
     handler: async (params, ctx) => {
       const { performCriticalResearch } = await import('../research/criticalResearch.js');
@@ -320,7 +353,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
     tier: 'consolidated',
     exposure: 'standard',
     description:
-      'End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize. NOT FOR lightweight discovery-only requests; use inspire_research_navigator for discovery workflows.',
+      'End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize. NOT FOR lightweight discovery-only requests; use dedicated INSPIRE discovery/survey/topic/network/trace tools for exploration workflows.',
     zodSchema: DeepResearchToolSchema,
     handler: async (params, ctx) => {
       const { performDeepResearch } = await import('../research/deepResearch.js');

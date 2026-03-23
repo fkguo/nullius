@@ -111,16 +111,15 @@ describe('Sociology P1 budgets: configurable + warnings', () => {
     expect(res.warnings?.some(w => w.includes('Fast mode checks only top'))).toBe(true);
   });
 
-  it('research_navigator schema accepts topic_options.sociology_options and forwards them to emergingPapers', async () => {
-    const spec = getToolSpecs('standard').find(s => s.name === 'inspire_research_navigator');
+  it('inspire_topic_analysis schema accepts sociology options and forwards them to emergingPapers', async () => {
+    const spec = getToolSpecs('standard').find(s => s.name === 'inspire_topic_analysis');
     expect(spec).toBeTruthy();
 
     // Schema accept (no throw)
     spec!.zodSchema.parse({
-      mode: 'topic_analysis',
       topic: 'qcd',
-      topic_mode: 'emerging',
-      topic_options: {
+      mode: 'emerging',
+      options: {
         include_sociology: true,
         sample_mode: 'fast',
         sociology_options: {

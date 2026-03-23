@@ -107,7 +107,9 @@ def main() -> int:
             )
             continue
         if method == "tools/list":
-            disable_navigator = str(os.environ.get("MCP_STUB_DISABLE_NAVIGATOR", "")).strip().lower() in {"1", "true", "yes", "on"}
+            disable_field_survey = str(os.environ.get("MCP_STUB_DISABLE_FIELD_SURVEY", "")).strip().lower() in {"1", "true", "yes", "on"}
+            disable_topic_analysis = str(os.environ.get("MCP_STUB_DISABLE_TOPIC_ANALYSIS", "")).strip().lower() in {"1", "true", "yes", "on"}
+            disable_network_analysis = str(os.environ.get("MCP_STUB_DISABLE_NETWORK_ANALYSIS", "")).strip().lower() in {"1", "true", "yes", "on"}
             tools = [
                 {"name": "hep_health", "description": "stub health"},
                 {"name": "hep_project_list", "description": "list projects"},
@@ -116,17 +118,17 @@ def main() -> int:
                 {"name": "hep_run_stage_content", "description": "stage content"},
                 {"name": "hep_run_read_artifact_chunk", "description": "read chunk"},
                 {"name": "pdg_get_property", "description": "stub pdg property"},
+                {"name": "inspire_discover_papers", "description": "stub discover papers"},
+                {"name": "inspire_find_connections", "description": "stub find connections"},
+                {"name": "inspire_trace_original_source", "description": "stub trace original source"},
+                {"name": "inspire_critical_research", "description": "stub critical research"},
             ]
-            if not disable_navigator:
-                tools.append({"name": "inspire_research_navigator", "description": "stub research navigator"})
-            tools.extend(
-                [
-                    {"name": "inspire_field_survey", "description": "stub field survey"},
-                    {"name": "inspire_topic_analysis", "description": "stub topic analysis"},
-                    {"name": "inspire_critical_research", "description": "stub critical research"},
-                    {"name": "inspire_network_analysis", "description": "stub network analysis"},
-                ]
-            )
+            if not disable_field_survey:
+                tools.append({"name": "inspire_field_survey", "description": "stub field survey"})
+            if not disable_topic_analysis:
+                tools.append({"name": "inspire_topic_analysis", "description": "stub topic analysis"})
+            if not disable_network_analysis:
+                tools.append({"name": "inspire_network_analysis", "description": "stub network analysis"})
             _send(msg_id, {"tools": tools})
             continue
         if method == "tools/call":
@@ -246,6 +248,15 @@ def main() -> int:
                 _send_tool_result(msg_id, payload)
                 continue
 
+            if name == "inspire_discover_papers":
+                payload = {
+                    "mode": str(args.get("mode") or ""),
+                    "topic": str(args.get("topic") or ""),
+                    "seed_recids": args.get("seed_recids") if isinstance(args.get("seed_recids"), list) else [],
+                    "related": {"papers": [{"recid": "1001", "title": "Stub related paper"}]},
+                }
+                _send_tool_result(msg_id, payload)
+                continue
             if name == "inspire_field_survey":
                 topic = str(args.get("topic") or "")
                 payload = {
@@ -293,89 +304,20 @@ def main() -> int:
                 }
                 _send_tool_result(msg_id, payload)
                 continue
-
-            if name == "inspire_research_navigator":
-                disable_navigator = str(os.environ.get("MCP_STUB_DISABLE_NAVIGATOR", "")).strip().lower() in {"1", "true", "yes", "on"}
-                if disable_navigator:
-                    _send_tool_result(msg_id, {"error": "inspire_research_navigator disabled by MCP_STUB_DISABLE_NAVIGATOR"}, is_error=True)
-                    continue
-                mode = str(args.get("mode") or "").strip()
-                if mode == "field_survey":
-                    topic = str(args.get("topic") or "")
-                    payload = {
-                        "topic": topic,
-                        "reviews": {
-                            "papers": [
-                                {
-                                    "recid": "2001",
-                                    "title": f"Review: {topic}",
-                                    "abstract": f"A review that mentions {topic} and related methods.",
-                                    "year": 2018,
-                                    "citation_count": 120,
-                                }
-                            ]
-                        },
-                        "seminal_papers": {
-                            "papers": [
-                                {
-                                    "recid": "1001",
-                                    "title": f"{topic} — seminal result",
-                                    "abstract": f"We study {topic} with a deterministic workflow.",
-                                    "year": 2024,
-                                    "citation_count": 250,
-                                },
-                                {
-                                    "recid": "1002",
-                                    "title": "Unrelated topic",
-                                    "abstract": "This paper is about something else.",
-                                    "year": 1999,
-                                    "citation_count": 3,
-                                },
-                            ]
-                        },
-                        "citation_network": {
-                            "all_papers": [
-                                {
-                                    "recid": "3001",
-                                    "title": f"{topic} follow-up",
-                                    "abstract": f"Follow-up work connected to {topic}.",
-                                    "year": 2022,
-                                    "citation_count": 20,
-                                }
-                            ]
-                        },
-                    }
-                    _send_tool_result(msg_id, payload)
-                    continue
-
-                if mode == "topic_analysis":
-                    payload = {
-                        "topic": str(args.get("topic") or ""),
-                        "mode": str(args.get("topic_mode") or ""),
-                        "timeline": [{"bucket": "2020-2024", "count": 1}],
-                    }
-                    _send_tool_result(msg_id, payload)
-                    continue
-
-                if mode == "network":
-                    payload = {
-                        "mode": str(args.get("network_mode") or ""),
-                        "citation": {
-                            "seed": str(args.get("seed") or ""),
-                            "nodes": [{"recid": str(args.get("seed") or "")}],
-                            "edges": [],
-                        },
-                    }
-                    _send_tool_result(msg_id, payload)
-                    continue
-
-                _send_tool_result(msg_id, {"error": f"unsupported inspire_research_navigator mode: {mode}"}, is_error=True)
-                continue
             if name == "inspire_topic_analysis":
                 payload = {
                     "mode": str(args.get("mode") or ""),
                     "topic": str(args.get("topic") or ""),
                     "timeline": [{"bucket": "2020-2024", "count": 1}],
+                }
+                _send_tool_result(msg_id, payload)
+                continue
+            if name == "inspire_find_connections":
+                payload = {
+                    "internal_edges": [],
+                    "bridge_papers": [],
+                    "isolated_papers": args.get("recids") if isinstance(args.get("recids"), list) else [],
+                    "external_hubs": [],
                 }
                 _send_tool_result(msg_id, payload)
                 continue
@@ -394,6 +336,16 @@ def main() -> int:
                     "seed": seed,
                     "nodes": [{"recid": seed}],
                     "edges": [],
+                }
+                _send_tool_result(msg_id, payload)
+                continue
+            if name == "inspire_trace_original_source":
+                recid = str(args.get("recid") or "")
+                payload = {
+                    "starting_paper": {"recid": recid, "title": "Stub starting paper"},
+                    "original_sources": [],
+                    "trace_chain": [],
+                    "stats": {"total_traced": 1, "max_depth_reached": 0, "chains_analyzed": 1},
                 }
                 _send_tool_result(msg_id, payload)
                 continue

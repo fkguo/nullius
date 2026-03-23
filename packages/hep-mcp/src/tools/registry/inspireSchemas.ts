@@ -1,8 +1,14 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
-import { optionalBudgetInt } from '@autoresearch/shared';
-import { TimeRangeSchema } from '../research/schemas.js';
-import { ResearchNavigatorToolSchema } from '../research/researchNavigator.js';
+import { optionalBudgetInt, FindConnectionsParamsSchema } from '@autoresearch/shared';
+import {
+  TimeRangeSchema,
+  DiscoverPapersToolSchema,
+  FieldSurveyToolSchema,
+  NetworkAnalysisToolSchema,
+  TopicAnalysisToolSchema,
+  TraceOriginalSourceToolSchema,
+} from '../research/schemas.js';
 import { SafePathSegmentSchema, SearchExportFormatSchema } from './projectSchemas.js';
 
 const SortSchema = z.enum(['mostrecent', 'mostcited']);
@@ -26,6 +32,8 @@ export const InspireSearchNextToolSchema = z.object({
   next_url: z.string().min(1),
   review_mode: z.enum(['mixed', 'separate', 'deprioritize', 'exclude']).optional().default('mixed'),
 });
+
+export const FindConnectionsToolSchema = FindConnectionsParamsSchema.strict();
 
 const InspireLiteratureModeSchema = z.enum([
   'get_paper',
@@ -365,4 +373,12 @@ export function isNoLatexSourceError(err: unknown): boolean {
   return msg.includes('latex source not available') || msg.includes('could not identify main .tex file');
 }
 
-export { JsonMarkdownSchema, ResearchNavigatorToolSchema, SortSchema };
+export {
+  DiscoverPapersToolSchema,
+  FieldSurveyToolSchema,
+  JsonMarkdownSchema,
+  NetworkAnalysisToolSchema,
+  SortSchema,
+  TopicAnalysisToolSchema,
+  TraceOriginalSourceToolSchema,
+};

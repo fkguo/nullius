@@ -2,7 +2,7 @@ import type {
   CreateMessageRequestParamsBase,
   CreateMessageResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_RESEARCH_NAVIGATOR, type PaperSummary } from '@autoresearch/shared';
+import { INSPIRE_TRACE_ORIGINAL_SOURCE, type PaperSummary } from '@autoresearch/shared';
 import * as api from '../../api/client.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { extractSamplingText } from '../../core/semantics/quantitySampling.js';
@@ -286,7 +286,7 @@ export async function traceToOriginal(
       }],
       maxTokens: 900,
       metadata: buildToolSamplingMetadata({
-        tool: INSPIRE_RESEARCH_NAVIGATOR,
+        tool: INSPIRE_TRACE_ORIGINAL_SOURCE,
         module: 'sem12_provenance_matcher',
         promptVersion,
         costClass: 'medium',

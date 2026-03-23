@@ -278,7 +278,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - 本节唯一允许的状态信息是 phase 级完成度数字与全局 blocker 摘要；禁止新增或保留任何 item-specific bullet、item id、reopened/done/blocked/follow-up 叙事、review/self-review/validation/tool-failure 信息。
 - Phase 0: 14/14 完成
 - Phase 1: 22/23 完成
-- Phase 2: 38/49 完成
+- Phase 2: 39/51 完成
 - Phase 3: 37/51 完成
 - Phase 4: 3/8 完成，blocked by earlier phases
 - Phase 5: 4/22 完成，blocked by earlier phases
@@ -323,7 +323,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (12085 symbols, 26820 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (12059 symbols, 26770 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

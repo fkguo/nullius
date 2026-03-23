@@ -17,12 +17,12 @@
 SSOT:
 
 ```bash
-node --input-type=module -e "import('./packages/hep-research-mcp/dist/tools/index.js').then(({getTools})=>console.log('standard',getTools('standard').length,'full',getTools('full').length))"
+node --input-type=module -e "import('./packages/hep-mcp/dist/tools/index.js').then(({getTools})=>console.log('standard',getTools('standard').length,'full',getTools('full').length))"
 ```
 
 Current (after build):
-- `standard=67`, `full=95`
-- `HEP_ENABLE_ZOTERO=0` → `standard=59`, `full=87`
+- `standard=72`, `full=100`
+- `HEP_ENABLE_ZOTERO=0` → `standard=64`, `full=92`
 
 Workspace vitest summary:
 - `packages/shared`: 15 passed
@@ -35,7 +35,7 @@ Workspace vitest summary:
 ## What’s included
 
 - **vNext Project/Run + `hep://` resources**: artifacts-first, reproducible workflows (`hep_*`)
-- **INSPIRE workflows**: search/export, navigator（discover/field_survey/topic_analysis/network/experts/connections/trace_source/analyze）, run-scoped LaTeX parsing（`inspire_parse_latex`）, deep research (`inspire_*`)
+- **INSPIRE workflows**: search/export, dedicated discovery/survey/topic/network/connections/trace tools (`inspire_discover_papers`, `inspire_field_survey`, `inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`), run-scoped LaTeX parsing (`inspire_parse_latex`), deep research (`inspire_*`)
 - **Bibliography usability audit (Phase 4.1)**: `inspire_validate_bibliography` is manual-first + non-blocking warnings; optional INSPIRE cross-check
 - **Zotero Local API**: local-only integration (`zotero_local` + related tools; optional; gated by `HEP_ENABLE_ZOTERO`)
 - **Zotero read bridge (Phase 4.5)**: `zotero_find_items` + `zotero_search_items` share internal bridge execution while preserving semantics

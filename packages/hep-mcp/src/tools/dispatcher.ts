@@ -11,11 +11,16 @@ import {
   McpError,
   unsafeFs,
   extractTraceId,
+  INSPIRE_DISCOVER_PAPERS,
+  INSPIRE_FIELD_SURVEY,
   INSPIRE_PARSE_LATEX,
+  INSPIRE_FIND_CONNECTIONS,
   INSPIRE_SEARCH,
   INSPIRE_SEARCH_NEXT,
   INSPIRE_LITERATURE,
-  INSPIRE_RESEARCH_NAVIGATOR,
+  INSPIRE_NETWORK_ANALYSIS,
+  INSPIRE_TOPIC_ANALYSIS,
+  INSPIRE_TRACE_ORIGINAL_SOURCE,
   MAX_INLINE_RESULT_BYTES,
   HARD_CAP_RESULT_BYTES,
   PERMISSION_POLICY,
@@ -256,7 +261,12 @@ const COMPACT_PAPER_TOOLS = new Set([
   INSPIRE_SEARCH,
   INSPIRE_SEARCH_NEXT,
   INSPIRE_LITERATURE,
-  INSPIRE_RESEARCH_NAVIGATOR,
+  INSPIRE_DISCOVER_PAPERS,
+  INSPIRE_FIELD_SURVEY,
+  INSPIRE_TOPIC_ANALYSIS,
+  INSPIRE_NETWORK_ANALYSIS,
+  INSPIRE_FIND_CONNECTIONS,
+  INSPIRE_TRACE_ORIGINAL_SOURCE,
   HEP_IMPORT_FROM_ZOTERO,
 ]);
 
@@ -315,19 +325,6 @@ function tryFormatMarkdown(
       const papers: unknown[] = Array.isArray(r.papers) ? r.papers : Array.isArray(r) ? r as unknown[] : [];
       if (papers.length > 0) {
         const title = mode === 'get_references' ? 'References' : 'Citations';
-        return formatPaperListMarkdown(papers as PaperSummary[], title);
-      }
-    }
-    return null;
-  }
-
-  // inspire_research_navigator (discover / field_survey) → formatPaperListMarkdown
-  if (name === INSPIRE_RESEARCH_NAVIGATOR) {
-    const mode = args.mode as string;
-    if (mode === 'discover' || mode === 'field_survey') {
-      const papers: unknown[] = Array.isArray(r.papers) ? r.papers : [];
-      if (papers.length > 0) {
-        const title = mode === 'discover' ? 'Discovered Papers' : 'Field Survey Results';
         return formatPaperListMarkdown(papers as PaperSummary[], title);
       }
     }
