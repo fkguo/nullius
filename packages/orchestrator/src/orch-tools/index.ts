@@ -67,7 +67,7 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     name: ORCH_RUN_CREATE,
     tier: 'core',
     exposure: 'full',
-    description: 'Create (or idempotently replay) a hepar orchestrator run in a local project root. Initializes .autoresearch/ state (local-only).',
+    description: 'Create (or idempotently replay) an autoresearch orchestrator run in a local project root. Initializes .autoresearch/ state (local-only).',
     zodSchema: OrchRunCreateSchema,
     handler: async params => handleOrchRunCreate(params as z.output<typeof OrchRunCreateSchema>),
   },

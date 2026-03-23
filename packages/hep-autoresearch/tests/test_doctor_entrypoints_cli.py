@@ -50,6 +50,7 @@ class TestDoctorEntrypointDiscovery(unittest.TestCase):
             self.assertEqual(rc, 0, msg=out + err)
             data = json.loads(out)
             self.assertIn("entrypoint_discovery", data)
+            self.assertIn("autoresearch", data["entrypoint_discovery"]["entrypoints"])
             warnings = data.get("warnings") or []
             self.assertTrue(any((isinstance(w, dict) and w.get("code") == "entrypoints_missing") for w in warnings))
 
@@ -68,6 +69,7 @@ class TestDoctorEntrypointDiscovery(unittest.TestCase):
             self.assertEqual(rc, 2, msg=out + err)
             data = json.loads(out)
             self.assertFalse(bool(data.get("ok")))
+            self.assertIn("autoresearch", data["entrypoint_discovery"]["entrypoints"])
             warnings = data.get("warnings") or []
             self.assertTrue(any((isinstance(w, dict) and w.get("code") == "entrypoints_missing") for w in warnings))
 

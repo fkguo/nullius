@@ -4,7 +4,7 @@ import { TeamExecutionConfigSchema } from './team-schemas.js';
 const ProjectRootSchema = z
   .string()
   .min(1)
-  .describe('Absolute (or tilde-prefixed) path to the hepar project root directory (contains .autoresearch/)');
+  .describe('Absolute (or tilde-prefixed) path to the autoresearch project root directory (contains .autoresearch/)');
 const RunIdSchema = z
   .string()
   .min(1)

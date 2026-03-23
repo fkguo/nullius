@@ -588,7 +588,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     # via _read_or_init_state().
     st = load_state(repo_root)
     if st is None:
-        return _die("not initialized (run: hep-autoresearch init)")
+        return _die("not initialized (run: autoresearch init)")
 
     warnings: list[dict[str, str]] = []
     display_run_status, stale_warnings = _status_effective_run_status(st)
@@ -3815,10 +3815,10 @@ def _doctor_entrypoint_hints(
     if in_venv:
         hints.append(
             "current session appears inside a virtual environment; activate the intended venv before running "
-            "hepar/hep-autoresearch"
+            "autoresearch"
         )
         hints.append(
-            "if entrypoints are installed globally instead, deactivate venv or run the absolute script path"
+            "if legacy entrypoints are installed globally instead, deactivate venv or run the absolute script path"
         )
         if user_bin_on_path:
             hints.append(
@@ -3866,7 +3866,7 @@ def _doctor_entrypoint_discovery() -> tuple[dict[str, object], list[dict[str, st
 
     entrypoints: dict[str, dict[str, object]] = {}
     missing: list[str] = []
-    for name in ["hepar", "hep-autoresearch"]:
+    for name in ["autoresearch"]:
         resolved = shutil.which(name)
         found = bool(resolved)
         entrypoints[name] = {
@@ -3964,7 +3964,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     print(f"- user_bin_on_path: {entrypoint_discovery.get('user_bin_on_path')}")
     entrypoints = entrypoint_discovery.get("entrypoints")
     if isinstance(entrypoints, dict):
-        for cmd in ["hepar", "hep-autoresearch"]:
+        for cmd in ["autoresearch"]:
             item = entrypoints.get(cmd) if isinstance(entrypoints.get(cmd), dict) else {}
             found = bool((item or {}).get("found"))
             path = (item or {}).get("path")
@@ -3986,7 +3986,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             entrypoint_error = True
 
     if entrypoint_error:
-        return _die("strict entrypoint check failed (missing hepar/hep-autoresearch on PATH)", code=2)
+        return _die("strict entrypoint check failed (missing autoresearch on PATH)", code=2)
 
     if entrypoints_only:
         print("[doctor] entrypoints-only: skipping MCP config/server checks")
@@ -5691,7 +5691,7 @@ def main() -> int:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy.")
+    p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch init`).")
     p_init.add_argument("--force", action="store_true", help="Overwrite existing state.json.")
     p_init.add_argument(
         "--allow-nested",
@@ -5716,15 +5716,15 @@ def main() -> int:
     p_start.add_argument("--force", action="store_true", help="Override running/awaiting_approval.")
     p_start.set_defaults(fn=cmd_start)
 
-    p_status = sub.add_parser("status", help="Show current state.")
+    p_status = sub.add_parser("status", help="Show current state (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch status`).")
     p_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON output.")
     p_status.set_defaults(fn=cmd_status)
 
-    p_pause = sub.add_parser("pause", help="Pause current run (writes .pause and updates state).")
+    p_pause = sub.add_parser("pause", help="Pause current run (writes .pause and updates state; canonical generic entrypoint is `autoresearch pause`).")
     p_pause.add_argument("--note", help="Ledger note.")
     p_pause.set_defaults(fn=cmd_pause)
 
-    p_resume = sub.add_parser("resume", help="Resume current run (removes .pause and updates state).")
+    p_resume = sub.add_parser("resume", help="Resume current run (removes .pause and updates state; canonical generic entrypoint is `autoresearch resume`).")
     p_resume.add_argument("--note", help="Ledger note.")
     p_resume.add_argument("--force", action="store_true", help="Allow resuming from idle/completed/failed.")
     p_resume.set_defaults(fn=cmd_resume)
@@ -5748,7 +5748,7 @@ def main() -> int:
     p_req.add_argument("--force", action="store_true", help="Overwrite existing pending approval.")
     p_req.set_defaults(fn=cmd_request_approval)
 
-    p_app = sub.add_parser("approve", help="Approve a pending approval and resume running.")
+    p_app = sub.add_parser("approve", help="Approve a pending approval and resume running (canonical generic entrypoint is `autoresearch approve`).")
     p_app.add_argument("approval_id", help="Approval id, e.g. A1-0001")
     p_app.add_argument("--note", help="Ledger note.")
     p_app.set_defaults(fn=cmd_approve)
@@ -5965,7 +5965,7 @@ def main() -> int:
     p_ctx.add_argument("--note", help="Optional note to include in the context pack.")
     p_ctx.set_defaults(fn=cmd_context)
 
-    p_export = sub.add_parser("export", help="Export a run bundle (zip).")
+    p_export = sub.add_parser("export", help="Export a run bundle (zip; canonical generic entrypoint is `autoresearch export`).")
     p_export.add_argument("--run-id", help="Run id to export (default: current).")
     p_export.add_argument("--out", help="Output zip path (default: exports/<run_id>.zip).")
     p_export.add_argument(
@@ -5992,7 +5992,7 @@ def main() -> int:
         action="store_true",
         help="Run entrypoint discovery only (text mode); skip MCP config/server checks.",
     )
-    p_doc.add_argument("--strict-entrypoints", action="store_true", help="Fail if hepar/hep-autoresearch entrypoints are missing on PATH.")
+    p_doc.add_argument("--strict-entrypoints", action="store_true", help="Fail if the canonical `autoresearch` entrypoint is missing on PATH.")
     p_doc.add_argument(
         "--json",
         action="store_true",
