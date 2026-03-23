@@ -8,6 +8,7 @@ import {
   ORCH_FLEET_WORKER_HEARTBEAT,
   ORCH_FLEET_WORKER_POLL,
   ORCH_FLEET_WORKER_SET_CLAIM_ACCEPTANCE,
+  ORCH_FLEET_WORKER_UNREGISTER,
 } from '@autoresearch/shared';
 import {
   handleOrchFleetAdjudicateStaleClaim,
@@ -16,6 +17,7 @@ import {
   handleOrchFleetRelease,
 } from './fleet-queue-tools.js';
 import { handleOrchFleetWorkerSetClaimAcceptance } from './fleet-worker-claim-acceptance.js';
+import { handleOrchFleetWorkerUnregister } from './fleet-worker-unregister.js';
 import { handleOrchFleetStatus } from './fleet-status.js';
 import {
   handleOrchFleetWorkerHeartbeat,
@@ -30,6 +32,7 @@ import {
   OrchFleetWorkerHeartbeatSchema,
   OrchFleetWorkerPollSchema,
   OrchFleetWorkerSetClaimAcceptanceSchema,
+  OrchFleetWorkerUnregisterSchema,
 } from './schemas.js';
 
 export const FLEET_TOOL_SPECS = [
@@ -64,6 +67,14 @@ export const FLEET_TOOL_SPECS = [
     description: 'Update whether an existing fleet worker may claim new queue items, without changing queue ownership or creating a second scheduler surface (local-only).',
     zodSchema: OrchFleetWorkerSetClaimAcceptanceSchema,
     handler: async (params: unknown) => handleOrchFleetWorkerSetClaimAcceptance(params as z.output<typeof OrchFleetWorkerSetClaimAcceptanceSchema>),
+  },
+  {
+    name: ORCH_FLEET_WORKER_UNREGISTER,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Remove a drained worker from fleet_workers.json only after explicit claim acceptance shutdown and zero active claims, without mutating fleet_queue.json or creating a second scheduler surface (local-only).',
+    zodSchema: OrchFleetWorkerUnregisterSchema,
+    handler: async (params: unknown) => handleOrchFleetWorkerUnregister(params as z.output<typeof OrchFleetWorkerUnregisterSchema>),
   },
   {
     name: ORCH_FLEET_ENQUEUE,

@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { handleOrchFleetWorkerUnregister } from '../src/orch-tools/fleet-worker-unregister.js';
 import { handleOrchFleetStatus } from '../src/orch-tools/fleet-status.js';
 import { buildFleetQueueDiagnosticItems } from '../src/orch-tools/fleet-status-diagnostics.js';
-import { OrchFleetStatusSchema } from '../src/orch-tools/schemas.js';
+import {
+  OrchFleetStatusSchema,
+  OrchFleetWorkerUnregisterSchema,
+} from '../src/orch-tools/schemas.js';
 import {
   baseState,
   buildLeaseClaim,
@@ -585,6 +589,54 @@ describe('orch_fleet_status', () => {
         attention_reasons: ['QUEUE_OR_WORKER_REGISTRY_INVALID'],
       }),
     ]);
+  });
+
+  it('reflects unregister through the existing worker read model without changing status shape', async () => {
+    const projectRoot = makeTmpDir();
+    writeState(projectRoot, baseState({ run_id: 'run-1', run_status: 'idle' }));
+    writeLedger(projectRoot, [{
+      ts: '2026-03-23T00:00:00Z',
+      event_type: 'initialized',
+      run_id: 'run-1',
+      workflow_id: 'runtime',
+      step_id: null,
+      details: {},
+    }]);
+    writeWorkers(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-23T00:00:00Z',
+      workers: [{
+        worker_id: 'worker-1',
+        registered_at: '2026-03-23T00:00:00Z',
+        last_heartbeat_at: new Date().toISOString(),
+        accepts_claims: false,
+        max_concurrent_claims: 1,
+        heartbeat_timeout_seconds: 30,
+      }],
+    });
+    await handleOrchFleetWorkerUnregister(OrchFleetWorkerUnregisterSchema.parse({
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      unregistered_by: 'operator',
+      note: 'drain complete',
+    }));
+
+    const payload = await handleOrchFleetStatus(OrchFleetStatusSchema.parse({
+      project_roots: [projectRoot],
+    })) as {
+      summary: { worker_count: number; healthy_worker_count: number };
+      projects: Array<{
+        workers: { total: number; workers_initialized: boolean; workers: unknown[] };
+      }>;
+    };
+
+    expect(payload.summary.worker_count).toBe(0);
+    expect(payload.summary.healthy_worker_count).toBe(0);
+    expect(payload.projects[0]?.workers).toMatchObject({
+      total: 0,
+      workers_initialized: true,
+      workers: [],
+    });
   });
 
   it('flags missing claim owner metadata without inventing a worker fallback', () => {

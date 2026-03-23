@@ -199,3 +199,14 @@
 - Stopping new claims does not imply draining, releasing, takeover, reassignment, daemonized scheduling, or any second fleet read/authority surface. `orch_fleet_status` remains the only cross-root read surface and may expose only derived `accepts_claims` visibility/counters.
 
 **Why**: Batch 7 adds the minimal operator-controlled worker-eligibility primitive needed after queue, worker, stale-signal, and lease authority were already split, while explicitly avoiding a second lifecycle authority or premature drain/takeover semantics.
+
+### [2026-03-23] EVO-14 drained-worker unregister invariant: explicit opt-out only after drain is complete
+
+**Decision**:
+- EVO-14 Batch 8 adds a single explicit drained-worker unregister surface, `orch_fleet_worker_unregister`, and keeps it as the only mutation path allowed to remove a worker from `.autoresearch/fleet_workers.json`.
+- Unregister remains fail-closed: it requires an existing worker, `accepts_claims === false`, and `active_claim_count === 0` derived only from `.autoresearch/fleet_queue.json`; invalid worker or queue registries are errors, while a missing queue file may be treated as zero active claims.
+- Successful unregister mutates only `.autoresearch/fleet_workers.json` and appends audit-only `fleet_worker_unregistered` ledger history; it does not release/requeue claims, adjudicate stale claims, claim new work, mutate queue truth, or create any second lifecycle authority file.
+- `orch_fleet_worker_heartbeat` and `orch_fleet_worker_poll` remain bounded upsert/scheduler paths only, so later same-id re-registration still occurs solely through the existing worker upsert path.
+- `orch_fleet_status` remains the only cross-root read surface and reflects worker disappearance only through the existing read model shape.
+
+**Why**: Batch 8 closes the minimal fleet lifecycle loop after the Batch 7 acceptance gate without smuggling reassignment, takeover, daemonized scheduling, or second-authority worker lifecycle semantics into EVO-14.

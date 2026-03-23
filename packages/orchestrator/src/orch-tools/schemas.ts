@@ -204,6 +204,13 @@ export const OrchFleetWorkerSetClaimAcceptanceSchema = z.object({
   note: z.string().min(1).describe('Required human-readable note explaining why claim acceptance changed.'),
 });
 
+export const OrchFleetWorkerUnregisterSchema = z.object({
+  project_root: ProjectRootSchema,
+  worker_id: WorkerIdSchema.describe('Existing worker identifier to remove from fleet_workers.json after drain completes.'),
+  unregistered_by: QueueOwnerSchema.describe('Operator or subsystem explicitly unregistering the drained worker.'),
+  note: z.string().min(1).describe('Required human-readable note explaining why the drained worker is being unregistered.'),
+});
+
 export const OrchRunExecuteAgentSchema = z.object({
   _confirm: z.literal(true).describe('Must be true to execute this destructive operation.'),
   project_root: ProjectRootSchema,

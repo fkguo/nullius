@@ -7,6 +7,7 @@ import {
   ORCH_FLEET_STATUS,
   ORCH_FLEET_WORKER_HEARTBEAT,
   ORCH_FLEET_WORKER_POLL,
+  ORCH_FLEET_WORKER_UNREGISTER,
   ORCH_RUN_EXECUTE_AGENT,
 } from '@autoresearch/shared';
 import { ORCH_TOOL_SPECS } from '@autoresearch/orchestrator';
@@ -26,6 +27,7 @@ describe('shared orchestrator package export boundary', () => {
     expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_FLEET_STATUS)).toBe(true);
     expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_FLEET_WORKER_POLL)).toBe(true);
     expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_FLEET_WORKER_HEARTBEAT)).toBe(true);
+    expect(ORCH_TOOL_SPECS.some(spec => spec.name === ORCH_FLEET_WORKER_UNREGISTER)).toBe(true);
   });
 
   it('keeps hep-mcp as a host adapter over the shared/orchestrator authority', () => {
@@ -49,7 +51,7 @@ describe('shared orchestrator package export boundary', () => {
   });
 
   it('surfaces fleet worker tools through the same shared/orchestrator host path', () => {
-    for (const name of [ORCH_FLEET_WORKER_POLL, ORCH_FLEET_WORKER_HEARTBEAT]) {
+    for (const name of [ORCH_FLEET_WORKER_POLL, ORCH_FLEET_WORKER_HEARTBEAT, ORCH_FLEET_WORKER_UNREGISTER]) {
       const spec = getToolSpecs('full').find(item => item.name === name);
       expect(spec?.riskLevel).toBe('write');
       expect(spec?.exposure).toBe('full');

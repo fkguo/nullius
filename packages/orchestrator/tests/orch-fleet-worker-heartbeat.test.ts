@@ -1,9 +1,32 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import * as path from 'node:path';
 import { readFleetWorkers } from '../src/orch-tools/fleet-worker-store.js';
+import { handleOrchFleetWorkerUnregister } from '../src/orch-tools/fleet-worker-unregister.js';
 import { handleOrchFleetWorkerHeartbeat } from '../src/orch-tools/fleet-worker-tools.js';
-import { OrchFleetWorkerHeartbeatSchema } from '../src/orch-tools/schemas.js';
-import { cleanupTmpDirs, makeTmpDir, writeWorkers } from './orchFleetTestSupport.js';
+import {
+  OrchFleetWorkerHeartbeatSchema,
+  OrchFleetWorkerUnregisterSchema,
+} from '../src/orch-tools/schemas.js';
+import {
+  baseState,
+  cleanupTmpDirs,
+  makeTmpDir,
+  writeLedger,
+  writeState,
+  writeWorkers,
+} from './orchFleetTestSupport.js';
+
+function writeProject(projectRoot: string, runId = 'run-1'): void {
+  writeState(projectRoot, baseState({ run_id: runId }));
+  writeLedger(projectRoot, [{
+    ts: '2026-03-23T00:00:00Z',
+    event_type: 'initialized',
+    run_id: runId,
+    workflow_id: 'runtime',
+    step_id: null,
+    details: {},
+  }]);
+}
 
 afterEach(() => {
   cleanupTmpDirs();
@@ -94,6 +117,44 @@ describe('orch_fleet_worker_heartbeat', () => {
       heartbeat_timeout_seconds: 45,
       note: 'maintenance gate',
     });
+  });
+
+  it('re-registers the same worker id through the existing heartbeat upsert path after explicit unregister', async () => {
+    const projectRoot = makeTmpDir();
+    writeProject(projectRoot);
+    writeWorkers(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-23T00:00:00Z',
+      workers: [{
+        worker_id: 'worker-1',
+        registered_at: '2026-03-23T00:00:00Z',
+        last_heartbeat_at: '2026-03-23T00:00:00Z',
+        accepts_claims: false,
+        max_concurrent_claims: 1,
+        heartbeat_timeout_seconds: 30,
+      }],
+    });
+    await handleOrchFleetWorkerUnregister(OrchFleetWorkerUnregisterSchema.parse({
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      unregistered_by: 'operator',
+      note: 'drain complete',
+    }));
+
+    const payload = await handleOrchFleetWorkerHeartbeat(OrchFleetWorkerHeartbeatSchema.parse({
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      max_concurrent_claims: 3,
+      heartbeat_timeout_seconds: 45,
+      note: 're-registered worker',
+    })) as { worker: { worker_id: string; accepts_claims: boolean; note?: string } };
+
+    expect(payload.worker).toMatchObject({
+      worker_id: 'worker-1',
+      accepts_claims: true,
+      note: 're-registered worker',
+    });
+    expect(readFleetWorkers(projectRoot).registry?.workers).toHaveLength(1);
   });
 
   it('fails closed on invalid worker registry payloads', async () => {

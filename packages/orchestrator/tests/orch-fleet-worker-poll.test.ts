@@ -3,8 +3,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readFleetQueue } from '../src/orch-tools/fleet-queue-store.js';
 import { readFleetWorkers } from '../src/orch-tools/fleet-worker-store.js';
+import { handleOrchFleetWorkerUnregister } from '../src/orch-tools/fleet-worker-unregister.js';
 import { handleOrchFleetWorkerPoll } from '../src/orch-tools/fleet-worker-tools.js';
-import { OrchFleetWorkerPollSchema } from '../src/orch-tools/schemas.js';
+import {
+  OrchFleetWorkerPollSchema,
+  OrchFleetWorkerUnregisterSchema,
+} from '../src/orch-tools/schemas.js';
 import {
   baseState,
   buildLeaseClaim,
@@ -224,6 +228,59 @@ describe('orch_fleet_worker_poll', () => {
     }).lease_expires_at);
     expect(autoReleasedItem).toMatchObject({ status: 'queued', attempt_count: 3 });
     expect(waitingItem).toMatchObject({ status: 'queued', attempt_count: 0 });
+  });
+
+  it('re-registers the same worker id through poll after explicit unregister without a second lifecycle store', async () => {
+    const projectRoot = makeTmpDir();
+    writeProject(projectRoot);
+    writeWorkers(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-23T00:00:00Z',
+      workers: [{
+        worker_id: 'worker-1',
+        registered_at: '2026-03-23T00:00:00Z',
+        last_heartbeat_at: '2026-03-23T00:00:00Z',
+        accepts_claims: false,
+        max_concurrent_claims: 1,
+        heartbeat_timeout_seconds: 30,
+      }],
+    });
+    await handleOrchFleetWorkerUnregister(OrchFleetWorkerUnregisterSchema.parse({
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      unregistered_by: 'operator',
+      note: 'drain complete',
+    }));
+    writeQueue(projectRoot, {
+      schema_version: 1,
+      updated_at: '2026-03-23T00:00:00Z',
+      items: [{
+        queue_item_id: 'fq_waiting',
+        run_id: 'run-1',
+        status: 'queued',
+        priority: 1,
+        enqueued_at: '2026-03-23T00:00:00Z',
+        requested_by: 'operator',
+        attempt_count: 0,
+      }],
+    });
+
+    const payload = await handleOrchFleetWorkerPoll(OrchFleetWorkerPollSchema.parse({
+      project_root: projectRoot,
+      worker_id: 'worker-1',
+      max_concurrent_claims: 1,
+      heartbeat_timeout_seconds: 30,
+    })) as {
+      claimed: boolean;
+      worker: { worker_id: string; accepts_claims: boolean; active_claim_count: number };
+      queue_item: { claim?: { owner_id: string } };
+    };
+
+    expect(payload).toMatchObject({
+      claimed: true,
+      worker: { worker_id: 'worker-1', accepts_claims: true, active_claim_count: 1 },
+      queue_item: { claim: { owner_id: 'worker-1' } },
+    });
   });
 
   it('fails closed when the worker registry or queue file is invalid', async () => {

@@ -81,6 +81,7 @@ export const ORCH_FLEET_ADJUDICATE_STALE_CLAIM = 'orch_fleet_adjudicate_stale_cl
 export const ORCH_FLEET_WORKER_POLL = 'orch_fleet_worker_poll' as const;
 export const ORCH_FLEET_WORKER_HEARTBEAT = 'orch_fleet_worker_heartbeat' as const;
 export const ORCH_FLEET_WORKER_SET_CLAIM_ACCEPTANCE = 'orch_fleet_worker_set_claim_acceptance' as const;
+export const ORCH_FLEET_WORKER_UNREGISTER = 'orch_fleet_worker_unregister' as const;
 
 // ── OpenAlex Tools ──────────────────────────────────────────────────────────
 
