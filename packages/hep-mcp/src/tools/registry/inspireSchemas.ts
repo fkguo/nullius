@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
+import { optionalBudgetInt } from '@autoresearch/shared';
 import { TimeRangeSchema } from '../research/schemas.js';
 import { ResearchNavigatorToolSchema } from '../research/researchNavigator.js';
 import { SafePathSegmentSchema, SearchExportFormatSchema } from './projectSchemas.js';
@@ -10,15 +11,15 @@ const JsonMarkdownSchema = z.enum(['json', 'markdown']);
 export const InspireSearchToolSchema = z.object({
   query: z.string().min(1),
   sort: SortSchema.optional(),
-  size: z.number().int().min(1).max(1000).optional().default(25),
-  page: z.number().int().optional().default(1),
+  size: optionalBudgetInt({ min: 1, max: 1000 }).default(25),
+  page: optionalBudgetInt({ min: 1 }).default(1),
   format: JsonMarkdownSchema.optional().default('json'),
   review_mode: z.enum(['mixed', 'separate', 'deprioritize', 'exclude']).optional().default('mixed'),
   run_id: SafePathSegmentSchema.optional(),
   output_format: SearchExportFormatSchema.optional().default('jsonl'),
   artifact_name: SafePathSegmentSchema.optional(),
   meta_artifact_name: SafePathSegmentSchema.optional(),
-  max_results: z.number().int().positive().optional().default(100),
+  max_results: optionalBudgetInt({ min: 1 }).default(100),
 });
 
 export const InspireSearchNextToolSchema = z.object({
@@ -65,7 +66,7 @@ export const InspireLiteratureToolSchema = z
   .object({
     mode: InspireLiteratureModeSchema,
     recid: z.string().min(1).optional(),
-    size: z.number().int().optional(),
+    size: optionalBudgetInt({ min: 1 }),
     identifier: z.string().min(1).optional(),
     sort: SortSchema.optional(),
     affiliation: z.string().min(1).optional(),
@@ -169,7 +170,7 @@ export const CriticalResearchToolSchema = z
     options: z
       .object({
         search_confirmations: z.boolean().optional(),
-        max_search_results: z.number().int().optional(),
+        max_search_results: optionalBudgetInt({ min: 1 }),
         target_quantities: z.array(z.string()).optional(),
         min_tension_sigma: z.number().optional(),
         include_tables: z.boolean().optional(),
@@ -177,15 +178,15 @@ export const CriticalResearchToolSchema = z
         include_questions: z.boolean().optional(),
         include_assumptions: z.boolean().optional(),
         check_literature: z.boolean().optional(),
-        assumption_max_depth: z.number().int().optional(),
+        assumption_max_depth: optionalBudgetInt({ min: 0 }),
         current_threshold_years: z.number().int().optional(),
         subject_entity: z.string().min(1).optional(),
         inputs: z.array(z.enum(['title', 'abstract', 'citation_context', 'evidence_paragraph'])).optional(),
-        max_papers: z.number().int().positive().optional(),
-        max_claim_candidates_per_paper: z.number().int().positive().optional(),
-        max_candidates_total: z.number().int().positive().optional(),
+        max_papers: optionalBudgetInt({ min: 1 }),
+        max_claim_candidates_per_paper: optionalBudgetInt({ min: 1 }),
+        max_candidates_total: optionalBudgetInt({ min: 1 }),
         llm_mode: z.enum(['passthrough', 'client', 'internal']).optional(),
-        max_llm_requests: z.number().int().positive().optional(),
+        max_llm_requests: optionalBudgetInt({ min: 1 }),
         strict_llm: z.boolean().optional(),
         prompt_version: z.string().min(1).optional(),
         stable_sort: z.boolean().optional(),
@@ -240,7 +241,7 @@ export const DeepResearchToolSchema = z.object({
       extract_methodology: z.boolean().optional(),
       extract_conclusions: z.boolean().optional(),
       include_inline_math: z.boolean().optional(),
-      max_section_length: z.number().int().optional(),
+      max_section_length: optionalBudgetInt({ min: 0 }),
       review_type: z.enum(['methodology', 'timeline', 'comparison', 'overview']).optional(),
       focus_topic: z.string().optional(),
       style: z.enum(['list', 'narrative']).optional(),
@@ -248,7 +249,7 @@ export const DeepResearchToolSchema = z.object({
       narrative_structure: z.enum(['top_down', 'bottom_up', 'historical']).optional(),
       include_equations: z.boolean().optional(),
       include_bibliography: z.boolean().optional(),
-      max_papers_per_group: z.number().int().optional(),
+      max_papers_per_group: optionalBudgetInt({ min: 1 }),
     })
     .optional(),
 });
@@ -274,7 +275,7 @@ export const InspireParseLatexToolSchema = z.object({
     .object({
       format: JsonMarkdownSchema.optional(),
       include_external: z.boolean().optional(),
-      max_depth: z.number().int().min(1).optional(),
+      max_depth: optionalBudgetInt({ min: 1 }),
       cross_validate: z.boolean().optional(),
     })
     .optional(),
@@ -285,19 +286,19 @@ export const FindCrossoverTopicsToolSchema = z.object({
   scan_popular: z.boolean().optional().default(true),
   time_range: TimeRangeSchema,
   min_papers: z.number().int().optional(),
-  limit: z.number().int().optional(),
+  limit: optionalBudgetInt({ min: 1 }),
 });
 
 export const AnalyzeCitationStanceToolSchema = z.object({
   latex_content: z.string().min(1),
   target_recid: z.string().min(1),
   bib_content: z.string().optional(),
-  max_contexts: z.number().int().optional().default(20),
+  max_contexts: optionalBudgetInt({ min: 1 }).default(20),
 });
 
 export const CleanupDownloadsToolSchema = z.object({
   arxiv_id: z.string().optional(),
-  older_than_hours: z.number().int().optional(),
+  older_than_hours: optionalBudgetInt({ min: 0 }),
   dry_run: z.boolean().optional(),
   _confirm: z.boolean().optional(),
 });
@@ -308,7 +309,7 @@ export const ValidateBibliographyToolSchema = z.object({
   check_discrepancies: z.boolean().optional().default(true),
   validate_against_inspire: z.boolean().optional().default(false),
   require_locatable: z.boolean().optional().default(true),
-  max_entries: z.number().int().optional(),
+  max_entries: optionalBudgetInt({ min: 0 }),
 });
 
 let classifyPapersCache: ((papers: any[]) => any[]) | null = null;

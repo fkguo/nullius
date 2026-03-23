@@ -40,9 +40,16 @@ describe('OpenAlex Zod schemas', () => {
       expect(result.success).toBe(true);
     });
 
-    it('rejects per_page > 200', () => {
+    it('falls back to default per_page when per_page > 200', () => {
       const result = OpenAlexSearchSchema.safeParse({ query: 'test', per_page: 201 });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.success && result.data.per_page).toBe(25);
+    });
+
+    it('parses page strings polluted with control characters', () => {
+      const result = OpenAlexSearchSchema.safeParse({ query: 'test', page: '\r\t2' });
+      expect(result.success).toBe(true);
+      expect(result.success && result.data.page).toBe(2);
     });
   });
 
@@ -134,6 +141,16 @@ describe('OpenAlex Zod schemas', () => {
 
     it('applies default max_size_mb=100', () => {
       const result = OpenAlexContentSchema.safeParse({ work_id: 'W123', _confirm: true });
+      expect(result.success && result.data.max_size_mb).toBe(100);
+    });
+
+    it('falls back to default max_size_mb for invalid values', () => {
+      const result = OpenAlexContentSchema.safeParse({
+        work_id: 'W123',
+        _confirm: true,
+        max_size_mb: -100,
+      });
+      expect(result.success).toBe(true);
       expect(result.success && result.data.max_size_mb).toBe(100);
     });
   });

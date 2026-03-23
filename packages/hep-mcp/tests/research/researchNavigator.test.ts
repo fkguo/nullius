@@ -33,6 +33,7 @@ vi.mock('../../src/tools/research/analyzePapers.js', () => ({
 }));
 
 const { handleToolCall, getToolSpecs, getTools } = await import('../../src/tools/index.js');
+const { ResearchNavigatorToolSchema } = await import('../../src/tools/research/researchNavigator.js');
 const topicAnalysis = await import('../../src/tools/research/topicAnalysis.js');
 const discoverPapers = await import('../../src/tools/research/discoverPapers.js');
 const networkAnalysis = await import('../../src/tools/research/networkAnalysis.js');
@@ -291,5 +292,30 @@ describe('Research navigator facade', () => {
 
     const facade = getToolSpecs('standard').find(s => s.name === 'inspire_research_navigator');
     expect(facade).toBeTruthy();
+  });
+
+  it('defaults invalid nested traversal budgets back to omission/default semantics', () => {
+    const parsed = ResearchNavigatorToolSchema.parse({
+      mode: 'topic_analysis',
+      topic: 'qcd',
+      topic_mode: 'emerging',
+      topic_options: {
+        sociology_options: {
+          disruption: {
+            max_refs_to_check: '\r\t-100',
+            nk_search_limit_fast: 5000,
+          },
+          new_entrant: {
+            fast_mode_sample_size: -1,
+            lookback_years: 5,
+          },
+        },
+      },
+    });
+
+    expect(parsed.topic_options?.sociology_options?.disruption?.max_refs_to_check).toBeUndefined();
+    expect(parsed.topic_options?.sociology_options?.disruption?.nk_search_limit_fast).toBeUndefined();
+    expect(parsed.topic_options?.sociology_options?.new_entrant?.fast_mode_sample_size).toBeUndefined();
+    expect(parsed.topic_options?.sociology_options?.new_entrant?.lookback_years).toBe(5);
   });
 });

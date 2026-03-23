@@ -27,7 +27,6 @@ export interface GetPaperContentParams {
   prefer?: 'latex' | 'pdf' | 'auto';
   output_dir?: string;
   extract?: boolean;
-  max_content_kb?: number;
 }
 
 export interface GetPaperContentResult {

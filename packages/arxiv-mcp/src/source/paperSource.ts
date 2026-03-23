@@ -19,7 +19,6 @@ export interface SourceOptions {
   extract?: boolean;
   output_dir?: string;
   check_availability?: boolean;
-  max_content_kb?: number;
 }
 
 export interface PaperSourceParams {
@@ -75,7 +74,6 @@ export async function accessPaperSource(
         prefer: options.prefer,
         extract: options.extract,
         output_dir: options.output_dir,
-        max_content_kb: options.max_content_kb,
       });
       break;
     }

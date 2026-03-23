@@ -81,5 +81,25 @@ describe('Tool registry contracts', () => {
 
     expect(() => assertToolContracts(specs, defs)).toThrow(/inputSchema drift/);
   });
-});
 
+  it('zotero_local falls back to default limit/start for invalid pagination budgets', () => {
+    const spec = getToolSpecs('standard').find(s => s.name === 'zotero_local');
+    expect(spec).toBeDefined();
+    const parsed = spec!.zodSchema.parse({
+      mode: 'list_items',
+      limit: -1,
+      start: '\r\t-5',
+    });
+    expect(parsed.limit).toBe(50);
+    expect(parsed.start).toBe(0);
+  });
+
+  it('zotero_find_items still rejects invalid non-budget numerics', () => {
+    const spec = getToolSpecs('standard').find(s => s.name === 'zotero_find_items');
+    expect(spec).toBeDefined();
+    expect(spec!.zodSchema.safeParse({
+      identifiers: { title: 'Test title' },
+      filters: { year: -1 },
+    }).success).toBe(false);
+  });
+});

@@ -16,6 +16,7 @@ import {
   invalidParams,
   McpError,
   notFound,
+  optionalBudgetInt,
   PDG_INFO,
   PDG_FIND_PARTICLE,
   PDG_FIND_REFERENCE,
@@ -90,8 +91,8 @@ const PdgFindParticleToolSchema = z
     pdgid: z.string().min(1).optional(),
     case_sensitive: z.boolean().optional().default(false),
     match: z.enum(['exact', 'prefix', 'contains']).optional().default('exact'),
-    limit: z.number().int().positive().max(50).optional().default(20),
-    start: z.number().int().nonnegative().optional().default(0),
+    limit: optionalBudgetInt({ min: 1, max: 50 }).default(20),
+    start: optionalBudgetInt({ min: 0 }).default(0),
   })
   .refine(
     v => {
@@ -144,8 +145,8 @@ const PdgGetToolSchema = z.object({
 const PdgGetDecaysToolSchema = z.object({
   particle: ParticleSelectorSchema,
   edition: z.string().min(1).optional(),
-  start: z.number().int().nonnegative().optional().default(0),
-  limit: z.number().int().positive().max(500).optional().default(200),
+  start: optionalBudgetInt({ min: 0 }).default(0),
+  limit: optionalBudgetInt({ min: 1, max: 500 }).default(200),
   artifact_name: SafePathSegmentSchema.optional(),
 });
 
@@ -159,8 +160,8 @@ const PdgGetMeasurementsToolSchema = z.object({
   /** When `particle` (or numeric `pdgid`) is used, select by PDGID.DATA_TYPE (e.g. 'T', 'M', 'BR'). */
   data_type: z.string().min(1).max(8).optional(),
   case_sensitive: z.boolean().optional().default(false),
-  start: z.number().int().nonnegative().optional().default(0),
-  limit: z.number().int().positive().max(200).optional().default(50),
+  start: optionalBudgetInt({ min: 0 }).default(0),
+  limit: optionalBudgetInt({ min: 1, max: 200 }).default(50),
   include_values: z.boolean().optional().default(true),
   include_reference: z.boolean().optional().default(true),
   include_footnotes: z.boolean().optional().default(true),
@@ -185,8 +186,8 @@ const PdgFindReferenceToolSchema = z
     title: z.string().min(1).optional(),
     match: z.enum(['exact', 'prefix', 'contains']).optional().default('contains'),
     case_sensitive: z.boolean().optional().default(false),
-    limit: z.number().int().positive().max(50).optional().default(20),
-    start: z.number().int().nonnegative().optional().default(0),
+    limit: optionalBudgetInt({ min: 1, max: 50 }).default(20),
+    start: optionalBudgetInt({ min: 0 }).default(0),
   })
   .refine(
     v => {
@@ -228,7 +229,7 @@ const PdgBatchCallSchema = z.object({
 
 const PdgBatchToolSchema = z.object({
   calls: z.array(PdgBatchCallSchema).min(1).max(50),
-  concurrency: z.number().int().positive().max(16).optional().default(4),
+  concurrency: optionalBudgetInt({ min: 1, max: 16 }).default(4),
   continue_on_error: z.boolean().optional().default(false),
   artifact_name: SafePathSegmentSchema.optional(),
 });

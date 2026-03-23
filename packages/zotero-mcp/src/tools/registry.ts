@@ -7,6 +7,7 @@ import {
   ZOTERO_GET_SELECTED_COLLECTION,
   ZOTERO_ADD,
   ZOTERO_CONFIRM,
+  optionalBudgetInt,
 } from '@autoresearch/shared';
 
 import { zodToMcpInputSchema } from './mcpSchema.js';
@@ -60,8 +61,8 @@ const SafePathSegmentSchema = z
   });
 
 const PaginationSchema = z.object({
-  limit: z.number().int().positive().max(200).optional().default(50),
-  start: z.number().int().nonnegative().optional().default(0),
+  limit: optionalBudgetInt({ min: 1, max: 200 }).default(50),
+  start: optionalBudgetInt({ min: 0 }).default(0),
 });
 
 const ZoteroFindItemsIdentifiersSchema = z
@@ -113,7 +114,7 @@ const ZoteroFindItemsToolSchema = z
       .optional()
       .default(false)
       .describe('When collection_key is set, also search within descendant sub-collections'),
-    limit: z.number().int().positive().max(50).optional().default(20),
+    limit: optionalBudgetInt({ min: 1, max: 50 }).default(20),
     include_attachments: z.boolean().optional().default(false),
     match: z.enum(['exact', 'fuzzy']).optional().default('exact'),
   })
@@ -201,8 +202,8 @@ const ZoteroSearchItemsToolSchema = z
       .optional()
       .describe('Sort key (Zotero Local API `sort`)'),
     direction: z.enum(['asc', 'desc']).optional().describe('Sort direction (Zotero Local API `direction`)'),
-    limit: z.number().int().positive().max(50).optional().default(20),
-    start: z.number().int().nonnegative().optional().default(0),
+    limit: optionalBudgetInt({ min: 1, max: 50 }).default(20),
+    start: optionalBudgetInt({ min: 0 }).default(0),
   })
   .superRefine((v, ctx) => {
     if (v.q || v.tag || v.collection_key || v.item_type) return;
@@ -311,15 +312,15 @@ const ZoteroExportItemsToolSchema = z.object({
   style: z.string().trim().min(1).max(1024).optional(),
   locale: z.string().trim().min(1).max(64).optional(),
   linkwrap: z.boolean().optional(),
-  max_chars: z.number().int().min(1_000).max(2_000_000).optional().default(200_000),
+  max_chars: optionalBudgetInt({ min: 1_000, max: 2_000_000 }).default(200_000),
 });
 
 const ZoteroListCollectionPathsToolSchema = z.object({
   query: z.string().trim().min(1).max(256).optional(),
   match: z.enum(['contains', 'starts_with']).optional().default('contains'),
   case_sensitive: z.boolean().optional().default(false),
-  limit: z.number().int().positive().max(500).optional().default(200),
-  start: z.number().int().nonnegative().optional().default(0),
+  limit: optionalBudgetInt({ min: 1, max: 500 }).default(200),
+  start: optionalBudgetInt({ min: 0 }).default(0),
 });
 
 // NOTE: Keep zotero_local gateway-compatible: avoid top-level oneOf/anyOf/allOf in JSON Schema.

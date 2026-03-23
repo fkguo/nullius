@@ -31,3 +31,4 @@ export {
 } from './formatters.js';
 
 export { cleanMathTitle } from './mathTitle.js';
+export { optionalBudgetInt, optionalBudgetNumber } from './zodBudget.js';

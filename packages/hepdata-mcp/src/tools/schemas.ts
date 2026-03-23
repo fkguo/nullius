@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { optionalBudgetInt } from '@autoresearch/shared';
 
 export const HepDataSearchSchema = z.object({
   inspire_recid: z.number().int().positive().optional(),
@@ -14,8 +15,8 @@ export const HepDataSearchSchema = z.object({
     .optional(),
   subject_areas: z.string().trim().min(1).optional(),
   sort_by: z.enum(['relevance', 'collaborations', 'title', 'date', 'latest']).optional(),
-  page: z.number().int().positive().default(1),
-  size: z.number().int().positive().max(25).default(10),
+  page: optionalBudgetInt({ min: 1 }).default(1),
+  size: optionalBudgetInt({ min: 1, max: 25 }).default(10),
 }).refine(
   p =>
     p.inspire_recid != null || p.arxiv_id != null || p.doi != null || p.query != null ||

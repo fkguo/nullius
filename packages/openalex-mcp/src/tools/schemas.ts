@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { optionalBudgetInt, optionalBudgetNumber } from '@autoresearch/shared';
 
 // ── Entity enum (shared across tools) ────────────────────────────────────────
 
@@ -15,9 +16,9 @@ export const OpenAlexSearchSchema = z.object({
     .describe('OpenAlex filter expression (e.g., "publication_year:>2020,is_oa:true")'),
   sort: z.string().trim().min(1).optional()
     .describe('Sort field:direction (e.g., "cited_by_count:desc", "publication_date:asc")'),
-  per_page: z.coerce.number().int().min(1).max(200).default(25)
+  per_page: optionalBudgetInt({ min: 1, max: 200 }).default(25)
     .describe('Results per page (max 200)'),
-  page: z.coerce.number().int().min(1).default(1)
+  page: optionalBudgetInt({ min: 1 }).default(1)
     .describe('Page number (1-indexed). Ignored when cursor is provided.'),
   cursor: z.string().trim().min(1).optional()
     .describe('Cursor token from previous response for deep pagination'),
@@ -26,12 +27,12 @@ export const OpenAlexSearchSchema = z.object({
       'Comma-separated fields to return (e.g., "id,title,doi,cited_by_count"). ' +
       'Note: id and doi are always included automatically for works.',
     ),
-  max_results: z.coerce.number().int().min(1).max(100000).optional()
+  max_results: optionalBudgetInt({ min: 1, max: 100000 })
     .describe(
       'Max total results (auto-paginates via cursor). Writes JSONL to data dir if >200. ' +
       'Omit for single page.',
     ),
-  sample: z.coerce.number().int().min(1).optional()
+  sample: optionalBudgetInt({ min: 1 })
     .describe('Return random sample of N results'),
   seed: z.coerce.number().int().optional()
     .describe('Seed for reproducible sampling (requires sample)'),
@@ -50,9 +51,9 @@ export const OpenAlexSemanticSearchSchema = z.object({
     .describe('Semantic search query (AI-powered similarity). Requires API key.'),
   filter: z.string().trim().min(1).optional()
     .describe('OpenAlex filter expression to scope results'),
-  per_page: z.coerce.number().int().min(1).max(200).default(25)
+  per_page: optionalBudgetInt({ min: 1, max: 200 }).default(25)
     .describe('Results per page (max 200)'),
-  page: z.coerce.number().int().min(1).default(1)
+  page: optionalBudgetInt({ min: 1 }).default(1)
     .describe('Page number (1-indexed)'),
   select: z.string().trim().min(1).optional()
     .describe('Comma-separated fields. id and doi are always auto-included.'),
@@ -90,15 +91,15 @@ export const OpenAlexFilterSchema = z.object({
     .describe('Optional text search within filtered results'),
   sort: z.string().trim().min(1).optional()
     .describe('Sort field:direction'),
-  per_page: z.coerce.number().int().min(1).max(200).default(25)
+  per_page: optionalBudgetInt({ min: 1, max: 200 }).default(25)
     .describe('Results per page (max 200)'),
-  page: z.coerce.number().int().min(1).default(1)
+  page: optionalBudgetInt({ min: 1 }).default(1)
     .describe('Page number (1-indexed). Ignored when cursor is provided.'),
   cursor: z.string().trim().min(1).optional()
     .describe('Cursor token from previous response for deep pagination'),
   select: z.string().trim().min(1).optional()
     .describe('Comma-separated fields. id is always auto-included.'),
-  max_results: z.coerce.number().int().min(1).max(100000).optional()
+  max_results: optionalBudgetInt({ min: 1, max: 100000 })
     .describe('Max total results (auto-paginates via cursor). Writes JSONL to data dir if >200.'),
 });
 
@@ -123,7 +124,7 @@ export const OpenAlexReferencesSchema = z.object({
     .describe(
       'Work ID (OpenAlex W-prefixed, DOI, or full OpenAlex URL) to get outgoing references for',
     ),
-  per_page: z.coerce.number().int().min(1).max(200).default(200)
+  per_page: optionalBudgetInt({ min: 1, max: 200 }).default(200)
     .describe('Results per page for batch-fetching reference metadata'),
   select: z.string().trim().min(1).optional()
     .describe('Fields to return for each referenced work. id always included.'),
@@ -138,15 +139,15 @@ export const OpenAlexCitationsSchema = z.object({
     .describe('Sort field:direction (e.g., "cited_by_count:desc")'),
   filter: z.string().trim().min(1).optional()
     .describe('Filter applied to citing works'),
-  per_page: z.coerce.number().int().min(1).max(200).default(25)
+  per_page: optionalBudgetInt({ min: 1, max: 200 }).default(25)
     .describe('Results per page (max 200)'),
-  page: z.coerce.number().int().min(1).default(1)
+  page: optionalBudgetInt({ min: 1 }).default(1)
     .describe('Page number (1-indexed). Ignored when cursor is provided.'),
   cursor: z.string().trim().min(1).optional()
     .describe('Cursor token from previous response for deep pagination'),
   select: z.string().trim().min(1).optional()
     .describe('Comma-separated fields. id always included.'),
-  max_results: z.coerce.number().int().min(1).max(100000).optional()
+  max_results: optionalBudgetInt({ min: 1, max: 100000 })
     .describe('Max total results (auto-paginates via cursor). Writes JSONL if >200.'),
 });
 
@@ -182,7 +183,7 @@ export const OpenAlexContentSchema = z.object({
     .describe('Output directory for downloaded file. Defaults to OPENALEX_DATA_DIR/content/.'),
   _confirm: z.literal(true)
     .describe('Must be true to confirm disk write (destructive tool).'),
-  max_size_mb: z.coerce.number().min(1).max(200).default(100)
+  max_size_mb: optionalBudgetNumber({ min: 1, max: 200 }).default(100)
     .describe('Max download size in MB. Aborts if Content-Length exceeds this.'),
 });
 

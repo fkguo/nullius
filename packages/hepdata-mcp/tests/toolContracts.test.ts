@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
+import { HepDataSearchSchema } from '../src/tools/schemas.js';
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -80,5 +81,22 @@ describe('Tool registry contracts (M0)', () => {
     });
 
     expect(() => assertToolContracts(specs, defs)).toThrow(/inputSchema drift/);
+  });
+
+  it('HepDataSearchSchema falls back to defaults for invalid page/size budgets', () => {
+    const parsed = HepDataSearchSchema.parse({
+      query: 'LHCb cross section',
+      page: '\r\t-5',
+      size: 999,
+    });
+    expect(parsed.page).toBe(1);
+    expect(parsed.size).toBe(10);
+  });
+
+  it('HepDataSearchSchema still rejects invalid identifier numerics', () => {
+    expect(HepDataSearchSchema.safeParse({
+      inspire_recid: -1,
+      query: 'LHCb cross section',
+    }).success).toBe(false);
   });
 });

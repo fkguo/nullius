@@ -12,6 +12,7 @@ import {
   ARXIV_PAPER_SOURCE,
   DiscoveryProviderDescriptorSchema,
   type DiscoveryProviderDescriptor,
+  optionalBudgetInt,
 } from '@autoresearch/shared';
 import { ARXIV_ID_REGEX, normalizeArxivId } from '../source/arxivSource.js';
 import { searchArxiv, fetchArxivMetadata } from '../api/searchClient.js';
@@ -52,9 +53,9 @@ const ArxivSearchSchema = z.object({
   query: z.string().min(1).describe('Search query (arXiv API search_query syntax)'),
   categories: z.array(ArxivCategorySchema).optional()
     .describe('Filter by arXiv categories (e.g. ["hep-ph", "hep-th"])'),
-  max_results: z.number().int().positive().max(50).default(10)
+  max_results: optionalBudgetInt({ min: 1, max: 50 }).default(10)
     .describe('Maximum results to return'),
-  start: z.number().int().nonnegative().default(0)
+  start: optionalBudgetInt({ min: 0 }).default(0)
     .describe('Pagination offset'),
   date_from: z.string().regex(/^\d{8}$/).optional()
     .describe('Start date filter (YYYYMMDD)'),
@@ -79,8 +80,6 @@ const ArxivPaperSourceSchema = z.object({
     .describe('Preferred content format (content mode only)'),
   extract: z.boolean().optional().default(true)
     .describe('Extract tar.gz archive (content mode only)'),
-  max_content_kb: z.number().int().positive().optional()
-    .describe('Content size limit in KB'),
   check_availability: z.boolean().optional().default(false)
     .describe('Check source availability via HEAD request (urls/auto mode)'),
 });
@@ -133,7 +132,6 @@ export const TOOL_SPECS: ToolSpec[] = [
           prefer: args.prefer,
           extract: args.extract,
           check_availability: args.check_availability,
-          max_content_kb: args.max_content_kb,
         },
       });
     },

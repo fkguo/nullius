@@ -81,5 +81,22 @@ describe('Tool registry contracts (M0)', () => {
 
     expect(() => assertToolContracts(specs, defs)).toThrow(/inputSchema drift/);
   });
-});
 
+  it('pdg_find_particle falls back to defaults for invalid limit/start budgets', () => {
+    const spec = getToolSpecs('standard').find(s => s.name === 'pdg_find_particle');
+    expect(spec).toBeDefined();
+    const parsed = spec!.zodSchema.parse({
+      name: 'pi0',
+      limit: -1,
+      start: '\r\t-5',
+    });
+    expect(parsed.limit).toBe(20);
+    expect(parsed.start).toBe(0);
+  });
+
+  it('pdg_get_reference still rejects invalid identifier numerics', () => {
+    const spec = getToolSpecs('standard').find(s => s.name === 'pdg_get_reference');
+    expect(spec).toBeDefined();
+    expect(spec!.zodSchema.safeParse({ id: -1 }).success).toBe(false);
+  });
+});

@@ -5,6 +5,12 @@ import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
 import { HEP_TOOL_RISK_LEVELS, type ToolRiskLevel } from '../src/tool-risk.js';
 import * as T from '../src/tool-names.js';
+import { InspireSearchToolSchema } from '../src/tools/registry/inspireSchemas.js';
+import {
+  HepRunBuildMeasurementsToolSchema,
+  HepProjectQueryEvidenceToolSchema,
+  HepProjectCompareMeasurementsToolSchema,
+} from '../src/tools/registry/projectSchemas.js';
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -86,6 +92,43 @@ describe('Tool registry contracts (M2)', () => {
     });
 
     expect(() => assertToolContracts(specs, defs)).toThrow(/inputSchema drift/);
+  });
+
+  it('inspire_search falls back to defaults for invalid max_results budgets', () => {
+    const parsed = InspireSearchToolSchema.parse({
+      query: 'qcd',
+      max_results: -100,
+      page: '\r\t-5',
+    });
+    expect(parsed.max_results).toBe(100);
+    expect(parsed.page).toBe(1);
+  });
+
+  it('hep_run_build_measurements no longer clamps invalid max_results; it falls back to default', () => {
+    const parsed = HepRunBuildMeasurementsToolSchema.parse({
+      run_id: 'run-1',
+      max_results: 999999,
+    });
+    expect(parsed.max_results).toBe(500);
+  });
+
+  it('hep_project_query_evidence falls back to defaults for invalid concurrency/limit budgets', () => {
+    const parsed = HepProjectQueryEvidenceToolSchema.parse({
+      project_id: 'project-1',
+      query: 'beta function',
+      concurrency: -100,
+      limit: '\r\t999',
+    });
+    expect(parsed.concurrency).toBe(4);
+    expect(parsed.limit).toBe(10);
+  });
+
+  it('non-budget numeric params remain fail-closed', () => {
+    expect(HepProjectCompareMeasurementsToolSchema.safeParse({
+      run_id: 'run-1',
+      input_runs: [{ run_id: 'run-a' }, { run_id: 'run-b' }],
+      min_tension_sigma: -1,
+    }).success).toBe(false);
   });
 });
 

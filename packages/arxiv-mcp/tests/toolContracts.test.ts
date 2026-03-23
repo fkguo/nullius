@@ -133,6 +133,16 @@ describe('Zod default enforcement', () => {
     expect(parsed.max_results).toBe(10);
   });
 
+  it('ArxivSearchSchema falls back to default max_results for invalid budget values', () => {
+    const parsed = ArxivSearchSchema.parse({ query: 'test', max_results: -100 as any });
+    expect(parsed.max_results).toBe(10);
+  });
+
+  it('ArxivSearchSchema falls back to default start for polluted invalid strings', () => {
+    const parsed = ArxivSearchSchema.parse({ query: 'test', start: '\r\t-100' as any });
+    expect(parsed.start).toBe(0);
+  });
+
   it('ArxivSearchSchema defaults sort_by to relevance', () => {
     const parsed = ArxivSearchSchema.parse({ query: 'test' });
     expect(parsed.sort_by).toBe('relevance');
@@ -156,6 +166,22 @@ describe('Zod default enforcement', () => {
   it('ArxivPaperSourceSchema defaults check_availability to false', () => {
     const parsed = ArxivPaperSourceSchema.parse({ arxiv_id: '2301.01234' });
     expect(parsed.check_availability).toBe(false);
+  });
+
+  it('ArxivPaperSourceSchema strips legacy max_content_kb without error', () => {
+    const parsed = ArxivPaperSourceSchema.parse({
+      arxiv_id: '2301.01234',
+      max_content_kb: 256,
+    } as any);
+    expect('max_content_kb' in parsed).toBe(false);
+  });
+});
+
+describe('Tool metadata drift regressions', () => {
+  it('arxiv_paper_source no longer exposes max_content_kb', () => {
+    const tool = getTools('standard').find(t => t.name === ARXIV_PAPER_SOURCE);
+    expect(tool).toBeDefined();
+    expect((tool?.inputSchema as any).properties.max_content_kb).toBeUndefined();
   });
 });
 

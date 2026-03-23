@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { optionalBudgetInt } from '@autoresearch/shared';
 import { ReportDraftSchema, SectionDraftSchema } from '../../core/writing/draftSchemas.js';
 
 const SortSchema = z.enum(['mostrecent', 'mostcited']);
@@ -27,7 +28,7 @@ export const HepProjectListToolSchema = z.object({});
 
 export const HepHealthToolSchema = z.object({
   check_inspire: z.boolean().optional().default(false),
-  inspire_timeout_ms: z.number().int().positive().optional().default(5000),
+  inspire_timeout_ms: optionalBudgetInt({ min: 1 }).default(5000),
 });
 
 export const HepRunCreateToolSchema = z.object({
@@ -38,8 +39,8 @@ export const HepRunCreateToolSchema = z.object({
 export const HepRunReadArtifactChunkToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   artifact_name: SafePathSegmentSchema,
-  offset: z.number().int().nonnegative().optional().default(0),
-  length: z.number().int().positive().optional().default(4096),
+  offset: optionalBudgetInt({ min: 0 }).default(0),
+  length: optionalBudgetInt({ min: 1 }).default(4096),
 });
 
 export const HepRunClearManifestLockToolSchema = z.object({
@@ -98,7 +99,7 @@ export const HepExportProjectToolSchema = z.object({
   report_md_artifact_name: SafePathSegmentSchema.optional().default('report.md'),
   research_pack_zip_artifact_name: SafePathSegmentSchema.optional().default('research_pack.zip'),
   notebooklm_pack_prefix: SafePathSegmentSchema.optional().default('notebooklm_pack'),
-  max_chars_per_notebooklm_file: z.number().int().positive().optional().default(80_000),
+  max_chars_per_notebooklm_file: optionalBudgetInt({ min: 1 }).default(80_000),
   include_evidence_digests: z.boolean().optional().default(true),
   include_pdg_artifacts: z.boolean().optional().default(false),
   include_paper_bundle: z.boolean().optional().default(false),
@@ -116,6 +117,7 @@ export const HepExportPaperScaffoldToolSchema = z.object({
   bibliography_raw_artifact_name: SafePathSegmentSchema.optional().default('bibliography_raw_v1.json'),
   zip_artifact_name: SafePathSegmentSchema.optional().default('paper_scaffold.zip'),
   paper_manifest_artifact_name: SafePathSegmentSchema.optional().default('paper_manifest.json'),
+  // Artifact schema versions are semantic selectors, not budget knobs.
   version: z.number().int().min(1).optional(),
   _confirm: z.boolean().optional(),
 });
@@ -123,6 +125,7 @@ export const HepExportPaperScaffoldToolSchema = z.object({
 export const HepImportPaperBundleToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   paper_dir_name: SafePathSegmentSchema.optional().default('paper'),
+  // Keep version fail-closed for the same reason as export-paper-scaffold.
   version: z.number().int().min(1).optional(),
   zip_artifact_name: SafePathSegmentSchema.optional().default('paper_bundle.zip'),
   bundle_manifest_artifact_name: SafePathSegmentSchema.optional().default('paper_bundle_manifest.json'),
@@ -136,15 +139,9 @@ export const HepImportFromZoteroToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   collection_key: SafePathSegmentSchema.optional(),
   item_keys: z.array(SafePathSegmentSchema).optional().default([]),
-  limit: z.number().int().positive().optional(),
-  start: z.number().int().nonnegative().optional(),
-  concurrency: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .default(4)
-    .transform(v => Math.min(Math.max(v, 1), 16)),
+  limit: optionalBudgetInt({ min: 1 }),
+  start: optionalBudgetInt({ min: 0 }),
+  concurrency: optionalBudgetInt({ min: 1, max: 16 }).default(4),
 }).refine(v => Boolean(v.collection_key) || v.item_keys.length > 0, {
   message: 'Either collection_key or item_keys is required',
 });
@@ -161,10 +158,10 @@ export const HepRunBuildPdfEvidenceToolSchema = z.object({
   docling_json_path: z.string().min(1).optional(),
   docling_json_artifact_name: SafePathSegmentSchema.optional(),
   mode: PdfExtractModeSchema.optional().default('text'),
-  max_pages: z.number().int().positive().optional().default(80),
+  max_pages: optionalBudgetInt({ min: 1 }).default(80),
   render_dpi: z.number().int().positive().optional().default(144),
   output_prefix: SafePathSegmentSchema.optional().default('pdf'),
-  max_regions_total: z.number().int().nonnegative().optional().default(25),
+  max_regions_total: optionalBudgetInt({ min: 0 }).default(25),
 }).refine(v => Boolean(v.pdf_path) || Boolean(v.pdf_artifact_name) || Boolean(v.zotero_attachment_key), {
   message: 'Either pdf_path, pdf_artifact_name, or zotero_attachment_key is required',
 });
@@ -195,18 +192,8 @@ export const HepInspireSearchExportToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   query: z.string().min(1),
   sort: SortSchema.optional(),
-  size: z
-    .number()
-    .int()
-    .optional()
-    .default(1000)
-    .transform(v => Math.min(Math.max(v, 1), 1000)),
-  max_results: z
-    .number()
-    .int()
-    .optional()
-    .default(10_000)
-    .transform(v => Math.min(Math.max(v, 1), 10_000)),
+  size: optionalBudgetInt({ min: 1, max: 1000 }).default(1000),
+  max_results: optionalBudgetInt({ min: 1, max: 10_000 }).default(10_000),
   output_format: SearchExportFormatSchema.optional().default('jsonl'),
   artifact_name: SafePathSegmentSchema.optional(),
   meta_artifact_name: SafePathSegmentSchema.optional(),
@@ -239,12 +226,7 @@ export const HepRunBuildMeasurementsToolSchema = z.object({
     .optional()
     .default(['paragraph', 'equation', 'figure', 'table', 'citation_context']),
   target_quantities: z.array(z.string().min(1)).optional(),
-  max_results: z
-    .number()
-    .int()
-    .optional()
-    .default(500)
-    .transform(v => Math.min(Math.max(v, 1), 50_000)),
+  max_results: optionalBudgetInt({ min: 1, max: 50_000 }).default(500),
   measurements_artifact_name: SafePathSegmentSchema.optional(),
   meta_artifact_name: SafePathSegmentSchema.optional(),
 });
@@ -259,12 +241,7 @@ export const HepProjectCompareMeasurementsToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   input_runs: z.array(HepProjectCompareMeasurementsInputRunSchema).min(2),
   min_tension_sigma: z.number().positive().optional().default(2),
-  max_flags: z
-    .number()
-    .int()
-    .optional()
-    .default(500)
-    .transform(v => Math.min(Math.max(v, 1), 5_000)),
+  max_flags: optionalBudgetInt({ min: 1, max: 5_000 }).default(500),
   include_not_comparable: z.boolean().optional().default(false),
   output_artifact_name: SafePathSegmentSchema.optional(),
 });
@@ -276,7 +253,7 @@ const WritingLatexSourceSchema = z
     paper_id: SafePathSegmentSchema.optional(),
     include_inline_math: z.boolean().optional(),
     include_cross_refs: z.boolean().optional(),
-    max_paragraph_length: z.number().int().optional(),
+    max_paragraph_length: optionalBudgetInt({ min: 0 }),
   })
   .refine(v => Boolean(v.identifier) || Boolean(v.main_tex_path), {
     message: 'Either identifier or main_tex_path is required',
@@ -291,10 +268,10 @@ const WritingPdfSourceSchema = z
     docling_json_path: z.string().min(1).optional(),
     docling_json_artifact_name: SafePathSegmentSchema.optional(),
     mode: PdfExtractModeSchema.optional(),
-    max_pages: z.number().int().positive().optional(),
+    max_pages: optionalBudgetInt({ min: 1 }),
     render_dpi: z.number().int().positive().optional(),
     output_prefix: SafePathSegmentSchema.optional(),
-    max_regions_total: z.number().int().nonnegative().optional(),
+    max_regions_total: optionalBudgetInt({ min: 0 }),
   })
   .refine(v => Boolean(v.pdf_path) || Boolean(v.pdf_artifact_name) || Boolean(v.zotero_attachment_key), {
     message: 'Either pdf_path, pdf_artifact_name, or zotero_attachment_key is required',
@@ -312,12 +289,8 @@ export const HepRunBuildWritingEvidenceToolSchema = z
       .optional()
       .default(['paragraph', 'equation', 'figure', 'table', 'citation_context']),
     pdf_types: z.array(PdfEvidenceTypeSchema).optional().default(['pdf_page', 'pdf_region']),
-    max_evidence_items: z
-      .number()
-      .int()
-      .optional()
-      .default(2000)
-      .transform(v => Math.min(Math.max(v, 1), 20000)),
+    max_evidence_items: optionalBudgetInt({ min: 1, max: 20000 }).default(2000),
+    // Embedding dimension is a bounded technical shape parameter, not an omit-to-default budget field.
     embedding_dim: z
       .number()
       .int()
@@ -342,7 +315,7 @@ export const HepProjectBuildEvidenceToolSchema = z
     main_tex_path: z.string().min(1).optional(),
     include_inline_math: z.boolean().optional().default(false),
     include_cross_refs: z.boolean().optional().default(false),
-    max_paragraph_length: z.number().int().optional().default(0),
+    max_paragraph_length: optionalBudgetInt({ min: 0 }).default(0),
   })
   .refine(p => Boolean(p.identifier) || Boolean(p.main_tex_path), {
     message: 'Either identifier or main_tex_path is required',
@@ -357,19 +330,8 @@ export const HepProjectQueryEvidenceToolSchema = z
     mode: z.enum(['lexical', 'semantic']).optional().default('lexical'),
     run_id: SafePathSegmentSchema.optional(),
     include_explanation: z.boolean().optional().default(false),
-    concurrency: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(4)
-      .transform(v => Math.min(Math.max(v, 1), 16)),
-    limit: z
-      .number()
-      .int()
-      .optional()
-      .default(10)
-      .transform(v => Math.min(Math.max(v, 1), 50)),
+    concurrency: optionalBudgetInt({ min: 1, max: 16 }).default(4),
+    limit: optionalBudgetInt({ min: 1, max: 50 }).default(10),
   })
   .superRefine((v, ctx) => {
     if (v.mode === 'semantic' && !v.run_id) {
@@ -388,28 +350,13 @@ export const HepProjectQueryEvidenceSemanticToolSchema = z.object({
   query: z.string().min(1),
   types: z.array(EvidenceTypeSchema).optional(),
   include_explanation: z.boolean().optional().default(false),
-  limit: z
-    .number()
-    .int()
-    .optional()
-    .default(10)
-    .transform(v => Math.min(Math.max(v, 1), 50)),
+  limit: optionalBudgetInt({ min: 1, max: 50 }).default(10),
 });
 
 export const HepProjectPlaybackEvidenceToolSchema = z.object({
   project_id: SafePathSegmentSchema,
   paper_id: SafePathSegmentSchema,
   evidence_id: z.string().min(1),
-  before_chars: z
-    .number()
-    .int()
-    .optional()
-    .default(40)
-    .transform(v => Math.min(Math.max(v, 0), 1000)),
-  after_chars: z
-    .number()
-    .int()
-    .optional()
-    .default(120)
-    .transform(v => Math.min(Math.max(v, 0), 2000)),
+  before_chars: optionalBudgetInt({ min: 0, max: 1000 }).default(40),
+  after_chars: optionalBudgetInt({ min: 0, max: 2000 }).default(120),
 });
