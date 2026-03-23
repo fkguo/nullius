@@ -768,8 +768,17 @@ Note: PDG artifacts live under `PDG_DATA_DIR`. If `HEP_DATA_DIR` is set, `PDG_DA
 
 #### Multiple Projects vs Multiple Roots
 
-- One root: keep a single `HEP_DATA_DIR` and create multiple `hep_project_create` projects; old projects/runs remain discoverable via `hep://projects` / `hep://runs`.
-- Multiple roots: set `HEP_DATA_DIR` per research workspace (e.g. `<your_project>/.hep-research-mcp`) for easy cleanup/portability. When you switch `HEP_DATA_DIR`, previously created `hep://...` URIs will only resolve again after switching back to the original root.
+- Recommended default: keep a single user-level `HEP_DATA_DIR` (for example `~/.hep-research-mcp`) and create multiple `hep_project_create` projects inside it; old projects/runs remain discoverable via `hep://projects` / `hep://runs`.
+- Multiple roots: set `HEP_DATA_DIR` per research workspace (for example `<your_project>/.hep-research-mcp`) only when you explicitly want root-level isolation, portability, or one-shot archival/cleanup.
+
+Important: `HEP_DATA_DIR` is a server-process setting, not a per-tool-call argument. The MCP server uses the value it received when that server process started.
+
+- If multiple research projects share the same running MCP server instance, they also share the same `HEP_DATA_DIR`.
+- A different shell `cwd` or a different chat/thread does not automatically switch the active data root.
+- To use one `HEP_DATA_DIR` per project without cross-writing, each project must use its own MCP server config/alias (that is, its own separately started server process) with its own `HEP_DATA_DIR`.
+- If you want one MCP server to serve multiple projects concurrently, prefer a single global `HEP_DATA_DIR` and isolate projects with `project_id` / `run_id` instead of separate roots.
+
+When you switch `HEP_DATA_DIR`, previously created `hep://...` URIs will only resolve again after switching back to the original root.
 
 #### Cleanup Quick Reference
 

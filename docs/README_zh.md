@@ -708,8 +708,17 @@ curl "http://127.0.0.1:23119/api/users/0/collections?limit=1"
 
 #### 多项目 vs 多根目录
 
-- **单根目录**：保持一个固定 `HEP_DATA_DIR`，在其中创建多个 `hep_project_create` 项目；旧项目/旧 run 会持续在 `hep://projects` / `hep://runs` 中可发现。
-- **每个研究一个根目录**：把 `HEP_DATA_DIR` 设到当前研究目录下（例如 `<research>/.hep-research-mcp`），便于“整体打包/移动/删除”。注意：切换 `HEP_DATA_DIR` 后，之前聊天里返回的 `hep://...` URI 只会在切回原根目录时再次可读。
+- **默认推荐：单根目录**：保持一个固定的用户级 `HEP_DATA_DIR`（例如 `~/.hep-research-mcp`），在其中创建多个 `hep_project_create` 项目；旧项目/旧 run 会持续在 `hep://projects` / `hep://runs` 中可发现。
+- **多根目录**：仅当你明确需要“根目录级隔离”、便携迁移、或一次性归档/清理时，才把 `HEP_DATA_DIR` 设到某个研究目录下（例如 `<research>/.hep-research-mcp`）。
+
+重要说明：`HEP_DATA_DIR` 是 **MCP server 进程级** 配置，不是单次 tool call 的参数。server 实际使用的是它启动时读到的那个值。
+
+- 如果多个研究项目共用同一个正在运行的 MCP server 实例，它们也会共用同一个 `HEP_DATA_DIR`。
+- 仅仅切换 shell 当前目录，或在另一个聊天/线程里继续调用，并不会自动切换数据根目录。
+- 如果你想做到“每个项目一个 `HEP_DATA_DIR` 且互不串写”，每个项目都必须使用自己独立的 MCP server 配置/alias，也就是各自独立启动的 server 进程，并在启动时绑定自己的 `HEP_DATA_DIR`。
+- 如果你希望一个 MCP server 同时服务多个项目，更推荐使用单一全局 `HEP_DATA_DIR`，再用 `project_id` / `run_id` 做项目隔离，而不是依赖多个根目录。
+
+注意：切换 `HEP_DATA_DIR` 后，之前聊天里返回的 `hep://...` URI 只会在切回原根目录时再次可读。
 
 #### 快速清理
 
