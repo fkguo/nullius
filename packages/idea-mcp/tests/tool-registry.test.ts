@@ -15,6 +15,7 @@ describe('idea-mcp tool registry', () => {
       type: 'object',
       required: ['charter', 'seed_pack', 'budget', 'idempotency_key'],
     });
+    expect(schema.additionalProperties).toBe(false);
     expect((schema.properties as Record<string, unknown>).abstract_problem_registry).toBeDefined();
   });
 

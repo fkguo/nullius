@@ -5,6 +5,10 @@ type OptionalBudgetOptions = {
   max?: number;
 };
 
+type BudgetSchemaMetadata = OptionalBudgetOptions & {
+  integer: boolean;
+};
+
 function parseBudgetValue(
   value: unknown,
   { integer, min, max }: OptionalBudgetOptions & { integer: boolean },
@@ -38,15 +42,25 @@ function parseBudgetValue(
 }
 
 export function optionalBudgetInt(options: OptionalBudgetOptions = {}) {
-  return z.preprocess(
+  const schema = z.preprocess(
     value => parseBudgetValue(value, { ...options, integer: true }),
     z.number().int().optional(),
   );
+  Object.defineProperty(schema, '__mcpBudget', {
+    value: { ...options, integer: true } satisfies BudgetSchemaMetadata,
+    configurable: true,
+  });
+  return schema;
 }
 
 export function optionalBudgetNumber(options: OptionalBudgetOptions = {}) {
-  return z.preprocess(
+  const schema = z.preprocess(
     value => parseBudgetValue(value, { ...options, integer: false }),
     z.number().optional(),
   );
+  Object.defineProperty(schema, '__mcpBudget', {
+    value: { ...options, integer: false } satisfies BudgetSchemaMetadata,
+    configurable: true,
+  });
+  return schema;
 }

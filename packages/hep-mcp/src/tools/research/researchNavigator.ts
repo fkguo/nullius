@@ -177,6 +177,7 @@ export const ResearchNavigatorToolSchema = z
       }
       case 'connections': {
         requireField(Boolean(v.seed) || Boolean(v.seed_recids?.length), 'seed_recids', "mode='connections' requires seed_recids or seed");
+        rejectField(has('limit'), 'limit', "limit is not allowed when mode='connections'");
         rejectField(has('discover_mode'), 'discover_mode', "discover_mode is only allowed when mode='discover'");
         rejectField(has('topic_mode'), 'topic_mode', "topic_mode is only allowed when mode='topic_analysis'");
         rejectField(has('network_mode'), 'network_mode', "network_mode is only allowed when mode='network'");
@@ -192,6 +193,7 @@ export const ResearchNavigatorToolSchema = z
             path: ['seed_recids'],
           });
         }
+        rejectField(has('limit'), 'limit', "limit is not allowed when mode='trace_source'");
         rejectField(has('discover_mode'), 'discover_mode', "discover_mode is only allowed when mode='discover'");
         rejectField(has('topic_mode'), 'topic_mode', "topic_mode is only allowed when mode='topic_analysis'");
         rejectField(has('network_mode'), 'network_mode', "network_mode is only allowed when mode='network'");
@@ -204,6 +206,7 @@ export const ResearchNavigatorToolSchema = z
           'recids',
           "mode='analyze' requires recids or seed_recids or seed"
         );
+        rejectField(has('limit'), 'limit', "limit is not allowed when mode='analyze'");
         rejectField(has('discover_mode'), 'discover_mode', "discover_mode is only allowed when mode='discover'");
         rejectField(has('topic_mode'), 'topic_mode', "topic_mode is only allowed when mode='topic_analysis'");
         rejectField(has('network_mode'), 'network_mode', "network_mode is only allowed when mode='network'");

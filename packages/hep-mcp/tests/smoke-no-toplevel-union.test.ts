@@ -7,25 +7,8 @@
  * Run: npx tsx tests/smoke-no-toplevel-union.test.ts
  */
 import { describe, it, expect } from 'vitest';
-import { z, toJSONSchema } from 'zod';
 import { TOOL_SPECS } from '../src/tools/registry.js';
-
-function zodToMcpInputSchema(schema: z.ZodType<any, any>): Record<string, unknown> {
-  const jsonSchema = toJSONSchema(schema, {
-    target: 'draft-07',
-    reused: 'inline',
-    unrepresentable: 'any',
-  });
-
-  const { $schema, $defs, ['~standard']: _standard, ...rest } = jsonSchema as any;
-  const normalized = { ...rest } as Record<string, unknown>;
-
-  if (normalized.type === undefined) {
-    normalized.type = 'object';
-  }
-
-  return normalized;
-}
+import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 
 describe('MCP Tool Schema Compatibility', () => {
   it('no tool should have top-level oneOf/anyOf/allOf (gateway compatibility)', () => {

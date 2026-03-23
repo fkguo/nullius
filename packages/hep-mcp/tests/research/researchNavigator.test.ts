@@ -284,6 +284,51 @@ describe('Research navigator facade', () => {
     );
   });
 
+  it('rejects limit for connections mode because the facade does not implement a limit budget there', async () => {
+    const res = await handleToolCall('inspire_research_navigator', {
+      mode: 'connections',
+      seed_recids: ['1', '2'],
+      limit: 5,
+    } as any);
+
+    expect(res.isError).toBe(true);
+    const payload = parseErrorPayload(res);
+    expect(payload.error?.code).toBe('INVALID_PARAMS');
+    expect(payload.error?.data?.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: ['limit'] })])
+    );
+  });
+
+  it('rejects limit for trace_source mode because the facade does not implement a limit budget there', async () => {
+    const res = await handleToolCall('inspire_research_navigator', {
+      mode: 'trace_source',
+      seed_recids: ['1'],
+      limit: 5,
+    } as any);
+
+    expect(res.isError).toBe(true);
+    const payload = parseErrorPayload(res);
+    expect(payload.error?.code).toBe('INVALID_PARAMS');
+    expect(payload.error?.data?.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: ['limit'] })])
+    );
+  });
+
+  it('rejects limit for analyze mode because the facade does not implement a limit budget there', async () => {
+    const res = await handleToolCall('inspire_research_navigator', {
+      mode: 'analyze',
+      recids: ['1'],
+      limit: 5,
+    } as any);
+
+    expect(res.isError).toBe(true);
+    const payload = parseErrorPayload(res);
+    expect(payload.error?.code).toBe('INVALID_PARAMS');
+    expect(payload.error?.data?.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: ['limit'] })])
+    );
+  });
+
   it('getTools exposes maturity prefixes and NOT FOR clauses', () => {
     const standardDescriptions = getTools('standard').map(t => t.description);
 

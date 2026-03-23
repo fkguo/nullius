@@ -6,6 +6,19 @@ export function zodToMcpInputSchema(schema: z.ZodTypeAny): Record<string, unknow
     io: 'input',
     reused: 'inline',
     unrepresentable: 'any',
+    override(ctx) {
+      const def = (ctx.zodSchema as unknown as z.ZodTypeAny & {
+        _zod?: { def?: { type?: string; catchall?: unknown } };
+      })._zod?.def;
+      if (def?.type === 'default') {
+        (ctx.jsonSchema as Record<string, unknown>).default = JSON.parse(
+          JSON.stringify((def as unknown as { defaultValue: unknown }).defaultValue),
+        );
+      }
+      if (def?.type === 'object' && !def.catchall) {
+        (ctx.jsonSchema as Record<string, unknown>).additionalProperties = false;
+      }
+    },
   });
 
   const { $schema, $defs, ['~standard']: _standard, ...rest } = jsonSchema as Record<string, unknown> & {

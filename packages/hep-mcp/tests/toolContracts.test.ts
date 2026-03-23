@@ -94,6 +94,15 @@ describe('Tool registry contracts (M2)', () => {
     expect(() => assertToolContracts(specs, defs)).toThrow(/inputSchema drift/);
   });
 
+  it('inspire_search metadata only requires query at the MCP layer', () => {
+    const tool = getTools('standard').find(t => t.name === 'inspire_search');
+    expect(tool).toBeDefined();
+    expect((tool?.inputSchema as any).required ?? []).toEqual(['query']);
+    expect((tool?.inputSchema as any).additionalProperties).toBe(false);
+    expect((tool?.inputSchema as any).properties.max_results.minimum).toBe(1);
+    expect((tool?.inputSchema as any).properties.max_results.default).toBe(100);
+  });
+
   it('inspire_search falls back to defaults for invalid max_results budgets', () => {
     const parsed = InspireSearchToolSchema.parse({
       query: 'qcd',

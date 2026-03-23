@@ -183,6 +183,16 @@ describe('Tool metadata drift regressions', () => {
     expect(tool).toBeDefined();
     expect((tool?.inputSchema as any).properties.max_content_kb).toBeUndefined();
   });
+
+  it('arxiv_search metadata no longer marks defaulted fields as required', () => {
+    const tool = getTools('standard').find(t => t.name === ARXIV_SEARCH);
+    expect(tool).toBeDefined();
+    expect((tool?.inputSchema as any).required ?? []).toEqual(['query']);
+    expect((tool?.inputSchema as any).additionalProperties).toBe(false);
+    expect((tool?.inputSchema as any).properties.max_results.minimum).toBe(1);
+    expect((tool?.inputSchema as any).properties.max_results.maximum).toBe(50);
+    expect((tool?.inputSchema as any).properties.max_results.default).toBe(10);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -61,10 +61,13 @@ Review paper handling via \`review_mode\`:
 Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
     zodSchema: InspireSearchToolSchema,
     handler: async (params, ctx) => {
+      const raw = ctx.rawArgs ?? {};
+      const pageProvided = Object.prototype.hasOwnProperty.call(raw, 'page');
+      const maxResultsProvided = Object.prototype.hasOwnProperty.call(raw, 'max_results');
+      const effectivePageSize = maxResultsProvided ? Math.min(params.size, params.max_results) : params.size;
+
       if (params.run_id) {
-        const raw = ctx.rawArgs ?? {};
         const sizeProvided = Object.prototype.hasOwnProperty.call(raw, 'size');
-        const maxResultsProvided = Object.prototype.hasOwnProperty.call(raw, 'max_results');
         return hepInspireSearchExport({
           run_id: params.run_id,
           query: params.query,
@@ -82,11 +85,17 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
       }
 
       const query = preprocessQuery(params.query);
-      const result = await api.search(query, {
-        sort: params.sort,
-        size: params.size,
-        page: params.page,
-      });
+      const result = maxResultsProvided && !pageProvided && params.max_results > effectivePageSize
+        ? await api.searchAll(query, {
+            sort: params.sort,
+            size: effectivePageSize,
+            max_results: params.max_results,
+          })
+        : await api.search(query, {
+            sort: params.sort,
+            size: effectivePageSize,
+            page: params.page,
+          });
 
       const applyReviewMode = (r: typeof result) => {
         if (params.review_mode === 'mixed' || r.papers.length === 0) return r;

@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Mock the API client
 vi.mock('../src/api/client.js', () => ({
   search: vi.fn(),
+  searchAll: vi.fn(),
   searchByUrl: vi.fn(),
   getPaper: vi.fn(),
   getByDoi: vi.fn(),
@@ -206,6 +207,40 @@ describe('Tool Handlers (current exposure)', () => {
       'a:guo, feng-kun',
       expect.objectContaining({ size: 500 })
     );
+  });
+
+  it('inspire_search should shrink page size when explicit max_results is smaller than size', async () => {
+    vi.mocked(api.search).mockResolvedValueOnce({ total: 0, papers: [], has_more: false });
+    vi.mocked(paperClassifier.classifyPapers).mockReturnValue([]);
+
+    await handleToolCall('inspire_search', {
+      query: 't:qcd',
+      size: 25,
+      max_results: 10,
+    });
+
+    expect(api.search).toHaveBeenCalledWith(
+      't:qcd',
+      expect.objectContaining({ size: 10, page: 1 })
+    );
+    expect(api.searchAll).not.toHaveBeenCalled();
+  });
+
+  it('inspire_search should use api.searchAll when explicit max_results exceeds page size and page is not provided', async () => {
+    vi.mocked(api.searchAll).mockResolvedValueOnce({ total: 40, papers: [], has_more: false });
+    vi.mocked(paperClassifier.classifyPapers).mockReturnValue([]);
+
+    await handleToolCall('inspire_search', {
+      query: 't:qcd',
+      size: 25,
+      max_results: 40,
+    });
+
+    expect(api.searchAll).toHaveBeenCalledWith(
+      't:qcd',
+      expect.objectContaining({ size: 25, max_results: 40 })
+    );
+    expect(api.search).not.toHaveBeenCalled();
   });
 
   it('inspire_search should export artifacts when run_id is provided', async () => {
