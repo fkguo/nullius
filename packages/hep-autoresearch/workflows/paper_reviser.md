@@ -2,6 +2,8 @@
 
 Chinese version: `workflows/paper_reviser.zh.md`.
 
+Lifecycle note: `hepar run` remains the transitional Pipeline A run surface in this batch. Lifecycle verbs around that run, such as gate inspection and approval, should use the canonical `autoresearch status` / `autoresearch approve` entrypoint.
+
 ## Goal
 
 Integrate the Codex skill `paper-reviser` into `hepar` as an evidence-first, resumable workflow:
@@ -126,8 +128,8 @@ hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
 Approve retrieval (Step C):
 
 ```bash
-hepar status
-hepar approve A1-0001
+autoresearch status
+autoresearch approve A1-0001
 hepar run --run-id <RUN_ID> --workflow-id paper_reviser ...
 ```
 

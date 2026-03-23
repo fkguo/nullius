@@ -16,7 +16,7 @@
 3) `docs/VISION.zh.md`（愿景与边界）
 4) `docs/ARCHITECTURE.zh.md`（总体架构与接口）
 
-注意：这里是 `hep-autoresearch` 的**开发仓库**，不是你实际做研究时的项目根目录。日常使用应在你自己的研究项目目录里执行 `hep-autoresearch init`，由它生成 `PROJECT_CHARTER.md`、`PROJECT_MAP.md`、`RESEARCH_PLAN.md`、`PREWORK.md`、`Draft_Derivation.md`、`.autoresearch/`、`docs/`、`knowledge_base/`、`specs/` 等项目资产。
+注意：这里是 `hep-autoresearch` 的**开发仓库**，不是你实际做研究时的项目根目录。generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。日常使用应在你自己的研究项目目录里执行 `autoresearch init`，它会以 thin composition 调用现有 scaffold authority，生成最小核心项目面：`project_charter.md`、`project_index.md`、`research_plan.md`、`research_notebook.md`、`research_contract.md`、provider-neutral `.mcp.json.example`、`.autoresearch/`、`docs/`、`specs/`。真实研究项目的中间产物也必须留在开发仓外。`hep-autoresearch`、`hepar` 与兼容别名 `hep-autopilot` 现在只作为过渡中的 Pipeline A legacy surface 保留；像 `run`、`doctor`、`bridge` 这类尚未 repoint 的命令仍走这条 legacy surface。
 
 ## Quickstart（小白 5 分钟）
 
@@ -33,7 +33,7 @@
 ## 当前状态
 
 2026-02-03：已完成“可执行最小闭环”并把可靠性机制落到可回归的 artifacts：
-- 可安装 CLI：`hep-autoresearch`（兼容 `hep-autopilot`）+ 简写 `hepar`
+- 可安装 CLI：`hep-autoresearch`（兼容 `hep-autopilot`）+ 简写 `hepar`；generic lifecycle 的 canonical 入口现为 `autoresearch`
 - Web 入口 v0：FastAPI + 最小面板（`src/hep_autoresearch/web/app.py`）
 - Workflows v0：ingest、reproduce、computation、revision、literature survey polish，以及 orchestrator / eval 回归
 - Eval suite：`python3 scripts/run_evals.py --tag <TAG>`

@@ -1,8 +1,8 @@
 # Beginner tutorial (English)
 
-This quickstart assumes you are using `hep-autoresearch` in an **external research project directory**. The package repo itself is a development repo, not the default place to run your day-to-day project, and real-project intermediate outputs should not be routed back into the repo either.
+This quickstart assumes you are using the current CLI surfaces in an **external research project directory**. The package repo itself is a development repo, not the default place to run your day-to-day project, and real-project intermediate outputs should not be routed back into the repo either.
 
-Lifecycle note: this tutorial describes the current usable **Pipeline A** Python CLI (`hep-autoresearch` / `hepar`). `meta/REDESIGN_PLAN.md` still plans to retire that surface once the TS orchestrator becomes the sole orchestrator authority, so treat this as current operational guidance for the transitional Python path rather than the long-term control-plane authority.
+Lifecycle note: the canonical generic lifecycle entrypoint is now `autoresearch` for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python surface for unrepointed commands and workflows. This tutorial therefore uses `autoresearch` for lifecycle verbs, while workflow commands that have not yet been repointed stay on the legacy surface.
 
 ## 0) Core ideas
 
@@ -20,6 +20,7 @@ python -m pip install -U pip
 
 # from the package repo root (dev install)
 python -m pip install -e .
+autoresearch --help
 hep-autoresearch --help
 hepar --help
 ```
@@ -32,8 +33,8 @@ Optional:
 ```bash
 mkdir my-research-project
 cd my-research-project
-hep-autoresearch init
-hep-autoresearch status
+autoresearch init
+autoresearch status
 ```
 
 This creates a minimal project root with:
@@ -46,7 +47,8 @@ This creates a minimal project root with:
 - `.autoresearch/`
 - `docs/`, `specs/`
 
-After initialization, you can run `hep-autoresearch ...` from any subdirectory; the CLI searches upward for `.autoresearch/`.
+After initialization, you can run `autoresearch ...` for lifecycle verbs from any subdirectory; the CLI searches upward for `.autoresearch/`.
+Workflow commands shown below remain on the transitional Pipeline A surface in this batch.
 If you pass an explicit `HEP_DATA_DIR`, keep that directory outside the dev repo as well; public real-project flows now fail closed on repo-internal overrides.
 
 ## 3) Smoke test without external LLM calls
@@ -78,15 +80,15 @@ hep-autoresearch run \
   --refkey arxiv-2310.06770-swe-bench \
   --download none
 
-hep-autoresearch status
+autoresearch status
 hep-autoresearch logs --tail 20
 ```
 
 If a gate is raised:
 
 ```bash
-hep-autoresearch status
-hep-autoresearch approve <approval_id>
+autoresearch status
+autoresearch approve <approval_id>
 hep-autoresearch run --run-id M1-ingest-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
 ```
 

@@ -176,7 +176,7 @@ def status() -> dict[str, Any]:
     repo_root = _repo_root()
     st = load_state(repo_root)
     if st is None:
-        raise HTTPException(status_code=404, detail="not initialized (POST /init, or run hep-autoresearch init)")
+        raise HTTPException(status_code=404, detail="not initialized (POST /init, or run autoresearch init)")
     maybe_mark_needs_recovery(repo_root, st)
 
     return {

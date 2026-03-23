@@ -101,35 +101,35 @@ Web 入口不改变契约，只改变 UI：
 
 ### 现阶段实现（v0）
 
-当前已提供最小 CLI（支持 `run/status/pause/resume/approve/reject/logs/export`；v0.4 可执行 `ingest`、`reproduce`（toy）、`computation`、`revision`（v0）、`literature_survey_polish`、`shell_adapter_smoke`，并按 `approval_policy.json` 自动触发默认同意点）：
+当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，用于尚未 repoint 的 workflow shell（例如 `run`、`logs`、`doctor`、`bridge`）。v0.4 可执行 `ingest`、`reproduce`（toy）、`computation`、`revision`（v0）、`literature_survey_polish`、`shell_adapter_smoke`，并按 `approval_policy.json` 自动触发默认同意点：
 
 ```bash
 # 在你的研究项目根目录里执行（不是在 packages/hep-autoresearch/ 里）
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py init
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M1-orch-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py status
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py logs --tail 20
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py pause
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py resume
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py export --run-id M1-orch-r1
+autoresearch init
+hepar run --run-id M1-orch-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
+autoresearch status
+hepar logs --tail 20
+autoresearch pause
+autoresearch resume
+autoresearch export --run-id M1-orch-r1
 
 # reproduce (toy) workflow
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py status   # 查看 pending_approval（默认 A3）
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py approve <approval_id>
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
+hepar run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
+autoresearch status   # 查看 pending_approval（默认 A3）
+autoresearch approve <approval_id>
+hepar run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
 
 # computation (run_card v2 DAG; example: schrodinger_ho)
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir /path/to/packages/hep-autoresearch/examples/schrodinger_ho --run-card /path/to/packages/hep-autoresearch/examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py status   # 查看 pending_approval（默认 A3）
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py approve <approval_id>
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir /path/to/packages/hep-autoresearch/examples/schrodinger_ho --run-card /path/to/packages/hep-autoresearch/examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
+hepar run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir /path/to/packages/hep-autoresearch/examples/schrodinger_ho --run-card /path/to/packages/hep-autoresearch/examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
+autoresearch status   # 查看 pending_approval（默认 A3）
+autoresearch approve <approval_id>
+hepar run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir /path/to/packages/hep-autoresearch/examples/schrodinger_ho --run-card /path/to/packages/hep-autoresearch/examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
 
 # revision v0 (compile gate + provenance table)
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M2-orch-revision-r1 --workflow-id revision
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py status   # 查看 pending_approval（默认 A4）
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py approve <approval_id>
-python3 /path/to/packages/hep-autoresearch/scripts/orchestrator.py run --run-id M2-orch-revision-r1 --workflow-id revision
+hepar run --run-id M2-orch-revision-r1 --workflow-id revision
+autoresearch status   # 查看 pending_approval（默认 A4）
+autoresearch approve <approval_id>
+hepar run --run-id M2-orch-revision-r1 --workflow-id revision
 ```
 
 安全注意（最小要求）：

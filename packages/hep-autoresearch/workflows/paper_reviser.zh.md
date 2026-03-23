@@ -2,6 +2,8 @@
 
 英文版：`workflows/paper_reviser.md`。
 
+生命周期说明：本批仍保留 `hepar run` 作为过渡中的 Pipeline A run surface，但围绕该 run 的 lifecycle verbs 应使用 canonical `autoresearch status` / `autoresearch approve`。
+
 ## 目标
 
 把 Codex skill `paper-reviser` 集成进 `hepar`，形成 evidence-first、可恢复/幂等的工作流：
@@ -126,8 +128,8 @@ hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
 审批 Step C：
 
 ```bash
-hepar status
-hepar approve A1-0001
+autoresearch status
+autoresearch approve A1-0001
 hepar run --run-id <RUN_ID> --workflow-id paper_reviser ...
 ```
 

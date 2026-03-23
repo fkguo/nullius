@@ -2,7 +2,7 @@
 
 Chinese version: `docs/WORKFLOWS.zh.md`.
 
-Lifecycle note: this document covers the current usable **Pipeline A** Python CLI surface (`hep-autoresearch` / `hepar`). The long-term plan is still to retire that surface together once the TS orchestrator becomes the sole orchestrator authority; until then, these commands remain valid operational guidance for the transitional Python path.
+Lifecycle note: `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python CLI surface for unrepointed commands such as `run`, `doctor`, and `bridge`. This document therefore keeps those unrepointed commands on the legacy surface while describing lifecycle verbs with `autoresearch`.
 
 English workflow specs live under `workflows/`:
 
@@ -29,14 +29,14 @@ English workflow specs live under `workflows/`:
 ### `hepar doctor` (entrypoints + MCP)
 
 - Default behavior:
-  - runs `entrypoint_discovery` first (checks `hepar` + `hep-autoresearch` on `PATH`)
+  - runs `entrypoint_discovery` first (checks `autoresearch` on `PATH`)
   - then runs MCP connectivity/tool checks (`.mcp.json` + `hep_health`)
 - Entrypoint check is shell-aware (`zsh` / `bash` / `fish` / `unknown`) and reports whether the current session appears to be in a virtual environment.
 - Entrypoint failures are warnings by default.
 
 Flags:
 
-- `--strict-entrypoints`: treat missing `hepar` / `hep-autoresearch` entrypoints as error (non-zero exit).
+- `--strict-entrypoints`: treat missing `autoresearch` entrypoint as error (non-zero exit).
 - `--json`: output JSON for `entrypoint_discovery` only (offline PATH diagnostics; skips MCP checks).
 - `--entrypoints-only`: text-mode entrypoint diagnostics only (skip MCP checks).
 - `--allow-missing-mcp-config`: if `.mcp.json` is missing, print warning + hints and return success.
@@ -47,13 +47,13 @@ Init scaffolds a starter template:
 - `.mcp.json.example` (valid JSON, tracked)
 - `.mcp.json` remains local/ignored by git.
 
-### `hepar status` (revision display-layer reconcile)
+### `autoresearch status` (revision display-layer reconcile)
 
 - For `paper_reviser`, status reads `artifacts/runs/<RUN_ID>/paper_reviser/manifest.json#steps` to show substeps:
   - `A/B/C/D/E/APPLY`
 - If manifest indicates completion but `.autoresearch/state.json` is stale, status shows reconciled view:
   - text mode: `run_status: completed [reconciled]`
-  - json mode (`hepar status --json`): includes `"reconciled": true`
+  - json mode (`autoresearch status --json`): includes `"reconciled": true`
 - `status` reconcile is display-layer only; it does not write back to `.autoresearch/state.json`.
 - If manifest is missing/corrupt or `steps` schema is malformed, status falls back to state and emits structured warnings.
 

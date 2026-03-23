@@ -15,15 +15,16 @@ If a document has both languages, we use:
 
 ## External project scaffold
 
-Run `hep-autoresearch init` in your **research project directory**. It scaffolds the project-local files below:
+Use `autoresearch init` in your **research project directory**. `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`, while `hep-autoresearch` / `hepar` / `hep-autopilot` remain the transitional Pipeline A legacy surface for unrepointed commands such as `run`, `doctor`, and `bridge`. `autoresearch init` stays a thin composition shell over the existing scaffold authority and scaffolds the project-local files below:
 
-- Project charter: `PROJECT_CHARTER.md` (EN) / `PROJECT_CHARTER.zh.md` (Chinese)
-- Research plan: `RESEARCH_PLAN.md` (EN) / `RESEARCH_PLAN.zh.md` (Chinese)
-- Prework checklist: `PREWORK.md` (EN) / `PREWORK.zh.md` (Chinese)
-- Project map: `PROJECT_MAP.md`
-- Derivation notebook: `Draft_Derivation.md`
+- Project charter: `project_charter.md`
+- Project index: `project_index.md`
+- Research plan: `research_plan.md`
+- Research notebook: `research_notebook.md`
+- Research contract: `research_contract.md`
+- Provider-neutral MCP example: `.mcp.json.example`
 - Runtime state / policy: `.autoresearch/`
-- Project-local docs / KB / schemas: `docs/`, `knowledge_base/`, `specs/`
+- Project-local docs / schemas: `docs/`, `specs/`
 
 These are **external project assets**. They are not maintained at this package repo root.
 

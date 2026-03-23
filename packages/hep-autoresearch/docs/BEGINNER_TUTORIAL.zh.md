@@ -2,9 +2,9 @@
 
 English quickstart: `docs/BEGINNER_TUTORIAL.md`。本文件是中文详版。
 
-本教程默认你是在**外部研究项目目录**里使用 `hep-autoresearch`。`packages/hep-autoresearch` 所在仓库是开发仓库，不应再被当作日常研究项目根目录；真实研究项目的中间产物也不应再写回这个开发仓。
+本教程默认你是在**外部研究项目目录**里使用当前 CLI surfaces。`packages/hep-autoresearch` 所在仓库是开发仓库，不应再被当作日常研究项目根目录；真实研究项目的中间产物也不应再写回这个开发仓。
 
-生命周期说明：本教程描述的是当前仍可使用的 **Pipeline A** Python CLI（`hep-autoresearch` / `hepar`）。`meta/REDESIGN_PLAN.md` 的长期目标仍然是在 TS orchestrator 成为唯一编排器后将这一整组 surface 一起退役，因此这里应理解为过渡期 Python 路径的现行操作说明，而不是长期唯一 control-plane authority。
+生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，只承载尚未 repoint 的命令与 workflow。因此本教程对 lifecycle verbs 使用 `autoresearch`，而尚未 repoint 的 workflow 命令仍保留在 legacy surface。
 
 ## 0）先建立 4 个概念
 
@@ -22,6 +22,7 @@ python -m pip install -U pip
 
 # 在 package 开发仓库根目录做开发安装
 python -m pip install -e .
+autoresearch --help
 hep-autoresearch --help
 hepar --help
 ```
@@ -34,8 +35,8 @@ hepar --help
 ```bash
 mkdir my-research-project
 cd my-research-project
-hep-autoresearch init
-hep-autoresearch status
+autoresearch init
+autoresearch status
 ```
 
 这一步会在你的项目目录里生成最小骨架：
@@ -49,7 +50,8 @@ hep-autoresearch status
 - `docs/`
 - `specs/`
 
-之后你可以在任意子目录运行 `hep-autoresearch ...`；CLI 会自动向上寻找 `.autoresearch/`。
+之后你可以在任意子目录运行 `autoresearch ...` 处理 lifecycle verbs；CLI 会自动向上寻找 `.autoresearch/`。
+本教程后面出现的 workflow 命令仍在过渡中的 Pipeline A legacy surface 上。
 如果你显式传 `HEP_DATA_DIR`，它也应留在开发仓外；public real-project flow 现在会对 repo 内 override 直接 fail-close。
 
 ## 3）先跑一个不依赖外部 LLM 的烟测
@@ -81,15 +83,15 @@ hep-autoresearch run \
   --refkey arxiv-2310.06770-swe-bench \
   --download none
 
-hep-autoresearch status
+autoresearch status
 hep-autoresearch logs --tail 20
 ```
 
 如果触发 gate：
 
 ```bash
-hep-autoresearch status
-hep-autoresearch approve <approval_id>
+autoresearch status
+autoresearch approve <approval_id>
 hep-autoresearch run --run-id M1-ingest-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
 ```
 
