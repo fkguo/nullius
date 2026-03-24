@@ -60,6 +60,9 @@ export {
   EXPECTED_WAL_JOURNAL_MODE,
 } from './db/sqlite-utils.js';
 
+// Memory graph substrate (EVO-20)
+export * from './memory-graph/index.js';
+
 // Errors
 export {
   McpError,
