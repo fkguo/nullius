@@ -44,6 +44,21 @@ class TestAppendLedgerEventValidation(unittest.TestCase):
                 )
             self.assertIn("totally_invalid_event", str(ctx.exception))
 
+    def test_trace_id_is_written_when_provided(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            ensure_runtime_dirs(root)
+            append_ledger_event(
+                root,
+                event_type="initialized",
+                run_id=None,
+                workflow_id=None,
+                trace_id="trace-123",
+            )
+            ledger_file = root / ".autoresearch" / "ledger.jsonl"
+            event = json.loads(ledger_file.read_text(encoding="utf-8").strip())
+            self.assertEqual(event["trace_id"], "trace-123")
+
 
 class TestTransitionState(unittest.TestCase):
     """H-09: CAS state transition."""

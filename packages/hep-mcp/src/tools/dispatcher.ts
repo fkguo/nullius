@@ -22,6 +22,7 @@ import {
   MAX_INLINE_RESULT_BYTES,
   HARD_CAP_RESULT_BYTES,
   PERMISSION_POLICY,
+  redact,
 } from '@autoresearch/shared';
 import type { SpanSink } from '@autoresearch/shared';
 import type { PaperSummary } from '@autoresearch/shared';
@@ -557,23 +558,25 @@ function formatToolError(
 export function emitJsonlLog(params: {
   traceId: string;
   toolName: string;
+  toolArgs: Record<string, unknown>;
   durationMs: number;
-  success: boolean;
+  resultStatus: 'success' | 'error';
 }): void {
   const entry = {
     ts: new Date().toISOString(),
-    level: params.success ? 'INFO' : 'ERROR',
+    level: params.resultStatus === 'success' ? 'INFO' : 'ERROR',
     component: 'mcp_server',
     trace_id: params.traceId,
     event: 'tool_call',
     data: {
       tool_name: params.toolName,
+      params: params.toolArgs,
+      result_status: params.resultStatus,
       duration_ms: params.durationMs,
-      success: params.success,
     },
   };
   try {
-    process.stderr.write(JSON.stringify(entry) + '\n');
+    process.stderr.write(redact(JSON.stringify(entry)) + '\n');
   } catch {
     // Best-effort: never break MCP protocol on log failure
   }
@@ -594,6 +597,7 @@ export async function handleToolCall(
   span?.setAttribute('tool.name', name);
 
   const startMs = Date.now();
+  let loggedArgs: Record<string, unknown> = cleanArgs;
   try {
     const spec = getToolSpec(name);
     if (!spec) {
@@ -645,6 +649,9 @@ export async function handleToolCall(
       };
     }
 
+    loggedArgs = { ...cleanArgs };
+    delete loggedArgs._confirm;
+
     if (reportProgress) {
       reportProgress(0, 1, `started: ${name}`);
     }
@@ -674,7 +681,7 @@ export async function handleToolCall(
     const durationMs = Date.now() - startMs;
 
     // trace-jsonl: structured JSONL log to stderr (compatible with MCP stdio protocol)
-    emitJsonlLog({ traceId, toolName: name, durationMs, success: true });
+    emitJsonlLog({ traceId, toolName: name, toolArgs: loggedArgs, durationMs, resultStatus: 'success' });
 
     if (reportProgress) reportProgress(1, 1, `completed: ${name}`);
     span?.end('OK');
@@ -687,7 +694,7 @@ export async function handleToolCall(
     span?.end('ERROR');
 
     // trace-jsonl: structured JSONL log for failed tool calls
-    emitJsonlLog({ traceId, toolName: name, durationMs, success: false });
+    emitJsonlLog({ traceId, toolName: name, toolArgs: loggedArgs, durationMs, resultStatus: 'error' });
 
     return formatToolError(err, ctx, traceId);
   }

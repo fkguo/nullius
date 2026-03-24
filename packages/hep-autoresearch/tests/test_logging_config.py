@@ -174,3 +174,10 @@ class TestJsonlEventTypes:
         for name, spec in JSONL_EVENT_TYPES.items():
             assert "description" in spec, f"{name} missing description"
             assert "data_schema" in spec, f"{name} missing data_schema"
+
+    def test_tool_call_schema_matches_track_b_contract(self) -> None:
+        schema = JSONL_EVENT_TYPES["tool_call"]["data_schema"]
+        assert '"tool_name"' in schema
+        assert '"params"' in schema
+        assert '"result_status"' in schema
+        assert '"duration_ms"' in schema

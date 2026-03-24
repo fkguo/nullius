@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -158,3 +159,36 @@ def test_initialize_wraps_initialized_notification_transport_failure() -> None:
     ):
         with pytest.raises(McpInitializeError, match="acknowledgement failed"):
             client.initialize(client_name="hepar", client_version="0.0.1")
+
+
+def test_call_tool_json_injects_trace_id_and_preserves_response_trace_id() -> None:
+    client = _make_client()
+    observed: dict[str, object] = {}
+
+    def _callback(payload: str) -> None:
+        message = json.loads(payload)
+        observed["message"] = message
+        sent_args = message["params"]["arguments"]
+        trace_id = sent_args["_trace_id"]
+        _respond(
+            client,
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "content": [{"type": "text", "text": json.dumps({"ok": True, "trace_id": trace_id})}],
+                    "isError": False,
+                },
+            },
+        )
+
+    client._proc = _FakeProc(_CallbackStdin(_callback))
+
+    result = client.call_tool_json(tool_name="stub_tool", arguments={"query": "alpha"}, timeout_seconds=0.1)
+
+    sent_args = observed["message"]["params"]["arguments"]
+    assert sent_args["query"] == "alpha"
+    assert isinstance(sent_args["_trace_id"], str) and sent_args["_trace_id"]
+    assert result.ok is True
+    assert result.trace_id == sent_args["_trace_id"]
+    assert result.json == {"ok": True, "trace_id": sent_args["_trace_id"]}

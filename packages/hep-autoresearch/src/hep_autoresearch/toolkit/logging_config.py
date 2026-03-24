@@ -182,7 +182,7 @@ JSONL_EVENT_TYPES: dict[str, dict[str, str]] = {
     },
     "tool_call": {
         "description": "An MCP tool was invoked.",
-        "data_schema": '{"tool_name": "string", "duration_ms": "number?", "success": "boolean"}',
+        "data_schema": '{"tool_name": "string", "params": "object", "result_status": "success|error", "duration_ms": "number?"}',
     },
     "skill_invoked": {
         "description": "A skill was invoked.",
