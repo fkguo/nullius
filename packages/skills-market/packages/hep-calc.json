@@ -11,6 +11,12 @@
     "opencode"
   ],
   "source_path": "~/.codex/skills/hep-calc/SKILL.md",
+  "runtime": {
+    "python": {
+      "mode": "isolated-venv",
+      "packages": []
+    }
+  },
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",

@@ -13,6 +13,7 @@ Use the Python installer (`scripts/install_skill.py`) when you want:
 - Per-skill selection and dependency-aware install
 - Payload allowlist/denylist copy install
 - More controlled, reproducible install artifacts
+- Installer-managed Python runtime isolation for opted-in skills (`runtime.python`)
 
 ## 2) Repository Roles
 
@@ -113,6 +114,19 @@ git pull
 Symlink installs see updates immediately (same linked source).
 
 If market metadata changes (new/removed skill ids), rerun platform installer scripts.
+
+### Python isolation note
+
+The symlink route does not create skill-local Python environments.
+
+If you need a skill-local `.venv` for an opted-in skill such as `auto-relay` or `hep-calc`, use the Python installer route instead:
+
+```bash
+python3 scripts/install_skill.py --platform codex --package auto-relay
+python3 scripts/install_skill.py --platform codex --package hep-calc
+```
+
+This M-15 first slice only covers Python isolation inside `skills-market`; it does not add Node/TS runtime isolation or compatibility/export mirror changes.
 
 ## 9) Troubleshooting
 

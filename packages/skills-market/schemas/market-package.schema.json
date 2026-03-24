@@ -50,6 +50,28 @@
         "pattern": "^>=?[0-9]+\\.[0-9]+\\.[0-9]+(?:\\s+<[=]?[0-9]+\\.[0-9]+\\.[0-9]+)?$"
       }
     },
+    "runtime": {
+      "type": "object",
+      "required": ["python"],
+      "properties": {
+        "python": {
+          "type": "object",
+          "required": ["mode", "packages"],
+          "properties": {
+            "mode": { "const": "isolated-venv" },
+            "packages": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "source": {
       "type": "object",
       "required": ["repo", "ref", "subpath", "include"],
@@ -104,6 +126,19 @@
               }
             }
           }
+        }
+      }
+    },
+    {
+      "if": {
+        "not": {
+          "properties": { "package_type": { "const": "skill-pack" } },
+          "required": ["package_type"]
+        }
+      },
+      "then": {
+        "properties": {
+          "runtime": false
         }
       }
     }

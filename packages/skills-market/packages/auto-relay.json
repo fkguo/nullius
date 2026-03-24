@@ -11,6 +11,14 @@
     "opencode"
   ],
   "source_path": "~/.codex/skills/auto-relay/SKILL.md",
+  "runtime": {
+    "python": {
+      "mode": "isolated-venv",
+      "packages": [
+        "pyyaml>=6,<7"
+      ]
+    }
+  },
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",

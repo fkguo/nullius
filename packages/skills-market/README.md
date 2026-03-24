@@ -71,6 +71,9 @@ python3 scripts/install_skill.py \
 - Skill-pack dependencies are auto-installed by default (disable with `--no-deps`)
 - Non-skill dependencies (`tool-pack/workflow-pack/engine-pack/contract-pack`) are surfaced as preflight warnings, or hard-failed with `--strict-deps`
 - Source payload uses package-level publish allowlist (`source.include`) and denylist (`source.exclude`) so review artifacts/dev traces are not installed
+- Skill-packs can opt into installer-managed Python isolation with `runtime.python.mode = "isolated-venv"`
+- Opted-in Python skills get a skill-local `.venv`; installs fail closed if venv creation or package install fails
+- This slice is local to `skills-market` installer behavior only; compatibility/export mirror updates are intentionally deferred
 
 ## Source Publishing Model (Private)
 
@@ -83,6 +86,18 @@ Skill runtime source should live in a separate private repo, referenced by packa
   - `source.include` / `source.exclude`
 
 Only allowlisted files are installed, which keeps installation payload minimal and avoids leaking development/review process files.
+
+## Python Runtime Isolation (M-15 first slice)
+
+This first slice adds Python-only dependency isolation for selected skill-packs.
+
+- Supported now: installer-managed `.venv` inside the installed skill directory
+- Not included in this slice: Node/TS runtime isolation
+- Initial rollout:
+  - `auto-relay` installs required `PyYAML` into a skill-local `.venv`
+  - `hep-calc` gets a skill-local `.venv` boundary even with an empty package list
+
+When a skill opts in via `runtime.python`, the installed payload records `python_runtime` in `.market_install.json` and annotates the installed `SKILL.md` with a runtime note pointing agents/users to the skill-local interpreter.
 
 ## Notes
 
