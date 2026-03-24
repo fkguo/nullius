@@ -1,0 +1,167 @@
+from __future__ import annotations
+
+import os
+import subprocess
+from pathlib import Path
+
+
+SKILL_DIR = Path(__file__).resolve().parents[1]
+RUNNER = SKILL_DIR / "scripts" / "run_gemini.sh"
+
+
+def _write_fake_gemini(bin_dir: Path) -> Path:
+    fake = bin_dir / "gemini"
+    fake.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+
+mode="${FAKE_MODE:-success}"
+model=""
+approval_mode=""
+output_format=""
+sandbox=0
+prompt=""
+stdin_file="$(mktemp)"
+trap 'rm -f "${stdin_file}"' EXIT
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -m|--model)
+      model="${2:-}"
+      shift 2
+      ;;
+    --approval-mode)
+      approval_mode="${2:-}"
+      shift 2
+      ;;
+    -o|--output-format)
+      output_format="${2:-}"
+      shift 2
+      ;;
+    -p|--prompt)
+      prompt="${2:-}"
+      shift 2
+      ;;
+    --sandbox)
+      sandbox=1
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+cat >"${stdin_file}" || true
+
+  case "${mode}" in
+  echo_input)
+    cat "${stdin_file}"
+    ;;
+  mcp_status_noise)
+    printf 'MCP issues detected. Run /mcp list for status.\\n\\n'
+    echo "OK_AFTER_SANITIZE"
+    ;;
+  emit_metadata)
+    printf 'sandbox=%s\\n' "${sandbox}"
+    printf 'approval_mode=%s\\n' "${approval_mode}"
+    printf 'output_format=%s\\n' "${output_format}"
+    printf 'model=%s\\n' "${model}"
+    printf 'prompt=%s\\n' "${prompt}"
+    ;;
+  *)
+    echo "OK_DEFAULT"
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    return fake
+
+
+def _run_runner(
+    tmp_path: Path,
+    *,
+    args: list[str],
+    fake_mode: str = "success",
+    prompt_text: str = "hello\n",
+    system_text: str | None = None,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    _write_fake_gemini(bin_dir)
+
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text(prompt_text, encoding="utf-8")
+    out = tmp_path / "out.txt"
+    system = tmp_path / "system.txt"
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    env["FAKE_MODE"] = fake_mode
+
+    cmd = [
+        "bash",
+        str(RUNNER),
+        "--prompt-file",
+        str(prompt),
+        "--out",
+        str(out),
+    ]
+    if system_text is not None:
+        system.write_text(system_text, encoding="utf-8")
+        cmd.extend(["--system-prompt-file", str(system)])
+    cmd.extend(args)
+    proc = subprocess.run(cmd, text=True, capture_output=True, env=env, check=False)
+    return proc, out
+
+
+def _out_text(out_path: Path) -> str:
+    if not out_path.exists():
+        return ""
+    return out_path.read_text(encoding="utf-8")
+
+
+def test_tool_mode_none_executes_without_unbound_array_failure(tmp_path: Path) -> None:
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--model", "gemini-3.1-pro-preview", "--no-fallback"],
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _out_text(out_path) == "OK_DEFAULT\n"
+
+
+def test_review_mode_dry_run_shows_plan_and_sandbox(tmp_path: Path) -> None:
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--tool-mode", "review", "--model", "gemini-3.1-pro-preview", "--dry-run"],
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "tool_mode: review" in proc.stdout
+    assert "approval_mode: plan" in proc.stdout
+    assert "sandbox: 1" in proc.stdout
+    assert "command: gemini --sandbox -m gemini-3.1-pro-preview --approval-mode plan" in proc.stdout
+    assert _out_text(out_path) == ""
+
+
+def test_system_prompt_prepended_with_single_blank_line(tmp_path: Path) -> None:
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--no-fallback"],
+        fake_mode="echo_input",
+        prompt_text="PROMPT\n",
+        system_text="SYSTEM\n",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _out_text(out_path) == "SYSTEM\n\nPROMPT\n"
+
+
+def test_sanitizes_known_mcp_status_prefix(tmp_path: Path) -> None:
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--no-fallback"],
+        fake_mode="mcp_status_noise",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _out_text(out_path) == "OK_AFTER_SANITIZE\n"

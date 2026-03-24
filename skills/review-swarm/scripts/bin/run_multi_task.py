@@ -626,6 +626,7 @@ def _build_cmd(
         if opencode_variant:
             cmd.extend(["--variant", opencode_variant])
         if tool_mode == "workspace":
+            cmd.append("--start-server")
             cmd.extend(["--workspace-dir", str(review_workspace_dir)])
     if plan.backend == "gemini" and gemini_cli_home:
         cmd.extend(["--gemini-cli-home", gemini_cli_home])

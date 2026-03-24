@@ -122,6 +122,26 @@ Review health telemetry:
 - 区分“reviewer 真的 0 blocking”与“reviewer 实际未完成”
 - 避免把 reviewer infra 问题误读成审查健康度
 
+判定约束：
+
+- 只有“无可用 verdict”“无 source-grounded judgment”“或 reviewer backend 无法完成源码级判断”才计入 `reviewer_failures`。
+- MCP/discovery/runner/SSE 噪音若未阻止该 reviewer 最终给出可用 verdict，则不应记为 failure。
+- 恢复策略默认优先 same-model rerun；若 agentic/live file-read 路径不稳定，可改用更宽的 embedded-source rerun packet，但不应缩回 diff-only 审查。
+- reviewer 仍在正常运行且有望产出 verdict 时，不应因中间噪音而主动终止。
+
+若本轮触及 public/package/CLI/workflow/default-entry surface，也可记录一项额外预防遥测：
+
+```json
+{
+  "front_door_audit_performed": true
+}
+```
+
+用途：
+
+- 区分“front-door widening 只写在规则里”与“packet 准备时真的做了系统 audit”
+- 为后续抽样审查提供最小证据，判断 packet omission 是偶发疏漏还是 audit 根本没执行
+
 ## 6. Derived Window Metrics
 
 所有窗口指标都由第 4 节的 batch-level 字段派生。

@@ -10,11 +10,15 @@ OUT=""
 MODEL=""
 AGENT=""
 VARIANT=""
+ATTACH_URL=""
 TOOL_MODE="none"
 WORKSPACE_DIR=""
 THINKING=0
 DRY_RUN=0
 NO_FALLBACK=0
+START_SERVER=0
+SERVER_HOSTNAME="127.0.0.1"
+SERVER_PORT=""
 MAX_ATTEMPTS=3
 MAX_ATTEMPTS_HARD_MAX=20
 SLEEP_SECS=5
@@ -31,6 +35,10 @@ Options:
   --model MODEL           Optional model in provider/model format (e.g. openai/gpt-5)
   --agent AGENT           Optional OpenCode agent name
   --variant VARIANT       Optional model variant (provider-specific)
+  --attach URL            Optional OpenCode server URL passed to `opencode run --attach`
+  --start-server          Start a local `opencode serve` process and attach the run to it
+  --server-hostname HOST  Hostname for --start-server (default: 127.0.0.1)
+  --server-port PORT      Port for --start-server (default: auto-selected free port)
   --tool-mode MODE        Default: none. Choices: none, workspace.
   --workspace-dir DIR     Optional workspace path used when --tool-mode workspace (default: current cwd).
   --thinking              Show thinking blocks in OpenCode output events
@@ -173,6 +181,59 @@ err_path.write_text("", encoding="utf-8")
 PY
 }
 
+pick_free_port() {
+  local host="$1"
+  python3 - "$host" <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.bind((host, 0))
+    print(sock.getsockname()[1])
+PY
+}
+
+wait_for_tcp_port() {
+  local host="$1"
+  local port="$2"
+  local timeout_secs="$3"
+  local pid="$4"
+
+  python3 - "$host" "$port" "$timeout_secs" "$pid" <<'PY'
+import os
+import socket
+import sys
+import time
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+timeout_secs = float(sys.argv[3])
+pid = int(sys.argv[4])
+deadline = time.time() + timeout_secs
+
+while time.time() < deadline:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        raise SystemExit(2)
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.2)
+    try:
+        sock.connect((host, port))
+    except OSError:
+        time.sleep(0.1)
+    else:
+        sock.close()
+        raise SystemExit(0)
+    finally:
+        sock.close()
+
+raise SystemExit(1)
+PY
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --model)
@@ -188,6 +249,22 @@ while [[ $# -gt 0 ]]; do
     --variant)
       require_value "$1" "${2-}"
       VARIANT="$2"
+      shift 2
+      ;;
+    --attach)
+      require_value "$1" "${2-}"
+      ATTACH_URL="$2"
+      shift 2
+      ;;
+    --start-server) START_SERVER=1; shift 1;;
+    --server-hostname)
+      require_value "$1" "${2-}"
+      SERVER_HOSTNAME="$2"
+      shift 2
+      ;;
+    --server-port)
+      require_value "$1" "${2-}"
+      SERVER_PORT="$2"
       shift 2
       ;;
     --tool-mode)
@@ -287,6 +364,20 @@ if [[ "${TOOL_MODE}" == "workspace" && -n "${WORKSPACE_DIR}" && ! -d "${WORKSPAC
   echo "Workspace directory not found: ${WORKSPACE_DIR}" >&2
   exit 2
 fi
+if [[ -n "${ATTACH_URL}" && "${START_SERVER}" -eq 1 ]]; then
+  echo "--attach and --start-server cannot be used together" >&2
+  exit 2
+fi
+if [[ -z "${SERVER_HOSTNAME}" ]]; then
+  echo "--server-hostname must be non-empty" >&2
+  exit 2
+fi
+if [[ -n "${SERVER_PORT}" ]]; then
+  if ! [[ "${SERVER_PORT}" =~ ^[0-9]+$ ]] || [[ "${SERVER_PORT}" -lt 1 ]] || [[ "${SERVER_PORT}" -gt 65535 ]]; then
+    echo "--server-port must be an integer between 1 and 65535" >&2
+    exit 2
+  fi
+fi
 if [[ -n "${MODEL}" ]]; then
   if [[ ! "${MODEL}" =~ ^[^/]+/[^/]+$ ]]; then
     echo "Invalid --model format: '${MODEL}'. Expected provider/model." >&2
@@ -334,6 +425,16 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     echo "variant: ${VARIANT}"
   fi
   echo "tool_mode: ${TOOL_MODE}"
+  echo "attach_url: ${ATTACH_URL:-(none)}"
+  echo "start_server: ${START_SERVER}"
+  if [[ "${START_SERVER}" -eq 1 ]]; then
+    echo "server_hostname: ${SERVER_HOSTNAME}"
+    if [[ -n "${SERVER_PORT}" ]]; then
+      echo "server_port: ${SERVER_PORT}"
+    else
+      echo "server_port: (auto)"
+    fi
+  fi
   if [[ "${TOOL_MODE}" == "workspace" ]]; then
     if [[ -n "${WORKSPACE_DIR}" ]]; then
       echo "workspace_dir: ${WORKSPACE_DIR}"
@@ -356,6 +457,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   if [[ -n "${VARIANT}" ]]; then
     cmd+=(--variant "${VARIANT}")
   fi
+  if [[ -n "${ATTACH_URL}" ]]; then
+    cmd+=(--attach "${ATTACH_URL}")
+  elif [[ "${START_SERVER}" -eq 1 ]]; then
+    cmd+=(--attach "http://${SERVER_HOSTNAME}:<server-port>")
+  fi
   if [[ "${TOOL_MODE}" == "workspace" ]]; then
     if [[ -n "${WORKSPACE_DIR}" ]]; then
       cmd+=(--dir "${WORKSPACE_DIR}")
@@ -376,6 +482,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     fi
     if [[ -n "${VARIANT}" ]]; then
       fallback_cmd+=(--variant "${VARIANT}")
+    fi
+    if [[ -n "${ATTACH_URL}" ]]; then
+      fallback_cmd+=(--attach "${ATTACH_URL}")
+    elif [[ "${START_SERVER}" -eq 1 ]]; then
+      fallback_cmd+=(--attach "http://${SERVER_HOSTNAME}:<server-port>")
     fi
     if [[ "${TOOL_MODE}" == "workspace" ]]; then
       if [[ -n "${WORKSPACE_DIR}" ]]; then
@@ -410,8 +521,15 @@ last_raw=""
 last_err=""
 last_stderr=""
 run_dir=""
+server_stdout=""
+server_stderr=""
+server_pid=""
 
 cleanup() {
+  if [[ -n "${server_pid}" ]] && kill -0 "${server_pid}" >/dev/null 2>&1; then
+    kill "${server_pid}" >/dev/null 2>&1 || true
+    wait "${server_pid}" >/dev/null 2>&1 || true
+  fi
   rm -rf "${tmp_dir}" || true
 }
 trap cleanup EXIT
@@ -440,6 +558,30 @@ else
   mkdir -p "${run_dir}"
 fi
 
+if [[ "${START_SERVER}" -eq 1 ]]; then
+  if [[ -z "${SERVER_PORT}" ]]; then
+    SERVER_PORT="$(pick_free_port "${SERVER_HOSTNAME}")"
+  fi
+  server_stdout="${tmp_dir}/opencode_server.stdout.log"
+  server_stderr="${tmp_dir}/opencode_server.stderr.log"
+  opencode serve --hostname "${SERVER_HOSTNAME}" --port "${SERVER_PORT}" >"${server_stdout}" 2>"${server_stderr}" &
+  server_pid=$!
+  set +e
+  wait_for_tcp_port "${SERVER_HOSTNAME}" "${SERVER_PORT}" "30" "${server_pid}"
+  server_wait_code=$?
+  set -e
+  if [[ "${server_wait_code}" -ne 0 ]]; then
+    echo "Failed to start opencode serve on ${SERVER_HOSTNAME}:${SERVER_PORT}" >&2
+    if [[ -s "${server_stderr}" ]]; then
+      echo "--- opencode serve stderr ---" >&2
+      tail -n 40 "${server_stderr}" >&2 || true
+      echo "--- end opencode serve stderr ---" >&2
+    fi
+    exit 1
+  fi
+  ATTACH_URL="http://${SERVER_HOSTNAME}:${SERVER_PORT}"
+fi
+
 run_once() {
   local use_model="$1"
   local raw_file="$2"
@@ -459,6 +601,9 @@ run_once() {
   fi
   if [[ -n "${VARIANT}" ]]; then
     cmd+=(--variant "${VARIANT}")
+  fi
+  if [[ -n "${ATTACH_URL}" ]]; then
+    cmd+=(--attach "${ATTACH_URL}")
   fi
   cmd+=(--dir "${run_dir}")
   if [[ "${THINKING}" -eq 1 ]]; then

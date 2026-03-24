@@ -16,11 +16,48 @@ def _write_fake_opencode(bin_dir: Path) -> Path:
 set -euo pipefail
 
 mode="${FAKE_MODE:-success}"
+log_file="${FAKE_LOG:-}"
 model=""
 stdin_file="$(mktemp)"
 trap 'rm -f "${stdin_file}"' EXIT
 
+record_call() {
+  if [[ -n "${log_file}" ]]; then
+    printf '%s\\n' "$*" >>"${log_file}"
+  fi
+}
+
+if [[ "${1:-}" == "serve" ]]; then
+  shift
+  port=""
+  hostname="127.0.0.1"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --port)
+        port="${2:-}"
+        shift 2
+        ;;
+      --hostname)
+        hostname="${2:-}"
+        shift 2
+        ;;
+      --print-logs|--mdns)
+        shift
+        ;;
+      --log-level|--mdns-domain|--cors)
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  record_call "serve --hostname ${hostname} --port ${port}"
+  exec python3 -m http.server "${port}" --bind "${hostname}" >/dev/null 2>&1
+fi
+
 if [[ "${1:-}" == "run" ]]; then
+  record_call "run $*"
   shift
 fi
 
@@ -115,10 +152,12 @@ def _run_runner(
     prompt.write_text(prompt_text, encoding="utf-8")
     out = tmp_path / "out.txt"
     system = tmp_path / "system.txt"
+    log = tmp_path / "fake_opencode.log"
 
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
     env["FAKE_MODE"] = fake_mode
+    env["FAKE_LOG"] = str(log)
 
     cmd = [
         "bash",
@@ -292,3 +331,36 @@ def test_rejects_excessive_sleep_secs(tmp_path: Path) -> None:
     )
     assert proc.returncode == 2
     assert "--sleep-secs must be <= 300" in proc.stderr
+
+
+def test_start_server_uses_official_attach_flow(tmp_path: Path) -> None:
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=[
+            "--tool-mode",
+            "workspace",
+            "--workspace-dir",
+            str(tmp_path),
+            "--start-server",
+        ],
+        fake_mode="success",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _out_text(out_path) == "OK_DEFAULT\n"
+
+    log_path = tmp_path / "fake_opencode.log"
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "serve --hostname 127.0.0.1 --port " in log_text
+    assert "run run --format json --attach http://127.0.0.1:" in log_text
+    assert f"--dir {tmp_path}" in log_text
+
+
+def test_rejects_attach_plus_start_server(tmp_path: Path) -> None:
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--attach", "http://127.0.0.1:4096", "--start-server"],
+        fake_mode="success",
+    )
+    assert proc.returncode == 2
+    assert _out_text(out_path) == ""
+    assert "--attach and --start-server cannot be used together" in proc.stderr

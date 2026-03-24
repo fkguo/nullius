@@ -37,10 +37,14 @@ bash "${CODEX_HOME:-$HOME/.codex}/skills/opencode-cli-runner/scripts/run_opencod
 ## Notes
 
 - The runner calls `opencode run --format json` and feeds prompt text via stdin, so large prompt files avoid shell argument-size limits.
+- The runner supports OpenCode's official headless attach flow:
+  - `--attach URL` passes through to `opencode run --attach URL`
+  - `--start-server` starts a local `opencode serve` process and attaches the run to it
 - If `--system-prompt-file` is provided, it is prepended to stdin before `--prompt-file` (separated by a blank line).
 - Workspace visibility is now explicit:
   - Default is `--tool-mode none`, which runs OpenCode in an isolated temp directory.
   - Use `--tool-mode workspace` to expose a workspace via `--workspace-dir DIR` (defaults to the current cwd).
+- `--start-server` is useful when repeated one-shot runs would otherwise keep paying OpenCode backend/MCP cold-start costs; it follows the official `serve` + `run --attach` pattern.
 - The runner parses JSON events and writes only assistant text (`type=text`) to `--out`.
 - The runner treats JSON `type=error` events as failures even when `opencode` exits with code `0`.
 - If a response includes any `type=error` event, partial text chunks are not emitted to `--out`.

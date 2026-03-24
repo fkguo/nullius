@@ -34,6 +34,7 @@ JSON_VALID_VERDICTS = {"PASS", "FAIL"}
 _RE_GEMINI_HOOK_PREAMBLE = re.compile(r"^Hook registry initialized with \d+ hook entries\s*$")
 _RE_GEMINI_STARTUP_LINES = [
     _RE_GEMINI_HOOK_PREAMBLE,
+    re.compile(r"^MCP issues detected\. Run /mcp list for status\.\s*$"),
     re.compile(r"^Registering notification handlers for server '.*'\. Capabilities: .*$"),
     re.compile(r"^(completions|resources|tools): .*$"),
     re.compile(r"^\}$"),

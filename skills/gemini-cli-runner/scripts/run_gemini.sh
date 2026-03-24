@@ -98,6 +98,22 @@ run_gemini_cmd() {
   fi
 }
 
+print_gemini_cmd_with_sandbox() {
+  if [[ "${SANDBOX}" -eq 1 ]]; then
+    print_gemini_cmd --sandbox "$@"
+  else
+    print_gemini_cmd "$@"
+  fi
+}
+
+run_gemini_cmd_with_sandbox() {
+  if [[ "${SANDBOX}" -eq 1 ]]; then
+    run_gemini_cmd --sandbox "$@"
+  else
+    run_gemini_cmd "$@"
+  fi
+}
+
 sanitize_gemini_output() {
   local f="$1"
   [[ -f "${f}" ]] || return 0
@@ -118,6 +134,7 @@ lines = text.split("\n")
 hook_re = re.compile(r"^Hook registry initialized with \d+ hook entries$")
 startup_res = [
     hook_re,
+    re.compile(r"^MCP issues detected\. Run /mcp list for status\.$"),
     re.compile(r"^Registering notification handlers for server '.*'\. Capabilities: .*"),
     re.compile(r"^(completions|resources|tools): .*"),
     re.compile(r"^\}$"),
@@ -375,11 +392,6 @@ case "${TOOL_MODE}" in
     ;;
 esac
 
-SANDBOX_ARG=()
-if [[ "${SANDBOX}" -eq 1 ]]; then
-  SANDBOX_ARG=(--sandbox)
-fi
-
 if [[ "${DRY_RUN}" -ne 1 ]]; then
   if ! command -v gemini >/dev/null 2>&1; then
     echo "gemini CLI not found in PATH" >&2
@@ -436,13 +448,13 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   if [[ -n "${MODEL}" ]]; then
     echo "model: ${MODEL}"
     echo "no_fallback: ${NO_FALLBACK}"
-    echo -n "command: "; print_gemini_cmd "${SANDBOX_ARG[@]}" -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+    echo -n "command: "; print_gemini_cmd_with_sandbox -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
     if [[ "${NO_FALLBACK}" -ne 1 ]]; then
-      echo -n "fallback_command: "; print_gemini_cmd "${SANDBOX_ARG[@]}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+      echo -n "fallback_command: "; print_gemini_cmd_with_sandbox --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
     fi
   else
     echo "model: (default)"
-    echo -n "command: "; print_gemini_cmd "${SANDBOX_ARG[@]}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+    echo -n "command: "; print_gemini_cmd_with_sandbox --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
   fi
   exit 0
 fi
@@ -474,8 +486,8 @@ trap cleanup EXIT
 
 if [[ -n "${SYSTEM_PROMPT_FILE}" ]]; then
   combined_stdin="$(mktemp)"
-  cat "${SYSTEM_PROMPT_FILE}" >"${combined_stdin}"
-  printf '\n\n' >>"${combined_stdin}"
+  system_text="$(cat "${SYSTEM_PROMPT_FILE}")"
+  printf '%s\n\n' "${system_text}" >"${combined_stdin}"
   cat "${PROMPT_FILE}" >>"${combined_stdin}"
   stdin_file="${combined_stdin}"
 fi
@@ -514,10 +526,10 @@ fi
 
 set +e
 if [[ -n "${MODEL}" ]]; then
-  run_gemini_cmd "${SANDBOX_ARG[@]}" -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+  run_gemini_cmd_with_sandbox -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
   code=$?
 else
-  run_gemini_cmd "${SANDBOX_ARG[@]}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+  run_gemini_cmd_with_sandbox --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
   code=$?
 fi
 set -e
@@ -526,7 +538,7 @@ if [[ $code -ne 0 && -n "${MODEL}" ]]; then
   # Fallback: omit -m in case the local CLI uses different model aliases.
   if [[ "${NO_FALLBACK}" -ne 1 ]]; then
     set +e
-    run_gemini_cmd "${SANDBOX_ARG[@]}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+    run_gemini_cmd_with_sandbox --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
     code=$?
     set -e
   fi

@@ -628,7 +628,27 @@ class MultiTaskTests(unittest.TestCase):
             self.assertIn("review", cmd_by_backend["gemini"])
             self.assertIn("--tool-mode", cmd_by_backend["opencode"])
             self.assertIn("workspace", cmd_by_backend["opencode"])
+            self.assertIn("--start-server", cmd_by_backend["opencode"])
             self.assertIn("--workspace-dir", cmd_by_backend["opencode"])
+
+    def test_sanitize_gemini_output_strips_mcp_status_prefix(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out = td_path / "gemini_output.txt"
+            out.write_text(
+                "MCP issues detected. Run /mcp list for status.\n"
+                "\n"
+                '{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n',
+                encoding="utf-8",
+            )
+
+            changed = self.mod.sanitize_gemini_output(out)
+
+            self.assertTrue(changed)
+            self.assertEqual(
+                out.read_text(encoding="utf-8"),
+                '{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n',
+            )
 
     def test_timeout_marks_agent_failure_and_returns_nonzero(self):
         with tempfile.TemporaryDirectory() as td:
