@@ -1,0 +1,387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/research_event_v1.schema.json",
+  "title": "ResearchEvent V1",
+  "description": "An audit record of a research process event. Events form the input stream for the REP Signal Engine (EVO-18).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "timestamp",
+    "run_id",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (UUID v4)."
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "strategy_proposed",
+        "strategy_selected",
+        "strategy_rejected",
+        "computation_started",
+        "computation_completed",
+        "computation_failed",
+        "verification_started",
+        "verification_passed",
+        "verification_failed",
+        "outcome_published",
+        "outcome_superseded",
+        "outcome_revoked",
+        "integrity_check_started",
+        "integrity_check_completed",
+        "signal_detected",
+        "stagnation_detected",
+        "diagnostic_emitted"
+      ],
+      "description": "Type of research event. Determines which payload schema applies (discriminated union)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z timestamp."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run in which this event occurred."
+    },
+    "trace_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Trace ID for cross-layer correlation (UUID v4)."
+    },
+    "sequence_number": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonically increasing sequence number within a run."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-type-specific payload data. Schema is enforced by the event_type discriminator (see allOf)."
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "event_type": { "const": "strategy_proposed" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/StrategyProposedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "strategy_selected" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/StrategySelectedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "strategy_rejected" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/StrategyRejectedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "computation_started" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ComputationStartedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "computation_completed" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ComputationCompletedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "computation_failed" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ComputationFailedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "verification_started" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/VerificationStartedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "verification_passed" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/VerificationPassedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "verification_failed" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/VerificationFailedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "outcome_published" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/OutcomePublishedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "outcome_superseded" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/OutcomeSupersededPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "outcome_revoked" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/OutcomeRevokedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "integrity_check_started" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/IntegrityCheckStartedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "integrity_check_completed" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/IntegrityCheckCompletedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "signal_detected" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/SignalDetectedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "stagnation_detected" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/StagnationDetectedPayload" } } }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "diagnostic_emitted" } }, "required": ["event_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/DiagnosticEmittedPayload" } } }
+    }
+  ],
+  "$defs": {
+    "StrategyProposedPayload": {
+      "type": "object",
+      "required": ["strategy_id", "strategy_name", "preset"],
+      "properties": {
+        "strategy_id": { "type": "string" },
+        "strategy_name": { "type": "string" },
+        "preset": { "type": "string", "enum": ["explore", "deepen", "verify", "consolidate"] },
+        "triggering_signals": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Signal IDs that triggered this proposal."
+        },
+        "score": { "type": "number" }
+      }
+    },
+    "StrategySelectedPayload": {
+      "type": "object",
+      "required": ["strategy_id", "reason"],
+      "properties": {
+        "strategy_id": { "type": "string" },
+        "reason": { "type": "string" },
+        "competing_strategies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "strategy_id": { "type": "string" },
+              "score": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "StrategyRejectedPayload": {
+      "type": "object",
+      "required": ["strategy_id", "reason"],
+      "properties": {
+        "strategy_id": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "ComputationStartedPayload": {
+      "type": "object",
+      "required": ["computation_id", "strategy_ref", "method"],
+      "properties": {
+        "computation_id": { "type": "string" },
+        "strategy_ref": { "type": "string" },
+        "method": { "type": "string" },
+        "tools": { "type": "array", "items": { "type": "string" } },
+        "parameters": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "ComputationCompletedPayload": {
+      "type": "object",
+      "required": ["computation_id", "artifact_ref"],
+      "properties": {
+        "computation_id": { "type": "string" },
+        "artifact_ref": {
+          "type": "object",
+          "description": "ArtifactRef V1 of the computation result."
+        },
+        "metrics_summary": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Summary of computed quantities."
+        },
+        "duration_ms": { "type": "integer" }
+      }
+    },
+    "ComputationFailedPayload": {
+      "type": "object",
+      "required": ["computation_id", "error"],
+      "properties": {
+        "computation_id": { "type": "string" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "retryable": { "type": "boolean" }
+          }
+        },
+        "partial_results": {
+          "type": "object",
+          "description": "Any partial results before failure."
+        }
+      }
+    },
+    "VerificationStartedPayload": {
+      "type": "object",
+      "required": ["verification_id", "original_computation_id", "method"],
+      "properties": {
+        "verification_id": { "type": "string" },
+        "original_computation_id": { "type": "string" },
+        "method": {
+          "type": "string",
+          "description": "Verification method type. Domain Pack defines available types (e.g., 'different_package', 'different_approach', 'different_precision', 'different_gauge', 'formal_proof_check', 'alternative_proof')."
+        }
+      },
+      "additionalProperties": true
+    },
+    "VerificationPassedPayload": {
+      "type": "object",
+      "required": ["verification_id", "deviation_report_ref"],
+      "properties": {
+        "verification_id": { "type": "string" },
+        "deviation_report_ref": { "type": "string" },
+        "max_relative_deviation": { "type": "number" }
+      }
+    },
+    "VerificationFailedPayload": {
+      "type": "object",
+      "required": ["verification_id", "deviation_report_ref", "reason"],
+      "properties": {
+        "verification_id": { "type": "string" },
+        "deviation_report_ref": { "type": "string" },
+        "reason": { "type": "string" },
+        "max_relative_deviation": { "type": "number" }
+      }
+    },
+    "OutcomePublishedPayload": {
+      "type": "object",
+      "required": ["outcome_id", "strategy_ref"],
+      "properties": {
+        "outcome_id": { "type": "string" },
+        "strategy_ref": { "type": "string" },
+        "rdi_rank_score": { "type": "number" }
+      }
+    },
+    "OutcomeSupersededPayload": {
+      "type": "object",
+      "required": ["outcome_id", "superseded_by"],
+      "properties": {
+        "outcome_id": { "type": "string" },
+        "superseded_by": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "OutcomeRevokedPayload": {
+      "type": "object",
+      "required": ["outcome_id", "reason"],
+      "properties": {
+        "outcome_id": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "IntegrityCheckStartedPayload": {
+      "type": "object",
+      "required": ["report_id", "target_ref", "domain"],
+      "properties": {
+        "report_id": { "type": "string" },
+        "target_ref": { "type": "object" },
+        "domain": { "type": "string" },
+        "checks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Check IDs to be executed."
+        }
+      }
+    },
+    "IntegrityCheckCompletedPayload": {
+      "type": "object",
+      "required": ["report_id", "overall_status"],
+      "properties": {
+        "report_id": { "type": "string" },
+        "overall_status": { "type": "string", "enum": ["pass", "fail", "advisory_only"] },
+        "blocking_failures": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "check_count": { "type": "integer" },
+        "pass_count": { "type": "integer" },
+        "fail_count": { "type": "integer" }
+      }
+    },
+    "SignalDetectedPayload": {
+      "type": "object",
+      "required": ["signal_id", "signal_type", "confidence"],
+      "properties": {
+        "signal_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Reference to the ResearchSignal (UUID v4, matches ResearchSignal.signal_id)."
+        },
+        "signal_type": {
+          "type": "string",
+          "enum": [
+            "gap_detected",
+            "calculation_divergence",
+            "known_result_match",
+            "integrity_violation",
+            "method_plateau",
+            "parameter_sensitivity",
+            "cross_check_opportunity",
+            "stagnation"
+          ]
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "fingerprint": { "type": "string" },
+        "source_event_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "StagnationDetectedPayload": {
+      "type": "object",
+      "required": ["consecutive_empty_cycles", "threshold"],
+      "properties": {
+        "consecutive_empty_cycles": { "type": "integer" },
+        "threshold": { "type": "integer" },
+        "current_strategy": { "type": "string" },
+        "recommended_action": {
+          "type": "string",
+          "enum": ["switch_strategy", "abandon_direction", "request_guidance"]
+        }
+      }
+    },
+    "DiagnosticEmittedPayload": {
+      "type": "object",
+      "required": ["diagnostic_type", "message"],
+      "properties": {
+        "diagnostic_type": {
+          "type": "string",
+          "description": "Type of diagnostic event (e.g., 'taxonomy_miss', 'taxonomy_expansion_proposed', 'taxonomy_entry_added', 'taxonomy_entry_rejected', 'fallback_applied', 'config_warning'). Not a research signal — used for observability and debugging."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable diagnostic message."
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Diagnostic-type-specific context data."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "error"],
+          "description": "Log-level severity of the diagnostic (not to be confused with IntegrityViolationPayload check severity which uses 'blocking'|'advisory')."
+        }
+      }
+    }
+  }
+}

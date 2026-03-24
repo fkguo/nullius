@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/research_strategy_v1.schema.json",
+  "title": "ResearchStrategy V1",
+  "description": "A reusable research strategy template defining methodology, constraints, and validation criteria. Content-addressed via SHA-256 of RFC 8785 (JCS) canonical JSON.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "strategy_id",
+    "name",
+    "description",
+    "objective",
+    "method",
+    "domain",
+    "validation_criteria"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Schema version, must be 1 for this version."
+    },
+    "strategy_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding strategy_id itself."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Human-readable name for this strategy."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Detailed description of the strategy."
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "What this strategy aims to achieve."
+    },
+    "method": {
+      "type": "object",
+      "required": ["approach", "tools"],
+      "properties": {
+        "approach": {
+          "type": "string",
+          "description": "Research method or technique. Examples: 'symbolic perturbation analysis', 'variational simulation', 'formal proof via Lean', 'dispersive reconstruction'."
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required computation or analysis tools (e.g., ['Mathematica'], ['Lean4'], ['NumPy', 'SciPy'])."
+        },
+        "model": {
+          "type": "string",
+          "description": "Theoretical framework or model (e.g., 'effective field theory', 'Ising model', 'homotopy type theory')."
+        }
+      },
+      "additionalProperties": true
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "parameter_ranges": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "min": { "type": "number" },
+              "max": { "type": "number" },
+              "unit": { "type": "string" }
+            }
+          },
+          "description": "Valid parameter ranges for this strategy."
+        },
+        "approximations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "validity_condition"],
+            "properties": {
+              "name": { "type": "string" },
+              "validity_condition": { "type": "string" },
+              "estimated_error": { "type": "string" }
+            }
+          },
+          "description": "Approximations used and their validity conditions."
+        },
+        "assumptions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Domain-specific assumptions. Examples: theory: 'scale separation holds', 'symmetry is exact in this regime'; formal: 'excluded middle', 'axiom of choice'."
+        }
+      },
+      "additionalProperties": true,
+      "description": "Applicability constraints for this strategy."
+    },
+    "expected_outcome_form": {
+      "type": "object",
+      "properties": {
+        "quantities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": ["scalar", "vector", "matrix", "function", "distribution"],
+                "description": "V1 quantity types cover numerical/computational domains. V2 will add 'boolean', 'symbolic', 'category' for formal methods and classification workflows (see DESIGN_DEBT.md item 6)."
+              },
+              "unit": { "type": "string" }
+            }
+          },
+          "description": "Expected output quantities."
+        },
+        "format": {
+          "type": "string",
+          "description": "Expected result format. Recommended values: 'analytic_expression', 'numerical_table', 'parametric_fit', 'formal_proof', 'classification_result', 'mixed'. Domain Packs may define additional conventions."
+        }
+      },
+      "description": "What form the results should take."
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Research domain (e.g., 'hep-th', 'cond-mat', 'mathematics')."
+    },
+    "applicable_when": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Conditions under which this strategy is applicable."
+    },
+    "validation_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "method"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Criterion name (e.g., 'consistency_check', 'known_limit_check'). Domain Pack defines available criteria."
+          },
+          "method": {
+            "type": "string",
+            "description": "How to verify (e.g., 'compare results from two independent methods'). Domain Pack provides concrete verification procedures."
+          },
+          "tolerance": {
+            "type": "number",
+            "description": "Acceptable deviation (relative)."
+          },
+          "required": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether this criterion is required for outcome verification."
+          }
+        }
+      },
+      "minItems": 1,
+      "description": "Criteria for verifying outcomes produced by this strategy."
+    },
+    "preset": {
+      "type": "string",
+      "enum": ["explore", "deepen", "verify", "consolidate"],
+      "description": "Strategy preset category for signal engine."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form tags for categorization."
+    }
+  },
+  "additionalProperties": false
+}

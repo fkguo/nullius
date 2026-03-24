@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/rep_envelope_v1.schema.json",
+  "title": "REP Envelope V1",
+  "description": "Wire protocol envelope for the Research Evolution Protocol (REP). Adapted from GEP a2aProtocol.js envelope format. All REP messages are wrapped in this envelope.",
+  "type": "object",
+  "required": [
+    "protocol",
+    "protocol_version",
+    "message_type",
+    "message_id",
+    "sender_id",
+    "timestamp",
+    "payload"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "rep-a2a",
+      "description": "Protocol identifier. Always 'rep-a2a' for REP messages."
+    },
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Protocol version (e.g., '1.0')."
+    },
+    "message_type": {
+      "type": "string",
+      "enum": ["hello", "publish", "fetch", "report", "review", "revoke"],
+      "description": "Type of REP message. 'hello' for capability advertisement. 'publish' for publishing strategies/outcomes. 'fetch' for requesting strategies. 'report' for reporting events/results. 'review' for peer review decisions. 'revoke' for revoking published assets."
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique message identifier (UUID v4)."
+    },
+    "sender_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the sending agent/server."
+    },
+    "recipient_id": {
+      "type": "string",
+      "description": "Identifier of the intended recipient. Omitted for broadcast messages."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z timestamp of message creation."
+    },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex digest of the RFC 8785 (JCS) canonical JSON serialization of the payload field. Used for content addressing and integrity verification."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Message-type-specific payload. Schema is enforced by the message_type discriminator (see allOf)."
+    },
+    "signature": {
+      "type": "object",
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": ["hmac-sha256", "none"],
+          "description": "Signature algorithm. 'none' for local/trusted mode."
+        },
+        "value": {
+          "type": "string",
+          "description": "Hex-encoded signature value. Required if algorithm is not 'none'."
+        },
+        "key_id": {
+          "type": "string",
+          "description": "Identifier of the signing key."
+        }
+      },
+      "description": "Optional message signature. Not required for local FileTransport."
+    },
+    "trace_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Trace ID for cross-system correlation."
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "message_type": { "const": "hello" } }, "required": ["message_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/HelloPayload" } } }
+    },
+    {
+      "if": { "properties": { "message_type": { "const": "publish" } }, "required": ["message_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/PublishPayload" } } }
+    },
+    {
+      "if": { "properties": { "message_type": { "const": "fetch" } }, "required": ["message_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/FetchPayload" } } }
+    },
+    {
+      "if": { "properties": { "message_type": { "const": "report" } }, "required": ["message_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ReportPayload" } } }
+    },
+    {
+      "if": { "properties": { "message_type": { "const": "review" } }, "required": ["message_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/ReviewPayload" } } }
+    },
+    {
+      "if": { "properties": { "message_type": { "const": "revoke" } }, "required": ["message_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/RevokePayload" } } }
+    }
+  ],
+  "$defs": {
+    "HelloPayload": {
+      "type": "object",
+      "required": ["capabilities", "domain"],
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of capabilities this agent supports (e.g., ['strategy_publish', 'outcome_report', 'integrity_check'])."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Research domain (e.g., 'hep-th', 'cond-mat', 'mathematics')."
+        },
+        "agent_name": {
+          "type": "string"
+        },
+        "agent_version": {
+          "type": "string"
+        },
+        "supported_check_domains": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Integrity check domains this agent can evaluate."
+        }
+      }
+    },
+    "PublishPayload": {
+      "type": "object",
+      "required": ["asset_type", "asset"],
+      "properties": {
+        "asset_type": {
+          "type": "string",
+          "enum": ["strategy", "outcome", "integrity_report"],
+          "description": "Type of asset being published."
+        },
+        "asset": {
+          "type": "object",
+          "description": "The asset being published. Validated at runtime by the REP SDK against the schema identified by asset_type (strategy→research_strategy_v1, outcome→research_outcome_v1, integrity_report→integrity_report_v1). Follows the CloudEvents dataschema pattern: envelope validates envelope, SDK validates inner payload."
+        },
+        "rdi_gate_result": {
+          "type": "object",
+          "properties": {
+            "passed": { "type": "boolean" },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "passed": { "type": "boolean" }
+                }
+              }
+            }
+          },
+          "description": "RDI gate evaluation result. Required for outcome publication."
+        },
+        "revision_of": {
+          "type": "object",
+          "required": ["original_asset_id"],
+          "properties": {
+            "original_asset_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "Content-addressed ID of the asset being revised."
+            },
+            "review_message_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "message_id of the review that triggered this revision. Links the causal chain: review -> revision -> re-review."
+            }
+          },
+          "description": "Present when this publish is a revision of a previously published asset. Establishes the causal link between a review decision and the resulting revision, completing the audit trail."
+        }
+      }
+    },
+    "FetchPayload": {
+      "type": "object",
+      "required": ["asset_type"],
+      "properties": {
+        "asset_type": {
+          "type": "string",
+          "enum": ["strategy", "outcome", "integrity_report"]
+        },
+        "filters": {
+          "type": "object",
+          "properties": {
+            "domain": { "type": "string" },
+            "preset": { "type": "string" },
+            "status": { "type": "string" },
+            "min_rdi_rank": { "type": "number" },
+            "since": { "type": "string", "format": "date-time" }
+          },
+          "description": "Optional filters for the fetch query."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10
+        }
+      }
+    },
+    "ReportPayload": {
+      "type": "object",
+      "required": ["event"],
+      "properties": {
+        "event": {
+          "type": "object",
+          "description": "ResearchEvent being reported. Validated at runtime by the REP SDK against research_event_v1.schema.json. Follows the CloudEvents dataschema pattern: envelope validates envelope, SDK validates inner payload."
+        }
+      }
+    },
+    "ReviewPayload": {
+      "type": "object",
+      "required": ["target_asset_id", "decision"],
+      "properties": {
+        "target_asset_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Content-addressed ID of the asset being reviewed."
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["approve", "reject", "revise"],
+          "description": "Review decision."
+        },
+        "review_comments": {
+          "type": "string",
+          "description": "Structured review comments."
+        },
+        "reviewer_id": {
+          "type": "string"
+        },
+        "integrity_report_ref": {
+          "type": "string",
+          "description": "Reference to integrity report supporting the decision."
+        }
+      }
+    },
+    "RevokePayload": {
+      "type": "object",
+      "required": ["target_asset_id", "reason"],
+      "properties": {
+        "target_asset_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Content-addressed ID of the asset being revoked."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for revocation."
+        },
+        "superseded_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "ID of the asset that supersedes this one (if applicable)."
+        }
+      }
+    }
+  }
+}

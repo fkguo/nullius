@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/research_outcome_v1.schema.json",
+  "title": "ResearchOutcome V1",
+  "description": "A verified research result produced by applying a ResearchStrategy. Content-addressed via SHA-256 of RFC 8785 (JCS) canonical JSON.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "outcome_id",
+    "lineage_id",
+    "version",
+    "strategy_ref",
+    "status",
+    "metrics",
+    "artifacts",
+    "produced_by",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "outcome_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding outcome_id itself."
+    },
+    "lineage_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Stable identity across revisions (analogous to arXiv paper ID). Generated on first publication, inherited by all subsequent versions within the same research line."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Version number within the lineage, monotonically increasing. First publication is version 1."
+    },
+    "strategy_ref": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "strategy_id of the ResearchStrategy that produced this outcome."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "verified", "rejected", "superseded"],
+      "description": "Verification status. 'verified' means passed RDI gate. 'superseded' means a newer outcome replaced this one."
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["value"],
+        "properties": {
+          "value": {
+            "description": "The computed value (number, string expression, or array)."
+          },
+          "uncertainty": {
+            "type": "number",
+            "description": "Numerical/statistical uncertainty."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Unit of measurement. Omit for dimensionless quantities. Interpretation is domain-pack-defined."
+          },
+          "method": {
+            "type": "string",
+            "description": "How this quantity was computed."
+          }
+        }
+      },
+      "description": "Key-value map of research results (physical quantities, derived relations, proven statements, classification results, or other domain-specific outcomes)."
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      },
+      "description": "Evidence pointers to computation artifacts (ArtifactRef V1)."
+    },
+    "integrity_report_ref": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Content-addressed ID of the IntegrityReport for this outcome."
+    },
+    "reproducibility_report_ref": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Content-addressed ID of the DeviationReport from reproducibility verification."
+    },
+    "reproducibility_status": {
+      "type": "string",
+      "enum": ["verified", "pending", "failed", "not_applicable"],
+      "description": "Reproducibility verification status. 'verified': independent re-computation agrees. 'pending': verification not yet performed. 'failed': re-computation disagrees. 'not_applicable': outcome type does not support numerical reproducibility (e.g., formal proofs, theoretical arguments)."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Overall confidence in this outcome (0-1)."
+    },
+    "rdi_scores": {
+      "type": "object",
+      "required": ["gate_passed", "novelty", "generality", "significance", "citation_impact", "rank_score"],
+      "properties": {
+        "gate_passed": {
+          "type": "boolean",
+          "description": "Whether this outcome passed the RDI fail-closed gate."
+        },
+        "novelty": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Novelty score (0-1). Higher means more novel."
+        },
+        "generality": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Methodological generality score (0-1). Broader method applicability = higher."
+        },
+        "significance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Problem significance score (0-1). How central is the addressed problem to the field."
+        },
+        "citation_impact": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Local citation impact score (0-1)."
+        },
+        "rank_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Composite ranking score: w_n*novelty + w_g*generality + w_s*significance + w_c*citation_impact."
+        }
+      },
+      "description": "RDI (Research Desirability Index) scores. Only populated after RDI evaluation."
+    },
+    "applicability_range": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "unit": { "type": "string" }
+        }
+      },
+      "description": "Parameter space where this result is valid."
+    },
+    "produced_by": {
+      "type": "object",
+      "required": ["agent_id"],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "description": "Identifier of the agent/tool that produced this outcome."
+        },
+        "run_id": {
+          "type": "string",
+          "description": "Run in which this outcome was produced."
+        },
+        "tool_versions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Versions of tools used (e.g., {'FeynCalc': '10.0.0'})."
+        }
+      },
+      "description": "Provenance: who/what produced this outcome."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z timestamp of creation."
+    },
+    "supersedes": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "outcome_id of the previous version this outcome supersedes (if version > 1). Forms the explicit revision chain."
+    },
+    "superseded_by": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "outcome_id of the outcome that supersedes this one (if status is 'superseded')."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false,
+  "if": {
+    "properties": { "status": { "const": "verified" } },
+    "required": ["status"]
+  },
+  "then": {
+    "required": ["rdi_scores"],
+    "properties": {
+      "rdi_scores": {
+        "properties": {
+          "gate_passed": { "const": true }
+        }
+      }
+    }
+  }
+}

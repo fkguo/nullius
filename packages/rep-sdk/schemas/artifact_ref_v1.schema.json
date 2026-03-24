@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json",
+  "title": "ArtifactRef V1",
+  "description": "Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.",
+  "type": "object",
+  "required": ["uri", "sha256"],
+  "properties": {
+    "uri": {
+      "type": "string",
+      "description": "URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility."
+    },
+    "schema_version": {
+      "type": "integer",
+      "description": "Schema version of the referenced artifact."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing."
+    },
+    "size_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Size of the artifact in bytes."
+    },
+    "produced_by": {
+      "type": "string",
+      "description": "Agent or component that produced this artifact."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z timestamp of artifact creation."
+    }
+  },
+  "additionalProperties": false
+}
