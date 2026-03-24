@@ -1,0 +1,56 @@
+{
+  "recipe_id": "literature_landscape",
+  "name": "Literature Landscape",
+  "description": "Build a landscape and reading-list seed from atomic search, topic, network, and provenance operators.",
+  "entry_tool": "inspire_search",
+  "steps": [
+    {
+      "id": "seed_search",
+      "tool": "inspire_search",
+      "purpose": "Run a broad keyword search to seed the landscape",
+      "params": {
+        "query": "<query>",
+        "size": 25
+      }
+    },
+    {
+      "id": "topic_scan",
+      "tool": "inspire_topic_analysis",
+      "purpose": "Summarize topic trends and emerging subtopics",
+      "depends_on": [
+        "seed_search"
+      ],
+      "params": {
+        "mode": "timeline",
+        "topic": "<topic>",
+        "limit": 20
+      }
+    },
+    {
+      "id": "citation_network",
+      "tool": "inspire_network_analysis",
+      "purpose": "Map the citation structure around an anchor paper",
+      "depends_on": [
+        "seed_search"
+      ],
+      "params": {
+        "mode": "citation",
+        "seed": "<seed_recid>",
+        "limit": 25
+      }
+    },
+    {
+      "id": "source_trace",
+      "tool": "inspire_trace_original_source",
+      "purpose": "Trace likely original sources for a representative anchor paper",
+      "depends_on": [
+        "citation_network"
+      ],
+      "params": {
+        "recid": "<seed_recid>",
+        "max_depth": 2,
+        "max_refs_per_level": 20
+      }
+    }
+  ]
+}

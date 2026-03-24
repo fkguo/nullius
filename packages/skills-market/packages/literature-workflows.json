@@ -1,0 +1,31 @@
+{
+  "package_id": "literature-workflows",
+  "package_type": "workflow-pack",
+  "repo": "autoresearch-lab/autoresearch-meta",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Checked-in generic literature workflow recipes and protocol authority.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "depends_on": {
+    "hep-research-mcp": ">=0.3.0 <0.4.0"
+  },
+  "source": {
+    "repo": "autoresearch-lab/autoresearch-meta",
+    "ref": "main",
+    "subpath": "meta",
+    "include": [
+      "recipes/literature*.json",
+      "protocols/session_protocol_v1.md",
+      "docs/prompts/prompt-2026-03-24-new-litflow-01-generic-literature-workflow-extraction.md"
+    ]
+  },
+  "install": {
+    "claude_code": "Consume the checked-in meta/recipes and session-protocol docs from the repo; do not recreate generic workflow authority inside provider-specific MCP facades.",
+    "codex": "Consume the checked-in meta/recipes and session-protocol docs from the repo; use it as workflow authority above atomic MCP tools.",
+    "opencode": "Consume the checked-in meta/recipes and session-protocol docs from the repo; keep workflow authority in the workflow-pack layer."
+  }
+}

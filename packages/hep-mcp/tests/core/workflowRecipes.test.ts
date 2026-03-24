@@ -151,9 +151,16 @@ describe('workflow recipe schema and fixtures', () => {
     const recipeFiles = fs
       .readdirSync(recipeDir)
       .filter(name => name.endsWith('.json'))
+      .sort()
       .map(name => path.join(recipeDir, name));
 
-    expect(recipeFiles).toHaveLength(3);
+    expect(recipeFiles.map(filePath => path.basename(filePath))).toEqual([
+      'derivation_cycle.json',
+      'literature_gap_analysis.json',
+      'literature_landscape.json',
+      'literature_to_evidence.json',
+      'review_cycle.json',
+    ]);
 
     for (const recipeFile of recipeFiles) {
       const recipe = readJson(recipeFile);

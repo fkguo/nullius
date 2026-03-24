@@ -1,0 +1,72 @@
+{
+  "recipe_id": "literature_gap_analysis",
+  "name": "Literature Gap Analysis",
+  "description": "Probe a paper set for tensions, omissions, and open seams using bounded atomic analysis operators.",
+  "entry_tool": "inspire_search",
+  "steps": [
+    {
+      "id": "seed_search",
+      "tool": "inspire_search",
+      "purpose": "Run a search to assemble the initial paper set",
+      "params": {
+        "query": "<query>",
+        "size": 25
+      }
+    },
+    {
+      "id": "topic_scan",
+      "tool": "inspire_topic_analysis",
+      "purpose": "Summarize trends and identify underexplored subtopics",
+      "depends_on": [
+        "seed_search"
+      ],
+      "params": {
+        "mode": "timeline",
+        "topic": "<topic>",
+        "limit": 20
+      }
+    },
+    {
+      "id": "critical_analysis",
+      "tool": "inspire_critical_research",
+      "purpose": "Run bounded critical analysis over representative papers",
+      "depends_on": [
+        "topic_scan"
+      ],
+      "params": {
+        "mode": "analysis",
+        "recids": [
+          "<recid>"
+        ]
+      }
+    },
+    {
+      "id": "citation_network",
+      "tool": "inspire_network_analysis",
+      "purpose": "Map citation structure around the current anchor paper",
+      "depends_on": [
+        "critical_analysis"
+      ],
+      "params": {
+        "mode": "citation",
+        "seed": "<recid>",
+        "limit": 25
+      }
+    },
+    {
+      "id": "connection_scan",
+      "tool": "inspire_find_connections",
+      "purpose": "Detect bridge papers, isolated clusters, and external hubs",
+      "depends_on": [
+        "citation_network"
+      ],
+      "params": {
+        "recids": [
+          "<recid>"
+        ],
+        "include_external": true,
+        "max_external_depth": 1
+      }
+    }
+  ]
+}

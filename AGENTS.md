@@ -279,7 +279,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - Phase 0: 14/14 完成
 - Phase 1: 22/23 完成
 - Phase 2: 39/51 完成
-- Phase 3: 37/51 完成
+- Phase 3: 38/52 完成
 - Phase 4: 3/8 完成，blocked by earlier phases
 - Phase 5: 4/22 完成，blocked by earlier phases
 - 当前已锁定的高层边界与长期决策，应分别查看：
@@ -323,7 +323,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (12059 symbols, 26770 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (12064 symbols, 26783 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

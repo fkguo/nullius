@@ -1,6 +1,6 @@
 {
   "index_version": "1.0.0",
-  "updated_at": "2026-02-15T13:02:15Z",
+  "updated_at": "2026-03-24T00:00:00Z",
   "packages": [
     "auto-relay.json",
     "claude-cli-runner.json",
@@ -13,6 +13,7 @@
     "idea-core.json",
     "idea-generator.json",
     "julia-perf.json",
+    "literature-workflows.json",
     "opencode-cli-runner.json",
     "paper-reviser.json",
     "pdg-lookup.json",

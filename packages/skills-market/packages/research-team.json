@@ -11,6 +11,9 @@
     "opencode"
   ],
   "source_path": "~/.codex/skills/research-team/SKILL.md",
+  "depends_on": {
+    "literature-workflows": ">=0.1.0 <0.2.0"
+  },
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",

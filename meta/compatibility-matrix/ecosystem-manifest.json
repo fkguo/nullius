@@ -1,6 +1,6 @@
 {
   "manifest_version": "1.0.0",
-  "updated_at": "2026-02-15T13:02:15Z",
+  "updated_at": "2026-03-24T00:00:00Z",
   "org": "autoresearch-lab",
   "channels": ["stable", "beta", "dev"],
   "components": {
@@ -83,12 +83,24 @@
       "version": "0.1.0",
       "source_path": "~/.codex/skills/julia-perf/SKILL.md"
     },
+    "literature-workflows": {
+      "repo": "autoresearch-lab/autoresearch-meta",
+      "type": "workflow-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "depends_on": {
+        "hep-research-mcp": ">=0.3.0 <0.4.0"
+      }
+    },
     "research-team": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/research-team/SKILL.md"
+      "source_path": "~/.codex/skills/research-team/SKILL.md",
+      "depends_on": {
+        "literature-workflows": ">=0.1.0 <0.2.0"
+      }
     },
     "research-writer": {
       "repo": "autoresearch-lab/skills-market",

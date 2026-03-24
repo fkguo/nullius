@@ -18,6 +18,7 @@ Scope / safety:
 Why this exists:
 - Provide a reproducible way to populate `knowledge_base/` with metadata-rich notes.
 - Generate a ready-to-paste `research_contract.md` reference entry line that satisfies the references gate.
+- Act as a source-adapter / prework helper only; generic literature workflow sequencing authority lives in the checked-in `literature-workflows` recipes and consumer skill guidance, not in this script.
 
 Examples:
   # INSPIRE search + fetch a record + write KB note

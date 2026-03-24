@@ -1,7 +1,9 @@
 # Session Protocol v1 — Research Session Entry Convention
 
-> UX-06: Agent behavior protocol for guiding users through the HEP research pipeline.
+> UX-06: Agent behavior protocol for guiding users through a research-session pipeline.
 > This is a **documentation-only** artifact — it defines recommended workflows, not runtime code.
+
+> High-level literature workflow authority for Stage 1-2 lives in checked-in workflow recipes (`meta/recipes/`) packaged as `literature-workflows`. Provider-specific MCP tools remain the atomic building blocks underneath those recipes; they are not the canonical high-level workflow truth.
 
 ## Stage Enumeration
 
@@ -21,17 +23,27 @@ A research session progresses through these stages:
 
 **Preconditions**: None (session entry point).
 
-**Recommended tools**:
+**Recommended workflow authority**:
+- `literature_landscape` recipe — topic-to-reading-list / landscape mapping
+- `literature_gap_analysis` recipe — gap/tension-oriented discovery framing
+- `research-team` skill — consume the checked-in literature workflow recipes during prework / KB building
+
+**Recommended atomic tools**:
 - `inspire_search` — broad keyword survey
-- `inspire_discover_papers` — topic discovery
-- `inspire_field_survey` — landscape mapping
+- `inspire_search_next` — pagination for broad discovery
+- `inspire_literature(mode=get_references|get_citations)` — citation traversal
 - `inspire_topic_analysis` — trend analysis
+- `inspire_network_analysis` — citation graph mapping
+- `inspire_find_connections` — paper-set relationship mining
+- `inspire_trace_original_source` — provenance tracing
+- `hep_import_from_zotero` — import from user's local seed corpus
+- `inspire_critical_research(mode=analysis)` — bounded paper-set analysis step inside a recipe, not a high-level workflow surface
 
 **Typical flow**:
-1. User describes interest → Agent identifies relevant keywords
-2. Run broad search to gauge activity level and recency
-3. Identify gaps, tensions, or emerging directions
-4. Propose 2-3 specific research questions with justification
+1. User describes interest → agent selects the appropriate literature workflow recipe
+2. Run broad search and citation traversal to gauge activity level, recency, and landmarks
+3. Use topic/network/provenance operators to identify gaps, tensions, or emerging directions
+4. Propose 2-3 specific research questions with justification and seed papers
 
 **Exit criterion**: A concrete research question or hypothesis is formulated.
 
@@ -39,24 +51,27 @@ A research session progresses through these stages:
 
 **Preconditions**: A research topic/question from Stage 1.
 
-**Recommended tools**:
+**Recommended workflow authority**:
+- `literature_landscape` recipe — build a curated reading list and anchor-map
+- `literature_gap_analysis` recipe — inspect tensions, omissions, and open seams
+- `literature_to_evidence` recipe — turn a curated paper set into evidence-ready artifacts
+
+**Recommended atomic tools**:
 - `inspire_search` / `inspire_search_next` — targeted queries
 - `inspire_literature(mode=get_references)` — reference chains
 - `inspire_literature(mode=get_citations)` — forward citations
 - `inspire_network_analysis` — citation networks
 - `inspire_find_connections` — paper-set relationship mining
 - `inspire_trace_original_source` — provenance tracing
-- `inspire_deep_research(mode=analyze)` — deep paper analysis
-- `inspire_critical_research(mode=evidence)` — evidence grading
-- `inspire_critical_research(mode=conflicts)` — measurement conflicts
+- `inspire_critical_research(mode=analysis|evidence|conflicts|reviews|theoretical)` — bounded analysis operators underneath the recipe layer
 - `hep_import_from_zotero` — import from user's Zotero library
 
 **Typical flow**:
-1. Seed search from Stage 1 findings
+1. Seed search from Stage 1 findings or a local Zotero corpus
 2. Explore reference/citation chains for key papers
-3. Analyze top papers for methodology and results
-4. Grade evidence quality; detect conflicts or tensions
-5. Build a curated paper set
+3. Run topic/network/provenance operators over the emerging paper set
+4. Apply bounded critical-analysis operators to assess evidence, conflicts, and review posture
+5. Build a curated paper set and, when needed, materialize evidence-ready exports
 
 **Exit criterion**: A curated paper set with evidence assessment.
 
@@ -85,16 +100,16 @@ A research session progresses through these stages:
 
 **Recommended tools**:
 - `hep_run_create` → create a writing run
-- `inspire_deep_research(mode=write)` — end-to-end writing pipeline
-- `hep_run_writing_*` tools — fine-grained writing control
+- `research-writer` skill — writing-oriented consumer of evidence artifacts
+- `hep_project_query_evidence` / `hep_project_query_evidence_semantic` — section-level evidence retrieval
 - `hep_render_latex` — LaTeX compilation
 - `hep_export_project` — export for arXiv submission
 
 **Typical flow**:
 1. Create a project and run
-2. Build evidence artifacts (paperset, claims, critical summary)
+2. Build or query evidence artifacts from the curated paper set / results
 3. Generate outline candidates → judge → select
-4. Write sections with evidence grounding
+4. Write sections with explicit evidence grounding
 5. Integrate sections → compile LaTeX
 6. Export project
 
@@ -127,10 +142,10 @@ When a user's first message matches these patterns, the agent should identify th
 
 | User Intent Pattern | Detected Stage | Agent Response |
 |-------------------|---------------|----------------|
-| "I want to study/research/investigate X" | Stage 1 (Idea) | Start discovery workflow |
-| "Find/search papers on X" | Stage 2 (Literature) | Start targeted search |
+| "I want to study/research/investigate X" | Stage 1 (Idea) | Start `literature_landscape` or `literature_gap_analysis` |
+| "Find/search papers on X" | Stage 2 (Literature) | Start a literature recipe, then descend into atomic search/provenance tools |
 | "Compute/derive/calculate X" | Stage 3 (Derivation) | Identify relevant papers first |
-| "Write a paper about X" | Stage 4 (Writing) | Check prerequisites, start pipeline |
+| "Write a paper about X" | Stage 4 (Writing) | Check prerequisites, start writing/evidence workflow |
 | "Review/revise the draft" | Stage 5 (Review) | Locate existing draft artifacts |
 
 ## Cross-Stage Transitions
