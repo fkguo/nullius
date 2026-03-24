@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-03-23T15:48:55.403Z",
-  "commit": "cb69e27",
+  "generated_at": "2026-03-24T07:18:42.005Z",
+  "commit": "6bc93be",
   "mode": "standard",
-  "count": 72,
+  "count": 69,
   "tools": [
     "arxiv_get_metadata",
     "arxiv_paper_source",
@@ -38,9 +38,6 @@
     "hepdata_get_table",
     "hepdata_search",
     "inspire_critical_research",
-    "inspire_deep_research",
-    "inspire_discover_papers",
-    "inspire_field_survey",
     "inspire_find_connections",
     "inspire_literature",
     "inspire_network_analysis",

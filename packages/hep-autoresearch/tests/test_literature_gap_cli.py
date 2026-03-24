@@ -82,6 +82,8 @@ class TestLiteratureGapCLI(unittest.TestCase):
             self.assertTrue((out_dir / "summary.json").exists())
             self.assertTrue((out_dir / "analysis.json").exists())
             self.assertTrue((out_dir / "gap_report.json").exists())
+            self.assertTrue((out_dir / "workflow_plan.json").exists())
+            self.assertTrue((out_dir / "seed_search.json").exists())
             self.assertTrue((out_dir / "candidates.json").exists())
             self.assertTrue((out_dir / "report.md").exists())
 
@@ -145,6 +147,8 @@ class TestLiteratureGapCLI(unittest.TestCase):
             self.assertTrue((out_dir / "summary.json").exists())
             self.assertTrue((out_dir / "analysis.json").exists())
             self.assertTrue((out_dir / "gap_report.json").exists())
+            self.assertTrue((out_dir / "workflow_plan.json").exists())
+            self.assertTrue((out_dir / "connection_scan.json").exists())
             self.assertTrue((out_dir / "seed_selection.json").exists())
             self.assertTrue((out_dir / "report.md").exists())
 
@@ -186,7 +190,7 @@ class TestLiteratureGapCLI(unittest.TestCase):
             self.assertNotEqual(rc2, 0, msg=out2 + err2)
             self.assertIn("seed_selection contains recids not present in candidates.json", out2 + err2)
 
-    def test_literature_gap_discover_uses_field_survey_tool(self) -> None:
+    def test_literature_gap_discover_uses_launcher_resolved_seed_search(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
             _write_stub_mcp_config(repo_root)
@@ -196,23 +200,29 @@ class TestLiteratureGapCLI(unittest.TestCase):
             self.assertEqual(rc, 0, msg=out + err)
 
             out_dir = repo_root / "artifacts" / "runs" / tag / "literature_gap" / "discover"
+            workflow_plan = json.loads((out_dir / "workflow_plan.json").read_text(encoding="utf-8"))
+            self.assertEqual(workflow_plan.get("entry_tool"), "literature_workflows.resolve")
+            resolved_steps = workflow_plan.get("resolved_steps") or []
+            self.assertTrue(isinstance(resolved_steps, list) and resolved_steps)
+            self.assertEqual((resolved_steps[0] or {}).get("tool"), "inspire_search")
             gap = json.loads((out_dir / "gap_report.json").read_text(encoding="utf-8"))
             actions = gap.get("agent_actions") or []
             self.assertTrue(actions)
             first = actions[0] if isinstance(actions[0], dict) else {}
-            self.assertEqual(first.get("tool"), "inspire_field_survey")
+            self.assertEqual(first.get("tool"), "inspire_search")
+            self.assertEqual(first.get("workflow_step"), "seed_search")
 
-    def test_literature_gap_discover_fails_closed_when_field_survey_missing(self) -> None:
+    def test_literature_gap_discover_fails_closed_when_seed_search_missing(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            _write_stub_mcp_config(repo_root, extra_env={"MCP_STUB_DISABLE_FIELD_SURVEY": "1"})
+            _write_stub_mcp_config(repo_root, extra_env={"MCP_STUB_DISABLE_INSPIRE_SEARCH": "1"})
 
-            tag = "M73-gap-discover-missing-field-survey"
+            tag = "M73-gap-discover-missing-seed-search"
             rc, out, err = _run_cli(repo_root, ["literature-gap", "--tag", tag, "--topic", "test topic"])
             self.assertNotEqual(rc, 0, msg=out + err)
-            self.assertIn("need inspire_field_survey", out + err)
+            self.assertIn("unavailable tool inspire_search", out + err)
 
-    def test_literature_gap_analyze_uses_topic_and_network_tools(self) -> None:
+    def test_literature_gap_analyze_uses_launcher_resolved_atomic_tools(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
             _write_stub_mcp_config(repo_root)
@@ -246,12 +256,22 @@ class TestLiteratureGapCLI(unittest.TestCase):
             self.assertEqual(rc2, 0, msg=out2 + err2)
 
             out_dir = repo_root / "artifacts" / "runs" / tag / "literature_gap" / "analyze"
+            workflow_plan = json.loads((out_dir / "workflow_plan.json").read_text(encoding="utf-8"))
+            resolved_steps = [step for step in (workflow_plan.get("resolved_steps") or []) if isinstance(step, dict)]
+            self.assertEqual([step.get("id") for step in resolved_steps], [
+                "topic_scan",
+                "critical_analysis",
+                "citation_network",
+                "connection_scan",
+            ])
             gap = json.loads((out_dir / "gap_report.json").read_text(encoding="utf-8"))
             actions = [a for a in (gap.get("agent_actions") or []) if isinstance(a, dict)]
             topic_actions = [a for a in actions if a.get("tool") == "inspire_topic_analysis"]
             network_actions = [a for a in actions if a.get("tool") == "inspire_network_analysis"]
+            connection_actions = [a for a in actions if a.get("tool") == "inspire_find_connections"]
             self.assertTrue(topic_actions, msg=str(actions))
             self.assertTrue(network_actions, msg=str(actions))
+            self.assertTrue(connection_actions, msg=str(actions))
             self.assertEqual(network_actions[0].get("network_direction_cli"), "in")
             self.assertEqual(network_actions[0].get("network_direction_tool"), "citations")
 
@@ -285,7 +305,7 @@ class TestLiteratureGapCLI(unittest.TestCase):
                 ],
             )
             self.assertNotEqual(rc2, 0, msg=out2 + err2)
-            self.assertIn("inspire_topic_analysis", out2 + err2)
+            self.assertIn("unavailable tool inspire_topic_analysis", out2 + err2)
 
     def test_literature_gap_analyze_without_discover_fails(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -352,35 +372,31 @@ class TestLiteratureGapCLI(unittest.TestCase):
 
 class TestC1CandidateExtraction(unittest.TestCase):
     def test_extract_candidates_empty_payload(self) -> None:
-        from hep_autoresearch.orchestrator_cli import _c1_extract_field_survey_candidates
+        from hep_autoresearch.orchestrator_cli import _c1_extract_seed_search_candidates
 
-        res = _c1_extract_field_survey_candidates({}, created_at="2025-01-01T00:00:00Z")
+        res = _c1_extract_seed_search_candidates({}, created_at="2025-01-01T00:00:00Z")
         self.assertEqual(res.get("schema_version"), 1)
         self.assertEqual(res.get("papers"), [])
         stats = res.get("stats") or {}
         self.assertEqual(stats.get("unique_recids"), 0)
 
-    def test_extract_candidates_supports_all_papers_key(self) -> None:
-        from hep_autoresearch.orchestrator_cli import _c1_extract_field_survey_candidates
+    def test_extract_candidates_reads_search_papers(self) -> None:
+        from hep_autoresearch.orchestrator_cli import _c1_extract_seed_search_candidates
 
         payload = {
-            "reviews": {"papers": []},
-            "seminal_papers": {"papers": []},
-            "citation_network": {"all_papers": [{"recid": "42", "title": "Test"}]},
+            "papers": [{"recid": "42", "title": "Test"}],
         }
-        res = _c1_extract_field_survey_candidates(payload, created_at="2025-01-01T00:00:00Z")
+        res = _c1_extract_seed_search_candidates(payload, created_at="2025-01-01T00:00:00Z")
         recids = [str((p or {}).get("recid") or "") for p in (res.get("papers") or [])]
         self.assertIn("42", recids)
 
     def test_extract_candidates_marks_missing_metadata(self) -> None:
-        from hep_autoresearch.orchestrator_cli import _c1_extract_field_survey_candidates
+        from hep_autoresearch.orchestrator_cli import _c1_extract_seed_search_candidates
 
         payload = {
-            "reviews": {"papers": []},
-            "seminal_papers": {"papers": [{"recid": "9999"}]},  # missing title/abstract/year/citations
-            "citation_network": {"papers": []},
+            "papers": [{"recid": "9999"}],  # missing title/abstract/year/citations
         }
-        res = _c1_extract_field_survey_candidates(payload, created_at="2025-01-01T00:00:00Z")
+        res = _c1_extract_seed_search_candidates(payload, created_at="2025-01-01T00:00:00Z")
         papers = res.get("papers") or []
         self.assertTrue(isinstance(papers, list) and papers)
         self.assertEqual((papers[0] or {}).get("recid"), "9999")

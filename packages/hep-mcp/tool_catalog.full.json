@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-03-23T15:48:55.430Z",
-  "commit": "cb69e27",
+  "generated_at": "2026-03-24T07:18:42.119Z",
+  "commit": "6bc93be",
   "mode": "full",
-  "count": 100,
+  "count": 97,
   "tools": [
     "arxiv_get_metadata",
     "arxiv_paper_source",
@@ -42,9 +42,6 @@
     "inspire_analyze_citation_stance",
     "inspire_cleanup_downloads",
     "inspire_critical_research",
-    "inspire_deep_research",
-    "inspire_discover_papers",
-    "inspire_field_survey",
     "inspire_find_connections",
     "inspire_find_crossover_topics",
     "inspire_literature",

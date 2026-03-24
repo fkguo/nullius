@@ -3,8 +3,6 @@ import { z } from 'zod';
 import { optionalBudgetInt, FindConnectionsParamsSchema } from '@autoresearch/shared';
 import {
   TimeRangeSchema,
-  DiscoverPapersToolSchema,
-  FieldSurveyToolSchema,
   NetworkAnalysisToolSchema,
   TopicAnalysisToolSchema,
   TraceOriginalSourceToolSchema,
@@ -237,31 +235,6 @@ export const PaperSourceToolSchema = z.object({
     .optional(),
 });
 
-export const DeepResearchToolSchema = z.object({
-  identifiers: z.array(z.string().min(1)).min(1),
-  mode: z.enum(['analyze', 'synthesize']),
-  format: JsonMarkdownSchema.optional(),
-  run_id: SafePathSegmentSchema.optional(),
-  options: z
-    .object({
-      extract_equations: z.boolean().optional(),
-      extract_theorems: z.boolean().optional(),
-      extract_methodology: z.boolean().optional(),
-      extract_conclusions: z.boolean().optional(),
-      include_inline_math: z.boolean().optional(),
-      max_section_length: optionalBudgetInt({ min: 0 }),
-      review_type: z.enum(['methodology', 'timeline', 'comparison', 'overview']).optional(),
-      focus_topic: z.string().optional(),
-      style: z.enum(['list', 'narrative']).optional(),
-      include_critical_analysis: z.boolean().optional(),
-      narrative_structure: z.enum(['top_down', 'bottom_up', 'historical']).optional(),
-      include_equations: z.boolean().optional(),
-      include_bibliography: z.boolean().optional(),
-      max_papers_per_group: optionalBudgetInt({ min: 1 }),
-    })
-    .optional(),
-});
-
 export const InspireParseLatexToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   identifier: z.string().min(1),
@@ -374,8 +347,6 @@ export function isNoLatexSourceError(err: unknown): boolean {
 }
 
 export {
-  DiscoverPapersToolSchema,
-  FieldSurveyToolSchema,
   JsonMarkdownSchema,
   NetworkAnalysisToolSchema,
   SortSchema,

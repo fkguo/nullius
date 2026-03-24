@@ -1,14 +1,14 @@
 # hep-research-mcp tool inventory
 
-- Generated at (UTC): 2026-03-23T15:49:26.731708+00:00
+- Generated at (UTC): 2026-03-24T07:17:00.016090+00:00
 - Repo root: `/home/user/Coding/Agents/autoresearch-lab`
 - Package dir: `/home/user/Coding/Agents/autoresearch-lab/packages/hep-mcp`
 - Entrypoint: `dist/index.js`
 - Version: `0.1.0`
-- Git commit: `cb69e27566aa668a203b0277af7e2853375535ef`
+- Git commit: `6bc93be0e9576fcca5d36d7d4a645a2559be5e80`
 - Git dirty: `True`
 
-## standard (72)
+## standard (69)
 
 ### arxiv (3)
 
@@ -52,12 +52,9 @@
 - `hepdata_get_table` — Get numerical data from a HEPData table (network). Requires table_id from hepdata_get_record. Each HEPData table has a globally unique in...
 - `hepdata_search` — Search HEPData for experimental measurement records (network). At least one condition required. Lookup by identifier (exact match): { ins...
 
-### inspire (14)
+### inspire (11)
 
 - `inspire_critical_research` — Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (create...
-- `inspire_deep_research` — End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize. NOT FOR lightweight discovery-only requests; use dedicated...
-- `inspire_discover_papers` — Unified paper discovery tool (network). Modes: seminal/related/expansion/survey.
-- `inspire_field_survey` — Physicist-style literature review workflow (network): reviews → seminal papers → citation expansion → controversies/open questions.
 - `inspire_find_connections` — Find structural relationships inside a paper set (network): internal edges, bridge papers, isolated papers, and optional external hubs.
 - `inspire_literature` — Unified INSPIRE literature access tool (network). Modes + required args: - get_paper: { recid } - get_references: { recid, size? } - look...
 - `inspire_network_analysis` — Unified network analysis tool (network). Modes: citation/collaboration.
@@ -103,7 +100,7 @@
 - `zotero_local` — Unified Zotero Local API tool (requires Zotero Local API at `http://127.0.0.1:23119`). Modes: list_collections/list_collection_paths/list...
 - `zotero_search_items` — Browse/search Zotero items via Zotero Local API query params (q/qmode/tag/itemType, optional collection scope). Returns summarized items ...
 
-## full (100)
+## full (97)
 
 ### arxiv (3)
 
@@ -149,14 +146,11 @@
 - `hepdata_get_table` — Get numerical data from a HEPData table (network). Requires table_id from hepdata_get_record. Each HEPData table has a globally unique in...
 - `hepdata_search` — Search HEPData for experimental measurement records (network). At least one condition required. Lookup by identifier (exact match): { ins...
 
-### inspire (18)
+### inspire (15)
 
 - `inspire_analyze_citation_stance` — [Advanced] Analyze how a paper cites another paper (stance detection; resolves citekeys via INSPIRE as needed; network).
 - `inspire_cleanup_downloads` — [Advanced] Delete cached arXiv source download directories created by this server (marker-checked). Supports `dry_run`, `older_than_hours...
 - `inspire_critical_research` — Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (create...
-- `inspire_deep_research` — End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize. NOT FOR lightweight discovery-only requests; use dedicated...
-- `inspire_discover_papers` — Unified paper discovery tool (network). Modes: seminal/related/expansion/survey.
-- `inspire_field_survey` — Physicist-style literature review workflow (network): reviews → seminal papers → citation expansion → controversies/open questions.
 - `inspire_find_connections` — Find structural relationships inside a paper set (network): internal edges, bridge papers, isolated papers, and optional external hubs.
 - `inspire_find_crossover_topics` — [Advanced] Discover emerging interdisciplinary research areas by analyzing papers spanning multiple arXiv categories (network).
 - `inspire_literature` — Unified INSPIRE literature access tool (network). Modes + required args: - get_paper: { recid } - get_references: { recid, size? } - look...

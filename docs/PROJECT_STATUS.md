@@ -21,21 +21,21 @@ node --input-type=module -e "import('./packages/hep-mcp/dist/tools/index.js').th
 ```
 
 Current (after build):
-- `standard=72`, `full=100`
-- `HEP_ENABLE_ZOTERO=0` → `standard=64`, `full=92`
+- `standard=69`, `full=97`
+- `HEP_ENABLE_ZOTERO=0` → `standard=61`, `full=89`
 
 Workspace vitest summary:
 - `packages/shared`: 15 passed
 - `packages/zotero-mcp`: 18 passed
 - `packages/pdg-mcp`: 41 passed
-- `packages/hep-research-mcp`: 553 passed, 2 skipped (eval/live smoke)
+- `packages/hep-mcp`: 553 passed, 2 skipped (eval/live smoke)
 
 ---
 
 ## What’s included
 
 - **vNext Project/Run + `hep://` resources**: artifacts-first, reproducible workflows (`hep_*`)
-- **INSPIRE workflows**: search/export, dedicated discovery/survey/topic/network/connections/trace tools (`inspire_discover_papers`, `inspire_field_survey`, `inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`), run-scoped LaTeX parsing (`inspire_parse_latex`), deep research (`inspire_*`)
+- **INSPIRE workflows**: search/export, launcher-backed literature front door (`hepar literature-gap`, `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`), bounded atomic operators (`inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`, `inspire_critical_research`), run-scoped LaTeX parsing (`inspire_parse_latex`)
 - **Bibliography usability audit (Phase 4.1)**: `inspire_validate_bibliography` is manual-first + non-blocking warnings; optional INSPIRE cross-check
 - **Zotero Local API**: local-only integration (`zotero_local` + related tools; optional; gated by `HEP_ENABLE_ZOTERO`)
 - **Zotero read bridge (Phase 4.5)**: `zotero_find_items` + `zotero_search_items` share internal bridge execution while preserving semantics

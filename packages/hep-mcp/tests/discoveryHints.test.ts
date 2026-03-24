@@ -5,7 +5,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   discoveryNextActions,
-  deepResearchAnalyzeNextActions,
   zoteroImportNextActions,
   withNextActions,
 } from '../src/tools/utils/discoveryHints.js';
@@ -17,50 +16,36 @@ describe('discoveryNextActions (NEW-CONN-01)', () => {
     expect(discoveryNextActions(undefined)).toHaveLength(0);
   });
 
-  it('returns hints when papers have recids', () => {
+  it('returns HEPData hints when papers have recids', () => {
     const papers = [
       { recid: '12345', title: 'Paper A' },
       { recid: '67890', title: 'Paper B' },
     ];
     const actions = discoveryNextActions(papers);
     expect(actions.length).toBeGreaterThan(0);
-    expect(actions[0].tool).toBe('inspire_deep_research');
+    expect(actions[0].tool).toBe('hepdata_search');
     const args = actions[0].args as Record<string, unknown>;
-    expect(args.identifiers).toEqual(['12345', '67890']);
+    expect(args.inspire_recid).toBe(12345);
   });
 
-  it('caps identifiers at 10', () => {
+  it('caps HEPData hints at 5', () => {
     const papers = Array.from({ length: 20 }, (_, i) => ({ recid: String(i) }));
     const actions = discoveryNextActions(papers);
-    const args = actions[0].args as Record<string, unknown>;
-    expect(args.identifiers).toHaveLength(10);
+    expect(actions).toHaveLength(5);
   });
 
   it('handles numeric recids', () => {
     const papers = [{ recid: 12345 }];
     const actions = discoveryNextActions(papers);
     const args = actions[0].args as Record<string, unknown>;
-    expect(args.identifiers).toEqual(['12345']);
+    expect(args.inspire_recid).toBe(12345);
   });
 
   it('handles id instead of recid', () => {
     const papers = [{ id: '99999' }];
     const actions = discoveryNextActions(papers);
     const args = actions[0].args as Record<string, unknown>;
-    expect(args.identifiers).toEqual(['99999']);
-  });
-});
-
-describe('deepResearchAnalyzeNextActions', () => {
-  it('returns empty for no identifiers', () => {
-    expect(deepResearchAnalyzeNextActions([])).toHaveLength(0);
-  });
-
-  it('suggests synthesize with identifiers', () => {
-    const actions = deepResearchAnalyzeNextActions(['1', '2']);
-    expect(actions).toHaveLength(1);
-    expect(actions[0].args).toHaveProperty('mode', 'synthesize');
-    expect(actions[0].args).toHaveProperty('identifiers', ['1', '2']);
+    expect(args.inspire_recid).toBe(99999);
   });
 });
 
@@ -69,11 +54,8 @@ describe('zoteroImportNextActions', () => {
     expect(zoteroImportNextActions([])).toHaveLength(0);
   });
 
-  it('suggests deep research with identifiers', () => {
-    const actions = zoteroImportNextActions(['111', '222']);
-    expect(actions).toHaveLength(1);
-    expect(actions[0].tool).toBe('inspire_deep_research');
-    expect(actions[0].args).toHaveProperty('identifiers', ['111', '222']);
+  it('returns empty after deep research surface pruning', () => {
+    expect(zoteroImportNextActions(['111', '222'])).toEqual([]);
   });
 });
 

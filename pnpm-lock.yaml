@@ -177,6 +177,37 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@22.19.11)(tsx@4.21.0)
 
+  packages/literature-workflows:
+    dependencies:
+      '@autoresearch/arxiv-mcp':
+        specifier: workspace:*
+        version: link:../arxiv-mcp
+      '@autoresearch/hep-mcp':
+        specifier: workspace:*
+        version: link:../hep-mcp
+      '@autoresearch/openalex-mcp':
+        specifier: workspace:*
+        version: link:../openalex-mcp
+      '@autoresearch/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.3.5
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.3.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.16
+        version: 4.0.18(@types/node@25.3.0)(tsx@4.21.0)
+
   packages/openalex-mcp:
     dependencies:
       '@autoresearch/shared':

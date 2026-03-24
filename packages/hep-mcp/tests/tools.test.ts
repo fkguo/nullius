@@ -486,15 +486,6 @@ describe('Tool Handlers (current exposure)', () => {
     expect(res.isError).toBeFalsy();
   });
 
-  it('inspire_discover_papers should call discoverPapers', async () => {
-    vi.mocked(discoverPapers.discoverPapers).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_discover_papers', {
-      mode: 'seminal',
-      topic: 'qcd',
-    });
-    expect(discoverPapers.discoverPapers).toHaveBeenCalled();
-  });
-
   it('inspire_network_analysis should call analyzeNetwork', async () => {
     vi.mocked(networkAnalysis.analyzeNetwork).mockResolvedValueOnce({ ok: true } as any);
     await handleToolCall('inspire_network_analysis', {
@@ -558,18 +549,6 @@ describe('Tool Handlers (current exposure)', () => {
     } as any);
     await handleToolCall('inspire_paper_source', { identifier: '123', mode: 'urls' });
     expect(arxivTooling.accessPaperSource).toHaveBeenCalled();
-  });
-
-  it('inspire_deep_research should call performDeepResearch', async () => {
-    vi.mocked(deepResearch.performDeepResearch).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_deep_research', { identifiers: ['1'], mode: 'analyze' });
-    expect(deepResearch.performDeepResearch).toHaveBeenCalled();
-  });
-
-  it('inspire_field_survey should call performFieldSurvey', async () => {
-    vi.mocked(fieldSurvey.performFieldSurvey).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_field_survey', { topic: 'qcd' });
-    expect(fieldSurvey.performFieldSurvey).toHaveBeenCalled();
   });
 
   it('inspire_parse_latex should require run_id', async () => {

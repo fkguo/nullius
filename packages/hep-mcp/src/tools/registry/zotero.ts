@@ -1,12 +1,10 @@
 import { TOOL_SPECS as ZOTERO_MCP_TOOL_SPECS } from '@autoresearch/zotero-mcp/tooling';
 import {
   invalidParams,
-  INSPIRE_DEEP_RESEARCH,
 } from '@autoresearch/shared';
 import { hepImportFromZotero } from '../../core/zotero/tools.js';
 import { HEP_IMPORT_FROM_ZOTERO } from '../../tool-names.js';
 import { getHepToolRiskLevel } from '../../tool-risk.js';
-import { withNextActions } from '../utils/discoveryHints.js';
 import type { ToolSpec } from './types.js';
 import { HepImportFromZoteroToolSchema } from './projectSchemas.js';
 
@@ -46,14 +44,6 @@ const RAW_ZOTERO_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = ZOTERO_INTEGRATION_
             concurrency: params.concurrency,
             budget_hints: { concurrency_provided: concurrencyProvided },
           });
-          const hasResolved = result.summary?.resolved_recids > 0;
-          if (hasResolved) {
-            return withNextActions(result, [{
-              tool: INSPIRE_DEEP_RESEARCH,
-              args: { mode: 'analyze', run_id: result.run_id },
-              reason: 'Analyze the imported papers. Read zotero_map_v1.json artifact for recids.',
-            }]);
-          }
           return result;
         },
       },

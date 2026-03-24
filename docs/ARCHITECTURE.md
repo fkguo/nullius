@@ -347,17 +347,20 @@ interface ToolSpec {
 - 该设计在当时降低了 tool 数量，但也把大量 mode-specific 无效参数暴露到统一公开 schema 顶层
 - **Superseded (2026-03-23, M-24)**：当前公开 truth 已不再使用这个 facade；保留这里只是记录历史阶段，而不是现行接口建议
 
-### 6.1.2 当前公开 surface：专用导航工具 + 独立 LaTeX 解析
+### 6.1.2 当前公开 surface：launcher-backed literature workflows + bounded atomic operators
 
-- 当前标准公开面恢复为 dedicated first-class tools：
-  - `inspire_discover_papers`
-  - `inspire_field_survey`
+- 当前高层 literature front door 已由 `NEW-LITFLOW-02` 收束到 checked-in launcher-backed workflow authority：
+  - `hepar literature-gap`
+  - `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`
+- workflow-like provider-specific high-level MCP facades `inspire_discover_papers` / `inspire_field_survey` / `inspire_deep_research` 已从 `standard` 与 `full` 直接删除
+- 当前保留的 INSPIRE bounded atomic operators 为：
   - `inspire_topic_analysis`
   - `inspire_network_analysis`
   - `inspire_find_connections`
   - `inspire_trace_original_source`
+  - `inspire_critical_research`
 - `experts` / `analyze` 公开入口已移除；不再保留 `inspire_research_navigator`
-- 设计目标从“最少工具数”转为“让 MCP client 看到干净、语义清晰、无顶层无效参数暴露的 object schema”
+- 设计目标从“最少工具数”转为“让 MCP client 看到干净、语义清晰、职责单一的 object schema，同时把可执行 workflow authority 保留在独立 launcher 层”
 - `inspire_parse_latex` 继续保持独立 Evidence-first 语义：
   - 入参必须包含 `run_id`
   - 产物写入 `parse_latex_<hash>.json`（run artifact）

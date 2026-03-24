@@ -90,9 +90,11 @@ npx vitest run tests/smoke-no-toplevel-union.test.ts
 
 ### Affected MCP Projects
 
-The following MCP tools were fixed (2026-01-28):
-- `hep-research-mcp`: `inspire_literature`, `inspire_advanced`, `inspire_discover_papers`
+The following MCP projects had top-level-union schema fixes (2026-01-28):
+- `hep-research-mcp` / current `@autoresearch/hep-mcp`: `inspire_literature` and related retained INSPIRE surfaces
 - `zotero-mcp`: `zotero_local`
+
+Historical workflow-like tool names may since have been pruned. Use the current tool catalog for live tool names rather than this historical note.
 
 ## Runner dry-run
 

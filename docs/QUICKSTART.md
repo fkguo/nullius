@@ -43,8 +43,8 @@
 3) `hep_run_build_writing_evidence`（**必需**）
 - 若缺少该步骤，后续依赖 evidence/embeddings 的流程会 fail-fast。
 
-4) `inspire_deep_research`（`mode=write`, `options.llm_mode=client`）
-- 读取返回中的 `next_actions`，按步骤执行。
+4) `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan --recipe literature_to_evidence`
+- 用 checked-in workflow authority 规划 literature/evidence 步骤；对受限论文集分析使用 `inspire_critical_research` 等 bounded operators。
 
 5) `hep_export_project`
 - 在通过验证与集成后导出完整项目成果。

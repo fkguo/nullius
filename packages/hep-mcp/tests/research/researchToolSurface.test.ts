@@ -15,30 +15,23 @@ function getStandardSchemaProperties(name: string): string[] {
   return Object.keys(((tool?.inputSchema as Record<string, unknown>)?.properties ?? {}) as Record<string, unknown>).sort();
 }
 
-describe('INSPIRE research public surface (M-24)', () => {
-  it('standard exposure contains dedicated discovery/navigation tools and removes the facade', () => {
+describe('INSPIRE research public surface (NEW-LITFLOW-02)', () => {
+  it('standard exposure retains only bounded atomic literature operators', () => {
     const standardNames = new Set(getToolSpecs('standard').map(spec => spec.name));
 
-    expect(standardNames.has('inspire_discover_papers')).toBe(true);
-    expect(standardNames.has('inspire_field_survey')).toBe(true);
     expect(standardNames.has('inspire_topic_analysis')).toBe(true);
     expect(standardNames.has('inspire_network_analysis')).toBe(true);
     expect(standardNames.has('inspire_find_connections')).toBe(true);
     expect(standardNames.has('inspire_trace_original_source')).toBe(true);
+    expect(standardNames.has('inspire_critical_research')).toBe(true);
 
+    expect(standardNames.has('inspire_discover_papers')).toBe(false);
+    expect(standardNames.has('inspire_field_survey')).toBe(false);
+    expect(standardNames.has('inspire_deep_research')).toBe(false);
     expect(standardNames.has('inspire_research_navigator')).toBe(false);
   });
 
-  it('public MCP schemas expose only dedicated top-level params', () => {
-    expect(getStandardSchemaProperties('inspire_discover_papers')).toEqual(['limit', 'mode', 'options', 'seed_recids', 'topic']);
-    expect(getStandardSchemaProperties('inspire_field_survey')).toEqual([
-      'focus',
-      'iterations',
-      'max_papers',
-      'prefer_journal',
-      'seed_recid',
-      'topic',
-    ]);
+  it('retained public MCP schemas expose only dedicated top-level params', () => {
     expect(getStandardSchemaProperties('inspire_topic_analysis')).toEqual(['limit', 'mode', 'options', 'time_range', 'topic']);
     expect(getStandardSchemaProperties('inspire_network_analysis')).toEqual(['limit', 'mode', 'options', 'seed']);
     expect(getStandardSchemaProperties('inspire_find_connections')).toEqual(['include_external', 'max_external_depth', 'recids']);
@@ -50,13 +43,7 @@ describe('INSPIRE research public surface (M-24)', () => {
     ]);
   });
 
-  it('dedicated schemas fail closed on removed facade-era top-level params', () => {
-    expect(getStandardSpec('inspire_discover_papers').zodSchema.safeParse({
-      mode: 'seminal',
-      topic: 'qcd',
-      discover_mode: 'seminal',
-    }).success).toBe(false);
-
+  it('retained schemas fail closed on removed facade-era top-level params', () => {
     expect(getStandardSpec('inspire_topic_analysis').zodSchema.safeParse({
       mode: 'timeline',
       topic: 'qcd',
@@ -80,10 +67,8 @@ describe('INSPIRE research public surface (M-24)', () => {
     }).success).toBe(false);
   });
 
-  it('dedicated schemas still satisfy gateway-compatible top-level object constraints', () => {
+  it('retained schemas still satisfy gateway-compatible top-level object constraints', () => {
     for (const name of [
-      'inspire_discover_papers',
-      'inspire_field_survey',
       'inspire_topic_analysis',
       'inspire_network_analysis',
       'inspire_find_connections',

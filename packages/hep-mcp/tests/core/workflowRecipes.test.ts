@@ -132,11 +132,31 @@ describe('workflow recipe schema and fixtures', () => {
         steps: z.array(
           z.object({
             id: z.string().min(1),
-            tool: z.string().min(1),
+            tool: z.string().min(1).optional(),
+            action: z.enum([
+              'discover.seed_search',
+              'analyze.topic_evolution',
+              'analyze.citation_network',
+              'analyze.paper_connections',
+              'analyze.provenance_trace',
+              'analyze.paper_set_critical_review',
+              'materialize.evidence_build',
+            ]).optional(),
             purpose: z.string().min(1),
             depends_on: z.array(z.string().min(1)).optional(),
             params: z.record(z.string(), z.any()).optional(),
-          }).strict()
+            required_capabilities: z.array(z.string().min(1)).optional(),
+            preferred_providers: z.array(z.string().min(1)).optional(),
+            degrade_mode: z.enum(['fail_closed', 'skip_with_reason', 'partial_result']).optional(),
+            consumer_hints: z.object({
+              phases: z.array(z.string().min(1)).optional(),
+              artifact: z.string().min(1).optional(),
+              project_required: z.boolean().optional(),
+              run_required: z.boolean().optional(),
+            }).optional(),
+          }).strict().refine(value => Boolean(value.tool || value.action), {
+            message: 'step requires tool or action',
+          })
         ).min(1),
       }).strict()
     );

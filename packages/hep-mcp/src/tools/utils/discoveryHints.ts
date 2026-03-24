@@ -7,7 +7,6 @@
  */
 
 import {
-  INSPIRE_DEEP_RESEARCH,
   HEPDATA_SEARCH,
 } from '@autoresearch/shared';
 
@@ -17,60 +16,12 @@ interface NextAction {
   reason: string;
 }
 
-function extractNestedIdentifiers(paper: Record<string, unknown>): string[] {
-  const identifiers = paper.identifiers;
-  if (!identifiers || typeof identifiers !== 'object') return [];
-  return [
-    (identifiers as Record<string, unknown>).doi,
-    (identifiers as Record<string, unknown>).arxiv_id,
-    (identifiers as Record<string, unknown>).recid,
-    (identifiers as Record<string, unknown>).openalex_id,
-  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
-}
-
-/**
- * Extract identifiers from a result that contains either direct paper ids or canonical paper identifiers.
- * Caps at `limit` identifiers. Returns strings suitable for `inspire_deep_research.identifiers`.
- */
-function extractIdentifiers(papers: unknown, limit = 10): string[] {
-  if (!Array.isArray(papers)) return [];
-  const ids: string[] = [];
-  for (const paper of papers) {
-    if (ids.length >= limit || !paper || typeof paper !== 'object') break;
-    const direct = (paper as Record<string, unknown>).recid ?? (paper as Record<string, unknown>).id;
-    if (typeof direct === 'string' && direct.trim()) {
-      ids.push(direct.trim());
-      continue;
-    }
-    if (typeof direct === 'number') {
-      ids.push(String(direct));
-      continue;
-    }
-    for (const identifier of extractNestedIdentifiers(paper as Record<string, unknown>)) {
-      if (ids.length >= limit) break;
-      ids.push(identifier.trim());
-    }
-  }
-  return ids;
-}
-
 /**
  * Build next_actions for discovery results that contain papers.
  * Returns empty array if no papers found.
  */
 export function discoveryNextActions(papers: unknown): NextAction[] {
-  const identifiers = extractIdentifiers(papers);
-  if (identifiers.length === 0) return [];
-
-  const actions: NextAction[] = [
-    {
-      tool: INSPIRE_DEEP_RESEARCH,
-      args: { mode: 'analyze', identifiers },
-      reason: 'Analyze the discovered papers in depth.',
-    },
-  ];
-
-  // NEW-CONN-02: suggest HEPData search for each paper's experimental data
+  const actions: NextAction[] = [];
   const recids = extractRecids(papers);
   for (const recid of recids.slice(0, 5)) {
     actions.push({
@@ -108,33 +59,11 @@ function extractRecids(papers: unknown): number[] {
 }
 
 /**
- * Build next_actions for inspire_deep_research(mode=analyze) results.
- */
-export function deepResearchAnalyzeNextActions(identifiers: string[]): NextAction[] {
-  if (identifiers.length === 0) return [];
-  const capped = identifiers.slice(0, 10);
-  return [
-    {
-      tool: INSPIRE_DEEP_RESEARCH,
-      args: { mode: 'synthesize', identifiers: capped },
-      reason: 'Synthesize findings from the analyzed papers.',
-    },
-  ];
-}
-
-/**
  * Build next_actions for zotero import results.
  */
 export function zoteroImportNextActions(identifiers: string[]): NextAction[] {
   if (identifiers.length === 0) return [];
-  const capped = identifiers.slice(0, 10);
-  return [
-    {
-      tool: INSPIRE_DEEP_RESEARCH,
-      args: { mode: 'analyze', identifiers: capped },
-      reason: 'Analyze the imported papers in depth.',
-    },
-  ];
+  return [];
 }
 
 /**

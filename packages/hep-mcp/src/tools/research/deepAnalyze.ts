@@ -8,11 +8,11 @@ import type {
   CreateMessageRequestParamsBase,
   CreateMessageResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_DEEP_RESEARCH } from '@autoresearch/shared';
 import { getPaperContent } from '../../utils/arxivCompat.js';
 import { resolveArxivId } from '../../utils/resolveArxivId.js';
 import * as api from '../../api/client.js';
 import {
+  DEEP_ANALYZE_INTERNAL_TOOL_NAME,
   parseTexFile,
   resolveAllIncludes,
   extractEquations as extractEqs,
@@ -527,7 +527,7 @@ async function analyzeSinglePaper(
         context_window: 200,
         document_title: docStructure.title || title,
         abstract: docStructure.abstract,
-        tool_name: INSPIRE_DEEP_RESEARCH,
+        tool_name: DEEP_ANALYZE_INTERNAL_TOOL_NAME,
         createMessage: ctx.createMessage,
       });
 

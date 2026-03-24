@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-03-23T15:49:26.731708+00:00",
+  "generated_at": "2026-03-24T07:17:00.016090+00:00",
   "source": {
     "repo_root": "/home/user/Coding/Agents/autoresearch-lab",
     "package_dir": "/home/user/Coding/Agents/autoresearch-lab/packages/hep-mcp",
     "entrypoint": "dist/index.js",
     "version": "0.1.0",
-    "git_commit": "cb69e27566aa668a203b0277af7e2853375535ef",
+    "git_commit": "6bc93be0e9576fcca5d36d7d4a645a2559be5e80",
     "git_dirty": true
   },
   "modes": {
     "standard": {
       "mode": "standard",
-      "tool_count": 72,
+      "tool_count": 69,
       "tools": [
         {
           "name": "arxiv_get_metadata",
@@ -619,62 +619,6 @@
           }
         },
         {
-          "name": "inspire_deep_research",
-          "description": "End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize. NOT FOR lightweight discovery-only requests; use dedicated INSPIRE discovery/survey/topic/network/trace tools for exploration workflows.",
-          "input_schema": {
-            "type": "object",
-            "properties": [
-              "format",
-              "identifiers",
-              "mode",
-              "options",
-              "run_id"
-            ],
-            "required": [
-              "identifiers",
-              "mode"
-            ]
-          }
-        },
-        {
-          "name": "inspire_discover_papers",
-          "description": "Unified paper discovery tool (network). Modes: seminal/related/expansion/survey.",
-          "input_schema": {
-            "type": "object",
-            "properties": [
-              "limit",
-              "mode",
-              "options",
-              "seed_recids",
-              "topic"
-            ],
-            "required": [
-              "limit",
-              "mode"
-            ]
-          }
-        },
-        {
-          "name": "inspire_field_survey",
-          "description": "Physicist-style literature review workflow (network): reviews → seminal papers → citation expansion → controversies/open questions.",
-          "input_schema": {
-            "type": "object",
-            "properties": [
-              "focus",
-              "iterations",
-              "max_papers",
-              "prefer_journal",
-              "seed_recid",
-              "topic"
-            ],
-            "required": [
-              "iterations",
-              "max_papers",
-              "topic"
-            ]
-          }
-        },
-        {
           "name": "inspire_find_connections",
           "description": "Find structural relationships inside a paper set (network): internal edges, bridge papers, isolated papers, and optional external hubs.",
           "input_schema": {
@@ -1275,7 +1219,7 @@
     },
     "full": {
       "mode": "full",
-      "tool_count": 100,
+      "tool_count": 97,
       "tools": [
         {
           "name": "arxiv_get_metadata",
@@ -1949,62 +1893,6 @@
             "required": [
               "mode",
               "recids"
-            ]
-          }
-        },
-        {
-          "name": "inspire_deep_research",
-          "description": "End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize. NOT FOR lightweight discovery-only requests; use dedicated INSPIRE discovery/survey/topic/network/trace tools for exploration workflows.",
-          "input_schema": {
-            "type": "object",
-            "properties": [
-              "format",
-              "identifiers",
-              "mode",
-              "options",
-              "run_id"
-            ],
-            "required": [
-              "identifiers",
-              "mode"
-            ]
-          }
-        },
-        {
-          "name": "inspire_discover_papers",
-          "description": "Unified paper discovery tool (network). Modes: seminal/related/expansion/survey.",
-          "input_schema": {
-            "type": "object",
-            "properties": [
-              "limit",
-              "mode",
-              "options",
-              "seed_recids",
-              "topic"
-            ],
-            "required": [
-              "limit",
-              "mode"
-            ]
-          }
-        },
-        {
-          "name": "inspire_field_survey",
-          "description": "Physicist-style literature review workflow (network): reviews → seminal papers → citation expansion → controversies/open questions.",
-          "input_schema": {
-            "type": "object",
-            "properties": [
-              "focus",
-              "iterations",
-              "max_papers",
-              "prefer_journal",
-              "seed_recid",
-              "topic"
-            ],
-            "required": [
-              "iterations",
-              "max_papers",
-              "topic"
             ]
           }
         },

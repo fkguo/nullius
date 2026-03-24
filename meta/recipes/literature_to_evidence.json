@@ -2,12 +2,27 @@
   "recipe_id": "literature_to_evidence",
   "name": "Literature to Evidence",
   "description": "Search and export a curated paper set, then materialize run-level evidence artifacts for downstream indexing.",
-  "entry_tool": "inspire_search",
+  "entry_tool": "literature_workflows.resolve",
   "steps": [
     {
       "id": "search_export",
-      "tool": "inspire_search",
+      "action": "discover.seed_search",
       "purpose": "Run search and write export artifacts",
+      "required_capabilities": [
+        "supports_keyword_search"
+      ],
+      "preferred_providers": [
+        "inspire",
+        "openalex",
+        "arxiv"
+      ],
+      "degrade_mode": "fail_closed",
+      "consumer_hints": {
+        "phases": [
+          "discover"
+        ],
+        "artifact": "search_export"
+      },
       "params": {
         "query": "<query>",
         "run_id": "<run_id>",
@@ -16,11 +31,20 @@
     },
     {
       "id": "build_evidence",
-      "tool": "hep_project_build_evidence",
+      "action": "materialize.evidence_build",
       "purpose": "Build evidence catalog from selected papers",
       "depends_on": [
         "search_export"
       ],
+      "degrade_mode": "fail_closed",
+      "consumer_hints": {
+        "phases": [
+          "materialize"
+        ],
+        "artifact": "build_evidence",
+        "project_required": true,
+        "run_required": true
+      },
       "params": {
         "project_id": "<project_id>",
         "paper_id": "<paper_id>"

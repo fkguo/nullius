@@ -107,7 +107,7 @@ def main() -> int:
             )
             continue
         if method == "tools/list":
-            disable_field_survey = str(os.environ.get("MCP_STUB_DISABLE_FIELD_SURVEY", "")).strip().lower() in {"1", "true", "yes", "on"}
+            disable_inspire_search = str(os.environ.get("MCP_STUB_DISABLE_INSPIRE_SEARCH", "")).strip().lower() in {"1", "true", "yes", "on"}
             disable_topic_analysis = str(os.environ.get("MCP_STUB_DISABLE_TOPIC_ANALYSIS", "")).strip().lower() in {"1", "true", "yes", "on"}
             disable_network_analysis = str(os.environ.get("MCP_STUB_DISABLE_NETWORK_ANALYSIS", "")).strip().lower() in {"1", "true", "yes", "on"}
             tools = [
@@ -118,13 +118,12 @@ def main() -> int:
                 {"name": "hep_run_stage_content", "description": "stage content"},
                 {"name": "hep_run_read_artifact_chunk", "description": "read chunk"},
                 {"name": "pdg_get_property", "description": "stub pdg property"},
-                {"name": "inspire_discover_papers", "description": "stub discover papers"},
                 {"name": "inspire_find_connections", "description": "stub find connections"},
                 {"name": "inspire_trace_original_source", "description": "stub trace original source"},
                 {"name": "inspire_critical_research", "description": "stub critical research"},
             ]
-            if not disable_field_survey:
-                tools.append({"name": "inspire_field_survey", "description": "stub field survey"})
+            if not disable_inspire_search:
+                tools.append({"name": "inspire_search", "description": "stub inspire search"})
             if not disable_topic_analysis:
                 tools.append({"name": "inspire_topic_analysis", "description": "stub topic analysis"})
             if not disable_network_analysis:
@@ -248,59 +247,43 @@ def main() -> int:
                 _send_tool_result(msg_id, payload)
                 continue
 
-            if name == "inspire_discover_papers":
+            if name == "inspire_search":
+                topic = str(args.get("query") or "")
                 payload = {
-                    "mode": str(args.get("mode") or ""),
-                    "topic": str(args.get("topic") or ""),
-                    "seed_recids": args.get("seed_recids") if isinstance(args.get("seed_recids"), list) else [],
-                    "related": {"papers": [{"recid": "1001", "title": "Stub related paper"}]},
-                }
-                _send_tool_result(msg_id, payload)
-                continue
-            if name == "inspire_field_survey":
-                topic = str(args.get("topic") or "")
-                payload = {
-                    "topic": topic,
-                    "seminal_papers": {
-                        "papers": [
-                            {
-                                "recid": "1001",
-                                "title": f"{topic} — seminal result",
-                                "abstract": f"We study {topic} with a deterministic workflow.",
-                                "year": 2024,
-                                "citation_count": 250,
-                            },
-                            {
-                                "recid": "1002",
-                                "title": "Unrelated topic",
-                                "abstract": "This paper is about something else.",
-                                "year": 1999,
-                                "citation_count": 3,
-                            },
-                        ]
-                    },
-                    "reviews": {
-                        "papers": [
-                            {
-                                "recid": "2001",
-                                "title": f"Review: {topic}",
-                                "abstract": f"A review that mentions {topic} and related methods.",
-                                "year": 2018,
-                                "citation_count": 120,
-                            }
-                        ]
-                    },
-                    "citation_network": {
-                        "papers": [
-                            {
-                                "recid": "3001",
-                                "title": f"{topic} follow-up",
-                                "abstract": f"Follow-up work connected to {topic}.",
-                                "year": 2022,
-                                "citation_count": 20,
-                            }
-                        ]
-                    },
+                    "query": topic,
+                    "page": 1,
+                    "size": int(args.get("size") or 25),
+                    "total": 4,
+                    "papers": [
+                        {
+                            "recid": "2001",
+                            "title": f"Review: {topic}",
+                            "abstract": f"A review that mentions {topic} and related methods.",
+                            "year": 2018,
+                            "citation_count": 120,
+                        },
+                        {
+                            "recid": "1001",
+                            "title": f"{topic} — seminal result",
+                            "abstract": f"We study {topic} with a deterministic workflow.",
+                            "year": 2024,
+                            "citation_count": 250,
+                        },
+                        {
+                            "recid": "1002",
+                            "title": "Unrelated topic",
+                            "abstract": "This paper is about something else.",
+                            "year": 1999,
+                            "citation_count": 3,
+                        },
+                        {
+                            "recid": "3001",
+                            "title": f"{topic} follow-up",
+                            "abstract": f"Follow-up work connected to {topic}.",
+                            "year": 2022,
+                            "citation_count": 20,
+                        },
+                    ],
                 }
                 _send_tool_result(msg_id, payload)
                 continue

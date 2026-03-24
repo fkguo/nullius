@@ -4,7 +4,7 @@
   "repo": "autoresearch-lab/autoresearch-meta",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Checked-in generic literature workflow recipes and protocol authority.",
+  "summary": "Checked-in executable literature workflow authority: recipes + session protocol + launcher-backed consumers.",
   "platforms": [
     "claude_code",
     "codex",
@@ -20,12 +20,13 @@
     "include": [
       "recipes/literature*.json",
       "protocols/session_protocol_v1.md",
-      "docs/prompts/prompt-2026-03-24-new-litflow-01-generic-literature-workflow-extraction.md"
+      "docs/prompts/prompt-2026-03-24-new-litflow-01-generic-literature-workflow-extraction.md",
+      "docs/prompts/prompt-2026-03-24-new-litflow-02-impl-executable-workflow-authority-and-surface-pruning.md"
     ]
   },
   "install": {
-    "claude_code": "Consume the checked-in meta/recipes and session-protocol docs from the repo; do not recreate generic workflow authority inside provider-specific MCP facades.",
-    "codex": "Consume the checked-in meta/recipes and session-protocol docs from the repo; use it as workflow authority above atomic MCP tools.",
-    "opencode": "Consume the checked-in meta/recipes and session-protocol docs from the repo; keep workflow authority in the workflow-pack layer."
+    "claude_code": "Consume the checked-in meta/recipes and session protocol through the checked-in `packages/literature-workflows` launcher; do not recreate generic workflow authority inside provider-specific MCP facades.",
+    "codex": "Consume the checked-in meta/recipes and session protocol through the checked-in `packages/literature-workflows` launcher; keep workflow authority above atomic MCP tools.",
+    "opencode": "Consume the checked-in meta/recipes and session protocol through the checked-in `packages/literature-workflows` launcher; keep workflow authority in the workflow-pack layer."
   }
 }

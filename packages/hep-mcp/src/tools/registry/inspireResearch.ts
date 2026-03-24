@@ -1,6 +1,4 @@
 import {
-  INSPIRE_DISCOVER_PAPERS,
-  INSPIRE_FIELD_SURVEY,
   INSPIRE_TOPIC_ANALYSIS,
   INSPIRE_NETWORK_ANALYSIS,
   INSPIRE_FIND_CONNECTIONS,
@@ -8,7 +6,6 @@ import {
   INSPIRE_PARSE_LATEX,
   INSPIRE_CRITICAL_RESEARCH,
   INSPIRE_PAPER_SOURCE,
-  INSPIRE_DEEP_RESEARCH,
   INSPIRE_FIND_CROSSOVER_TOPICS,
   INSPIRE_ANALYZE_CITATION_STANCE,
   INSPIRE_CLEANUP_DOWNLOADS,
@@ -16,18 +13,14 @@ import {
 } from '@autoresearch/shared';
 import { notFound } from '@autoresearch/shared';
 import { writeRunJsonArtifact } from '../../core/citations.js';
-import { deepResearchAnalyzeNextActions, discoveryNextActions, withNextActions } from '../utils/discoveryHints.js';
 import type { ToolSpec } from './types.js';
 import {
-  DiscoverPapersToolSchema,
-  FieldSurveyToolSchema,
   FindConnectionsToolSchema,
   CriticalResearchToolSchema,
   TopicAnalysisToolSchema,
   NetworkAnalysisToolSchema,
   TraceOriginalSourceToolSchema,
   PaperSourceToolSchema,
-  DeepResearchToolSchema,
   InspireParseLatexToolSchema,
   FindCrossoverTopicsToolSchema,
   AnalyzeCitationStanceToolSchema,
@@ -36,40 +29,6 @@ import {
   hashParseLatexRequest,
   isNoLatexSourceError,
 } from './inspireSchemas.js';
-
-function extractDiscoverPapersForNextActions(result: unknown): unknown {
-  if (!result || typeof result !== 'object') return [];
-
-  const record = result as Record<string, unknown>;
-  switch (record.mode) {
-    case 'seminal':
-      return (record.seminal as Record<string, unknown> | undefined)?.seminal_papers ?? [];
-    case 'related':
-      return (record.related as Record<string, unknown> | undefined)?.papers ?? [];
-    case 'expansion':
-      return (record.expansion as Record<string, unknown> | undefined)?.papers ?? [];
-    case 'survey': {
-      const sections = (record.survey as Record<string, unknown> | undefined)?.sections;
-      if (!Array.isArray(sections)) return [];
-      return sections.flatMap(section => {
-        if (!section || typeof section !== 'object') return [];
-        const papers = (section as Record<string, unknown>).papers;
-        return Array.isArray(papers) ? papers : [];
-      });
-    }
-    default:
-      return [];
-  }
-}
-
-function extractFieldSurveyPapersForNextActions(result: unknown): unknown {
-  if (!result || typeof result !== 'object') return [];
-  const record = result as Record<string, unknown>;
-  const citationPapers = ((record.citation_network as Record<string, unknown> | undefined)?.all_papers);
-  if (Array.isArray(citationPapers) && citationPapers.length > 0) return citationPapers;
-  const seminalPapers = ((record.seminal_papers as Record<string, unknown> | undefined)?.papers);
-  return Array.isArray(seminalPapers) ? seminalPapers : [];
-}
 
 export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   {
@@ -136,39 +95,6 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         }
         throw err;
       }
-    },
-  },
-  {
-    name: INSPIRE_DISCOVER_PAPERS,
-    tier: 'consolidated',
-    exposure: 'standard',
-    intent: 'paper_discovery',
-    maturity: 'stable',
-    description:
-      'Unified paper discovery tool (network). Modes: seminal/related/expansion/survey.',
-    zodSchema: DiscoverPapersToolSchema,
-    handler: async params => {
-      const { discoverPapers } = await import('../research/discoverPapers.js');
-      const result = await discoverPapers(params);
-      return withNextActions(result, discoveryNextActions(extractDiscoverPapersForNextActions(result)));
-    },
-  },
-  {
-    name: INSPIRE_FIELD_SURVEY,
-    tier: 'consolidated',
-    exposure: 'standard',
-    intent: 'paper_discovery',
-    maturity: 'stable',
-    description:
-      'Physicist-style literature review workflow (network): reviews → seminal papers → citation expansion → controversies/open questions.',
-    zodSchema: FieldSurveyToolSchema,
-    handler: async (params, ctx) => {
-      const { performFieldSurvey } = await import('../research/fieldSurvey.js');
-      const result = await performFieldSurvey({
-        ...params,
-        ...(ctx.createMessage ? { _mcp: { createMessage: ctx.createMessage } } : {}),
-      });
-      return withNextActions(result, discoveryNextActions(extractFieldSurveyPapersForNextActions(result)));
     },
   },
   {
@@ -344,64 +270,6 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
         const urls = result.urls as unknown as Record<string, unknown>;
         if (resolved.recid) urls.inspire_url = `https://inspirehep.net/literature/${resolved.recid}`;
         if (resolved.doi) urls.doi_url = `https://doi.org/${resolved.doi}`;
-      }
-      return result;
-    },
-  },
-  {
-    name: INSPIRE_DEEP_RESEARCH,
-    tier: 'consolidated',
-    exposure: 'standard',
-    description:
-      'End-to-end deep research pipeline over a paper set. Modes: analyze/synthesize. NOT FOR lightweight discovery-only requests; use dedicated INSPIRE discovery/survey/topic/network/trace tools for exploration workflows.',
-    zodSchema: DeepResearchToolSchema,
-    handler: async (params, ctx) => {
-      const { performDeepResearch } = await import('../research/deepResearch.js');
-      const result = await performDeepResearch({
-        ...params,
-        ...((ctx.reportProgress || ctx.createMessage)
-          ? {
-            _mcp: {
-              ...(ctx.reportProgress ? { reportProgress: ctx.reportProgress } : {}),
-              ...(ctx.createMessage ? { createMessage: ctx.createMessage } : {}),
-            },
-          }
-          : {}),
-      });
-
-      if (params.mode === 'analyze' && params.run_id) {
-        const ref = writeRunJsonArtifact(params.run_id, 'deep_analyze_result_v1.json', { version: 1, ...result });
-        const analysis = result && typeof result === 'object' && 'analysis' in result
-          ? (result as unknown as Record<string, unknown>).analysis as Record<string, unknown> | undefined
-          : undefined;
-        return {
-          artifact_uri: ref.uri,
-          summary: {
-            paper_count: analysis?.paper_count ?? (Array.isArray(params.identifiers) ? params.identifiers.length : 0),
-            equations_found: analysis?.equations_found ?? analysis?.total_equations ?? 0,
-            key_findings: Array.isArray(analysis?.key_findings) ? (analysis.key_findings as unknown[]).slice(0, 3) : [],
-          },
-          next_actions: deepResearchAnalyzeNextActions(params.identifiers),
-        };
-      }
-
-      if (params.mode === 'synthesize' && params.run_id) {
-        const ref = writeRunJsonArtifact(params.run_id, 'deep_synthesize_result_v1.json', { version: 1, ...result });
-        const review = result && typeof result === 'object' && 'review' in result
-          ? (result as unknown as Record<string, unknown>).review as Record<string, unknown> | undefined
-          : undefined;
-        return {
-          artifact_uri: ref.uri,
-          summary: {
-            theme_count: review?.theme_count ?? review?.total_themes ?? 0,
-            paper_count: review?.paper_count ?? (Array.isArray(params.identifiers) ? params.identifiers.length : 0),
-            open_questions: Array.isArray(review?.open_questions) ? (review.open_questions as unknown[]).slice(0, 5) : [],
-          },
-        };
-      }
-
-      if (params.mode === 'analyze') {
-        return withNextActions(result, deepResearchAnalyzeNextActions(params.identifiers));
       }
       return result;
     },

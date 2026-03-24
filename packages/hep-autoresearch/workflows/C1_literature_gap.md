@@ -1,6 +1,6 @@
 # C1_literature_gap (Phase C1)
 
-Goal: produce an evidence-first, auditable INSPIRE discovery bundle via MCP, split into two phases:
+Goal: produce an evidence-first, auditable literature-gap bundle via launcher-resolved workflow authority + bounded MCP atomic operators, split into two phases:
 
 - **discover**: fetch a wide candidate set (no relevance decisions)
 - **analyze**: run deeper analysis on a *chosen* seed set
@@ -20,9 +20,9 @@ Phase: **discover** (default):
 - `--phase discover`
 - `--topic` (required)
 - Optional knobs:
-  - `--focus` (repeatable): focus keywords passed to `inspire_field_survey`
-  - `--seed-recid`: optional INSPIRE seed recid passed to `inspire_field_survey` (crawl hint only; *not* seed selection for analyze)
-  - `--iterations`, `--max-papers`, `--prefer-journal`
+  - `--focus` (repeatable): focus keywords recorded in discover inputs
+  - `--seed-recid`: optional INSPIRE seed recid recorded in discover inputs (crawl hint only; *not* seed selection for analyze)
+  - `--iterations`, `--max-papers`, `--prefer-journal` (reserved discover knobs passed through to launcher-resolved consumers when applicable)
 
 Phase: **analyze**:
 - `--phase analyze`
@@ -38,8 +38,9 @@ Phase: **analyze**:
   - `--network-mode`, `--network-limit`, `--network-depth`, `--network-direction`
 
 Required MCP tools on the server:
-- discover: `inspire_field_survey`
-- analyze: `inspire_topic_analysis`, `inspire_critical_research`, `inspire_network_analysis`
+- discover: launcher-resolved `inspire_search`
+- analyze: launcher-resolved `inspire_topic_analysis`, `inspire_critical_research`, `inspire_network_analysis`, `inspire_find_connections`
+- workflow authority: checked-in `packages/literature-workflows` launcher resolving `literature_gap_analysis`
 
 ## Outputs (artifacts)
 
@@ -53,12 +54,14 @@ Both phases write the artifact triple:
 - `report.md` (deterministic view derived from SSOT JSON)
 
 Phase: **discover** also writes:
-- `field_survey.json` (raw MCP tool output)
+- `workflow_plan.json` (launcher-resolved plan)
+- `seed_search.json` (raw MCP tool output)
 - `candidates.json` (deduped candidate list; *no ranking implied*)
 
 Phase: **analyze** also writes:
+- `workflow_plan.json` (launcher-resolved plan)
 - `seed_selection.json` (copied into the artifact dir; SHA256 recorded in `gap_report.json`)
-- `topic_analysis.json` / `critical_research.json` / `network_analysis.json` (raw MCP tool outputs)
+- `topic_analysis.json` / `critical_research.json` / `network_analysis.json` / `connection_scan.json` (raw MCP tool outputs)
 
 ## `seed_selection.json` contract (schema_version=1)
 

@@ -844,7 +844,7 @@ node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "
 > 本节依赖 inspirehep.net；如果你处于离线环境可跳过。
 > 说明：推荐使用统一入口 `inspire_literature(mode=...)`；本仓库已收敛历史分裂入口（不再提供旧式“每个动作一个 tool”的原子入口）。
 >
-> 备注：`inspire_search` / `inspire_literature` 可直接调用（不需要 Project/Run）。只有 `inspire_deep_research(mode=write, ...)` 才要求 `run_id`（因为要落地 evidence-first 的 run artifacts）。
+> 备注：`inspire_search` / `inspire_literature` 可直接调用（不需要 Project/Run）。涉及 launcher-backed workflow 的写作/证据路径，则需要先建立 `Project/Run` 并准备 run-scoped evidence artifacts。
 
 ### 8.1 `inspire_search`
 
@@ -966,63 +966,63 @@ node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "
 3) 渲染 LaTeX：`hep_render_latex`（传 draft + allowed_citations + cite_mapping）
 4) 导出：`hep_export_project`（生成 research_pack.zip + notebooklm_pack）
 
-如需端到端写作流水线，见 §8.7 `inspire_deep_research`（mode=write）。
+如需 launcher-backed 的端到端文献/写作前置流程，见 §8.7。
 
-### 8.7 深度研究（`inspire_deep_research`，建议：先 analyze/synthesize，再 write）
+### 8.7 Launcher-backed 文献工作流（建议：先 workflow-plan / literature-gap，再进入写作路径）
 
-> 说明：这是一个“整合工作流”工具，适合作为端到端 smoke test。输出可能较长；建议先用上面的最小 corpus。
+> 说明：高层 literature workflow 已不再通过单个 provider-specific MCP facade 承担。当前推荐用 checked-in launcher-backed consumer 做 smoke test，再配合 bounded atomic operators 与 writing evidence。
 
-#### 8.7.1 Analyze（结构化抽取）
+#### 8.7.1 Workflow plan（解析 checked-in workflow authority）
+
+**调用（skill-side prework）**
+
+```bash
+python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan \
+  --recipe literature_to_evidence \
+  --phase prework \
+  --query "X(3872) mini-review" \
+  --topic "X(3872)"
+```
+
+**预期**
+
+- 返回 `entry_tool = literature_workflows.resolve`
+- 返回 `resolved_steps[]`
+- 不再出现 `inspire_deep_research` 作为高层 workflow 入口
+
+#### 8.7.2 Gap-analysis consumer（端到端 launcher smoke test）
 
 **调用**
 
-```json
-{
-  "identifiers": ["1238419", "1258603"],
-  "mode": "analyze",
-  "options": { "extract_conclusions": true, "extract_methodology": true }
-}
+```bash
+PYTHONPATH=packages/hep-autoresearch/src \
+python3 -m hep_autoresearch.orchestrator_cli \
+  --project-root /abs/path/to/project \
+  literature-gap \
+  --tag smoke-x3872 \
+  --topic "X(3872)"
 ```
 
 **预期**
 
-- `isError=false`
-- 返回 `analysis`（结构化字段；不同论文覆盖度不同属正常）
+- 产出 `workflow_plan.json`
+- 产出阶段性 artifact，如 `seed_search.json` / `connection_scan.json`
+- 当原子工具缺失时应 fail closed，而不是回退到已删除 workflow-like MCP 工具
 
-#### 8.7.2 Synthesize（综述聚合）
+#### 8.7.3 Write（Client Path 写作流水线）
 
-**调用**
+**调用（run-based）**
 
-```json
-{
-  "identifiers": ["1238419", "1258603", "627760", "1221245", "897836"],
-  "mode": "synthesize",
-  "options": { "review_type": "overview", "include_bibliography": true }
-}
+```text
+hep_project_create -> hep_run_create -> hep_run_build_writing_evidence
+-> （按 workflow-plan / bounded operators 组织材料）
+-> hep_render_latex -> hep_export_project
 ```
 
 **预期**
 
-- `isError=false`
-- 返回 `review`（可能为 markdown/json，取决于 `format`）
-
-#### 8.7.3 Write（端到端写作流水线，默认不在 MCP 内部调用 LLM）
-
-**调用（Client Path：run-based；必须带 `run_id`）**
-
-```json
-{
-  "identifiers": ["1238419", "1258603", "627760", "1221245", "897836"],
-  "mode": "write",
-  "run_id": "<run_id>",
-  "options": { "topic": "X(3872) mini-review", "llm_mode": "client", "target_length": "short" }
-}
-```
-
-**预期**
-
-- `isError=false`
-- 返回包含 `run.manifest_uri` + `run.artifacts[]`，并给出 `client_continuation`（提示按 `next_actions` 完成候选提交 + judge；见 8.6）
+- 写作证据来自 run artifacts
+- 不再依赖 `inspire_deep_research(mode=write)`
 
 ---
 
@@ -1046,16 +1046,17 @@ node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "
 
 - 这是硬约束：只允许 Local API。请检查 `ZOTERO_BASE_URL` 是否严格为 `http://127.0.0.1:23119`。
 
-### 9.4 `inspire_deep_research`（mode=write，llm_mode=client）报 `llm_mode='client' requires run_id`
-
-`inspire_deep_research`（mode=`write`，`llm_mode=client`）报 `llm_mode='client' requires run_id`
+### 9.4 Client Path / launcher-backed workflow 缺少 `run_id` 或 writing evidence
 
 **常见原因**
-- 忘记先创建 run（`hep_run_create`），或调用时漏传 `run_id`。
+- 忘记先创建 run（`hep_run_create`）
+- 漏跑 `hep_run_build_writing_evidence`
+- 在 launcher-backed literature workflow 后直接跳到写作导出，未先准备 run-scoped evidence
 
 **处理方式**
-- 先执行 `hep_project_create` → `hep_run_create`，再把 `run_id` 传给 `inspire_deep_research`（mode=`write`）。
-- 若只想做快速 smoke test 而不走 Client Path，可用 `llm_mode=passthrough`（不建议长期依赖；推荐统一走 run artifacts）。
+- 先执行 `hep_project_create` → `hep_run_create`
+- 再执行 `hep_run_build_writing_evidence`
+- 然后按 workflow-plan / bounded operators 组织材料，最后再走 `hep_render_latex` → `hep_export_project`
 
 ---
 

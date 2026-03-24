@@ -2,12 +2,27 @@
   "recipe_id": "literature_gap_analysis",
   "name": "Literature Gap Analysis",
   "description": "Probe a paper set for tensions, omissions, and open seams using bounded atomic analysis operators.",
-  "entry_tool": "inspire_search",
+  "entry_tool": "literature_workflows.resolve",
   "steps": [
     {
       "id": "seed_search",
-      "tool": "inspire_search",
+      "action": "discover.seed_search",
       "purpose": "Run a search to assemble the initial paper set",
+      "required_capabilities": [
+        "supports_keyword_search"
+      ],
+      "preferred_providers": [
+        "inspire",
+        "openalex",
+        "arxiv"
+      ],
+      "degrade_mode": "fail_closed",
+      "consumer_hints": {
+        "phases": [
+          "discover"
+        ],
+        "artifact": "seed_search"
+      },
       "params": {
         "query": "<query>",
         "size": 25
@@ -15,11 +30,24 @@
     },
     {
       "id": "topic_scan",
-      "tool": "inspire_topic_analysis",
+      "action": "analyze.topic_evolution",
       "purpose": "Summarize trends and identify underexplored subtopics",
       "depends_on": [
         "seed_search"
       ],
+      "required_capabilities": [
+        "analysis.topic_evolution"
+      ],
+      "preferred_providers": [
+        "inspire"
+      ],
+      "degrade_mode": "fail_closed",
+      "consumer_hints": {
+        "phases": [
+          "analyze"
+        ],
+        "artifact": "topic_analysis"
+      },
       "params": {
         "mode": "timeline",
         "topic": "<topic>",
@@ -28,42 +56,77 @@
     },
     {
       "id": "critical_analysis",
-      "tool": "inspire_critical_research",
+      "action": "analyze.paper_set_critical_review",
       "purpose": "Run bounded critical analysis over representative papers",
       "depends_on": [
         "topic_scan"
       ],
+      "required_capabilities": [
+        "analysis.paper_set_critical_review"
+      ],
+      "preferred_providers": [
+        "inspire"
+      ],
+      "degrade_mode": "fail_closed",
+      "consumer_hints": {
+        "phases": [
+          "analyze"
+        ],
+        "artifact": "critical_research"
+      },
       "params": {
         "mode": "analysis",
-        "recids": [
-          "<recid>"
-        ]
+        "recids": "<recids>"
       }
     },
     {
       "id": "citation_network",
-      "tool": "inspire_network_analysis",
+      "action": "analyze.citation_network",
       "purpose": "Map citation structure around the current anchor paper",
       "depends_on": [
         "critical_analysis"
       ],
+      "required_capabilities": [
+        "analysis.citation_network"
+      ],
+      "preferred_providers": [
+        "inspire"
+      ],
+      "degrade_mode": "fail_closed",
+      "consumer_hints": {
+        "phases": [
+          "analyze"
+        ],
+        "artifact": "network_analysis"
+      },
       "params": {
         "mode": "citation",
-        "seed": "<recid>",
+        "seed": "<analysis_seed>",
         "limit": 25
       }
     },
     {
       "id": "connection_scan",
-      "tool": "inspire_find_connections",
+      "action": "analyze.paper_connections",
       "purpose": "Detect bridge papers, isolated clusters, and external hubs",
       "depends_on": [
         "citation_network"
       ],
-      "params": {
-        "recids": [
-          "<recid>"
+      "required_capabilities": [
+        "analysis.paper_set_connections"
+      ],
+      "preferred_providers": [
+        "inspire"
+      ],
+      "degrade_mode": "fail_closed",
+      "consumer_hints": {
+        "phases": [
+          "analyze"
         ],
+        "artifact": "connection_scan"
+      },
+      "params": {
+        "recids": "<recids>",
         "include_external": true,
         "max_external_depth": 1
       }

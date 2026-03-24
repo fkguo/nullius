@@ -65,6 +65,7 @@ from .toolkit.revision import RevisionInputs, revise_one
 from .toolkit.computation import ComputationInputs, computation_one
 from .toolkit.run_card import ensure_run_card, normalize_approval_run_card_fields
 from .toolkit.run_card_schema import load_run_card_v2, normalize_and_validate_run_card_v2
+from .toolkit.literature_workflows import extract_candidate_recids, resolve_literature_workflow
 from .toolkit.logging_config import configure_logging
 
 
@@ -4424,37 +4425,9 @@ def cmd_bridge(args: argparse.Namespace) -> int:
         return _die(f"bridge failed: {e}")
 
 
-def _extract_field_survey_recids(payload: object, *, max_recids: int) -> list[str]:
-    """Best-effort recid extraction from field-survey style output.
-
-    Expected source today is `inspire_field_survey`.
-    """
-    out: list[str] = []
-
-    def _add(x: object) -> None:
-        s = str(x).strip()
-        if s and s not in out:
-            out.append(s)
-
-    if not isinstance(payload, dict):
-        return out
-    for key in ["seminal_papers", "reviews", "citation_network"]:
-        sec = payload.get(key)
-        if not isinstance(sec, dict):
-            continue
-        papers = sec.get("papers")
-        if not isinstance(papers, list):
-            continue
-        for p in papers:
-            if not isinstance(p, dict):
-                continue
-            recid = p.get("recid")
-            if recid is None:
-                continue
-            _add(recid)
-            if len(out) >= max_recids:
-                return out
-    return out
+def _extract_discovery_recids(payload: object, *, max_recids: int) -> list[str]:
+    """Best-effort recid extraction from launcher-resolved discovery output."""
+    return extract_candidate_recids(payload, max_recids=max_recids)
 
 
 def _c1_collect_text(v: object, *, max_items: int = 40, max_depth: int = 3) -> str:
@@ -4732,6 +4705,69 @@ def _c1_extract_field_survey_candidates(payload: object, *, created_at: str) -> 
     }
 
 
+def _c1_extract_seed_search_candidates(payload: object, *, created_at: str) -> dict[str, Any]:
+    """Extract candidate papers from search-style discovery output."""
+    if not isinstance(payload, dict):
+        return {
+            "schema_version": 1,
+            "created_at": created_at,
+            "papers": [],
+            "stats": {"papers_seen": 0, "unique_recids": 0},
+            "notes": "payload not an object; no candidates extracted",
+        }
+
+    papers_raw = payload.get("papers")
+    if not isinstance(papers_raw, list):
+        return {
+            "schema_version": 1,
+            "created_at": created_at,
+            "papers": [],
+            "stats": {"papers_seen": 0, "unique_recids": 0},
+            "notes": "search output missing papers[]; no candidates extracted",
+        }
+
+    papers_out: list[dict[str, Any]] = []
+    for index, paper in enumerate([item for item in papers_raw if isinstance(item, dict)], start=1):
+        recid = str(paper.get("recid") or "").strip()
+        if not recid:
+            continue
+        title = _c1_extract_title(paper)
+        abstract = _c1_extract_abstract(paper)
+        year = _c1_extract_year(paper)
+        citations = _c1_extract_citations(paper)
+        missing: list[str] = []
+        if not title:
+            missing.append("title")
+        if not abstract:
+            missing.append("abstract")
+        if not isinstance(year, int):
+            missing.append("year")
+        if not isinstance(citations, int):
+            missing.append("citation_count")
+        papers_out.append(
+            {
+                "recid": recid,
+                "first_seen_index": index,
+                "sources": ["seed_search"],
+                "title": title,
+                "abstract": abstract,
+                "authors": _c1_extract_authors(paper),
+                "year": year,
+                "citation_count": citations,
+                "missing_fields": missing,
+                "extra": {},
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "created_at": created_at,
+        "papers": papers_out,
+        "stats": {"papers_seen": len(papers_out), "unique_recids": len(papers_out)},
+        "notes": "Launcher-resolved seed-search candidates only; downstream selection/ranking remains external.",
+    }
+
+
 def _validate_field_survey_schema(payload: object) -> list[str]:
     """Best-effort shape checks for field-survey JSON output (diagnostic only)."""
     issues: list[str] = []
@@ -4926,9 +4962,12 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
         if not topic:
             return _die("--topic is required for --phase discover")
 
-        field_json: Any | None = None
-        field_ok = False
+        workflow_plan: dict[str, Any] | None = None
+        discover_json: Any | None = None
+        discover_ok = False
         candidates_json: dict[str, Any] | None = None
+        plan_path = out_dir / "workflow_plan.json"
+        discover_path = out_dir / "seed_search.json"
 
         try:
             with McpStdioClient(cfg=cfg, cwd=repo_root, env=env) as client:
@@ -4941,48 +4980,75 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
                 tool_names = {t.name for t in tools}
                 mcp_tools = sorted(tool_names)
 
-                if "inspire_field_survey" not in tool_names:
-                    return _die(
-                        "MCP server missing tools for literature-gap discover: need inspire_field_survey"
-                    )
-
-                fs_args: dict[str, Any] = {
-                    "topic": topic,
-                    "iterations": int(getattr(args, "iterations", 2) or 2),
-                    "max_papers": int(getattr(args, "max_papers", 40) or 40),
-                    "prefer_journal": bool(getattr(args, "prefer_journal", False)),
-                }
                 focus_terms: list[str] = []
                 focus = getattr(args, "focus", None)
                 if isinstance(focus, list) and focus:
                     focus_terms = [str(x).strip() for x in focus if str(x).strip()]
-                    if focus_terms:
-                        fs_args["focus"] = list(focus_terms)
                 seed_recid = str(getattr(args, "seed_recid", "") or "").strip()
-                if seed_recid:
-                    fs_args["seed_recid"] = seed_recid
+                workflow_plan = resolve_literature_workflow(
+                    repo_root,
+                    recipe_id="literature_gap_analysis",
+                    phase="discover",
+                    inputs={
+                        "query": topic,
+                        "topic": topic,
+                        "focus": list(focus_terms),
+                        "seed_recid": seed_recid or None,
+                    },
+                    available_tools=tool_names,
+                    preferred_providers=["inspire"],
+                )
+                write_json(plan_path, workflow_plan)
 
-                fs = client.call_tool_json(tool_name="inspire_field_survey", arguments=fs_args, timeout_seconds=300.0)
-                field_ok = bool(fs.ok)
-                _record("inspire_field_survey", "ok" if fs.ok else "error")
-                if not fs.ok:
-                    errors.append(f"inspire_field_survey: {fs.raw_text or '(error)'}")
-                field_json = fs.json
+                resolved_steps = workflow_plan.get("resolved_steps") if isinstance(workflow_plan, dict) else None
+                if not isinstance(resolved_steps, list) or not resolved_steps:
+                    errors.append("literature workflow launcher returned no discover steps")
+                for step in resolved_steps or []:
+                    if not isinstance(step, dict):
+                        continue
+                    step_id = str(step.get("id") or "").strip()
+                    tool_name = str(step.get("tool") or "").strip()
+                    step_args = step.get("params") if isinstance(step.get("params"), dict) else {}
+                    if not step_id or not tool_name:
+                        errors.append("literature workflow launcher returned an invalid discover step")
+                        continue
+                    result = client.call_tool_json(tool_name=tool_name, arguments=step_args, timeout_seconds=300.0)
+                    _record(
+                        tool_name,
+                        "ok" if result.ok else "error",
+                        workflow_step=step_id,
+                        provider=str(step.get("provider") or "") or None,
+                    )
+                    if not result.ok:
+                        errors.append(f"{tool_name}: {result.raw_text or '(error)'}")
+                    if step_id == "seed_search":
+                        discover_ok = bool(result.ok)
+                        discover_json = result.json
 
-                if isinstance(field_json, dict):
-                    schema_issues = _validate_field_survey_schema(field_json)
-                    if schema_issues:
-                        errors.extend([f"field_survey_schema: {x}" for x in schema_issues])
-
-                candidates_json = _c1_extract_field_survey_candidates(field_json, created_at=created_at)
-                candidates_json["inputs"] = {"topic": topic, "focus": list(focus_terms), "seed_recid": seed_recid or None}
+                write_json(discover_path, discover_json if discover_json is not None else {})
+                candidates_json = _c1_extract_seed_search_candidates(discover_json, created_at=created_at)
+                candidate_recids = _extract_discovery_recids(
+                    discover_json,
+                    max_recids=int(getattr(args, "max_recids", 12) or 12),
+                )
+                candidates_json["inputs"] = {
+                    "topic": topic,
+                    "query": topic,
+                    "focus": list(focus_terms),
+                    "seed_recid": seed_recid or None,
+                }
+                candidates_json["resolver"] = {
+                    "recipe_id": "literature_gap_analysis",
+                    "phase": "discover",
+                    "seed_recids_preview": candidate_recids,
+                }
         except Exception as e:
             errors.append(f"exception: {e}")
 
-        field_path = out_dir / "field_survey.json"
         candidates_path = out_dir / "candidates.json"
         gap_report_path = out_dir / "gap_report.json"
-        write_json(field_path, field_json if field_json is not None else {})
+        write_json(plan_path, workflow_plan if workflow_plan is not None else {})
+        write_json(discover_path, discover_json if discover_json is not None else {})
         write_json(
             candidates_path,
             candidates_json if candidates_json is not None else {"schema_version": 1, "created_at": created_at, "papers": [], "inputs": {"topic": topic}},
@@ -5002,7 +5068,8 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
             "results": {
                 "ok": bool(not errors),
                 "errors": errors,
-                "field_survey": {"ok": bool(field_ok), "path": _rel(field_path)},
+                "workflow_plan": {"path": _rel(plan_path)},
+                "seed_search": {"ok": bool(discover_ok), "path": _rel(discover_path)},
                 "candidates": {
                     "path": _rel(candidates_path),
                     "stats": (candidates_json.get("stats") if isinstance(candidates_json, dict) else None),
@@ -5042,7 +5109,8 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
                 _rel(summary_path),
                 _rel(analysis_path),
                 _rel(gap_report_path),
-                _rel(field_path),
+                _rel(plan_path),
+                _rel(discover_path),
                 _rel(candidates_path),
             ],
         }
@@ -5092,6 +5160,8 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
 
         if not ok_flag:
             print("[warn] literature-gap discover: completed with errors (see analysis.json)")
+            for item in errors:
+                print(f"- error: {item}")
             print(f"- out: {_rel(out_dir)}")
             return 2
 
@@ -5175,9 +5245,12 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
     seed_copy_path.write_text(seed_sel_path.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
     seed_copy_sha256 = _sha256_file(seed_copy_path)
 
+    workflow_plan: dict[str, Any] | None = None
+    plan_path = out_dir / "workflow_plan.json"
     topic_json: Any | None = None
     critical_json: Any | None = None
     network_json: Any | None = None
+    connection_json: Any | None = None
 
     try:
         with McpStdioClient(cfg=cfg, cwd=repo_root, env=env) as client:
@@ -5190,88 +5263,90 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
             tool_names = {t.name for t in tools}
             mcp_tools = sorted(tool_names)
 
-            has_critical = "inspire_critical_research" in tool_names
-
-            missing_tools: list[str] = []
-            if not has_critical:
-                missing_tools.append("inspire_critical_research")
-            if "inspire_topic_analysis" not in tool_names:
-                missing_tools.append("inspire_topic_analysis")
-            if "inspire_network_analysis" not in tool_names:
-                missing_tools.append("inspire_network_analysis")
-            if missing_tools:
-                return _die("MCP server missing tools for literature-gap analyze: " + ", ".join(missing_tools))
-
             topic_mode = str(getattr(args, "topic_mode", "timeline") or "timeline").strip()
-            ta = client.call_tool_json(
-                tool_name="inspire_topic_analysis",
-                arguments={
-                    "mode": topic_mode,
-                    "topic": topic,
-                    "limit": int(getattr(args, "topic_limit", 40) or 40),
-                    "options": {"granularity": str(getattr(args, "topic_granularity", "5year") or "5year")},
-                },
-                timeout_seconds=180.0,
-            )
-            _record("inspire_topic_analysis", "ok" if ta.ok else "error")
-            if not ta.ok:
-                errors.append(f"inspire_topic_analysis: {ta.raw_text or '(error)'}")
-            topic_json = ta.json
-
             critical_mode = str(getattr(args, "critical_mode", "analysis") or "analysis").strip()
-            cr = client.call_tool_json(
-                tool_name="inspire_critical_research",
-                arguments={"mode": critical_mode, "recids": recids},
-                timeout_seconds=300.0,
-            )
-            _record("inspire_critical_research", "ok" if cr.ok else "error")
-            if not cr.ok:
-                errors.append(f"inspire_critical_research: {cr.raw_text or '(error)'}")
-            critical_json = cr.json
-
             network_mode = str(getattr(args, "network_mode", "citation") or "citation").strip()
             seed = str(recids[0])
             network_direction_cli = str(getattr(args, "network_direction", "both") or "both").strip().lower()
-            # CLI keeps historical in/out/both while navigator expects refs/citations/both.
             direction_map = {
                 "both": "both",
                 "in": "citations",
                 "out": "refs",
             }
             network_direction_tool = direction_map.get(network_direction_cli, "both")
+            workflow_plan = resolve_literature_workflow(
+                repo_root,
+                recipe_id="literature_gap_analysis",
+                phase="analyze",
+                inputs={
+                    "topic": topic,
+                    "recids": recids,
+                    "analysis_seed": seed,
+                },
+                available_tools=tool_names,
+                preferred_providers=["inspire"],
+            )
+            write_json(plan_path, workflow_plan)
 
-            na = client.call_tool_json(
-                tool_name="inspire_network_analysis",
-                arguments={
-                    "mode": network_mode,
-                    "seed": seed,
-                    "limit": int(getattr(args, "network_limit", 80) or 80),
-                    "options": {
+            resolved_steps = workflow_plan.get("resolved_steps") if isinstance(workflow_plan, dict) else None
+            if not isinstance(resolved_steps, list) or not resolved_steps:
+                errors.append("literature workflow launcher returned no analyze steps")
+            for step in resolved_steps or []:
+                if not isinstance(step, dict):
+                    continue
+                step_id = str(step.get("id") or "").strip()
+                tool_name = str(step.get("tool") or "").strip()
+                step_args = dict(step.get("params") or {}) if isinstance(step.get("params"), dict) else {}
+                if step_id == "topic_scan":
+                    step_args["mode"] = topic_mode
+                    step_args["topic"] = topic
+                    step_args["limit"] = int(getattr(args, "topic_limit", 40) or 40)
+                    step_args["options"] = {"granularity": str(getattr(args, "topic_granularity", "5year") or "5year")}
+                elif step_id == "critical_analysis":
+                    step_args["mode"] = critical_mode
+                    step_args["recids"] = recids
+                elif step_id == "citation_network":
+                    step_args["mode"] = network_mode
+                    step_args["seed"] = seed
+                    step_args["limit"] = int(getattr(args, "network_limit", 80) or 80)
+                    step_args["options"] = {
                         "depth": int(getattr(args, "network_depth", 1) or 1),
                         "direction": network_direction_tool,
-                    },
-                },
-                timeout_seconds=300.0,
-            )
-            _record(
-                "inspire_network_analysis",
-                "ok" if na.ok else "error",
-                network_direction_cli=network_direction_cli,
-                network_direction_tool=network_direction_tool,
-            )
-            if not na.ok:
-                errors.append(f"inspire_network_analysis: {na.raw_text or '(error)'}")
-            network_json = na.json
+                    }
+                elif step_id == "connection_scan":
+                    step_args["recids"] = recids
+                result = client.call_tool_json(tool_name=tool_name, arguments=step_args, timeout_seconds=300.0)
+                extras: dict[str, Any] = {
+                    "workflow_step": step_id,
+                    "provider": str(step.get("provider") or "") or None,
+                }
+                if step_id == "citation_network":
+                    extras["network_direction_cli"] = network_direction_cli
+                    extras["network_direction_tool"] = network_direction_tool
+                _record(tool_name, "ok" if result.ok else "error", **extras)
+                if not result.ok:
+                    errors.append(f"{tool_name}: {result.raw_text or '(error)'}")
+                if step_id == "topic_scan":
+                    topic_json = result.json
+                elif step_id == "critical_analysis":
+                    critical_json = result.json
+                elif step_id == "citation_network":
+                    network_json = result.json
+                elif step_id == "connection_scan":
+                    connection_json = result.json
     except Exception as e:
         errors.append(f"exception: {e}")
 
     topic_path = out_dir / "topic_analysis.json"
     critical_path = out_dir / "critical_research.json"
     network_path = out_dir / "network_analysis.json"
+    connection_path = out_dir / "connection_scan.json"
     gap_report_path = out_dir / "gap_report.json"
+    write_json(plan_path, workflow_plan if workflow_plan is not None else {})
     write_json(topic_path, topic_json if topic_json is not None else {})
     write_json(critical_path, critical_json if critical_json is not None else {})
     write_json(network_path, network_json if network_json is not None else {})
+    write_json(connection_path, connection_json if connection_json is not None else {})
 
     gap_report = {
         "schema_version": 1,
@@ -5287,9 +5362,11 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
         "results": {
             "ok": bool(not errors),
             "errors": errors,
+            "workflow_plan": {"path": _rel(plan_path)},
             "topic_analysis": {"path": _rel(topic_path)},
             "critical_research": {"path": _rel(critical_path)},
             "network_analysis": {"path": _rel(network_path)},
+            "connection_scan": {"path": _rel(connection_path)},
         },
         "agent_actions": actions,
     }
@@ -5315,9 +5392,11 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
             _rel(summary_path),
             _rel(analysis_path),
             _rel(gap_report_path),
+            _rel(plan_path),
             _rel(topic_path),
             _rel(critical_path),
             _rel(network_path),
+            _rel(connection_path),
             _rel(seed_copy_path),
         ],
     }
@@ -5348,6 +5427,8 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
 
     if not ok_flag:
         print("[warn] literature-gap analyze: completed with errors (see analysis.json)")
+        for item in errors:
+            print(f"- error: {item}")
         print(f"- out: {_rel(out_dir)}")
         return 2
 
@@ -5942,7 +6023,7 @@ def main() -> int:
     p_bridge.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
     p_bridge.set_defaults(fn=cmd_bridge)
 
-    p_gap = sub.add_parser("literature-gap", help="Discover literature gaps via MCP INSPIRE tools (Phase C1).")
+    p_gap = sub.add_parser("literature-gap", help="Discover literature gaps via launcher-resolved literature workflow authority (Phase C1).")
     p_gap.add_argument("--tag", required=True, help="Run tag for output artifacts, e.g. M73-r1")
     p_gap.add_argument(
         "--phase",
@@ -5957,10 +6038,10 @@ def main() -> int:
     )
     p_gap.add_argument("--focus", action="append", default=[], help="Optional focus keywords (repeatable).")
     p_gap.add_argument("--seed-recid", help="Optional INSPIRE seed recid (forces inclusion in the seed set).")
-    p_gap.add_argument("--iterations", type=int, default=2, help="Field survey iterations (default: 2).")
-    p_gap.add_argument("--max-papers", type=int, default=40, help="Field survey max papers (default: 40).")
-    p_gap.add_argument("--prefer-journal", action="store_true", help="Field survey: prefer journal publications.")
-    p_gap.add_argument("--max-recids", type=int, default=12, help="Max seed recids extracted from field survey (default: 12).")
+    p_gap.add_argument("--iterations", type=int, default=2, help="Reserved discover knob for launcher-resolved consumers (default: 2).")
+    p_gap.add_argument("--max-papers", type=int, default=40, help="Reserved discover knob for launcher-resolved consumers (default: 40).")
+    p_gap.add_argument("--prefer-journal", action="store_true", help="Reserved discover knob for launcher-resolved consumers.")
+    p_gap.add_argument("--max-recids", type=int, default=12, help="Max seed recids extracted from discover candidates (default: 12).")
     p_gap.add_argument(
         "--seed-selection",
         help="Path to seed_selection.json (required for --phase analyze).",

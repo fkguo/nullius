@@ -18,9 +18,12 @@ Scope / safety:
 Why this exists:
 - Provide a reproducible way to populate `knowledge_base/` with metadata-rich notes.
 - Generate a ready-to-paste `research_contract.md` reference entry line that satisfies the references gate.
-- Act as a source-adapter / prework helper only; generic literature workflow sequencing authority lives in the checked-in `literature-workflows` recipes and consumer skill guidance, not in this script.
+- Act as a source-adapter / prework helper only; generic literature workflow sequencing authority lives in the checked-in `literature-workflows` recipes, session protocol, and launcher-backed consumers, not in this script.
 
 Examples:
+  # Resolve a checked-in literature workflow plan through the launcher authority
+  python3 literature_fetch.py workflow-plan --recipe literature_landscape --phase prework --query "three-body force" --topic "three-body force"
+
   # INSPIRE search + fetch a record + write KB note
   python3 literature_fetch.py inspire-search --query "t:Faddeev AND date:2015->2026" -n 5
   python3 literature_fetch.py inspire-get --recid 2919719 --write-note
@@ -81,6 +84,19 @@ def _try_load_bibtex_utils():
 
 
 _normalize_revtex4_2_bibtex = _try_load_bibtex_utils()
+
+
+def _try_load_workflow_resolver():
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+        from literature_workflow_plan import resolve_workflow_plan  # type: ignore
+
+        return resolve_workflow_plan
+    except Exception:
+        return None
+
+
+_resolve_workflow_plan = _try_load_workflow_resolver()
 
 
 ALLOWED_HOSTS = {
@@ -1292,7 +1308,42 @@ def main() -> int:
     p.add_argument("--kb-notes", default="")
     p.add_argument("--trace-path", default=DEFAULT_TRACE_PATH)
 
+    p = sub.add_parser("workflow-plan", help="Resolve checked-in literature workflow authority into an executable plan.")
+    p.add_argument("--recipe", required=True, choices=["literature_gap_analysis", "literature_landscape", "literature_to_evidence"])
+    p.add_argument("--phase", required=True)
+    p.add_argument("--query", default="")
+    p.add_argument("--topic", default="")
+    p.add_argument("--seed-recid", default="")
+    p.add_argument("--analysis-seed", default="")
+    p.add_argument("--recid", action="append", default=[])
+    p.add_argument("--project-id", default="")
+    p.add_argument("--paper-id", default="")
+    p.add_argument("--run-id", default="")
+    p.add_argument("--preferred-provider", action="append", default=[])
+
     args = ap.parse_args()
+
+    if args.cmd == "workflow-plan":
+        if _resolve_workflow_plan is None:
+            raise RuntimeError("literature workflow launcher helper is unavailable")
+        inputs = {
+            "query": str(getattr(args, "query", "") or ""),
+            "topic": str(getattr(args, "topic", "") or ""),
+            "seed_recid": str(getattr(args, "seed_recid", "") or ""),
+            "analysis_seed": str(getattr(args, "analysis_seed", "") or ""),
+            "recids": [str(item).strip() for item in list(getattr(args, "recid", []) or []) if str(item).strip()],
+            "project_id": str(getattr(args, "project_id", "") or ""),
+            "paper_id": str(getattr(args, "paper_id", "") or ""),
+            "run_id": str(getattr(args, "run_id", "") or ""),
+        }
+        plan = _resolve_workflow_plan(
+            recipe_id=str(args.recipe),
+            phase=str(args.phase),
+            inputs=inputs,
+            preferred_providers=[str(item) for item in list(getattr(args, "preferred_provider", []) or []) if str(item).strip()],
+        )
+        print(json.dumps(plan, indent=2, ensure_ascii=True))
+        return 0
 
     if args.cmd == "inspire-search":
         res = inspire_search(args.query, args.max_results)

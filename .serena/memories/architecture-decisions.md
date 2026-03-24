@@ -220,3 +220,13 @@
 - `orch_fleet_status` remains the only cross-root read surface and reflects worker disappearance only through the existing read model shape.
 
 **Why**: Batch 8 closes the minimal fleet lifecycle loop after the Batch 7 acceptance gate without smuggling reassignment, takeover, daemonized scheduling, or second-authority worker lifecycle semantics into EVO-14.
+
+### [2026-03-24] Literature workflow authority invariant: executable authority lives in a leaf launcher, not in MCP facades
+
+**Decision**:
+- Checked-in executable literature workflow authority lives in the leaf workspace package `packages/literature-workflows/`, which is the only recipe reader / validator / resolver for literature workflow recipes.
+- `packages/hep-autoresearch` (`hepar literature-gap`) and `skills/research-team` (`literature_fetch.py workflow-plan`) are consumers of that launcher authority; they must not re-own recipe semantics.
+- Provider-specific MCP tools remain bounded atomic operators underneath the workflow layer. Generic workflow authority must not move back into `packages/hep-mcp/` or `packages/shared/`.
+- Workflow-like public literature MCP tools are pruned directly from both `standard` and `full`; they do not get a transitional `full` holding area. The retained public literature surface is bounded atomic analysis/operator tools only.
+
+**Why**: Governance-only recipe registration was not enough; without a checked-in executable launcher and consumer repoints, the repo kept two competing high-level front doors. Putting executable authority in a leaf launcher preserves a single workflow authority while keeping provider MCP packages atomic and reusable.

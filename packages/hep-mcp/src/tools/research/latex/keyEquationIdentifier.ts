@@ -2,7 +2,6 @@ import type {
   CreateMessageRequestParamsBase,
   CreateMessageResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_DEEP_RESEARCH } from '@autoresearch/shared';
 import { latexParser } from 'latex-utensils';
 import { buildToolSamplingMetadata } from '../../../core/sampling-metadata.js';
 import { extractSamplingText } from '../../../core/semantics/quantitySampling.js';
@@ -25,6 +24,7 @@ const IMPORTANCE_HINTS = [
   'our result', 'final result', 'main finding',
 ];
 const KEY_SECTIONS = ['abstract', 'summary', 'conclusion', 'conclusions', 'results', 'discussion'];
+export const DEEP_ANALYZE_INTERNAL_TOOL_NAME = 'inspire_deep_analyze_internal' as const;
 
 export interface KeyEquation extends Equation {
   candidate_key: string;
@@ -188,7 +188,7 @@ export async function identifyKeyEquations(
     context_window = 300,
     document_title,
     abstract = extractAbstract(ast),
-    tool_name = INSPIRE_DEEP_RESEARCH,
+    tool_name = DEEP_ANALYZE_INTERNAL_TOOL_NAME,
     createMessage,
   } = options;
   const promptVersion = 'sem11_key_equation_importance_v1';

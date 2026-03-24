@@ -36,8 +36,19 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "tool",
           "purpose"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "tool"
+            ]
+          },
+          {
+            "required": [
+              "action"
+            ]
+          }
         ],
         "properties": {
           "id": {
@@ -48,6 +59,18 @@
             "type": "string",
             "minLength": 1
           },
+          "action": {
+            "type": "string",
+            "enum": [
+              "discover.seed_search",
+              "analyze.topic_evolution",
+              "analyze.citation_network",
+              "analyze.paper_connections",
+              "analyze.provenance_trace",
+              "analyze.paper_set_critical_review",
+              "materialize.evidence_build"
+            ]
+          },
           "purpose": {
             "type": "string",
             "minLength": 1
@@ -57,6 +80,72 @@
             "items": {
               "type": "string",
               "minLength": 1
+            }
+          },
+          "required_capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "supports_keyword_search",
+                "supports_semantic_search",
+                "supports_citation_graph",
+                "supports_fulltext",
+                "supports_source_download",
+                "supports_open_access_content",
+                "analysis.topic_evolution",
+                "analysis.citation_network",
+                "analysis.paper_set_connections",
+                "analysis.provenance_trace",
+                "analysis.paper_set_critical_review"
+              ]
+            }
+          },
+          "preferred_providers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "inspire",
+                "openalex",
+                "arxiv",
+                "zotero",
+                "crossref",
+                "datacite",
+                "github",
+                "doi"
+              ]
+            }
+          },
+          "degrade_mode": {
+            "type": "string",
+            "enum": [
+              "fail_closed",
+              "skip_with_reason",
+              "partial_result"
+            ]
+          },
+          "consumer_hints": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "phases": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "artifact": {
+                "type": "string",
+                "minLength": 1
+              },
+              "project_required": {
+                "type": "boolean"
+              },
+              "run_required": {
+                "type": "boolean"
+              }
             }
           },
           "params": {

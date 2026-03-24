@@ -8,7 +8,7 @@ Draft Path：你在 MCP 外部（本地 LLM / 人工）产出结构化 `ReportDr
 - 限制：
   - MCP 不会在本路径里“自动修复”引用/原创性问题；验证失败会直接报错，需要你回到上游修改 JSON。
   - **事实句（`type: "fact"`）必须提供 `recids`**；否则 verifier 会报 `missing_citation`。
-  - 导出阶段要求 `master.bib` 覆盖 LaTeX 里出现的所有 citekey：若内容里有 `\\cite{...}`，则必须在 `writing_master.bib` 或 `bibliography_raw.json` 中找到对应 BibTeX；**任意缺失都会导致** `hep_export_project` hard fail。
+- 导出阶段要求 `master.bib` 覆盖 LaTeX 里出现的所有 citekey：若内容里有 `\\cite{...}`，则必须在 `writing_master.bib` 或 `bibliography_raw_v1.json` 中找到对应 BibTeX；**任意缺失都会导致** `hep_export_project` hard fail。
 
 ## 5 步 Recipe（不含一次性环境安装/启动）
 
@@ -35,9 +35,9 @@ recid token 格式：
 - `"627760"` 或 `"inspire:627760"` 都可（建议统一用 `"inspire:<recid>"`）
 
 为了让导出包中的 `master.bib` 覆盖到被引用的 citekeys（避免 export 失败），推荐运行 `hep_run_build_citation_mapping`，写出：
-- `allowed_citations.json`
-- `citekey_to_inspire.json`
-- `bibliography_raw.json`
+- `allowed_citations_v1.json`
+- `citekey_to_inspire_v1.json`
+- `bibliography_raw_v1.json`
 
 示例（把你的 corpus recids 放进 `allowed_citations_primary`；`identifier` 可以是 recid / arXiv / DOI）：
 
@@ -53,7 +53,7 @@ recid token 格式：
 }
 ```
 
-> 提示：若你在 Step 4 没传 `allowed_citations`，`hep_render_latex` 会自动读取 run artifact `allowed_citations.json`；同理，若没传 `cite_mapping` 会自动读取 `citekey_to_inspire.json`（若存在）。
+> 提示：若你在 Step 4 没传 `cite_mapping`，`hep_render_latex` 会自动读取 run artifact `citekey_to_inspire_v1.json`（若存在）。
 
 ### Step 3：（可选，但强烈推荐）构建写作证据（P1+：`continue_on_error` + source status）
 
@@ -139,8 +139,8 @@ recid token 格式：
 - `missing_citation`：事实句没有 `recids`（或为空）→ 为每个事实句补齐 `recids`（或将该句改为非 grounded 类型）。
 - `unauthorized_citation`：引用不在 allowlist → 把该 recid 加入 `allowed_citations`（或修订文本）。
 - `orphan_citation`：内容里出现 `\\cite{...}` 但 attribution 里没有对应 citation → 不要在 `sentence`/`sentence_latex` 里手写 `\\cite{...}`；让系统根据 `recids` 生成引用。
-- `Missing allowed_citations`：未提供 allowlist 且 run 中无 `allowed_citations.json` → 运行 `hep_run_build_citation_mapping` 或在 `hep_render_latex` 里显式传 `allowed_citations`。
+- `Missing allowed_citations`：run 中缺少 allowlist artifact → 运行 `hep_run_build_citation_mapping` 生成 `allowed_citations_v1.json` 并同步补齐 `bibliography_raw_v1.json` / `writing_master.bib`。
 
 ### C) export 失败（Step 5）
 
-- `Missing BibTeX entries for one or more cite keys`：说明 LaTeX 里有 citekey 没有对应 BibTeX → 先生成/补齐 `writing_master.bib`（例如走 `inspire_deep_research(mode=write)` 路径），或确保 `bibliography_raw.json` 覆盖到所有被引用的 citekeys。
+- `Missing BibTeX entries for one or more cite keys`：说明 LaTeX 里有 citekey 没有对应 BibTeX → 先运行 `hep_run_build_citation_mapping` 生成/补齐 `writing_master.bib` 与 `bibliography_raw_v1.json`，或确认现有 `writing_master.bib` / `bibliography_raw_v1.json` 已覆盖到所有被引用的 citekeys。

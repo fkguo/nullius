@@ -22,7 +22,7 @@ Autoresearch Lab 是 Autoresearch 生态的 monorepo / workbench：承载 domain
 | 包 | 角色 | 状态 |
 | --- | --- | --- |
 | `@autoresearch/orchestrator` | `.autoresearch` state、routing、approval、research-loop 的 runtime/control-plane nucleus | Active |
-| `@autoresearch/hep-mcp` | 当前最成熟的首个 provider family：INSPIRE-HEP + evidence-first HEP workflow（`hep_*`、`zotero_*`、`pdg_*`） (72 std / 100) | Active |
+| `@autoresearch/hep-mcp` | 当前最成熟的首个 provider family：INSPIRE-HEP + evidence-first HEP workflow（`hep_*`、`zotero_*`、`pdg_*`） (69 std / 97) | Active |
 | `@autoresearch/openalex-mcp` | 独立的 OpenAlex scholarly graph provider | Active |
 | `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | 可与 runtime 组合的 literature/data provider | Active |
 | `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | 本地离线 / reference provider | Active |
@@ -63,7 +63,8 @@ Autoresearch Lab 是 Autoresearch 生态的 monorepo / workbench：承载 domain
 ### 2. 走通文献闭环（INSPIRE）
 
 - 小结果：`inspire_search` + `inspire_search_next` 安全翻页；大结果：`hep_inspire_search_export` 直接导出为 artifacts
-- 发现、调研、趋势、网络、关联、溯源：`inspire_discover_papers`、`inspire_field_survey`、`inspire_topic_analysis`、`inspire_network_analysis`、`inspire_find_connections`、`inspire_trace_original_source`
+- 通过 checked-in consumer 解析高层文献工作流：`hepar literature-gap`、`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`
+- 用受限原子 operator 做趋势、网络、关联与溯源：`inspire_topic_analysis`、`inspire_network_analysis`、`inspire_find_connections`、`inspire_trace_original_source`、`inspire_critical_research`
 - （可选）数值与粒子性质可用离线 PDG 工具（`pdg_*`）交叉核对
 
 ### 3. Run-based 写作与导出
@@ -259,14 +260,14 @@ pnpm exec tsx test-check.ts
 说明：
 - `inspire_*` 工具可直接调用（不需要 Project/Run）。Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
 
-工具数量：**`standard` 模式 72 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 100 个**（额外暴露 advanced 工具）。
+工具数量：**`standard` 模式 69 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 97 个**（额外暴露 advanced 工具）。
 
 ### 工具暴露模式
 
 | 模式 | 工具数 | 说明 |
 |------|--------|------|
-| `standard` | 72 | 默认：紧凑、推荐 |
-| `full` | 100 | `standard` + advanced 工具 |
+| `standard` | 69 | 默认：紧凑、推荐 |
+| `full` | 97 | `standard` + advanced 工具 |
 
 ```bash
 # 使用 full 模式（可选）
@@ -359,21 +360,26 @@ export HEP_TOOL_MODE=full
 
 ### 推荐研究入口工具
 
-这些工具能覆盖大多数研究导航与写作场景，不再依赖单个大一统 facade：
+高层文献入口现在统一从 checked-in `packages/literature-workflows` launcher 进入，当前由下列 consumer 消费：
 
-| 工具 | 模式 | 说明 |
+- `hepar literature-gap`：产出可审计的 literature-gap bundle
+- `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`：供 skill 侧 prework / KB planning 使用
+
+这些 launcher-backed flow 会先把 recipe authority（`literature_landscape`、`literature_gap_analysis`、`literature_to_evidence`）解析成 provider/capability-checked steps，然后再下沉到下列原子 MCP operator。已删除的 workflow-like MCP facade 不再是公开入口。
+
+这些入口能覆盖大多数研究导航与写作场景：
+
+| 入口 | 模式 | 说明 |
 |------|------|------|
+| `literature workflow launcher` | `literature_landscape` / `literature_gap_analysis` / `literature_to_evidence` | checked-in 可执行文献工作流 authority，由 `hepar literature-gap` 与 `literature_fetch.py workflow-plan` 消费 |
 | `inspire_literature` | `get_paper` / `get_references` / `lookup_by_id` / `get_citations` / `search_affiliation` / `get_bibtex` / `get_author` | 统一 INSPIRE “原子能力”入口（standard） |
 | `inspire_resolve_citekey` | - | 按 recid 批量解析 INSPIRE citekey + BibTeX + canonical links |
 | `inspire_parse_latex` | `components=[sections/equations/theorems/citations/figures/tables/bibliography/all]` | LaTeX 解析写入 run artifact（需要 `run_id`，返回 URI + 摘要） |
-| `inspire_deep_research` | `analyze` / `synthesize` | **深度研究与报告生成** |
-| `inspire_discover_papers` | `seminal` / `related` / `expansion` / `survey` | 专用论文发现工具面 |
-| `inspire_field_survey` | - | 物理学家式文献调研工作流 |
 | `inspire_topic_analysis` | `timeline` / `evolution` / `emerging` / `all` | 主题演化与趋势分析 |
 | `inspire_network_analysis` | `citation` / `collaboration` | 围绕 seed 的引用/合作网络分析 |
 | `inspire_find_connections` | - | 论文集合关系挖掘（`internal_edges`、`bridge_papers`、`isolated_papers`、`external_hubs`） |
 | `inspire_trace_original_source` | - | 单篇论文的原始来源/溯源链追踪 |
-| `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | 批判性研究（含理论争议图谱；`theoretical` 需要 `run_id`） |
+| `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | 受限保留的批判性研究 operator，后续仍由 `M-25` 继续收窄（`theoretical` 需要 `run_id`） |
 | `inspire_paper_source` | `urls` / `content` / `metadata` / `auto` | 论文源码访问 |
 | `zotero_local` | `list_collections` / `list_collection_paths` / `list_items` / `get_item` / `get_item_attachments` / `download_attachment` / `get_attachment_fulltext` / `list_tags` | 统一 Zotero Local API 工具（standard；返回 JSON） |
 
@@ -383,58 +389,33 @@ export HEP_TOOL_MODE=full
 
 ## 整合工具详细用法
 
-### `inspire_deep_research` - 深度研究与报告生成
+### Launcher-Backed 文献工作流
 
-最强大的工具，支持两种模式：
+高层文献工作流现在通过 checked-in recipe authority 执行，而不是依赖公开的 workflow-like MCP 工具。
 
-#### 模式：`analyze` - 深度内容分析
-```json
-{
-  "mode": "analyze",
-  "identifiers": ["1833986", "627760"],
-  "options": {
-    "extract_equations": true,
-    "extract_methodology": true,
-    "extract_conclusions": true
-  }
-}
-```
-返回：提取到的组件（如公式、关键章节）以及紧凑摘要。
-
-#### 模式：`synthesize` - 综述合成
-```json
-{
-  "mode": "synthesize",
-  "identifiers": ["1833986", "627760"],
-  "format": "markdown",
-  "options": {
-    "review_type": "methodology",
-    "include_critical_analysis": true
-  }
-}
-```
-返回：按方法论/时间线/对比分组的结构化综述。
-
-### 专用 INSPIRE 导航工具
-
-#### `inspire_discover_papers` - 奠基性/相关/扩展/综述发现
-```json
-{
-  "mode": "seminal",
-  "topic": "QCD sum rules",
-  "limit": 20
-}
+#### `hepar literature-gap` - 可审计的 gap-analysis consumer
+```bash
+python -m hep_autoresearch.orchestrator_cli \
+  --project-root /abs/path/to/project \
+  literature-gap \
+  --tag M73-gap \
+  --topic "nucleon structure"
 ```
 
-#### `inspire_field_survey` - 物理学家式文献调研
-```json
-{
-  "topic": "nucleon structure",
-  "max_papers": 30,
-  "iterations": 2,
-  "focus": ["open_questions", "controversies"]
-}
+会产出 launcher-resolved `workflow_plan.json`，以及 `seed_search.json`、`connection_scan.json` 等分阶段 artifact。
+
+#### `literature_fetch.py workflow-plan` - skill 侧 recipe resolver
+```bash
+python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan \
+  --recipe literature_landscape \
+  --phase prework \
+  --query "bootstrap amplitudes" \
+  --topic "bootstrap amplitudes"
 ```
+
+返回解析后的 recipe plan，使 skill 侧 prework 与 launcher authority 保持同一份 checked-in workflow truth。
+
+### 原子 INSPIRE 导航工具
 
 #### `inspire_topic_analysis` - 时间线/演化/新兴方向
 ```json
@@ -893,8 +874,8 @@ Zotero Local API 无认证：不需要 Local API Key。
 ```
 用户: 帮我调研 pentaquark 领域的发展历程
 
-AI: [调用 inspire_search] 搜索 pentaquark 相关文献
-    [调用 inspire_discover_papers] 识别奠基性论文（mode=seminal）
+AI: [通过 checked-in literature workflow launcher 解析 literature_gap_analysis]
+    [调用 inspire_search] 搜索 pentaquark 相关文献
     [调用 inspire_network_analysis] 分析引用网络（mode=citation）
     [调用 inspire_topic_analysis] 生成时间线（mode=timeline）
 
@@ -910,13 +891,10 @@ AI: [调用 inspire_search] 搜索 pentaquark 相关文献
 ```
 用户: 帮我分析这几篇论文的核心公式和方法，生成综述
 
-AI: [调用 inspire_deep_research] 深度分析论文内容（mode=analyze）
-    - 提取公式/关键章节/引用上下文（按需可开启更细粒度解析选项）
-
-    [调用 inspire_deep_research] 生成结构化综述（mode=synthesize）
-    - 按方法论分组
-    - 提取关键公式
-    - 生成 Markdown 格式输出
+AI: [运行 literature_fetch.py workflow-plan --recipe literature_to_evidence] 解析 workflow authority
+    [调用 inspire_paper_source] 获取源码/内容入口
+    [调用 inspire_parse_latex] 提取公式、关键章节与引用上下文
+    [调用 inspire_critical_research] 对论文集合做 bounded analysis / review posture 检查
 
     ## Review: Pentaquark States
 

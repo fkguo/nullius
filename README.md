@@ -22,7 +22,7 @@ Autoresearch Lab is the monorepo/workbench for the Autoresearch ecosystem: a dom
 | Package | Role | Status |
 | --- | --- | --- |
 | `@autoresearch/orchestrator` | Runtime/control-plane nucleus for `.autoresearch` state, routing, approvals, and research-loop execution | Active |
-| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (72 std / 100) | Active |
+| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (69 std / 97) | Active |
 | `@autoresearch/openalex-mcp` | Standalone OpenAlex scholarly graph provider | Active |
 | `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | Literature/data providers composable with the ecosystem runtime | Active |
 | `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | Local offline/reference providers | Active |
@@ -63,7 +63,8 @@ The most mature provider surface in this repo today is the HEP-first local-first
 ### 2. Navigate the literature (INSPIRE)
 
 - Search with safe pagination (`inspire_search` + `inspire_search_next`) or export large result sets (`hep_inspire_search_export`)
-- Discover, map, and trace a field: `inspire_discover_papers`, `inspire_field_survey`, `inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`
+- Resolve high-level literature workflows through checked-in consumers: `hepar literature-gap` and `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`
+- Map and trace a curated paper set with bounded atomic operators: `inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`, `inspire_critical_research`
 - (Optional) Cross-check particle properties/measurements via offline PDG tools (`pdg_*`)
 
 ### 3. Run-based writing and export
@@ -295,14 +296,14 @@ This server exposes four tool families:
 Notes:
 - `inspire_*` tools can be called directly (no Project/Run required). Projects/Runs and `hep://...` resources are for evidence-first local workflows (`hep_*`).
 
-Tool counts: **72 tools in `standard` mode** (default, compact surface) and **100 tools in `full` mode** (adds advanced tools).
+Tool counts: **69 tools in `standard` mode** (default, compact surface) and **97 tools in `full` mode** (adds advanced tools).
 
 ### Tool Exposure Modes
 
 | Mode | Tools | Description |
 |------|-------|-------------|
-| `standard` | 72 | Default: compact, recommended |
-| `full` | 100 | `standard` + advanced tools |
+| `standard` | 69 | Default: compact, recommended |
+| `full` | 97 | `standard` + advanced tools |
 
 ```bash
 # Use full mode (optional)
@@ -393,21 +394,26 @@ For run-scoped responses (with `run_id`), dispatcher now adds a compact `job` en
 
 ### Recommended Research Entrypoints
 
-These tools cover most research-navigation and writing use cases without a facade schema:
+High-level literature work now starts from the checked-in `packages/literature-workflows` launcher, consumed by:
 
-| Tool | Modes | Description |
+- `hepar literature-gap` for auditable literature-gap bundles
+- `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` for skill-side prework / KB planning
+
+Those launcher-backed flows resolve recipe authority (`literature_landscape`, `literature_gap_analysis`, `literature_to_evidence`) into provider/capability-checked steps, then descend into the bounded MCP operators below. Deleted workflow-like MCP facades are no longer public entrypoints.
+
+These entrypoints cover most research-navigation and writing use cases:
+
+| Entrypoint | Modes | Description |
 |------|-------|-------------|
+| `literature workflow launcher` | `literature_landscape` / `literature_gap_analysis` / `literature_to_evidence` | Checked-in executable literature workflow authority, consumed by `hepar literature-gap` and `literature_fetch.py workflow-plan` |
 | `inspire_literature` | `get_paper` / `get_references` / `lookup_by_id` / `get_citations` / `search_affiliation` / `get_bibtex` / `get_author` | Unified INSPIRE “atomic” access (standard) |
 | `inspire_resolve_citekey` | - | Resolve INSPIRE citekey + BibTeX + canonical links for recid(s) |
 | `inspire_parse_latex` | `components=[sections/equations/theorems/citations/figures/tables/bibliography/all]` | Parse LaTeX into a run artifact (`run_id` required; returns URI + summary) |
-| `inspire_deep_research` | `analyze` / `synthesize` | **Deep research & report generation** |
-| `inspire_discover_papers` | `seminal` / `related` / `expansion` / `survey` | Dedicated paper discovery surface |
-| `inspire_field_survey` | - | Physicist-style literature survey workflow |
 | `inspire_topic_analysis` | `timeline` / `evolution` / `emerging` / `all` | Topic evolution and trend analysis |
 | `inspire_network_analysis` | `citation` / `collaboration` | Seed-centered citation/collaboration network analysis |
 | `inspire_find_connections` | - | Paper-set relationship mining (`internal_edges`, `bridge_papers`, `isolated_papers`, `external_hubs`) |
 | `inspire_trace_original_source` | - | Original-source / provenance tracing for a paper |
-| `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | Critical research (incl. theoretical debate map; `theoretical` requires `run_id`) |
+| `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | Critical research (retained bounded operator pending `M-25`; `theoretical` requires `run_id`) |
 | `inspire_paper_source` | `urls` / `content` / `metadata` / `auto` | Paper source access |
 | `zotero_local` | `list_collections` / `list_collection_paths` / `list_items` / `get_item` / `get_item_attachments` / `download_attachment` / `get_attachment_fulltext` / `list_tags` | Unified Zotero Local API tool (standard; returns JSON) |
 
@@ -417,58 +423,33 @@ These tools cover most research-navigation and writing use cases without a facad
 
 ## Consolidated Tool Usage
 
-### `inspire_deep_research` - Deep Research & Report Generation
+### Launcher-Backed Literature Workflows
 
-The most powerful tool, supporting two modes:
+High-level literature workflows are now executed through checked-in recipe authority rather than public workflow-like MCP tools.
 
-#### Mode: `analyze` - Deep Content Analysis
-```json
-{
-  "mode": "analyze",
-  "identifiers": ["1833986", "627760"],
-  "options": {
-    "extract_equations": true,
-    "extract_methodology": true,
-    "extract_conclusions": true
-  }
-}
-```
-Returns: extracted components (e.g., equations, key sections) plus a compact summary.
-
-#### Mode: `synthesize` - Review Synthesis
-```json
-{
-  "mode": "synthesize",
-  "identifiers": ["1833986", "627760"],
-  "format": "markdown",
-  "options": {
-    "review_type": "methodology",
-    "include_critical_analysis": true
-  }
-}
-```
-Returns: structured review grouped by methodology/timeline/comparison.
-
-### Dedicated INSPIRE Navigation Tools
-
-#### `inspire_discover_papers` - Foundational/Related/Expansion/Survey Discovery
-```json
-{
-  "mode": "seminal",
-  "topic": "QCD sum rules",
-  "limit": 20
-}
+#### `hepar literature-gap` - Auditable gap-analysis consumer
+```bash
+python -m hep_autoresearch.orchestrator_cli \
+  --project-root /abs/path/to/project \
+  literature-gap \
+  --tag M73-gap \
+  --topic "nucleon structure"
 ```
 
-#### `inspire_field_survey` - Physicist-Style Literature Survey
-```json
-{
-  "topic": "nucleon structure",
-  "max_papers": 30,
-  "iterations": 2,
-  "focus": ["open_questions", "controversies"]
-}
+Produces a launcher-resolved `workflow_plan.json` plus bounded phase artifacts such as `seed_search.json` or `connection_scan.json`.
+
+#### `literature_fetch.py workflow-plan` - Skill-side recipe resolver
+```bash
+python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan \
+  --recipe literature_landscape \
+  --phase prework \
+  --query "bootstrap amplitudes" \
+  --topic "bootstrap amplitudes"
 ```
+
+Returns the resolved recipe plan so skill-side prework can consume the same checked-in workflow authority instead of re-implementing provider logic.
+
+### Atomic INSPIRE Navigation Tools
 
 #### `inspire_topic_analysis` - Timeline/Evolution/Emerging Trends
 ```json
