@@ -5264,7 +5264,6 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
             mcp_tools = sorted(tool_names)
 
             topic_mode = str(getattr(args, "topic_mode", "timeline") or "timeline").strip()
-            critical_mode = str(getattr(args, "critical_mode", "analysis") or "analysis").strip()
             network_mode = str(getattr(args, "network_mode", "citation") or "citation").strip()
             seed = str(recids[0])
             network_direction_cli = str(getattr(args, "network_direction", "both") or "both").strip().lower()
@@ -5303,8 +5302,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
                     step_args["limit"] = int(getattr(args, "topic_limit", 40) or 40)
                     step_args["options"] = {"granularity": str(getattr(args, "topic_granularity", "5year") or "5year")}
                 elif step_id == "critical_analysis":
-                    step_args["mode"] = critical_mode
-                    step_args["recids"] = recids
+                    step_args["recid"] = seed
                 elif step_id == "citation_network":
                     step_args["mode"] = network_mode
                     step_args["seed"] = seed
@@ -5338,7 +5336,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
         errors.append(f"exception: {e}")
 
     topic_path = out_dir / "topic_analysis.json"
-    critical_path = out_dir / "critical_research.json"
+    critical_path = out_dir / "critical_analysis.json"
     network_path = out_dir / "network_analysis.json"
     connection_path = out_dir / "connection_scan.json"
     gap_report_path = out_dir / "gap_report.json"
@@ -5364,7 +5362,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
             "errors": errors,
             "workflow_plan": {"path": _rel(plan_path)},
             "topic_analysis": {"path": _rel(topic_path)},
-            "critical_research": {"path": _rel(critical_path)},
+            "critical_analysis": {"path": _rel(critical_path)},
             "network_analysis": {"path": _rel(network_path)},
             "connection_scan": {"path": _rel(connection_path)},
         },
@@ -6071,8 +6069,8 @@ def main() -> int:
     p_gap.add_argument(
         "--critical-mode",
         default="analysis",
-        choices=["evidence", "conflicts", "analysis", "reviews", "theoretical"],
-        help="INSPIRE critical research mode (default: analysis).",
+        choices=["analysis"],
+        help="Legacy compatibility flag; analyze phase now always uses inspire_critical_analysis.",
     )
     p_gap.add_argument(
         "--network-mode",

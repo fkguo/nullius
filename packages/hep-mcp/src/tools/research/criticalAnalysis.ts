@@ -450,6 +450,8 @@ export async function performCriticalAnalysis(
           recid,
           search_confirmations: check_literature ? search_confirmations : false,
           max_search_results,
+        }, {
+          createMessage: ctx.createMessage,
         }).then(result => {
           evidence = result;
           if (result.paper_title) paperTitle = result.paper_title;
@@ -488,6 +490,36 @@ export async function performCriticalAnalysis(
     }
 
     await Promise.all(promises);
+
+    const componentFailures: string[] = [];
+    if (include_evidence && evidence && !evidence.success) {
+      componentFailures.push(`evidence: ${evidence.error || 'semantic evidence grading failed'}`);
+    }
+    if (include_questions && questions && !questions.success) {
+      componentFailures.push(`questions: ${questions.error || 'semantic question generation failed'}`);
+    }
+    if (include_assumptions && assumptions && !assumptions.success) {
+      componentFailures.push(`assumptions: ${assumptions.error || 'semantic assumption tracking failed'}`);
+    }
+    if (componentFailures.length > 0) {
+      return {
+        paper_recid: recid,
+        paper_title: paperTitle,
+        success: false,
+        error: `Critical analysis failed closed because semantic sub-analyses did not complete: ${componentFailures.join('; ')}`,
+        evidence,
+        questions,
+        assumptions,
+        integrated_assessment: {
+          reliability_score: 0,
+          risk_level: 'high',
+          key_concerns: componentFailures,
+          strengths: [],
+          recommendations: ['Provide MCP client sampling support and rerun the bounded critical analysis.'],
+          verdict: 'Critical analysis unavailable because semantic sub-analyses did not complete.',
+        },
+      };
+    }
 
     // Calculate integrated metrics
     const reliabilityScore = calculateIntegratedScore(evidence, questions, assumptions);

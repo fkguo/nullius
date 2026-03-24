@@ -39,7 +39,7 @@ Phase: **analyze**:
 
 Required MCP tools on the server:
 - discover: launcher-resolved `inspire_search`
-- analyze: launcher-resolved `inspire_topic_analysis`, `inspire_critical_research`, `inspire_network_analysis`, `inspire_find_connections`
+- analyze: launcher-resolved `inspire_topic_analysis`, `inspire_critical_analysis`, `inspire_network_analysis`, `inspire_find_connections`
 - workflow authority: checked-in `packages/literature-workflows` launcher resolving `literature_gap_analysis`
 
 ## Outputs (artifacts)

@@ -1,16 +1,19 @@
 {
   "name": "sem04_theoretical_conflict_authority",
   "version": 1,
-  "description": "Hard cases for theoretical conflict cleanup where provider-local lexicon can assist retrieval but may not act as final authority.",
+  "description": "Hard cases for theoretical conflict cleanup under internal MCP sampling only and zero heuristic authority.",
   "module": "sem04_theoretical_conflict_authority",
   "cases": [
     {
-      "id": "nonlexicon_title_only_passthrough",
-      "tags": ["hard_case", "nonlexicon", "passthrough"],
+      "id": "nonlexicon_title_only_internal_abstain",
+      "tags": ["hard_case", "nonlexicon", "internal_sampling"],
       "input": {
         "subject_entity": "Zc(3900)",
         "inputs": ["title"],
-        "llm_mode": "passthrough",
+        "sampling_response": {
+          "abstain": true,
+          "reasoning": "The retrieved claims are too weak to support a stable relation."
+        },
         "papers": [
           {
             "recid": "201",
@@ -29,47 +32,16 @@
       "expected": {
         "min_candidates": 1,
         "relation": "unclear",
-        "decision_status": "fallback",
-        "reason_code": "passthrough_mode",
-        "used_retrieval_prior": false
+        "decision_status": "abstained",
+        "reason_code": "model_abstained"
       }
     },
     {
-      "id": "lexicon_prior_needs_adjudication",
-      "tags": ["hard_case", "lexicon_prior", "passthrough"],
+      "id": "adjudication_requires_internal_sampling",
+      "tags": ["hard_case", "internal_sampling", "not_comparable"],
       "input": {
         "subject_entity": "X(3872)",
-        "llm_mode": "passthrough",
-        "papers": [
-          {
-            "recid": "101",
-            "title": "X(3872) as a molecular state",
-            "year": 2004,
-            "abstract": "We interpret X(3872) as a hadronic molecule near threshold."
-          },
-          {
-            "recid": "102",
-            "title": "Compact tetraquark interpretation of X(3872)",
-            "year": 2005,
-            "abstract": "We argue X(3872) is a compact tetraquark state."
-          }
-        ]
-      },
-      "expected": {
-        "min_candidates": 1,
-        "relation": "unclear",
-        "decision_status": "fallback",
-        "reason_code": "passthrough_mode",
-        "used_retrieval_prior": true
-      }
-    },
-    {
-      "id": "client_adjudication_preserves_not_comparable",
-      "tags": ["hard_case", "client_mode", "not_comparable"],
-      "input": {
-        "subject_entity": "X(3872)",
-        "llm_mode": "client",
-        "client_response": {
+        "sampling_response": {
           "relation": "different_scope",
           "confidence": 0.82,
           "reasoning": "The claims emphasize different observables and therefore are not directly comparable.",
@@ -99,8 +71,7 @@
         "min_candidates": 1,
         "relation": "different_scope",
         "decision_status": "adjudicated",
-        "reason_code": "model_response",
-        "used_retrieval_prior": true
+        "reason_code": "model_response"
       }
     }
   ]

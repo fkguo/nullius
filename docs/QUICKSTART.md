@@ -44,7 +44,7 @@
 - 若缺少该步骤，后续依赖 evidence/embeddings 的流程会 fail-fast。
 
 4) `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan --recipe literature_to_evidence`
-- 用 checked-in workflow authority 规划 literature/evidence 步骤；对受限论文集分析使用 `inspire_critical_research` 等 bounded operators。
+- 用 checked-in workflow authority 规划 literature/evidence 步骤；对受限论文集分析使用 `inspire_critical_analysis`、`inspire_classify_reviews`、`inspire_theoretical_conflicts` 等 bounded operators。
 
 5) `hep_export_project`
 - 在通过验证与集成后导出完整项目成果。

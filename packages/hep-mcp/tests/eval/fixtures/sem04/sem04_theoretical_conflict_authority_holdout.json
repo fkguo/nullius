@@ -1,17 +1,16 @@
 {
   "name": "sem04_theoretical_conflict_authority_holdout",
   "version": 1,
-  "description": "Holdout coverage for abstained theoretical conflict adjudications.",
+  "description": "Holdout coverage for abstained theoretical conflict adjudications under internal MCP sampling only.",
   "module": "sem04_theoretical_conflict_authority",
   "cases": [
     {
-      "id": "client_abstain_preserves_unclear_edge",
-      "tags": ["holdout", "abstain"],
+      "id": "internal_abstain_preserves_unclear_edge",
+      "tags": ["holdout", "abstain", "internal_sampling"],
       "input": {
         "subject_entity": "Zc(3900)",
         "inputs": ["title"],
-        "llm_mode": "client",
-        "client_response": {
+        "sampling_response": {
           "abstain": true,
           "reasoning": "The retrieved claims are too weak to support a stable relation."
         },
@@ -34,8 +33,7 @@
         "min_candidates": 1,
         "relation": "unclear",
         "decision_status": "abstained",
-        "reason_code": "model_abstained",
-        "used_retrieval_prior": false
+        "reason_code": "model_abstained"
       }
     }
   ]

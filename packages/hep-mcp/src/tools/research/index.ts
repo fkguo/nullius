@@ -317,15 +317,6 @@ export {
   type NetworkMode,
 } from './networkAnalysis.js';
 
-// Critical Research (4→1): evidence + conflicts + analysis + reviews
-export {
-  performCriticalResearch,
-  type CriticalResearchParams,
-  type CriticalOptions,
-  type CriticalResearchResult,
-  type CriticalMode,
-} from './criticalResearch.js';
-
 // Paper Source (3→1): urls + content + metadata
 export {
   accessPaperSource,

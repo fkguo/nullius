@@ -1,4 +1,4 @@
-# Tool Categories（standard=69 / full=97）
+# Tool Categories（standard=73 / full=101）
 
 本文件把 `hep-mcp` 的 **standard 暴露**工具按"场景/闭环"分组，目的是让你不必理解全部工具，也能快速完成闭环。
 
@@ -16,15 +16,15 @@
 |----------|---------|------|
 | 快速搜索论文 | `inspire_search` | 分页；用 `inspire_search_next` 翻页 |
 | 获取单篇论文元数据/引用/被引 | `inspire_literature` | 原子化访问 |
-| 深度分析论文集 | `inspire_critical_research` (`mode=analysis/reviews`) | 高层 workflow 先经 launcher-backed consumer；这里保留的是 bounded atomic operator |
-| 文献综述 | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan --recipe literature_to_evidence` | 先解析 workflow authority，再配合 `hep_run_build_writing_evidence` / `inspire_critical_research` |
+| 深度分析论文集 | `inspire_critical_analysis` / `inspire_classify_reviews` | 高层 workflow 先经 launcher-backed consumer；这里保留的是 bounded atomic operators |
+| 文献综述 | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan --recipe literature_to_evidence` | 先解析 workflow authority，再配合 `hep_run_build_writing_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` |
 | 发现奠基性/相关论文 | `hepar literature-gap` / `workflow-plan --recipe literature_landscape` | launcher 解析后再下沉到 `inspire_search` / provenance / network operators |
 | 物理学家式文献调研 | `hepar literature-gap` / `workflow-plan --recipe literature_gap_analysis` | 不再通过 provider-specific high-level MCP facade |
 | 主题时间线/趋势/新兴方向 | `inspire_topic_analysis` | 模式: `timeline/evolution/emerging/all` |
 | 引用/合作网络分析 | `inspire_network_analysis` | 模式: `citation/collaboration` |
 | 发现跨论文关联 | `inspire_find_connections` | 输入 `recids`；可选 external hubs |
 | 追溯原始来源链 | `inspire_trace_original_source` | 输入 `recid` |
-| 证据质量/冲突分析 | `inspire_critical_research` | 模式: `evidence/conflicts/analysis/reviews/theoretical` |
+| 证据质量/冲突分析 | `inspire_grade_evidence` / `inspire_detect_measurement_conflicts` / `inspire_critical_analysis` / `inspire_classify_reviews` / `inspire_theoretical_conflicts` | 原子 surface；不再通过 mode bag 混装 |
 | 下载论文源码 (LaTeX/PDF) | `inspire_paper_source` (`mode=content`) | |
 | LaTeX 结构解析 | `inspire_parse_latex` | 需 `run_id`；返回 artifact URI + summary |
 | 解析 BibTeX citekey | `inspire_resolve_citekey` | 批量 citekey + BibTeX 解析 |
@@ -39,7 +39,7 @@
 2. `inspire_search` + `inspire_topic_analysis` + `inspire_network_analysis` 做原子调研
 3. `hep_project_create` + `hep_run_create`
 4. `hep_run_build_writing_evidence` 构建证据
-5. `inspire_critical_research(mode='reviews'|'analysis')` 做受限论文集分析
+5. `inspire_critical_analysis` / `inspire_classify_reviews` 做受限论文集分析
 6. `hep_render_latex` 渲染 LaTeX
 7. `hep_export_project` 导出
 
@@ -131,7 +131,11 @@
 - `inspire_network_analysis`
 - `inspire_find_connections`
 - `inspire_trace_original_source`
-- `inspire_critical_research`
+- `inspire_grade_evidence`
+- `inspire_detect_measurement_conflicts`
+- `inspire_critical_analysis`
+- `inspire_classify_reviews`
+- `inspire_theoretical_conflicts`
 
 ## H) PDG（离线数据库：`PDG_DB_PATH`）
 

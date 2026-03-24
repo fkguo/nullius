@@ -1,5 +1,5 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
+import { INSPIRE_CRITICAL_ANALYSIS } from '@autoresearch/shared';
 import * as api from '../../api/client.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { getConfig, validateRecid } from './config.js';
@@ -64,14 +64,12 @@ type QuestionSamplingContext = {
   createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
 };
 
-// Diagnostic scaffolding for unavailable/abstained sampling only; these prompts are not a
-// semantic taxonomy and must not be treated as final paper-question authority.
-const FALLBACK_QUESTIONS: CriticalQuestions = {
-  methodology: ['Which design choices or approximations would most change the headline claim if they were altered?'],
-  assumptions: ['Which assumptions are carrying the main conclusion, and where are they justified?'],
-  alternatives: ['What plausible alternative interpretation would explain the same result?'],
-  reproducibility: ['Which missing implementation detail would most block an independent reproduction?'],
-  implications: ['If the core claim is correct, what follow-up observation or calculation should change next?'],
+const UNAVAILABLE_QUESTIONS: CriticalQuestions = {
+  methodology: [],
+  assumptions: [],
+  alternatives: [],
+  reproducibility: [],
+  implications: [],
 };
 
 async function calculateSelfCitationRate(recid: string, authors: string[]): Promise<number | undefined> {
@@ -143,11 +141,11 @@ export async function generateCriticalQuestions(
       paper_type: 'uncertain',
       success: false,
       error: recidError,
-      questions: FALLBACK_QUESTIONS,
+      questions: UNAVAILABLE_QUESTIONS,
       red_flags: [],
       reliability_score: null,
       metrics: { citation_count: 0, author_count: 0, has_comments: false, paper_age_years: 0 },
-      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: true, reason_code: 'invalid_recid' },
+      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: false, reason_code: 'invalid_recid' },
     };
   }
 
@@ -180,13 +178,19 @@ export async function generateCriticalQuestions(
       content_hint: contentHint.content_type,
     }));
 
-    const fallback = (reasonCode: string, backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback', model?: string): CriticalQuestionsResult => ({
+    const unavailable = (
+      reasonCode: string,
+      status: 'invalid' | 'abstained' | 'unavailable',
+      backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback',
+      model?: string,
+    ): CriticalQuestionsResult => ({
       paper_recid: params.recid,
       paper_title: paper.title,
       paper_year: paper.year,
       paper_type: 'uncertain',
-      success: true,
-      questions: FALLBACK_QUESTIONS,
+      success: false,
+      error: `Semantic critical-question analysis unavailable: ${reasonCode}`,
+      questions: UNAVAILABLE_QUESTIONS,
       red_flags: metricFlags,
       reliability_score: null,
       metrics: {
@@ -198,14 +202,8 @@ export async function generateCriticalQuestions(
       },
       provenance: {
         backend,
-        status: backend === 'diagnostic_fallback'
-          ? 'fallback'
-          : reasonCode === 'model_abstained'
-            ? 'abstained'
-            : reasonCode === 'sampling_error'
-              ? 'unavailable'
-              : 'invalid',
-        used_fallback: true,
+        status,
+        used_fallback: false,
         reason_code: reasonCode,
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -213,7 +211,7 @@ export async function generateCriticalQuestions(
       },
     });
 
-    if (!ctx.createMessage) return fallback('sampling_unavailable');
+    if (!ctx.createMessage) return unavailable('sampling_required', 'unavailable', 'mcp_sampling');
 
     let response: CreateMessageResult;
     try {
@@ -240,19 +238,19 @@ export async function generateCriticalQuestions(
         }],
         maxTokens: 900,
         metadata: buildToolSamplingMetadata({
-          tool: INSPIRE_CRITICAL_RESEARCH,
+          tool: INSPIRE_CRITICAL_ANALYSIS,
           module: 'sem05_critical_questions',
           promptVersion,
-          costClass: 'medium',
+          costClass: 'high',
         }),
       });
     } catch {
-      return fallback('sampling_error', 'mcp_sampling');
+      return unavailable('sampling_error', 'unavailable', 'mcp_sampling');
     }
 
     const parsed = parseCriticalQuestionResponse(extractSamplingText(response.content));
-    if (!parsed) return fallback('invalid_response', 'mcp_sampling', response.model);
-    if (parsed.abstain) return fallback('model_abstained', 'mcp_sampling', response.model);
+    if (!parsed) return unavailable('invalid_response', 'invalid', 'mcp_sampling', response.model);
+    if (parsed.abstain) return unavailable('model_abstained', 'abstained', 'mcp_sampling', response.model);
 
     return {
       paper_recid: params.recid,
@@ -287,11 +285,11 @@ export async function generateCriticalQuestions(
       paper_type: 'uncertain',
       success: false,
       error: error instanceof Error ? error.message : String(error),
-      questions: FALLBACK_QUESTIONS,
+      questions: UNAVAILABLE_QUESTIONS,
       red_flags: [],
       reliability_score: null,
       metrics: { author_count: 0, citation_count: 0, has_comments: false, paper_age_years: 0 },
-      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: true, reason_code: 'upstream_error' },
+      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: false, reason_code: 'upstream_error' },
     };
   }
 }

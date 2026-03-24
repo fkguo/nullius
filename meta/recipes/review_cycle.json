@@ -2,17 +2,14 @@
   "recipe_id": "review_cycle",
   "name": "Review Cycle",
   "description": "Run critical analysis, render manuscript latex, and export final research assets.",
-  "entry_tool": "inspire_critical_research",
+  "entry_tool": "inspire_critical_analysis",
   "steps": [
     {
       "id": "critical_review",
-      "tool": "inspire_critical_research",
-      "purpose": "Generate evidence/conflict analysis for target recids",
+      "tool": "inspire_critical_analysis",
+      "purpose": "Generate bounded critical analysis for the target paper",
       "params": {
-        "mode": "analysis",
-        "recids": [
-          "<recid>"
-        ]
+        "recid": "<recid>"
       }
     },
     {

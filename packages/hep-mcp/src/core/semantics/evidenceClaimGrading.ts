@@ -1,10 +1,9 @@
 import { createHash } from 'crypto';
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
+import { INSPIRE_GRADE_EVIDENCE } from '@autoresearch/shared';
 import { adjudicateClaimBundle } from './claimBundleAdjudicator.js';
 import { buildClaimAssessmentPrompt, extractSamplingText, parseClaimAssessmentResponse } from './claimSampling.js';
 import { buildToolSamplingMetadata } from '../sampling-metadata.js';
-import { analyzeCitationStance, extractTopicWords } from './citationStanceHeuristics.js';
 import type {
   ClaimEvidenceItem,
   ClaimReasonCodeV1,
@@ -20,38 +19,6 @@ export type ClaimAssessmentContext = {
 
 function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');
-}
-
-function heuristicAssessment(claim: ExtractedClaimV1, evidence: ClaimEvidenceItem, promptVersion: string, inputHash: string): EvidenceClaimAssessmentV1 {
-  const stance = analyzeCitationStance(evidence.evidence_text, extractTopicWords(claim.claim_text));
-  const mappedStance: ClaimStanceV1 = stance.stance === 'confirming'
-    ? stance.confidence === 'high' ? 'supported' : 'weak_support'
-    : stance.stance === 'contradicting'
-      ? 'conflicting'
-      : 'not_supported';
-  const reasonCode: ClaimReasonCodeV1 = mappedStance === 'conflicting'
-    ? 'conflicting_evidence'
-    : mappedStance === 'not_supported'
-      ? 'same_topic_different_claim'
-      : mappedStance === 'weak_support'
-        ? 'hedged_support'
-        : 'direct_support';
-  const confidence = mappedStance === 'supported' ? 0.75 : mappedStance === 'weak_support' ? 0.55 : 0.25;
-  return {
-    claim_id: claim.claim_id,
-    claim_text: claim.claim_text,
-    evidence_ref: evidence.evidence_ref,
-    stance: mappedStance,
-    confidence,
-    reason_code: reasonCode,
-    provenance: {
-      backend: 'heuristic',
-      used_fallback: true,
-      prompt_version: promptVersion,
-      input_hash: inputHash,
-    },
-    used_fallback: true,
-  };
 }
 
 function aggregateAssessments(claim: ExtractedClaimV1, assessments: EvidenceClaimAssessmentV1[], promptVersion: string, inputHash: string): ClaimSemanticGradeV1 {
@@ -77,7 +44,7 @@ function aggregateAssessments(claim: ExtractedClaimV1, assessments: EvidenceClai
         : assessments.some(item => item.reason_code === 'same_topic_different_claim')
           ? 'same_topic_different_claim'
           : 'no_relevant_evidence';
-  const primary = assessments.find(item => !item.used_fallback);
+  const primary = assessments[0];
   return {
     claim_id: claim.claim_id,
     claim_text: claim.claim_text,
@@ -89,12 +56,12 @@ function aggregateAssessments(claim: ExtractedClaimV1, assessments: EvidenceClai
     aggregate_confidence: aggregateConfidence,
     reason_code: reasonCode,
     provenance: primary?.provenance ?? {
-      backend: 'heuristic',
-      used_fallback: true,
+      backend: 'mcp_sampling',
+      used_fallback: false,
       prompt_version: promptVersion,
       input_hash: inputHash,
     },
-    used_fallback: assessments.every(item => item.used_fallback),
+    used_fallback: false,
   };
 }
 
@@ -109,27 +76,27 @@ export async function gradeClaimAgainstEvidenceBundle(
   if (evidenceItems.length === 0) {
     return aggregateAssessments(claim, [], promptVersion, inputHash);
   }
+  if (!ctx.createMessage) {
+    throw new Error('Semantic evidence grading requires MCP client sampling support.');
+  }
+  const createMessage = ctx.createMessage;
 
   const assessments: EvidenceClaimAssessmentV1[] = await Promise.all(evidenceItems.map(async evidence => {
-    if (!ctx.createMessage) {
-      return heuristicAssessment(claim, evidence, promptVersion, inputHash);
-    }
     try {
-      const response = await ctx.createMessage({
+      const response = await createMessage({
         messages: [{ role: 'user', content: { type: 'text', text: buildClaimAssessmentPrompt({ prompt_version: promptVersion, claim_text: claim.claim_text, evidence_ref: evidence.evidence_ref, evidence_text: evidence.evidence_text }) } }],
         maxTokens: 500,
         metadata: buildToolSamplingMetadata({
-          tool: INSPIRE_CRITICAL_RESEARCH,
+          tool: INSPIRE_GRADE_EVIDENCE,
           module: 'sem02_claim_evidence_grading',
           promptVersion,
-          costClass: 'medium',
+          costClass: 'high',
           context: { evidence_ref: evidence.evidence_ref },
         }),
       });
       const parsed = parseClaimAssessmentResponse(extractSamplingText(response.content));
       if (!parsed) {
-        const fallback = heuristicAssessment(claim, evidence, promptVersion, inputHash);
-        return { ...fallback, reason_code: 'invalid_response' as const, provenance: { ...fallback.provenance, backend: 'mcp_sampling' as const, model: response.model } };
+        throw new Error(`Semantic evidence grading returned an invalid response for ${evidence.evidence_ref}.`);
       }
       return {
         claim_id: claim.claim_id,
@@ -147,13 +114,12 @@ export async function gradeClaimAgainstEvidenceBundle(
         },
         used_fallback: false,
       };
-    } catch {
-      const fallback = heuristicAssessment(claim, evidence, promptVersion, inputHash);
-      return { ...fallback, reason_code: 'sampling_unavailable' as const };
+    } catch (error) {
+      throw new Error(`Semantic evidence grading failed for ${evidence.evidence_ref}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }));
 
-  const heuristicAggregate = aggregateAssessments(claim, assessments, promptVersion, inputHash);
+  const aggregate = aggregateAssessments(claim, assessments, promptVersion, inputHash);
   const bundlePromptVersion = options.bundle_prompt_version ?? 'sem03_claim_bundle_v1';
   const bundleInputHash = sha256Hex(JSON.stringify({ claim, evidenceItems, assessments, promptVersion: bundlePromptVersion }));
   return await adjudicateClaimBundle({
@@ -163,6 +129,5 @@ export async function gradeClaimAgainstEvidenceBundle(
     ctx,
     prompt_version: bundlePromptVersion,
     input_hash: bundleInputHash,
-    fallback_grade: heuristicAggregate,
-  }) ?? heuristicAggregate;
+  }) ?? aggregate;
 }

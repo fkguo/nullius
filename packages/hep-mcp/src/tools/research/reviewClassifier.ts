@@ -1,5 +1,5 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
+import { INSPIRE_CLASSIFY_REVIEWS } from '@autoresearch/shared';
 import * as api from '../../api/client.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { validateRecids } from './config.js';
@@ -84,7 +84,12 @@ async function classifySingleReview(
   currentThresholdYears: number,
   ctx: ReviewSamplingContext,
 ): Promise<ReviewClassification> {
-  const unavailable = (reasonCode: string, backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback', model?: string): ReviewClassification => ({
+  const unavailable = (
+    reasonCode: string,
+    status: 'invalid' | 'abstained' | 'unavailable',
+    backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback',
+    model?: string,
+  ): ReviewClassification => ({
     recid,
     title: `Unavailable review (${recid})`,
     review_type: 'uncertain',
@@ -101,8 +106,8 @@ async function classifySingleReview(
     classification_confidence: 'low',
     provenance: {
       backend,
-      status: 'unavailable',
-      used_fallback: true,
+      status,
+      used_fallback: false,
       reason_code: reasonCode,
       model,
     },
@@ -128,7 +133,12 @@ async function classifySingleReview(
       collaborations: paper.collaborations ?? [],
     }));
 
-    const fallback = (reasonCode: string, backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback', model?: string): ReviewClassification => ({
+    const unavailableForPaper = (
+      reasonCode: string,
+      status: 'invalid' | 'abstained' | 'unavailable',
+      backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback',
+      model?: string,
+    ): ReviewClassification => ({
       recid,
       title: paper.title,
       review_type: 'uncertain',
@@ -145,14 +155,8 @@ async function classifySingleReview(
       classification_confidence: 'low',
       provenance: {
         backend,
-        status: backend === 'diagnostic_fallback'
-          ? 'unavailable'
-          : reasonCode === 'model_abstained'
-            ? 'abstained'
-            : reasonCode === 'sampling_error'
-              ? 'unavailable'
-              : 'invalid',
-        used_fallback: true,
+        status,
+        used_fallback: false,
         reason_code: reasonCode,
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -160,7 +164,9 @@ async function classifySingleReview(
       },
     });
 
-    if (!ctx.createMessage) return fallback('sampling_unavailable');
+    if (!ctx.createMessage) {
+      return unavailableForPaper('sampling_required', 'unavailable', 'mcp_sampling');
+    }
 
     let response: CreateMessageResult;
     try {
@@ -186,19 +192,19 @@ async function classifySingleReview(
         }],
         maxTokens: 700,
         metadata: buildToolSamplingMetadata({
-          tool: INSPIRE_CRITICAL_RESEARCH,
+          tool: INSPIRE_CLASSIFY_REVIEWS,
           module: 'sem05_review_authority',
           promptVersion,
-          costClass: 'medium',
+          costClass: 'high',
         }),
       });
     } catch {
-      return fallback('sampling_error', 'mcp_sampling');
+      return unavailableForPaper('sampling_error', 'unavailable', 'mcp_sampling');
     }
 
     const parsed = parseReviewAssessmentResponse(extractSamplingText(response.content));
-    if (!parsed) return fallback('invalid_response', 'mcp_sampling', response.model);
-    if (parsed.abstain) return fallback('model_abstained', 'mcp_sampling', response.model);
+    if (!parsed) return unavailableForPaper('invalid_response', 'invalid', 'mcp_sampling', response.model);
+    if (parsed.abstain) return unavailableForPaper('model_abstained', 'abstained', 'mcp_sampling', response.model);
 
     return {
       recid,
@@ -227,7 +233,7 @@ async function classifySingleReview(
     };
   } catch (error) {
     console.debug(`[hep-mcp] classifyReviews (recid=${recid}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
-    return unavailable('paper_fetch_failed');
+    return unavailable('paper_fetch_failed', 'unavailable');
   }
 }
 
@@ -270,8 +276,12 @@ export async function classifyReviews(
   for (const item of classifications) byType[item.review_type] += 1;
 
   const authorityScores = classifications.map(item => item.authority_score).filter((score): score is number => score !== null);
+  const unavailable = classifications.filter(item => item.provenance.status !== 'applied');
   return {
-    success: true,
+    success: unavailable.length === 0,
+    error: unavailable.length > 0
+      ? 'Review classification failed closed for one or more papers; inspect provenance for unavailable or invalid semantic assessments.'
+      : undefined,
     classifications,
     summary: {
       total: classifications.length,
@@ -282,6 +292,6 @@ export async function classifyReviews(
         ? Math.round((authorityScores.reduce((sum, score) => sum + score, 0) / authorityScores.length) * 100) / 100
         : null,
     },
-    recommendation: buildRecommendation(classifications),
+    recommendation: unavailable.length === 0 ? buildRecommendation(classifications) : undefined,
   };
 }

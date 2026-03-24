@@ -72,11 +72,10 @@
         "phases": [
           "analyze"
         ],
-        "artifact": "critical_research"
+        "artifact": "critical_analysis"
       },
       "params": {
-        "mode": "analysis",
-        "recids": "<recids>"
+        "recid": "<analysis_seed>"
       }
     },
     {

@@ -23,10 +23,9 @@ type MockPaper = {
 
 type Sem04Input = {
   subject_entity: string;
-  llm_mode: 'passthrough' | 'client';
   inputs?: Array<'title' | 'abstract'>;
   papers: MockPaper[];
-  client_response?: Record<string, unknown>;
+  sampling_response: Record<string, unknown>;
 };
 
 type Sem04Actual = {
@@ -34,7 +33,6 @@ type Sem04Actual = {
   relation: string | null;
   decision_status: string | null;
   reason_code: string | null;
-  used_retrieval_prior: boolean;
 };
 
 function readTextBlock(result: { content: Array<{ type: string; text?: string }> }): string {
@@ -87,65 +85,40 @@ describe('eval: sem04 theoretical conflict authority cleanup', () => {
     });
 
     const run_id = await createRun();
-    const recids = input.papers.map(paper => paper.recid);
-    const baseOptions = {
+    const res = await handleToolCall('inspire_theoretical_conflicts', {
+      run_id,
+      recids: input.papers.map(paper => paper.recid),
       subject_entity: input.subject_entity,
       inputs: input.inputs,
-      llm_mode: input.llm_mode,
       prompt_version: 'v2',
       max_candidates_total: 10,
       max_llm_requests: 10,
-    };
+    }, 'standard', {
+      createMessage: vi.fn().mockResolvedValue({
+        model: 'eval-sampling-model',
+        role: 'assistant',
+        content: [{ type: 'text', text: JSON.stringify(input.sampling_response) }],
+      }),
+    });
 
-    if (input.llm_mode === 'client' && input.client_response) {
-      const phaseA = await handleToolCall('inspire_critical_research', {
-        mode: 'theoretical',
-        recids,
-        run_id,
-        options: baseOptions,
-      });
-      expect(phaseA.isError).toBeFalsy();
-      const requests = readJsonl<{ request_id: string }>(getRunArtifactPath(run_id, 'theoretical_llm_requests.jsonl'));
-      const firstRequestId = requests[0]?.request_id;
-      if (!firstRequestId) throw new Error('missing theoretical request id for client mode');
+    expect(res.isError).toBeFalsy();
 
-      const phaseB = await handleToolCall('inspire_critical_research', {
-        mode: 'theoretical',
-        recids,
-        run_id,
-        options: {
-          ...baseOptions,
-          client_llm_responses: [{ request_id: firstRequestId, json_response: input.client_response }],
-        },
-      });
-      expect(phaseB.isError).toBeFalsy();
-    } else {
-      const res = await handleToolCall('inspire_critical_research', {
-        mode: 'theoretical',
-        recids,
-        run_id,
-        options: baseOptions,
-      });
-      expect(res.isError).toBeFalsy();
-    }
-
-    const candidates = readJsonl<{ candidate_provenance: { used_retrieval_prior: boolean } }>(
+    const candidates = readJsonl<{ candidate_provenance: { retrieval_strategy: string } }>(
       getRunArtifactPath(run_id, 'theoretical_conflict_candidates.jsonl'),
     );
     const conflicts = readJson<{
       conflicts: Array<{
         relation: string;
-        provenance?: { decision_status?: string; reason_code?: string; used_retrieval_prior?: boolean };
+        provenance?: { decision_status?: string; reason_code?: string };
       }>;
     }>(getRunArtifactPath(run_id, 'theoretical_conflicts_v1.json'));
     const firstEdge = conflicts.conflicts[0];
 
     return {
-      candidate_count: candidates.length,
+      candidate_count: candidates.filter(candidate => candidate.candidate_provenance.retrieval_strategy === 'semantic_similarity').length,
       relation: firstEdge?.relation ?? null,
       decision_status: firstEdge?.provenance?.decision_status ?? null,
       reason_code: firstEdge?.provenance?.reason_code ?? null,
-      used_retrieval_prior: firstEdge?.provenance?.used_retrieval_prior ?? false,
     };
   }
 
@@ -159,7 +132,7 @@ describe('eval: sem04 theoretical conflict authority cleanup', () => {
     };
   }
 
-  it('keeps retrieval priors auditable while removing their final-authority role', async () => {
+  it('removes retrieval-prior authority and keeps only internal-sampling adjudications', async () => {
     const evalSet = readEvalSetFixture('sem04/sem04_theoretical_conflict_authority_eval.json');
     const report = await runEvalSet<Sem04Input, Sem04Actual>(evalSet, {
       run: runCase,
@@ -168,8 +141,7 @@ describe('eval: sem04 theoretical conflict authority cleanup', () => {
         const pass = actual.candidate_count >= Number(exp.min_candidates ?? 1)
           && actual.relation === exp.relation
           && actual.decision_status === exp.decision_status
-          && actual.reason_code === exp.reason_code
-          && actual.used_retrieval_prior === exp.used_retrieval_prior;
+          && actual.reason_code === exp.reason_code;
         return { passed: pass, metrics: { passed: pass ? 1 : 0 } };
       },
       aggregate,
@@ -180,7 +152,7 @@ describe('eval: sem04 theoretical conflict authority cleanup', () => {
   });
 
   const holdoutIt = process.env.EVAL_INCLUDE_HOLDOUT === '1' ? it : it.skip;
-  holdoutIt('preserves abstained holdout behavior', async () => {
+  holdoutIt('preserves abstained holdout behavior under internal sampling only', async () => {
     const evalSet = readEvalSetFixture('sem04/sem04_theoretical_conflict_authority_holdout.json');
     const report = await runEvalSet<Sem04Input, Sem04Actual>(evalSet, {
       run: runCase,
@@ -189,8 +161,7 @@ describe('eval: sem04 theoretical conflict authority cleanup', () => {
         const pass = actual.candidate_count >= Number(exp.min_candidates ?? 1)
           && actual.relation === exp.relation
           && actual.decision_status === exp.decision_status
-          && actual.reason_code === exp.reason_code
-          && actual.used_retrieval_prior === exp.used_retrieval_prior;
+          && actual.reason_code === exp.reason_code;
         return { passed: pass, metrics: { passed: pass ? 1 : 0 } };
       },
       aggregate,

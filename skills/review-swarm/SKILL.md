@@ -99,7 +99,11 @@ OpenCode caveat:
 - For formal workspace reviews, prefer OpenCode's official headless-server flow (`opencode serve` + `opencode run --attach ...`) rather than relying only on repeated direct `run --dir ...` cold starts.
 - Current `opencode run` CLI does not expose a built-in read-only tool allowlist comparable to Claude/Gemini, so `workspace` is explicit workspace access, not a hard no-mutation guarantee.
 - For `opencode=workspace`, prefer workspace-relative file paths in prompts/packets. Large prompts that enumerate absolute workspace paths or globs can push the model into `external_directory` permission requests even when the repo itself is mounted as the workspace.
-- For formal reviewer use, prefer Claude/Gemini for source-grounded read-only review guarantees; treat OpenCode workspace mode as best-effort and prompt-governed.
+- Treat `OpenCode workspace` and `OpenCode embedded-source` as two different review roles:
+  - `workspace`: packet-challenge / discovery reviewer. Best when blast radius or hidden front-door / consumer drift is still uncertain.
+  - `none` + embedded-source packet: verdict-normalization / formal gate reviewer. Best when scope is already narrowed and you need a stable closeout artifact.
+- Do not treat an OpenCode workspace pass as "failed" just because the output includes exploratory text or lacks a clean final JSON block. If it still contains source-grounded, current-worktree findings, keep that review signal and only rerun same-model to normalize the gate artifact.
+- For formal reviewer use, prefer Claude/Gemini for source-grounded read-only review guarantees; treat OpenCode workspace mode as discovery-strong but gate-fragile, and reserve embedded-source OpenCode passes for final formal-verdict stabilization once packet scope is adequate.
 - When packet scope touches public/package/CLI/workflow/default-entry surfaces, also follow the `Front-door Surface Audit` requirement in `AGENTS.md` and `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`; runner setup does not replace packet widening.
 
 ## Model selection

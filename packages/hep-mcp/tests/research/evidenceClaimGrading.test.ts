@@ -45,10 +45,10 @@ describe('gradeClaimAgainstEvidenceBundle', () => {
     expect(createMessage.mock.calls[0]?.[0]).toMatchObject({
       metadata: {
         module: 'sem02_claim_evidence_grading',
-        tool: 'inspire_critical_research',
+        tool: 'inspire_grade_evidence',
         prompt_version: 'sem02_claim_evidence_v1',
         risk_level: 'read',
-        cost_class: 'medium',
+        cost_class: 'high',
       },
     });
     expect(grade.aggregate_stance).toBe('supported');
@@ -56,21 +56,17 @@ describe('gradeClaimAgainstEvidenceBundle', () => {
     expect(grade.evidence_assessments[0]?.provenance.backend).toBe('mcp_sampling');
   });
 
-  it('falls back conservatively on invalid sampling response', async () => {
+  it('fails closed on invalid sampling response', async () => {
     const createMessage = vi.fn().mockResolvedValue({
       model: 'mock-sem02',
       role: 'assistant',
       content: [{ type: 'text', text: 'not-json' }],
     });
 
-    const grade = await gradeClaimAgainstEvidenceBundle(CLAIM, [{
+    await expect(gradeClaimAgainstEvidenceBundle(CLAIM, [{
       ...EVIDENCE[0],
       evidence_text: 'This study discusses the same observable but does not compare with the prediction.',
-    }], { createMessage });
-
-    expect(grade.used_fallback).toBe(true);
-    expect(grade.aggregate_stance).toBe('not_supported');
-    expect(grade.reason_code).toBe('no_relevant_evidence');
+    }], { createMessage })).rejects.toThrow(/invalid response/i);
   });
 
   it('aggregates support and conflict into mixed stance', async () => {
@@ -84,6 +80,19 @@ describe('gradeClaimAgainstEvidenceBundle', () => {
         model: 'mock-sem02',
         role: 'assistant',
         content: [{ type: 'text', text: JSON.stringify({ stance: 'conflicting', confidence: 0.88, reason_code: 'conflicting_evidence' }) }],
+      })
+      .mockResolvedValueOnce({
+        model: 'mock-sem03',
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            aggregate_stance: 'mixed',
+            aggregate_confidence: 0.86,
+            reason_code: 'conflicting_evidence',
+            abstain: false,
+          }),
+        }],
       });
 
     const grade = await gradeClaimAgainstEvidenceBundle(CLAIM, [
@@ -99,5 +108,6 @@ describe('gradeClaimAgainstEvidenceBundle', () => {
 
     expect(grade.aggregate_stance).toBe('mixed');
     expect(grade.reason_code).toBe('conflicting_evidence');
+    expect(createMessage).toHaveBeenCalledTimes(3);
   });
 });

@@ -3,8 +3,12 @@ import {
   INSPIRE_NETWORK_ANALYSIS,
   INSPIRE_FIND_CONNECTIONS,
   INSPIRE_TRACE_ORIGINAL_SOURCE,
+  INSPIRE_GRADE_EVIDENCE,
+  INSPIRE_DETECT_MEASUREMENT_CONFLICTS,
+  INSPIRE_CRITICAL_ANALYSIS,
+  INSPIRE_CLASSIFY_REVIEWS,
+  INSPIRE_THEORETICAL_CONFLICTS,
   INSPIRE_PARSE_LATEX,
-  INSPIRE_CRITICAL_RESEARCH,
   INSPIRE_PAPER_SOURCE,
   INSPIRE_FIND_CROSSOVER_TOPICS,
   INSPIRE_ANALYZE_CITATION_STANCE,
@@ -16,7 +20,11 @@ import { writeRunJsonArtifact } from '../../core/citations.js';
 import type { ToolSpec } from './types.js';
 import {
   FindConnectionsToolSchema,
-  CriticalResearchToolSchema,
+  InspireGradeEvidenceToolSchema,
+  InspireDetectMeasurementConflictsToolSchema,
+  InspireCriticalAnalysisToolSchema,
+  InspireClassifyReviewsToolSchema,
+  InspireTheoreticalConflictsToolSchema,
   TopicAnalysisToolSchema,
   NetworkAnalysisToolSchema,
   TraceOriginalSourceToolSchema,
@@ -98,6 +106,66 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     },
   },
   {
+    name: INSPIRE_GRADE_EVIDENCE,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description: 'Grade evidence quality for a single paper\'s claims (network).',
+    zodSchema: InspireGradeEvidenceToolSchema,
+    handler: async (params, ctx) => {
+      const { gradeEvidence } = await import('../research/evidenceGrading.js');
+      return gradeEvidence(params, { createMessage: ctx.createMessage });
+    },
+  },
+  {
+    name: INSPIRE_DETECT_MEASUREMENT_CONFLICTS,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description: 'Detect measurement tensions across a bounded paper set (network).',
+    zodSchema: InspireDetectMeasurementConflictsToolSchema,
+    handler: async (params, ctx) => {
+      const { detectConflicts } = await import('../research/conflictDetector.js');
+      return detectConflicts(params, { createMessage: ctx.createMessage });
+    },
+  },
+  {
+    name: INSPIRE_CRITICAL_ANALYSIS,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description: 'Run bounded critical analysis for a single paper (network).',
+    zodSchema: InspireCriticalAnalysisToolSchema,
+    handler: async (params, ctx) => {
+      const { performCriticalAnalysis } = await import('../research/criticalAnalysis.js');
+      return performCriticalAnalysis(params, { createMessage: ctx.createMessage });
+    },
+  },
+  {
+    name: INSPIRE_CLASSIFY_REVIEWS,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description: 'Classify review papers by scope and authority using semantic assessment (network).',
+    zodSchema: InspireClassifyReviewsToolSchema,
+    handler: async (params, ctx) => {
+      const { classifyReviews } = await import('../research/reviewClassifier.js');
+      return classifyReviews(params, { createMessage: ctx.createMessage });
+    },
+  },
+  {
+    name: INSPIRE_THEORETICAL_CONFLICTS,
+    tier: 'consolidated',
+    exposure: 'standard',
+    maturity: 'stable',
+    description: 'Build a run-scoped theoretical conflict map for a bounded paper set (network; writes run artifacts).',
+    zodSchema: InspireTheoreticalConflictsToolSchema,
+    handler: async (params, ctx) => {
+      const { performTheoreticalConflicts } = await import('../research/theoreticalConflicts.js');
+      return performTheoreticalConflicts(params, { createMessage: ctx.createMessage });
+    },
+  },
+  {
     name: INSPIRE_TOPIC_ANALYSIS,
     tier: 'consolidated',
     exposure: 'standard',
@@ -147,42 +215,6 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     handler: async params => {
       const { traceOriginalSource } = await import('../research/traceSource.js');
       return traceOriginalSource(params);
-    },
-  },
-  {
-    name: INSPIRE_CRITICAL_RESEARCH,
-    tier: 'consolidated',
-    exposure: 'standard',
-    description:
-      'Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (createMessage) provided by the MCP client. NOT FOR broad paper discovery/navigation; use dedicated INSPIRE discovery/survey/topic/network/trace tools for exploration workflows.',
-    zodSchema: CriticalResearchToolSchema,
-    handler: async (params, ctx) => {
-      const { performCriticalResearch } = await import('../research/criticalResearch.js');
-      const result = await performCriticalResearch(params, {
-        createMessage: ctx.createMessage,
-      });
-
-      if ((params.mode === 'evidence' || params.mode === 'analysis') && params.run_id) {
-        const artifactName = `critical_${params.mode}_result.json`;
-        const ref = writeRunJsonArtifact(params.run_id, artifactName, { version: 1, ...result });
-        const modeResult = result && typeof result === 'object'
-          ? (result as unknown as Record<string, unknown>)[params.mode] as Record<string, unknown> | undefined
-          : undefined;
-
-        const summary: Record<string, unknown> = { mode: params.mode };
-        if (params.mode === 'evidence' && modeResult) {
-          summary.claim_count = modeResult.claim_count ?? modeResult.total_claims ?? 0;
-          summary.grade_distribution = modeResult.grade_distribution ?? {};
-        }
-        if (params.mode === 'analysis' && modeResult) {
-          summary.assumption_count = modeResult.assumption_count ?? 0;
-          summary.open_question_count = modeResult.open_question_count ?? 0;
-        }
-
-        return { artifact_uri: ref.uri, summary };
-      }
-
-      return result;
     },
   },
   {

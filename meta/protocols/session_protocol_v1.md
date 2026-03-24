@@ -37,7 +37,7 @@ A research session progresses through these stages:
 - `inspire_find_connections` — paper-set relationship mining
 - `inspire_trace_original_source` — provenance tracing
 - `hep_import_from_zotero` — import from user's local seed corpus
-- `inspire_critical_research(mode=analysis)` — bounded paper-set analysis step inside a recipe, not a high-level workflow surface
+- `inspire_critical_analysis` — bounded single-paper analysis step inside a recipe, not a high-level workflow surface
 
 **Typical flow**:
 1. User describes interest → agent selects the appropriate literature workflow recipe
@@ -63,7 +63,7 @@ A research session progresses through these stages:
 - `inspire_network_analysis` — citation networks
 - `inspire_find_connections` — paper-set relationship mining
 - `inspire_trace_original_source` — provenance tracing
-- `inspire_critical_research(mode=analysis|evidence|conflicts|reviews|theoretical)` — bounded analysis operators underneath the recipe layer
+- `inspire_critical_analysis` / `inspire_grade_evidence` / `inspire_detect_measurement_conflicts` / `inspire_classify_reviews` / `inspire_theoretical_conflicts` — bounded analysis operators underneath the recipe layer
 - `hep_import_from_zotero` — import from user's Zotero library
 
 **Typical flow**:

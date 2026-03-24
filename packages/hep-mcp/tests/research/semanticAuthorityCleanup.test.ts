@@ -95,6 +95,7 @@ describe('semantic authority cleanup regressions', () => {
     const result = await classifyReviews({ recids: ['2002'] });
 
     expect(() => SemanticAssessmentProvenanceSchema.parse(result.classifications[0]?.provenance)).not.toThrow();
+    expect(result.success).toBe(false);
     expect(result.classifications).toHaveLength(1);
     expect(result.summary.total).toBe(1);
     expect(result.classifications[0]?.review_type).toBe('uncertain');
@@ -116,21 +117,23 @@ describe('semantic authority cleanup regressions', () => {
     );
 
     expect(() => SemanticAssessmentProvenanceSchema.parse(result.classifications[0]?.provenance)).not.toThrow();
+    expect(result.success).toBe(false);
     expect(result.classifications[0]?.provenance.backend).toBe('mcp_sampling');
     expect(result.classifications[0]?.provenance.status).toBe('unavailable');
     expect(result.classifications[0]?.provenance.reason_code).toBe('sampling_error');
   });
 
-  it('keeps fallback critical questions semantic-neutral when sampling is unavailable', async () => {
+  it('fails closed when critical-question sampling is unavailable', async () => {
     vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({ recid: '4004' }) as never);
 
     const result = await generateCriticalQuestions({ recid: '4004' });
 
     expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
+    expect(result.success).toBe(false);
     expect(result.reliability_score).toBeNull();
     expect(result.red_flags.some(flag => flag.type === 'excessive_claims')).toBe(false);
-    expect(result.provenance.reason_code).toBe('sampling_unavailable');
-    expect(result.provenance.used_fallback).toBe(true);
+    expect(result.provenance.reason_code).toBe('sampling_required');
+    expect(result.provenance.used_fallback).toBe(false);
   });
 
   it('returns unavailable provenance when critical-question sampling fails', async () => {
@@ -142,7 +145,7 @@ describe('semantic authority cleanup regressions', () => {
     );
 
     expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     expect(result.reliability_score).toBeNull();
     expect(result.provenance.backend).toBe('mcp_sampling');
     expect(result.provenance.status).toBe('unavailable');
@@ -164,7 +167,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.trace_chain[0]?.confidence).not.toBe('likely_original');
   });
 
-  it('does not treat empty fallback assumption graphs as low-risk evidence', async () => {
+  it('fails closed when semantic assumption tracking is unavailable', async () => {
     vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({
       recid: '6006',
       abstract: 'We compute observables numerically and compare to reference values.',
@@ -173,11 +176,9 @@ describe('semantic authority cleanup regressions', () => {
     const result = await trackAssumptions({ recid: '6006' });
 
     expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
-    expect(result.success).toBe(true);
-    expect(result.analysis?.core_assumptions).toHaveLength(0);
-    expect(result.analysis?.fragility_score).toBe(0.65);
-    expect(result.risk_assessment?.level).toBe('medium');
-    expect(result.risk_assessment?.description).toContain('empty graph');
-    expect(result.provenance?.used_fallback).toBe(true);
+    expect(result.success).toBe(false);
+    expect(result.analysis).toBeNull();
+    expect(result.provenance?.reason_code).toBe('sampling_required');
+    expect(result.provenance?.used_fallback).toBe(false);
   });
 });

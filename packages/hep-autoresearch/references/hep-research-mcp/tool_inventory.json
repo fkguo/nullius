@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-03-24T07:17:00.016090+00:00",
+  "generated_at": "2026-03-24T09:15:27.869797+00:00",
   "source": {
     "repo_root": "/home/user/Coding/Agents/autoresearch-lab",
     "package_dir": "/home/user/Coding/Agents/autoresearch-lab/packages/hep-mcp",
     "entrypoint": "dist/index.js",
     "version": "0.1.0",
-    "git_commit": "6bc93be0e9576fcca5d36d7d4a645a2559be5e80",
+    "git_commit": "8715c2437129607f46e9f90e2c1485a927c699fe",
     "git_dirty": true
   },
   "modes": {
     "standard": {
       "mode": "standard",
-      "tool_count": 69,
+      "tool_count": 73,
       "tools": [
         {
           "name": "arxiv_get_metadata",
@@ -602,18 +602,51 @@
           }
         },
         {
-          "name": "inspire_critical_research",
-          "description": "Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (createMessage) provided by the MCP client. NOT FOR broad paper discovery/navigation; use dedicated INSPIRE discovery/survey/topic/network/trace tools for exploration workflows.",
+          "name": "inspire_classify_reviews",
+          "description": "Classify review papers by scope and authority using semantic assessment (network).",
           "input_schema": {
             "type": "object",
             "properties": [
-              "mode",
-              "options",
-              "recids",
-              "run_id"
+              "current_threshold_years",
+              "recids"
             ],
             "required": [
-              "mode",
+              "recids"
+            ]
+          }
+        },
+        {
+          "name": "inspire_critical_analysis",
+          "description": "Run bounded critical analysis for a single paper (network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "assumption_max_depth",
+              "check_literature",
+              "include_assumptions",
+              "include_evidence",
+              "include_questions",
+              "max_search_results",
+              "recid",
+              "search_confirmations"
+            ],
+            "required": [
+              "recid"
+            ]
+          }
+        },
+        {
+          "name": "inspire_detect_measurement_conflicts",
+          "description": "Detect measurement tensions across a bounded paper set (network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "include_tables",
+              "min_tension_sigma",
+              "recids",
+              "target_quantities"
+            ],
+            "required": [
               "recids"
             ]
           }
@@ -630,6 +663,21 @@
             ],
             "required": [
               "recids"
+            ]
+          }
+        },
+        {
+          "name": "inspire_grade_evidence",
+          "description": "Grade evidence quality for a single paper's claims (network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "max_search_results",
+              "recid",
+              "search_confirmations"
+            ],
+            "required": [
+              "recid"
             ]
           }
         },
@@ -751,6 +799,29 @@
             ],
             "required": [
               "next_url"
+            ]
+          }
+        },
+        {
+          "name": "inspire_theoretical_conflicts",
+          "description": "Build a run-scoped theoretical conflict map for a bounded paper set (network; writes run artifacts).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "inputs",
+              "max_candidates_total",
+              "max_claim_candidates_per_paper",
+              "max_llm_requests",
+              "max_papers",
+              "prompt_version",
+              "recids",
+              "run_id",
+              "stable_sort",
+              "subject_entity"
+            ],
+            "required": [
+              "recids",
+              "run_id"
             ]
           }
         },
@@ -1219,7 +1290,7 @@
     },
     "full": {
       "mode": "full",
-      "tool_count": 97,
+      "tool_count": 101,
       "tools": [
         {
           "name": "arxiv_get_metadata",
@@ -1864,6 +1935,20 @@
           }
         },
         {
+          "name": "inspire_classify_reviews",
+          "description": "Classify review papers by scope and authority using semantic assessment (network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "current_threshold_years",
+              "recids"
+            ],
+            "required": [
+              "recids"
+            ]
+          }
+        },
+        {
           "name": "inspire_cleanup_downloads",
           "description": "[Advanced] Delete cached arXiv source download directories created by this server (marker-checked). Supports `dry_run`, `older_than_hours`, and `arxiv_id` filtering (local-only).",
           "input_schema": {
@@ -1880,18 +1965,37 @@
           }
         },
         {
-          "name": "inspire_critical_research",
-          "description": "Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (createMessage) provided by the MCP client. NOT FOR broad paper discovery/navigation; use dedicated INSPIRE discovery/survey/topic/network/trace tools for exploration workflows.",
+          "name": "inspire_critical_analysis",
+          "description": "Run bounded critical analysis for a single paper (network).",
           "input_schema": {
             "type": "object",
             "properties": [
-              "mode",
-              "options",
-              "recids",
-              "run_id"
+              "assumption_max_depth",
+              "check_literature",
+              "include_assumptions",
+              "include_evidence",
+              "include_questions",
+              "max_search_results",
+              "recid",
+              "search_confirmations"
             ],
             "required": [
-              "mode",
+              "recid"
+            ]
+          }
+        },
+        {
+          "name": "inspire_detect_measurement_conflicts",
+          "description": "Detect measurement tensions across a bounded paper set (network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "include_tables",
+              "min_tension_sigma",
+              "recids",
+              "target_quantities"
+            ],
+            "required": [
               "recids"
             ]
           }
@@ -1925,6 +2029,21 @@
             ],
             "required": [
               "limit"
+            ]
+          }
+        },
+        {
+          "name": "inspire_grade_evidence",
+          "description": "Grade evidence quality for a single paper's claims (network).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "max_search_results",
+              "recid",
+              "search_confirmations"
+            ],
+            "required": [
+              "recid"
             ]
           }
         },
@@ -2046,6 +2165,29 @@
             ],
             "required": [
               "next_url"
+            ]
+          }
+        },
+        {
+          "name": "inspire_theoretical_conflicts",
+          "description": "Build a run-scoped theoretical conflict map for a bounded paper set (network; writes run artifacts).",
+          "input_schema": {
+            "type": "object",
+            "properties": [
+              "inputs",
+              "max_candidates_total",
+              "max_claim_candidates_per_paper",
+              "max_llm_requests",
+              "max_papers",
+              "prompt_version",
+              "recids",
+              "run_id",
+              "stable_sort",
+              "subject_entity"
+            ],
+            "required": [
+              "recids",
+              "run_id"
             ]
           }
         },

@@ -31,17 +31,17 @@ describe('sampling routing', () => {
 
     const extractionRoute = resolveSamplingRoute(config, {
       module: 'sem02_claim_extraction',
-      tool: 'inspire_critical_research',
+      tool: 'inspire_grade_evidence',
       prompt_version: 'sem02_claim_extraction_v1',
       risk_level: 'read',
-      cost_class: 'low',
+      cost_class: 'high',
     });
     expect(extractionRoute.route_key).toBe('cheap');
     expect(extractionRoute.selector.kind).toBe('module');
 
     const theoreticalRoute = resolveSamplingRoute(config, {
       module: 'sem04_theoretical_conflicts',
-      tool: 'inspire_critical_research',
+      tool: 'inspire_theoretical_conflicts',
       prompt_version: 'v2',
       risk_level: 'read',
       cost_class: 'high',
@@ -69,7 +69,7 @@ describe('sampling routing', () => {
       selectors: {},
     }, 'balanced'), {
       module: 'sem02_claim_extraction',
-      tool: 'inspire_critical_research',
+      tool: 'inspire_grade_evidence',
       prompt_version: 'v1',
       risk_level: 'read',
     } as never)).toThrow(/cost_class/i);
@@ -91,7 +91,7 @@ describe('sampling routing', () => {
         careful: { backend: 'anthropic', model: 'claude-opus-4-6', max_tokens: 1200 },
       },
       selectors: {
-        tools: { inspire_critical_research: 'balanced' },
+        tools: { inspire_theoretical_conflicts: 'balanced' },
         cost_classes: { high: 'balanced' },
       },
     }, 'balanced');
@@ -111,7 +111,7 @@ describe('sampling routing', () => {
         maxTokens: 800,
         metadata: {
           module: 'sem04_theoretical_conflicts',
-          tool: 'inspire_critical_research',
+          tool: 'inspire_theoretical_conflicts',
           prompt_version: 'v2',
           risk_level: 'read',
           cost_class: 'high',
@@ -142,7 +142,7 @@ describe('sampling routing', () => {
         balanced: { backend: 'anthropic', model: 'claude-sonnet-4-6', fallbacks: ['careful'] },
         careful: { backend: 'anthropic', model: 'claude-opus-4-6' },
       },
-      selectors: { tools: { inspire_critical_research: 'balanced' } },
+      selectors: { tools: { inspire_theoretical_conflicts: 'balanced' } },
     }, 'balanced');
 
     const createMessage = vi.fn().mockRejectedValue(new Error('all backends unavailable'));
@@ -152,10 +152,10 @@ describe('sampling routing', () => {
         messages: [{ role: 'user', content: { type: 'text', text: 'Please adjudicate.' } }],
         metadata: {
           module: 'sem04_theoretical_conflicts',
-          tool: 'inspire_critical_research',
+          tool: 'inspire_theoretical_conflicts',
           prompt_version: 'v2',
           risk_level: 'read',
-          cost_class: 'medium',
+          cost_class: 'high',
         },
       },
       routingConfig: config,

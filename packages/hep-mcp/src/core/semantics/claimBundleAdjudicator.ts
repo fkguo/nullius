@@ -1,5 +1,5 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
+import { INSPIRE_GRADE_EVIDENCE } from '@autoresearch/shared';
 
 import { buildClaimBundleAssessmentPrompt, parseClaimBundleAssessmentResponse } from './claimBundleSampling.js';
 import { extractSamplingText } from './claimSampling.js';
@@ -17,8 +17,7 @@ type ClaimAssessmentContext = {
 
 function needsBundleAdjudication(assessments: EvidenceClaimAssessmentV1[]): boolean {
   return assessments.length > 1 || assessments.some(item => (
-    item.used_fallback
-    || item.stance === 'weak_support'
+    item.stance === 'weak_support'
     || item.reason_code === 'same_topic_different_claim'
     || item.reason_code === 'conflicting_evidence'
   ));
@@ -31,10 +30,12 @@ export async function adjudicateClaimBundle(params: {
   ctx: ClaimAssessmentContext;
   prompt_version: string;
   input_hash: string;
-  fallback_grade: ClaimSemanticGradeV1;
 }): Promise<ClaimSemanticGradeV1 | null> {
-  if (!params.ctx.createMessage || !needsBundleAdjudication(params.assessments)) {
+  if (!needsBundleAdjudication(params.assessments)) {
     return null;
+  }
+  if (!params.ctx.createMessage) {
+    throw new Error('Bundle adjudication requires MCP client sampling support.');
   }
 
   try {
@@ -53,24 +54,24 @@ export async function adjudicateClaimBundle(params: {
       }],
       maxTokens: 700,
       metadata: buildToolSamplingMetadata({
-        tool: INSPIRE_CRITICAL_RESEARCH,
+        tool: INSPIRE_GRADE_EVIDENCE,
         module: 'sem03_stance_engine',
         promptVersion: params.prompt_version,
-        costClass: 'medium',
+        costClass: 'high',
         context: { claim_id: params.claim.claim_id, evidence_count: params.evidenceItems.length },
       }),
     });
     const parsed = parseClaimBundleAssessmentResponse(extractSamplingText(response.content));
     if (!parsed) {
-      return {
-        ...params.fallback_grade,
-        provenance: { ...params.fallback_grade.provenance, used_fallback: true, prompt_version: params.prompt_version, input_hash: params.input_hash, model: response.model },
-        used_fallback: true,
-      };
+      throw new Error('Bundle adjudication returned an invalid response.');
     }
-    const assessmentFallback = params.assessments.some(item => item.used_fallback);
     return {
-      ...params.fallback_grade,
+      claim_id: params.claim.claim_id,
+      claim_text: params.claim.claim_text,
+      source_context: params.claim.source_context,
+      evidence_level: params.claim.evidence_level,
+      sigma_level: params.claim.sigma_level,
+      evidence_assessments: params.assessments,
       aggregate_stance: parsed.aggregate_stance,
       aggregate_confidence: parsed.abstain && parsed.aggregate_stance === 'not_supported'
         ? Math.min(parsed.aggregate_confidence, 0.3)
@@ -78,18 +79,14 @@ export async function adjudicateClaimBundle(params: {
       reason_code: parsed.reason_code,
       provenance: {
         backend: 'mcp_sampling',
-        used_fallback: assessmentFallback,
+        used_fallback: false,
         prompt_version: params.prompt_version,
         input_hash: params.input_hash,
         model: response.model,
       },
-      used_fallback: assessmentFallback,
+      used_fallback: false,
     };
-  } catch {
-    return {
-      ...params.fallback_grade,
-      provenance: { ...params.fallback_grade.provenance, used_fallback: true, prompt_version: params.prompt_version, input_hash: params.input_hash },
-      used_fallback: true,
-    };
+  } catch (error) {
+    throw new Error(`Bundle adjudication failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

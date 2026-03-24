@@ -36,7 +36,7 @@ const PROVIDER_PROFILES: ProviderProfile[] = [
       'analyze.citation_network': 'inspire_network_analysis',
       'analyze.paper_connections': 'inspire_find_connections',
       'analyze.provenance_trace': 'inspire_trace_original_source',
-      'analyze.paper_set_critical_review': 'inspire_critical_research',
+      'analyze.paper_set_critical_review': 'inspire_critical_analysis',
     },
     notes: 'Primary executor for checked-in topic, network, provenance, connections, and critical-review operators.',
   },

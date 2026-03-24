@@ -1,4 +1,10 @@
-import type { DebateAxis } from './lexicon.js';
+export type DebateAxis =
+  | 'internal_structure'
+  | 'mechanism'
+  | 'quantum_numbers'
+  | 'methodology'
+  | 'systematics'
+  | 'other';
 
 export type EdgeRelation = 'contradict' | 'compatible' | 'different_scope' | 'unclear';
 

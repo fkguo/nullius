@@ -120,7 +120,7 @@ def main() -> int:
                 {"name": "pdg_get_property", "description": "stub pdg property"},
                 {"name": "inspire_find_connections", "description": "stub find connections"},
                 {"name": "inspire_trace_original_source", "description": "stub trace original source"},
-                {"name": "inspire_critical_research", "description": "stub critical research"},
+                {"name": "inspire_critical_analysis", "description": "stub critical analysis"},
             ]
             if not disable_inspire_search:
                 tools.append({"name": "inspire_search", "description": "stub inspire search"})
@@ -304,10 +304,10 @@ def main() -> int:
                 }
                 _send_tool_result(msg_id, payload)
                 continue
-            if name == "inspire_critical_research":
+            if name == "inspire_critical_analysis":
                 payload = {
-                    "mode": str(args.get("mode") or ""),
-                    "recids": args.get("recids") if isinstance(args.get("recids"), list) else [],
+                    "paper_recid": str(args.get("recid") or ""),
+                    "success": True,
                     "notes": ["stub critical analysis"],
                 }
                 _send_tool_result(msg_id, payload)

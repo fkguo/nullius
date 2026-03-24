@@ -22,7 +22,7 @@ Autoresearch Lab is the monorepo/workbench for the Autoresearch ecosystem: a dom
 | Package | Role | Status |
 | --- | --- | --- |
 | `@autoresearch/orchestrator` | Runtime/control-plane nucleus for `.autoresearch` state, routing, approvals, and research-loop execution | Active |
-| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (69 std / 97) | Active |
+| `@autoresearch/hep-mcp` | First mature provider family: INSPIRE-HEP + evidence-first HEP workflows (`hep_*`, `zotero_*`, `pdg_*`) (73 std / 101) | Active |
 | `@autoresearch/openalex-mcp` | Standalone OpenAlex scholarly graph provider | Active |
 | `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | Literature/data providers composable with the ecosystem runtime | Active |
 | `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | Local offline/reference providers | Active |
@@ -64,7 +64,7 @@ The most mature provider surface in this repo today is the HEP-first local-first
 
 - Search with safe pagination (`inspire_search` + `inspire_search_next`) or export large result sets (`hep_inspire_search_export`)
 - Resolve high-level literature workflows through checked-in consumers: `hepar literature-gap` and `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`
-- Map and trace a curated paper set with bounded atomic operators: `inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`, `inspire_critical_research`
+- Map and trace a curated paper set with bounded atomic operators: `inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`, `inspire_grade_evidence`, `inspire_detect_measurement_conflicts`, `inspire_critical_analysis`, `inspire_classify_reviews`, `inspire_theoretical_conflicts`
 - (Optional) Cross-check particle properties/measurements via offline PDG tools (`pdg_*`)
 
 ### 3. Run-based writing and export
@@ -296,14 +296,14 @@ This server exposes four tool families:
 Notes:
 - `inspire_*` tools can be called directly (no Project/Run required). Projects/Runs and `hep://...` resources are for evidence-first local workflows (`hep_*`).
 
-Tool counts: **69 tools in `standard` mode** (default, compact surface) and **97 tools in `full` mode** (adds advanced tools).
+Tool counts: **73 tools in `standard` mode** (default, compact surface) and **101 tools in `full` mode** (adds advanced tools).
 
 ### Tool Exposure Modes
 
 | Mode | Tools | Description |
 |------|-------|-------------|
-| `standard` | 69 | Default: compact, recommended |
-| `full` | 97 | `standard` + advanced tools |
+| `standard` | 73 | Default: compact, recommended |
+| `full` | 101 | `standard` + advanced tools |
 
 ```bash
 # Use full mode (optional)
@@ -413,7 +413,11 @@ These entrypoints cover most research-navigation and writing use cases:
 | `inspire_network_analysis` | `citation` / `collaboration` | Seed-centered citation/collaboration network analysis |
 | `inspire_find_connections` | - | Paper-set relationship mining (`internal_edges`, `bridge_papers`, `isolated_papers`, `external_hubs`) |
 | `inspire_trace_original_source` | - | Original-source / provenance tracing for a paper |
-| `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | Critical research (retained bounded operator pending `M-25`; `theoretical` requires `run_id`) |
+| `inspire_grade_evidence` | - | Grade evidence quality for a single paper's claims |
+| `inspire_detect_measurement_conflicts` | - | Detect measurement tensions across a bounded paper set |
+| `inspire_critical_analysis` | - | Run bounded critical analysis for a single paper |
+| `inspire_classify_reviews` | - | Classify review papers by scope and authority |
+| `inspire_theoretical_conflicts` | - | Build a run-scoped theoretical conflict map for a bounded paper set |
 | `inspire_paper_source` | `urls` / `content` / `metadata` / `auto` | Paper source access |
 | `zotero_local` | `list_collections` / `list_collection_paths` / `list_items` / `get_item` / `get_item_attachments` / `download_attachment` / `get_attachment_fulltext` / `list_tags` | Unified Zotero Local API tool (standard; returns JSON) |
 
@@ -487,61 +491,55 @@ Returns the resolved recipe plan so skill-side prework can consume the same chec
 }
 ```
 
-### `inspire_critical_research` - Critical Analysis
-
-#### Mode: `evidence` - Evidence Quality Grading
+### `inspire_grade_evidence` - Evidence Quality Grading
 ```json
 {
-  "mode": "evidence",
-  "recids": ["1833986"]
+  "recid": "1833986",
+  "search_confirmations": true
 }
 ```
 Returns: evidence level (discovery/evidence/hint/indirect/theoretical).
 
-#### Mode: `conflicts` - Conflict Detection
+### `inspire_detect_measurement_conflicts` - Conflict Detection
 ```json
 {
-  "mode": "conflicts",
   "recids": ["1833986", "627760"],
-  "options": { "min_tension_sigma": 2 }
+  "min_tension_sigma": 2,
+  "target_quantities": ["mass"]
 }
 ```
 Returns: measurement conflicts with tension σ values.
 
-#### Mode: `analysis` - Comprehensive Critical Analysis
+### `inspire_critical_analysis` - Comprehensive Critical Analysis
 ```json
 {
-  "mode": "analysis",
-  "recids": ["1833986"],
-  "options": { "include_assumptions": true }
+  "recid": "1833986",
+  "include_assumptions": true,
+  "include_questions": true
 }
 ```
 
-#### Mode: `reviews` - Review Classification
+### `inspire_classify_reviews` - Review Classification
 ```json
 {
-  "mode": "reviews",
-  "recids": ["1833986", "627760"]
+  "recids": ["1833986", "627760"],
+  "current_threshold_years": 3
 }
 ```
 Returns: review type (catalog/critical/consensus).
 
-#### Mode: `theoretical` - Theoretical Debate Map (Run-based, Evidence-First)
+### `inspire_theoretical_conflicts` - Theoretical Debate Map (Run-based, Evidence-First)
 ```json
 {
-  "mode": "theoretical",
   "run_id": "<run_id>",
   "recids": ["1833986", "627760"],
-  "options": {
-    "subject_entity": "m_W",
-    "inputs": ["title", "abstract", "evidence_paragraph"],
-    "llm_mode": "passthrough",
-    "max_papers": 20,
-    "stable_sort": true
-  }
+  "subject_entity": "m_W",
+  "inputs": ["title", "abstract"],
+  "max_papers": 20,
+  "stable_sort": true
 }
 ```
-Returns: an Evidence-first run artifact (URI + summary). In `passthrough`/`client` modes, you can supply `client_llm_responses` to avoid server-side LLM calls.
+Returns: an Evidence-first run artifact (URI + summary). Adjudication is internal MCP sampling only; invalid or unavailable sampling fails closed.
 
 ### `inspire_paper_source` - Paper Source Access
 

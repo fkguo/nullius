@@ -36,8 +36,24 @@ vi.mock('../src/tools/research/networkAnalysis.js', () => ({
   analyzeNetwork: vi.fn(),
 }));
 
-vi.mock('../src/tools/research/criticalResearch.js', () => ({
-  performCriticalResearch: vi.fn(),
+vi.mock('../src/tools/research/evidenceGrading.js', () => ({
+  gradeEvidence: vi.fn(),
+}));
+
+vi.mock('../src/tools/research/conflictDetector.js', () => ({
+  detectConflicts: vi.fn(),
+}));
+
+vi.mock('../src/tools/research/criticalAnalysis.js', () => ({
+  performCriticalAnalysis: vi.fn(),
+}));
+
+vi.mock('../src/tools/research/reviewClassifier.js', () => ({
+  classifyReviews: vi.fn(),
+}));
+
+vi.mock('../src/tools/research/theoreticalConflicts.js', () => ({
+  performTheoreticalConflicts: vi.fn(),
 }));
 
 vi.mock('../src/utils/resolveArxivId.js', () => ({
@@ -109,7 +125,11 @@ const api = await import('../src/api/client.js');
 const topicAnalysis = await import('../src/tools/research/topicAnalysis.js');
 const discoverPapers = await import('../src/tools/research/discoverPapers.js');
 const networkAnalysis = await import('../src/tools/research/networkAnalysis.js');
-const criticalResearch = await import('../src/tools/research/criticalResearch.js');
+const evidenceGrading = await import('../src/tools/research/evidenceGrading.js');
+const conflictDetector = await import('../src/tools/research/conflictDetector.js');
+const criticalAnalysis = await import('../src/tools/research/criticalAnalysis.js');
+const reviewClassifier = await import('../src/tools/research/reviewClassifier.js');
+const theoreticalConflicts = await import('../src/tools/research/theoreticalConflicts.js');
 const arxivTooling = await import('@autoresearch/arxiv-mcp/tooling');
 const deepResearch = await import('../src/tools/research/deepResearch.js');
 const fieldSurvey = await import('../src/tools/research/fieldSurvey.js');
@@ -525,19 +545,87 @@ describe('Tool Handlers (current exposure)', () => {
     });
   });
 
-  it('inspire_critical_research should call performCriticalResearch', async () => {
-    vi.mocked(criticalResearch.performCriticalResearch).mockResolvedValueOnce({ ok: true } as any);
+  it('inspire_grade_evidence should call gradeEvidence', async () => {
+    vi.mocked(evidenceGrading.gradeEvidence).mockResolvedValueOnce({ ok: true } as any);
     const createMessage = vi.fn();
 
     await handleToolCall(
-      'inspire_critical_research',
-      { mode: 'evidence', recids: ['1'] },
+      'inspire_grade_evidence',
+      { recid: '1' },
       'standard',
       { createMessage }
     );
 
-    expect(criticalResearch.performCriticalResearch).toHaveBeenCalledWith(
-      { mode: 'evidence', recids: ['1'] },
+    expect(evidenceGrading.gradeEvidence).toHaveBeenCalledWith(
+      { recid: '1' },
+      { createMessage }
+    );
+  });
+
+  it('inspire_detect_measurement_conflicts should call detectConflicts', async () => {
+    vi.mocked(conflictDetector.detectConflicts).mockResolvedValueOnce({ ok: true } as any);
+    const createMessage = vi.fn();
+
+    await handleToolCall(
+      'inspire_detect_measurement_conflicts',
+      { recids: ['1', '2'] },
+      'standard',
+      { createMessage }
+    );
+
+    expect(conflictDetector.detectConflicts).toHaveBeenCalledWith(
+      { recids: ['1', '2'] },
+      { createMessage }
+    );
+  });
+
+  it('inspire_critical_analysis should call performCriticalAnalysis', async () => {
+    vi.mocked(criticalAnalysis.performCriticalAnalysis).mockResolvedValueOnce({ ok: true } as any);
+    const createMessage = vi.fn();
+
+    await handleToolCall(
+      'inspire_critical_analysis',
+      { recid: '1' },
+      'standard',
+      { createMessage }
+    );
+
+    expect(criticalAnalysis.performCriticalAnalysis).toHaveBeenCalledWith(
+      { recid: '1' },
+      { createMessage }
+    );
+  });
+
+  it('inspire_classify_reviews should call classifyReviews', async () => {
+    vi.mocked(reviewClassifier.classifyReviews).mockResolvedValueOnce({ ok: true } as any);
+    const createMessage = vi.fn();
+
+    await handleToolCall(
+      'inspire_classify_reviews',
+      { recids: ['1', '2'] },
+      'standard',
+      { createMessage }
+    );
+
+    expect(reviewClassifier.classifyReviews).toHaveBeenCalledWith(
+      { recids: ['1', '2'] },
+      { createMessage }
+    );
+  });
+
+  it('inspire_theoretical_conflicts should call performTheoreticalConflicts', async () => {
+    vi.mocked(theoreticalConflicts.performTheoreticalConflicts).mockResolvedValueOnce({ ok: true } as any);
+    const createMessage = vi.fn();
+
+    await handleToolCall(
+      'inspire_theoretical_conflicts',
+      { run_id: 'run_test', recids: ['1', '2'] },
+      'standard',
+      { createMessage }
+    );
+
+    expect(theoreticalConflicts.performTheoreticalConflicts).toHaveBeenCalledWith(
+      { run_id: 'run_test', recids: ['1', '2'] },
       { createMessage }
     );
   });

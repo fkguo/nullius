@@ -358,7 +358,11 @@ interface ToolSpec {
   - `inspire_network_analysis`
   - `inspire_find_connections`
   - `inspire_trace_original_source`
-  - `inspire_critical_research`
+  - `inspire_grade_evidence`
+  - `inspire_detect_measurement_conflicts`
+  - `inspire_critical_analysis`
+  - `inspire_classify_reviews`
+  - `inspire_theoretical_conflicts`
 - `experts` / `analyze` 公开入口已移除；不再保留 `inspire_research_navigator`
 - 设计目标从“最少工具数”转为“让 MCP client 看到干净、语义清晰、职责单一的 object schema，同时把可执行 workflow authority 保留在独立 launcher 层”
 - `inspire_parse_latex` 继续保持独立 Evidence-first 语义：

@@ -59,7 +59,7 @@ This repository is a **design / architecture workspace** for an `idea-generator`
 
 ## “Don’t reinvent” checklist (deep reading / evidence)
 
-- **HEP literature (LaTeX-first):** `hep-research` MCP `inspire_paper_source(prefer=latex, extract=true)` → `inspire_parse_latex(components=[...])` → (optional) bounded follow-up such as `inspire_critical_research(mode=analysis|reviews)` or `inspire_topic_analysis` / `inspire_network_analysis` for structured extraction.
+- **HEP literature (LaTeX-first):** `hep-research` MCP `inspire_paper_source(prefer=latex, extract=true)` → `inspire_parse_latex(components=[...])` → (optional) bounded follow-up such as `inspire_critical_analysis` / `inspire_classify_reviews` or `inspire_topic_analysis` / `inspire_network_analysis` for structured extraction.
 - **Batch fetch (offline-friendly):** `research-team` `scripts/bin/literature_fetch.py arxiv-source` downloads arXiv LaTeX sources to `references/arxiv_src/<id>/` (use `/tmp/...`, do not scaffold inside this repo).
 - **Paper-style tooling:** `research-writer` has deterministic hygiene + optional reading-pack/distill helpers; use it for *presentation/consistency*, not as a substitute for evidence extraction.
 - **Network/proxy (this machine):** if web fetch is flaky, set `https_proxy/http_proxy/all_proxy` (e.g. `127.0.0.1:7890`) before calling networked tools/CLIs.

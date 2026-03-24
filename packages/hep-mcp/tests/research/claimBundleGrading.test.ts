@@ -60,15 +60,15 @@ describe('claim bundle grading', () => {
     expect(bundleRequest).toMatchObject({
       metadata: {
         module: 'sem03_stance_engine',
-        tool: 'inspire_critical_research',
+        tool: 'inspire_grade_evidence',
         prompt_version: 'sem03_test_v1',
         risk_level: 'read',
-        cost_class: 'medium',
+        cost_class: 'high',
       },
     });
   });
 
-  it('records fallback when bundle adjudication is invalid', async () => {
+  it('fails closed when bundle adjudication is invalid', async () => {
     const createMessage = vi.fn().mockImplementation(async params => {
       const moduleName = String((params.metadata as Record<string, unknown> | undefined)?.module ?? '');
       if (moduleName === 'sem03_stance_engine') {
@@ -81,17 +81,12 @@ describe('claim bundle grading', () => {
       };
     });
 
-    const grade = await gradeClaimAgainstEvidenceBundle(
+    await expect(gradeClaimAgainstEvidenceBundle(
       buildClaim('c2', 'The EFT coefficient may be positive.'),
       [{ evidence_ref: 'paper:c', evidence_text: 'The fit may prefer a positive coefficient, although zero remains allowed.', source: 'confirmation_search' }],
       { createMessage },
       { prompt_version: 'sem02_test_v1', bundle_prompt_version: 'sem03_test_v1' },
-    );
-
-    expect(grade.aggregate_stance).toBe('weak_support');
-    expect(grade.reason_code).toBe('hedged_support');
-    expect(grade.used_fallback).toBe(true);
-    expect(grade.provenance.prompt_version).toBe('sem03_test_v1');
+    )).rejects.toThrow(/invalid response/i);
   });
 
   it('keeps abstentions calibrated for same-topic but different-claim evidence', async () => {

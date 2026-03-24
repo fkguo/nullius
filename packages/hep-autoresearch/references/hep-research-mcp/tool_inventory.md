@@ -1,14 +1,14 @@
 # hep-research-mcp tool inventory
 
-- Generated at (UTC): 2026-03-24T07:17:00.016090+00:00
+- Generated at (UTC): 2026-03-24T09:15:27.869797+00:00
 - Repo root: `/home/user/Coding/Agents/autoresearch-lab`
 - Package dir: `/home/user/Coding/Agents/autoresearch-lab/packages/hep-mcp`
 - Entrypoint: `dist/index.js`
 - Version: `0.1.0`
-- Git commit: `6bc93be0e9576fcca5d36d7d4a645a2559be5e80`
+- Git commit: `8715c2437129607f46e9f90e2c1485a927c699fe`
 - Git dirty: `True`
 
-## standard (69)
+## standard (73)
 
 ### arxiv (3)
 
@@ -52,10 +52,13 @@
 - `hepdata_get_table` — Get numerical data from a HEPData table (network). Requires table_id from hepdata_get_record. Each HEPData table has a globally unique in...
 - `hepdata_search` — Search HEPData for experimental measurement records (network). At least one condition required. Lookup by identifier (exact match): { ins...
 
-### inspire (11)
+### inspire (15)
 
-- `inspire_critical_research` — Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (create...
+- `inspire_classify_reviews` — Classify review papers by scope and authority using semantic assessment (network).
+- `inspire_critical_analysis` — Run bounded critical analysis for a single paper (network).
+- `inspire_detect_measurement_conflicts` — Detect measurement tensions across a bounded paper set (network).
 - `inspire_find_connections` — Find structural relationships inside a paper set (network): internal edges, bridge papers, isolated papers, and optional external hubs.
+- `inspire_grade_evidence` — Grade evidence quality for a single paper's claims (network).
 - `inspire_literature` — Unified INSPIRE literature access tool (network). Modes + required args: - get_paper: { recid } - get_references: { recid, size? } - look...
 - `inspire_network_analysis` — Unified network analysis tool (network). Modes: citation/collaboration.
 - `inspire_paper_source` — Unified paper source access tool (network). Modes: urls/content/metadata/auto (downloads arXiv sources/PDFs and optionally extracts). - '...
@@ -63,6 +66,7 @@
 - `inspire_resolve_citekey` — Resolve INSPIRE BibTeX citekey + BibTeX + canonical links for recid(s) (network). Returns {results:[{recid,citekey,bibtex,links:{inspire,...
 - `inspire_search` — Search INSPIRE-HEP literature database (network). Supports combining multiple conditions in one query. Note: Some MCP clients prefix tool...
 - `inspire_search_next` — Follow an INSPIRE `next_url` returned by `inspire_search` with strict same-origin checks (network; avoids arbitrary URL fetch).
+- `inspire_theoretical_conflicts` — Build a run-scoped theoretical conflict map for a bounded paper set (network; writes run artifacts).
 - `inspire_topic_analysis` — Unified topic analysis tool (network). Modes: timeline/evolution/emerging/all.
 - `inspire_trace_original_source` — Trace citation chains to identify likely original sources behind a paper (network).
 
@@ -100,7 +104,7 @@
 - `zotero_local` — Unified Zotero Local API tool (requires Zotero Local API at `http://127.0.0.1:23119`). Modes: list_collections/list_collection_paths/list...
 - `zotero_search_items` — Browse/search Zotero items via Zotero Local API query params (q/qmode/tag/itemType, optional collection scope). Returns summarized items ...
 
-## full (97)
+## full (101)
 
 ### arxiv (3)
 
@@ -146,13 +150,16 @@
 - `hepdata_get_table` — Get numerical data from a HEPData table (network). Requires table_id from hepdata_get_record. Each HEPData table has a globally unique in...
 - `hepdata_search` — Search HEPData for experimental measurement records (network). At least one condition required. Lookup by identifier (exact match): { ins...
 
-### inspire (15)
+### inspire (19)
 
 - `inspire_analyze_citation_stance` — [Advanced] Analyze how a paper cites another paper (stance detection; resolves citekeys via INSPIRE as needed; network).
+- `inspire_classify_reviews` — Classify review papers by scope and authority using semantic assessment (network).
 - `inspire_cleanup_downloads` — [Advanced] Delete cached arXiv source download directories created by this server (marker-checked). Supports `dry_run`, `older_than_hours...
-- `inspire_critical_research` — Unified critical research tool (network). Modes: evidence/conflicts/analysis/reviews/theoretical. internal mode uses MCP sampling (create...
+- `inspire_critical_analysis` — Run bounded critical analysis for a single paper (network).
+- `inspire_detect_measurement_conflicts` — Detect measurement tensions across a bounded paper set (network).
 - `inspire_find_connections` — Find structural relationships inside a paper set (network): internal edges, bridge papers, isolated papers, and optional external hubs.
 - `inspire_find_crossover_topics` — [Advanced] Discover emerging interdisciplinary research areas by analyzing papers spanning multiple arXiv categories (network).
+- `inspire_grade_evidence` — Grade evidence quality for a single paper's claims (network).
 - `inspire_literature` — Unified INSPIRE literature access tool (network). Modes + required args: - get_paper: { recid } - get_references: { recid, size? } - look...
 - `inspire_network_analysis` — Unified network analysis tool (network). Modes: citation/collaboration.
 - `inspire_paper_source` — Unified paper source access tool (network). Modes: urls/content/metadata/auto (downloads arXiv sources/PDFs and optionally extracts). - '...
@@ -160,6 +167,7 @@
 - `inspire_resolve_citekey` — Resolve INSPIRE BibTeX citekey + BibTeX + canonical links for recid(s) (network). Returns {results:[{recid,citekey,bibtex,links:{inspire,...
 - `inspire_search` — Search INSPIRE-HEP literature database (network). Supports combining multiple conditions in one query. Note: Some MCP clients prefix tool...
 - `inspire_search_next` — Follow an INSPIRE `next_url` returned by `inspire_search` with strict same-origin checks (network; avoids arbitrary URL fetch).
+- `inspire_theoretical_conflicts` — Build a run-scoped theoretical conflict map for a bounded paper set (network; writes run artifacts).
 - `inspire_topic_analysis` — Unified topic analysis tool (network). Modes: timeline/evolution/emerging/all.
 - `inspire_trace_original_source` — Trace citation chains to identify likely original sources behind a paper (network).
 - `inspire_validate_bibliography` — [Advanced] Usability-first bibliography audit for a paper (default: manual non-INSPIRE entries only). Optionally cross-validate against I...

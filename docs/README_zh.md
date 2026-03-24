@@ -22,7 +22,7 @@ Autoresearch Lab 是 Autoresearch 生态的 monorepo / workbench：承载 domain
 | 包 | 角色 | 状态 |
 | --- | --- | --- |
 | `@autoresearch/orchestrator` | `.autoresearch` state、routing、approval、research-loop 的 runtime/control-plane nucleus | Active |
-| `@autoresearch/hep-mcp` | 当前最成熟的首个 provider family：INSPIRE-HEP + evidence-first HEP workflow（`hep_*`、`zotero_*`、`pdg_*`） (69 std / 97) | Active |
+| `@autoresearch/hep-mcp` | 当前最成熟的首个 provider family：INSPIRE-HEP + evidence-first HEP workflow（`hep_*`、`zotero_*`、`pdg_*`） (73 std / 101) | Active |
 | `@autoresearch/openalex-mcp` | 独立的 OpenAlex scholarly graph provider | Active |
 | `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | 可与 runtime 组合的 literature/data provider | Active |
 | `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | 本地离线 / reference provider | Active |
@@ -64,7 +64,7 @@ Autoresearch Lab 是 Autoresearch 生态的 monorepo / workbench：承载 domain
 
 - 小结果：`inspire_search` + `inspire_search_next` 安全翻页；大结果：`hep_inspire_search_export` 直接导出为 artifacts
 - 通过 checked-in consumer 解析高层文献工作流：`hepar literature-gap`、`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`
-- 用受限原子 operator 做趋势、网络、关联与溯源：`inspire_topic_analysis`、`inspire_network_analysis`、`inspire_find_connections`、`inspire_trace_original_source`、`inspire_critical_research`
+- 用受限原子 operator 做趋势、网络、关联与溯源：`inspire_topic_analysis`、`inspire_network_analysis`、`inspire_find_connections`、`inspire_trace_original_source`、`inspire_grade_evidence`、`inspire_detect_measurement_conflicts`、`inspire_critical_analysis`、`inspire_classify_reviews`、`inspire_theoretical_conflicts`
 - （可选）数值与粒子性质可用离线 PDG 工具（`pdg_*`）交叉核对
 
 ### 3. Run-based 写作与导出
@@ -260,14 +260,14 @@ pnpm exec tsx test-check.ts
 说明：
 - `inspire_*` 工具可直接调用（不需要 Project/Run）。Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
 
-工具数量：**`standard` 模式 69 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 97 个**（额外暴露 advanced 工具）。
+工具数量：**`standard` 模式 73 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 101 个**（额外暴露 advanced 工具）。
 
 ### 工具暴露模式
 
 | 模式 | 工具数 | 说明 |
 |------|--------|------|
-| `standard` | 69 | 默认：紧凑、推荐 |
-| `full` | 97 | `standard` + advanced 工具 |
+| `standard` | 73 | 默认：紧凑、推荐 |
+| `full` | 101 | `standard` + advanced 工具 |
 
 ```bash
 # 使用 full 模式（可选）
@@ -379,7 +379,11 @@ export HEP_TOOL_MODE=full
 | `inspire_network_analysis` | `citation` / `collaboration` | 围绕 seed 的引用/合作网络分析 |
 | `inspire_find_connections` | - | 论文集合关系挖掘（`internal_edges`、`bridge_papers`、`isolated_papers`、`external_hubs`） |
 | `inspire_trace_original_source` | - | 单篇论文的原始来源/溯源链追踪 |
-| `inspire_critical_research` | `evidence` / `conflicts` / `analysis` / `reviews` / `theoretical` | 受限保留的批判性研究 operator，后续仍由 `M-25` 继续收窄（`theoretical` 需要 `run_id`） |
+| `inspire_grade_evidence` | - | 对单篇论文的 claim 做证据质量分级 |
+| `inspire_detect_measurement_conflicts` | - | 对受限论文集检测测量张力 |
+| `inspire_critical_analysis` | - | 对单篇论文做受限批判性分析 |
+| `inspire_classify_reviews` | - | 对综述论文做范围与 authority 分类 |
+| `inspire_theoretical_conflicts` | - | 为受限论文集构建 run-scoped theoretical conflict map |
 | `inspire_paper_source` | `urls` / `content` / `metadata` / `auto` | 论文源码访问 |
 | `zotero_local` | `list_collections` / `list_collection_paths` / `list_items` / `get_item` / `get_item_attachments` / `download_attachment` / `get_attachment_fulltext` / `list_tags` | 统一 Zotero Local API 工具（standard；返回 JSON） |
 
@@ -453,44 +457,55 @@ python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan \
 }
 ```
 
-### `inspire_critical_research` - 批判性分析
-
-#### 模式：`evidence` - 证据质量分级
+### `inspire_grade_evidence` - 证据质量分级
 ```json
 {
-  "mode": "evidence",
-  "recids": ["1833986"]
+  "recid": "1833986",
+  "search_confirmations": true
 }
 ```
 返回：证据级别（discovery/evidence/hint/indirect/theoretical）
 
-#### 模式：`conflicts` - 冲突检测
+### `inspire_detect_measurement_conflicts` - 冲突检测
 ```json
 {
-  "mode": "conflicts",
   "recids": ["1833986", "627760"],
-  "options": { "min_tension_sigma": 2 }
+  "min_tension_sigma": 2,
+  "target_quantities": ["mass"]
 }
 ```
 返回：测量冲突及张力 σ 值
 
-#### 模式：`analysis` - 综合批判性分析
+### `inspire_critical_analysis` - 综合批判性分析
 ```json
 {
-  "mode": "analysis",
-  "recids": ["1833986"],
-  "options": { "include_assumptions": true }
+  "recid": "1833986",
+  "include_assumptions": true,
+  "include_questions": true
 }
 ```
 
-#### 模式：`reviews` - 综述分类
+### `inspire_classify_reviews` - 综述分类
 ```json
 {
-  "mode": "reviews",
-  "recids": ["1833986", "627760"]
+  "recids": ["1833986", "627760"],
+  "current_threshold_years": 3
 }
 ```
 返回：综述类型（catalog/critical/consensus）
+
+### `inspire_theoretical_conflicts` - 理论争议图谱（Run-based, Evidence-first）
+```json
+{
+  "run_id": "<run_id>",
+  "recids": ["1833986", "627760"],
+  "subject_entity": "m_W",
+  "inputs": ["title", "abstract"],
+  "max_papers": 20,
+  "stable_sort": true
+}
+```
+返回：Evidence-first 的 run artifact（URI + summary）。判定只允许 internal MCP sampling；sampling 不可用或返回无效内容时会 fail-closed。
 
 ### `inspire_paper_source` - 论文源码访问
 
@@ -894,7 +909,7 @@ AI: [通过 checked-in literature workflow launcher 解析 literature_gap_analys
 AI: [运行 literature_fetch.py workflow-plan --recipe literature_to_evidence] 解析 workflow authority
     [调用 inspire_paper_source] 获取源码/内容入口
     [调用 inspire_parse_latex] 提取公式、关键章节与引用上下文
-    [调用 inspire_critical_research] 对论文集合做 bounded analysis / review posture 检查
+    [调用 inspire_critical_analysis / inspire_classify_reviews] 对论文集合做 bounded analysis / review posture 检查
 
     ## Review: Pentaquark States
 

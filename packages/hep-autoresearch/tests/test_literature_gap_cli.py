@@ -149,6 +149,7 @@ class TestLiteratureGapCLI(unittest.TestCase):
             self.assertTrue((out_dir / "gap_report.json").exists())
             self.assertTrue((out_dir / "workflow_plan.json").exists())
             self.assertTrue((out_dir / "connection_scan.json").exists())
+            self.assertTrue((out_dir / "critical_analysis.json").exists())
             self.assertTrue((out_dir / "seed_selection.json").exists())
             self.assertTrue((out_dir / "report.md").exists())
 
@@ -157,6 +158,9 @@ class TestLiteratureGapCLI(unittest.TestCase):
             self.assertEqual(gap.get("phase"), "analyze")
             self.assertEqual((gap.get("inputs") or {}).get("recids"), ["1001", "2001"])
             self.assertEqual(gap.get("results", {}).get("ok"), True)
+            self.assertTrue(
+                str((((gap.get("results") or {}).get("critical_analysis") or {}).get("path") or "")).endswith("/critical_analysis.json")
+            )
 
     def test_literature_gap_analyze_rejects_external_recids_without_allow_flag(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -267,11 +271,14 @@ class TestLiteratureGapCLI(unittest.TestCase):
             gap = json.loads((out_dir / "gap_report.json").read_text(encoding="utf-8"))
             actions = [a for a in (gap.get("agent_actions") or []) if isinstance(a, dict)]
             topic_actions = [a for a in actions if a.get("tool") == "inspire_topic_analysis"]
+            critical_actions = [a for a in actions if a.get("tool") == "inspire_critical_analysis"]
             network_actions = [a for a in actions if a.get("tool") == "inspire_network_analysis"]
             connection_actions = [a for a in actions if a.get("tool") == "inspire_find_connections"]
             self.assertTrue(topic_actions, msg=str(actions))
+            self.assertTrue(critical_actions, msg=str(actions))
             self.assertTrue(network_actions, msg=str(actions))
             self.assertTrue(connection_actions, msg=str(actions))
+            self.assertEqual(critical_actions[0].get("workflow_step"), "critical_analysis")
             self.assertEqual(network_actions[0].get("network_direction_cli"), "in")
             self.assertEqual(network_actions[0].get("network_direction_tool"), "citations")
 

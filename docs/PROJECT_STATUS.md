@@ -21,8 +21,8 @@ node --input-type=module -e "import('./packages/hep-mcp/dist/tools/index.js').th
 ```
 
 Current (after build):
-- `standard=69`, `full=97`
-- `HEP_ENABLE_ZOTERO=0` → `standard=61`, `full=89`
+- `standard=73`, `full=101`
+- `HEP_ENABLE_ZOTERO=0` → `standard=65`, `full=93`
 
 Workspace vitest summary:
 - `packages/shared`: 15 passed
@@ -35,7 +35,7 @@ Workspace vitest summary:
 ## What’s included
 
 - **vNext Project/Run + `hep://` resources**: artifacts-first, reproducible workflows (`hep_*`)
-- **INSPIRE workflows**: search/export, launcher-backed literature front door (`hepar literature-gap`, `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`), bounded atomic operators (`inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`, `inspire_critical_research`), run-scoped LaTeX parsing (`inspire_parse_latex`)
+- **INSPIRE workflows**: search/export, launcher-backed literature front door (`hepar literature-gap`, `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`), bounded atomic operators (`inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`, `inspire_grade_evidence`, `inspire_detect_measurement_conflicts`, `inspire_critical_analysis`, `inspire_classify_reviews`, `inspire_theoretical_conflicts`), run-scoped LaTeX parsing (`inspire_parse_latex`)
 - **Bibliography usability audit (Phase 4.1)**: `inspire_validate_bibliography` is manual-first + non-blocking warnings; optional INSPIRE cross-check
 - **Zotero Local API**: local-only integration (`zotero_local` + related tools; optional; gated by `HEP_ENABLE_ZOTERO`)
 - **Zotero read bridge (Phase 4.5)**: `zotero_find_items` + `zotero_search_items` share internal bridge execution while preserving semantics

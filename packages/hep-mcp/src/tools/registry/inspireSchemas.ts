@@ -168,58 +168,47 @@ export const InspireResolveCitekeyToolSchema = z
     }
   });
 
-export const CriticalResearchToolSchema = z
-  .object({
-    mode: z.enum(['evidence', 'conflicts', 'analysis', 'reviews', 'theoretical']),
-    recids: z.array(z.string().min(1)).min(1),
-    run_id: SafePathSegmentSchema.optional(),
-    options: z
-      .object({
-        search_confirmations: z.boolean().optional(),
-        max_search_results: optionalBudgetInt({ min: 1 }),
-        target_quantities: z.array(z.string()).optional(),
-        min_tension_sigma: z.number().optional(),
-        include_tables: z.boolean().optional(),
-        include_evidence: z.boolean().optional(),
-        include_questions: z.boolean().optional(),
-        include_assumptions: z.boolean().optional(),
-        check_literature: z.boolean().optional(),
-        assumption_max_depth: optionalBudgetInt({ min: 0 }),
-        current_threshold_years: z.number().int().optional(),
-        subject_entity: z.string().min(1).optional(),
-        inputs: z.array(z.enum(['title', 'abstract', 'citation_context', 'evidence_paragraph'])).optional(),
-        max_papers: optionalBudgetInt({ min: 1 }),
-        max_claim_candidates_per_paper: optionalBudgetInt({ min: 1 }),
-        max_candidates_total: optionalBudgetInt({ min: 1 }),
-        llm_mode: z.enum(['passthrough', 'client', 'internal']).optional(),
-        max_llm_requests: optionalBudgetInt({ min: 1 }),
-        strict_llm: z.boolean().optional(),
-        prompt_version: z.string().min(1).optional(),
-        stable_sort: z.boolean().optional(),
-        client_llm_responses: z
-          .array(
-            z
-              .object({
-                request_id: z.string().min(1),
-                json_response: z.unknown(),
-                model: z.string().optional(),
-                created_at: z.string().optional(),
-              })
-              .passthrough()
-          )
-          .optional(),
-      })
-      .optional(),
-  })
-  .superRefine((v, ctx) => {
-    if (v.mode === 'theoretical' && !v.run_id) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "mode='theoretical' requires run_id (Evidence-first: writes run artifacts)",
-        path: ['run_id'],
-      });
-    }
-  });
+export const InspireGradeEvidenceToolSchema = z.object({
+  recid: z.string().min(1),
+  search_confirmations: z.boolean().optional(),
+  max_search_results: optionalBudgetInt({ min: 1 }).optional(),
+}).strict();
+
+export const InspireDetectMeasurementConflictsToolSchema = z.object({
+  recids: z.array(z.string().min(1)).min(1),
+  target_quantities: z.array(z.string().min(1)).optional(),
+  min_tension_sigma: z.number().optional(),
+  include_tables: z.boolean().optional(),
+}).strict();
+
+export const InspireCriticalAnalysisToolSchema = z.object({
+  recid: z.string().min(1),
+  include_evidence: z.boolean().optional(),
+  include_questions: z.boolean().optional(),
+  include_assumptions: z.boolean().optional(),
+  check_literature: z.boolean().optional(),
+  search_confirmations: z.boolean().optional(),
+  max_search_results: optionalBudgetInt({ min: 1 }).optional(),
+  assumption_max_depth: optionalBudgetInt({ min: 0 }).optional(),
+}).strict();
+
+export const InspireClassifyReviewsToolSchema = z.object({
+  recids: z.array(z.string().min(1)).min(1),
+  current_threshold_years: z.number().int().optional(),
+}).strict();
+
+export const InspireTheoreticalConflictsToolSchema = z.object({
+  run_id: SafePathSegmentSchema,
+  recids: z.array(z.string().min(1)).min(1),
+  subject_entity: z.string().min(1).optional(),
+  inputs: z.array(z.enum(['title', 'abstract'])).optional(),
+  max_papers: optionalBudgetInt({ min: 1 }).optional(),
+  max_claim_candidates_per_paper: optionalBudgetInt({ min: 1 }).optional(),
+  max_candidates_total: optionalBudgetInt({ min: 1 }).optional(),
+  max_llm_requests: optionalBudgetInt({ min: 1 }).optional(),
+  prompt_version: z.string().min(1).optional(),
+  stable_sort: z.boolean().optional(),
+}).strict();
 
 export const PaperSourceToolSchema = z.object({
   identifier: z.string().min(1),

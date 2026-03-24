@@ -1,5 +1,5 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_CRITICAL_RESEARCH } from '@autoresearch/shared';
+import { INSPIRE_CRITICAL_ANALYSIS } from '@autoresearch/shared';
 import * as api from '../../api/client.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { getConfig, validateMaxDepth, validateRecid } from './config.js';
@@ -62,41 +62,6 @@ export interface AssumptionTrackerResult {
 type AssumptionSamplingContext = {
   createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
 };
-
-const EXPLICIT_MARKERS = ['assume', 'assuming', 'suppose', 'approximation', 'for simplicity', 'in the limit', 'neglect'];
-const IMPLICIT_MARKERS = ['following', 'based on', 'as in', 'standard assumption', 'well known'];
-
-function splitAbstract(abstract: string): string[] {
-  return abstract.split(/[.!?]+/).map(sentence => sentence.trim()).filter(sentence => sentence.length > 20);
-}
-
-function extractFallbackAssumptions(abstract: string, promptVersion: string, inputHash: string): AssumptionNode[] {
-  return splitAbstract(abstract)
-    .filter(sentence => {
-      const lowered = sentence.toLowerCase();
-      return EXPLICIT_MARKERS.some(marker => lowered.includes(marker)) || IMPLICIT_MARKERS.some(marker => lowered.includes(marker));
-    })
-    .slice(0, 4)
-    .map(sentence => {
-      const lowered = sentence.toLowerCase();
-      const type: AssumptionType = EXPLICIT_MARKERS.some(marker => lowered.includes(marker)) ? 'explicit' : 'implicit';
-      return {
-        assumption: sentence,
-        type,
-        source: 'original',
-        validation_status: 'unavailable',
-        category: null,
-        provenance: {
-          backend: 'diagnostic_fallback',
-          status: 'fallback',
-          used_fallback: true,
-          reason_code: 'lexical_candidate_extraction',
-          prompt_version: promptVersion,
-          input_hash: inputHash,
-        },
-      };
-    });
-}
 
 async function fetchReferenceContexts(recid: string, maxDepth: number): Promise<Array<{ recid: string; title: string; abstract?: string }>> {
   if (maxDepth <= 0) return [];
@@ -186,105 +151,111 @@ export async function trackAssumptions(
       max_depth: maxDepth,
       check_challenges: checkChallenges,
     }));
-
-    const fallbackProvenance: SemanticAssessmentProvenance = {
-      backend: 'diagnostic_fallback',
-      status: 'fallback',
-      used_fallback: true,
-      reason_code: 'sampling_unavailable',
-      prompt_version: promptVersion,
-      input_hash: inputHash,
-    };
-
-    let assumptions: AssumptionNode[] = [];
-    let provenance = fallbackProvenance;
-
     if (!ctx.createMessage) {
-      assumptions = extractFallbackAssumptions(paper.abstract || '', promptVersion, inputHash);
-    } else {
-      let response: CreateMessageResult | null = null;
-      try {
-        response = await ctx.createMessage({
-          messages: [{
-            role: 'user',
-            content: {
-              type: 'text',
-              text: buildAssumptionExtractionPrompt({
-                prompt_version: promptVersion,
-                title: paper.title,
-                abstract: paper.abstract || '',
-                references,
-                max_assumptions: getConfig().criticalResearch?.maxCriticalDependencies ?? 5,
-              }),
-            },
-          }],
-          maxTokens: 900,
-          metadata: buildToolSamplingMetadata({
-            tool: INSPIRE_CRITICAL_RESEARCH,
-            module: 'sem05_assumption_tracker',
-            promptVersion,
-            costClass: 'medium',
-          }),
-        });
-      } catch {
-        assumptions = extractFallbackAssumptions(paper.abstract || '', promptVersion, inputHash);
-        provenance = {
+      return {
+        success: false,
+        error: 'Semantic assumption tracking requires MCP client sampling support.',
+        analysis: null,
+        provenance: {
           backend: 'mcp_sampling',
           status: 'unavailable',
-          used_fallback: true,
+          used_fallback: false,
+          reason_code: 'sampling_required',
+          prompt_version: promptVersion,
+          input_hash: inputHash,
+        },
+      };
+    }
+
+    let response: CreateMessageResult;
+    try {
+      response = await ctx.createMessage({
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: buildAssumptionExtractionPrompt({
+              prompt_version: promptVersion,
+              title: paper.title,
+              abstract: paper.abstract || '',
+              references,
+              max_assumptions: getConfig().criticalResearch?.maxCriticalDependencies ?? 5,
+            }),
+          },
+        }],
+        maxTokens: 900,
+        metadata: buildToolSamplingMetadata({
+          tool: INSPIRE_CRITICAL_ANALYSIS,
+          module: 'sem05_assumption_tracker',
+          promptVersion,
+          costClass: 'high',
+        }),
+      });
+    } catch {
+      return {
+        success: false,
+        error: 'Semantic assumption tracking failed because MCP sampling was unavailable.',
+        analysis: null,
+        provenance: {
+          backend: 'mcp_sampling',
+          status: 'unavailable',
+          used_fallback: false,
           reason_code: 'sampling_error',
           prompt_version: promptVersion,
           input_hash: inputHash,
-        };
-      }
-
-      if (response) {
-        const parsed = parseAssumptionExtractionResponse(extractSamplingText(response.content));
-        if (!parsed || parsed.abstain) {
-          assumptions = extractFallbackAssumptions(paper.abstract || '', promptVersion, inputHash);
-          provenance = {
-            backend: 'mcp_sampling',
-            status: parsed?.abstain ? 'abstained' : 'invalid',
-            used_fallback: true,
-            reason_code: parsed?.abstain ? 'model_abstained' : 'invalid_response',
-            prompt_version: promptVersion,
-            input_hash: inputHash,
-            model: response.model,
-          };
-        } else {
-          assumptions = parsed.assumptions.slice(0, 6).map(item => ({
-            assumption: item.assumption,
-            type: item.type,
-            source: item.source,
-            inherited_from: item.inherited_from.length > 0 ? item.inherited_from : undefined,
-            validation_status: checkChallenges ? 'uncertain' : 'unavailable',
-            category: item.category_label,
-            provenance: {
-              backend: 'mcp_sampling',
-              status: 'applied',
-              used_fallback: false,
-              reason_code: parsed.reason || 'semantic_assumption_extraction',
-              prompt_version: promptVersion,
-              input_hash: inputHash,
-              model: response.model,
-            },
-          }));
-          provenance = assumptions[0]?.provenance ?? {
-            backend: 'mcp_sampling',
-            status: 'applied',
-            used_fallback: false,
-            reason_code: parsed.reason || 'semantic_assumption_extraction',
-            prompt_version: promptVersion,
-            input_hash: inputHash,
-            model: response.model,
-          };
-        }
-      }
+        },
+      };
     }
 
+    const parsed = parseAssumptionExtractionResponse(extractSamplingText(response.content));
+    if (!parsed || parsed.abstain) {
+      return {
+        success: false,
+        error: parsed?.abstain
+          ? 'Semantic assumption tracking abstained from adjudication.'
+          : 'Semantic assumption tracking returned an invalid response.',
+        analysis: null,
+        provenance: {
+          backend: 'mcp_sampling',
+          status: parsed?.abstain ? 'abstained' : 'invalid',
+          used_fallback: false,
+          reason_code: parsed?.abstain ? 'model_abstained' : 'invalid_response',
+          prompt_version: promptVersion,
+          input_hash: inputHash,
+          model: response.model,
+        },
+      };
+    }
+
+    const assumptions: AssumptionNode[] = parsed.assumptions.slice(0, 6).map(item => ({
+      assumption: item.assumption,
+      type: item.type,
+      source: item.source,
+      inherited_from: item.inherited_from.length > 0 ? item.inherited_from : undefined,
+      validation_status: checkChallenges ? 'uncertain' : 'unavailable',
+      category: item.category_label,
+      provenance: {
+        backend: 'mcp_sampling',
+        status: 'applied',
+        used_fallback: false,
+        reason_code: parsed.reason || 'semantic_assumption_extraction',
+        prompt_version: promptVersion,
+        input_hash: inputHash,
+        model: response.model,
+      },
+    }));
+    const provenance: SemanticAssessmentProvenance = assumptions[0]?.provenance ?? {
+      backend: 'mcp_sampling',
+      status: 'applied',
+      used_fallback: false,
+      reason_code: parsed.reason || 'semantic_assumption_extraction',
+      prompt_version: promptVersion,
+      input_hash: inputHash,
+      model: response.model,
+    };
     const fragilityScore = assumptions.length > 0
       ? calculateFragilityScore(assumptions)
-      : provenance.used_fallback ? 0.65 : 0.5;
+      : 0.5;
     const uncertainCount = assumptions.filter(item => item.validation_status === 'uncertain').length;
     const unavailableCount = assumptions.filter(item => item.validation_status === 'unavailable').length;
     const analysis: AssumptionChain = {
@@ -308,13 +279,7 @@ export async function trackAssumptions(
     return {
       success: true,
       analysis,
-      risk_assessment: assumptions.length === 0 && provenance.used_fallback
-        ? {
-            level: 'medium',
-            description: 'Assumption extraction was unavailable; do not treat the empty graph as evidence of robustness.',
-            recommendations: ['Inspect the paper manually for unstated assumptions.', 'Retry with semantic sampling or follow-up literature context before reusing the result.'],
-          }
-        : buildRiskAssessment(fragilityScore, uncertainCount, unavailableCount),
+      risk_assessment: buildRiskAssessment(fragilityScore, uncertainCount, unavailableCount),
       provenance,
     };
   } catch (error) {
@@ -322,7 +287,7 @@ export async function trackAssumptions(
       success: false,
       error: error instanceof Error ? error.message : String(error),
       analysis: null,
-      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: true, reason_code: 'upstream_error' },
+      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: false, reason_code: 'upstream_error' },
     };
   }
 }
