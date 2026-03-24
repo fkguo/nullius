@@ -12,6 +12,7 @@ authors = [{ name = "fkg" }]
 dependencies = ["project-contracts"]
 
 [project.optional-dependencies]
+dev = ["jsonschema>=4"]
 web = ["fastapi>=0.110", "uvicorn>=0.27"]
 
 [project.scripts]

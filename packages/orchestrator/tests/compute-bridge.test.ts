@@ -4,9 +4,11 @@ import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const spawnSyncMock = vi.fn(() => {
-  throw new Error('spawnSync must not be called by compute bridge pre-approval paths');
-});
+const { spawnSyncMock } = vi.hoisted(() => ({
+  spawnSyncMock: vi.fn(() => {
+    throw new Error('spawnSync must not be called by compute bridge pre-approval paths');
+  }),
+}));
 
 vi.mock('node:child_process', async importOriginal => {
   const actual = await importOriginal<typeof import('node:child_process')>();
