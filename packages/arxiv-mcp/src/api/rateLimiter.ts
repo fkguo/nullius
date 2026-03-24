@@ -1,3 +1,5 @@
+import { SerialIntervalGate } from '@autoresearch/shared';
+
 /**
  * arXiv API Rate Limiter
  *
@@ -26,16 +28,10 @@ function isTestEnv(): boolean {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ArxivRateLimiter {
-  private lastRequestTime = 0;
+  private readonly intervalGate = new SerialIntervalGate(ARXIV_MIN_INTERVAL_MS, isTestEnv);
 
   async acquire(): Promise<void> {
-    if (isTestEnv()) return;
-    const now = Date.now();
-    const elapsed = now - this.lastRequestTime;
-    if (elapsed < ARXIV_MIN_INTERVAL_MS) {
-      await new Promise<void>(resolve => setTimeout(resolve, ARXIV_MIN_INTERVAL_MS - elapsed));
-    }
-    this.lastRequestTime = Date.now();
+    await this.intervalGate.acquire();
   }
 }
 

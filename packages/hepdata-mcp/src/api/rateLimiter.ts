@@ -1,4 +1,10 @@
-import { rateLimit, upstreamError } from '@autoresearch/shared';
+import {
+  parseRetryAfterMs,
+  rateLimit,
+  SerialIntervalGate,
+  sleepWithAbort,
+  upstreamError,
+} from '@autoresearch/shared';
 
 const HEPDATA_BASE_URL = 'https://www.hepdata.net';
 const MIN_INTERVAL_MS = 1000; // 1 req/second (conservative; HEPData limits at 60/min)
@@ -11,9 +17,7 @@ function isTestEnv(): boolean {
 
 class HEPDataRateLimiter {
   private static instance: HEPDataRateLimiter | null = null;
-  private lastRequestMs = 0;
-  // Serialise throttle waits so concurrent callers queue up rather than racing.
-  private throttle = Promise.resolve();
+  private readonly intervalGate = new SerialIntervalGate(MIN_INTERVAL_MS, isTestEnv);
 
   private constructor() {}
 
@@ -25,17 +29,7 @@ class HEPDataRateLimiter {
   }
 
   async fetch(urlPath: string, init?: RequestInit): Promise<Response> {
-    if (!isTestEnv()) {
-      const myTurn = this.throttle.then(async () => {
-        const elapsed = Date.now() - this.lastRequestMs;
-        if (elapsed < MIN_INTERVAL_MS) {
-          await new Promise<void>(r => setTimeout(r, MIN_INTERVAL_MS - elapsed));
-        }
-        this.lastRequestMs = Date.now();
-      });
-      this.throttle = myTurn;
-      await myTurn;
-    }
+    await this.intervalGate.acquire();
 
     const startTime = Date.now();
     const controller = new AbortController();
@@ -66,29 +60,27 @@ class HEPDataRateLimiter {
     }
 
     if (response.status === 429 && attempt < MAX_RETRIES) {
-      const retryAfterHeader = response.headers.get('retry-after') ?? '10';
-      // Retry-After can be a numeric seconds value or an HTTP-date string.
-      const parsedSec = Number(retryAfterHeader);
-      const retryAfterMs = Number.isFinite(parsedSec) && parsedSec >= 0
-        ? parsedSec * 1000
-        : 10_000; // fallback for HTTP-date format
+      const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after')) ?? 10_000;
       if (!isTestEnv()) {
         // Respect the timeout: if waiting would exceed the remaining budget, give up.
         const remaining = REQUEST_TIMEOUT_MS - (Date.now() - startTime);
         if (retryAfterMs >= remaining) {
-          throw rateLimit('HEPData rate limit: retry-after exceeds remaining timeout budget');
+          throw rateLimit('HEPData rate limit: retry-after exceeds remaining timeout budget', retryAfterMs);
         }
-        await new Promise<void>((resolve, reject) => {
-          const onAbort = () => { clearTimeout(timer); reject(upstreamError('HEPData request timed out during retry wait')); };
-          const timer = setTimeout(() => { signal.removeEventListener('abort', onAbort); resolve(); }, retryAfterMs);
-          signal.addEventListener('abort', onAbort, { once: true });
-        });
+        await sleepWithAbort(
+          retryAfterMs,
+          signal,
+          () => upstreamError('HEPData request timed out during retry wait'),
+        );
       }
       return this.fetchWithRetry(url, init, signal, attempt + 1, startTime);
     }
 
     if (response.status === 429) {
-      throw rateLimit('HEPData rate limit exceeded');
+      throw rateLimit(
+        'HEPData rate limit exceeded',
+        parseRetryAfterMs(response.headers.get('retry-after')),
+      );
     }
 
     return response;

@@ -1,4 +1,10 @@
-import { rateLimit, upstreamError } from '@autoresearch/shared';
+import {
+  parseRetryAfterMs,
+  rateLimit,
+  SerialTaskQueue,
+  sleepWithAbort,
+  upstreamError,
+} from '@autoresearch/shared';
 
 const OPENALEX_BASE_URL = 'https://api.openalex.org';
 const MIN_INTERVAL_MS = Number(process.env.OPENALEX_MIN_INTERVAL_MS ?? '100');
@@ -48,7 +54,7 @@ class OpenAlexRateLimiter {
    * request lifecycle (budget check + interval wait + HTTP + header accounting),
    * so budget updates from one request are visible before the next begins.
    */
-  private slot = Promise.resolve();
+  private readonly slot = new SerialTaskQueue();
   private cumulativeCostUsd = 0;
   private remainingBudgetUsd: number | null = null;
   private budgetResetsAt: string | null = null;
@@ -100,12 +106,7 @@ class OpenAlexRateLimiter {
     if (isTestEnv()) {
       return fn();
     }
-    // Reserve the next slot
-    let releaseSlot!: () => void;
-    const prevSlot = this.slot;
-    this.slot = new Promise<void>(r => { releaseSlot = r; });
-    await prevSlot;
-    try {
+    return this.slot.run(async () => {
       // Re-check after waiting: previous request may have consumed the budget
       if (this.isBudgetExceeded()) {
         throw rateLimit('OpenAlex session budget cap reached; use openalex_rate_limit to check cost');
@@ -117,9 +118,7 @@ class OpenAlexRateLimiter {
       }
       this.lastRequestMs = Date.now();
       return await fn();
-    } finally {
-      releaseSlot();
-    }
+    });
   }
 
   async fetch(urlPath: string, init?: RequestInit): Promise<Response> {
@@ -223,9 +222,7 @@ class OpenAlexRateLimiter {
     if (retryable.includes(response.status) && attempt < MAX_RETRIES) {
       let waitMs: number;
       if (response.status === 429) {
-        const retryAfterHeader = response.headers.get('retry-after') ?? String(BACKOFF_BASE_MS / 1000);
-        const parsedSec = Number(retryAfterHeader);
-        waitMs = Number.isFinite(parsedSec) && parsedSec >= 0 ? parsedSec * 1000 : BACKOFF_BASE_MS;
+        waitMs = parseRetryAfterMs(response.headers.get('retry-after')) ?? BACKOFF_BASE_MS;
       } else {
         // Exponential backoff with jitter
         const base = BACKOFF_BASE_MS * Math.pow(2, attempt);
@@ -237,17 +234,11 @@ class OpenAlexRateLimiter {
         if (elapsed + waitMs >= TOTAL_RETRY_WALL_TIME_MS) {
           throw rateLimit('OpenAlex retry wall-time exceeded');
         }
-        await new Promise<void>((resolve, reject) => {
-          const onAbort = () => {
-            clearTimeout(timer);
-            reject(upstreamError('OpenAlex request aborted during retry wait'));
-          };
-          const timer = setTimeout(() => {
-            signal.removeEventListener('abort', onAbort);
-            resolve();
-          }, waitMs);
-          signal.addEventListener('abort', onAbort, { once: true });
-        });
+        await sleepWithAbort(
+          waitMs,
+          signal,
+          () => upstreamError('OpenAlex request aborted during retry wait'),
+        );
       }
 
       this.retryCount++;
@@ -255,7 +246,10 @@ class OpenAlexRateLimiter {
     }
 
     if (response.status === 429) {
-      throw rateLimit('OpenAlex rate limit exceeded');
+      throw rateLimit(
+        'OpenAlex rate limit exceeded',
+        parseRetryAfterMs(response.headers.get('retry-after')),
+      );
     }
 
     return response;

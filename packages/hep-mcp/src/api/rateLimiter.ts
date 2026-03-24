@@ -2,6 +2,7 @@
 // Rate Limiter Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { parseRetryAfterMs } from '@autoresearch/shared';
 import { logger } from '../utils/logger.js';
 
 // INSPIRE API rate limit: 15 requests per 5s window
@@ -204,9 +205,7 @@ export class InspireRateLimiter {
         this.activeRetries++;
 
         const retryAfter = response.headers.get('Retry-After');
-        const delay = retryAfter
-          ? parseInt(retryAfter, 10) * 1000 || this.calculateBackoffDelay(retryCount)
-          : this.calculateBackoffDelay(retryCount);
+        const delay = parseRetryAfterMs(retryAfter) ?? this.calculateBackoffDelay(retryCount);
 
         logger.debug('rate_limiter', `429 received, retrying`, { retry_count: retryCount + 1, delay_ms: Math.round(delay) });
 

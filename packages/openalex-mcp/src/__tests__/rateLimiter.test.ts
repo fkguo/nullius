@@ -92,6 +92,22 @@ describe('Rate limiter URL construction via openalexFetch', () => {
     expect(calledUrl).toContain('https://api.openalex.org/works');
     expect(calledUrl).toContain('filter=is_oa');
   });
+
+  it('surfaces retryAfterMs on terminal 429 errors', async () => {
+    fetchSpy.mockResolvedValue(
+      new Response('{}', {
+        status: 429,
+        headers: { 'retry-after': '7' },
+      }),
+    );
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    await expect(openalexFetch('/works?per-page=1')).rejects.toMatchObject({
+      code: 'RATE_LIMIT',
+      retryAfterMs: 7000,
+    });
+  });
 });
 
 describe('withSlot queue/release semantics', () => {
