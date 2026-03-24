@@ -1,11 +1,11 @@
 {
   "name": "sem05_semantic_authority_holdout",
   "version": 1,
-  "description": "Batch B holdout cases for unavailable and empty-graph semantic fallback behavior.",
+  "description": "Batch B holdout cases for unavailable semantic authority paths after fail-closed cleanup.",
   "module": "SEM-05",
   "cases": [
     {
-      "id": "assumption-fallback-empty-graph-is-not-low-risk",
+      "id": "assumption-fail-closed-empty-graph-stays-unavailable",
       "input": {
         "kind": "assumption_tracker",
         "recid": "6006",
@@ -15,12 +15,12 @@
         "references": []
       },
       "expected": {
-        "risk_level": "medium",
-        "used_fallback": true,
-        "reason_code": "sampling_unavailable",
-        "fragility_min": 0.6
+        "fragility_score": null,
+        "risk_level": null,
+        "used_fallback": false,
+        "reason_code": "sampling_required"
       },
-      "tags": ["assumptions", "holdout", "fallback"]
+      "tags": ["assumptions", "holdout", "fail_closed"]
     },
     {
       "id": "review-fetch-failure-stays-visible-as-unavailable",

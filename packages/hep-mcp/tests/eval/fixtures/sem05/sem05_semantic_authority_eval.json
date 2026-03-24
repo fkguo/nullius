@@ -1,7 +1,7 @@
 {
   "name": "sem05_semantic_authority_eval",
   "version": 1,
-  "description": "Batch B hard cases for semantic authority cleanup in review/paper/question modules.",
+  "description": "Batch B hard cases for semantic authority cleanup in review/paper/question modules with fail-closed sampling semantics.",
   "module": "SEM-05",
   "cases": [
     {
@@ -155,7 +155,7 @@
       "tags": ["content", "arxiv_prior", "authority_cleanup"]
     },
     {
-      "id": "critical-questions-fallback-does-not-emit-claimword-red-flag",
+      "id": "critical-questions-fail-closed-does-not-emit-claimword-red-flag",
       "input": {
         "kind": "critical_questions",
         "recid": "4004",
@@ -170,11 +170,11 @@
       "expected": {
         "paper_type": "uncertain",
         "reliability_score": null,
-        "used_fallback": true,
-        "reason_code": "sampling_unavailable",
+        "used_fallback": false,
+        "reason_code": "sampling_required",
         "forbidden_red_flags": ["excessive_claims"]
       },
-      "tags": ["questions", "fallback", "keyword_authority"]
+      "tags": ["questions", "fail_closed", "keyword_authority"]
     }
   ]
 }
