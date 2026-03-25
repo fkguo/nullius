@@ -230,3 +230,12 @@
 - Workflow-like public literature MCP tools are pruned directly from both `standard` and `full`; they do not get a transitional `full` holding area. The retained public literature surface is bounded atomic analysis/operator tools only.
 
 **Why**: Governance-only recipe registration was not enough; without a checked-in executable launcher and consumer repoints, the repo kept two competing high-level front doors. Putting executable authority in a leaf launcher preserves a single workflow authority while keeping provider MCP packages atomic and reusable.
+
+### [2026-03-25] EVO-11 distributor boundary invariant: TS live seam stays family-neutral, slice-1 policy stays fixed
+
+**Decision**:
+- Live distributor authority remains on the TS `packages/idea-engine/` `campaign.init` + `search.step` path; do not reopen Python `idea-core` as bandit runtime authority.
+- EVO-11 slice-1 fixes the live runtime-configured public policy surface to `policy_id = ts.discounted_ucb_v1`, factorized action space, immutable campaign-scoped config/state/event artifacts, and checked-in hyperparameters rather than user-configurable policy tuning.
+- The internal distributor seam remains family-neutral: operator descriptors, action-space enumeration, config/state/event contracts, and deterministic replay surfaces must not assume `discounted_ucb_v` is the only long-term family, so stronger future policies such as `Replicator MW-KL` or EVO-21-style adaptive strategies can attach without reworking the live TS authority boundary.
+
+**Why**: Slice-1 optimizes for auditability, replay determinism, and low-complexity live integration while preserving a clean upgrade path to stronger future policy families.
