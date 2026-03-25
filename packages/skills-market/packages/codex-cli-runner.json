@@ -11,6 +11,11 @@
     "opencode"
   ],
   "source_path": "~/.codex/skills/codex-cli-runner/SKILL.md",
+  "install_policy": {
+    "auto_safe": {
+      "human_pre_approved": true
+    }
+  },
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",
@@ -18,7 +23,7 @@
   },
   "source": {
     "repo": "autoresearch-lab/skills",
-    "ref": "main",
+    "ref": "52956e32da7fa9c8c523a22736081d2ac91d92e2",
     "subpath": "skills/codex-cli-runner",
     "include": [
       "SKILL.md",

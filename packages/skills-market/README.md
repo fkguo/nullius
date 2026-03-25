@@ -80,7 +80,7 @@ python3 scripts/install_skill.py \
   - requires `source.ref` to be an immutable 40-character git SHA
   - fails closed if any dependency in the requested closure is not an eligible `skill-pack`
 - `--auto-safe` writes install provenance into `.market_install.json` and a deterministic target-root audit file at `.auto_safe_install_audit.json`
-- The current checked-in catalog is not yet rolled out for real `--auto-safe` installs; this first EVO-12 slice only establishes the fail-closed contract and installer/validator authority
+- The current checked-in catalog has a limited real `--auto-safe` rollout for `codex-cli-runner` and `auto-relay`; the rest of the catalog is not yet onboarded to this authority
 - This slice is local to `skills-market` installer behavior only; compatibility/export mirror updates are intentionally deferred
 
 Example auto-safe invocation:
@@ -88,7 +88,7 @@ Example auto-safe invocation:
 ```bash
 python3 scripts/install_skill.py \
   --platform codex \
-  --package some-approved-skill \
+  --package codex-cli-runner \
   --auto-safe
 ```
 
