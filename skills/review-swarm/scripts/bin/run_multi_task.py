@@ -77,6 +77,11 @@ def _write_meta_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def _codex_home() -> Path:
     env = os.environ.get("CODEX_HOME", "").strip()
     if env:
@@ -485,6 +490,18 @@ def _resolve_backend_tool_mode(backend: str, overrides: dict[str, str]) -> Optio
     return _DEFAULT_BACKEND_TOOL_MODES.get(backend)
 
 
+def _write_gemini_review_settings(home_root: Path) -> tuple[Path, dict[str, Any]]:
+    settings_payload: dict[str, Any] = {
+        "mcp": {
+            "allowed": [],
+        },
+        "mcpServers": {},
+    }
+    settings_path = home_root / ".gemini" / "settings.json"
+    _write_json_file(settings_path, settings_payload)
+    return settings_path, settings_payload
+
+
 class AgentPlan:
     __slots__ = ("index", "backend", "requested_model", "runner_model", "runner_path")
 
@@ -633,6 +650,46 @@ def _build_cmd(
     return cmd
 
 
+def _resolve_gemini_review_profile(
+    *,
+    plan: AgentPlan,
+    out_dir: Path,
+    backend_tool_modes: dict[str, str],
+    explicit_gemini_cli_home: Optional[str],
+) -> tuple[Optional[str], Optional[dict[str, Any]]]:
+    if plan.backend != "gemini":
+        return None, None
+
+    tool_mode = _resolve_backend_tool_mode(plan.backend, backend_tool_modes)
+    profile: dict[str, Any] = {
+        "tool_mode": tool_mode,
+    }
+    if explicit_gemini_cli_home:
+        profile.update(
+            {
+                "source": "explicit",
+                "home": explicit_gemini_cli_home,
+            }
+        )
+        return explicit_gemini_cli_home, profile
+
+    if tool_mode != "review":
+        profile["source"] = "default"
+        return None, profile
+
+    home_root = out_dir / "runtime" / "gemini_cli_home" / f"agent_{plan.index + 1}"
+    settings_path, settings_payload = _write_gemini_review_settings(home_root)
+    profile.update(
+        {
+            "source": "auto_isolated_review",
+            "home": str(home_root),
+            "settings_path": str(settings_path),
+            "settings_payload": settings_payload,
+        }
+    )
+    return str(home_root), profile
+
+
 def _run_with_timeout(cmd: list[str], *, timeout_secs: int) -> dict[str, Any]:
     if timeout_secs <= 0:
         proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
@@ -683,6 +740,7 @@ def _run_one(
     backend_tool_modes: dict[str, str],
     review_workspace_dir: Path,
     gemini_cli_home: Optional[str],
+    gemini_review_profile: Optional[dict[str, Any]],
     timeout_secs: int,
     output_path: Optional[Path] = None,
 ) -> dict[str, Any]:
@@ -711,6 +769,18 @@ def _run_one(
             "cmd": cmd,
         },
     )
+    if gemini_review_profile is not None:
+        _append_jsonl(
+            trace_path,
+            {
+                "ts": _utc_now(),
+                "event": f"agent_{plan.index}_gemini_profile",
+                "index": plan.index,
+                "backend": plan.backend,
+                "model": plan.requested_model,
+                "gemini_review_profile": gemini_review_profile,
+            },
+        )
 
     try:
         proc = _run_with_timeout(cmd, timeout_secs=timeout_secs)
@@ -724,6 +794,8 @@ def _run_one(
             "success": bool((not proc["timed_out"]) and proc["exit_code"] == 0),
             "out": str(out_path),
         }
+        if gemini_review_profile is not None:
+            result["gemini_review_profile"] = gemini_review_profile
         event: dict[str, Any] = {
             "ts": _utc_now(),
             "event": f"agent_{plan.index}_end",
@@ -1205,7 +1277,9 @@ def main() -> int:
 
     system_prompt = args.system.expanduser().resolve()
     user_prompt = args.prompt.expanduser().resolve()
-    gemini_cli_home = str(args.gemini_cli_home).strip() or None
+    explicit_gemini_cli_home = None
+    if str(args.gemini_cli_home).strip():
+        explicit_gemini_cli_home = str(Path(str(args.gemini_cli_home)).expanduser().resolve())
     fallback_order = _split_csv(args.fallback_order)
     fallback_targets = set(_split_csv(args.fallback_target_backends))
     fallback_codex_model = _normalize_model_arg(args.fallback_codex_model)
@@ -1405,6 +1479,39 @@ def main() -> int:
             )
             return 2
 
+    results: list[dict[str, Any]] = []
+    run_specs: list[tuple[AgentPlan, Optional[Path], Path, Path, Optional[str], Optional[dict[str, Any]]]] = []
+    for plan in plans:
+        plan_gemini_cli_home, plan_gemini_review_profile = _resolve_gemini_review_profile(
+            plan=plan,
+            out_dir=out_dir,
+            backend_tool_modes=backend_tool_modes,
+            explicit_gemini_cli_home=explicit_gemini_cli_home,
+        )
+        run_specs.append(
+            (
+                plan,
+                _effective_system_path(
+                    backend=plan.backend,
+                    default_system=system_prompt,
+                    system_overrides=backend_system_overrides,
+                ),
+                _effective_prompt_path(
+                    backend=plan.backend,
+                    default_prompt=user_prompt,
+                    prompt_overrides=backend_prompt_overrides,
+                ),
+                _effective_output_path(
+                    plan=plan,
+                    out_dir=out_dir,
+                    output_prefix=args.output_prefix,
+                    output_overrides=backend_output_overrides,
+                ),
+                plan_gemini_cli_home,
+                plan_gemini_review_profile,
+            )
+        )
+
     _append_jsonl(
         trace_path,
         {
@@ -1428,33 +1535,17 @@ def main() -> int:
                 backend: _resolve_backend_tool_mode(backend, backend_tool_modes)
                 for backend in sorted({plan.backend for plan in plans} & set(_DEFAULT_BACKEND_TOOL_MODES))
             },
+            "gemini_review_profiles": [
+                {
+                    "index": plan.index,
+                    "requested_model": plan.requested_model,
+                    **profile,
+                }
+                for plan, _, _, _, _, profile in run_specs
+                if plan.backend == "gemini" and profile is not None
+            ],
         },
     )
-
-    results: list[dict[str, Any]] = []
-    run_specs: list[tuple[AgentPlan, Optional[Path], Path, Path]] = []
-    for plan in plans:
-        run_specs.append(
-            (
-                plan,
-                _effective_system_path(
-                    backend=plan.backend,
-                    default_system=system_prompt,
-                    system_overrides=backend_system_overrides,
-                ),
-                _effective_prompt_path(
-                    backend=plan.backend,
-                    default_prompt=user_prompt,
-                    prompt_overrides=backend_prompt_overrides,
-                ),
-                _effective_output_path(
-                    plan=plan,
-                    out_dir=out_dir,
-                    output_prefix=args.output_prefix,
-                    output_overrides=backend_output_overrides,
-                ),
-            )
-        )
 
     if args.parallel:
         max_workers = min(len(plans), 32)
@@ -1472,11 +1563,12 @@ def main() -> int:
                     opencode_variant=args.variant or None,
                     backend_tool_modes=backend_tool_modes,
                     review_workspace_dir=review_workspace_dir,
-                    gemini_cli_home=gemini_cli_home,
+                    gemini_cli_home=plan_gemini_cli_home,
+                    gemini_review_profile=plan_gemini_review_profile,
                     timeout_secs=int(args.timeout_secs),
                     output_path=plan_out,
                 ): (plan, plan_out)
-                for plan, plan_system, plan_prompt, plan_out in run_specs
+                for plan, plan_system, plan_prompt, plan_out, plan_gemini_cli_home, plan_gemini_review_profile in run_specs
             }
             for future in as_completed(futures):
                 plan, plan_out = futures[future]
@@ -1507,7 +1599,7 @@ def main() -> int:
                         }
                     )
     else:
-        for plan, plan_system, plan_prompt, plan_out in run_specs:
+        for plan, plan_system, plan_prompt, plan_out, plan_gemini_cli_home, plan_gemini_review_profile in run_specs:
             results.append(
                 _run_one(
                     plan=plan,
@@ -1520,7 +1612,8 @@ def main() -> int:
                     opencode_variant=args.variant or None,
                     backend_tool_modes=backend_tool_modes,
                     review_workspace_dir=review_workspace_dir,
-                    gemini_cli_home=gemini_cli_home,
+                    gemini_cli_home=plan_gemini_cli_home,
+                    gemini_review_profile=plan_gemini_review_profile,
                     timeout_secs=int(args.timeout_secs),
                     output_path=plan_out,
                 )
@@ -1589,6 +1682,12 @@ def main() -> int:
                         runner_model=model,
                         runner_path=runner_map[backend],
                     )
+                    fallback_gemini_cli_home, fallback_gemini_review_profile = _resolve_gemini_review_profile(
+                        plan=plan,
+                        out_dir=out_dir,
+                        backend_tool_modes=backend_tool_modes,
+                        explicit_gemini_cli_home=explicit_gemini_cli_home,
+                    )
                     _append_jsonl(
                         trace_path,
                         {
@@ -1620,7 +1719,8 @@ def main() -> int:
                         opencode_variant=args.variant or None,
                         backend_tool_modes=backend_tool_modes,
                         review_workspace_dir=review_workspace_dir,
-                        gemini_cli_home=gemini_cli_home,
+                        gemini_cli_home=fallback_gemini_cli_home,
+                        gemini_review_profile=fallback_gemini_review_profile,
                         timeout_secs=int(args.timeout_secs),
                         output_path=out_path,
                     )

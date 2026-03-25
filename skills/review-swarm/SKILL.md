@@ -91,7 +91,8 @@ Default behavior is explicit:
 
 Reviewer-safe modes:
 - `claude=review`: maps to a read-only built-in tool profile (`Read,Glob,Grep`).
-- `gemini=review`: maps to Gemini CLI `--approval-mode plan` plus local CLI execution (`--no-proxy-first`) and sandboxing, which is Gemini's read-only review path.
+- `gemini=review`: maps to Gemini CLI `--approval-mode plan` plus local CLI execution (`--no-proxy-first`), sandboxing, and `--extensions none`, which is Gemini's read-only review path.
+- When Gemini is in `review` mode and `--gemini-cli-home` was not explicitly set, `review-swarm` now synthesizes an isolated `GEMINI_CLI_HOME` under the run output directory and writes a minimal user settings file there (`mcpServers={}`, `mcp.allowed=[]`) to avoid inheriting reviewer-external user MCP state by default.
 - Gemini `review` is a headless review path, not the same interaction mode as the Gemini TUI `/mcp` session. If this path emits MCP discovery noise or does not yield a usable source-grounded verdict on a large packet, prefer a same-model rerun with an embedded-source packet and `gemini=none` rather than assuming TUI MCP health guarantees headless review stability.
 
 OpenCode caveat:

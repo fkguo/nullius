@@ -39,6 +39,7 @@ Notes:
 - If `--system-prompt-file` is provided, its contents are prepended to stdin before the prompt file (separated by a blank line).
 - Tool access is explicit:
   - Default is `--tool-mode none`
-  - `--tool-mode review` maps to Gemini CLI `--approval-mode plan` plus `--sandbox` and `--no-proxy-first`
+  - `--tool-mode review` maps to Gemini CLI `--approval-mode plan` plus `--sandbox`, `--no-proxy-first`, and `--extensions none`
+- If `--gemini-cli-home` is set, the runner treats it as an isolated Gemini home root. When auth env vars are not already exported, it bootstraps the minimum Gemini auth env from `$HOME/.gemini/.env` so isolated review runs do not silently lose API connectivity.
 - Use `--dry-run` to print the planned command + prompt file size/hash without calling `gemini`.
 - `--no-proxy-first` still exists as an escape hatch, but read-only review/file access should normally use `--tool-mode review`.

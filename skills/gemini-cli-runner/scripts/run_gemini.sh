@@ -12,6 +12,7 @@ OUT=""
 MODEL=""
 OUTPUT_FORMAT="text"
 TOOL_MODE="none"
+EXTENSIONS_MODE=""
 APPROVAL_MODE="default"
 APPROVAL_MODE_EXPLICIT=0
 SANDBOX=0
@@ -30,7 +31,7 @@ Usage:
 Options:
   --model MODEL           Optional (e.g. gemini-3.1-pro-preview). If invalid, script falls back to default model.
   --output-format FORMAT  Default: text (choices depend on gemini CLI; typically text/json/stream-json)
-  --tool-mode MODE        Default: none. Choices: none, review. "review" maps to approval-mode=plan + sandbox.
+  --tool-mode MODE        Default: none. Choices: none, review. "review" maps to approval-mode=plan + sandbox + --extensions none.
   --approval-mode MODE    Default: default. Choices: default, auto_edit, yolo, plan.
   --sandbox               Run Gemini CLI in sandbox mode.
   --system-prompt-file F  Optional. If set, it is prepended to stdin before the prompt file (separated by a blank line).
@@ -123,17 +124,21 @@ sanitize_gemini_output() {
   fi
 
   python3 - "${f}" <<'PY'
+import json
 import re
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
-lines = text.split("\n")
+text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n").lstrip()
 
-hook_re = re.compile(r"^Hook registry initialized with \d+ hook entries$")
-startup_res = [
+hook_re = re.compile(r"^Hook registry initialized with \d+ hook entries\s*")
+inline_prefix_res = [
     hook_re,
+    re.compile(r"^MCP issues detected\. Run /mcp list for status\.\s*"),
+]
+startup_line_res = [
+    re.compile(r"^Hook registry initialized with \d+ hook entries$"),
     re.compile(r"^MCP issues detected\. Run /mcp list for status\.$"),
     re.compile(r"^Registering notification handlers for server '.*'\. Capabilities: .*"),
     re.compile(r"^(completions|resources|tools): .*"),
@@ -148,21 +153,47 @@ startup_res = [
     re.compile(r"^MCP context refresh complete\.$"),
 ]
 
-while lines:
-    line = lines[0].strip()
-    if line == "":
-        lines.pop(0)
+while text:
+    changed = False
+    for pattern in inline_prefix_res:
+        match = pattern.match(text)
+        if match:
+            text = text[match.end():].lstrip()
+            changed = True
+            break
+    if changed:
         continue
-    if any(pattern.match(line) for pattern in startup_res):
-        lines.pop(0)
+
+    lines = text.splitlines()
+    if not lines:
+        break
+    first = lines[0].strip()
+    if not first:
+        text = "\n".join(lines[1:]).lstrip()
+        continue
+    if any(pattern.match(first) for pattern in startup_line_res):
+        text = "\n".join(lines[1:]).lstrip()
         continue
     break
 
-# Strip leading empty lines for deterministic first-line checks.
-while lines and lines[0].strip() == "":
-    lines.pop(0)
+if text and not text.startswith("{") and not text.startswith("```"):
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip().startswith("VERDICT: "):
+            text = "\n".join(lines[i:]).lstrip()
+            break
+    else:
+        json_start = text.find("{")
+        if json_start > 0:
+            candidate = text[json_start:]
+            try:
+                json.loads(candidate)
+            except Exception:
+                pass
+            else:
+                text = candidate
 
-path.write_text("\n".join(lines), encoding="utf-8")
+path.write_text(text.rstrip() + "\n", encoding="utf-8")
 PY
 }
 
@@ -182,6 +213,58 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8", errors="replace").strip()
 raise SystemExit(0 if text else 1)
 PY
+}
+
+load_auth_env_from_default_home() {
+  if [[ -z "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
+    return 0
+  fi
+  if [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" || -n "${GOOGLE_GEMINI_BASE_URL:-}" ]]; then
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local dotenv_path="${HOME}/.gemini/.env"
+  [[ -f "${dotenv_path}" ]] || return 0
+
+  local auth_lines
+  auth_lines="$(
+    python3 - "${dotenv_path}" <<'PY'
+import sys
+from pathlib import Path
+
+allowed = {
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_CLOUD_LOCATION",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_GEMINI_BASE_URL",
+}
+
+path = Path(sys.argv[1])
+for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    line = raw.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    key = key.strip()
+    if key not in allowed:
+        continue
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        value = value[1:-1]
+    print(f"{key}={value}")
+PY
+  )"
+
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    export "${line}"
+  done <<EOF
+${auth_lines}
+EOF
 }
 
 try_generatecontent_fallback() {
@@ -383,6 +466,7 @@ case "${TOOL_MODE}" in
       exit 2
     fi
     APPROVAL_MODE="plan"
+    EXTENSIONS_MODE="none"
     NO_PROXY_FIRST=1
     SANDBOX=1
     ;;
@@ -420,6 +504,11 @@ fi
 # and may ignore stdin. Use a single space to reliably trigger headless mode
 # while keeping semantics neutral.
 prompt_suffix=" "
+base_args=(--approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}")
+if [[ -n "${EXTENSIONS_MODE}" ]]; then
+  base_args+=(--extensions "${EXTENSIONS_MODE}")
+fi
+base_args+=(-p "${prompt_suffix}")
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "dry_run: 1"
@@ -438,6 +527,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "tool_mode: ${TOOL_MODE}"
   echo "output_format: ${OUTPUT_FORMAT}"
   echo "approval_mode: ${APPROVAL_MODE}"
+  if [[ -n "${EXTENSIONS_MODE}" ]]; then
+    echo "extensions: ${EXTENSIONS_MODE}"
+  else
+    echo "extensions: (default)"
+  fi
   echo "sandbox: ${SANDBOX}"
   echo "no_proxy_first: ${NO_PROXY_FIRST}"
   if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
@@ -448,13 +542,13 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   if [[ -n "${MODEL}" ]]; then
     echo "model: ${MODEL}"
     echo "no_fallback: ${NO_FALLBACK}"
-    echo -n "command: "; print_gemini_cmd_with_sandbox -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+    echo -n "command: "; print_gemini_cmd_with_sandbox -m "${MODEL}" "${base_args[@]}"; echo "< ${stdin_desc}"
     if [[ "${NO_FALLBACK}" -ne 1 ]]; then
-      echo -n "fallback_command: "; print_gemini_cmd_with_sandbox --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+      echo -n "fallback_command: "; print_gemini_cmd_with_sandbox "${base_args[@]}"; echo "< ${stdin_desc}"
     fi
   else
     echo "model: (default)"
-    echo -n "command: "; print_gemini_cmd_with_sandbox --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}"; echo "< ${stdin_desc}"
+    echo -n "command: "; print_gemini_cmd_with_sandbox "${base_args[@]}"; echo "< ${stdin_desc}"
   fi
   exit 0
 fi
@@ -467,6 +561,7 @@ tmp_err=""
 if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
   mkdir -p "${GEMINI_CLI_HOME_OVERRIDE}"
 fi
+load_auth_env_from_default_home
 cleanup() {
   # Do not let cleanup affect the script exit status.
   if [[ -n "${tmp_out}" ]]; then
@@ -526,10 +621,10 @@ fi
 
 set +e
 if [[ -n "${MODEL}" ]]; then
-  run_gemini_cmd_with_sandbox -m "${MODEL}" --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+  run_gemini_cmd_with_sandbox -m "${MODEL}" "${base_args[@]}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
   code=$?
 else
-  run_gemini_cmd_with_sandbox --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+  run_gemini_cmd_with_sandbox "${base_args[@]}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
   code=$?
 fi
 set -e
@@ -538,7 +633,7 @@ if [[ $code -ne 0 && -n "${MODEL}" ]]; then
   # Fallback: omit -m in case the local CLI uses different model aliases.
   if [[ "${NO_FALLBACK}" -ne 1 ]]; then
     set +e
-    run_gemini_cmd_with_sandbox --approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}" -p "${prompt_suffix}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
+    run_gemini_cmd_with_sandbox "${base_args[@]}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
     code=$?
     set -e
   fi

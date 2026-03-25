@@ -32,6 +32,10 @@ JSON_REQUIRED_FIELDS = {"blocking_issues", "verdict", "summary"}
 JSON_VALID_VERDICTS = {"PASS", "FAIL"}
 
 _RE_GEMINI_HOOK_PREAMBLE = re.compile(r"^Hook registry initialized with \d+ hook entries\s*$")
+_RE_GEMINI_INLINE_PREFIXES = [
+    re.compile(r"^\s*Hook registry initialized with \d+ hook entries\s*"),
+    re.compile(r"^\s*MCP issues detected\. Run /mcp list for status\.\s*"),
+]
 _RE_GEMINI_STARTUP_LINES = [
     _RE_GEMINI_HOOK_PREAMBLE,
     re.compile(r"^MCP issues detected\. Run /mcp list for status\.\s*$"),
@@ -148,21 +152,48 @@ def sanitize_gemini_output(path: Path) -> bool:
     except Exception:
         return False
 
-    lines = raw.splitlines()
-    i = 0
-    while i < len(lines) and not lines[i].strip():
-        i += 1
-    while i < len(lines):
-        line = lines[i].strip()
+    cleaned = raw.lstrip()
+    while cleaned:
+        changed = False
+        for pattern in _RE_GEMINI_INLINE_PREFIXES:
+            match = pattern.match(cleaned)
+            if match:
+                cleaned = cleaned[match.end() :].lstrip()
+                changed = True
+                break
+        if changed:
+            continue
+
+        lines = cleaned.splitlines()
+        if not lines:
+            break
+        line = lines[0].strip()
         if not line:
-            i += 1
+            cleaned = "\n".join(lines[1:]).lstrip()
             continue
         if any(pattern.match(line) for pattern in _RE_GEMINI_STARTUP_LINES):
-            i += 1
+            cleaned = "\n".join(lines[1:]).lstrip()
             continue
         break
 
-    cleaned = "\n".join(lines[i:]).rstrip() + "\n"
+    if cleaned and not cleaned.startswith("{") and not cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        for i, line in enumerate(lines):
+            if _RE_VERDICT_LINE.match(line.strip()):
+                cleaned = "\n".join(lines[i:]).lstrip()
+                break
+        else:
+            json_start = cleaned.find("{")
+            if json_start > 0:
+                candidate = cleaned[json_start:]
+                try:
+                    json.loads(strip_markdown_fences(candidate))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+                else:
+                    cleaned = candidate
+
+    cleaned = cleaned.rstrip() + "\n"
     cleaned = sanitize_contract_text(cleaned)
     if cleaned != raw:
         path.write_text(cleaned, encoding="utf-8")

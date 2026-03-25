@@ -4,6 +4,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 RUNNER = SKILL_DIR / "scripts" / "run_gemini.sh"
@@ -19,6 +21,7 @@ mode="${FAKE_MODE:-success}"
 model=""
 approval_mode=""
 output_format=""
+extensions=""
 sandbox=0
 prompt=""
 stdin_file="$(mktemp)"
@@ -36,6 +39,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -o|--output-format)
       output_format="${2:-}"
+      shift 2
+      ;;
+    --extensions)
+      extensions="${2:-}"
       shift 2
       ;;
     -p|--prompt)
@@ -62,12 +69,23 @@ cat >"${stdin_file}" || true
     printf 'MCP issues detected. Run /mcp list for status.\\n\\n'
     echo "OK_AFTER_SANITIZE"
     ;;
+  inline_json_noise)
+    printf 'MCP issues detected. Run /mcp list for status.{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\\n'
+    ;;
+  thought_then_json)
+    printf 'MCP issues detected. Run /mcp list for status.thought: checking packet\\n{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\\n'
+    ;;
   emit_metadata)
     printf 'sandbox=%s\\n' "${sandbox}"
     printf 'approval_mode=%s\\n' "${approval_mode}"
     printf 'output_format=%s\\n' "${output_format}"
+    printf 'extensions=%s\\n' "${extensions}"
     printf 'model=%s\\n' "${model}"
     printf 'prompt=%s\\n' "${prompt}"
+    ;;
+  emit_env)
+    printf 'gemini_api_key=%s\\n' "${GEMINI_API_KEY:-}"
+    printf 'google_gemini_base_url=%s\\n' "${GOOGLE_GEMINI_BASE_URL:-}"
     ;;
   *)
     echo "OK_DEFAULT"
@@ -87,6 +105,7 @@ def _run_runner(
     fake_mode: str = "success",
     prompt_text: str = "hello\n",
     system_text: str | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
@@ -100,6 +119,8 @@ def _run_runner(
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
     env["FAKE_MODE"] = fake_mode
+    if extra_env:
+        env.update(extra_env)
 
     cmd = [
         "bash",
@@ -132,7 +153,7 @@ def test_tool_mode_none_executes_without_unbound_array_failure(tmp_path: Path) -
     assert _out_text(out_path) == "OK_DEFAULT\n"
 
 
-def test_review_mode_dry_run_shows_plan_and_sandbox(tmp_path: Path) -> None:
+def test_review_mode_dry_run_shows_plan_sandbox_and_no_extensions(tmp_path: Path) -> None:
     proc, out_path = _run_runner(
         tmp_path,
         args=["--tool-mode", "review", "--model", "gemini-3.1-pro-preview", "--dry-run"],
@@ -140,8 +161,9 @@ def test_review_mode_dry_run_shows_plan_and_sandbox(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stderr
     assert "tool_mode: review" in proc.stdout
     assert "approval_mode: plan" in proc.stdout
+    assert "extensions: none" in proc.stdout
     assert "sandbox: 1" in proc.stdout
-    assert "command: gemini --sandbox -m gemini-3.1-pro-preview --approval-mode plan" in proc.stdout
+    assert "command: gemini --sandbox -m gemini-3.1-pro-preview --approval-mode plan -o text --extensions none -p" in proc.stdout
     assert _out_text(out_path) == ""
 
 
@@ -165,3 +187,53 @@ def test_sanitizes_known_mcp_status_prefix(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert _out_text(out_path) == "OK_AFTER_SANITIZE\n"
+
+
+def test_sanitizes_inline_mcp_prefix_before_json(tmp_path: Path) -> None:
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--no-fallback"],
+        fake_mode="inline_json_noise",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _out_text(out_path) == '{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n'
+
+
+def test_sanitizes_thought_preamble_before_json(tmp_path: Path) -> None:
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--no-fallback"],
+        fake_mode="thought_then_json",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _out_text(out_path) == '{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n'
+
+
+def test_isolated_gemini_home_bootstraps_auth_env_from_default_home(tmp_path: Path) -> None:
+    home_dir = tmp_path / "home"
+    home_gemini_dir = home_dir / ".gemini"
+    home_gemini_dir.mkdir(parents=True, exist_ok=True)
+    (home_gemini_dir / ".env").write_text(
+        "GEMINI_API_KEY=test-key\nGOOGLE_GEMINI_BASE_URL=http://127.0.0.1:5000\n",
+        encoding="utf-8",
+    )
+
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=[
+            "--gemini-cli-home",
+            str(tmp_path / "isolated-home"),
+            "--model",
+            "gemini-3.1-pro-preview",
+            "--no-fallback",
+        ],
+        fake_mode="emit_env",
+        extra_env={"HOME": str(home_dir)},
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "gemini_api_key=test-key" in _out_text(out_path)
+    assert "google_gemini_base_url=http://127.0.0.1:5000" in _out_text(out_path)
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

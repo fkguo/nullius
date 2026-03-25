@@ -650,6 +650,132 @@ class MultiTaskTests(unittest.TestCase):
                 '{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n',
             )
 
+    def test_sanitize_gemini_output_strips_inline_mcp_prefix_before_json(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out = td_path / "gemini_output.txt"
+            out.write_text(
+                'MCP issues detected. Run /mcp list for status.{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n',
+                encoding="utf-8",
+            )
+
+            changed = self.mod.sanitize_gemini_output(out)
+
+            self.assertTrue(changed)
+            self.assertEqual(
+                out.read_text(encoding="utf-8"),
+                '{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n',
+            )
+
+    def test_sanitize_gemini_output_recovers_json_after_thought_preamble(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out = td_path / "gemini_output.txt"
+            out.write_text(
+                "MCP issues detected. Run /mcp list for status.thought: checking packet\n"
+                '{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n',
+                encoding="utf-8",
+            )
+
+            changed = self.mod.sanitize_gemini_output(out)
+
+            self.assertTrue(changed)
+            self.assertEqual(
+                out.read_text(encoding="utf-8"),
+                '{"verdict":"PASS","blocking_issues":[],"summary":"usable"}\n',
+            )
+
+    def test_gemini_review_auto_isolates_cli_home_and_writes_minimal_settings(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            system = td_path / "system.md"
+            prompt = td_path / "prompt.md"
+            gemini_runner = td_path / "run_gemini.sh"
+
+            _write_stub_runner(gemini_runner)
+            system.write_text("SYSTEM\n", encoding="utf-8")
+            prompt.write_text("PROMPT\n", encoding="utf-8")
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir",
+                str(out_dir),
+                "--gemini-runner",
+                str(gemini_runner),
+                "--system",
+                str(system),
+                "--prompt",
+                str(prompt),
+                "--models",
+                "gemini/default",
+                "--backend-tool-mode",
+                "gemini=review",
+                "--no-parallel",
+            ]
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 0)
+
+            events = _read_trace_events(out_dir / "trace.jsonl")
+            config_event = next(e for e in events if e.get("event") == "config")
+            profile = config_event["gemini_review_profiles"][0]
+            self.assertEqual(profile["source"], "auto_isolated_review")
+            self.assertEqual(profile["tool_mode"], "review")
+
+            home_path = Path(profile["home"])
+            settings_path = Path(profile["settings_path"])
+            self.assertEqual(home_path, (out_dir / "runtime" / "gemini_cli_home" / "agent_1").resolve())
+            self.assertTrue(settings_path.exists())
+            self.assertEqual(
+                json.loads(settings_path.read_text(encoding="utf-8")),
+                {"mcp": {"allowed": []}, "mcpServers": {}},
+            )
+
+            start_event = next(e for e in events if e.get("event") == "agent_0_start")
+            self.assertIn("--gemini-cli-home", start_event["cmd"])
+            self.assertIn(str(home_path), start_event["cmd"])
+
+    def test_explicit_gemini_cli_home_preserves_override_for_review_mode(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            system = td_path / "system.md"
+            prompt = td_path / "prompt.md"
+            gemini_runner = td_path / "run_gemini.sh"
+            explicit_home = td_path / "explicit-home"
+
+            _write_stub_runner(gemini_runner)
+            system.write_text("SYSTEM\n", encoding="utf-8")
+            prompt.write_text("PROMPT\n", encoding="utf-8")
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir",
+                str(out_dir),
+                "--gemini-runner",
+                str(gemini_runner),
+                "--system",
+                str(system),
+                "--prompt",
+                str(prompt),
+                "--models",
+                "gemini/default",
+                "--backend-tool-mode",
+                "gemini=review",
+                "--gemini-cli-home",
+                str(explicit_home),
+                "--no-parallel",
+            ]
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 0)
+
+            events = _read_trace_events(out_dir / "trace.jsonl")
+            config_event = next(e for e in events if e.get("event") == "config")
+            profile = config_event["gemini_review_profiles"][0]
+            self.assertEqual(profile["source"], "explicit")
+            self.assertEqual(profile["home"], str(explicit_home.resolve()))
+            self.assertFalse((explicit_home / ".gemini" / "settings.json").exists())
+
     def test_timeout_marks_agent_failure_and_returns_nonzero(self):
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
