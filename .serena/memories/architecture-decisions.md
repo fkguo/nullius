@@ -239,3 +239,12 @@
 - The internal distributor seam remains family-neutral: operator descriptors, action-space enumeration, config/state/event contracts, and deterministic replay surfaces must not assume `discounted_ucb_v` is the only long-term family, so stronger future policies such as `Replicator MW-KL` or EVO-21-style adaptive strategies can attach without reworking the live TS authority boundary.
 
 **Why**: Slice-1 optimizes for auditability, replay determinism, and low-complexity live integration while preserving a clean upgrade path to stronger future policy families.
+
+### [2026-03-25] Verification kernel invariant: typed provider-neutral verification replaces heuristic authority
+
+**Decision**:
+- Verification semantics that must survive across compute, writing, review, and revision belong in provider-neutral, typed, artifact-backed surfaces rather than provider-local heuristic text validators.
+- `physicsValidator` is heuristic residue to delete, not a keepable fallback authority. If any deterministic verification check survives, it must re-enter as a real producer of typed verification artifacts with explicit evidence refs and subject/verdict linkage.
+- This follow-up is tracked as a new `NEW-VER-01` lane on top of the existing `NEW-COMP-02` / `EVO-03` substrate; it does not reopen `EVO-02`, `EVO-03`, or `EVO-13`, and it does not authorize runtime/scheduler/project-state redesign.
+
+**Why**: The current repo already has canonical computation results and deterministic writing/review bridge artifacts, but it still lacks a first-class shared verification ledger. Heuristic claim-pattern detectors are not a credible decisive authority for quality-critical verification.
