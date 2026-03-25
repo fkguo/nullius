@@ -1,10 +1,23 @@
 import type { SearchFailureAvoidance } from './failure-library.js';
 
+export interface SearchOperatorDescriptor {
+  backendId: string;
+  operatorFamily: string;
+  operatorId: string;
+}
+
+export interface SearchOperatorSelection {
+  actionId: string;
+  deterministicPolicy: string;
+  policyId: string;
+}
+
 export interface SearchOperatorContext {
   campaignId: string;
   failureAvoidance?: SearchFailureAvoidance;
   islandId: string;
   parentNodeId: string;
+  selection?: SearchOperatorSelection;
   stepId: string;
   tick: number;
 }
@@ -24,6 +37,7 @@ export interface SearchOperatorOutput {
 }
 
 export interface SearchOperator {
+  descriptor: Readonly<SearchOperatorDescriptor>;
   run: (context: SearchOperatorContext, parentNode: Record<string, unknown>) => SearchOperatorOutput;
 }
 

@@ -1,5 +1,6 @@
 import type {
   SearchDomainPackRuntime,
+  SearchOperatorDescriptor,
   SearchOperator,
   SearchOperatorContext,
   SearchOperatorOutput,
@@ -67,6 +68,7 @@ function renderOperatorOutput(
       tick: context.tick,
       style: spec.traceStyle,
       island_id: context.islandId,
+      ...(context.selection ? { selected_action_id: context.selection.actionId } : {}),
       ...(failureAvoidance
         ? {
             failure_library_hits_ref: failureAvoidance.artifactRef,
@@ -76,13 +78,24 @@ function renderOperatorOutput(
           }
         : {}),
     },
-    traceParams: { deterministic_policy: 'island_index_v1', template_version: spec.traceTemplateVersion, backend_id: spec.backendId },
+    traceParams: {
+      deterministic_policy: context.selection?.deterministicPolicy ?? 'island_index_v1',
+      template_version: spec.traceTemplateVersion,
+      backend_id: spec.backendId,
+      ...(context.selection ? { policy_id: context.selection.policyId } : {}),
+    },
     evidenceUrisUsed: [`urn:hepar:operator-template:${spec.traceTemplateVersion}`],
   };
 }
 
 function buildSearchOperator(spec: SearchOperatorSpec): SearchOperator {
+  const descriptor: Readonly<SearchOperatorDescriptor> = Object.freeze({
+    backendId: spec.backendId,
+    operatorFamily: spec.operatorFamily,
+    operatorId: spec.operatorId,
+  });
   return {
+    descriptor,
     run: (context, parentNode) => renderOperatorOutput(spec, context, parentNode),
   };
 }
