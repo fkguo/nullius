@@ -126,6 +126,45 @@ describe('search.step failure-library seam', () => {
     expect((artifact.index_ref as Record<string, unknown>).path).toBe('global/failure_library_index_v1.json');
   });
 
+  it('dedupes exact duplicate failure-library hits before applying the cap', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-dedup-failure-library-'));
+    tempDirs.push(rootDir);
+    writeFailureIndex(rootDir, [
+      matchingEntry(),
+      matchingEntry(),
+      matchingEntry({
+        artifact_relpath: 'projects/example-project/artifacts/ideas/failed_approach_v2.jsonl',
+        line_number: 8,
+      }),
+    ]);
+
+    const service = createService(rootDir);
+    const init = service.handle('campaign.init', campaignInitParams({
+      failure_library: {
+        query: {
+          version: 1,
+          generated_at_utc: NOW,
+          query: {
+            tags: ['method:constraint-guided-search', 'topic:method-fidelity'],
+            failure_modes: ['method_drift'],
+          },
+          output_artifact_path: OUTPUT_PATH,
+        },
+      },
+    }));
+    const campaignId = String(init.campaign_id);
+    const result = service.handle('search.step', searchStepParams(campaignId, 'search-step-dedup'));
+    const nodeId = String((result.new_node_ids as string[])[0]);
+    const node = service.search.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!;
+    const traceInputs = (node.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    const artifact = service.search.store.loadArtifactFromRef<Record<string, unknown>>(String(traceInputs.failure_library_hits_ref));
+    const hits = artifact.hits as Array<Record<string, unknown>>;
+
+    expect(traceInputs.failure_avoidance_hit_count).toBe(2);
+    expect(hits).toHaveLength(2);
+    expect(new Set(hits.map(hit => `${hit.project_slug}|${hit.artifact_relpath}|${hit.line_number}`)).size).toBe(2);
+  });
+
   it('leaves default behavior unchanged when failure-library is not configured', () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-no-failure-library-'));
     tempDirs.push(rootDir);
@@ -158,6 +197,33 @@ describe('search.step failure-library seam', () => {
 
     try {
       service.handle('search.step', searchStepParams(String(init.campaign_id)));
+      throw new Error('expected search.step to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(RpcError);
+      const rpcError = error as RpcError;
+      expect(rpcError.code).toBe(-32002);
+      expect(rpcError.data.reason).toBe('schema_invalid');
+    }
+  });
+
+  it('fails closed when output_artifact_path escapes the campaign directory', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-escaped-failure-output-'));
+    tempDirs.push(rootDir);
+    writeFailureIndex(rootDir, [matchingEntry()]);
+    const service = createService(rootDir);
+    const init = service.handle('campaign.init', campaignInitParams({
+      failure_library: {
+        query: {
+          version: 1,
+          generated_at_utc: NOW,
+          query: { tags: ['method:constraint-guided-search'] },
+          output_artifact_path: '../escape.json',
+        },
+      },
+    }));
+
+    try {
+      service.handle('search.step', searchStepParams(String(init.campaign_id), 'search-step-escaped-output'));
       throw new Error('expected search.step to fail');
     } catch (error) {
       expect(error).toBeInstanceOf(RpcError);
