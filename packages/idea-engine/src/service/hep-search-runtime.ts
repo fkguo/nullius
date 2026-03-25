@@ -34,21 +34,48 @@ function parentRationale(node: Record<string, unknown>): string {
   return typeof rationale === 'string' && rationale ? rationale : 'seed rationale';
 }
 
+function failureAvoidanceRationale(context: SearchOperatorContext): string {
+  if (!context.failureAvoidance) return '';
+  if (context.failureAvoidance.hitCount === 0) {
+    return '. Failure-library check found no matching prior dead ends for this configured query.';
+  }
+  const summaries = context.failureAvoidance.hits
+    .slice(0, 2)
+    .map(hit => `${hit.failureMode}: ${hit.approachSummary}`)
+    .join(' | ');
+  return `. Avoid ${context.failureAvoidance.hitCount} prior failure hit(s): ${summaries}`;
+}
+
 function renderOperatorOutput(
   spec: SearchOperatorSpec,
   context: SearchOperatorContext,
   parentNode: Record<string, unknown>,
 ): SearchOperatorOutput {
+  const failureAvoidance = context.failureAvoidance;
   return {
     operatorId: spec.operatorId,
     operatorFamily: spec.operatorFamily,
     backendId: spec.backendId,
     rationaleTitle: `${spec.rationaleTitlePrefix} ${parentTitle(parentNode)}`,
-    rationale: `${spec.rationalePrefix} in island ${context.islandId}. Parent: ${parentRationale(parentNode)}`,
+    rationale: `${spec.rationalePrefix} in island ${context.islandId}. Parent: ${parentRationale(parentNode)}${failureAvoidanceRationale(context)}`,
     thesisStatement: spec.thesisStatement,
     hypothesis: spec.hypothesis.replace('{tick}', String(context.tick)),
     claimText: spec.claimText,
-    traceInputs: { parent_node_id: context.parentNodeId, step_id: context.stepId, tick: context.tick, style: spec.traceStyle, island_id: context.islandId },
+    traceInputs: {
+      parent_node_id: context.parentNodeId,
+      step_id: context.stepId,
+      tick: context.tick,
+      style: spec.traceStyle,
+      island_id: context.islandId,
+      ...(failureAvoidance
+        ? {
+            failure_library_hits_ref: failureAvoidance.artifactRef,
+            failure_avoidance_hit_count: failureAvoidance.hitCount,
+            failure_avoidance_failure_modes: failureAvoidance.matchedFailureModes,
+            failure_avoidance_tags: failureAvoidance.matchedTags,
+          }
+        : {}),
+    },
     traceParams: { deterministic_policy: 'island_index_v1', template_version: spec.traceTemplateVersion, backend_id: spec.backendId },
     evidenceUrisUsed: [`urn:hepar:operator-template:${spec.traceTemplateVersion}`],
   };

@@ -1,5 +1,8 @@
+import type { SearchFailureAvoidance } from './failure-library.js';
+
 export interface SearchOperatorContext {
   campaignId: string;
+  failureAvoidance?: SearchFailureAvoidance;
   islandId: string;
   parentNodeId: string;
   stepId: string;

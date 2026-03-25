@@ -3,10 +3,12 @@ import { pathToFileURL } from 'url';
 import { IdeaEngineContractCatalog, ContractRuntimeError } from '../contracts/catalog.js';
 import { hashWithoutIdempotency } from '../hash/payload-hash.js';
 import { IdeaEngineStore } from '../store/engine-store.js';
+import { writeJsonFileAtomic } from '../store/file-io.js';
 import { budgetSnapshot, exhaustedDimensions } from './budget-snapshot.js';
 import { loadBuiltinLibrarianRecipeBook, loadBuiltinSearchDomainPackRuntime } from './domain-pack-registry.js';
 import { initialIslandStates } from './domain-pack.js';
 import { RpcError, schemaValidationError } from './errors.js';
+import { prepareFailureAvoidance } from './failure-library.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { advanceIslandStateOneTick, islandBestScore, isScoreImproved, markIslandsExhausted, pickParentNode, refreshIslandPopulationSizes } from './island-state.js';
 import { buildLibrarianEvidencePacket, claimEvidenceUris, type LibrarianRecipeBook } from './librarian-recipes.js';
@@ -78,6 +80,12 @@ export class IdeaEngineSearchStepService {
       plannedCampaign.search_runtime = runtime;
       const nodes = this.store.loadNodes<Record<string, unknown>>(campaignId);
       refreshIslandPopulationSizes(plannedCampaign, nodes);
+      const failureAvoidance = prepareFailureAvoidance({
+        campaign: plannedCampaign,
+        contracts: this.contracts,
+        now: this.now(),
+        store: this.store,
+      });
       const stepId = this.createId();
       const localUsage = { steps: 0, nodes: 0, tokens: 0, cost_usd: 0, wall_clock_s: 0 };
       const transitionEvents: Record<string, unknown>[] = [];
@@ -113,7 +121,14 @@ export class IdeaEngineSearchStepService {
         if (parentNode && island.state !== 'EXHAUSTED') {
           const operator = chooseSearchOperator({ islandId, runtime, searchOperators: runtimePack.searchOperators, selectionPolicy: runtimePack.operatorSelectionPolicy });
           const operatorOutput = operator.run(
-            { campaignId, islandId, parentNodeId: String(parentNode.node_id), stepId, tick: tick + 1 },
+            {
+              campaignId,
+              failureAvoidance: failureAvoidance?.summary,
+              islandId,
+              parentNodeId: String(parentNode.node_id),
+              stepId,
+              tick: tick + 1,
+            },
             structuredClone(parentNode),
           );
           const generatedAt = this.now();
@@ -164,6 +179,7 @@ export class IdeaEngineSearchStepService {
       if (newNodeIds.length > 0) this.store.writeArtifact(campaignId, 'search_steps', `${stepId}-new-nodes.json`, { campaign_id: campaignId, step_id: stepId, new_node_ids: newNodeIds, nodes: newNodesPayload, operator_events: operatorEvents, generated_at: this.now() });
       for (const [artifactName, payload] of operatorTraceArtifacts) this.store.writeArtifact(campaignId, 'operator_traces', artifactName, payload);
       for (const [artifactName, payload] of evidenceArtifacts) this.store.writeArtifact(campaignId, 'evidence_packets', artifactName, payload);
+      if (failureAvoidance) writeJsonFileAtomic(failureAvoidance.artifactPath, failureAvoidance.artifactPayload);
       this.store.writeArtifact(campaignId, 'search_steps', `${stepId}.json`, { campaign_id: campaignId, step_id: stepId, n_steps_requested: nStepsRequested, n_steps_executed: nStepsExecuted, transition_events: transitionEvents, operator_events: operatorEvents, new_node_ids: newNodeIds, new_nodes_artifact_ref: result.new_nodes_artifact_ref ?? null, step_budget: params.step_budget ?? null, budget_snapshot: result.budget_snapshot, island_states: result.island_states, early_stopped: result.early_stopped ?? false, early_stop_reason: result.early_stop_reason ?? null, generated_at: this.now() });
       this.store.saveNodes(campaignId, nodes);
       for (const nodeId of newNodeIds) this.store.appendNodeLog(campaignId, nodes[nodeId]!, 'create');
