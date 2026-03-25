@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/agent_card_v1.schema.json",
+  "title": "AgentCardV1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "agent_id",
+    "name",
+    "version",
+    "capabilities",
+    "input_contracts",
+    "output_contracts",
+    "cost_tier"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cost_tier": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "variable"]
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    },
+    "input_contracts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contract_ref"
+      }
+    },
+    "output_contracts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contract_ref"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "required": [
+        "capability_id",
+        "description",
+        "input_contract_ids",
+        "output_contract_ids"
+      ],
+      "properties": {
+        "capability_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_contract_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "output_contract_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "contract_ref": {
+      "type": "object",
+      "required": [
+        "contract_id",
+        "format",
+        "description"
+      ],
+      "properties": {
+        "contract_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json_schema", "openrpc", "protocol"]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 const schemaFiles = {
+  agent_card_v1: 'agent_card_v1.schema.json',
   artifact_ref_v1: 'artifact_ref_v1.schema.json',
   integrity_report_v1: 'integrity_report_v1.schema.json',
   rep_envelope_v1: 'rep_envelope_v1.schema.json',

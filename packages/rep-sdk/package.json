@@ -30,6 +30,10 @@
     "./validation": {
       "import": "./dist/validation/index.js",
       "types": "./dist/validation/index.d.ts"
+    },
+    "./discovery": {
+      "import": "./dist/discovery/index.js",
+      "types": "./dist/discovery/index.d.ts"
     }
   },
   "scripts": {

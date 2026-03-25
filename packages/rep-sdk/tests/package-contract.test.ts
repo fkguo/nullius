@@ -16,6 +16,7 @@ describe('package contract', () => {
     expect(Object.keys(packageJson.exports).sort()).toEqual([
       '.',
       './client',
+      './discovery',
       './server',
       './transport',
       './validation',
@@ -25,6 +26,7 @@ describe('package contract', () => {
   it('loads the source entrypoints for the bounded public surface', async () => {
     await expect(import('../src/index.js')).resolves.toBeTruthy();
     await expect(import('../src/client/index.js')).resolves.toBeTruthy();
+    await expect(import('../src/discovery/index.js')).resolves.toBeTruthy();
     await expect(import('../src/server/index.js')).resolves.toBeTruthy();
     await expect(import('../src/transport/index.js')).resolves.toBeTruthy();
     await expect(import('../src/validation/index.js')).resolves.toBeTruthy();

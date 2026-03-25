@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const schemaFiles = [
+  'agent_card_v1.schema.json',
   'artifact_ref_v1.schema.json',
   'integrity_report_v1.schema.json',
   'rep_envelope_v1.schema.json',
