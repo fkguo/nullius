@@ -58,6 +58,9 @@ class TestEvolutionProposal(unittest.TestCase):
             analysis = json.loads((repo_root / result["artifact_paths"]["analysis"]).read_text(encoding="utf-8"))
             proposals = ((analysis.get("results") or {}).get("proposals") or [])
             self.assertEqual(len(proposals), 1)
+            self.assertTrue(
+                {"proposal_md", "trace_stub_md", "suggested_eval_case"}.issubset(result["artifact_paths"])
+            )
             proposal = proposals[0]
             self.assertEqual(proposal.get("handling"), "auto_handled")
             self.assertNotIn("requires_approval", proposal)

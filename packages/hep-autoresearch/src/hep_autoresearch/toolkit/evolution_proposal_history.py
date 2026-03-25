@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -44,6 +45,14 @@ def proposal_target_file(proposal: dict[str, Any]) -> str:
         return target_file
     source = proposal.get("source") if isinstance(proposal.get("source"), dict) else {}
     return str(source.get("analysis_path") or "").strip()
+
+
+def _known_value(known: Any, field: str) -> str:
+    if hasattr(known, field):
+        return str(getattr(known, field) or "")
+    if isinstance(known, dict):
+        return str(known.get(field) or "")
+    return ""
 
 
 def load_proposal_history(repo_root: Path, *, current_tag: str) -> ProposalHistory:
@@ -118,3 +127,73 @@ def load_proposal_history(repo_root: Path, *, current_tag: str) -> ProposalHisto
         known_actions=known_actions,
         consecutive_empty_cycles=consecutive_empty_cycles,
     )
+
+
+def dedupe_candidate_proposals(
+    candidate_proposals: list[dict[str, Any]],
+    *,
+    repo_root: Path,
+    tag: str,
+    source_run_tag: str,
+    created_at: str,
+    finalize_proposal: Callable[..., None],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, int]:
+    history = load_proposal_history(repo_root, current_tag=tag)
+    seen: dict[str, Any] = dict(history.known_actions)
+    proposals: list[dict[str, Any]] = []
+    suppressed_duplicates: list[dict[str, Any]] = []
+    for candidate in candidate_proposals:
+        failure_class = str(candidate.get("kind") or "").strip()
+        target_file = str(candidate.get("target_file") or "").strip()
+        actions = candidate.get("actions")
+        if not isinstance(actions, list):
+            continue
+        kept_actions: list[dict[str, Any]] = []
+        new_fingerprints: list[tuple[str, str]] = []
+        for action in actions:
+            if not isinstance(action, dict):
+                continue
+            action_type = str(action.get("type") or "").strip()
+            if not (failure_class and target_file and action_type):
+                kept_actions.append(action)
+                continue
+            fingerprint_key = make_action_fingerprint(
+                failure_class=failure_class,
+                target_file=target_file,
+                action_type=action_type,
+            )
+            known = seen.get(fingerprint_key)
+            if known is not None:
+                suppressed_duplicates.append(
+                    {
+                        "fingerprint_key": fingerprint_key,
+                        "failure_class": failure_class,
+                        "target_file": target_file,
+                        "action_type": action_type,
+                        "duplicate_of": {
+                            "source_run_tag": _known_value(known, "source_run_tag"),
+                            "analysis_path": _known_value(known, "analysis_path"),
+                            "proposal_id": _known_value(known, "proposal_id"),
+                        },
+                    }
+                )
+                continue
+            kept_actions.append(action)
+            new_fingerprints.append((fingerprint_key, action_type))
+        if not kept_actions:
+            continue
+        proposal = dict(candidate)
+        proposal["proposal_id"] = f"P{len(proposals) + 1:03d}"
+        proposal["actions"] = kept_actions
+        finalize_proposal(proposal, created_at=created_at)
+        proposals.append(proposal)
+        analysis_path = str(((proposal.get("source") or {}).get("analysis_path")) or "")
+        for fingerprint_key, action_type in new_fingerprints:
+            seen[fingerprint_key] = {
+                "source_run_tag": source_run_tag,
+                "analysis_path": analysis_path,
+                "proposal_id": proposal["proposal_id"],
+                "action_type": action_type,
+            }
+    empty_cycles = 0 if proposals else history.consecutive_empty_cycles + 1
+    return proposals, suppressed_duplicates, empty_cycles, history.empty_cycle_threshold
