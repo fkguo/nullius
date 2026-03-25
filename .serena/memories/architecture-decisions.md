@@ -248,3 +248,12 @@
 - This follow-up is tracked as a new `NEW-VER-01` lane on top of the existing `NEW-COMP-02` / `EVO-03` substrate; it does not reopen `EVO-02`, `EVO-03`, or `EVO-13`, and it does not authorize runtime/scheduler/project-state redesign.
 
 **Why**: The current repo already has canonical computation results and deterministic writing/review bridge artifacts, but it still lacks a first-class shared verification ledger. Heuristic claim-pattern detectors are not a credible decisive authority for quality-critical verification.
+
+### [2026-03-25] Verification kernel Batch 1 contract invariant: four artifacts plus optional bridge refs
+
+**Decision**:
+- The canonical generic verification artifact family for Batch 1 is exactly `verification_subject_v1`, `verification_check_run_v1`, `verification_subject_verdict_v1`, and `verification_coverage_v1`.
+- `subject_kind` stays a stable generic enum for long-lived subject categories, while `check_kind` stays an open non-empty string so verification method taxonomy is not frozen into shared authority.
+- `computation_result_v1` and `writing_review_bridge_v1` may expose only an optional typed `verification_refs` container at this stage; Batch 1 must not inline verification producer/consumer authority into those existing contracts.
+
+**Why**: This preserves a provider-neutral, artifact-backed verification ledger that can attach to existing compute and writing substrates without reopening runtime/project-state authority or hard-coding provider/domain-specific check taxonomies.
