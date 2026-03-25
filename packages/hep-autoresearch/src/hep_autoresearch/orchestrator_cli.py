@@ -32,6 +32,7 @@ from .toolkit.adapters.registry import (
     validate_adapter_registry,
 )
 from .toolkit.evolution_proposal import EvolutionProposalInputs, evolution_proposal_one
+from .toolkit.evolution_trigger import trigger_evolution_proposal
 from .toolkit.skill_proposal import SkillProposalInputs, skill_proposal_one
 from .toolkit.method_design import MethodDesignInputs, method_design_one
 from .toolkit.orchestrator_state import (
@@ -72,6 +73,35 @@ from .toolkit.logging_config import configure_logging
 def _die(msg: str, code: int = 2) -> int:
     print(f"[error] {msg}")
     return code
+
+
+def _maybe_auto_trigger_evolution_proposal(
+    repo_root: Path,
+    st: dict[str, object],
+    *,
+    terminal_status: str,
+) -> None:
+    run_id = st.get("run_id")
+    if not isinstance(run_id, str) or not run_id.strip():
+        return
+    workflow_id = st.get("workflow_id")
+    result = trigger_evolution_proposal(
+        repo_root=repo_root,
+        run_id=run_id,
+        workflow_id=str(workflow_id) if isinstance(workflow_id, str) else None,
+        terminal_status=terminal_status,
+    )
+
+    artifact_paths = result.artifact_paths if isinstance(result.artifact_paths, dict) else {}
+    if artifact_paths:
+        prefixed = {f"evolution_proposal_{key}": value for key, value in artifact_paths.items()}
+        if result.artifact_dir:
+            prefixed["evolution_proposal_artifact_dir"] = str(result.artifact_dir)
+        st.setdefault("artifacts", {}).update(prefixed)
+        save_state(repo_root, st)
+
+    if result.status == "failed":
+        print(f"[warn] evolution trigger failed: {result.reason}", file=sys.stderr)
 
 
 def _looks_like_project_root(path: Path) -> bool:
@@ -3440,6 +3470,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             step_id=step_id,
             details={"error": str(e), "error_type": "approval_resolution"},
         )
+        _maybe_auto_trigger_evolution_proposal(repo_root, st, terminal_status="failed")
         return 2
     except Exception as e:
         cur = st.get("current_step") if isinstance(st.get("current_step"), dict) else {}
@@ -3461,6 +3492,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             step_id=step_id,
             details={"error": str(e)},
         )
+        _maybe_auto_trigger_evolution_proposal(repo_root, st, terminal_status="failed")
         return 2
 
     st.setdefault("artifacts", {}).update(res.get("artifact_paths") or {})
@@ -3487,6 +3519,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             step_id=step_id,
             details={"errors": errors},
         )
+        _maybe_auto_trigger_evolution_proposal(repo_root, st, terminal_status="failed")
         return 2
 
     cur = st.get("current_step") if isinstance(st.get("current_step"), dict) else {}
@@ -3508,6 +3541,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         step_id=step_id,
         details={"refkey": res.get("refkey"), "errors": errors},
     )
+    _maybe_auto_trigger_evolution_proposal(repo_root, st, terminal_status="completed")
     print("[ok] run completed")
     return 0
 
