@@ -3,23 +3,110 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
+
+
+class Action(StrEnum):
+    discover_seed_search = 'discover.seed_search'
+    analyze_topic_evolution = 'analyze.topic_evolution'
+    analyze_citation_network = 'analyze.citation_network'
+    analyze_paper_connections = 'analyze.paper_connections'
+    analyze_provenance_trace = 'analyze.provenance_trace'
+    analyze_paper_set_critical_review = 'analyze.paper_set_critical_review'
+    materialize_evidence_build = 'materialize.evidence_build'
 
 
 class DependsOnItem(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
 
 
-class Step(BaseModel):
+class RequiredCapability(StrEnum):
+    supports_keyword_search = 'supports_keyword_search'
+    supports_semantic_search = 'supports_semantic_search'
+    supports_citation_graph = 'supports_citation_graph'
+    supports_fulltext = 'supports_fulltext'
+    supports_source_download = 'supports_source_download'
+    supports_open_access_content = 'supports_open_access_content'
+    analysis_topic_evolution = 'analysis.topic_evolution'
+    analysis_citation_network = 'analysis.citation_network'
+    analysis_paper_set_connections = 'analysis.paper_set_connections'
+    analysis_provenance_trace = 'analysis.provenance_trace'
+    analysis_paper_set_critical_review = 'analysis.paper_set_critical_review'
+
+
+class PreferredProvider(StrEnum):
+    inspire = 'inspire'
+    openalex = 'openalex'
+    arxiv = 'arxiv'
+    zotero = 'zotero'
+    crossref = 'crossref'
+    datacite = 'datacite'
+    github = 'github'
+    doi = 'doi'
+
+
+class DegradeMode(StrEnum):
+    fail_closed = 'fail_closed'
+    skip_with_reason = 'skip_with_reason'
+    partial_result = 'partial_result'
+
+
+class Phase(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
+
+
+class ConsumerHints(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    phases: list[Phase] | None = None
+    artifact: Annotated[str | None, Field(min_length=1)] = None
+    project_required: bool | None = None
+    run_required: bool | None = None
+
+
+class Steps(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
     id: Annotated[str, Field(min_length=1)]
     tool: Annotated[str, Field(min_length=1)]
+    action: Action | None = None
     purpose: Annotated[str, Field(min_length=1)]
     depends_on: list[DependsOnItem] | None = None
+    required_capabilities: list[RequiredCapability] | None = None
+    preferred_providers: list[PreferredProvider] | None = None
+    degrade_mode: DegradeMode | None = None
+    consumer_hints: ConsumerHints | None = None
+    params: dict[str, Any] | None = {}
+
+
+class ConsumerHints1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    phases: list[Phase] | None = None
+    artifact: Annotated[str | None, Field(min_length=1)] = None
+    project_required: bool | None = None
+    run_required: bool | None = None
+
+
+class Steps1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: Annotated[str, Field(min_length=1)]
+    tool: Annotated[str | None, Field(min_length=1)] = None
+    action: Action
+    purpose: Annotated[str, Field(min_length=1)]
+    depends_on: list[DependsOnItem] | None = None
+    required_capabilities: list[RequiredCapability] | None = None
+    preferred_providers: list[PreferredProvider] | None = None
+    degrade_mode: DegradeMode | None = None
+    consumer_hints: ConsumerHints1 | None = None
     params: dict[str, Any] | None = {}
 
 
@@ -31,4 +118,4 @@ class WorkflowRecipeV1(BaseModel):
     name: Annotated[str, Field(min_length=1)]
     description: Annotated[str, Field(min_length=1)]
     entry_tool: Annotated[str, Field(min_length=1)]
-    steps: Annotated[list[Step], Field(min_length=1)]
+    steps: Annotated[list[Steps | Steps1], Field(min_length=1)]

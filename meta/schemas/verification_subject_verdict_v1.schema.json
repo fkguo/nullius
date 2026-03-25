@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/verification_subject_verdict_v1.schema.json",
+  "title": "VerificationSubjectVerdict V1",
+  "description": "Provider-neutral subject-level verification verdict. Aggregates check-run evidence without inlining runtime state, and makes missing decisive checks explicit and machine-visible instead of leaving them in prose only.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "verdict_id",
+    "run_id",
+    "subject_id",
+    "subject_ref",
+    "status",
+    "summary",
+    "check_run_refs",
+    "missing_decisive_checks"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "verdict_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_ref": {
+      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "partial",
+        "failed",
+        "blocked",
+        "not_attempted"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "check_run_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "missing_decisive_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MissingDecisiveCheck"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "MissingDecisiveCheck": {
+      "type": "object",
+      "required": [
+        "check_kind",
+        "reason",
+        "priority"
+      ],
+      "properties": {
+        "check_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

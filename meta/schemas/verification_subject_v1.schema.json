@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/verification_subject_v1.schema.json",
+  "title": "VerificationSubject V1",
+  "description": "Provider-neutral, artifact-backed verification target. Anchors a stable subject identity to existing artifacts so later checks, verdicts, and coverage can reference the same subject without inventing a second project-state authority.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "subject_id",
+    "subject_kind",
+    "run_id",
+    "title",
+    "source_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "subject_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_kind": {
+      "type": "string",
+      "enum": [
+        "claim",
+        "result",
+        "deliverable",
+        "acceptance_test",
+        "reference_action",
+        "forbidden_proxy",
+        "comparison_target"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "linked_identifiers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/LinkedIdentifier"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "LinkedIdentifier": {
+      "type": "object",
+      "required": [
+        "id_kind",
+        "id_value"
+      ],
+      "properties": {
+        "id_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id_value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

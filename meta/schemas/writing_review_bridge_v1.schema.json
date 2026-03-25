@@ -66,6 +66,41 @@
         "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
       }
     },
+    "verification_refs": {
+      "description": "Optional refs to provider-neutral verification kernel artifacts relevant to this bridge. Batch 1 adds the ref container only; no bridge producer or consumer wiring is introduced here.",
+      "type": "object",
+      "properties": {
+        "subject_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          }
+        },
+        "check_run_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          }
+        },
+        "subject_verdict_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          }
+        },
+        "coverage_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "target": {
       "type": "object",
       "required": [

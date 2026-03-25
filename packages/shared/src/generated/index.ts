@@ -19,6 +19,10 @@ export type {
   ComputationResultV1,
   ArtifactRefV11,
   ArtifactRefV12,
+  ArtifactRefV13,
+  ArtifactRefV14,
+  ArtifactRefV15,
+  ArtifactRefV16,
 } from "./computation-result-v1.js";
 export * from "./convergence-gate-result-v1.js";
 export * from "./domain-pack-manifest-v1.js";
@@ -72,5 +76,24 @@ export * from "./research-strategy-v1.js";
 export * from "./research-workflow-v1.js";
 export * from "./skill-proposal-v2.js";
 export * from "./strategy-state-v1.js";
+export type {
+  VerificationCheckRunV1,
+  ExecutorProvenance,
+  Confidence,
+  MetricObservation,
+} from "./verification-check-run-v1.js";
+export type {
+  VerificationCoverageV1,
+  CoverageSummary,
+  CoverageGap,
+} from "./verification-coverage-v1.js";
+export type {
+  VerificationSubjectV1,
+  LinkedIdentifier,
+} from "./verification-subject-v1.js";
+export type {
+  VerificationSubjectVerdictV1,
+  MissingDecisiveCheck,
+} from "./verification-subject-verdict-v1.js";
 export * from "./workflow-recipe-v1.js";
 export type { WritingReviewBridgeV1 } from "./writing-review-bridge-v1.js";

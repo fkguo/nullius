@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/verification_coverage_v1.schema.json",
+  "title": "VerificationCoverage V1",
+  "description": "Provider-neutral run-level coverage summary over verification subjects and subject verdicts. This artifact tracks what is covered, what remains open, and which decisive checks are still missing without reusing computation-only reproducibility contracts as generic verification authority.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "coverage_id",
+    "run_id",
+    "generated_at",
+    "subject_refs",
+    "subject_verdict_refs",
+    "summary",
+    "missing_decisive_checks"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "coverage_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "subject_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "subject_verdict_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/CoverageSummary"
+    },
+    "missing_decisive_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CoverageGap"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "CoverageSummary": {
+      "type": "object",
+      "required": [
+        "subjects_total",
+        "subjects_verified",
+        "subjects_partial",
+        "subjects_failed",
+        "subjects_blocked",
+        "subjects_not_attempted"
+      ],
+      "properties": {
+        "subjects_total": { "type": "integer", "minimum": 0 },
+        "subjects_verified": { "type": "integer", "minimum": 0 },
+        "subjects_partial": { "type": "integer", "minimum": 0 },
+        "subjects_failed": { "type": "integer", "minimum": 0 },
+        "subjects_blocked": { "type": "integer", "minimum": 0 },
+        "subjects_not_attempted": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "CoverageGap": {
+      "type": "object",
+      "required": [
+        "subject_id",
+        "subject_ref",
+        "check_kind",
+        "reason",
+        "priority"
+      ],
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_ref": {
+          "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+        },
+        "check_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

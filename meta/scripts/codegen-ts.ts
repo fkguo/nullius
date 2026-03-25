@@ -42,6 +42,66 @@ function isIfThenEntry(entry: unknown): boolean {
   return 'if' in obj && 'then' in obj;
 }
 
+function isRequiredOnlyVariant(entry: unknown): entry is { required: string[] } {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+  const obj = entry as Record<string, unknown>;
+  return Array.isArray(obj.required)
+    && obj.required.every(value => typeof value === 'string')
+    && Object.keys(obj).every(key => key === 'required');
+}
+
+function uniqueRequired(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+/**
+ * Expand object-level anyOf/oneOf guards that only add extra required keys
+ * into explicit oneOf object variants. This preserves typed unions for cases
+ * like workflow steps that require either `tool` or `action`.
+ */
+function expandRequiredGuardUnions(node: unknown): unknown {
+  if (Array.isArray(node)) {
+    return node.map(expandRequiredGuardUnions);
+  }
+  if (!node || typeof node !== 'object') {
+    return node;
+  }
+
+  const out = Object.fromEntries(
+    Object.entries(node as Record<string, unknown>).map(([key, value]) => [
+      key,
+      expandRequiredGuardUnions(value),
+    ]),
+  ) as Record<string, unknown>;
+
+  if (out.type !== 'object' || !out.properties || typeof out.properties !== 'object') {
+    return out;
+  }
+
+  for (const unionKey of ['anyOf', 'oneOf'] as const) {
+    const variants = out[unionKey];
+    if (!Array.isArray(variants) || variants.length === 0 || !variants.every(isRequiredOnlyVariant)) {
+      continue;
+    }
+
+    const baseRequired = Array.isArray(out.required)
+      ? out.required.filter((value): value is string => typeof value === 'string')
+      : [];
+    const baseVariant = { ...out };
+    delete baseVariant.anyOf;
+    delete baseVariant.oneOf;
+
+    return {
+      oneOf: variants.map(variant => ({
+        ...baseVariant,
+        required: uniqueRequired([...baseRequired, ...variant.required]),
+      })),
+    };
+  }
+
+  return out;
+}
+
 /** Post-process TS output: remove {[k: string]: unknown} & intersections */
 function cleanIndexSignatures(ts: string): string {
   return ts
@@ -69,6 +129,8 @@ async function processSchema(schemaFile: string): Promise<string> {
       delete targetSchema.allOf;
     }
   }
+
+  targetSchema = expandRequiredGuardUnions(targetSchema);
 
   const ts = await compile(targetSchema, schemaFile, compileOptions);
   return BANNER + cleanIndexSignatures(ts);

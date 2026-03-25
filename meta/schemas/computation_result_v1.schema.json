@@ -160,6 +160,41 @@
         "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
       }
     },
+    "verification_refs": {
+      "description": "Optional refs to provider-neutral verification kernel artifacts generated from this computation result. Batch 1 adds the typed contract surface only; later batches may populate it.",
+      "type": "object",
+      "properties": {
+        "subject_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          }
+        },
+        "check_run_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          }
+        },
+        "subject_verdict_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          }
+        },
+        "coverage_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "executor_provenance": {
       "type": "object",
       "required": ["orchestrator_component", "execution_surface", "approval_gate", "step_tools", "step_ids"],

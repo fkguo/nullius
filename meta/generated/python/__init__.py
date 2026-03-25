@@ -36,5 +36,9 @@ from .research_strategy_v1 import *  # noqa: F401,F403
 from .research_workflow_v1 import *  # noqa: F401,F403
 from .skill_proposal_v2 import *  # noqa: F401,F403
 from .strategy_state_v1 import *  # noqa: F401,F403
+from .verification_check_run_v1 import *  # noqa: F401,F403
+from .verification_coverage_v1 import *  # noqa: F401,F403
+from .verification_subject_v1 import *  # noqa: F401,F403
+from .verification_subject_verdict_v1 import *  # noqa: F401,F403
 from .workflow_recipe_v1 import *  # noqa: F401,F403
 from .writing_review_bridge_v1 import *  # noqa: F401,F403

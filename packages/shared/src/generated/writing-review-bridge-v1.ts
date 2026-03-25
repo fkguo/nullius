@@ -18,6 +18,27 @@ export interface WritingReviewBridgeV1 {
   computation_result_uri: string;
   manifest_ref: ArtifactRefV1;
   produced_artifact_refs: ArtifactRefV11[];
+  /**
+   * Optional refs to provider-neutral verification kernel artifacts relevant to this bridge. Batch 1 adds the ref container only; no bridge producer or consumer wiring is introduced here.
+   */
+  verification_refs?: {
+    /**
+     * @minItems 1
+     */
+    subject_refs?: [ArtifactRefV12, ...ArtifactRefV12[]];
+    /**
+     * @minItems 1
+     */
+    check_run_refs?: [ArtifactRefV13, ...ArtifactRefV13[]];
+    /**
+     * @minItems 1
+     */
+    subject_verdict_refs?: [ArtifactRefV14, ...ArtifactRefV14[]];
+    /**
+     * @minItems 1
+     */
+    coverage_refs?: [ArtifactRefV15, ...ArtifactRefV15[]];
+  };
   target: {
     task_kind: "draft_update" | "review";
     title: string;
@@ -106,6 +127,138 @@ export interface ArtifactRefV1 {
  * Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.
  */
 export interface ArtifactRefV11 {
+  /**
+   * URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote.
+   */
+  uri: string;
+  /**
+   * Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility.
+   */
+  kind?: string;
+  /**
+   * Schema version of the referenced artifact.
+   */
+  schema_version?: number;
+  /**
+   * SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.
+   */
+  sha256: string;
+  /**
+   * Size of the artifact in bytes.
+   */
+  size_bytes?: number;
+  /**
+   * Agent or component that produced this artifact.
+   */
+  produced_by?: string;
+  /**
+   * ISO 8601 UTC Z timestamp of artifact creation.
+   */
+  created_at?: string;
+}
+/**
+ * Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.
+ */
+export interface ArtifactRefV12 {
+  /**
+   * URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote.
+   */
+  uri: string;
+  /**
+   * Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility.
+   */
+  kind?: string;
+  /**
+   * Schema version of the referenced artifact.
+   */
+  schema_version?: number;
+  /**
+   * SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.
+   */
+  sha256: string;
+  /**
+   * Size of the artifact in bytes.
+   */
+  size_bytes?: number;
+  /**
+   * Agent or component that produced this artifact.
+   */
+  produced_by?: string;
+  /**
+   * ISO 8601 UTC Z timestamp of artifact creation.
+   */
+  created_at?: string;
+}
+/**
+ * Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.
+ */
+export interface ArtifactRefV13 {
+  /**
+   * URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote.
+   */
+  uri: string;
+  /**
+   * Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility.
+   */
+  kind?: string;
+  /**
+   * Schema version of the referenced artifact.
+   */
+  schema_version?: number;
+  /**
+   * SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.
+   */
+  sha256: string;
+  /**
+   * Size of the artifact in bytes.
+   */
+  size_bytes?: number;
+  /**
+   * Agent or component that produced this artifact.
+   */
+  produced_by?: string;
+  /**
+   * ISO 8601 UTC Z timestamp of artifact creation.
+   */
+  created_at?: string;
+}
+/**
+ * Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.
+ */
+export interface ArtifactRefV14 {
+  /**
+   * URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote.
+   */
+  uri: string;
+  /**
+   * Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility.
+   */
+  kind?: string;
+  /**
+   * Schema version of the referenced artifact.
+   */
+  schema_version?: number;
+  /**
+   * SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.
+   */
+  sha256: string;
+  /**
+   * Size of the artifact in bytes.
+   */
+  size_bytes?: number;
+  /**
+   * Agent or component that produced this artifact.
+   */
+  produced_by?: string;
+  /**
+   * ISO 8601 UTC Z timestamp of artifact creation.
+   */
+  created_at?: string;
+}
+/**
+ * Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.
+ */
+export interface ArtifactRefV15 {
   /**
    * URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote.
    */

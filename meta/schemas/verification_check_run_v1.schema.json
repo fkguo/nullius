@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/verification_check_run_v1.schema.json",
+  "title": "VerificationCheckRun V1",
+  "description": "Provider-neutral record of one executed verification check on one verification subject. This artifact stays generic across domains and methods: the checked kind is an open string, but decisive status, evidence refs, executor provenance, and confidence stay typed and fail-closed.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "check_run_id",
+    "run_id",
+    "subject_id",
+    "subject_ref",
+    "check_kind",
+    "check_role",
+    "status",
+    "summary",
+    "executor_provenance",
+    "evidence_refs",
+    "confidence",
+    "started_at",
+    "finished_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "check_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_ref": {
+      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+    },
+    "check_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "check_role": {
+      "type": "string",
+      "enum": [
+        "decisive",
+        "supporting",
+        "diagnostic"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "inconclusive",
+        "blocked"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "input_artifact_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "output_artifact_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "executor_provenance": {
+      "$ref": "#/$defs/ExecutorProvenance"
+    },
+    "confidence": {
+      "$ref": "#/$defs/Confidence"
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MetricObservation"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "minLength": 1
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ExecutorProvenance": {
+      "type": "object",
+      "required": [
+        "component",
+        "surface"
+      ],
+      "properties": {
+        "component": {
+          "type": "string",
+          "minLength": 1
+        },
+        "surface": {
+          "type": "string",
+          "minLength": 1
+        },
+        "executor_kind": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "Confidence": {
+      "type": "object",
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "MetricObservation": {
+      "type": "object",
+      "required": [
+        "metric_name",
+        "metric_value"
+      ],
+      "properties": {
+        "metric_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metric_value": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string", "minLength": 1 },
+            { "type": "boolean" }
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
