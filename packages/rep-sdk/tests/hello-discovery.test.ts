@@ -90,5 +90,7 @@ describe('hello discovery', () => {
         supported_check_domains: ['ward'],
       },
     ]);
+    expect('recipient_id' in advertisements[0]).toBe(false);
+    expect('trace_id' in advertisements[0]).toBe(false);
   });
 });

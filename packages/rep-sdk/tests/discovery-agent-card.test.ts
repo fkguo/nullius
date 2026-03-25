@@ -5,6 +5,7 @@ import { createHelloPayloadFromCard, validateAgentCard } from '../src/discovery/
 async function loadLiveCard(fileName: 'hep-mcp.json' | 'idea-engine.json') {
   const raw = await readFile(
     new URL(
+      // These compatibility checks intentionally rely on the full monorepo fixture path.
       `../../hep-autoresearch/src/hep_autoresearch/toolkit/agent_cards/${fileName}`,
       import.meta.url,
     ),

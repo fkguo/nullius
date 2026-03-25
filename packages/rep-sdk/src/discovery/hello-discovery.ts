@@ -31,14 +31,7 @@ export async function discoverAgentAdvertisements(
 
   return [...latestBySender.values()]
     .sort((left, right) => left.sender_id.localeCompare(right.sender_id))
-    .map((envelope) => ({
-      sender_id: envelope.sender_id,
-      message_id: envelope.message_id,
-      timestamp: envelope.timestamp,
-      recipient_id: envelope.recipient_id,
-      trace_id: envelope.trace_id,
-      ...envelope.payload,
-    }));
+    .map(toAgentAdvertisement);
 }
 
 function compareHelloEnvelopes(
@@ -51,4 +44,15 @@ function compareHelloEnvelopes(
     return leftTimestamp - rightTimestamp;
   }
   return left.message_id.localeCompare(right.message_id);
+}
+
+function toAgentAdvertisement(envelope: RepEnvelopeByType['hello']): AgentAdvertisement {
+  return {
+    sender_id: envelope.sender_id,
+    message_id: envelope.message_id,
+    timestamp: envelope.timestamp,
+    ...(envelope.recipient_id !== undefined ? { recipient_id: envelope.recipient_id } : {}),
+    ...(envelope.trace_id !== undefined ? { trace_id: envelope.trace_id } : {}),
+    ...envelope.payload,
+  };
 }

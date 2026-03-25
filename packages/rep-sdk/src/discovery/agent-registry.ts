@@ -35,41 +35,50 @@ export function createAgentRegistry(options: CreateAgentRegistryOptions = {}): A
     }
   }
 
+  function get(agentId: string): AgentCard | undefined {
+    return cardsById.get(agentId.trim());
+  }
+
+  function list(listOptions: AgentRegistryListOptions = {}): AgentCard[] {
+    const capabilityId = listOptions.capabilityId?.trim();
+    return [...cardsById.values()]
+      .filter((card) =>
+        capabilityId
+          ? card.capabilities.some((capability) => capability.capability_id === capabilityId)
+          : true,
+      )
+      .sort((left, right) => left.agent_id.localeCompare(right.agent_id));
+  }
+
+  function resolveCapability(
+    capabilityId: string,
+    resolveOptions: ResolveCapabilityOptions = {},
+  ): AgentCard {
+    const capability = capabilityId.trim();
+    const agentId = resolveOptions.agentId?.trim();
+    const matches = list({ capabilityId: capability }).filter((card) =>
+      agentId ? card.agent_id === agentId : true,
+    );
+
+    if (matches.length === 0) {
+      const suffix = agentId ? ` and agent ${agentId}` : '';
+      throw new Error(`No agent card found for capability ${capability}${suffix}.`);
+    }
+    if (matches.length > 1) {
+      throw new Error(
+        `Capability ${capability} is ambiguous across agent ids: ${matches
+          .map((card) => card.agent_id)
+          .join(', ')}.`,
+      );
+    }
+    return matches[0];
+  }
+
   return {
     add,
-    get(agentId: string) {
-      return cardsById.get(agentId.trim());
-    },
-    list(listOptions: AgentRegistryListOptions = {}) {
-      const capabilityId = listOptions.capabilityId?.trim();
-      return [...cardsById.values()]
-        .filter((card) =>
-          capabilityId
-            ? card.capabilities.some((capability) => capability.capability_id === capabilityId)
-            : true,
-        )
-        .sort((left, right) => left.agent_id.localeCompare(right.agent_id));
-    },
-    resolveCapability(capabilityId: string, resolveOptions: ResolveCapabilityOptions = {}) {
-      const capability = capabilityId.trim();
-      const agentId = resolveOptions.agentId?.trim();
-      const matches = this.list({ capabilityId: capability }).filter((card) =>
-        agentId ? card.agent_id === agentId : true,
-      );
-
-      if (matches.length === 0) {
-        const suffix = agentId ? ` and agent ${agentId}` : '';
-        throw new Error(`No agent card found for capability ${capability}${suffix}.`);
-      }
-      if (matches.length > 1) {
-        throw new Error(
-          `Capability ${capability} is ambiguous across agent ids: ${matches
-            .map((card) => card.agent_id)
-            .join(', ')}.`,
-        );
-      }
-      return matches[0];
-    },
+    get,
+    list,
+    resolveCapability,
   };
 
   function add(input: unknown): ValidationResult<AgentCard> {

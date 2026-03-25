@@ -5,6 +5,7 @@ import { createAgentRegistry } from '../src/discovery/index.js';
 async function loadLiveCard(fileName: 'hep-mcp.json' | 'idea-engine.json') {
   const raw = await readFile(
     new URL(
+      // These compatibility checks intentionally rely on the full monorepo fixture path.
       `../../hep-autoresearch/src/hep_autoresearch/toolkit/agent_cards/${fileName}`,
       import.meta.url,
     ),
@@ -28,6 +29,15 @@ describe('agent registry', () => {
     expect(toolsCards.map((card) => card.agent_id)).toEqual(['hep-mcp']);
     expect(hepCard.agent_id).toBe('hep-mcp');
     expect(ideaCard.agent_id).toBe('idea-engine');
+  });
+
+  it('keeps capability resolution stable when consumers destructure the helper', async () => {
+    const registry = createAgentRegistry({
+      cards: [await loadLiveCard('hep-mcp.json'), await loadLiveCard('idea-engine.json')],
+    });
+    const { resolveCapability } = registry;
+
+    expect(resolveCapability('mcp.list_tools').agent_id).toBe('hep-mcp');
   });
 
   it('fails closed on duplicate agent ids, unknown capabilities, and ambiguous matches', async () => {
