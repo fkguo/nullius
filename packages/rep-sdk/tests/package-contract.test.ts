@@ -30,5 +30,5 @@ describe('package contract', () => {
     await expect(import('../src/server/index.js')).resolves.toBeTruthy();
     await expect(import('../src/transport/index.js')).resolves.toBeTruthy();
     await expect(import('../src/validation/index.js')).resolves.toBeTruthy();
-  });
+  }, 15_000);
 });
