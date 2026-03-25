@@ -43,6 +43,21 @@
       },
       "additionalProperties": false
     },
+    "install_policy": {
+      "type": "object",
+      "required": ["auto_safe"],
+      "properties": {
+        "auto_safe": {
+          "type": "object",
+          "required": ["human_pre_approved"],
+          "properties": {
+            "human_pre_approved": { "const": true }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "depends_on": {
       "type": "object",
       "additionalProperties": {
@@ -138,7 +153,8 @@
       },
       "then": {
         "properties": {
-          "runtime": false
+          "runtime": false,
+          "install_policy": false
         }
       }
     }

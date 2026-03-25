@@ -107,3 +107,38 @@ def test_runtime_python_packages_must_be_non_empty_strings() -> None:
     joined = "\n".join(errs)
     assert "runtime.python.packages[0] must be a non-empty string" in joined
     assert "runtime.python.packages[1] must be a non-empty string" in joined
+
+
+def test_install_policy_auto_safe_is_valid_for_skill_pack() -> None:
+    required, types, channels, platforms, properties = _validator_inputs()
+    data = _base_skill()
+    data["install_policy"] = {"auto_safe": {"human_pre_approved": True}}
+    data["source"]["ref"] = "0123456789abcdef0123456789abcdef01234567"
+    errs = validate_package(
+        path=ROOT / "packages" / "sample-skill.json",
+        data=data,
+        required_keys=required,
+        allowed_types=types,
+        allowed_channels=channels,
+        allowed_platforms=platforms,
+        package_versions={"sample-skill": "0.1.0"},
+        allowed_properties=properties,
+    )
+    assert errs == []
+
+
+def test_install_policy_auto_safe_requires_immutable_source_ref() -> None:
+    required, types, channels, platforms, properties = _validator_inputs()
+    data = _base_skill()
+    data["install_policy"] = {"auto_safe": {"human_pre_approved": True}}
+    errs = validate_package(
+        path=ROOT / "packages" / "sample-skill.json",
+        data=data,
+        required_keys=required,
+        allowed_types=types,
+        allowed_channels=channels,
+        allowed_platforms=platforms,
+        package_versions={"sample-skill": "0.1.0"},
+        allowed_properties=properties,
+    )
+    assert "auto-safe source.ref must be an immutable 40-character git SHA" in "\n".join(errs)

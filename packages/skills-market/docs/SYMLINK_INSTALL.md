@@ -14,6 +14,7 @@ Use the Python installer (`scripts/install_skill.py`) when you want:
 - Payload allowlist/denylist copy install
 - More controlled, reproducible install artifacts
 - Installer-managed Python runtime isolation for opted-in skills (`runtime.python`)
+- The bounded `--auto-safe` install path for explicitly approved, immutable-ref `skill-pack` closures
 
 ## 2) Repository Roles
 
@@ -93,6 +94,7 @@ The installer links every market `skill-pack` package id to the platform target 
   - default: error
   - with `--allow-missing`: warning + skip
 - Supports `--dry-run` for preview.
+- Does not participate in `--auto-safe` authority. Symlink install is intentionally outside the EVO-12 first deliverable.
 
 Example:
 
@@ -127,6 +129,17 @@ python3 scripts/install_skill.py --platform codex --package hep-calc
 ```
 
 This M-15 first slice only covers Python isolation inside `skills-market`; it does not add Node/TS runtime isolation or compatibility/export mirror changes.
+
+### Auto-safe boundary note
+
+The bounded EVO-12 `--auto-safe` path belongs only to `scripts/install_skill.py` and only for copy installs.
+
+- It requires `install_policy.auto_safe.human_pre_approved: true`.
+- It requires `source.ref` to be pinned to an immutable 40-character git SHA.
+- It rejects non-`skill-pack` dependencies and ineligible dependency closures atomically.
+- It writes `.market_install.json` provenance plus `.auto_safe_install_audit.json`.
+
+The symlink scripts in this document do none of the above and should be treated as a separate install route.
 
 ## 9) Troubleshooting
 

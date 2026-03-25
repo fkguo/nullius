@@ -30,6 +30,8 @@ def install_payload(
     files: list[pathlib.Path],
     metadata: dict[str, Any],
     python_runtime: dict[str, Any] | None,
+    install_mode: str,
+    auto_safe_evaluation: dict[str, Any] | None,
     force: bool,
     dry_run: bool,
 ) -> None:
@@ -58,9 +60,12 @@ def install_payload(
         install_record = {
             "package_id": package_id,
             "installed_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "install_mode": install_mode,
             **metadata,
             "file_count": len(files),
         }
+        if auto_safe_evaluation is not None:
+            install_record["auto_safe_evaluation"] = auto_safe_evaluation
 
         if python_runtime is not None:
             runtime_record = create_isolated_venv(stage_root, python_runtime["packages"])

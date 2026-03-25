@@ -4,6 +4,8 @@ import pathlib
 import re
 from typing import Any
 
+from market_install_policy import ensure_install_policy as _ensure_install_policy
+
 RE_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 RE_WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 RE_SOURCE_REF = re.compile(r"^(?!/)(?!.*\.\.)(?!.*//)[A-Za-z0-9._/-]+$")
@@ -98,3 +100,7 @@ def ensure_python_runtime(package_id: str, package: dict[str, Any]) -> dict[str,
             raise RuntimeError(f"{package_id}: runtime.python.packages[{idx}] must be a non-empty string")
         normalized.append(item.strip())
     return {"mode": mode, "packages": normalized}
+
+
+def ensure_install_policy(package_id: str, package: dict[str, Any]) -> dict[str, Any] | None:
+    return _ensure_install_policy(package_id, package)

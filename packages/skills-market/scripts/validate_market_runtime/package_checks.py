@@ -15,6 +15,7 @@ from .contracts import (
     is_safe_relative_path,
     satisfies_range,
 )
+from market_install_policy import auto_safe_install_issues, validate_install_policy
 
 
 def build_constraints_from_schema(schema: dict[str, Any]) -> tuple[set[str], set[str], set[str], set[str]]:
@@ -144,6 +145,13 @@ def validate_package(
                     break
                 if not isinstance(value, str) or not value.strip():
                     errs.append(f"{path.name}: install.{key} must be a non-empty string")
+
+    install_policy = data.get("install_policy")
+    install_policy_errors = validate_install_policy(path.name, package_type, install_policy)
+    errs.extend(install_policy_errors)
+    if install_policy is not None and not install_policy_errors:
+        for issue in auto_safe_install_issues(package_id or path.stem, data, require_opt_in=False):
+            errs.append(f"{path.name}: {issue}")
 
     source = data.get("source")
     if package_type == "skill-pack" and source is None:

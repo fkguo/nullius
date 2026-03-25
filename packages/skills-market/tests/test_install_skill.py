@@ -117,6 +117,7 @@ def test_real_install_uses_skill_local_venv_and_writes_runtime_record(tmp_path: 
     inject_python_runtime_note(install_dir / "SKILL.md", expected_venv_python)
     assert (install_dir / "SKILL.md").read_text(encoding="utf-8").count(NOTE_START) == 1
     install_record = json.loads((install_dir / ".market_install.json").read_text(encoding="utf-8"))
+    assert install_record["install_mode"] == "default"
     assert install_record["python_runtime"]["mode"] == "isolated-venv"
     assert install_record["python_runtime"]["venv_python"] == expected_venv_python
 

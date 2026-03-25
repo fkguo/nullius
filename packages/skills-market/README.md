@@ -73,7 +73,26 @@ python3 scripts/install_skill.py \
 - Source payload uses package-level publish allowlist (`source.include`) and denylist (`source.exclude`) so review artifacts/dev traces are not installed
 - Skill-packs can opt into installer-managed Python isolation with `runtime.python.mode = "isolated-venv"`
 - Opted-in Python skills get a skill-local `.venv`; installs fail closed if venv creation or package install fails
+- `--auto-safe` is a narrower copy-install authority for `skill-pack` closures only:
+  - requires explicit `--package`
+  - rejects `--all` and `--no-deps`
+  - requires `install_policy.auto_safe.human_pre_approved: true`
+  - requires `source.ref` to be an immutable 40-character git SHA
+  - fails closed if any dependency in the requested closure is not an eligible `skill-pack`
+- `--auto-safe` writes install provenance into `.market_install.json` and a deterministic target-root audit file at `.auto_safe_install_audit.json`
+- The current checked-in catalog is not yet rolled out for real `--auto-safe` installs; this first EVO-12 slice only establishes the fail-closed contract and installer/validator authority
 - This slice is local to `skills-market` installer behavior only; compatibility/export mirror updates are intentionally deferred
+
+Example auto-safe invocation:
+
+```bash
+python3 scripts/install_skill.py \
+  --platform codex \
+  --package some-approved-skill \
+  --auto-safe
+```
+
+`--auto-safe` does not apply to the symlink installer scripts. The Git clone + symlink route remains a separate install surface documented in `docs/SYMLINK_INSTALL.md`.
 
 ## Source Publishing Model (Private)
 
