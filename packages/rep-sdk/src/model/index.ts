@@ -8,6 +8,19 @@ export type {
   IntegrityOverallStatus,
   IntegrityReport,
 } from './integrity-report.js';
+export type {
+  CalculationDivergencePayload,
+  CrossCheckOpportunityPayload,
+  GapDetectedPayload,
+  IntegrityViolationPayload,
+  KnownResultMatchPayload,
+  MethodPlateauPayload,
+  ParameterSensitivityPayload,
+  ResearchSignal,
+  ResearchSignalPriority,
+  ResearchSignalType,
+  StagnationPayload,
+} from './research-signal.js';
 export type { ResearchEvent, ResearchEventType } from './research-event.js';
 export type {
   OutcomeMetric,

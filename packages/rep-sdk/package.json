@@ -34,6 +34,10 @@
     "./discovery": {
       "import": "./dist/discovery/index.js",
       "types": "./dist/discovery/index.d.ts"
+    },
+    "./signals": {
+      "import": "./dist/signals/index.js",
+      "types": "./dist/signals/index.d.ts"
     }
   },
   "scripts": {

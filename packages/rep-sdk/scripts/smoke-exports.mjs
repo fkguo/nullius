@@ -5,6 +5,7 @@ const modules = [
   '@autoresearch/rep-sdk/transport',
   '@autoresearch/rep-sdk/validation',
   '@autoresearch/rep-sdk/discovery',
+  '@autoresearch/rep-sdk/signals',
 ];
 
 await Promise.all(modules.map((name) => import(name)));

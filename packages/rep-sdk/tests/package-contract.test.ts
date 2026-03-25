@@ -18,6 +18,7 @@ describe('package contract', () => {
       './client',
       './discovery',
       './server',
+      './signals',
       './transport',
       './validation',
     ]);
@@ -27,6 +28,7 @@ describe('package contract', () => {
     await expect(import('../src/index.js')).resolves.toBeTruthy();
     await expect(import('../src/client/index.js')).resolves.toBeTruthy();
     await expect(import('../src/discovery/index.js')).resolves.toBeTruthy();
+    await expect(import('../src/signals/index.js')).resolves.toBeTruthy();
     await expect(import('../src/server/index.js')).resolves.toBeTruthy();
     await expect(import('../src/transport/index.js')).resolves.toBeTruthy();
     await expect(import('../src/validation/index.js')).resolves.toBeTruthy();

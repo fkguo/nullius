@@ -8,6 +8,7 @@ const schemaFiles = [
   'rep_envelope_v1.schema.json',
   'research_event_v1.schema.json',
   'research_outcome_v1.schema.json',
+  'research_signal_v1.schema.json',
   'research_strategy_v1.schema.json',
 ] as const;
 
