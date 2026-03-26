@@ -10,6 +10,7 @@
 - `.serena/project.yml` 是单机 / 单 worktree 的本地 Serena 配置，故意不纳入 Git 跟踪；仓库模板固定为 `.serena/project.example.yml`。
 - `.serena/memories/architecture-decisions.md` 是仓库内唯一允许纳入 Git 跟踪的 Serena memory；其余 `.serena/memories/**` 默认视为本地工作笔记，不得作为治理 SSOT。
 - 需要跨会话/跨 worktree 保留的 Serena 结论，必须先提炼并写入 `.serena/memories/architecture-decisions.md`（或其他已跟踪 SSOT）后，才可依赖；未提炼的本地 memory 只可作为临时参考。
+- 若本轮会使用 Serena MCP 工具进行符号导航、memory 读写、或 project-aware 代码理解，必须先在当前 `worktree` 执行 `activate_project`，随后执行 `check_onboarding_performed`；若尚未 onboarding，则先完成 onboarding。未激活前不得把 Serena 输出当 authority。
 - 若旧文档要求“读取根 `CLAUDE.md`”，应解释为：先读 `AGENTS.md`，再读根 `CLAUDE.md` shim，最后按作用域读更具体的 `packages/*/CLAUDE.md` / `AGENTS.md`。
 
 ## 根工作区附加规则
