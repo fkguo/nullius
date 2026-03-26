@@ -8,7 +8,7 @@ import { buildReviewFollowup } from './followup-bridge-review.js';
 import { writeJsonAtomic } from './io.js';
 type BridgeAuthorityInput = Pick<
   ComputationResultV1,
-  'run_id' | 'objective_title' | 'summary' | 'manifest_ref' | 'produced_artifact_refs' | 'feedback_lowering'
+  'run_id' | 'objective_title' | 'summary' | 'manifest_ref' | 'produced_artifact_refs' | 'feedback_lowering' | 'verification_refs'
 >;
 
 type WritingHandoffSeed = {
@@ -118,6 +118,7 @@ export function planComputationFollowupBridges(runDir: string, input: BridgeAuth
       computation_result_uri: resultUri,
       manifest_ref: input.manifest_ref,
       produced_artifact_refs: input.produced_artifact_refs,
+      ...(input.verification_refs ? { verification_refs: input.verification_refs } : {}),
       target: {
         task_kind: 'draft_update',
         title: writingTaskTitle,
@@ -165,6 +166,7 @@ export function planComputationFollowupBridges(runDir: string, input: BridgeAuth
       producedUris,
       manifestUri: input.manifest_ref.uri,
       manifestRef: input.manifest_ref,
+      verificationRefs: input.verification_refs,
     });
     nodes.push(reviewFollowup.node);
     edges.push(reviewFollowup.edge);

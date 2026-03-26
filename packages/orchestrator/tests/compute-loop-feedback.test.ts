@@ -20,6 +20,36 @@ afterEach(() => {
   cleanupRegisteredDirs();
 });
 
+function readVerificationArtifacts(runDir: string) {
+  const subjectPath = path.join(runDir, 'artifacts', 'verification_subject_computation_result_v1.json');
+  const verdictPath = path.join(runDir, 'artifacts', 'verification_subject_verdict_computation_result_v1.json');
+  const coveragePath = path.join(runDir, 'artifacts', 'verification_coverage_v1.json');
+  return {
+    subjectPath,
+    verdictPath,
+    coveragePath,
+    subject: JSON.parse(fs.readFileSync(subjectPath, 'utf-8')) as {
+      linked_identifiers?: Array<{ id_kind: string; id_value: string }>;
+    },
+    verdict: JSON.parse(fs.readFileSync(verdictPath, 'utf-8')) as {
+      status: string;
+      check_run_refs: unknown[];
+      missing_decisive_checks: Array<{ check_kind: string; reason: string; priority: string }>;
+    },
+    coverage: JSON.parse(fs.readFileSync(coveragePath, 'utf-8')) as {
+      summary: {
+        subjects_total: number;
+        subjects_verified: number;
+        subjects_partial: number;
+        subjects_failed: number;
+        subjects_blocked: number;
+        subjects_not_attempted: number;
+      };
+      missing_decisive_checks: Array<{ subject_id: string; check_kind: string; reason: string; priority: string }>;
+    },
+  };
+}
+
 function createBridgeRun(runId: string, projectRoot: string) {
   const runDir = path.join(projectRoot, runId);
   fs.mkdirSync(runDir, { recursive: true });
@@ -90,24 +120,9 @@ describe('compute-loop failure lowering', () => {
     expect(result.next_actions[0]?.task_kind).toBe('idea');
     expect(result.next_actions[0]?.handoff_kind).toBe('feedback');
 
-    const outcome = JSON.parse(fs.readFileSync(result.artifact_paths.computation_result, 'utf-8')) as {
-      execution_status: string;
-      failure_reason?: string;
-      feedback_lowering: {
-        signal: string;
-        decision_kind: string;
-        priority_change: string;
-        prune_candidate: boolean;
-      };
-      workspace_feedback: {
-        workspace: { edges: Array<{ kind: string; to_node_id: string }> };
-        tasks: Array<{ kind: string; status: string }>;
-        handoffs: Array<{
-          handoff_kind: string;
-          payload: { disposition: string; feedback_signal: string; priority_change: string; prune_candidate: boolean };
-        }>;
-      };
-    };
+    const outcome = assertComputationResultValid(
+      JSON.parse(fs.readFileSync(result.artifact_paths.computation_result, 'utf-8')) as unknown,
+    );
 
     expect(outcome.execution_status).toBe('failed');
     expect(outcome.failure_reason).toContain("step 'task_001' exited with code 1");
@@ -125,6 +140,41 @@ describe('compute-loop failure lowering', () => {
     expect(outcome.workspace_feedback.handoffs[0]?.payload.feedback_signal).toBe('failure');
     expect(outcome.workspace_feedback.handoffs[0]?.payload.priority_change).toBe('lower');
     expect(outcome.workspace_feedback.handoffs[0]?.payload.prune_candidate).toBe(true);
+    expect(outcome.verification_refs?.subject_refs).toHaveLength(1);
+    expect(outcome.verification_refs?.subject_verdict_refs).toHaveLength(1);
+    expect(outcome.verification_refs?.coverage_refs).toHaveLength(1);
+    expect(outcome.verification_refs).not.toHaveProperty('check_run_refs');
+
+    const verification = readVerificationArtifacts(runDir);
+    expect(fs.existsSync(verification.subjectPath)).toBe(true);
+    expect(fs.existsSync(verification.verdictPath)).toBe(true);
+    expect(fs.existsSync(verification.coveragePath)).toBe(true);
+    expect(verification.subject.linked_identifiers).toEqual([{
+      id_kind: 'computation_result_uri',
+      id_value: `rep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('artifacts/computation_result_v1.json')}`,
+    }]);
+    expect(verification.verdict.status).toBe('blocked');
+    expect(verification.verdict.check_run_refs).toEqual([]);
+    expect(verification.verdict.missing_decisive_checks).toEqual([{
+      check_kind: 'decisive_verification_pending',
+      reason: 'Decisive verification is blocked by execution failure.',
+      priority: 'high',
+    }]);
+    expect(verification.coverage.summary).toEqual({
+      subjects_total: 1,
+      subjects_verified: 0,
+      subjects_partial: 0,
+      subjects_failed: 0,
+      subjects_blocked: 1,
+      subjects_not_attempted: 0,
+    });
+    expect(verification.coverage.missing_decisive_checks).toHaveLength(1);
+    expect(verification.coverage.missing_decisive_checks[0]).toMatchObject({
+      subject_id: `result:${runId}:computation_result`,
+      check_kind: 'decisive_verification_pending',
+      reason: 'Decisive verification is blocked by execution failure.',
+      priority: 'high',
+    });
   });
 
   it('re-ingests a completed weak-signal computation_result_v1 into the same provider-neutral idea-branch lowering', async () => {
@@ -162,6 +212,37 @@ describe('compute-loop failure lowering', () => {
     expect(stored.workspace_feedback.workspace.nodes.some(node => node.node_id === `idea-branch:${runId}`)).toBe(true);
     expect(stored.workspace_feedback.workspace.edges.some(edge => edge.kind === 'branches_to' && edge.to_node_id === `idea-branch:${runId}`)).toBe(true);
     expect(stored.workspace_feedback.handoffs[0]?.payload.disposition).toBe('branch_idea');
+    expect(stored.verification_refs?.subject_refs).toHaveLength(1);
+    expect(stored.verification_refs?.subject_verdict_refs).toHaveLength(1);
+    expect(stored.verification_refs?.coverage_refs).toHaveLength(1);
+    expect(stored.verification_refs).not.toHaveProperty('check_run_refs');
+
+    const verification = readVerificationArtifacts(runDir);
+    expect(fs.existsSync(verification.subjectPath)).toBe(true);
+    expect(fs.existsSync(verification.verdictPath)).toBe(true);
+    expect(fs.existsSync(verification.coveragePath)).toBe(true);
+    expect(verification.verdict.status).toBe('not_attempted');
+    expect(verification.verdict.check_run_refs).toEqual([]);
+    expect(verification.verdict.missing_decisive_checks).toEqual([{
+      check_kind: 'decisive_verification_pending',
+      reason: 'Decisive verification has not been attempted yet.',
+      priority: 'high',
+    }]);
+    expect(verification.coverage.summary).toEqual({
+      subjects_total: 1,
+      subjects_verified: 0,
+      subjects_partial: 0,
+      subjects_failed: 0,
+      subjects_blocked: 0,
+      subjects_not_attempted: 1,
+    });
+    expect(verification.coverage.missing_decisive_checks).toHaveLength(1);
+    expect(verification.coverage.missing_decisive_checks[0]).toMatchObject({
+      subject_id: `result:${runId}:computation_result`,
+      check_kind: 'decisive_verification_pending',
+      reason: 'Decisive verification has not been attempted yet.',
+      priority: 'high',
+    });
 
     const replayed = deriveNextIdeaLoopState(stored);
     expect(replayed.nextActions).toEqual(stored.next_actions);

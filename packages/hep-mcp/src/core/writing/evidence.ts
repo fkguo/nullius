@@ -1,5 +1,12 @@
 import * as fs from 'fs';
-import { invalidParams, type WritingReviewBridgeV1 } from '@autoresearch/shared';
+import {
+  invalidParams,
+  parseScopedArtifactUri,
+  type ArtifactRefV1,
+  type VerificationCoverageV1,
+  type VerificationSubjectVerdictV1,
+  type WritingReviewBridgeV1,
+} from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getProjectPaperEvidenceCatalogPath, getRunArtifactPath } from '../paths.js';
@@ -236,6 +243,298 @@ function readBridgeArtifact(runId: string, artifactName: string): WritingReviewB
   return bridge as WritingReviewBridgeV1;
 }
 
+type VerificationSubjectVerdictMetaV1 = {
+  uri: string;
+  subject_id: string;
+  status: VerificationSubjectVerdictV1['status'];
+  missing_decisive_checks: Array<{
+    check_kind: string;
+    reason: string;
+    priority: 'low' | 'medium' | 'high';
+  }>;
+};
+
+type VerificationCoverageMetaV1 = {
+  uri: string;
+  summary: VerificationCoverageV1['summary'];
+  missing_decisive_checks: Array<{
+    subject_id: string;
+    check_kind: string;
+    reason: string;
+    priority: 'low' | 'medium' | 'high';
+  }>;
+};
+
+type CollectedVerificationRefs = {
+  subjectRefs: Map<string, ArtifactRefV1>;
+  checkRunRefs: Map<string, ArtifactRefV1>;
+  subjectVerdicts: Map<string, { ref: ArtifactRefV1; meta: VerificationSubjectVerdictMetaV1 }>;
+  coverage: Map<string, { ref: ArtifactRefV1; meta: VerificationCoverageMetaV1 }>;
+};
+
+function createCollectedVerificationRefs(): CollectedVerificationRefs {
+  return {
+    subjectRefs: new Map<string, ArtifactRefV1>(),
+    checkRunRefs: new Map<string, ArtifactRefV1>(),
+    subjectVerdicts: new Map<string, { ref: ArtifactRefV1; meta: VerificationSubjectVerdictMetaV1 }>(),
+    coverage: new Map<string, { ref: ArtifactRefV1; meta: VerificationCoverageMetaV1 }>(),
+  };
+}
+
+function resolveBridgeVerificationArtifactPath(params: {
+  runId: string;
+  bridgeArtifactName: string;
+  ref: ArtifactRefV1;
+  refBucket: 'subject_refs' | 'check_run_refs' | 'subject_verdict_refs' | 'coverage_refs';
+}): string {
+  const parsed = parseScopedArtifactUri(params.ref.uri, { scheme: 'rep', scope: 'runs' });
+  if (!parsed) {
+    throw invalidParams('Verification artifact ref must use rep://runs/<run_id>/artifact/... URI', {
+      run_id: params.runId,
+      bridge_artifact_name: params.bridgeArtifactName,
+      ref_bucket: params.refBucket,
+      uri: params.ref.uri,
+    });
+  }
+  if (parsed.scopeId !== params.runId) {
+    throw invalidParams('Verification artifact ref must belong to the current run', {
+      run_id: params.runId,
+      bridge_artifact_name: params.bridgeArtifactName,
+      ref_bucket: params.refBucket,
+      uri: params.ref.uri,
+      ref_run_id: parsed.scopeId,
+    });
+  }
+  if (!parsed.artifactName.startsWith('artifacts/')) {
+    throw invalidParams('Verification artifact ref must resolve under artifacts/', {
+      run_id: params.runId,
+      bridge_artifact_name: params.bridgeArtifactName,
+      ref_bucket: params.refBucket,
+      uri: params.ref.uri,
+      artifact_name: parsed.artifactName,
+    });
+  }
+  const artifactName = parsed.artifactName.slice('artifacts/'.length);
+  if (!artifactName || artifactName.includes('/')) {
+    throw invalidParams('Verification artifact ref must resolve to a direct artifacts/<name> file', {
+      run_id: params.runId,
+      bridge_artifact_name: params.bridgeArtifactName,
+      ref_bucket: params.refBucket,
+      uri: params.ref.uri,
+      artifact_name: parsed.artifactName,
+    });
+  }
+  const artifactPath = getRunArtifactPath(params.runId, artifactName);
+  if (!fs.existsSync(artifactPath)) {
+    throw invalidParams('Verification artifact not found', {
+      run_id: params.runId,
+      bridge_artifact_name: params.bridgeArtifactName,
+      ref_bucket: params.refBucket,
+      uri: params.ref.uri,
+      artifact_name: artifactName,
+    });
+  }
+  return artifactPath;
+}
+
+function recordVerificationRef(map: Map<string, ArtifactRefV1>, ref: ArtifactRefV1): void {
+  const existing = map.get(ref.uri);
+  if (existing && existing.sha256 !== ref.sha256) {
+    throw invalidParams('Duplicate verification artifact URI carried conflicting sha256 digests', {
+      uri: ref.uri,
+      existing_sha256: existing.sha256,
+      incoming_sha256: ref.sha256,
+    });
+  }
+  if (!existing) map.set(ref.uri, ref);
+}
+
+function readVerificationArtifactJson(params: {
+  runId: string;
+  bridgeArtifactName: string;
+  ref: ArtifactRefV1;
+  refBucket: 'subject_refs' | 'check_run_refs' | 'subject_verdict_refs' | 'coverage_refs';
+}): unknown {
+  const artifactPath = resolveBridgeVerificationArtifactPath(params);
+  const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as unknown;
+  if (!parsed || typeof parsed !== 'object') {
+    throw invalidParams('Verification artifact must be a JSON object', {
+      run_id: params.runId,
+      bridge_artifact_name: params.bridgeArtifactName,
+      ref_bucket: params.refBucket,
+      uri: params.ref.uri,
+    });
+  }
+  return parsed;
+}
+
+function readVerificationSubjectVerdictMeta(params: {
+  runId: string;
+  bridgeArtifactName: string;
+  ref: ArtifactRefV1;
+}): VerificationSubjectVerdictMetaV1 {
+  const parsed = readVerificationArtifactJson({
+    runId: params.runId,
+    bridgeArtifactName: params.bridgeArtifactName,
+    ref: params.ref,
+    refBucket: 'subject_verdict_refs',
+  }) as Partial<VerificationSubjectVerdictV1>;
+  if (
+    parsed.schema_version !== 1
+    || typeof parsed.subject_id !== 'string'
+    || typeof parsed.status !== 'string'
+    || !Array.isArray(parsed.missing_decisive_checks)
+  ) {
+    throw invalidParams('Unsupported verification subject verdict artifact shape', {
+      run_id: params.runId,
+      bridge_artifact_name: params.bridgeArtifactName,
+      uri: params.ref.uri,
+    });
+  }
+  return {
+    uri: params.ref.uri,
+    subject_id: parsed.subject_id,
+    status: parsed.status as VerificationSubjectVerdictV1['status'],
+    missing_decisive_checks: parsed.missing_decisive_checks.map(check => {
+      if (
+        !check
+        || typeof check !== 'object'
+        || typeof check.check_kind !== 'string'
+        || typeof check.reason !== 'string'
+        || !['low', 'medium', 'high'].includes(String(check.priority))
+      ) {
+        throw invalidParams('Unsupported verification subject verdict missing-check shape', {
+          run_id: params.runId,
+          bridge_artifact_name: params.bridgeArtifactName,
+          uri: params.ref.uri,
+        });
+      }
+      return {
+        check_kind: check.check_kind,
+        reason: check.reason,
+        priority: check.priority as 'low' | 'medium' | 'high',
+      };
+    }),
+  };
+}
+
+function readVerificationCoverageMeta(params: {
+  runId: string;
+  bridgeArtifactName: string;
+  ref: ArtifactRefV1;
+}): VerificationCoverageMetaV1 {
+  const parsed = readVerificationArtifactJson({
+    runId: params.runId,
+    bridgeArtifactName: params.bridgeArtifactName,
+    ref: params.ref,
+    refBucket: 'coverage_refs',
+  }) as Partial<VerificationCoverageV1>;
+  const summary = parsed.summary;
+  if (
+    parsed.schema_version !== 1
+    || !summary
+    || typeof summary !== 'object'
+    || !Array.isArray(parsed.missing_decisive_checks)
+  ) {
+    throw invalidParams('Unsupported verification coverage artifact shape', {
+      run_id: params.runId,
+      bridge_artifact_name: params.bridgeArtifactName,
+      uri: params.ref.uri,
+    });
+  }
+  return {
+    uri: params.ref.uri,
+    summary: {
+      subjects_total: Number(summary.subjects_total ?? 0),
+      subjects_verified: Number(summary.subjects_verified ?? 0),
+      subjects_partial: Number(summary.subjects_partial ?? 0),
+      subjects_failed: Number(summary.subjects_failed ?? 0),
+      subjects_blocked: Number(summary.subjects_blocked ?? 0),
+      subjects_not_attempted: Number(summary.subjects_not_attempted ?? 0),
+    },
+    missing_decisive_checks: parsed.missing_decisive_checks.map(gap => {
+      if (
+        !gap
+        || typeof gap !== 'object'
+        || typeof gap.subject_id !== 'string'
+        || typeof gap.check_kind !== 'string'
+        || typeof gap.reason !== 'string'
+        || !['low', 'medium', 'high'].includes(String(gap.priority))
+      ) {
+        throw invalidParams('Unsupported verification coverage gap shape', {
+          run_id: params.runId,
+          bridge_artifact_name: params.bridgeArtifactName,
+          uri: params.ref.uri,
+        });
+      }
+      return {
+        subject_id: gap.subject_id,
+        check_kind: gap.check_kind,
+        reason: gap.reason,
+        priority: gap.priority as 'low' | 'medium' | 'high',
+      };
+    }),
+  };
+}
+
+function collectBridgeVerificationRefs(params: {
+  runId: string;
+  bridgeArtifactName: string;
+  verificationRefs: WritingReviewBridgeV1['verification_refs'];
+  collected: CollectedVerificationRefs;
+}): void {
+  for (const ref of params.verificationRefs?.subject_refs ?? []) {
+    resolveBridgeVerificationArtifactPath({
+      runId: params.runId,
+      bridgeArtifactName: params.bridgeArtifactName,
+      ref,
+      refBucket: 'subject_refs',
+    });
+    recordVerificationRef(params.collected.subjectRefs, ref);
+  }
+  for (const ref of params.verificationRefs?.check_run_refs ?? []) {
+    resolveBridgeVerificationArtifactPath({
+      runId: params.runId,
+      bridgeArtifactName: params.bridgeArtifactName,
+      ref,
+      refBucket: 'check_run_refs',
+    });
+    recordVerificationRef(params.collected.checkRunRefs, ref);
+  }
+  for (const ref of params.verificationRefs?.subject_verdict_refs ?? []) {
+    const meta = readVerificationSubjectVerdictMeta({
+      runId: params.runId,
+      bridgeArtifactName: params.bridgeArtifactName,
+      ref,
+    });
+    const existing = params.collected.subjectVerdicts.get(ref.uri);
+    if (existing && existing.ref.sha256 !== ref.sha256) {
+      throw invalidParams('Duplicate verification subject verdict URI carried conflicting sha256 digests', {
+        uri: ref.uri,
+        existing_sha256: existing.ref.sha256,
+        incoming_sha256: ref.sha256,
+      });
+    }
+    if (!existing) params.collected.subjectVerdicts.set(ref.uri, { ref, meta });
+  }
+  for (const ref of params.verificationRefs?.coverage_refs ?? []) {
+    const meta = readVerificationCoverageMeta({
+      runId: params.runId,
+      bridgeArtifactName: params.bridgeArtifactName,
+      ref,
+    });
+    const existing = params.collected.coverage.get(ref.uri);
+    if (existing && existing.ref.sha256 !== ref.sha256) {
+      throw invalidParams('Duplicate verification coverage URI carried conflicting sha256 digests', {
+        uri: ref.uri,
+        existing_sha256: existing.ref.sha256,
+        incoming_sha256: ref.sha256,
+      });
+    }
+    if (!existing) params.collected.coverage.set(ref.uri, { ref, meta });
+  }
+}
+
 function ensureUniqueByEvidenceId<T extends { evidence_id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
@@ -463,6 +762,7 @@ export async function buildRunWritingEvidence(params: {
   const sourceStatusName = 'writing_evidence_source_status.json';
   const sourceStatuses: WritingEvidenceSourceStatusEntryV1[] = [];
   const bridgeSummaries: Array<{ artifact_name: string; bridge_kind: string; task_kind: string; target_node_id: string; produced_artifact_count: number }> = [];
+  const collectedVerification = createCollectedVerificationRefs();
   let sourceStatusRef: RunArtifactRef | null = null;
 
   const artifacts: RunArtifactRef[] = [];
@@ -500,6 +800,12 @@ export async function buildRunWritingEvidence(params: {
       const t0 = Date.now();
       try {
         const bridge = readBridgeArtifact(runId, artifactName);
+        collectBridgeVerificationRefs({
+          runId,
+          bridgeArtifactName: artifactName,
+          verificationRefs: bridge.verification_refs,
+          collected: collectedVerification,
+        });
         bridgeSummaries.push({
           artifact_name: artifactName,
           bridge_kind: bridge.bridge_kind,
@@ -798,6 +1104,14 @@ export async function buildRunWritingEvidence(params: {
     }
 
     const attempted = statusSummary.succeeded + statusSummary.failed;
+    const verificationSubjectRefs = Array.from(collectedVerification.subjectRefs.values())
+      .sort((a, b) => a.uri.localeCompare(b.uri));
+    const verificationCheckRunRefs = Array.from(collectedVerification.checkRunRefs.values())
+      .sort((a, b) => a.uri.localeCompare(b.uri));
+    const verificationSubjectVerdictEntries = Array.from(collectedVerification.subjectVerdicts.values())
+      .sort((a, b) => a.ref.uri.localeCompare(b.ref.uri));
+    const verificationCoverageEntries = Array.from(collectedVerification.coverage.values())
+      .sort((a, b) => a.ref.uri.localeCompare(b.ref.uri));
     const metaRef = writeRunJsonArtifact(runId, 'writing_evidence_meta_v1.json', {
       version: 1,
       generated_at: nowIso(),
@@ -823,6 +1137,14 @@ export async function buildRunWritingEvidence(params: {
         total_items: latexItems.length,
       },
       bridges: bridgeSummaries,
+      verification: {
+        subject_refs: verificationSubjectRefs,
+        check_run_refs: verificationCheckRunRefs,
+        subject_verdict_refs: verificationSubjectVerdictEntries.map(entry => entry.ref),
+        coverage_refs: verificationCoverageEntries.map(entry => entry.ref),
+        subject_verdicts: verificationSubjectVerdictEntries.map(entry => entry.meta),
+        coverage: verificationCoverageEntries.map(entry => entry.meta),
+      },
       pdf: pdfBuildResult
         ? {
             ...params.pdf_source!,

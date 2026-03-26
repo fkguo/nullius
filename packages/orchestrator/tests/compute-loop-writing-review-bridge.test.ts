@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildTeamConfigForDelegatedFollowupTask } from '../src/computation/feedback-followups.js';
 import { executeComputationManifest } from '../src/computation/index.js';
+import { assertComputationResultValid } from '../src/computation/result-schema.js';
 import { handleOrchRunExecuteAgent } from '../src/orch-tools/agent-runtime.js';
 import {
   cleanupRegisteredDirs,
@@ -22,6 +23,20 @@ import {
 afterEach(() => {
   cleanupRegisteredDirs();
 });
+
+function verificationUriBuckets(verificationRefs: {
+  subject_refs?: Array<{ uri: string }>;
+  check_run_refs?: Array<{ uri: string }>;
+  subject_verdict_refs?: Array<{ uri: string }>;
+  coverage_refs?: Array<{ uri: string }>;
+} | undefined) {
+  return {
+    subject_refs: (verificationRefs?.subject_refs ?? []).map(ref => ref.uri),
+    check_run_refs: (verificationRefs?.check_run_refs ?? []).map(ref => ref.uri),
+    subject_verdict_refs: (verificationRefs?.subject_verdict_refs ?? []).map(ref => ref.uri),
+    coverage_refs: (verificationRefs?.coverage_refs ?? []).map(ref => ref.uri),
+  };
+}
 
 describe('compute-loop writing/review bridges', () => {
   it('creates a writing bridge and draft_update follow-up without fabricating a review loop', async () => {
@@ -42,6 +57,10 @@ describe('compute-loop writing/review bridges', () => {
     expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'draft_update' && task.status === 'pending')).toBe(true);
     expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'review')).toBe(false);
     expect(outcome.workspace_feedback.handoffs).toHaveLength(0);
+    const computationResult = assertComputationResultValid(
+      JSON.parse(fs.readFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), 'utf-8')) as unknown,
+    );
+    const resultVerificationUris = verificationUriBuckets(computationResult.verification_refs);
 
     const writingBridge = JSON.parse(
       fs.readFileSync(path.join(runDir, 'artifacts', 'writing_followup_bridge_v1.json'), 'utf-8'),
@@ -49,6 +68,12 @@ describe('compute-loop writing/review bridges', () => {
       bridge_kind: string;
       context: { draft_context_mode: string };
       target: { task_kind: string; suggested_content_type: string; seed_payload: { finding_node_ids: string[] } };
+      verification_refs?: {
+        subject_refs?: Array<{ uri: string }>;
+        check_run_refs?: Array<{ uri: string }>;
+        subject_verdict_refs?: Array<{ uri: string }>;
+        coverage_refs?: Array<{ uri: string }>;
+      };
       handoff?: unknown;
     };
     expect(writingBridge.bridge_kind).toBe('writing');
@@ -56,6 +81,8 @@ describe('compute-loop writing/review bridges', () => {
     expect(writingBridge.target.task_kind).toBe('draft_update');
     expect(writingBridge.target.suggested_content_type).toBe('section_output');
     expect(writingBridge.target.seed_payload.finding_node_ids).toEqual([`finding:${runId}`]);
+    expect(verificationUriBuckets(writingBridge.verification_refs)).toEqual(resultVerificationUris);
+    expect(writingBridge.verification_refs).not.toHaveProperty('check_run_refs');
     expect(writingBridge.handoff).toBeUndefined();
   });
 
@@ -77,6 +104,10 @@ describe('compute-loop writing/review bridges', () => {
     const outcome = readOutcome(runDir);
     const draftTask = outcome.workspace_feedback.tasks.find(task => task.kind === 'draft_update')!;
     const reviewTask = outcome.workspace_feedback.tasks.find(task => task.kind === 'review')!;
+    const computationResult = assertComputationResultValid(
+      JSON.parse(fs.readFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), 'utf-8')) as unknown,
+    );
+    const resultVerificationUris = verificationUriBuckets(computationResult.verification_refs);
     const writingTeam = buildTeamConfigForDelegatedFollowupTask(draftTask);
     const reviewTeam = buildTeamConfigForDelegatedFollowupTask(reviewTask);
     const writingHandoff = outcome.workspace_feedback.handoffs.find(handoff => handoff.handoff_id === writingTeam.handoff_id)!;
@@ -149,21 +180,40 @@ describe('compute-loop writing/review bridges', () => {
 
     const writingBridge = JSON.parse(
       fs.readFileSync(path.join(runDir, 'artifacts', 'writing_followup_bridge_v1.json'), 'utf-8'),
-    ) as { context: { draft_context_mode: string; draft_source_artifact_name: string }; handoff?: { handoff_kind: string } };
+    ) as {
+      context: { draft_context_mode: string; draft_source_artifact_name: string };
+      verification_refs?: {
+        subject_refs?: Array<{ uri: string }>;
+        check_run_refs?: Array<{ uri: string }>;
+        subject_verdict_refs?: Array<{ uri: string }>;
+        coverage_refs?: Array<{ uri: string }>;
+      };
+      handoff?: { handoff_kind: string };
+    };
     const reviewBridge = JSON.parse(
       fs.readFileSync(path.join(runDir, 'artifacts', 'review_followup_bridge_v1.json'), 'utf-8'),
     ) as {
       bridge_kind: string;
       context: { review_source_artifact_name?: string };
       target: { suggested_content_type: string };
+      verification_refs?: {
+        subject_refs?: Array<{ uri: string }>;
+        check_run_refs?: Array<{ uri: string }>;
+        subject_verdict_refs?: Array<{ uri: string }>;
+        coverage_refs?: Array<{ uri: string }>;
+      };
       handoff: { handoff_kind: string };
     };
     expect(writingBridge.context.draft_context_mode).toBe('existing_draft');
     expect(writingBridge.context.draft_source_artifact_name).toContain('staged_section_output');
+    expect(verificationUriBuckets(writingBridge.verification_refs)).toEqual(resultVerificationUris);
+    expect(writingBridge.verification_refs).not.toHaveProperty('check_run_refs');
     expect(writingBridge.handoff?.handoff_kind).toBe('writing');
     expect(reviewBridge.bridge_kind).toBe('review');
     expect(reviewBridge.context.review_source_artifact_name).toContain('staged_reviewer_report');
     expect(reviewBridge.target.suggested_content_type).toBe('reviewer_report');
+    expect(verificationUriBuckets(reviewBridge.verification_refs)).toEqual(resultVerificationUris);
+    expect(reviewBridge.verification_refs).not.toHaveProperty('check_run_refs');
     expect(reviewBridge.handoff.handoff_kind).toBe('review');
   });
 });

@@ -265,6 +265,8 @@
 - Batch 2's first and only consumer is the `buildRunWritingEvidence()` metadata path in `packages/hep-mcp/src/core/writing/evidence.ts`.
 - Writing/review bridge artifacts remain pass-through only for the populated `verification_refs` container; they must not derive new verification verdicts or become a second authority.
 - Batch 2 emits exactly `verification_subject_computation_result_v1.json`, `verification_subject_verdict_computation_result_v1.json`, and `verification_coverage_v1.json`, and it must not synthesize `verification_check_run_v1` before a non-heuristic executed-check producer exists.
+- To avoid a content-hash cycle, the Batch 2 subject's content-addressed `source_refs` are limited to `manifest_ref + produced_artifact_refs`; the final `computation_result_v1.json` URI is carried only via `linked_identifiers` with `id_kind = "computation_result_uri"`.
+- Because the result/bridge `verification_refs` container cannot truthfully carry an empty check-run tuple in Batch 2, `verification_refs.check_run_refs` is omitted from `computation_result_v1` and bridge payloads; only `verification_subject_verdict_v1` carries `check_run_refs: []`.
 - `physicsValidator` remains delete-only residue for Batch 3, not a keepable fallback, wrapper, or temporary semantic guardrail.
 
 **Why**: The current repo already exposes one canonical upstream seam and one bounded downstream consumer. Locking that narrow path gives a credible first proof of typed verification flow without inventing fake check-run authority or widening into broader evidence/runtime redesign.

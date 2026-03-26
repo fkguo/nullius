@@ -34,6 +34,7 @@ export function buildReviewFollowup(params: {
   producedUris: string[];
   manifestUri: string;
   manifestRef: ComputationResultV1['manifest_ref'];
+  verificationRefs: ComputationResultV1['verification_refs'];
 }): ReviewFollowupBuildResult {
   const reviewTaskTitle = `Review draft after computation finding: ${params.objectiveTitle}`;
   const handoff: ReviewHandoffSeed = {
@@ -89,6 +90,7 @@ export function buildReviewFollowup(params: {
         computation_result_uri: params.resultUri,
         manifest_ref: params.manifestRef,
         produced_artifact_refs: params.producedArtifactRefs,
+        ...(params.verificationRefs ? { verification_refs: params.verificationRefs } : {}),
         target: {
           task_kind: 'review',
           title: reviewTaskTitle,
