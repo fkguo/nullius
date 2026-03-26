@@ -932,7 +932,7 @@ obj={
   "stage":"julia_numeric",
   "status":"ERROR",
   "reason":"missing_looptools_jl",
-  "hint":"Install LoopTools.jl (e.g. `julia -e 'using Pkg; Pkg.add(url=\"https://github.com/fkguo/LoopTools.jl\")'`) or set numeric.enable: false. An LLM agent can automate this.",
+  "hint":"Install LoopTools.jl (e.g. `julia -e 'using Pkg; Pkg.add(\"LoopTools\")'`) or set numeric.enable: false. An LLM agent can automate this.",
   "ts":ts
 }
 with open(status_path,"w",encoding="utf-8") as f:
