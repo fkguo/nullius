@@ -280,6 +280,9 @@
 - `packages/shared` must not depend on provider-owned authority.
 - `packages/orchestrator` must not depend on provider UX, shell, or app-layer authority.
 - Host adapters must consume shared/orchestrator exports instead of re-defining generic authority locally.
+- The durable enforcement surfaces for this invariant are the root checker `scripts/check-shell-boundary-anti-drift.mjs`, shared boundary test `packages/shared/src/__tests__/package-boundary-authority.test.ts`, orchestrator boundary test `packages/orchestrator/tests/package-boundary.test.ts`, and the host-consumption contract `packages/hep-mcp/tests/contracts/sharedOrchestratorPackageExports.test.ts`.
+- The root checker is intentionally narrow: it locks front-door wording in `README.md`, `docs/README_zh.md`, and root `package.json`, and it rejects only premature exact shell-package names or standalone `shell` / `gateway` / `frontend` tokens in package basenames.
+- The host-consumption proof remains layered: `@autoresearch/shared` owns ORCH tool-name constants, `@autoresearch/orchestrator` owns ORCH tool specs, and host adapters such as hep-mcp must alias/compose those exports rather than declaring local generic ORCH authority.
 - DeerFlow is borrowed here only for the boundary-test anti-drift pattern; DeerFlow gateway/frontend/workspace shell remain later adaptation work rather than current authority.
 
 **Why**: The architectural boundary is already decided in ADRs and prior closeouts. The missing gap is continuously enforced packaging truth that keeps future shell/product work from drifting back into root/shared/orchestrator/provider authority confusion.
