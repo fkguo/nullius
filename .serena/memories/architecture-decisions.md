@@ -257,3 +257,14 @@
 - `computation_result_v1` and `writing_review_bridge_v1` may expose only an optional typed `verification_refs` container at this stage; Batch 1 must not inline verification producer/consumer authority into those existing contracts.
 
 **Why**: This preserves a provider-neutral, artifact-backed verification ledger that can attach to existing compute and writing substrates without reopening runtime/project-state authority or hard-coding provider/domain-specific check taxonomies.
+
+### [2026-03-26] Verification kernel Batch 2 invariant: computation-result producer, bridge pass-through, writing-metadata consumer
+
+**Decision**:
+- Batch 2's sole first live producer is `writeComputationResultArtifact()` on the computation-result path; it is not a multi-provider rollout and does not reopen generic runtime authority.
+- Batch 2's first and only consumer is the `buildRunWritingEvidence()` metadata path in `packages/hep-mcp/src/core/writing/evidence.ts`.
+- Writing/review bridge artifacts remain pass-through only for the populated `verification_refs` container; they must not derive new verification verdicts or become a second authority.
+- Batch 2 emits exactly `verification_subject_computation_result_v1.json`, `verification_subject_verdict_computation_result_v1.json`, and `verification_coverage_v1.json`, and it must not synthesize `verification_check_run_v1` before a non-heuristic executed-check producer exists.
+- `physicsValidator` remains delete-only residue for Batch 3, not a keepable fallback, wrapper, or temporary semantic guardrail.
+
+**Why**: The current repo already exposes one canonical upstream seam and one bounded downstream consumer. Locking that narrow path gives a credible first proof of typed verification flow without inventing fake check-run authority or widening into broader evidence/runtime redesign.
