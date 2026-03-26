@@ -268,3 +268,16 @@
 - `physicsValidator` remains delete-only residue for Batch 3, not a keepable fallback, wrapper, or temporary semantic guardrail.
 
 **Why**: The current repo already exposes one canonical upstream seam and one bounded downstream consumer. Locking that narrow path gives a credible first proof of typed verification flow without inventing fake check-run authority or widening into broader evidence/runtime redesign.
+
+### [2026-03-26] Shell-boundary anti-drift invariant: enforce boundary truth before any future leaf shell
+
+**Decision**:
+- Boundary enforcement anti-drift must land before any future shell/gateway/frontend implementation work.
+- The repo root remains the ecosystem/workbench/governance surface, not a product shell.
+- Any packaged end-user agent remains a later leaf package after `P5A` closure rather than a root/orchestrator/provider promotion.
+- `packages/shared` must not depend on provider-owned authority.
+- `packages/orchestrator` must not depend on provider UX, shell, or app-layer authority.
+- Host adapters must consume shared/orchestrator exports instead of re-defining generic authority locally.
+- DeerFlow is borrowed here only for the boundary-test anti-drift pattern; DeerFlow gateway/frontend/workspace shell remain later adaptation work rather than current authority.
+
+**Why**: The architectural boundary is already decided in ADRs and prior closeouts. The missing gap is continuously enforced packaging truth that keeps future shell/product work from drifting back into root/shared/orchestrator/provider authority confusion.
