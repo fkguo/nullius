@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Export hep-calc SSOT artifacts (manifest/summary/analysis) for an existing out_dir.")
+    ap = argparse.ArgumentParser(description="Export hep-calc root SSOT artifacts (manifest/summary/analysis) for an existing out_dir.")
     ap.add_argument("--out", required=True, help="out_dir produced by hep-calc (contains job.resolved.json).")
     ap.add_argument("--job", default=None, help="Path to job.resolved.json (default: <out_dir>/job.resolved.json).")
     args = ap.parse_args()
@@ -36,4 +36,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -48,7 +48,8 @@ artifacts/runs/<TAG>/hep-calc/
 同步根目录（project root）规则：
 - 你可以在 job 顶层显式指定：`research_team_root: /path/to/project`（优先级最高）
 - 或设置环境变量：`RESEARCH_TEAM_ROOT`
-- 若均未设置：会从运行时的 `cwd`/job 所在目录向上搜索，找到最近的包含 `artifacts/`（或 `artifacts/runs/`）的目录作为根；若找不到则回退到当前工作目录
+- 若均未设置：会从运行时的 `cwd`/job 所在目录向上搜索，找到最近的包含 `artifacts/`（或 `artifacts/runs/`）的目录作为根
+- 若找不到这样的外部项目根目录，运行会 fail-closed，而不是回退到 hep-calc 仓库或当前工作目录
 
 最小建议：
 - 将 `<TAG>` 与论文/里程碑一致（例如 `M0-demo`, `M1-benchmark`）

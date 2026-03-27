@@ -11,11 +11,7 @@
 - `manifest.json`：输入/参数指针、环境版本、关键命令指针、输出文件清单、run-card 指针（如有）
 - `summary.json`：headline（关键状态/计数/中间量）+ 定义
 - `analysis.json`：更详细的对照/诊断（当前为薄包装，后续可扩展）
-
-同时为了兼容旧工具链，也会镜像写入：
-- `out_dir/report/manifest.json`
-- `out_dir/report/summary.json`
-- `out_dir/report/analysis.json`
+- `report/audit_report.md`：面向人的审计摘要（不属于 JSON ingestion contract）
 
 ## hep-autoresearch adapter 的最小调用方式
 

@@ -11,11 +11,7 @@ Every hep-calc run writes these files at the `out_dir/` root:
 - `manifest.json`: pointers to inputs/parameters, environment versions, command pointers, output file list, and optional run-card pointer
 - `summary.json`: headline items (key statuses/counts/selected numbers) plus definitions
 - `analysis.json`: more detailed comparisons/diagnostics (currently a thin wrapper; can evolve)
-
-For back-compat with older tooling, hep-calc also mirrors these under:
-- `out_dir/report/manifest.json`
-- `out_dir/report/summary.json`
-- `out_dir/report/analysis.json`
+- `report/audit_report.md`: human-facing audit summary (not part of the JSON ingestion contract)
 
 ## Minimal adapter ingestion flow
 

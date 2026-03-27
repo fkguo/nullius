@@ -291,7 +291,7 @@
     },
     "research_team_root": {
       "type": ["string", "null"],
-      "description": "Optional explicit root directory for research-team integration sync. If null/omitted, auto-detect a parent directory containing artifacts/ or artifacts/runs (fallback: current working directory). Can also be set via RESEARCH_TEAM_ROOT env var."
+      "description": "Optional explicit root directory for research-team integration sync. If null/omitted, auto-detect a parent directory containing artifacts/ or artifacts/runs. If none is found, fail closed instead of falling back to the current working directory. Can also be set via RESEARCH_TEAM_ROOT env var."
     }
   }
 }

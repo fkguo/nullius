@@ -13,11 +13,11 @@ description: >
 ## Agent quick summary
 
 Primary entry point:
-- `bash scripts/run_hep_calc.sh --job job.yml [--out <dir>]`
+- `bash scripts/run_hep_calc.sh --job job.yml --out /absolute/path/outside/repo`
 
-Start here (audit-first):
+Start here (compute-first):
+- Agent/tooling (SSOT): `out_dir/summary.json` + `out_dir/manifest.json` + `out_dir/analysis.json`
 - Human: `out_dir/report/audit_report.md`
-- Agent/tooling (SSOT): `out_dir/summary.json` + `out_dir/manifest.json` (+ `out_dir/analysis.json`)
 - Debug: `out_dir/logs/*.log` and per-step `status.json`
 
 As an agent, always clarify with the user:
@@ -27,7 +27,7 @@ As an agent, always clarify with the user:
 
 ## When to use this skill
 
-Use `hep-calc` when you need any of the following:
+Use `hep-calc` when the primary need is an auditable computation run, optionally paired with TeX comparison or model_build scaffolding, including any of the following:
 - Orchestrate Mathematica (FeynCalc/FeynArts/FormCalc) and/or Julia (LoopTools.jl) for symbolic/numeric HEP calculations.
 - Auto-generate Feynman diagrams and one-loop (unrenormalized) amplitudes:
   - FeynRules → FeynArts → (optional) FormCalc reduction.
@@ -147,7 +147,7 @@ model_build (LaTeX→model) extra:
 Run from the skill directory:
 
 ```bash
-bash scripts/run_hep_calc.sh --job assets/demo_job.yml
+bash scripts/run_hep_calc.sh --job assets/demo_job.yml --out /tmp/hep_calc_demo_job
 ```
 
 Recommended: run env_check and write a machine-readable snapshot:
@@ -159,22 +159,22 @@ bash scripts/check_env.sh --json /tmp/hep_calc_env.json
 auto_qft demo (FeynRules/SM): e- e+ -> mu- mu+:
 
 ```bash
-bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_ee_mumu.yml
+bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_ee_mumu.yml --out /tmp/hep_calc_demo_ee_mumu
 ```
 
 auto_qft demo (FeynArts-only/QED): Bhabha scattering:
 
 ```bash
-bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_qed_bhabha.yml
+bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_qed_bhabha.yml --out /tmp/hep_calc_demo_qed_bhabha
 ```
 
 model_build plumbing demo (LaTeX→rewrite hook; reuses SM LSM):
 
 ```bash
-bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_model_build_sm_identity.yml
+bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_model_build_sm_identity.yml --out /tmp/hep_calc_demo_model_build
 ```
 
-Default out_dir: `process/hep-calc/<timestamp>/` (UTC).
+Public runs must pass `--out` explicitly, and that directory must be outside the hep-calc repo.
 
 Re-export SSOT artifacts (manifest/summary/analysis) for an existing out_dir:
 
@@ -185,7 +185,7 @@ python3 scripts/export_artifacts.py --out <out_dir>
 ## Key defaults (SSOT)
 
 - Job format: YAML preferred; JSON supported. Resolved config is written to `out_dir/job.resolved.json`.
-- Out dir default: `process/hep-calc/<timestamp>/` (UTC).
+- Public out dir: pass `--out /absolute/path/outside/repo`; repo-local fixture runs are not part of the public workflow.
 - Tolerance default: `rel=1e-4`, `abs=1e-12` (override per target).
 - Auditable guarantee: no silent failure. Every stage writes `status.json`; missing prerequisites are reported as `SKIPPED` or `ERROR` with a `reason` (and often a `hint`).
 - Notebook `.nb` is best-effort; prefer `.wls/.m`.
@@ -197,9 +197,9 @@ python3 scripts/export_artifacts.py --out <out_dir>
 
 ## Minimal workflow (recommended)
 
-1) Write a job (YAML preferred; JSON supported).  
-2) Run: `bash scripts/run_hep_calc.sh --job job.yml [--out <dir>]`  
-3) Read `out_dir/report/audit_report.md`; follow per-step `status.json` + `logs/*.log` on failures/skips.  
+1) Write a job (YAML preferred; JSON supported).
+2) Run: `bash scripts/run_hep_calc.sh --job job.yml --out /absolute/path/outside/repo`
+3) Read `out_dir/report/audit_report.md`; follow per-step `status.json` + `logs/*.log` on failures/skips.
 
 ## Minimal job example (inline)
 
@@ -220,10 +220,9 @@ For full schema/options: see `references/job_schema.md` and `assets/job_schema.j
 
 ## Key artifacts (what to point users to)
 
-- Report (human): `out_dir/report/audit_report.md`
 - Summary (agent): `out_dir/summary.json`
-- Full manifest/provenance (SSOT): `out_dir/manifest.json` + `out_dir/analysis.json`  
-  (Mirrors also exist under `out_dir/report/` for back-compat with older tooling.)
+- Full manifest/provenance (SSOT): `out_dir/manifest.json` + `out_dir/analysis.json`
+- Report (human): `out_dir/report/audit_report.md`
 - Logs: `out_dir/logs/*.log`
 - auto_qft (if enabled):
   - diagrams: `out_dir/auto_qft/diagrams/diagrams.pdf`

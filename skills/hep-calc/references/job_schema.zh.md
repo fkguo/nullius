@@ -36,7 +36,7 @@ name: minimal-skeleton
 当你只想运行符号/数值计算而**不需要**和 LaTeX 数值对照时，保持 `latex.targets: []`（或直接省略 `latex`）即可。
 
 - `tex/status.json` 会是 `status: SKIPPED` 且 `reason: no_targets_specified`
-- `report/summary.json` 会包含：`run_mode: compute_only`
+- `out_dir/summary.json` 会包含：`run_mode: compute_only`
 - 只要计算步骤至少有一个 `PASS` 且没有 `ERROR/FAIL`，`overall_status` 会是 `PASS`（并在报告中明确披露未进行 TeX 对照）
 
 ## 字段说明（核心）
@@ -288,6 +288,8 @@ research_team_root: /path/to/research-team-project
 ```
 
 也可用环境变量覆盖：`RESEARCH_TEAM_ROOT`。
+
+若既没有显式指定，也找不到自动探测到的外部项目根目录，运行会 fail-closed，而不是把产物同步回 hep-calc 仓库或当前工作目录。
 
 ## 安全提示：`julia_expr`
 

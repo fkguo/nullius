@@ -4,10 +4,11 @@
 
 This document defines the `out_dir` structure and the semantics of key files produced by `scripts/run_hep_calc.sh`.
 
-## Default out_dir
+## out_dir selection
 
-- Default: `process/hep-calc/<timestamp>/` (UTC)
-- Override via `--out <dir>`
+- Public runs must pass `--out <dir>` explicitly.
+- `--out` must point outside the hep-calc repo.
+- `report/` remains the human-facing report area; the root JSON triplet is the only machine-readable SSOT surface.
 
 ## Required directories/files (even if no computation ran)
 
@@ -67,14 +68,11 @@ out_dir/
     status.json
   report/
     audit_report.md
-    manifest.json
-    summary.json
-    analysis.json
 ```
 
 Notes:
 - `out_dir/manifest.json` / `summary.json` / `analysis.json` are the ecosystem SSOT (default ingestion for hep-autoresearch / research-writer / downstream adapters).
-- `out_dir/report/*.json` exists for back-compat and human browsing; it mirrors the root SSOT JSONs (same content).
+- `out_dir/report/audit_report.md` is the human-facing audit summary.
 
 ## Deterministic export for an existing out_dir (export artifacts)
 
@@ -85,7 +83,7 @@ python3 scripts/export_artifacts.py --out /path/to/existing_out_dir
 ```
 
 This command rebuilds (based on `job.resolved.json` + the current out_dir contents):
-`out_dir/manifest.json` / `out_dir/summary.json` / `out_dir/analysis.json` (and the `out_dir/report/*.json` mirrors).
+`out_dir/manifest.json` / `out_dir/summary.json` / `out_dir/analysis.json`, and refreshes `out_dir/report/audit_report.md`.
 
 ## Step status contract
 
@@ -98,7 +96,7 @@ Each step `status.json` must include at least:
 
 ## Key fields for downstream integration
 
-`manifest.json` and `summary.json` (root SSOT; mirrored under `report/`) include these useful fields (backwards-compatible; downstream may ignore unknown fields):
+`manifest.json` and `summary.json` (root SSOT; downstream may ignore unknown fields) include these useful fields:
 
 - `run_mode`: `compute_only` | `tex_audit`
 - `tex_compare_requested`: bool (derived from whether `latex.targets` is empty)

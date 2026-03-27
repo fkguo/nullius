@@ -493,13 +493,14 @@ def main() -> int:
         "inputs": inputs,
     }
 
-    # Write SSOT artifacts both at out_dir root and under report/ (back-compat).
+    # Root JSON files are the only machine-readable SSOT surface.
     dump_json(out_dir / "manifest.json", manifest)
     dump_json(out_dir / "summary.json", summary)
     dump_json(out_dir / "analysis.json", analysis)
-    dump_json(report_dir / "manifest.json", manifest)
-    dump_json(report_dir / "summary.json", summary)
-    dump_json(report_dir / "analysis.json", analysis)
+    for stale in ("manifest.json", "summary.json", "analysis.json"):
+        stale_path = report_dir / stale
+        if stale_path.exists():
+            stale_path.unlink()
 
     # Populate deterministic output file list for regression/eval.
     out_files = _walk_files_rel(out_dir)
@@ -509,8 +510,6 @@ def main() -> int:
 
     dump_json(out_dir / "manifest.json", manifest)
     dump_json(out_dir / "summary.json", summary)
-    dump_json(report_dir / "manifest.json", manifest)
-    dump_json(report_dir / "summary.json", summary)
 
     return 0
 

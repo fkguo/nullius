@@ -36,7 +36,7 @@ name: minimal-skeleton
 If you only want symbolic/numeric computation and **do not** need a LaTeX value audit, keep `latex.targets: []` (or omit `latex` entirely).
 
 - `tex/status.json` will be `status: SKIPPED` with `reason: no_targets_specified`
-- `out_dir/summary.json` will include `run_mode: compute_only` (mirrored under `out_dir/report/summary.json`)
+- `out_dir/summary.json` will include `run_mode: compute_only`
 - If at least one compute stage PASSes and there is no `ERROR/FAIL`, `overall_status` will be `PASS` (and the report will disclose that TeX comparison was not performed)
 
 ## Field reference (core)
@@ -299,6 +299,8 @@ research_team_root: /path/to/research-team-project
 ```
 
 Or override via the environment variable `RESEARCH_TEAM_ROOT`.
+
+If neither an explicit root nor an auto-detected external project root exists, the run fails closed instead of syncing into the hep-calc repo or the current working directory.
 
 ## Security note: `julia_expr`
 

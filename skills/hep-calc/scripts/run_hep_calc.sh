@@ -6,13 +6,13 @@ usage() {
 hep-calc: reproducible/auditable HEP calc runner
 
 Usage:
-  run_hep_calc.sh --job job.yml [--out <dir>]
+  run_hep_calc.sh --job job.yml --out <dir>
 
 Required:
   --job, -j    Path to job YAML/JSON
+  --out, -o    Output directory (public runs must point outside the hep-calc repo)
 
 Optional:
-  --out, -o    Output directory (default: process/hep-calc/<timestamp>/)
   --help, -h   Show help
 EOF
 }
@@ -44,6 +44,13 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(git -C "${SKILL_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "${REPO_ROOT}" ]]; then
+  REPO_ROOT="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${SKILL_DIR}/../..")"
+else
+  REPO_ROOT="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${REPO_ROOT}")"
+fi
+ALLOW_REPO_LOCAL_OUT="${HEP_CALC_ALLOW_REPO_LOCAL_OUT:-0}"
 
 job_abs="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${JOB_PATH}")"
 job_ext="${job_abs##*.}"
@@ -55,10 +62,29 @@ PY
 )"
 
 if [[ -z "${OUT_DIR}" ]]; then
-  OUT_DIR="process/hep-calc/${timestamp}"
+  echo "ERROR: --out is required; public hep-calc runs must write outside the hep-calc repo" >&2
+  usage
+  exit 2
 fi
 
 out_abs="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${OUT_DIR}")"
+out_inside_repo="$(python3 - "${out_abs}" "${REPO_ROOT}" <<'PY'
+import os
+import sys
+
+target = os.path.realpath(sys.argv[1])
+repo_root = os.path.realpath(sys.argv[2])
+try:
+    print("1" if os.path.commonpath([target, repo_root]) == repo_root else "0")
+except ValueError:
+    print("0")
+PY
+)"
+if [[ "${out_inside_repo}" == "1" && "${ALLOW_REPO_LOCAL_OUT}" != "1" ]]; then
+  echo "ERROR: --out must point outside the hep-calc repo: ${REPO_ROOT}" >&2
+  echo "Set HEP_CALC_ALLOW_REPO_LOCAL_OUT=1 only for explicit maintainer-local fixtures." >&2
+  exit 2
+fi
 
 mkdir -p "${out_abs}"/{logs,inputs,meta,symbolic,numeric,tex,report,feynarts_formcalc,auto_qft}
 
@@ -967,6 +993,8 @@ else
 fi
 
 sync_rc=0
+HEP_CALC_REPO_ROOT="${REPO_ROOT}" \
+HEP_CALC_ALLOW_REPO_LOCAL_OUT="${ALLOW_REPO_LOCAL_OUT}" \
 python3 - "${resolved_job}" "${out_abs}" <<'PY' || sync_rc=$?
 import json
 import os
@@ -983,6 +1011,16 @@ tag=(job.get("tag") or "").strip()
 meta=(job.get("_meta") or {})
 job_dir=(meta.get("job_dir") or "").strip()
 cwd=(meta.get("cwd") or "").strip()
+repo_root=(os.environ.get("HEP_CALC_REPO_ROOT") or "").strip()
+allow_repo_local_out=(os.environ.get("HEP_CALC_ALLOW_REPO_LOCAL_OUT") or "").strip() == "1"
+
+def _is_within_repo(path: str) -> bool:
+    if not repo_root or not path:
+        return False
+    try:
+        return os.path.commonpath([os.path.realpath(path), os.path.realpath(repo_root)]) == os.path.realpath(repo_root)
+    except ValueError:
+        return False
 
 def _find_research_team_root(start: str) -> str:
     p = os.path.abspath(os.path.expanduser(start))
@@ -993,6 +1031,12 @@ def _find_research_team_root(start: str) -> str:
         if parent == p:
             return ""
         p = parent
+
+if "research-team" not in integrations:
+    raise SystemExit(0)
+if not tag:
+    print("ERROR: integrations includes research-team but job.tag is missing/empty", file=sys.stderr)
+    raise SystemExit(2)
 
 research_team_root = (job.get("research_team_root") or os.environ.get("RESEARCH_TEAM_ROOT") or "").strip()
 if research_team_root:
@@ -1012,12 +1056,15 @@ else:
             base = root
             break
     if not base:
-        base = os.path.abspath(os.path.expanduser(cwd or os.getcwd()))
-
-if "research-team" not in integrations:
-    raise SystemExit(0)
-if not tag:
-    print("ERROR: integrations includes research-team but job.tag is missing/empty", file=sys.stderr)
+        print(
+            "ERROR: research-team integration requires research_team_root / RESEARCH_TEAM_ROOT "
+            "or a detectable project root containing artifacts/ or artifacts/runs",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+if _is_within_repo(base) and not allow_repo_local_out:
+    print(f"ERROR: research-team sync root must be outside the hep-calc repo: {repo_root}", file=sys.stderr)
+    print("Set HEP_CALC_ALLOW_REPO_LOCAL_OUT=1 only for explicit maintainer-local fixtures.", file=sys.stderr)
     raise SystemExit(2)
 
 dest=os.path.join(base, "artifacts", "runs", tag, "hep-calc")

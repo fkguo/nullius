@@ -19,18 +19,17 @@ Primary entry point: `scripts/run_hep_calc.sh`
 ### Out-dir / audit contract
 
 For every run, `scripts/run_hep_calc.sh` MUST:
-- Create an auditable `out_dir` (default `process/hep-calc/<timestamp>/`)
+- Require an explicit `--out` for public runs, and fail closed when it is omitted or points inside the hep-calc repo
+- Treat repo-local outputs as maintainer-only fixtures behind `HEP_CALC_ALLOW_REPO_LOCAL_OUT=1`, not as public default behavior
+- Create an auditable `out_dir`
 - Write `out_dir/job.resolved.json`
 - Write per-stage `status.json` (PASS/FAIL/SKIPPED/ERROR/NOT_RUN) + logs under `out_dir/logs/`
-- Write SSOT artifacts (ecosystem default ingestion) at out_dir root:
+- Write the only machine-readable SSOT artifacts at out_dir root:
   - `out_dir/manifest.json`
   - `out_dir/summary.json`
   - `out_dir/analysis.json`
-- Write report artifacts (human-facing + back-compat mirror):
+- Write the human-facing report:
   - `out_dir/report/audit_report.md`
-  - `out_dir/report/manifest.json` (mirror of root)
-  - `out_dir/report/summary.json` (mirror of root)
-  - `out_dir/report/analysis.json` (mirror of root)
 
 No silent failures: if a stage is skipped, it must be visible in report + status files.
 
@@ -51,6 +50,8 @@ Keep these stage identifiers stable, because downstream tooling may rely on them
 
 If `integrations: [research-team]` and `tag: <TAG>` are present, the runner must sync core artifacts to:
 `artifacts/runs/<TAG>/hep-calc/`
+
+The sync root must be an explicit or auto-detected external project root. If none can be found, fail closed instead of falling back to the hep-calc repo or current working directory. Repo-local sync fixtures remain maintainer-only behind `HEP_CALC_ALLOW_REPO_LOCAL_OUT=1`.
 
 If you add new “core” artifacts, update the sync list in `scripts/run_hep_calc.sh`
 and the doc list in `references/research_team_integration.md`.
@@ -89,16 +90,16 @@ From repo root:
 
 ```bash
 # LoopTools + TeX audit demo
-bash scripts/run_hep_calc.sh --job assets/demo_job.yml
+bash scripts/run_hep_calc.sh --job assets/demo_job.yml --out /tmp/hep_calc_demo_job
 
 # auto_qft (FeynArts-only QED)
-bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_qed_bhabha.yml
+bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_qed_bhabha.yml --out /tmp/hep_calc_demo_qed_bhabha
 
 # auto_qft (FeynRules SM)
-bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_ee_mumu.yml
+bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_ee_mumu.yml --out /tmp/hep_calc_demo_ee_mumu
 
 # model_build plumbing demo
-bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_model_build_sm_identity.yml
+bash scripts/run_hep_calc.sh --job assets/demo_auto_qft_model_build_sm_identity.yml --out /tmp/hep_calc_demo_model_build
 ```
 
 If a demo is too slow/heavy on a machine, adjust the demo job (not the core contract) and document why.
@@ -124,6 +125,6 @@ Keep `SKILL.md` agent-facing and concise (≤500 lines). Put details in `referen
 
 ## Repo hygiene
 
-- Do not commit run outputs: `process/` and `artifacts/` are intentionally gitignored.
+- Do not commit run outputs: `process/` and `artifacts/` are intentionally gitignored maintainer-local fixture areas, not the public runtime target.
 - Prefer small, deterministic demo inputs.
 - Avoid introducing new heavy dependencies (keep Python stdlib where possible).

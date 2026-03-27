@@ -48,7 +48,8 @@ Notes:
 How the sync project root is chosen:
 - You may explicitly set `research_team_root: /path/to/project` at the job top level (highest priority).
 - Or set the environment variable `RESEARCH_TEAM_ROOT`.
-- Otherwise, the runner searches upward from the runtime `cwd` and the job directory to find the nearest directory containing `artifacts/` (or `artifacts/runs/`) and uses it as the project root; if none is found, it falls back to the current working directory.
+- Otherwise, the runner searches upward from the runtime `cwd` and the job directory to find the nearest directory containing `artifacts/` (or `artifacts/runs/`) and uses it as the project root.
+- If no such external project root can be found, the run fails closed instead of syncing into the hep-calc repo or the current working directory.
 
 Minimal recommendations:
 - Keep `<TAG>` aligned with your paper/milestone (e.g. `M0-demo`, `M1-benchmark`).
