@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateRdiGate } from '../src/validation/index.js';
+import { deriveReproducibilityProjection, evaluateRdiGate } from '../src/validation/index.js';
 import { createIntegrityReport, createOutcome, createStrategy } from './fixtures.js';
+import { createVerificationProjectionFixture } from './verification-fixtures.js';
 
 describe('RDI gate', () => {
   it('passes only fully validated outcomes and computes a rank for passed assets', () => {
@@ -71,5 +72,26 @@ describe('RDI gate', () => {
         }),
       ]),
     );
+  });
+
+  it('prefers the verification projection when reproducibility is blocked', () => {
+    const strategy = createStrategy();
+    const outcome = createOutcome(strategy, { reproducibility_status: 'verified' });
+    const report = createIntegrityReport(outcome, 'advisory_only');
+    const projection = deriveReproducibilityProjection(createVerificationProjectionFixture('blocked'));
+
+    const gateResult = evaluateRdiGate({
+      outcome,
+      integrityReport: report,
+      reproducibilityProjection: projection,
+    });
+
+    expect(gateResult.passed).toBe(false);
+    expect(gateResult.ranking).toBeNull();
+    expect(gateResult.checks).toContainEqual({
+      name: 'reproducibility_complete',
+      passed: false,
+      message: 'Reproducibility is blocked: Execution failed before decisive verification completed.',
+    });
   });
 });

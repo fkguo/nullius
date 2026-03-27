@@ -1,4 +1,5 @@
 import type { IntegrityReport } from '../model/integrity-report.js';
+import type { ReproducibilityProjection } from '../model/verification-projection.js';
 import type { ResearchOutcome, RdiScores } from '../model/research-outcome.js';
 
 export interface RdiWeights {
@@ -17,6 +18,7 @@ export interface RdiGateCheck {
 export interface EvaluateRdiGateOptions {
   outcome: ResearchOutcome;
   integrityReport: IntegrityReport | null;
+  reproducibilityProjection?: ReproducibilityProjection | null;
   scores?: Omit<RdiScores, 'gate_passed' | 'rank_score'>;
   weights?: Partial<RdiWeights>;
 }
@@ -40,8 +42,63 @@ function assertUnitInterval(name: string, value: number): void {
   }
 }
 
+function evaluateReproducibilityCheck(
+  outcome: ResearchOutcome,
+  projection: ReproducibilityProjection | null | undefined,
+): RdiGateCheck {
+  if (projection) {
+    if (outcome.produced_by.run_id && projection.run_id !== outcome.produced_by.run_id) {
+      return {
+        name: 'reproducibility_complete',
+        passed: false,
+        message: 'Reproducibility projection run_id must match outcome provenance.',
+      };
+    }
+    if (projection.reproducibility_status === 'verified' && !projection.decisive_check_missing) {
+      return {
+        name: 'reproducibility_complete',
+        passed: true,
+        message: 'Reproducibility projection is complete.',
+      };
+    }
+    if (projection.reproducibility_status === 'blocked') {
+      return {
+        name: 'reproducibility_complete',
+        passed: false,
+        message: `Reproducibility is blocked: ${projection.summary}`,
+      };
+    }
+    if (projection.reproducibility_status === 'failed') {
+      return {
+        name: 'reproducibility_complete',
+        passed: false,
+        message: `Reproducibility failed: ${projection.summary}`,
+      };
+    }
+    return {
+      name: 'reproducibility_complete',
+      passed: false,
+      message: projection.decisive_check_missing
+        ? 'Reproducibility is pending decisive verification checks.'
+        : 'Reproducibility is pending.',
+    };
+  }
+
+  return {
+    name: 'reproducibility_complete',
+    passed:
+      outcome.reproducibility_status === 'verified' ||
+      outcome.reproducibility_status === 'not_applicable',
+    message:
+      outcome.reproducibility_status === 'verified' ||
+      outcome.reproducibility_status === 'not_applicable'
+        ? 'Reproducibility status is complete.'
+        : 'Reproducibility status must be verified or not_applicable.',
+  };
+}
+
 export function evaluateRdiGate(options: EvaluateRdiGateOptions): RdiGateResult {
-  const { outcome, integrityReport, scores } = options;
+  const { outcome, integrityReport, reproducibilityProjection, scores } = options;
   const weights = { ...DEFAULT_WEIGHTS, ...options.weights };
 
   const checks: RdiGateCheck[] = [
@@ -70,17 +127,7 @@ export function evaluateRdiGate(options: EvaluateRdiGateOptions): RdiGateResult 
             ? 'Integrity report targets this outcome.'
             : 'Integrity report target hash must match outcome_id.',
     },
-    {
-      name: 'reproducibility_complete',
-      passed:
-        outcome.reproducibility_status === 'verified' ||
-        outcome.reproducibility_status === 'not_applicable',
-      message:
-        outcome.reproducibility_status === 'verified' ||
-        outcome.reproducibility_status === 'not_applicable'
-          ? 'Reproducibility status is complete.'
-          : 'Reproducibility status must be verified or not_applicable.',
-    },
+    evaluateReproducibilityCheck(outcome, reproducibilityProjection),
   ];
 
   const passed = checks.every((check) => check.passed);

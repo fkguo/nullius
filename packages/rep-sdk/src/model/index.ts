@@ -31,6 +31,20 @@ export type {
   ResearchOutcomeStatus,
 } from './research-outcome.js';
 export type {
+  MissingDecisiveCheck,
+  ReproducibilityProjection,
+  ReproducibilityProjectionStatus,
+  VerificationCheckPriority,
+  VerificationCoverage,
+  VerificationCoverageGap,
+  VerificationCoverageSummary,
+  VerificationLinkedIdentifier,
+  VerificationSubject,
+  VerificationSubjectKind,
+  VerificationSubjectVerdict,
+  VerificationSubjectVerdictStatus,
+} from './verification-projection.js';
+export type {
   ExpectedOutcomeQuantity,
   ParameterRange,
   ResearchStrategy,
