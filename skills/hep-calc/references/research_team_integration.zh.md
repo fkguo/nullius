@@ -50,6 +50,7 @@ artifacts/runs/<TAG>/hep-calc/
 - 或设置环境变量：`RESEARCH_TEAM_ROOT`
 - 若均未设置：会从运行时的 `cwd`/job 所在目录向上搜索，找到最近的包含 `artifacts/`（或 `artifacts/runs/`）的目录作为根
 - 若找不到这样的外部项目根目录，运行会 fail-closed，而不是回退到 hep-calc 仓库或当前工作目录
+- repo 内的 `skills/hep-calc/artifacts/` 与 `skills/hep-calc/process/` 只属于 maintainer 本地 fixture / residue。若开发时本地存在这些目录，应在本地清理/重建；只有显式 maintainer-fixture 运行才可配合 `HEP_CALC_ALLOW_REPO_LOCAL_OUT=1` 使用它们。
 
 最小建议：
 - 将 `<TAG>` 与论文/里程碑一致（例如 `M0-demo`, `M1-benchmark`）

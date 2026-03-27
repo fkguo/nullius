@@ -216,8 +216,8 @@ if [[ "${VARIANT}" == "full" ]]; then
         echo "ERROR: expected SKILL_DIR=... in wrapper: ${path}" >&2
         exit 1
       fi
-      if rg -q "~/.codex/skills/research-team" "${path}"; then
-        echo "ERROR: wrapper hard-codes ~/.codex/skills/research-team (expected SKILL_DIR): ${path}" >&2
+      if rg -q "~/.codex/skills/" "${path}"; then
+        echo "ERROR: wrapper hard-codes a home-directory skill path (expected SKILL_DIR): ${path}" >&2
         exit 1
       fi
     else
@@ -225,8 +225,8 @@ if [[ "${VARIANT}" == "full" ]]; then
         echo "ERROR: expected SKILL_DIR=... in wrapper: ${path}" >&2
         exit 1
       fi
-      if grep -q "~/.codex/skills/research-team" "${path}"; then
-        echo "ERROR: wrapper hard-codes ~/.codex/skills/research-team (expected SKILL_DIR): ${path}" >&2
+      if grep -q "~/.codex/skills/" "${path}"; then
+        echo "ERROR: wrapper hard-codes a home-directory skill path (expected SKILL_DIR): ${path}" >&2
         exit 1
       fi
     fi

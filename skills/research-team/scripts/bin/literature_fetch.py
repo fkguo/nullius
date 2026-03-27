@@ -576,7 +576,7 @@ def _resolve_trace_path(trace_path: Path, kb_dir: Path | None) -> Path:
     Policy:
     - If trace_path is absolute: use it.
     - If kb_dir is absolute and a project root can be inferred: interpret relative trace_path as relative to that root.
-    - Else: keep it relative to CWD (back-compat).
+    - Else: keep it relative to CWD as an explicit caller-local fallback.
     """
     tp = trace_path
     if tp.is_absolute():

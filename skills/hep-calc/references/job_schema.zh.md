@@ -290,6 +290,7 @@ research_team_root: /path/to/research-team-project
 也可用环境变量覆盖：`RESEARCH_TEAM_ROOT`。
 
 若既没有显式指定，也找不到自动探测到的外部项目根目录，运行会 fail-closed，而不是把产物同步回 hep-calc 仓库或当前工作目录。
+repo 内的 `skills/hep-calc/artifacts/` 与 `skills/hep-calc/process/` 仍只是 maintainer-fixture residue；公开 job 不应把它们当作隐式同步根目录。
 
 ## 安全提示：`julia_expr`
 

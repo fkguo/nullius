@@ -301,6 +301,7 @@ research_team_root: /path/to/research-team-project
 Or override via the environment variable `RESEARCH_TEAM_ROOT`.
 
 If neither an explicit root nor an auto-detected external project root exists, the run fails closed instead of syncing into the hep-calc repo or the current working directory.
+Repo-local `skills/hep-calc/artifacts/` and `skills/hep-calc/process/` paths remain maintainer-fixture residue only; public jobs should not rely on them as implicit sync roots.
 
 ## Security note: `julia_expr`
 

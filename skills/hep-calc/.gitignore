@@ -1,3 +1,5 @@
+# Maintainer-local residue / fixture areas only.
+# Public runs must use explicit external out_dir / project roots instead.
 process/
 artifacts/
 __pycache__/

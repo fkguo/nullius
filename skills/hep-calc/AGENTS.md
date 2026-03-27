@@ -52,6 +52,7 @@ If `integrations: [research-team]` and `tag: <TAG>` are present, the runner must
 `artifacts/runs/<TAG>/hep-calc/`
 
 The sync root must be an explicit or auto-detected external project root. If none can be found, fail closed instead of falling back to the hep-calc repo or current working directory. Repo-local sync fixtures remain maintainer-only behind `HEP_CALC_ALLOW_REPO_LOCAL_OUT=1`.
+Repo-local `process/` and `artifacts/` directories under the skill checkout are cleanup-able maintainer residue, not a second public output contract and not acceptable default sync targets.
 
 If you add new “core” artifacts, update the sync list in `scripts/run_hep_calc.sh`
 and the doc list in `references/research_team_integration.md`.
@@ -126,5 +127,6 @@ Keep `SKILL.md` agent-facing and concise (≤500 lines). Put details in `referen
 ## Repo hygiene
 
 - Do not commit run outputs: `process/` and `artifacts/` are intentionally gitignored maintainer-local fixture areas, not the public runtime target.
+- If repo-local `process/` or `artifacts/` directories become stale during skill development, delete or recreate them locally instead of documenting them as current public workflow outputs.
 - Prefer small, deterministic demo inputs.
 - Avoid introducing new heavy dependencies (keep Python stdlib where possible).

@@ -261,6 +261,10 @@ tag: <TAG>
 
 hep-calc syncs core artifacts to `artifacts/runs/<TAG>/hep-calc/` and ensures
 `manifest.json` / `summary.json` / `analysis.json` exist for provenance.
+That sync target must live under an external project root for public work. Repo-local
+`skills/hep-calc/artifacts/` and `skills/hep-calc/process/` paths remain
+maintainer-local fixture/residue areas only; if they exist in a dev checkout, prune or
+recreate them locally instead of treating them as real-project output surfaces.
 
 See: `references/research_team_integration.md`.
 

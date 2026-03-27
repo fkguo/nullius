@@ -50,6 +50,7 @@ How the sync project root is chosen:
 - Or set the environment variable `RESEARCH_TEAM_ROOT`.
 - Otherwise, the runner searches upward from the runtime `cwd` and the job directory to find the nearest directory containing `artifacts/` (or `artifacts/runs/`) and uses it as the project root.
 - If no such external project root can be found, the run fails closed instead of syncing into the hep-calc repo or the current working directory.
+- Repo-local `skills/hep-calc/artifacts/` and `skills/hep-calc/process/` paths are maintainer-local fixture/residue areas only. If they exist in a dev checkout, prune them locally or opt into `HEP_CALC_ALLOW_REPO_LOCAL_OUT=1` only for explicit maintainer-fixture runs.
 
 Minimal recommendations:
 - Keep `<TAG>` aligned with your paper/milestone (e.g. `M0-demo`, `M1-benchmark`).

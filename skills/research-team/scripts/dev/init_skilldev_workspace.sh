@@ -103,7 +103,7 @@ for f in "${wrapper_refresh[@]}"; do
   src="${SKILL_ROOT}/assets/${f}"
   dst="${WORKSPACE}/scripts/${f}"
   if [[ -f "${dst}" && -f "${src}" ]]; then
-    if grep -q "~/.codex/skills/research-team" "${dst}" 2>/dev/null && ! grep -q "SKILL_DIR=" "${dst}" 2>/dev/null; then
+    if grep -q "~/.codex/skills/" "${dst}" 2>/dev/null && ! grep -q "SKILL_DIR=" "${dst}" 2>/dev/null; then
       cp "${src}" "${dst}"
       chmod +x "${dst}" || true
       echo "[ok] refreshed wrapper: ${dst}" >&2

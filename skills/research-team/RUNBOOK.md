@@ -2,7 +2,7 @@
 
 This runbook is for diagnosing deterministic gate failures and rerunning the workflow cleanly.
 Agent-first note: paste a rerun command into your tool-using agent; run it manually only if you want local reproduction/debugging.
-All public real-project commands below assume the project root is outside `/home/user/Coding/Agents/autoresearch-lab`, and real-project outputs such as `team/` stay outside the dev repo as well. Repo-internal `skilldev/` / `.tmp/` paths are maintainer fixtures only.
+All public real-project commands below assume the project root is outside the autoresearch-lab development repo, and real-project outputs such as `team/` stay outside the dev repo as well. Repo-internal `skilldev/` / `.tmp/` paths are maintainer fixtures only.
 
 Where to start:
 - Skill entry (trigger-loaded, lean): `SKILL.md`
@@ -10,12 +10,18 @@ Where to start:
 - Chinese manual (human-oriented): `references/usage_guide.zh.md`
 - This file: gate failures → fixes → rerun commands
 
+Portable installed-skill path for the commands below:
+
+```bash
+export SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+```
+
 ## Quick rerun commands
 
 - Preflight-only (no LLM calls):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -27,7 +33,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 - Full cycle (preflight + Member A/B + convergence gate):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -39,7 +45,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 - Full cycle (force Member B to use Claude runner; Gemini optional):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -56,7 +62,7 @@ Notes:
 - Draft preflight-only (TeX-source-first; no LLM calls):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_draft_cycle.sh \
+bash "${SKILL_DIR}/scripts/bin/run_draft_cycle.sh" \
   --tag D0-r1 \
   --tex main.tex \
   --bib references.bib \
@@ -67,7 +73,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_draft_cycle.sh \
 - Draft full cycle (preflight + A/B/Leader + draft convergence gate):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_draft_cycle.sh \
+bash "${SKILL_DIR}/scripts/bin/run_draft_cycle.sh" \
   --tag D0-r1 \
   --tex main.tex \
   --bib references.bib \
@@ -86,7 +92,7 @@ Notes:
 - Default stage is `development` (fail-fast gates).
 - If `research_team_config.json` sets `project_stage=exploration`, `run_team_cycle.sh` keeps the Capsule gate (minimal variant) but downgrades selected preflight gates to warn-only and records debt at `team/runs/<tag>/<tag>_exploration_debt.md`.
 - Switching back to `development` restores fail-fast behavior: clear the recorded debt first by marking checklist items `- [ ]` → `- [x]` in `team/runs/*/*_exploration_debt.md`.
-- Debt helper (list/summary/close): `python3 ~/.codex/skills/research-team/scripts/bin/exploration_debt_dashboard.py summary --team-dir team`
+- Debt helper (list/summary/close): `python3 "${SKILL_DIR}/scripts/bin/exploration_debt_dashboard.py" summary --team-dir team`
 
 ## Review access mode (packet_only vs full_access)
 
@@ -97,7 +103,7 @@ Notes:
 - Evidence files (full_access):
   - `team/runs/<tag>/member_a_evidence.json`
   - `team/runs/<tag>/member_b_evidence.json`
-  - Validate: `python3 ~/.codex/skills/research-team/scripts/bin/validate_evidence.py team/runs/<tag>/member_a_evidence.json`
+  - Validate: `python3 "${SKILL_DIR}/scripts/bin/validate_evidence.py" team/runs/<tag>/member_a_evidence.json`
 
 ## Orientation (avoid “file swamp”)
 
@@ -134,11 +140,11 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Fix:
   - Add the missing keys to your `.bib`.
   - Helpers (project leader; network allowed; logs go to KB trace when you write notes):
-    - INSPIRE BibTeX by citekey/texkey: `python3 ~/.codex/skills/research-team/scripts/bin/literature_fetch.py inspire-bibtex --texkey <CITEKEY>`
-    - INSPIRE BibTeX by recid: `python3 ~/.codex/skills/research-team/scripts/bin/literature_fetch.py inspire-bibtex --recid <RECID>`
-    - DOI BibTeX (content negotiation): `python3 ~/.codex/skills/research-team/scripts/bin/literature_fetch.py doi-bibtex --doi <DOI>`
+    - INSPIRE BibTeX by citekey/texkey: `python3 "${SKILL_DIR}/scripts/bin/literature_fetch.py" inspire-bibtex --texkey <CITEKEY>`
+    - INSPIRE BibTeX by recid: `python3 "${SKILL_DIR}/scripts/bin/literature_fetch.py" inspire-bibtex --recid <RECID>`
+    - DOI BibTeX (content negotiation): `python3 "${SKILL_DIR}/scripts/bin/literature_fetch.py" doi-bibtex --doi <DOI>`
   - RevTeX 4.2 BibTeX workaround (APS styles): ensure `@article{...}` entries include `journal=""`:
-    - Fix existing file: `python3 ~/.codex/skills/research-team/scripts/bin/fix_bibtex_revtex4_2.py --bib references.bib --in-place`
+    - Fix existing file: `python3 "${SKILL_DIR}/scripts/bin/fix_bibtex_revtex4_2.py" --bib references.bib --in-place`
     - Or fetch with fix applied: add `--revtex-fix-journal` to `inspire-bibtex` / `doi-bibtex`.
 - Rerun:
   - Use the “Draft preflight-only” command from the Quick rerun section above.
@@ -161,7 +167,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Fix:
   - If you never scaffolded: rerun `scaffold_research_workflow.sh` (without `--force`) to fill missing navigation files.
   - Or generate/update deterministically:
-    - `python3 ~/.codex/skills/research-team/scripts/bin/update_project_map.py --notes research_contract.md --team-dir team`
+    - `python3 "${SKILL_DIR}/scripts/bin/update_project_map.py" --notes research_contract.md --team-dir team`
   - Ensure `project_index.md` links to the canonical docs + `team/LATEST.md` + `artifacts/LATEST.md`.
 - Rerun:
   - Preflight-only command.
@@ -176,8 +182,8 @@ In projects scaffolded by `research-team`, use the navigation front door instead
     - set `features.hep_workspace_gate=true` in `research_team_config.json`
   - Create the workspace + mappings files (from project root):
     - `mkdir -p .hep`
-    - `cp ~/.codex/skills/research-team/assets/hep_workspace_template.json .hep/workspace.json`
-    - `cp ~/.codex/skills/research-team/assets/hep_mappings_template.json .hep/mappings.json`
+    - `cp "${SKILL_DIR}/assets/hep_workspace_template.json" .hep/workspace.json`
+    - `cp "${SKILL_DIR}/assets/hep_mappings_template.json" .hep/mappings.json`
   - When using hep-mcp tools, recommended env var: `export HEP_DATA_DIR="$PWD/.hep-mcp"`
 - Rerun:
   - Preflight-only command.
@@ -188,7 +194,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Symptom: `research_plan.md appears to be a template`
 - Fix:
   - Fill `research_plan.md` Task Board and milestone DoD fields.
-  - Optional deterministic autofill (if enabled by config): `python3 ~/.codex/skills/research-team/scripts/bin/auto_fill_research_plan.py --root . --deterministic`.
+  - Optional deterministic autofill (if enabled by config): `python3 "${SKILL_DIR}/scripts/bin/auto_fill_research_plan.py" --root . --deterministic`.
 - Rerun:
   - Preflight-only command.
 
@@ -216,12 +222,12 @@ In projects scaffolded by `research-team`, use the navigation front door instead
     - `knowledge_base/priors/` (≥ configured minimum)
   - In the capsule, fill `### I) Knowledge base references` with clickable links to those notes.
   - Prefer human-readable link text for scanability, e.g. `RefKey — Authors — Title` for literature notes.
-  - Deterministic helper to upgrade existing capsule links: `python3 ~/.codex/skills/research-team/scripts/bin/format_kb_reference_links.py --notes research_contract.md --in-place`
+  - Deterministic helper to upgrade existing capsule links: `python3 "${SKILL_DIR}/scripts/bin/format_kb_reference_links.py" --notes research_contract.md --in-place`
   - If a referenced KB note contains display math:
     - Do not use LaTeX `\(` `\)` `\[` `\]`; use `$...$` / `$$...$$`.
     - In `$$...$$` blocks, no line may start with `+`, `-`, or `=` (Markdown hazards). Prefix with `\quad` or rewrite.
     - Avoid splitting a single equation into back-to-back `$$` blocks; keep one `$$...$$` block and use TeX line breaks.
-    - Deterministic autofix helper (safe for common cases): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_math_hygiene.py --root <path> --in-place`
+    - Deterministic autofix helper (safe for common cases): `python3 "${SKILL_DIR}/scripts/bin/fix_markdown_math_hygiene.py" --root <path> --in-place`
 - Rerun:
   - Preflight-only command.
 
@@ -231,7 +237,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Symptom: `Problem Framing Snapshot check failed`
 - Fix:
   - Fill `research_preflight.md` `## Problem Framing Snapshot` (Problem interpretation + P/D separation + sequential review).
-  - Optional deterministic autofill: `python3 ~/.codex/skills/research-team/scripts/bin/auto_fill_prework.py --root . --deterministic`.
+  - Optional deterministic autofill: `python3 "${SKILL_DIR}/scripts/bin/auto_fill_prework.py" --root . --deterministic`.
 - Rerun:
   - Preflight-only command.
 
@@ -248,7 +254,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
     - author attribution + year (or `Retrieved: YYYY-MM-DD`)
   - Do not wrap citations/links in backticks (they become non-clickable).
   - If you pasted unstable URL variants (e.g., `dx.doi.org`, `arxiv.org/pdf/...pdf`, `inspirehep.net/api/...`), normalize them deterministically:
-    - `python3 ~/.codex/skills/research-team/scripts/bin/upgrade_reference_anchors.py --notes research_contract.md --in-place`
+    - `python3 "${SKILL_DIR}/scripts/bin/upgrade_reference_anchors.py" --notes research_contract.md --in-place`
   - If your metadata fetch fails due to DNS/network issues but you need to keep moving:
     - Re-run the fetch with `--allow-stub` (creates an auditable stub KB note + reference entry; publication stage will block until metadata is filled).
 - Rerun:
@@ -264,7 +270,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - Math policy:
     - Do not use `\(` `\)` `\[ ` `\]`; use `$...$` / `$$...$$`.
     - In `$$...$$` blocks, no line may start with `+`, `-`, or `=` (Markdown hazards).
-    - Deterministic autofix helper: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_math_hygiene.py --root research_contract.md --in-place`
+    - Deterministic autofix helper: `python3 "${SKILL_DIR}/scripts/bin/fix_markdown_math_hygiene.py" --root research_contract.md --in-place`
   - Link policy:
     - Never put Markdown links (or `knowledge_base/*.md` paths) inside inline code spans.
 - Rerun:
@@ -282,7 +288,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - `project_index.md`
   - `knowledge_base/**/*.md`
 - Fix:
-  - Deterministic autofix helper (safe for common cases): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_math_hygiene.py --root <path> --in-place`
+  - Deterministic autofix helper (safe for common cases): `python3 "${SKILL_DIR}/scripts/bin/fix_markdown_math_hygiene.py" --root <path> --in-place`
   - If the gate reports disallowed `\(` `\)` `\[` `\]`, rewrite to `$...$` / `$$...$$` manually.
   - If the gate reports `$$` not on its own line, rewrite into fenced display math with standalone `$$` lines.
 - Rerun:
@@ -312,8 +318,8 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Symptom: `double-backslash math gate failed`
 - Scope: uses the same scan targets as the Markdown math hygiene gate (`markdown_math_hygiene.targets` / `exclude_globs`).
 - Fix:
-  - Deterministic fix (recommended; targets key docs only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`
-  - Check-only helper (warn or fail): `bash ~/.codex/skills/research-team/scripts/bin/check_md_double_backslash.sh --notes research_contract.md [--fail]`
+  - Deterministic fix (recommended; targets key docs only): `python3 "${SKILL_DIR}/scripts/bin/fix_markdown_double_backslash_math.py" --notes research_contract.md --in-place`
+  - Check-only helper (warn or fail): `bash "${SKILL_DIR}/scripts/bin/check_md_double_backslash.sh" --notes research_contract.md [--fail]`
   - Notes:
     - The fixer only rewrites inside Markdown math regions (`$...$`, `$$...$$`) and never touches fenced code blocks.
     - It does NOT rewrite real LaTeX line breaks (`\\`) or spacing commands (`\\[2pt]`).
@@ -333,8 +339,8 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - `knowledge_base/**/*.md`
 - Fix:
   - Expand custom macros (e.g. `\Rc`, `\Mc`, `\Cc`, `\cK`) into explicit forms (e.g. `\mathcal{R}`).
-  - Deterministic autofix helper: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_latex_macros.py --root <path> --in-place`
-  - If you have local LaTeX sources (e.g. `references/arxiv_src/`), you can deterministically discover safe 0-arg macro expansions and merge them into your JSON config (explicit opt-in): `python3 ~/.codex/skills/research-team/scripts/bin/discover_latex_zero_arg_macros.py --root . --update-config`
+  - Deterministic autofix helper: `python3 "${SKILL_DIR}/scripts/bin/fix_markdown_latex_macros.py" --root <path> --in-place`
+  - If you have local LaTeX sources (e.g. `references/arxiv_src/`), you can deterministically discover safe 0-arg macro expansions and merge them into your JSON config (explicit opt-in): `python3 "${SKILL_DIR}/scripts/bin/discover_latex_zero_arg_macros.py" --root . --update-config`
 - Rerun:
   - Preflight-only command.
 
@@ -351,7 +357,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - `knowledge_base/**/*.md`
 - Fix:
   - Do not wrap links/citations/path pointers in inline code spans (backticks); use Markdown links so paths are clickable.
-  - Deterministic autofix helper: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_link_hygiene.py --root <path> --in-place`
+  - Deterministic autofix helper: `python3 "${SKILL_DIR}/scripts/bin/fix_markdown_link_hygiene.py" --root <path> --in-place`
 - Rerun:
   - Preflight-only command.
 
@@ -397,8 +403,8 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Symptom: `[error] member runner failed (member-a=..., member-b=...)`
 - Fix:
   - Check environment:
-    - Default (A=Claude, B=Gemini): `bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-claude --require-gemini`
-    - Claude-only (B via Claude): `bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-claude`
+    - Default (A=Claude, B=Gemini): `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini`
+    - Claude-only (B via Claude): `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude`
   - Ensure `prompts/_system_member_a.txt` and `prompts/_system_member_b.txt` exist.
   - If you have project-local runners, confirm `scripts/run_claude.sh` and `scripts/run_gemini.sh` are executable.
   - If Gemini CLI returns a blank response (common after CLI upgrades / auth drift), `run_team_cycle.sh` may fall back to Claude automatically when using the default Gemini runner (no `--member-b-runner` override). You can also force Claude for Member B:
@@ -431,7 +437,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
     - `team/runs/<tag>/<tag>_member_b.md`
   - Write an adjudication note:
     - `mkdir -p team/runs/<next_tag>`
-    - `python3 ~/.codex/skills/research-team/scripts/bin/build_adjudication_response.py --tag <next_tag> --member-a team/runs/<tag>/<tag>_member_a.md --member-b team/runs/<tag>/<tag>_member_b.md --out team/runs/<next_tag>/<next_tag>_adjudication.md`
+    - `python3 "${SKILL_DIR}/scripts/bin/build_adjudication_response.py" --tag <next_tag> --member-a team/runs/<tag>/<tag>_member_a.md --member-b team/runs/<tag>/<tag>_member_b.md --out team/runs/<next_tag>/<next_tag>_adjudication.md`
   - Apply fixes to the notebook/code/artifacts and rerun with a fresh tag.
 - Rerun:
   - Full cycle command with `--auto-tag` (do not reuse tags; trajectory is an upsert index).
