@@ -18,7 +18,8 @@ Prework checklist (must complete before any team cycle):
 Run preflight (what the agent runs; no external LLM calls):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -31,7 +32,8 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 Run full team cycle (what the agent runs; Claude + Gemini):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \

@@ -17,7 +17,7 @@ Resume / restart rule:
 - Before starting a new milestone (or after an interruption), run `run_team_cycle.sh --preflight-only` once to catch missing gates early.
 
 > Rule: In Markdown math, use single backslashes (e.g. $\Delta\kappa$). Avoid doubled backslashes (a common TOC-escape artifact).
-> If doubled backslashes appear inside math (e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`), fix deterministically (math regions only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`
+> If doubled backslashes appear inside math (e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`), fix deterministically (math regions only): `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/fix_markdown_double_backslash_math.py" --notes research_contract.md --in-place`
 > Math delimiter rule: use `$...$` / `$$...$$` (do NOT use `\(\)` / `\[\]`).
 > Rendering rule: inside `$$...$$`, do not start a new line with `+`, `-`, or `=` (move operators to the previous line).
 > Table rule (important): in Markdown tables, do NOT use literal `|` inside `$...$` (it can break table parsing). Prefer `\lvert ... \rvert` (or `\lVert ... \rVert`; for conditional bars use `\mid`).

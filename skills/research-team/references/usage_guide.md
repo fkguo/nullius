@@ -31,18 +31,22 @@ Optional (only for live multi-review runs; deterministic preflight does not requ
 
 ## Quick start (3 commands)
 
+Commands below use `SKILL_DIR` so they stay portable across install locations.
+
 1) Environment check:
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-claude
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude
 # or (A=Claude, B=Gemini):
-# bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-claude --require-gemini
+# bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini
 ```
 
 2) Scaffold a project:
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --root /path/to/project \
   --project "My Project" \
   --profile mixed
@@ -55,7 +59,8 @@ Use an external project root for real work. Public `research-team` scaffold / co
 ```bash
 cd /path/to/project
 
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -69,7 +74,8 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 To run all deterministic gates without calling any external LLMs (this mode also does not require network access):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -88,7 +94,7 @@ Configured in `research_team_config.json`:
 - `review_access_mode=full_access`: reviewers still have no direct tools; they request file reads / command runs / network fetches via a leader-run proxy. Every access is logged to `team/runs/<tag>/member_{a,b}_evidence.json` and enforced by deterministic gates.
 
 Third-party validation (offline):
-- `python3 ~/.codex/skills/research-team/scripts/bin/validate_evidence.py team/runs/<tag>/member_a_evidence.json`
+- `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/validate_evidence.py" team/runs/<tag>/member_a_evidence.json`
 
 ## Knowledge base (3 layers)
 

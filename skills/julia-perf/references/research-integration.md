@@ -11,7 +11,7 @@ Recommended path pattern:
 - `.julia-perf/runs/<timestamp>/summary.json`
 - `.julia-perf/runs/<timestamp>/diagnostics.md`
 
-No `hepar` dependency is required.
+No shared control-plane dependency is required.
 
 ## Ecosystem Mode
 
@@ -24,7 +24,7 @@ Recommended path pattern:
 
 ## Ownership Boundaries
 
-- `artifacts/runs/<tag>/manifest.json` is owned by `hepar` and must not be modified by this skill.
+- `artifacts/runs/<tag>/manifest.json` is owned by the shared run control plane and must not be modified by this skill.
 - `julia-perf` writes only inside its own subdirectory.
 
 ## Auto-Mode Resolution Rule
@@ -49,4 +49,3 @@ If a component registry is used, append or update:
 - `artifacts/runs/<tag>/components.json`
 
 with a component entry pointing to `julia-perf/summary.json`.
-

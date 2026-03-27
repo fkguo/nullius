@@ -120,7 +120,7 @@ def main() -> int:
         print(f"[error] Missing literature query trace log: {trace_path}")
         print("[hint] Create it (scaffold creates it automatically), or append a row via:")
         print(
-            "  python3 ~/.codex/skills/research-team/scripts/bin/literature_fetch.py trace-add "
+            '  python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/literature_fetch.py" trace-add '
             '--source \"Manual\" --query \"...\" --decision \"...\"'
         )
         return 1

@@ -55,7 +55,7 @@ def main() -> int:
         print("[fail] agents anchor gate failed")
         print(f"[error] Missing `{agents}`")
         print("[fix] Re-run scaffold (no --force) or create AGENTS.md from the template, then re-run the team cycle.")
-        print("      scaffold: bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh --root <root> --project <name> --profile mixed")
+        print('      scaffold: bash "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/scaffold_research_workflow.sh" --root <root> --project <name> --profile mixed')
         return 1
 
     txt = agents.read_text(encoding="utf-8", errors="replace")

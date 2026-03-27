@@ -9,7 +9,7 @@ MEMBER_A_SYSTEM="${MEMBER_A_SYSTEM:-prompts/_system_member_a.txt}"
 MEMBER_B_SYSTEM="${MEMBER_B_SYSTEM:-prompts/_system_member_b.txt}"
 
 LOCAL_RUNNER="${LOCAL_RUNNER:-}"
-SKILL_DIR="${SKILL_DIR:-$HOME/.codex/skills/research-team}"
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 
 if [[ -n "${LOCAL_RUNNER}" ]]; then
   bash "${LOCAL_RUNNER}" "${TAG}"

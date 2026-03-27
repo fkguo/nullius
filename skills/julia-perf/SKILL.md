@@ -26,14 +26,14 @@ It applies performance-first coding discipline continuously, and it can escalate
 
 ### `standalone` (default)
 
-- No `hepar` or `idea-core` dependency required.
+- No shared control-plane dependency required.
 - Write artifacts to local output paths such as `.julia-perf/runs/<timestamp>/`.
 
 ### `ecosystem` (optional)
 
 - Use when integrating with shared run directories.
 - Write artifacts under `artifacts/runs/<tag>/julia-perf/`.
-- Never overwrite `artifacts/runs/<tag>/manifest.json` (owned by `hepar` control plane).
+- Never overwrite `artifacts/runs/<tag>/manifest.json` (owned by the shared run control plane).
 
 ### `auto`
 

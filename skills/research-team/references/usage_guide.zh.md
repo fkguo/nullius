@@ -9,18 +9,22 @@
 
 ## 快速开始（3 条命令）
 
+下面的命令统一通过 `SKILL_DIR` 解析 skill 安装路径，避免绑死到某个本机目录。
+
 1) 环境检查（可选）：
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-claude
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude
 # 或（A=Claude, B=Gemini）：
-# bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-claude --require-gemini
+# bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini
 ```
 
 2) 生成项目脚手架：
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --root /path/to/project \
   --project "My Project" \
   --profile mixed
@@ -33,7 +37,8 @@ bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
 ```bash
 cd /path/to/project
 
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -45,7 +50,8 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 ## 只跑确定性 preflight（不调用外部 LLM；适合 CI/无网环境）
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -64,7 +70,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 - `review_access_mode=full_access`：审阅者仍无直接工具；通过 leader proxy 申请文件读取 / 命令执行 / 网络抓取，并把所有访问写入 `team/runs/<tag>/member_{a,b}_evidence.json`；最终由确定性 gates 校验。
 
 第三方可离线复核：
-- `python3 ~/.codex/skills/research-team/scripts/bin/validate_evidence.py team/runs/<tag>/member_a_evidence.json`
+- `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/validate_evidence.py" team/runs/<tag>/member_a_evidence.json`
 
 ## knowledge_base（三层）
 

@@ -62,7 +62,7 @@ def main() -> int:
         print(f"- {p.key}")
     if len(patches) > 50:
         print(f"- ... ({len(patches) - 50} more)")
-    print("[hint] Apply deterministic fix: python3 ~/.codex/skills/research-team/scripts/bin/fix_bibtex_revtex4_2.py --bib <path> --in-place")
+    print('[hint] Apply deterministic fix: python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/fix_bibtex_revtex4_2.py" --bib <path> --in-place')
     return 1
 
 

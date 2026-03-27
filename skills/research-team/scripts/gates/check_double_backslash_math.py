@@ -212,7 +212,7 @@ def main() -> int:
             print(f"[error] ... ({len(violations) - 200} more)")
         print(
             "[hint] To apply deterministic fixes (math regions only): "
-            "python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes <research_contract.md> --in-place"
+            'python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/fix_markdown_double_backslash_math.py" --notes <research_contract.md> --in-place'
         )
         return 1
 
@@ -224,4 +224,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

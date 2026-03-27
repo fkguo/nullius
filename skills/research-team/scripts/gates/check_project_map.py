@@ -43,7 +43,7 @@ def main() -> int:
     if not path.is_file():
         print(f"ERROR: missing project_index.md at project root: {path}")
         print("Fix: run the scaffold or generate one deterministically:")
-        print(f"  python3 ~/.codex/skills/research-team/scripts/bin/update_project_map.py --notes {args.notes} --team-dir team")
+        print(f'  python3 "${{SKILL_DIR:-${{CODEX_HOME:-$HOME/.codex}}/skills/research-team}}/scripts/bin/update_project_map.py" --notes {args.notes} --team-dir team')
         return 1
 
     text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")

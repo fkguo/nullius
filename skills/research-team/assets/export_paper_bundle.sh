@@ -6,5 +6,5 @@ set -euo pipefail
 # Usage:
 #   bash scripts/export_paper_bundle.sh --tag M3-r1 --out export [--tex paper/main.tex --bib references.bib]
 
-SKILL_DIR="${SKILL_DIR:-$HOME/.codex/skills/research-team}"
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/export_paper_bundle.sh" "$@"

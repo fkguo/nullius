@@ -2,6 +2,7 @@
 
 This file anchors the research-team workflow for this project. Keep it updated.
 Default usage is agent-first: a tool-using LLM agent runs the scripts and writes project files; humans provide goals and review outputs. Commands are kept explicit for auditability and can be run manually as a fallback.
+Portable install note: if you need to run a skill entrypoint directly, resolve it via `SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"`.
 
 Execution hygiene (recommended):
 - At the start of each agent run, publish a short execution plan (3–7 steps) and keep it updated as steps complete. If your agent environment supports a plan tool, use it; otherwise keep a plain Markdown plan section.
@@ -14,7 +15,8 @@ Whenever you resume work (new milestone, context switch, or after a manual inter
 2) Run preflight-only (agent executes) to catch missing gates before any LLM calls:
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -72,7 +74,8 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 Preflight only (no external LLM calls):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -85,7 +88,8 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 Full team cycle (Claude + Gemini):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0-r1 \
   --notes research_contract.md \
   --out-dir team \
@@ -129,8 +133,8 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
 - In Markdown tables, do NOT use literal `|` inside `$...$` (it often breaks table parsing). Use `\\lvert ... \\rvert` (or `\\lVert ... \\rVert`, or `\\mid` for conditional bars) instead.
 - Avoid `\\slashed{...}` in Markdown math (renderer compatibility varies). Prefer a portable fallback like `\\not\\!` (warn-only by default).
 - Avoid accidental double-backslash LaTeX escapes (common TOC/LLM artifact), e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`. If they appear:
-  - Find (deterministic targets): `bash ~/.codex/skills/research-team/scripts/bin/check_md_double_backslash.sh --notes research_contract.md [--fail]`
-  - Fix (math regions only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`
+  - Find (deterministic targets): `bash "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/check_md_double_backslash.sh" --notes research_contract.md [--fail]`
+  - Fix (math regions only): `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/fix_markdown_double_backslash_math.py" --notes research_contract.md --in-place`
 
 ## References (required)
 

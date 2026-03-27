@@ -51,7 +51,7 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 ### Writing chain
 
-- Draft-cycle entry (agent or manual): `bash ~/.codex/skills/research-team/scripts/bin/run_draft_cycle.sh --tag D0-r1 --tex main.tex --bib refs.bib --out-dir team`
+- Draft-cycle entry (agent or manual): `bash "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/run_draft_cycle.sh" --tag D0-r1 --tex main.tex --bib refs.bib --out-dir team`
 - Export bundle: `bash scripts/export_paper_bundle.sh --tag <TAG> --out export`
 
 ---

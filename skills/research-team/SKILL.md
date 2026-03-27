@@ -38,20 +38,22 @@ Use `research-team` when you want a project workflow with:
 
 ## Quick Start (3 commands)
 
-> Note: the commands below assume this skill is installed at `~/.codex/skills/research-team`. If your skills path differs, adjust accordingly.
+> Commands below stay install-location-portable by resolving the skill via `SKILL_DIR` (with `${CODEX_HOME}` fallback when available).
 
 1) Environment check (optional flags shown):
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-claude
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude
 # or (if you want A=Claude, B=Gemini):
-# bash ~/.codex/skills/research-team/scripts/bin/check_environment.sh --require-claude --require-gemini
+# bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini
 ```
 
 2) Scaffold the workflow into a project repo:
 
 ```bash
-bash ~/.codex/skills/research-team/scripts/bin/scaffold_research_workflow.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --root /path/to/project \
   --project "My Project" \
   --profile mixed \
@@ -67,7 +69,8 @@ The public scaffold and contract-refresh entrypoints now run in `real_project` m
 ```bash
 cd /path/to/project
 
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag M0 --auto-tag \
   --notes research_contract.md \
   --out-dir team \
@@ -86,8 +89,8 @@ Keep `--out-dir` on a real-project path as well; do not point real-project team 
 - **Packet build only**: `scripts/bin/build_team_packet.py`, `scripts/bin/build_draft_packet.py`.
 - **Literature fetch (INSPIRE/arXiv/Crossref/DataCite/DOI/GitHub)**: `scripts/bin/literature_fetch.py` (project-leader source-adapter helper for prework/KB building; reviewers must not use network).
   - Generic literature workflow sequencing authority lives in `literature-workflows` recipes / session protocol plus the checked-in launcher, not in this script.
-  - Use `python3 ~/.codex/skills/research-team/scripts/bin/literature_fetch.py workflow-plan ...` when you need the launcher-resolved literature workflow plan during skill-side prework.
-  - Subcommands (arXiv): `arxiv-search`, `arxiv-get --write-note`, `arxiv-source` (syntax: `python3 ~/.codex/skills/research-team/scripts/bin/literature_fetch.py <subcommand> ...`; downloads LaTeX source to `references/arxiv_src/<arxiv_id>/` by default).
+  - Use `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/literature_fetch.py" workflow-plan ...` when you need the launcher-resolved literature workflow plan during skill-side prework.
+  - Subcommands (arXiv): `arxiv-search`, `arxiv-get --write-note`, `arxiv-source` (syntax: `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/literature_fetch.py" <subcommand> ...`; downloads LaTeX source to `references/arxiv_src/<arxiv_id>/` by default).
 - **Export a portable bundle**: `scripts/bin/export_paper_bundle.sh` (wrapper) / `scripts/bin/export_paper_bundle.py`.
 - **KB index export (deterministic/L1)**: `scripts/bin/kb_export.py` + `scripts/bin/validate_kb_index.py` + `scripts/schemas/kb_index.schema.json`.
 - **Demo generation**: `scripts/bin/generate_demo_milestone.sh`.

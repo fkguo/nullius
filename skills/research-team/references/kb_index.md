@@ -17,8 +17,11 @@ Non-goals:
 
 ## CLI
 
+Commands below use `SKILL_DIR` so they stay portable across install locations.
+
 ```bash
-python3 ~/.codex/skills/research-team/scripts/bin/kb_export.py kb-index \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+python3 "${SKILL_DIR}/scripts/bin/kb_export.py" kb-index \
   --project-root /path/to/project
 ```
 
@@ -28,7 +31,8 @@ Default output path:
 Override output path:
 
 ```bash
-python3 ~/.codex/skills/research-team/scripts/bin/kb_export.py kb-index \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+python3 "${SKILL_DIR}/scripts/bin/kb_export.py" kb-index \
   --project-root /path/to/project \
   --out /tmp/kb_index.json
 ```
@@ -58,7 +62,8 @@ The schema is shipped with the skill:
 ## Validation (local)
 
 ```bash
-python3 ~/.codex/skills/research-team/scripts/bin/validate_kb_index.py \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+python3 "${SKILL_DIR}/scripts/bin/validate_kb_index.py" \
   /path/to/project/knowledge_base/kb_index.json
 ```
 
@@ -81,15 +86,16 @@ Links:
 - arXiv: https://arxiv.org/abs/1234.5678
 MD
 
-python3 ~/.codex/skills/research-team/scripts/bin/kb_export.py kb-index \
+SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
+python3 "${SKILL_DIR}/scripts/bin/kb_export.py" kb-index \
   --project-root /tmp/rt_proj \
   --out /tmp/kb_index.json
 
 python3 -c 'import json; print(sorted(json.load(open("/tmp/kb_index.json")).keys()))'
-python3 ~/.codex/skills/research-team/scripts/bin/validate_kb_index.py /tmp/kb_index.json
+python3 "${SKILL_DIR}/scripts/bin/validate_kb_index.py" /tmp/kb_index.json
 
 # Determinism check (byte-identical output)
-python3 ~/.codex/skills/research-team/scripts/bin/kb_export.py kb-index \
+python3 "${SKILL_DIR}/scripts/bin/kb_export.py" kb-index \
   --project-root /tmp/rt_proj \
   --out /tmp/kb_index_2.json
 cmp -s /tmp/kb_index.json /tmp/kb_index_2.json && echo "byte-identical: yes"

@@ -1562,7 +1562,7 @@ def main() -> int:
                 - Open the LaTeX sources under `{extracted}`.
                 - Copy key equations/definitions into `knowledge_base/literature/<refkey>.md` under '## Key equations / definitions'.
                 - Record normalization choices and suspected typos under '## Notes / Issues'.
-                - If those excerpts use paper macros (\\newcommand), you can batch-discover safe 0-arg macro expansions and merge into your JSON config (run from project root): `python3 ~/.codex/skills/research-team/scripts/bin/discover_latex_zero_arg_macros.py --root . --update-config`
+                - If those excerpts use paper macros (\\newcommand), you can batch-discover safe 0-arg macro expansions and merge into your JSON config (run from project root): `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/discover_latex_zero_arg_macros.py" --root . --update-config`
                 """
             ).rstrip()
         )
