@@ -271,6 +271,16 @@
 
 **Why**: The current repo already exposes one canonical upstream seam and one bounded downstream consumer. Locking that narrow path gives a credible first proof of typed verification flow without inventing fake check-run authority or widening into broader evidence/runtime redesign.
 
+### [2026-03-26] Verification kernel Batch 3 invariant: delete heuristic residue once typed metadata authority is live
+
+**Decision**:
+- Once the typed verification path is live, `physicsValidator` must be fully deleted rather than retained as fallback, diagnostic residue, wrapper, or renamed helper.
+- The surviving first live verification authority is exactly `writeComputationResultArtifact()` producer -> bridge `verification_refs` pass-through -> `buildRunWritingEvidence()` metadata output in `writing_evidence_meta_v1.json.verification`.
+- Current-truth regression coverage must assert both halves of that boundary: typed verification metadata still surfaces, and the research barrel no longer exports `validatePhysics`, `PHYSICS_AXIOMS`, or `PhysicsValidationStatus`.
+- Historical mentions of `physicsValidator` may remain only in governance/audit artifacts; live package exports, dedicated tests, and current-truth docs/registry surfaces must not present it as active authority.
+
+**Why**: Keeping the heuristic alive after the typed artifact-backed path landed would preserve a second unverifiable authority and weaken the intended delete-and-replace boundary.
+
 ### [2026-03-26] Shell-boundary anti-drift invariant: enforce boundary truth before any future leaf shell
 
 **Decision**:

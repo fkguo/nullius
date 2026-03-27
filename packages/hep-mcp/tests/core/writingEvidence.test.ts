@@ -278,7 +278,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(status.summary.skipped).toBe(0);
   });
 
-  it('accepts computation followup bridge artifacts as a bridge-only writing evidence refresh source', async () => {
+  it('accepts computation followup bridge artifacts as the typed verification metadata authority', async () => {
     const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence bridge', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
@@ -546,6 +546,14 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
         priority: 'high',
       }],
     }]);
+  });
+
+  it('does not re-export the deleted heuristic verification surface from the research barrel', async () => {
+    const researchTools = await import('../../src/tools/research/index.js');
+
+    expect(researchTools).not.toHaveProperty('validatePhysics');
+    expect(researchTools).not.toHaveProperty('PHYSICS_AXIOMS');
+    expect(researchTools).not.toHaveProperty('PhysicsValidationStatus');
   });
 
   it('treats missing bridge verification artifacts as a bridge-source failure and writes source status before failing', async () => {

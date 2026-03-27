@@ -262,21 +262,6 @@ export {
   type CriticalAnalysisResult,
 } from './criticalAnalysis.js';
 
-export {
-  validatePhysics,
-  PHYSICS_AXIOMS,
-  type PhysicsAxiom,
-  type PhysicsContent,
-  type ValidationResult,
-  type ValidationReport,
-  type ValidationOptions,
-  type ValidationStatus as PhysicsValidationStatus,
-  type AxiomSeverity,
-  type AxiomCategory,
-  type Violation,
-  type OverallStatus,
-} from './physicsValidator.js';
-
 // M2: Unified LaTeX parsing tool
 export {
   parseLatexContent,
