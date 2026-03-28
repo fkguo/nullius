@@ -4,6 +4,7 @@ import type {
   ReproducibilityProjection,
   ReproducibilityProjectionStatus,
   VerificationCoverage,
+  VerificationIntegritySemantics,
   VerificationSubject,
   VerificationSubjectVerdict,
 } from '../model/verification-projection.js';
@@ -41,16 +42,59 @@ function dedupeMissingChecks(checks: readonly MissingDecisiveCheck[]): MissingDe
   return unique;
 }
 
-function projectVerdictStatus(status: VerificationSubjectVerdict['status']): ReproducibilityProjectionStatus {
-  switch (status) {
-    case 'verified':
-      return 'verified';
-    case 'failed':
-      return 'failed';
+function deriveIntegritySemantics(
+  verdict: VerificationSubjectVerdict,
+  missingChecks: readonly MissingDecisiveCheck[],
+): VerificationIntegritySemantics {
+  switch (verdict.status) {
     case 'blocked':
-      return 'blocked';
+      return {
+        status: 'blocked_by_execution_failure',
+        gate_decision: 'block',
+        summary: verdict.summary,
+      };
+    case 'verified':
+    case 'failed':
+      // Decisive terminal truth must stay backed by executed-check evidence.
+      if (verdict.check_run_refs.length === 0) {
+        throw new Error(
+          'Verification projection requires verdict.check_run_refs for decisive verified/failed verdicts.',
+        );
+      }
+      if (missingChecks.length > 0) {
+        throw new Error(
+          'Verification projection cannot claim a decisive verified/failed verdict while missing decisive checks remain.',
+        );
+      }
+      return {
+        status:
+          verdict.status === 'verified'
+            ? 'decisive_verification_complete'
+            : 'decisive_verification_failed',
+        gate_decision: verdict.status === 'verified' ? 'pass' : 'block',
+        summary: verdict.summary,
+      };
     case 'partial':
     case 'not_attempted':
+      return {
+        status: 'pending_decisive_verification',
+        gate_decision: 'hold',
+        summary: verdict.summary,
+      };
+  }
+}
+
+function projectVerdictStatus(
+  integrityStatus: VerificationIntegritySemantics['status'],
+): ReproducibilityProjectionStatus {
+  switch (integrityStatus) {
+    case 'decisive_verification_complete':
+      return 'verified';
+    case 'decisive_verification_failed':
+      return 'failed';
+    case 'blocked_by_execution_failure':
+      return 'blocked';
+    case 'pending_decisive_verification':
       return 'pending';
   }
 }
@@ -85,6 +129,7 @@ export function deriveReproducibilityProjection(
     ...verdict.missing_decisive_checks,
     ...coverageChecks,
   ]);
+  const integrity = deriveIntegritySemantics(verdict, missingDecisiveChecks);
 
   return {
     source: 'verification_kernel_v1',
@@ -93,11 +138,12 @@ export function deriveReproducibilityProjection(
     subject_kind: subject.subject_kind,
     subject_title: subject.title,
     verdict_status: verdict.status,
-    reproducibility_status: projectVerdictStatus(verdict.status),
+    reproducibility_status: projectVerdictStatus(integrity.status),
     summary: verdict.summary,
     decisive_check_missing: missingDecisiveChecks.length > 0,
     missing_decisive_checks: missingDecisiveChecks,
     coverage_summary: { ...coverage.summary },
+    integrity,
     refs: {
       subject: subjectRef,
       subject_verdict: verdictRef,

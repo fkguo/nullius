@@ -18,6 +18,12 @@ export interface VerificationProjectionFixture {
   coverageRef: ArtifactRef;
 }
 
+export interface VerificationProjectionFixtureOptions {
+  checkRunRefs?: ArtifactRef[];
+  missingDecisiveChecks?: MissingDecisiveCheck[];
+  verdictSummary?: string;
+}
+
 function coverageSummaryFor(status: VerificationSubjectVerdictStatus): VerificationCoverageSummary {
   return {
     subjects_total: 1,
@@ -31,7 +37,9 @@ function coverageSummaryFor(status: VerificationSubjectVerdictStatus): Verificat
 
 export function createVerificationProjectionFixture(
   status: VerificationSubjectVerdictStatus = 'not_attempted',
-  missingDecisiveChecks: MissingDecisiveCheck[] = [
+  options: VerificationProjectionFixtureOptions = {},
+): VerificationProjectionFixture {
+  const missingDecisiveChecks = options.missingDecisiveChecks ?? [
     {
       check_kind: 'decisive_verification_pending',
       reason:
@@ -40,8 +48,7 @@ export function createVerificationProjectionFixture(
           : 'Decisive verification has not run yet.',
       priority: 'high',
     },
-  ],
-): VerificationProjectionFixture {
+  ];
   const subjectRef: ArtifactRef = {
     uri: 'rep://run-1/artifacts/verification_subject_result.json',
     kind: 'verification_subject',
@@ -76,10 +83,11 @@ export function createVerificationProjectionFixture(
       subject_ref: subjectRef,
       status,
       summary:
-        status === 'blocked'
+        options.verdictSummary
+        ?? (status === 'blocked'
           ? 'Execution failed before decisive verification completed.'
-          : 'Decisive verification is still pending.',
-      check_run_refs: [],
+          : 'Decisive verification is still pending.'),
+      check_run_refs: options.checkRunRefs ?? [],
       missing_decisive_checks: missingDecisiveChecks,
     },
     verdictRef,

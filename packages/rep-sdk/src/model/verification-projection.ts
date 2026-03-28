@@ -19,6 +19,12 @@ export type VerificationSubjectVerdictStatus =
   | 'not_attempted';
 
 export type ReproducibilityProjectionStatus = 'verified' | 'pending' | 'failed' | 'blocked';
+export type VerificationIntegrityStatus =
+  | 'decisive_verification_complete'
+  | 'pending_decisive_verification'
+  | 'blocked_by_execution_failure'
+  | 'decisive_verification_failed';
+export type VerificationGateDecision = 'pass' | 'hold' | 'block';
 
 export interface VerificationLinkedIdentifier {
   id_kind: string;
@@ -85,6 +91,12 @@ export interface ReproducibilityProjectionRefs {
   coverage: ArtifactRef;
 }
 
+export interface VerificationIntegritySemantics {
+  status: VerificationIntegrityStatus;
+  gate_decision: VerificationGateDecision;
+  summary: string;
+}
+
 export interface ReproducibilityProjection {
   source: 'verification_kernel_v1';
   run_id: string;
@@ -97,5 +109,6 @@ export interface ReproducibilityProjection {
   decisive_check_missing: boolean;
   missing_decisive_checks: MissingDecisiveCheck[];
   coverage_summary: VerificationCoverageSummary;
+  integrity: VerificationIntegritySemantics;
   refs: ReproducibilityProjectionRefs;
 }

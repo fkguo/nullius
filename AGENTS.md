@@ -290,7 +290,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - Phase 2: 41/51 完成
 - Phase 3: 40/53 完成
 - Phase 4: 3/8 完成，blocked by earlier phases
-- Phase 5: 15/24 完成，blocked by earlier phases
+- Phase 5: 16/24 完成，blocked by earlier phases
 - 当前已锁定的高层边界与长期决策，应分别查看：
   - 根治理 / 硬门禁：本文件其余章节
   - 稳定架构决策：`.serena/memories/architecture-decisions.md`
@@ -332,7 +332,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-trace-jsonl** (11095 symbols, 26395 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-evo06-integrity-semantics-first** (11339 symbols, 26955 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -348,7 +348,7 @@ This project is indexed by GitNexus as **autoresearch-lab-trace-jsonl** (11095 s
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-trace-jsonl/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-evo06-integrity-semantics-first/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -387,10 +387,10 @@ This project is indexed by GitNexus as **autoresearch-lab-trace-jsonl** (11095 s
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-trace-jsonl/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-trace-jsonl/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-trace-jsonl/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-trace-jsonl/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-evo06-integrity-semantics-first/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-evo06-integrity-semantics-first/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-evo06-integrity-semantics-first/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-evo06-integrity-semantics-first/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 

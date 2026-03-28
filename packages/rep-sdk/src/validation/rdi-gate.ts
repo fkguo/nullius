@@ -1,4 +1,3 @@
-import type { IntegrityReport } from '../model/integrity-report.js';
 import type { ReproducibilityProjection } from '../model/verification-projection.js';
 import type { ResearchOutcome, RdiScores } from '../model/research-outcome.js';
 
@@ -17,8 +16,8 @@ export interface RdiGateCheck {
 
 export interface EvaluateRdiGateOptions {
   outcome: ResearchOutcome;
-  integrityReport: IntegrityReport | null;
-  reproducibilityProjection?: ReproducibilityProjection | null;
+  // This projection must come from a verification_kernel_v1 structural read.
+  reproducibilityProjection: ReproducibilityProjection | null;
   scores?: Omit<RdiScores, 'gate_passed' | 'rank_score'>;
   weights?: Partial<RdiWeights>;
 }
@@ -44,88 +43,86 @@ function assertUnitInterval(name: string, value: number): void {
 
 function evaluateReproducibilityCheck(
   outcome: ResearchOutcome,
-  projection: ReproducibilityProjection | null | undefined,
+  projection: ReproducibilityProjection | null,
 ): RdiGateCheck {
-  if (projection) {
-    if (outcome.produced_by.run_id && projection.run_id !== outcome.produced_by.run_id) {
-      return {
-        name: 'reproducibility_complete',
-        passed: false,
-        message: 'Reproducibility projection run_id must match outcome provenance.',
-      };
-    }
-    if (projection.reproducibility_status === 'verified' && !projection.decisive_check_missing) {
-      return {
-        name: 'reproducibility_complete',
-        passed: true,
-        message: 'Reproducibility projection is complete.',
-      };
-    }
-    if (projection.reproducibility_status === 'blocked') {
-      return {
-        name: 'reproducibility_complete',
-        passed: false,
-        message: `Reproducibility is blocked: ${projection.summary}`,
-      };
-    }
-    if (projection.reproducibility_status === 'failed') {
-      return {
-        name: 'reproducibility_complete',
-        passed: false,
-        message: `Reproducibility failed: ${projection.summary}`,
-      };
-    }
+  if (projection === null) {
     return {
-      name: 'reproducibility_complete',
+      name: 'integrity_gate_ready',
       passed: false,
-      message: projection.decisive_check_missing
-        ? 'Reproducibility is pending decisive verification checks.'
-        : 'Reproducibility is pending.',
+      message: 'Verification projection is required before gate evaluation.',
+    };
+  }
+
+  if (projection.source !== 'verification_kernel_v1') {
+    return {
+      name: 'integrity_gate_ready',
+      passed: false,
+      message: 'Integrity gate cannot evaluate until the verification projection derives from verification_kernel_v1 artifacts.',
+    };
+  }
+
+  if (outcome.produced_by.run_id && projection.run_id !== outcome.produced_by.run_id) {
+    return {
+      name: 'integrity_gate_ready',
+      passed: false,
+      message: 'Integrity gate cannot evaluate until the verification projection matches outcome provenance.',
+    };
+  }
+
+  if (projection.integrity.gate_decision === 'pass') {
+    return {
+      name: 'integrity_gate_ready',
+      passed: true,
+      message: `Integrity gate is satisfied by verification truth: ${projection.integrity.summary}`,
     };
   }
 
   return {
-    name: 'reproducibility_complete',
-    passed:
-      outcome.reproducibility_status === 'verified' ||
-      outcome.reproducibility_status === 'not_applicable',
+    name: 'integrity_gate_ready',
+    passed: false,
     message:
-      outcome.reproducibility_status === 'verified' ||
-      outcome.reproducibility_status === 'not_applicable'
-        ? 'Reproducibility status is complete.'
-        : 'Reproducibility status must be verified or not_applicable.',
+      projection.integrity.gate_decision === 'block'
+        ? `Integrity gate is blocked: ${projection.integrity.summary}`
+        : `Integrity gate is pending decisive verification: ${projection.integrity.summary}`,
   };
 }
 
 export function evaluateRdiGate(options: EvaluateRdiGateOptions): RdiGateResult {
-  const { outcome, integrityReport, reproducibilityProjection, scores } = options;
+  const { outcome, reproducibilityProjection, scores } = options;
   const weights = { ...DEFAULT_WEIGHTS, ...options.weights };
 
   const checks: RdiGateCheck[] = [
     {
-      name: 'integrity_report_present',
-      passed: integrityReport !== null,
-      message: integrityReport ? 'Integrity report is present.' : 'Integrity report is required.',
+      name: 'verification_projection_present',
+      passed: reproducibilityProjection !== null,
+      message:
+        reproducibilityProjection !== null
+          ? 'Verification projection is present.'
+          : 'Verification projection is required before RDI reuse.',
     },
     {
-      name: 'integrity_report_passed',
-      passed: integrityReport !== null && integrityReport.overall_status !== 'fail',
+      name: 'verification_projection_source',
+      passed:
+        reproducibilityProjection !== null
+          && reproducibilityProjection.source === 'verification_kernel_v1',
       message:
-        integrityReport === null
-          ? 'Integrity report is required before reuse.'
-          : integrityReport.overall_status === 'fail'
-            ? 'Integrity report contains blocking failures.'
-            : 'Integrity report overall status permits reuse.',
+        reproducibilityProjection === null
+          ? 'Verification projection is required before source validation.'
+          : reproducibilityProjection.source === 'verification_kernel_v1'
+            ? 'Verification projection source is verification_kernel_v1.'
+            : 'Verification projection must derive from verification_kernel_v1 artifacts.',
     },
     {
-      name: 'integrity_target_matches_outcome',
-      passed: integrityReport !== null && integrityReport.target_ref.sha256 === outcome.outcome_id,
+      name: 'verification_projection_matches_outcome',
+      passed:
+        reproducibilityProjection !== null
+        && (!outcome.produced_by.run_id || reproducibilityProjection.run_id === outcome.produced_by.run_id),
       message:
-        integrityReport === null
-          ? 'Integrity report is required before hash matching.'
-          : integrityReport.target_ref.sha256 === outcome.outcome_id
-            ? 'Integrity report targets this outcome.'
-            : 'Integrity report target hash must match outcome_id.',
+        reproducibilityProjection === null
+          ? 'Verification projection is required before provenance matching.'
+          : !outcome.produced_by.run_id || reproducibilityProjection.run_id === outcome.produced_by.run_id
+            ? 'Verification projection matches outcome provenance.'
+            : 'Verification projection run_id must match outcome provenance.',
     },
     evaluateReproducibilityCheck(outcome, reproducibilityProjection),
   ];
