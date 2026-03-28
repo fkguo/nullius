@@ -221,6 +221,17 @@
 
 **Why**: Batch 8 closes the minimal fleet lifecycle loop after the Batch 7 acceptance gate without smuggling reassignment, takeover, daemonized scheduling, or second-authority worker lifecycle semantics into EVO-14.
 
+### [2026-03-28] EVO-14 manual-reassignment invariant: explicit queue-only claim replacement with operator-selected target
+
+**Decision**:
+- EVO-14 Batch 9 adds exactly one new intervention surface, `orch_fleet_reassign_claim`, and keeps it as the only mutation path allowed to manually reassign an already claimed queue item between workers inside one `project_root`.
+- Reassignment remains fail-closed: it requires the queue item to be currently `claimed`, exact live matches for `expected_claim_id` and `expected_owner_id`, a still-registered current owner worker, a still-registered target worker, `target_worker_id !== expected_owner_id`, `accepts_claims === true` on the target, and target claim pressure derived only from `.autoresearch/fleet_queue.json` rather than any duplicated counter.
+- Successful reassignment mutates only `.autoresearch/fleet_queue.json` by replacing the live claim record on the same queue item; `attempt_count`, priority/order, and `lease_duration_seconds` stay unchanged, while a fresh `claim_id`, `claimed_at`, and recomputed `lease_expires_at` are minted for the new owner.
+- The worker registry remains validation input only and is never mutated by reassignment; audit history is append-only `fleet_claim_reassigned`, `orch_fleet_worker_poll` remains the only scheduler truth, and `orch_fleet_status` remains the only cross-root read surface.
+- Missing/stale owner recovery stays in Batch 4 manual stale-claim adjudication territory; Batch 9 must not absorb stale-claim recovery, auto takeover, daemonized scheduling, target auto-selection, bulk drain orchestration, or any second fleet authority file/surface.
+
+**Why**: Batch 9 closes the bounded operator handoff gap left after queue, worker, lease, claim-acceptance, and unregister semantics were separated, while keeping reassignment as an explicit queue-only intervention instead of a hidden scheduler or lifecycle automation authority.
+
 ### [2026-03-24] Literature workflow authority invariant: executable authority lives in a leaf launcher, not in MCP facades
 
 **Decision**:

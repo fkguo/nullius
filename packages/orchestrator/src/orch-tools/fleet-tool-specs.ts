@@ -3,6 +3,7 @@ import {
   ORCH_FLEET_ADJUDICATE_STALE_CLAIM,
   ORCH_FLEET_CLAIM,
   ORCH_FLEET_ENQUEUE,
+  ORCH_FLEET_REASSIGN_CLAIM,
   ORCH_FLEET_RELEASE,
   ORCH_FLEET_STATUS,
   ORCH_FLEET_WORKER_HEARTBEAT,
@@ -16,6 +17,7 @@ import {
   handleOrchFleetEnqueue,
   handleOrchFleetRelease,
 } from './fleet-queue-tools.js';
+import { handleOrchFleetReassignClaim } from './fleet-claim-reassignment.js';
 import { handleOrchFleetWorkerSetClaimAcceptance } from './fleet-worker-claim-acceptance.js';
 import { handleOrchFleetWorkerUnregister } from './fleet-worker-unregister.js';
 import { handleOrchFleetStatus } from './fleet-status.js';
@@ -27,6 +29,7 @@ import {
   OrchFleetAdjudicateStaleClaimSchema,
   OrchFleetClaimSchema,
   OrchFleetEnqueueSchema,
+  OrchFleetReassignClaimSchema,
   OrchFleetReleaseSchema,
   OrchFleetStatusSchema,
   OrchFleetWorkerHeartbeatSchema,
@@ -43,6 +46,14 @@ export const FLEET_TOOL_SPECS = [
     description: 'Manually adjudicate a currently claimed fleet queue item that appears stale, then settle it back onto the existing queue substrate without creating automatic takeover semantics (local-only).',
     zodSchema: OrchFleetAdjudicateStaleClaimSchema,
     handler: async (params: unknown) => handleOrchFleetAdjudicateStaleClaim(params as z.output<typeof OrchFleetAdjudicateStaleClaimSchema>),
+  },
+  {
+    name: ORCH_FLEET_REASSIGN_CLAIM,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Explicitly reassign a currently claimed fleet queue item from one registered owner worker to a different registered target worker inside the same project queue, without changing worker registry authority or introducing scheduler-like takeover semantics (local-only).',
+    zodSchema: OrchFleetReassignClaimSchema,
+    handler: async (params: unknown) => handleOrchFleetReassignClaim(params as z.output<typeof OrchFleetReassignClaimSchema>),
   },
   {
     name: ORCH_FLEET_WORKER_POLL,

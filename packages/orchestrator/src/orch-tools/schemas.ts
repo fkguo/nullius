@@ -179,6 +179,16 @@ export const OrchFleetAdjudicateStaleClaimSchema = z.object({
   note: z.string().min(1).describe('Required human-readable adjudication note explaining why the existing claim was considered stale.'),
 });
 
+export const OrchFleetReassignClaimSchema = z.object({
+  project_root: ProjectRootSchema,
+  queue_item_id: QueueItemIdSchema.describe('Claimed queue item identifier to reassign.'),
+  expected_claim_id: z.string().min(1).describe('Expected current claim_id. Used to fail closed on stale reads or concurrent mutation.'),
+  expected_owner_id: WorkerIdSchema.describe('Expected current owner worker id. Used to fail closed on stale reads or concurrent mutation.'),
+  target_worker_id: WorkerIdSchema.describe('Existing target worker id that should own the reassigned claim.'),
+  reassigned_by: QueueOwnerSchema.describe('Operator or subsystem explicitly performing the manual reassignment.'),
+  note: z.string().min(1).describe('Required human-readable note explaining why the claim is being reassigned.'),
+});
+
 export const OrchFleetWorkerPollSchema = z.object({
   project_root: ProjectRootSchema,
   worker_id: WorkerIdSchema.describe('Worker identifier used as the fleet queue claim owner.'),

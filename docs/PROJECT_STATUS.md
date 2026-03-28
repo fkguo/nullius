@@ -21,8 +21,8 @@ node --input-type=module -e "import('./packages/hep-mcp/dist/tools/index.js').th
 ```
 
 Current (after build):
-- `standard=73`, `full=101`
-- `HEP_ENABLE_ZOTERO=0` → `standard=65`, `full=93`
+- `standard=73`, `full=102`
+- `HEP_ENABLE_ZOTERO=0` → `standard=65`, `full=94`
 
 Workspace vitest summary:
 - `packages/shared`: 15 passed

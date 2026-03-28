@@ -110,7 +110,7 @@ EOF
 **预期**
 
 - 输出是一个数组，包含 `standard/full` 两种模式的 `tool_count` 与 `bad`。
-- `tool_count` 为正数（当前实现：`standard=66`，`full=83`；`HEP_ENABLE_ZOTERO=0` 时：`standard=58`，`full=75`；以后如有变化，以代码与 `docs:tool-counts:check` 为准）。
+- `tool_count` 为正数（当前实现：`standard=73`，`full=102`；`HEP_ENABLE_ZOTERO=0` 时：`standard=65`，`full=94`；以后如有变化，以代码与 `docs:tool-counts:check` 为准）。
 - 每个对象的 `bad` 都应为空数组（所有 tool 的 `inputSchema.type` 都应为 `"object"`）。
 
 ### 0.2 Zotero Local API（可选，但建议验收）

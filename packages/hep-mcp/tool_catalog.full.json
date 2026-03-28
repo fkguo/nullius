@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-03-24T09:14:50.001Z",
-  "commit": "8715c24",
+  "generated_at": "2026-03-28T08:13:34.090Z",
+  "commit": "76fe900",
   "mode": "full",
-  "count": 101,
+  "count": 102,
   "tools": [
     "arxiv_get_metadata",
     "arxiv_paper_source",
@@ -72,6 +72,7 @@
     "orch_fleet_adjudicate_stale_claim",
     "orch_fleet_claim",
     "orch_fleet_enqueue",
+    "orch_fleet_reassign_claim",
     "orch_fleet_release",
     "orch_fleet_status",
     "orch_fleet_worker_heartbeat",

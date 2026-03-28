@@ -84,6 +84,7 @@ export const ORCH_FLEET_ENQUEUE = 'orch_fleet_enqueue' as const;
 export const ORCH_FLEET_CLAIM = 'orch_fleet_claim' as const;
 export const ORCH_FLEET_RELEASE = 'orch_fleet_release' as const;
 export const ORCH_FLEET_ADJUDICATE_STALE_CLAIM = 'orch_fleet_adjudicate_stale_claim' as const;
+export const ORCH_FLEET_REASSIGN_CLAIM = 'orch_fleet_reassign_claim' as const;
 export const ORCH_FLEET_WORKER_POLL = 'orch_fleet_worker_poll' as const;
 export const ORCH_FLEET_WORKER_HEARTBEAT = 'orch_fleet_worker_heartbeat' as const;
 export const ORCH_FLEET_WORKER_SET_CLAIM_ACCEPTANCE = 'orch_fleet_worker_set_claim_acceptance' as const;
