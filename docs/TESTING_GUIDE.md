@@ -1,20 +1,18 @@
-# 功能测试指南（逐项对照版）
+# 功能测试指南（front-door 当前真相）
 
-本指南用于**手工验收**本仓库 `hep-research-mcp`（`hep-research-mcp` 服务器）当前已实现的主要功能（含 vNext：Project/Run、Evidence-first、Zotero Local API、PDF→Evidence、写作 verifier、导出资产包），并给出每一步的**预期结果**，方便你逐项比对。
+本指南面向手工验收当前 front-door surface。重点对象是 `@autoresearch/hep-mcp` 这条 MCP front door，以及它今天真实提供的 Project/Run、evidence、writing/export、literature/data、Zotero、PDG 能力。通用 lifecycle CLI `autoresearch` 是另一个入口，本文只在需要时简要指出。
 
 > 说明
 >
-> - 很多返回值包含动态字段（如 `project_id/run_id/created_at`），请按“结构/字段/不变量”对照，而不是逐字匹配。
-> - 部分功能需要外部依赖：INSPIRE 网络访问、Zotero Desktop、以及（可选）LLM API key。本文会标注“必需/可选”。
-> - Evidence-first：大对象都写入磁盘 artifacts，通过 `hep://...` Resources 读取；tool 返回一般只有 URI + summary。
+> - 返回值里的 `project_id`、`run_id`、时间戳、URI 等动态字段请按结构和不变量核对，不要逐字比对。
+> - 本文所有 MCP 配置都以 `packages/hep-mcp/dist/index.js` 为当前 front door。
+> - 大对象默认落盘成 artifacts，通过 `hep://...` 或 `pdg://...` resources 读取。
 
 ---
 
-## 0. 一次性准备（必做）
+## 0. 一次性准备
 
-### 0.1 构建与启动（必做）
-
-1) 安装/构建：
+### 0.1 构建与计数检查
 
 ```bash
 pnpm install
@@ -22,40 +20,35 @@ pnpm -r build
 pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 ```
 
-若提示文档计数漂移，可一键同步后再检查：
-
-```bash
-pnpm --filter @autoresearch/hep-mcp docs:tool-counts:sync
-pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
-```
-
-可选：运行自动化测试（默认不触发联网 smoke）：
+可选：跑自动化测试。
 
 ```bash
 pnpm -r test
 ```
 
-如需跑联网 live smoke（访问 inspirehep.net；默认 `skip`），再加：
+如需联网 smoke，再显式开启：
 
 ```bash
 HEP_LIVE_SMOKE=1 pnpm -r test
 ```
 
-2) 选择一个干净的数据目录（建议每次验收都新建一个）：
+### 0.2 准备一个干净的数据目录
 
-- 例如：`/Users/<you>/tmp/hep_data_test_001`
+建议每次验收用新的 `HEP_DATA_DIR`，例如：
 
-3) 在 Cursor 配置 MCP（见 `README.md` / `docs/README_zh.md` 的 Cursor 小节）。
+- `/Users/<you>/tmp/hep_data_test_001`
 
-最小示例（路径请改成你本机真实绝对路径）：
+### 0.3 在 MCP 客户端里接入当前 front door
+
+最小配置示例：
 
 ```json
 {
   "mcpServers": {
-    "hep-research-mcp": {
+    "hep-mcp": {
       "command": "node",
       "args": [
-        "/absolute/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js"
+        "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
       ],
       "env": {
         "HEP_DATA_DIR": "/absolute/path/to/hep_data_test_001",
@@ -68,16 +61,16 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 
 **预期**
 
-- Cursor 重启/刷新后，Chat/Agent 的 **Tools** 面板里可以看到 `hep-research-mcp` 的工具列表，并可调用。
-- 备注：部分 MCP 客户端/agent runtime 会对工具名加前缀（例如 `mcp__hep__inspire_search`）；请以客户端 Tools 列表显示的完整名称为准调用。
-- 服务器日志输出到 stderr（不污染 stdout）。
+- 重启或刷新 MCP client 后，可以看到 `hep-mcp` 提供的工具。
+- 某些客户端会把工具名 namespacing 成 `mcp__<serverAlias>__<toolName>`；务必以客户端实际显示的名字为准。
+- 若 GUI 客户端报 `spawn node ENOENT`，把 `command` 改成 Node 的绝对路径。
 
-#### listTools sanity check（当 Cursor 看不到 Tools 时）
+### 0.4 `listTools` sanity check
 
-如果 Cursor 里仍然看不到 Tools，优先确认 **MCP `listTools` 返回是否可被客户端解析**：
+当客户端看不到工具时，优先检查 `listTools` 是否返回合法 schema：
 
 ```bash
-cd /absolute/path/to/hep-research-mcp/packages/hep-research-mcp
+cd /absolute/path/to/autoresearch-lab/packages/hep-mcp
 node --input-type=module - <<'EOF'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -91,12 +84,10 @@ async function check(mode) {
 
   const client = new Client({ name: `toolcheck-${mode}`, version: '0.0.0' }, { capabilities: {} });
   await client.connect(transport);
-
   const { tools } = await client.listTools();
   const bad = tools
     .map(t => ({ name: t.name, type: t.inputSchema?.type }))
     .filter(t => t.type !== 'object');
-
   await client.close();
   return { mode, tool_count: tools.length, bad };
 }
@@ -109,91 +100,23 @@ EOF
 
 **预期**
 
-- 输出是一个数组，包含 `standard/full` 两种模式的 `tool_count` 与 `bad`。
-- `tool_count` 为正数（当前实现：`standard=73`，`full=102`；`HEP_ENABLE_ZOTERO=0` 时：`standard=65`，`full=94`；以后如有变化，以代码与 `docs:tool-counts:check` 为准）。
-- 每个对象的 `bad` 都应为空数组（所有 tool 的 `inputSchema.type` 都应为 `"object"`）。
+- `standard` 模式工具数为 `73`
+- `full` 模式工具数为 `102`
+- `bad` 为空数组
 
-### 0.2 Zotero Local API（可选，但建议验收）
+### 0.5 可选依赖：Zotero / PDG
 
-**前提**
+若要验收本地文献库或离线粒子数据，再补充：
 
-- 已安装 Zotero 7，并启用 Local API。
-- 本项目硬约束：只允许 `http://127.0.0.1:23119`。
+- Zotero Local API：`ZOTERO_BASE_URL=http://127.0.0.1:23119`
+- Zotero fulltext cache：`ZOTERO_DATA_DIR=/absolute/path/to/Zotero`
+- PDG sqlite：`PDG_DB_PATH=/absolute/path/to/pdg.sqlite`
 
-在 MCP server 的 env 里加入（建议先用最小配置）：
+---
 
-```json
-{
-  "ZOTERO_BASE_URL": "http://127.0.0.1:23119"
-}
-```
+## 1. 基础连通性
 
-如需测试 `zotero_local`（mode=`get_attachment_fulltext`，读取 `.zotero-ft-cache`），还需设置：
-
-```json
-{
-  "ZOTERO_DATA_DIR": "/absolute/path/to/Zotero"
-}
-```
-
-> 备注：Zotero UI 里可能只显示 “Available at http://localhost:23119/api/”，但本项目会强制使用 `127.0.0.1:23119`（等价、只为避免误配到远端）。
-
-#### 0.2.1 命令行连通性判断（推荐先做）
-
-在终端执行（返回 `200` 表示 Local API 可用）：
-
-```bash
-curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:23119/api/users/0/items?limit=1"
-```
-
-**预期**
-
-- 返回 `200`。
-
-> 说明：用浏览器直接打开这些 `/api/...` URL 可能会显示 `Request not allowed`（Zotero 会阻止“浏览器型请求”直接访问 Local API）。这是正常现象；请以 `curl`/本地程序（如本 MCP server）的访问结果为准。
-
-> 常见坑：如果你在 zsh 看到 `dquote>` 提示符，说明上一条命令的 `"` 没闭合；按 `Ctrl+C` 取消后，补全引号重新执行即可。
-
-#### 0.2.2 “返回 JSON 里的 key 是不是 API Key？”
-
-不是。你在 `/api/users/.../items` 返回的 JSON 里看到的 `key`（例如 `KT5DE25S`）是 **Zotero item key**（条目/附件的 key）。
-
-Zotero Local API **无认证**：不需要 Local API Key，也不会通过 API 返回任何“访问 key”。
-
-**快速自检（终端，可选）**
-
-```bash
-curl -s "http://127.0.0.1:23119/api/users/0/collections?limit=1" | head
-```
-
-**预期**
-
-- 输出 JSON（不是 HTML），且 HTTP 可达（详见上面的 `http_code` 判断）。
-
-参考：https://www.zotero.org/support/dev/zotero_7_for_developers
-
-补充：Local API 的端点/字段/分页/查询参数大体与 Zotero Web API v3 一致，可把该文档当作接口参考（但实际请求仍然只访问 `http://127.0.0.1:23119/api/`）：https://www.zotero.org/support/dev/web_api/v3/basics
-
-### 0.3 PDG（可选，但建议验收）
-
-> 说明：PDG 工具（`pdg_*`）已聚合进 `hep-research-mcp`，用于本机离线粒子数据查询与 artifacts/resources 验证。
-
-**前提**
-
-- 本机已有 PDG sqlite 文件（示例，版本以你本地为准）：
-  - `/home/user/Seafile/AI/mcp-pdg/pdg-2025-v0.3.0.sqlite`
-  - `/home/user/Seafile/AI/mcp-pdg/pdgall-2025-v0.3.0.sqlite`
-
-在 MCP server 的 env 里加入（建议把 `PDG_DATA_DIR` 放到测试数据目录内，便于清理）：
-
-```json
-{
-  "PDG_DB_PATH": "/absolute/path/to/pdg-2025-v0.3.0.sqlite",
-  "PDG_DATA_DIR": "/absolute/path/to/hep_data_test_001/pdg"
-}
-```
-
-#### 0.3.1 `pdg_info`
+### 1.1 `hep_health`
 
 **调用**
 
@@ -203,28 +126,10 @@ curl -s "http://127.0.0.1:23119/api/users/0/collections?limit=1" | head
 
 **预期**
 
-- `db.configured=true`
-- `db.db_path` 等于你设置的 `PDG_DB_PATH`
-- `artifacts_dir` 位于你设置的 `PDG_DATA_DIR` 之下
+- 返回成功
+- 能看到当前工具模式、基础配置或健康摘要
 
-#### 0.3.2 `pdg_find_particle`（可选）
-
-**调用（示例）**
-
-```json
-{ "name": "electron", "limit": 5 }
-```
-
-**预期**
-
-- 返回 `candidates[]`（长度 <= 5）
-- 可从候选中选取一个 `pdgid` 用于后续 `pdg_get`
-
----
-
-## 1. 基础连通性（建议先做）
-
-### 1.1 `hep_project_list`（无参）
+### 1.2 `hep_project_list`
 
 **调用**
 
@@ -234,32 +139,27 @@ curl -s "http://127.0.0.1:23119/api/users/0/collections?limit=1" | head
 
 **预期**
 
-- `isError=false`
-- 返回形如：
-  - `total: <number>`
-  - `projects: []`（首次可能为空）
+- 首次可能返回空列表
+- 返回结构中应包含 `projects`
 
 ---
 
-## 2. vNext：Project/Run 基础（M3）
+## 2. Project / Run + Resources
 
-> 建议把本节生成的 `project_id` / `run_id` 记录下来，后续步骤复用同一个 run。
-
-### 2.1 创建 Project：`hep_project_create`
+### 2.1 `hep_project_create`
 
 **调用**
 
 ```json
-{ "name": "Manual Test Project", "description": "acceptance test" }
+{ "name": "Manual Test Project", "description": "front-door acceptance" }
 ```
 
 **预期**
 
-- `project_id`：非空、无 `/`、无 `..`
-- `project_uri`：形如 `hep://projects/<project_id>`
-- `summary.name` 与输入一致
+- 返回非空 `project_id`
+- 返回 `project_uri = hep://projects/<project_id>`
 
-### 2.2 读取 Project：`hep_project_get`
+### 2.2 `hep_project_get`
 
 **调用**
 
@@ -269,521 +169,220 @@ curl -s "http://127.0.0.1:23119/api/users/0/collections?limit=1" | head
 
 **预期**
 
-- `project_id` 与上一步一致
-- `project_uri` 可用（后续可 `readResource`）
+- 名称与描述和创建时一致
+- 返回 project manifest 摘要
 
-### 2.3 创建 Run：`hep_run_create`
+### 2.3 `hep_run_create`
 
 **调用**
 
 ```json
-{ "project_id": "<project_id>" }
+{ "project_id": "<project_id>", "args_snapshot": { "purpose": "manual acceptance" } }
 ```
 
 **预期**
 
-- 返回 `run_id`
-- `manifest_uri`：形如 `hep://runs/<run_id>/manifest`
-- `artifacts` 至少包含 `args_snapshot.json`（URI 为 `hep://runs/<run_id>/artifact/args_snapshot.json`）
+- 返回非空 `run_id`
+- 返回 `manifest_uri = hep://runs/<run_id>/manifest`
+- artifacts 中至少包含 `args_snapshot.json`
 
-### 2.4 读取 Run manifest（Resource）
+### 2.4 读取 `hep://runs/{run_id}/manifest`
 
-**读取资源**
+在客户端资源面板或资源调用里读取：
 
-- `hep://runs/<run_id>/manifest`
+- `hep://runs`
+- `hep://runs/{run_id}/manifest`
 
 **预期**
 
-- JSON 中包含 `steps[]`
-- 至少有一条 `step=run_create` 且 `status=done`
+- `hep://runs` 能列出刚创建的 run
+- manifest 中的首个 step 是 `run_create`
+- manifest 会指向 run artifacts
 
-### 2.5 对照磁盘落盘结构（可选但推荐）
+### 2.5 对照磁盘布局
 
-在 `HEP_DATA_DIR` 下应出现：
+检查：
 
+```text
+<HEP_DATA_DIR>/projects/<project_id>/
+<HEP_DATA_DIR>/runs/<run_id>/manifest.json
+<HEP_DATA_DIR>/runs/<run_id>/artifacts/args_snapshot.json
 ```
-<HEP_DATA_DIR>/
-  projects/<project_id>/
-  runs/<run_id>/
-    manifest.json
-    artifacts/args_snapshot.json
-```
+
+**预期**
+
+- 路径真实存在
+- run manifest 与资源里读到的内容一致
 
 ---
 
-## 3. vNext：LaTeX → Evidence Catalog（M6，本地 fixture 版，零网络依赖）
+## 3. Evidence 构建与查询
 
-本节用仓库自带 LaTeX fixture 构建 Evidence Catalog，并验证 query/playback。
+### 3.1 `hep_project_build_evidence`
 
-### 3.1 `hep_project_build_evidence`（使用本地 main.tex）
+使用本仓库 fixture：
 
-**准备**
-
-- 使用本仓库 fixture：`packages/hep-research-mcp/tests/fixtures/latex/multifile/main.tex`
+- `packages/hep-mcp/tests/fixtures/latex/multifile/main.tex`
 
 **调用**
 
 ```json
 {
   "project_id": "<project_id>",
-  "paper_id": "fixture_multifile",
-  "main_tex_path": "/absolute/path/to/hep-research-mcp/packages/hep-research-mcp/tests/fixtures/latex/multifile/main.tex",
-  "include_inline_math": false,
-  "include_cross_refs": true
+  "main_tex_path": "/absolute/path/to/autoresearch-lab/packages/hep-mcp/tests/fixtures/latex/multifile/main.tex",
+  "paper_id": "fixture-paper"
 }
 ```
 
 **预期**
 
-- `paper_uri`：形如 `hep://projects/<project_id>/papers/fixture_multifile`
-- `catalog_uri`：形如 `hep://projects/<project_id>/papers/fixture_multifile/evidence/catalog`
-- `summary.total > 0`
+- 返回或写入 evidence catalog
+- `hep://projects/<project_id>/papers/fixture-paper/evidence/catalog` 可读
 
-### 3.2 `hep_project_query_evidence`
-
-**调用（示例）**
-
-```json
-{
-  "project_id": "<project_id>",
-  "paper_id": "fixture_multifile",
-  "query": "introduction",
-  "limit": 5
-}
-```
-
-**预期**
-
-- `hits.length <= 5`
-- 每个 hit 有 `evidence_id`、`text_preview`、`locator`
-
-### 3.3 `hep_project_playback_evidence`
-
-**调用**
-
-```json
-{
-  "project_id": "<project_id>",
-  "paper_id": "fixture_multifile",
-  "evidence_id": "<from_query_hit_evidence_id>"
-}
-```
-
-**预期**
-
-- 返回 `playback.snippet`（包含上下文片段）
-- `playback.file/line/column` 存在
-
----
-
-## 4. vNext：写作（结构化 draft → LaTeX + verifier 强制）（M7，零网络依赖）
-
-### 4.1 成功用例：`hep_render_latex`
-
-**调用（使用最小 draft + allowlist + cite mapping）**
-
-```json
-{
-  "run_id": "<run_id>",
-  "draft": {
-    "version": 1,
-    "title": "Test Section",
-    "paragraphs": [
-      {
-        "sentences": [
-          {
-            "sentence": "A grounded factual sentence that must be cited.",
-            "type": "fact",
-            "is_grounded": true,
-            "evidence_ids": ["ev_test_1"],
-            "recids": ["1597424"]
-          }
-        ]
-      }
-    ]
-  },
-  "allowed_citations": ["inspire:1597424"],
-  "cite_mapping": {
-    "Guo:2017jvc": { "status": "matched", "recid": "1597424", "match_method": "doi", "confidence": 1 }
-  }
-}
-```
-
-**预期**
-
-- `isError=false`
-- 返回 `artifacts` 包含：
-  - `rendered_latex.tex`
-  - `rendered_section_output.json`
-  - `rendered_latex_verification.json`
-- 读取 `rendered_latex.tex`（`hep://runs/<run_id>/artifact/rendered_latex.tex`）应包含：`\\cite{Guo:2017jvc}`
-- `summary.verifier_pass = true`
-
-**如果你的 MCP 客户端/模型不擅长提交复杂嵌套 JSON**
-
-可以直接运行脚本（通过 MCP stdio 调用同一个 tool）：
-
-```bash
-pnpm -r build
-node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "<run_id>" --data-dir "<HEP_DATA_DIR>"
-```
-
-脚本会写入并读取以下 artifacts（避免覆盖默认文件名）：
-- `rendered_latex_real.tex`
-- `rendered_section_output_real.json`
-- `rendered_latex_verification_real.json`
-
-### 4.2 失败用例：unauthorized citation（必须失败）
-
-**调用（allowed_citations 不包含 1597424）**
-
-```json
-{
-  "run_id": "<run_id>",
-  "draft": { "...同上..." },
-  "allowed_citations": [],
-  "cite_mapping": { "Guo:2017jvc": { "status": "matched", "recid": "1597424" } }
-}
-```
-
-**预期**
-
-- `isError=true`
-- `error.code = "INVALID_PARAMS"`
-- `error.data.issues[]` 内至少有一条 `type = "unauthorized_citation"`
-
-### 4.3 失败用例：missing citation（grounded fact 且无 recids，必须失败）
-
-**调用（把 sentence.recids 设为 []）**
-
-```json
-{
-  "run_id": "<run_id>",
-  "draft": {
-    "version": 1,
-    "title": "Test Section",
-    "paragraphs": [
-      {
-        "sentences": [
-          {
-            "sentence": "A grounded factual sentence that must be cited.",
-            "type": "fact",
-            "is_grounded": true,
-            "evidence_ids": ["ev_test_1"],
-            "recids": []
-          }
-        ]
-      }
-    ]
-  },
-  "allowed_citations": [],
-  "cite_mapping": {}
-}
-```
-
-**预期**
-
-- `isError=true`
-- `error.code = "INVALID_PARAMS"`
-- `error.data.issues[]` 内至少有一条 `type = "missing_citation"`
-
-### 4.4 citekey 选择稳定性（同 recid 取字典序最小 key）
-
-**调用（同一 recid=1597424 映射到多个 citekey）**
-
-```json
-{
-  "run_id": "<run_id>",
-  "draft": {
-    "version": 1,
-    "title": "Citekey tie-break",
-    "paragraphs": [
-      { "sentences": [ { "sentence": "Test.", "type": "fact", "is_grounded": true, "recids": ["1597424"] } ] }
-    ]
-  },
-  "allowed_citations": ["inspire:1597424"],
-  "cite_mapping": {
-    "Guo:2017jvc": { "status": "matched", "recid": "1597424" },
-    "Alternative:2017jvc": { "status": "matched", "recid": "1597424" }
-  }
-}
-```
-
-**预期**
-
-- 输出 LaTeX 中引用应为 `\\cite{Alternative:2017jvc}`（字典序最小）
-
----
-
-## 5. vNext：Zotero Local API（M8，需要 Zotero）
-
-> 本节需要 Zotero Desktop 正在运行、Local API 已启用；若本节工具返回 404/连接失败，先回到上面的 0.2 用 `curl` 验证本机 `http://127.0.0.1:23119/api/` 是否可用。
-
-> 说明：Zotero 工具面已收敛为 `zotero_local`（用 `mode` 分派）+ 少量高层工具（`zotero_find_items` / `zotero_search_items` / `zotero_export_items` / `zotero_get_selected_collection` / `zotero_add` / `zotero_confirm`）；`full` 模式当前与 `standard` 相同（预留扩展）。
-
-### 5.1 `zotero_local`（mode=`list_collections`）
-
-**调用**
-
-```json
-{ "mode": "list_collections", "limit": 50, "start": 0 }
-```
-
-**预期**
-
-- `isError=false`
-- `meta.status=200`
-- `collections.length <= limit`
-
-### 5.2 `zotero_local`（mode=`list_items`）
-
-**调用（可先不填 collection_key，列出 top items）**
-
-```json
-{ "mode": "list_items", "limit": 20, "start": 0 }
-```
-
-**预期**
-
-- `meta.status=200`
-- `scope.kind` 为 `library_top` 或 `collection`
-
-### 5.3 `zotero_local`（mode=`get_item`）
-
-从上一步 artifact 中选一个 `item_key`。
-
-**调用**
-
-```json
-{ "mode": "get_item", "item_key": "<item_key>" }
-```
-
-**预期**
-
-- 返回字段包含：
-  - `item_key`
-  - `select_uri`
-  - `identifiers`（可能含 `doi/arxiv_id/inspire_recid/title`）
-  - `warnings`（数组）
-
-### 5.4 `zotero_local`（mode=`get_item_attachments`）
-
-**调用**
-
-```json
-{ "mode": "get_item_attachments", "item_key": "<item_key>" }
-```
-
-**预期**
-
-- `attachments` 为数组，且每个元素包含 `attachment_key` 与 `is_pdf`
-- `summary.pdf_attachments_total >= 0`
-
-### 5.5 `zotero_local`（mode=`download_attachment`，下载 PDF）
-
-从 attachments artifact 中选一个 `attachment_key`（PDF）。
-
-**调用**
-
-```json
-{ "mode": "download_attachment", "attachment_key": "<attachment_key>" }
-```
-
-**预期**
-
-- 返回字段包含：
-  - `file_path`
-  - `sha256`（非空）
-  - `size > 0`
-
-> 说明：Zotero Local API 的 `GET /api/users/0/items/<attachment_key>/file` 通常返回 `302 Location: file://...`（指向本机文件路径），不是直接返回 PDF 二进制；本工具会解析该信息从磁盘读取并返回 `file_path/sha256/size`。
-
-### 5.6 `zotero_local`（mode=`get_attachment_fulltext`）
-
-**调用**
-
-```json
-{ "mode": "get_attachment_fulltext", "attachment_key": "<attachment_key>" }
-```
-
-**预期**
-
-- `status` 二选一：
-  - `ok`：返回 `file_path`（指向 `.zotero-ft-cache`）与 `size`
-  - `not_indexed`：返回 `expected_cache_path` 与 `guidance[]`
-
-> 若你确认 Zotero 已完成全文索引（例如存在 `~/Zotero/storage/<attachment_key>/.zotero-ft-cache`），但返回 `not_indexed`，请检查 MCP env 的 `ZOTERO_DATA_DIR` 是否指向正确的 Zotero 数据目录（包含 `storage/`）。返回值里会包含 `expected_cache_path`，可直接对照该路径是否存在。
-
----
-
-## 6. vNext：PDF → Evidence（M9）
-
-### 6.1 text 模式（推荐先测）
-
-**调用（直接使用 Zotero 的 attachment_key）**
-
-```json
-{
-  "run_id": "<run_id>",
-  "zotero_attachment_key": "<attachment_key>",
-  "mode": "text",
-  "max_pages": 5,
-  "output_prefix": "pdf"
-}
-```
-
-**预期**
-
-- `artifacts` 至少包含：
-  - `pdf_pages.json`
-  - `pdf_meta.json`
-  - `pdf_evidence_catalog.jsonl`
-- `summary.processed_pages >= 1`
-- `summary.used_zotero_fulltext`：
-  - 若存在 `ZOTERO_DATA_DIR/storage/<attachment_key>/.zotero-ft-cache` 且非空：应为 `true`
-  - 否则为 `false`（回退到 pdfjs 文本抽取）
-
-### 6.2 visual 模式（产出 page render + region snippet）
+### 3.2 `hep_run_build_writing_evidence`
 
 **调用**
 
 ```json
 {
   "run_id": "<run_id>",
-  "zotero_attachment_key": "<attachment_key>",
-  "mode": "visual",
-  "max_pages": 1,
-  "render_dpi": 144,
-  "output_prefix": "pdfvis"
-}
-```
-
-**预期**
-
-- `artifacts` 中至少出现：
-  - `pdfvis_page_0001.png`
-  - `pdfvis_region_*.png`（至少 1 个）
-- `catalog_uri` 指向 `hep://runs/<run_id>/artifact/pdfvis_evidence_catalog.jsonl`
-- 读取该 JSONL：至少有一条 `type="pdf_region"`，并且该条 `meta.region_uri` 指向某个 `...region_*.png`
-
-### 6.3 Docling JSON 可选后端（不需要安装 docling，也可用最小 JSON 验证）
-
-**准备**
-
-- 在本机任意位置写一个小文件（例如放进 `HEP_DATA_DIR`）：
-
-```json
-{
-  "texts": [
+  "latex_sources": [
     {
-      "label": "formula",
-      "text": "E = m c^2",
-      "prov": [
-        { "page_no": 1, "bbox": { "l": 90, "t": 710, "r": 520, "b": 650, "coord_origin": "BOTTOMLEFT" } }
-      ]
+      "main_tex_path": "/absolute/path/to/autoresearch-lab/packages/hep-mcp/tests/fixtures/latex/multifile/main.tex",
+      "include_cross_refs": true
     }
-  ],
-  "tables": [],
-  "pictures": []
+  ]
 }
 ```
+
+**预期**
+
+- run artifacts 中出现 `latex_evidence_catalog.jsonl`
+- 同时生成 embeddings / enrichment / source status 相关 artifacts
+
+### 3.3 `hep_project_query_evidence`
+
+**调用**
+
+```json
+{
+  "project_id": "<project_id>",
+  "query": "Content from subfile",
+  "limit": 3
+}
+```
+
+**预期**
+
+- 返回 hits 或 query artifact URI + summary
+- 至少有一个命中与 fixture 文本相关
+
+### 3.4 `hep_project_playback_evidence`
+
+从上一节的 evidence locator 或 catalog item 里取一个 `evidence_id`：
+
+```json
+{
+  "project_id": "<project_id>",
+  "paper_id": "fixture-paper",
+  "evidence_id": "<evidence_id>"
+}
+```
+
+**预期**
+
+- 返回稳定 snippet
+- snippet 与 evidence catalog 中的原文本对得上
+
+### 3.5 `hep_run_build_pdf_evidence`
 
 **调用**
 
 ```json
 {
   "run_id": "<run_id>",
-  "zotero_attachment_key": "<attachment_key>",
-  "docling_json_path": "/absolute/path/to/docling.min.json",
-  "mode": "visual",
-  "max_pages": 1,
-  "render_dpi": 144,
-  "output_prefix": "docling"
+  "pdf_path": "/absolute/path/to/local.pdf",
+  "mode": "text",
+  "max_pages": 2
 }
 ```
 
 **预期**
 
-- `artifacts` 中出现 `docling_region_formula_p0001_001.png`（或类似包含 `_region_formula_` 的名字）
-
-### 6.4 `visual+ocr`（stub，必须失败）
-
-**调用**
-
-```json
-{
-  "run_id": "<run_id>",
-  "zotero_attachment_key": "<attachment_key>",
-  "mode": "visual+ocr",
-  "max_pages": 1,
-  "output_prefix": "ocr"
-}
-```
-
-**预期**
-
-- `isError=true`
-- `error.code = "INVALID_PARAMS"`
-- message 提示 `visual+ocr` 仍未实现（stub only）
-- `hep://runs/<run_id>/manifest` 中新增 step `pdf_evidence`，且 `status=failed`
+- 生成 PDF evidence catalog
+- 如选择 visual 模式，会多出 page / region 相关 artifacts
 
 ---
 
-## 7. vNext：导出研究资产包（M10）
+## 4. 写作与导出
 
-### 7.1 `hep_export_project`
-
-**前提**
-
-- run 下已有 `rendered_latex.tex`（可先做第 4 节的 `hep_render_latex`）。
+### 4.1 `hep_run_build_citation_mapping`
 
 **调用**
 
 ```json
 {
   "run_id": "<run_id>",
-  "include_evidence_digests": true,
-  "max_chars_per_notebooklm_file": 80000
+  "identifier": "arXiv:2001.00001"
 }
 ```
 
 **预期**
 
-- `artifacts` 至少包含：
-  - `master.bib`
-  - `report.tex`
-  - `report.md`
-  - `run_manifest.json`
-  - `export_manifest.json`
-  - `research_pack.zip`
-  - `notebooklm_pack_report.md`
-  - `notebooklm_pack_master.bib`
-  - `notebooklm_pack_run_manifest.json`
-- 如果 run 或 project 里存在 evidence catalogs，则还会生成：
-  - `notebooklm_pack_evidence_digest_001.md`（以及可能的 `_002`、`_003`…，用于分片）
+- run artifacts 中出现 citation mapping 相关 JSON artifacts
 
-**内容预期（关键对照点）**
-
-- 读取 `report.tex`：包含 `\\cite{...}` 与 `\\bibliography{master}`
-- 读取 `report.md`：包含形如 ` [cite: <keys>]` 的引用标记（用于 NotebookLM 友好）
-- 读取 `master.bib`：
-  - 若 `\\cite{...}` 中存在缺失 citekey（既不在 `writing_master.bib` 也不在 `bibliography_raw.json`）：`hep_export_project` 会 fail-fast，并给出 `next_actions`（先跑 `hep_run_build_citation_mapping` 再重试导出）
-- `research_pack.zip`：
-  - Resource 读取为 binary（base64 blob），文件头应为 `PK`（ZIP 签名）
-- zip 内包含 `notebooklm_pack/` 目录与若干文件
-
----
-
-### 7.2 `hep_export_paper_scaffold`
-
-> 用于把 run 的写作结果导出为“可投稿/可编译”的 `paper/` 目录脚手架（RevTeX4-2），并同时生成一个可迁移的 `paper_scaffold.zip`。
-
-**前提**
-
-- run 下已有 `writing_integrated.tex`。
-- run 下已有 `writing_master.bib`（并且覆盖 `\\cite{...}` 需要的 citekeys；否则会 fail-fast）。
+### 4.2 `hep_render_latex`
 
 **调用**
+
+```json
+{
+  "run_id": "<run_id>",
+  "draft": "{... structured draft JSON ...}"
+}
+```
+
+**预期**
+
+- 成功时生成渲染后的 LaTeX artifacts
+- 若引用缺失或未授权，应 fail-fast
+
+### 4.3 `hep_export_project`
+
+**调用**
+
+```json
+{
+  "_confirm": true,
+  "run_id": "<run_id>"
+}
+```
+
+**预期**
+
+- 生成 `master.bib`
+- 生成 `report.tex` / `report.md`
+- 生成 `research_pack.zip`
+
+### 4.4 `hep_export_paper_scaffold`
+
+**调用**
+
+```json
+{
+  "_confirm": true,
+  "run_id": "<run_id>"
+}
+```
+
+**预期**
+
+- 生成 `paper/` 脚手架
+- 生成 `paper_scaffold.zip`
+
+### 4.5 `hep_import_paper_bundle`
+
+在 `paper/` 下准备好最终论文文件后调用：
 
 ```json
 {
@@ -793,369 +392,131 @@ node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id "
 
 **预期**
 
-- `artifacts` 至少包含：
-  - `paper_manifest.json`
-  - `paper_scaffold.zip`
-- `paper_scaffold.zip` 解压后包含（前缀 `paper/`）：
-  - `paper/main.tex`
-  - `paper/sections/*.tex`
-  - `paper/references_generated.bib`
-  - `paper/references_manual.bib`（可能为空）
-  - `paper/paper_manifest.json`
-  - `paper/UNVERIFIED.md`
-- `.tex` 文件中不应出现 `hep://`（否则 LaTeX 无法编译；工具会 fail-fast）
+- 生成 `paper_bundle.zip`
+- 生成 `paper_bundle_manifest.json`
+- 如有最终 PDF，可一并进入 run artifacts
 
 ---
 
-### 7.3 `hep_import_paper_bundle`
+## 5. 文献 / 数据工作流
 
-> 用于把（经 research-writer / 人工润色 / 可重复编译检查后的）`paper/` 目录回灌为 run artifacts，便于长期保存与统一打包导出。
-
-**前提**
-
-- run 目录下存在 `paper/`，且包含 `paper_manifest.json`（通常由 `hep_export_paper_scaffold` 生成）。
-- `.tex` 文件中不应出现 `hep://`（必须保持可编译/可迁移；否则会 fail-fast）。
+### 5.1 `inspire_search`
 
 **调用**
 
 ```json
-{
-  "run_id": "<run_id>",
-  "dereference_symlinks": false
-}
+{ "query": "pentaquark", "size": 5 }
 ```
 
 **预期**
 
-- `artifacts` 至少包含：
-  - `paper_bundle_manifest.json`
-  - `paper_bundle.zip`（zip 内前缀为 `paper/`）
-- 若 `paper/main.pdf` 存在，则还会写入：
-  - `paper_final.pdf`
+- 返回受限数量的结果
+- 可拿到 `recid` 或标识符用于后续调用
 
-**可选：统一打包到 research_pack.zip**
-
-- 运行 `hep_export_project` 时传 `include_paper_bundle=true`，则 `research_pack.zip` 内会包含 `paper/` 目录（来自 `paper_bundle.zip` 解包嵌入）。
-
----
-
-## 8. INSPIRE 核心调研工具（inspire_*，需要网络）
-
-> 本节依赖 inspirehep.net；如果你处于离线环境可跳过。
-> 说明：推荐使用统一入口 `inspire_literature(mode=...)`；本仓库已收敛历史分裂入口（不再提供旧式“每个动作一个 tool”的原子入口）。
->
-> 备注：`inspire_search` / `inspire_literature` 可直接调用（不需要 Project/Run）。涉及 launcher-backed workflow 的写作/证据路径，则需要先建立 `Project/Run` 并准备 run-scoped evidence artifacts。
-
-### 8.1 `inspire_search`
-
-**调用（示例）**
-
-```json
-{ "query": "t:pentaquark", "size": 3, "sort": "mostrecent" }
-```
-
-**预期**
-
-- `total >= 0`
-- `papers.length <= 3`
-- 每个 paper 有 `recid`
-
-### 8.2 `inspire_literature`（mode=`get_paper`）
-
-从上一步选一个 `recid`。
+### 5.2 `inspire_literature`
 
 **调用**
 
 ```json
-{ "mode": "get_paper", "recid": "<recid>" }
+{ "mode": "get_paper", "recid": "1833986", "size": 1 }
 ```
 
 **预期**
 
-- 返回包含标题/作者/年份等元信息
+- 返回单篇论文的结构化元信息
 
-### 8.3 `inspire_literature`（mode=`get_references` / `get_citations`）
+### 5.3 `inspire_topic_analysis`
 
 **调用**
 
 ```json
-{ "mode": "get_references", "recid": "<recid>", "size": 5 }
-```
-
-```json
-{ "mode": "get_citations", "recid": "<recid>", "size": 5 }
+{ "mode": "timeline", "topic": "pentaquark", "limit": 10 }
 ```
 
 **预期**
 
-- 返回数组（长度 <= 5）
+- 返回 timeline / evolution 相关摘要
 
-### 8.4 `inspire_literature`（mode=`get_bibtex`）
+### 5.4 launcher-backed literature workflow shells
 
-**调用**
+这部分不是 MCP 工具，而是当前真实存在的高层 workflow shell：
 
-```json
-{ "mode": "get_bibtex", "recids": ["<recid>"] }
+```bash
+python -m hep_autoresearch.orchestrator_cli \
+  --project-root /abs/path/to/project \
+  literature-gap \
+  --tag gap-smoke \
+  --topic "nucleon structure"
 ```
-
-**预期**
-
-- 返回 BibTeX 字符串（包含 `@` 开头的 entry）
-
-### 8.5 真实论文示例：X(3872)（recid: 1238419 / 1258603）
-
-> 目的：给“深度研究/写作”工具提供一个**真实、可复现**的输入集合（网络依赖）。  
-> 主题背景：X(3872) / $\chi_{c1}(3872)$（BESIII + 相关理论/实验）。
-
-#### 8.5.1 元信息（`inspire_literature`，mode=`get_paper`）
-
-**调用**
-
-```json
-{ "mode": "get_paper", "recid": "1238419" }
-```
-
-```json
-{ "mode": "get_paper", "recid": "1258603" }
-```
-
-**预期**
-
-- 两条记录均可返回（`isError=false`）
-- 标题应分别包含：
-  - `Production of the X(3872) in charmonia radiative decays`（recid=1238419）
-  - `Observation of e+e− → γX(3872) at BESIII`（recid=1258603，标题里可能含 LaTeX）
-
-#### 8.5.2 引用/被引用（`inspire_literature`，mode=`get_references` / `get_citations`）
-
-**调用（示例）**
-
-```json
-{ "mode": "get_references", "recid": "1238419", "size": 5 }
-```
-
-```json
-{ "mode": "get_citations", "recid": "1258603", "size": 5 }
-```
-
-**预期**
-
-- 返回数组（长度 <= 5）
-- `references` 通常包含（至少能在更大 size 下看到）一些经典 X(3872) 相关论文，例如：
-  - `627760`（Belle 2003：X(3872) 发现）
-  - `1221245`（J^PC 判定）
-  - `897836`（$X(3872)\\to J/\\psi\\gamma$）
-- `citations` 是动态集合：随时间增长，返回内容会变化属正常现象
-
-#### 8.5.3 建议的最小 corpus（可直接用于下文写作/深度研究）
-
-> 为了让输出更稳定、运行更快，建议先用一个小集合做 smoke test：
-
-```json
-["1238419", "1258603", "627760", "1221245", "897836"]
-```
-
-### 8.6 Draft Path 写作（`hep_render_latex` → `hep_export_project`）
-
-> 写作统一走 run artifacts（Evidence-first）。Draft Path 直接渲染 + 导出。
-
-最小 smoke test：
-
-1) 创建 project/run（见第 3 节）
-2) 准备 `SectionDraft` JSON（structured draft with sentences + recids）
-3) 渲染 LaTeX：`hep_render_latex`（传 draft + allowed_citations + cite_mapping）
-4) 导出：`hep_export_project`（生成 research_pack.zip + notebooklm_pack）
-
-如需 launcher-backed 的端到端文献/写作前置流程，见 §8.7。
-
-### 8.7 Launcher-backed 文献工作流（建议：先 workflow-plan / literature-gap，再进入写作路径）
-
-> 说明：高层 literature workflow 已不再通过单个 provider-specific MCP facade 承担。当前推荐用 checked-in launcher-backed consumer 做 smoke test，再配合 bounded atomic operators 与 writing evidence。
-
-#### 8.7.1 Workflow plan（解析 checked-in workflow authority）
-
-**调用（skill-side prework）**
 
 ```bash
 python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan \
-  --recipe literature_to_evidence \
+  --recipe literature_landscape \
   --phase prework \
-  --query "X(3872) mini-review" \
-  --topic "X(3872)"
+  --query "bootstrap amplitudes" \
+  --topic "bootstrap amplitudes"
 ```
 
 **预期**
 
-- 返回 `entry_tool = literature_workflows.resolve`
-- 返回 `resolved_steps[]`
-- 不再出现 `inspire_deep_research` 作为高层 workflow 入口
-
-#### 8.7.2 Gap-analysis consumer（端到端 launcher smoke test）
-
-**调用**
-
-```bash
-PYTHONPATH=packages/hep-autoresearch/src \
-python3 -m hep_autoresearch.orchestrator_cli \
-  --project-root /abs/path/to/project \
-  literature-gap \
-  --tag smoke-x3872 \
-  --topic "X(3872)"
-```
-
-**预期**
-
-- 产出 `workflow_plan.json`
-- 产出阶段性 artifact，如 `seed_search.json` / `connection_scan.json`
-- 当原子工具缺失时应 fail closed，而不是回退到已删除 workflow-like MCP 工具
-
-#### 8.7.3 Write（Client Path 写作流水线）
-
-**调用（run-based）**
-
-```text
-hep_project_create -> hep_run_create -> hep_run_build_writing_evidence
--> （按 workflow-plan / bounded operators 组织材料）
--> hep_render_latex -> hep_export_project
-```
-
-**预期**
-
-- 写作证据来自 run artifacts
-- 不再依赖 `inspire_deep_research(mode=write)`
+- 能解析出 workflow plan 或 bundle
+- 这些 shell 仍是当前高层 literature recipe 的真实 consumer
 
 ---
 
-## 9. 常见问题（对照排障）
+## 6. 本地 reference providers
 
-### 9.1 Cursor 看不到 Tools
-
-- 确认已 `pnpm -r build`，并且 `packages/hep-research-mcp/dist/index.js` 存在。
-- MCP 配置的 `args` 必须指向 **dist**（不要指向 ts 源码）。
-- 重启/刷新 Cursor MCP servers。
-- 在 Chat/Agent 的 Tools 面板里对该 server “启用/信任 tools”（不同版本 UI 文案不同）。
-
-### 9.2 Resources 列表没有枚举每个 artifact
-
-- 这是预期行为：为避免在客户端 UI 中出现海量条目，server 的 `resources/list` 只暴露少量入口（例如 `hep://projects` / `hep://runs` / `pdg://artifacts`）。
-- 想查看历史 projects：读取 `hep://projects`。
-- 想查看 runs：读取 `hep://runs`，再读 `hep://runs/{run_id}/manifest` 获取该 run 的 artifacts 列表与 URI。
-- PDG 同理：读取 `pdg://artifacts` 获取缓存文件列表，再读 `pdg://artifacts/<name>` 读取内容。
-
-### 9.3 Zotero 报错不是 `http://127.0.0.1:23119`
-
-- 这是硬约束：只允许 Local API。请检查 `ZOTERO_BASE_URL` 是否严格为 `http://127.0.0.1:23119`。
-
-### 9.4 Client Path / launcher-backed workflow 缺少 `run_id` 或 writing evidence
-
-**常见原因**
-- 忘记先创建 run（`hep_run_create`）
-- 漏跑 `hep_run_build_writing_evidence`
-- 在 launcher-backed literature workflow 后直接跳到写作导出，未先准备 run-scoped evidence
-
-**处理方式**
-- 先执行 `hep_project_create` → `hep_run_create`
-- 再执行 `hep_run_build_writing_evidence`
-- 然后按 workflow-plan / bounded operators 组织材料，最后再走 `hep_render_latex` → `hep_export_project`
-
----
-
-## 10. 新增能力补充验收（建议做：R9/写作 Evidence/Style Corpus）
-
-### 10.1 INSPIRE 安全翻页（`inspire_search_next`）
-
-> 目的：验证 `next_url` 只允许同源、并且翻页行为可复现（避免 client 直接 fetch 任意 URL）。
+### 6.1 `zotero_local`
 
 **调用**
 
 ```json
-{ "query": "t:pentaquark", "size": 3, "sort": "mostrecent" }
-```
-
-若返回包含 `next_url`，再调用：
-
-```json
-{ "next_url": "<next_url>" }
+{ "mode": "list_collections", "limit": 5 }
 ```
 
 **预期**
 
-- 第二次返回结构与 `inspire_search` 一致，且 `papers.length <= 100`
-- 若 `next_url` 被篡改到非 inspirehep 域名/非 literature 路径，应报错（安全检查生效）
+- 若 Zotero Local API 可用，应返回本地 collections
 
-### 10.2 INSPIRE search 导出到 run artifacts（`hep_inspire_search_export`）
+### 6.2 `pdg_info`
 
-> 目的：验证 “大结果不走 tool payload”，并且分页≤10k 时可稳定导出。
-
-**调用（示例）**
+**调用**
 
 ```json
-{
-  "run_id": "<run_id>",
-  "query": "t:pentaquark",
-  "sort": "mostrecent",
-  "size": 50,
-  "max_results": 200,
-  "output_format": "jsonl"
-}
+{}
 ```
 
 **预期**
 
-- `export_uri` / `meta_uri` 为 `hep://runs/<run_id>/artifact/...`
-- `summary.exported <= max_results`
-- 读取 `meta_uri` 可看到 `pages_fetched/has_more/next_url/warnings[]` 等字段
+- 若 `PDG_DB_PATH` 已设置，应返回本地 DB 与 artifacts 目录信息
 
-### 10.3 批量解析 identifiers（`hep_inspire_resolve_identifiers`）
+### 6.3 `pdg_find_particle`
 
-> 目的：验证“混合输入（recid/arXiv/DOI/url）→ recid”映射落盘，便于后续写作/深研复用。
-
-**调用（示例）**
+**调用**
 
 ```json
-{
-  "run_id": "<run_id>",
-  "identifiers": [
-    "1238419",
-    "1258603",
-    "doi:10.1103/PhysRevLett.91.262001",
-    "https://arxiv.org/abs/hep-ph/0308259"
-  ]
-}
+{ "name": "electron", "limit": 5 }
 ```
 
 **预期**
 
-- 返回 `mapping_uri` / `meta_uri`（均为 `hep://runs/<run_id>/artifact/...`）
-- `meta` 中包含 `matched/not_found/errors` 统计；mapping 为 JSONL，每行对应一个 input
+- 返回候选粒子列表
 
-### 10.4 vNext 写作 Evidence（`hep_run_build_writing_evidence` + `hep_project_query_evidence_semantic`）
+---
 
-> 目的：验证 “证据 catalog + embeddings + enrichment” 落 run artifacts，并可用于语义检索（semantic query 缺 embeddings 会 fail-fast）。
+## 7. 常见排障
 
-**调用（示例：先只做 LaTeX evidence，预算压小做 smoke）**
+- 工具看不到：先做 `pnpm -r build`，再跑上面的 `listTools` sanity check
+- 资源列表很少：这是设计如此；先看 `hep://projects` 或 `hep://runs`，再进入 manifest / artifact URI
+- GUI 客户端找不到 Node：把 `command` 换成 Node 的绝对路径
+- 想看 generic lifecycle state：不要从 `hep-mcp` 猜，直接使用 `autoresearch status --project-root ...`
 
-```json
-{
-  "run_id": "<run_id>",
-  "latex_sources": [{ "identifier": "1238419" }, { "identifier": "1258603" }],
-  "max_evidence_items": 200,
-  "embedding_dim": 256
-}
-```
+---
 
-然后做语义查询：
+## 8. 相关文档
 
-```json
-{
-  "run_id": "<run_id>",
-  "project_id": "<project_id>",
-  "query": "X(3872) production in radiative decays",
-  "limit": 5
-}
-```
-
-**预期**
-
-- 写作 evidence step 返回的 `artifacts[]` 中包含 `latex_evidence_catalog.jsonl` / `latex_evidence_embeddings.jsonl` / `latex_evidence_enrichment.jsonl`（默认名；以 `writing_evidence_meta.json` 为准）
-- `hep_project_query_evidence_semantic.summary.semantic.implemented=true`（embeddings 可用；无 embeddings 会直接报错）
+- [`README.md`](../README.md)
+- [`docs/PROJECT_STATUS.md`](./PROJECT_STATUS.md)
+- [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md)
+- [`docs/TOOL_CATEGORIES.md`](./TOOL_CATEGORIES.md)
+- [`docs/URI_REGISTRY.md`](./URI_REGISTRY.md)

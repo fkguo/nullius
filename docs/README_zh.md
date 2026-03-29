@@ -2,979 +2,216 @@
 
 [English](../README.md) | 中文
 
-Autoresearch Lab 是 Autoresearch 生态的 monorepo / workbench：承载 domain-neutral、evidence-first 的研究 substrate、runtime/control-plane nucleus，以及可独立组合的 provider packages。HEP 是当前最成熟的首个 provider family，而不是 root 身份本身。
+Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first monorepo。当前仓库把通用 lifecycle/control-plane 包、本地 MCP provider 包，以及可被 agent client 或 shell 入口消费的 checked-in workflow recipes 放在同一个工作台里。HEP 是目前最成熟的 provider family，也是当前最强的端到端 workflow 示例，但它不是 root 产品身份本身。
 
-## Root 定位
+## 1. 这个 Monorepo 今天能做什么
 
-- Root = ecosystem 入口、治理面与本地开发工作台。
-- `@autoresearch/orchestrator` = run/workspace/task state 的 runtime/control-plane nucleus。
-- `hep-mcp`、`openalex-mcp`、`arxiv-mcp`、`pdg-mcp`、`zotero-mcp` 等 provider package 保持为叶子能力包。
-- 下方的长篇工作流说明主要描述当前 HEP-first provider surface，不应把 root 误读成 HEP-only 产品。
+- 运行本地优先的 MCP providers，覆盖文献、数据、参考资料与证据工作流。
+- 创建可审计的 Project/Run 工作空间，把 artifacts 落盘，并通过 `hep://...` resources 暴露给客户端。
+- 从 LaTeX、PDF、Zotero 附件以及受限网络 provider 构建证据，再把这些证据用于写作、回放与评审。
+- 导出研究资产包与投稿脚手架，并把最终论文 bundle 回灌回 run artifacts。
+- 通过 `@autoresearch/orchestrator` 与 `autoresearch` CLI 管理真实外部 project root 的通用 lifecycle state。
 
-## 语言策略（Phase 4.11）
+## 2. 当前主要工作流是什么
 
-- `README.md` 为英文主语义文档（canonical semantics）。
-- `docs/README_zh.md` 为同步中文参考文档。
-- 桥接/对齐参考：`docs/SKILL_MCP_BRIDGE.md`、`docs/STYLE_CORPUS_ALIGNMENT.md`。
+1. Project/Run 证据工作流
+   - `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> export/import。
+1. 文献与数据导航工作流
+   - 直接使用 `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 等 provider 工具。
+1. Launcher-backed 文献工作流家族
+   - `hepar literature-gap` 与 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 会把 checked-in workflow recipe 解析成受限步骤。
+1. 通用 lifecycle 工作流
+   - `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。
 
-## 包概览
+## 3. 当前主要入口是什么
 
-| 包 | 角色 | 状态 |
+| Surface | 当前入口 | 用途 |
 | --- | --- | --- |
-| `@autoresearch/orchestrator` | `.autoresearch` state、routing、approval、research-loop 的 runtime/control-plane nucleus | Active |
-| `@autoresearch/hep-mcp` | 当前最成熟的首个 provider family：INSPIRE-HEP + evidence-first HEP workflow（`hep_*`、`zotero_*`、`pdg_*`） (73 std / 102) | Active |
-| `@autoresearch/openalex-mcp` | 独立的 OpenAlex scholarly graph provider | Active |
-| `@autoresearch/arxiv-mcp` / `@autoresearch/hepdata-mcp` | 可与 runtime 组合的 literature/data provider | Active |
-| `@autoresearch/pdg-mcp` / `@autoresearch/zotero-mcp` | 本地离线 / reference provider | Active |
-| `idea-core` / `idea-engine` / `idea-mcp` | idea evaluation 与后续 TypeScript 迁移 lane | In progress |
-| `@autoresearch/shared` | 跨包 typed seams 与 utilities | Active |
-
-## 当前本地优先 + Evidence-first Provider Stack
-
-本仓最成熟的 provider surface 目前仍是以 HEP 为先的本地优先工作流，核心围绕 **Project/Run** 与 `hep://` **MCP Resources**。
-
-**硬约束（设计如此）：**
-- **MCP 只走本地 stdio**：仅 `StdioServerTransport`；不提供/不引入 HTTP transport/server。
-- **Zotero 仅 Local API**：`http://127.0.0.1:23119`（不做 Zotero Web API）。
-- **Evidence-first I/O**：大对象只落盘为 **run artifacts**，通过 `hep://...` resources 读取；tool 返回只包含 **URI + 摘要**。
-
-**推荐 vNext 工作流（高层）：**
-1. `hep_project_create` → `hep_run_create`
-2. （可选）Zotero：`hep_import_from_zotero`（映射）以及/或在 `hep_run_build_pdf_evidence` 里传 `zotero_attachment_key`（通过 Zotero Local API 读取 PDF；可使用 `.zotero-ft-cache`）
-3. 构建证据：
-   - LaTeX → `hep_project_build_evidence`
-   - PDF → `hep_run_build_pdf_evidence`（text/visual；Docling JSON 可选作为后端输入）
-4. 写作与强约束：`hep_render_latex`（verifier 会拒绝 missing/unauthorized citations）
-5. 导出：
-   - 研究资产包：`hep_export_project` → `master.bib`、`report.(tex|md)`、`research_pack.zip`、`notebooklm_pack_*`
-   - 投稿脚手架：`hep_export_paper_scaffold` → `paper/` + `paper_scaffold.zip`
-   - 投稿回灌（可选）：`hep_import_paper_bundle`（把最终 `paper/` 回灌到 run artifacts；`hep_export_project(include_paper_bundle=true)` 可把它打进 `research_pack.zip`）
-
-## 当前 provider 焦点：HEP-first 深度研究
-
-`@autoresearch/hep-mcp` 不只是“检索”，而是面向 HEP 的 **本地优先、证据优先** 研究与写作流水线：
-
-### 1. 构建可引用证据（Project/Run）
-
-- 下载 arXiv 源码，或通过 Zotero Local API 读取 PDF
-- 解析 LaTeX 为结构化块（章节/公式/图表/引用）
-- 大输出落盘为 run artifacts，并通过 `hep://...` resources 读取（Evidence Catalog、PDF evidence、writing evidence）
-
-### 2. 走通文献闭环（INSPIRE）
-
-- 小结果：`inspire_search` + `inspire_search_next` 安全翻页；大结果：`hep_inspire_search_export` 直接导出为 artifacts
-- 通过 checked-in consumer 解析高层文献工作流：`hepar literature-gap`、`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`
-- 用受限原子 operator 做趋势、网络、关联与溯源：`inspire_topic_analysis`、`inspire_network_analysis`、`inspire_find_connections`、`inspire_trace_original_source`、`inspire_grade_evidence`、`inspire_detect_measurement_conflicts`、`inspire_critical_analysis`、`inspire_classify_reviews`、`inspire_theoretical_conflicts`
-- （可选）数值与粒子性质可用离线 PDG 工具（`pdg_*`）交叉核对
-
-### 3. Run-based 写作与导出
-
-- Draft Path：`hep_render_latex` → `hep_export_project`
-- 投稿脚手架：`hep_export_paper_scaffold` → *(外部编辑 / research-writer)* → `hep_import_paper_bundle`
-
----
-
-## 当前 HEP-first 使用场景
-
-### 场景 A：快速了解一个新领域
-
-> "我想了解 nucleon structure 领域的发展历程"
-
-AI 会自动：
-
-1. 搜索相关文献 → 识别奠基性论文
-2. 构建引用网络 → 找出核心论文
-3. 生成研究时间线 → 展示发展脉络
-4. 识别领域专家 → 推荐关键作者
-
-### 场景 B：深入分析几篇论文
-
-> "帮我分析这 5 篇论文的核心方法和公式"
-
-AI 会自动：
-
-1. 下载 LaTeX 源码 → 解析文档结构
-2. 提取所有公式 → 识别关键方程
-3. 提取关键章节与引用上下文 → 总结贡献与证据链
-4. 识别方法论 → 分类研究方法
-
-### 场景 C：发现可能遗漏的重要文献
-
-> "基于我的阅读列表，有哪些重要论文我可能遗漏了？"
-
-AI 会自动：
-
-1. 分析已有论文的引用网络
-2. 发现高度相关但未包含的论文
-3. 识别"桥接论文"连接不同子领域
-4. 推荐按重要性排序的补充阅读
-
-### 场景 D：追踪新兴研究方向
-
-> "哪些 nucleon spin structure 论文可能代表范式转移？"
-
-AI 会自动：
-
-1. 检测引用动量异常高的论文
-2. 计算新进入者比例（社会学信号）
-3. 计算颠覆指数（区分炒作 vs 真正创新）
-4. 综合评估置信度并解释原因
-
-### 场景 E：自动生成结构化综述
-
-> "帮我生成这个主题的文献综述"
-
-AI 会自动：
-
-1. 深度分析每篇论文内容
-2. 按方法论/时间线/影响力分组
-3. 提取关键公式和核心贡献
-4. 生成 Markdown 综述 + BibTeX 参考文献
-
-### 场景 F：研究者画像（重名消歧 + 代表作/产出概览）
-
-> "帮我分析张昊（Zhang Hao）的学术产出与代表作"
-
-推荐调用链（**优先用 INSPIRE 作者 BAI / ORCID** 做重名消歧）：
-
-1. 确认作者身份（最佳：BAI；可用：ORCID；兜底：姓名搜索）
-```json
-{ "mode": "get_author", "identifier": "E.Witten.1" }
-```
-BAI（INSPIRE 作者唯一标识）是稳定的消歧 key，形如 `E.Witten.1`。
-
-2. 拉取该作者的高被引代表作列表（BAI 可稳定消歧）
-```json
-{ "query": "a:E.Witten.1", "sort": "mostcited", "size": 25, "format": "markdown" }
-```
-从每条结果的 `IDs:` 行复制 `recid`，用于后续调用。
-
-3. 用 dedicated tools 做“画像”统计（`inspire_topic_analysis` 看领域演化，`inspire_find_connections` 看所选论文的结构关系）
-```json
-{ "mode": "timeline", "topic": "conformal bootstrap", "limit": 25 }
-```
-
-```json
-{ "recids": ["1234567", "2345678"], "include_external": true, "max_external_depth": 1 }
-```
-
-4. 深挖一篇代表作（用 `provenance.retrieval_level` 核验是否真的拿到了 LaTeX 源码）
-```json
-{ "mode": "content", "identifier": "1234567", "options": { "prefer": "latex", "extract": true } }
-```
-
----
-
-## 架构图
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│               Autoresearch Lab（repo root）                │
-│      ecosystem docs / governance / package composition     │
-└───────────────┬───────────────────────────────┬────────────┘
-                │                               │
-                ▼                               ▼
-┌──────────────────────────────┐   ┌──────────────────────────┐
-│ @autoresearch/orchestrator   │   │ @autoresearch/shared     │
-│ runtime / control-plane      │   │ typed seams / utilities  │
-└───────────────┬──────────────┘   └──────────────┬───────────┘
-                │                                 │
-                ▼                                 ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Provider / domain packages                                 │
-│ hep-mcp | openalex-mcp | arxiv-mcp | pdg-mcp | zotero-mcp  │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 本地证据层 + 外部 API                                      │
-│ .autoresearch | HEP_DATA_DIR | OpenAlex | INSPIRE | PDG    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## 目录结构
-
-```
-autoresearch-lab/
-├── README.md
-├── package.json              # workspace 元数据
-├── pnpm-workspace.yaml       # pnpm workspace
-├── docs/                     # root 文档
-├── meta/                     # 治理 SSOT、prompts、重构计划
-├── packages/
-│   ├── orchestrator/         # runtime / control-plane nucleus
-│   ├── hep-mcp/              # HEP-first provider family
-│   ├── openalex-mcp/         # OpenAlex provider
-│   ├── arxiv-mcp/            # arXiv provider
-│   ├── pdg-mcp/              # PDG provider
-│   ├── zotero-mcp/           # Zotero provider
-│   ├── idea-core/            # 当前 Python idea engine
-│   ├── idea-engine/          # 未来 TypeScript idea engine
-│   └── shared/               # 跨包 contracts / utilities
-```
-
-## 快速开始
-
-### 环境要求
-
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
-
-```bash
-# 安装 pnpm（如果没有）
-npm install -g pnpm
-```
-
-### 安装依赖
-
-```bash
-cd /path/to/autoresearch-lab
-pnpm install
-```
-
-### 构建
-
-```bash
-# 构建所有包
-pnpm -r build
-
-# 或构建特定包
-pnpm --filter @autoresearch/shared build
-```
-
-### 验证安装
-
-```bash
-cd packages/shared
-pnpm exec tsx test-check.ts
-```
-
-## 工具概览
-
-本服务端暴露四类工具：
-- **vNext 本地工作流**：`hep_*`（Project/Run、证据、强制 verifier 写作、导出）
-- **Zotero 本地文献库工具**：`zotero_*`（仅 Local API）
-- **离线 PDG 工具**：`pdg_*`（本机 sqlite；可选启用）
-- **INSPIRE 调研工具**：`inspire_*`（调研/写作 + 安全翻页/导出等）
-
-说明：
-- `inspire_*` 工具可直接调用（不需要 Project/Run）。Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
+| 今天的主 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的本地 MCP server `(73 std / 102)` |
+| 通用 lifecycle front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、pause/resume、export |
+| 高层文献工作流 shell | `hepar literature-gap`、`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | launcher-backed workflow recipe 的 consumer |
+| 叶子 provider 包 | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 可组合进客户端工作流的 provider-specific capabilities |
 
 工具数量：**`standard` 模式 73 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 102 个**（额外暴露 advanced 工具）。
 
-### 工具暴露模式
+| 模式 | 工具数 | 适用场景 |
+| --- | --- | --- |
+| `standard` | 73 | 日常客户端使用的紧凑 front door |
+| `full` | 102 | 额外暴露 advanced 与 lifecycle-adjacent slices |
 
-| 模式 | 工具数 | 说明 |
-|------|--------|------|
-| `standard` | 73 | 默认：紧凑、推荐 |
-| `full` | 102 | `standard` + advanced 工具 |
+按 capability 而不是按产品身份理解当前包面：
 
-```bash
-# 使用 full 模式（可选）
-export HEP_TOOL_MODE=full
-```
+| 能力家族 | 当前 surface | 备注 |
+| --- | --- | --- |
+| 通用 lifecycle 与 approvals | `@autoresearch/orchestrator`、`autoresearch` | 当前 front door 上仍是 lifecycle-only |
+| Evidence-first Project/Run 工作流 | `@autoresearch/hep-mcp`、`hep_*`、`hep://...` | 当前最强的端到端 workflow family |
+| 文献与数据 providers | `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*` | 直接搜索、下载、导出、受限分析的组合面 |
+| 本地参考 providers | `zotero_*`、`pdg_*` | 可选的本地输入与查验工具 |
+| Workflow shells | `hepar literature-gap`、`workflow-plan` | 过渡中的 recipe consumer，不是 root 身份 |
 
-### vNext + Zotero 工具（hep_* / zotero_*）—— Evidence-first 本地工作流
+## 4. Runs、Artifacts、Resources、State 在哪里
 
-这些工具实现了 **Project/Run + artifacts + `hep://` resources** 的端到端流程；Zotero 工具（`zotero_*`）用于可选的本地文献库管理，直接返回 JSON（不产出 `hep://` artifacts）。
+### `hep-mcp` 数据根目录
 
-**vNext（节选）**
-- `hep_project_create`：创建本地 project → `hep://projects/{project_id}`
-- `hep_project_get`：读取 project 元信息 → `hep://projects/{project_id}`
-- `hep_project_list`：列出 projects → `hep://projects`
-- `hep_run_create`：创建 run（可审计/可复现） → `hep://runs/{run_id}/manifest`、`args_snapshot.json`
-- `hep_project_build_evidence`：LaTeX → Evidence Catalog v1（project paper） → `hep://projects/{project_id}/papers/{paper_id}/evidence/catalog`
-- `hep_project_query_evidence`：Evidence Catalog 统一检索（`mode=lexical|semantic`，默认 `lexical`；`mode=semantic` 需要 `run_id`，并支持 `include_explanation`）→ 词法 hits 或语义 run artifact（URI + 摘要）
-- `hep_project_query_evidence_semantic`：Evidence Catalog 语义检索（需先在 run 中生成 embeddings：`hep_run_build_writing_evidence`；否则 hard fail） → `evidence_semantic_query_*.json`（URI + 摘要）
-- `hep_project_playback_evidence`：locator 回放成稳定 snippet → snippet 文本
-- `hep_run_build_citation_mapping`：bibliography→INSPIRE 映射 + allowlist → `bibliography_raw.json`、`citekey_to_inspire.json`、`allowed_citations.json`
-- `hep_run_build_measurements`：从 run evidence 抽取结构化数值 → `hep_measurements_*.jsonl` + meta/diagnostics artifacts
-- `hep_project_compare_measurements`：跨多个 run 对比测量并标记 pairwise tension（仅 flagging，不做权威组合）→ run artifact URI + 摘要
-- `hep_render_latex`：结构化 draft → LaTeX，统一插入 `\\cite{}` 并强制 verifier → `rendered_latex.tex`、`rendered_latex_verification.json`
-- `hep_run_build_pdf_evidence`：PDF → Evidence v1（按页文本 + 可选视觉裁剪） → `*_evidence_catalog.jsonl`、`*_page_*.png`、`*_region_*.png`
-- `hep_export_project`：导出 run 的研究资产包 → `master.bib`、`report.(tex|md)`、`research_pack.zip`、`notebooklm_pack_*`
-- `hep_export_paper_scaffold`：导出投稿脚手架 `paper/`（RevTeX4-2）→ `paper_manifest.json`、`paper_scaffold.zip`
-- `hep_import_paper_bundle`：把最终 `paper/` 回灌到 run artifacts → `paper_bundle.zip`、`paper_bundle_manifest.json`、（可选）`paper_final.pdf`
-- `hep_import_from_zotero`：Zotero items → identifiers → INSPIRE recid 映射 → `zotero_map.json`
+`@autoresearch/hep-mcp` 的本地状态位于 `HEP_DATA_DIR` 下，默认值是 `~/.hep-mcp`。
 
-**Zotero（standard）**
-- `zotero_local`：统一 Zotero Local API 工具 → 返回 JSON（collections/items；可解析 attachment/fulltext cache 路径）
-- `zotero_search_items`：浏览/搜索 items → summarized items + `select_uri`
-- `zotero_find_items`：按 identifiers + filters 精确定位 → `select_uri` + identifiers 摘要
-- `zotero_export_items`：导出 items 为 BibTeX/CSL-JSON/RIS 等 → content（截断）+ sha256
-- `zotero_get_selected_collection`：解析 Zotero UI 当前选中 collection → Local API `collection_key` + path
-- `zotero_add`：预览添加/更新 → `confirm_token`（+ 可选 `select_uri`）
-- `zotero_confirm`：执行一次已预览的写入 → 消耗 `confirm_token`
-
-> 备注：已移除 full-only 的细粒度 `zotero_*` 工具；`zotero_local` 统一以 `mode` 分派（包含 `list_collection_paths` / `list_tags` / `download_attachment` / `get_attachment_fulltext` 等）。
-> Phase 4.5 桥接说明：`zotero_find_items` 与 `zotero_search_items` 在保持“验证式/浏览式”语义边界的前提下，共享内部桥接执行路径。
-
-**关于 citekey 选择：**当同一 recid 映射到多个 BibTeX key 时，`hep_render_latex` 选择**字典序最小**的 key（稳定且可复现）。
-
-### vNext Resources（`hep://` / `pdg://`）—— 如何读取 artifacts
-
-多数 vNext 工具只返回 **URI**。实际文件内容通过 MCP resources 读取（本地落盘）。
-跨组件的 live URI schemes（含 `orch://` ownership boundary）统一登记在 [`docs/URI_REGISTRY.md`](./URI_REGISTRY.md)。
-
-| Resource URI | 含义 |
-|--------------|------|
-| `hep://projects` | 项目索引（`hep_projects`） |
-| `hep://projects/{project_id}` | project manifest |
-| `hep://projects/{project_id}/papers` | project 的 paper 列表 |
-| `hep://projects/{project_id}/papers/{paper_id}` | paper manifest |
-| `hep://projects/{project_id}/papers/{paper_id}/evidence/catalog` | Evidence Catalog（JSONL） |
-| `hep://runs` | run 索引（列出本地 runs） |
-| `hep://runs/{run_id}/manifest` | run manifest（steps + artifact refs） |
-| `hep://runs/{run_id}/artifact/{name}` | 任意 run artifact（JSON/JSONL/TEX/PDF/PNG/ZIP/…） |
-| `pdg://info` | PDG 资源信息（server + artifacts 根目录元信息） |
-| `pdg://artifacts` | PDG artifacts 索引（缓存文件列表） |
-| `pdg://artifacts/<name>` | 读取单个 PDG artifact（文本直接返回；二进制返回元信息 JSON） |
-
-**为什么 Resources 列表看起来“很少”？（Iceberg 模型）**
-- 为避免在客户端 UI 中平铺成千上万条中间产物，server 的 `resources/list` **只暴露少量入口资源**（例如 `hep://projects` / `hep://runs` / `pdg://artifacts`）。
-- 具体 artifact 不会被枚举到列表里；请先读取入口 index，然后按返回的 URI 继续读取（或使用 `resources/templates/list` 提供的 URI 模板，如 `hep://runs/{run_id}/artifact/{artifact_name}`、`pdg://artifacts/{artifact_name}`）。
-
-### Skill↔MCP 作业 Envelope（Phase 4.10）
-
-对于 run-scoped 响应（包含 `run_id`），dispatcher 会自动补充轻量 `job` 字段，以统一 skill 入口与 MCP 直调入口的长任务轮询语义：
-
-```json
-{
-  "run_id": "run_xxx",
-  "manifest_uri": "hep://runs/run_xxx/manifest",
-  "job": {
-    "version": 1,
-    "job_id": "run_xxx",
-    "status": "running",
-    "status_uri": "hep://runs/run_xxx/manifest",
-    "polling": {
-      "strategy": "manifest_resource",
-      "resource_uri": "hep://runs/run_xxx/manifest",
-      "terminal_statuses": ["done", "failed"]
-    }
-  }
-}
-```
-
-`job` 仅是桥接层契约；研究结果仍以 artifacts + resources 为权威。失败语义保持 fail-fast（`INVALID_PARAMS + next_actions`）。
-
-### 推荐研究入口工具
-
-高层文献入口现在统一从 checked-in `packages/literature-workflows` launcher 进入，当前由下列 consumer 消费：
-
-- `hepar literature-gap`：产出可审计的 literature-gap bundle
-- `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`：供 skill 侧 prework / KB planning 使用
-
-这些 launcher-backed flow 会先把 recipe authority（`literature_landscape`、`literature_gap_analysis`、`literature_to_evidence`）解析成 provider/capability-checked steps，然后再下沉到下列原子 MCP operator。已删除的 workflow-like MCP facade 不再是公开入口。
-
-这些入口能覆盖大多数研究导航与写作场景：
-
-| 入口 | 模式 | 说明 |
-|------|------|------|
-| `literature workflow launcher` | `literature_landscape` / `literature_gap_analysis` / `literature_to_evidence` | checked-in 可执行文献工作流 authority，由 `hepar literature-gap` 与 `literature_fetch.py workflow-plan` 消费 |
-| `inspire_literature` | `get_paper` / `get_references` / `lookup_by_id` / `get_citations` / `search_affiliation` / `get_bibtex` / `get_author` | 统一 INSPIRE “原子能力”入口（standard） |
-| `inspire_resolve_citekey` | - | 按 recid 批量解析 INSPIRE citekey + BibTeX + canonical links |
-| `inspire_parse_latex` | `components=[sections/equations/theorems/citations/figures/tables/bibliography/all]` | LaTeX 解析写入 run artifact（需要 `run_id`，返回 URI + 摘要） |
-| `inspire_topic_analysis` | `timeline` / `evolution` / `emerging` / `all` | 主题演化与趋势分析 |
-| `inspire_network_analysis` | `citation` / `collaboration` | 围绕 seed 的引用/合作网络分析 |
-| `inspire_find_connections` | - | 论文集合关系挖掘（`internal_edges`、`bridge_papers`、`isolated_papers`、`external_hubs`） |
-| `inspire_trace_original_source` | - | 单篇论文的原始来源/溯源链追踪 |
-| `inspire_grade_evidence` | - | 对单篇论文的 claim 做证据质量分级 |
-| `inspire_detect_measurement_conflicts` | - | 对受限论文集检测测量张力 |
-| `inspire_critical_analysis` | - | 对单篇论文做受限批判性分析 |
-| `inspire_classify_reviews` | - | 对综述论文做范围与 authority 分类 |
-| `inspire_theoretical_conflicts` | - | 为受限论文集构建 run-scoped theoretical conflict map |
-| `inspire_paper_source` | `urls` / `content` / `metadata` / `auto` | 论文源码访问 |
-| `zotero_local` | `list_collections` / `list_collection_paths` / `list_items` / `get_item` / `get_item_attachments` / `download_attachment` / `get_attachment_fulltext` / `list_tags` | 统一 Zotero Local API 工具（standard；返回 JSON） |
-
-**写作：**统一走 vNext `hep_*` 写作链（见 `docs/WRITING_RECIPE_DRAFT_PATH.md`、`docs/WRITING_RECIPE_CLIENT_PATH.md`）。
-
----
-
-## 整合工具详细用法
-
-### Launcher-Backed 文献工作流
-
-高层文献工作流现在通过 checked-in recipe authority 执行，而不是依赖公开的 workflow-like MCP 工具。
-
-#### `hepar literature-gap` - 可审计的 gap-analysis consumer
-```bash
-python -m hep_autoresearch.orchestrator_cli \
-  --project-root /abs/path/to/project \
-  literature-gap \
-  --tag M73-gap \
-  --topic "nucleon structure"
-```
-
-会产出 launcher-resolved `workflow_plan.json`，以及 `seed_search.json`、`connection_scan.json` 等分阶段 artifact。
-
-#### `literature_fetch.py workflow-plan` - skill 侧 recipe resolver
-```bash
-python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan \
-  --recipe literature_landscape \
-  --phase prework \
-  --query "bootstrap amplitudes" \
-  --topic "bootstrap amplitudes"
-```
-
-返回解析后的 recipe plan，使 skill 侧 prework 与 launcher authority 保持同一份 checked-in workflow truth。
-
-### 原子 INSPIRE 导航工具
-
-#### `inspire_topic_analysis` - 时间线/演化/新兴方向
-```json
-{
-  "mode": "timeline",
-  "topic": "pentaquark",
-  "options": { "granularity": "year" }
-}
-```
-
-#### `inspire_network_analysis` - 引用/合作网络分析
-```json
-{
-  "mode": "citation",
-  "seed": "1833986",
-  "options": { "depth": 2 }
-}
-```
-
-#### `inspire_find_connections` - 跨论文关联发现
-```json
-{
-  "recids": ["1833986", "627760"],
-  "include_external": true,
-  "max_external_depth": 2
-}
-```
-
-#### `inspire_trace_original_source` - 原始来源追溯
-```json
-{
-  "recid": "1833986",
-  "max_depth": 3,
-  "cross_validate": true
-}
-```
-
-### `inspire_grade_evidence` - 证据质量分级
-```json
-{
-  "recid": "1833986",
-  "search_confirmations": true
-}
-```
-返回：证据级别（discovery/evidence/hint/indirect/theoretical）
-
-### `inspire_detect_measurement_conflicts` - 冲突检测
-```json
-{
-  "recids": ["1833986", "627760"],
-  "min_tension_sigma": 2,
-  "target_quantities": ["mass"]
-}
-```
-返回：测量冲突及张力 σ 值
-
-### `inspire_critical_analysis` - 综合批判性分析
-```json
-{
-  "recid": "1833986",
-  "include_assumptions": true,
-  "include_questions": true
-}
-```
-
-### `inspire_classify_reviews` - 综述分类
-```json
-{
-  "recids": ["1833986", "627760"],
-  "current_threshold_years": 3
-}
-```
-返回：综述类型（catalog/critical/consensus）
-
-### `inspire_theoretical_conflicts` - 理论争议图谱（Run-based, Evidence-first）
-```json
-{
-  "run_id": "<run_id>",
-  "recids": ["1833986", "627760"],
-  "subject_entity": "m_W",
-  "inputs": ["title", "abstract"],
-  "max_papers": 20,
-  "stable_sort": true
-}
-```
-返回：Evidence-first 的 run artifact（URI + summary）。判定只允许 internal MCP sampling；sampling 不可用或返回无效内容时会 fail-closed。
-
-### `inspire_paper_source` - 论文源码访问
-
-#### 模式：`urls` - 获取下载链接
-```json
-{
-  "mode": "urls",
-  "identifier": "2301.12345"
-}
-```
-
-#### 模式：`content` - 下载论文内容
-注意：如设置 `options.output_dir`，必须位于 `HEP_DATA_DIR` 内（路径安全）。建议传相对路径，例如 `"arxiv_sources/<arxiv_id>"`，或通过设置 `HEP_DATA_DIR` 来改变根目录。
-
-```json
-{
-  "mode": "content",
-  "identifier": "1833986",
-  "options": { "prefer": "latex", "extract": true, "output_dir": "arxiv_sources/1833986" }
-}
-```
-
-#### 模式：`metadata` - 获取 arXiv 元数据
-```json
-{
-  "mode": "metadata",
-  "identifier": "2301.12345"
-}
-```
-
-### `inspire_parse_latex` - Run 级 LaTeX 解析（Evidence-first）
-
-`inspire_parse_latex` 要求 `run_id`，并写入 `parse_latex_<hash>.json` 到 run artifacts。
-
-```json
-{
-  "run_id": "<run_id>",
-  "identifier": "1833986",
-  "components": ["sections", "equations", "citations"],
-  "options": { "format": "json", "cross_validate": true }
-}
-```
-
-返回：artifact `uri`（`hep://runs/{run_id}/artifact/parse_latex_<hash>.json`）+ 紧凑 `summary`。
-
----
-
-## 始终可用工具 (2个)
-
-两种模式（`standard`/`full`）下始终可用：
-
-| 工具 | 功能 |
-|------|------|
-| `inspire_search` | 使用 INSPIRE 语法搜索文献（采样；大结果导出用 `hep_inspire_search_export`） |
-| `inspire_search_next` | 安全跟随 INSPIRE `next_url`（严格同源校验） |
-
-## 写作（vNext）
-
-写作统一走 run artifacts（Evidence-first）。见 `docs/WRITING_RECIPE_DRAFT_PATH.md` 与 `docs/WRITING_RECIPE_CLIENT_PATH.md`。
-
-## Full-only 工具（部分）
-
-仅当 `HEP_TOOL_MODE=full` 时可用：
-服务器会在调用阶段强制校验：非 `full` 模式调用这些工具将直接报错。
-
-| 工具 | 功能 |
-|------|------|
-| `inspire_find_crossover_topics` | 查找跨学科研究 |
-| `inspire_analyze_citation_stance` | 引用立场分析 |
-| `inspire_cleanup_downloads` | 清理下载文件 |
-| `inspire_validate_bibliography` | 参考文献可用性审计（默认仅手工条目；可选 INSPIRE 交叉验证；warning 不阻断） |
-
----
-
-## 配置
-
-### 环境变量
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `HEP_DATA_DIR` | 本地数据根目录（projects、runs、artifacts、cache、downloads） | `~/.hep-research-mcp` |
-| `HEP_TOOL_MODE` | 工具暴露模式（`standard`/`full`；无效值会启动失败） | `standard` |
-| `HEP_ENABLE_ZOTERO` | Zotero 开关：`0/false/no/off` 禁用，`1/true/yes/on` 启用（无效值会启动失败） | （默认启用） |
-| `HEP_ENABLE_TOOL_USAGE_TELEMETRY` | 工具调用计数遥测（opt-in；`1/true/yes/on` 启用；通过 `hep_health.telemetry` 暴露） | （默认关闭） |
-| `HEP_DEBUG` | 调试分类（逗号分隔）：`rate_limiter,cache,downloads,circuit_breaker,api,tools` | （空） |
-| `DEBUG` | 额外调试日志（Node 常用约定） | （空） |
-| `CONCURRENCY_LIMIT` | Deep research 流水线的并发处理上限 | `1` |
-| `HEP_DOWNLOAD_DIR` | 下载目录（必须位于 `HEP_DATA_DIR` 内） | `<dataDir>/downloads` |
-| `ARXIV_DOWNLOAD_DIR` | `HEP_DOWNLOAD_DIR` 的别名 | `<dataDir>/downloads` |
-| `WRITING_PROGRESS_DIR` | 长任务进度输出目录（必须位于 `HEP_DATA_DIR` 内） | `<dataDir>/writing_progress` |
-| `ZOTERO_BASE_URL` | Zotero Local API base URL（**必须**是 `http://127.0.0.1:23119`） | `http://127.0.0.1:23119` |
-| `ZOTERO_DATA_DIR` | Zotero 数据目录（包含 `zotero.sqlite` + `storage/`；用于读取 `.zotero-ft-cache`） | `~/Zotero` |
-| `ZOTERO_FILE_REDIRECT_GUARD` | （可选加固）限制 Zotero 返回的 `file://` 重定向必须落在允许的根目录内（用于 linked attachment） | （默认禁用） |
-| `ZOTERO_FILE_REDIRECT_ALLOWED_ROOTS` | `file://` 重定向额外允许的根目录列表（macOS/Linux 用 `:` 分隔，Windows 用 `;`） | （空） |
-| `PDG_DB_PATH` | 本机 PDG sqlite 数据库文件绝对路径（可选；启用 `pdg_*`） | （未设置） |
-| `PDG_DATA_DIR` | PDG 本地数据目录（可选；包含 `artifacts/`） | （若设置了 `HEP_DATA_DIR` 则为 `<HEP_DATA_DIR>/pdg`；否则 `~/.hep-research-mcp/pdg`） |
-| `PDG_ARTIFACT_TTL_HOURS` | PDG artifacts 缓存 TTL（小时；`0/off` 禁用；启动时 + 周期性清理） | `24` |
-| `PDG_ARTIFACT_DELETE_AFTER_READ` | 若启用，则在通过 `pdg://artifacts/<name>` 成功读取后立即删除该文件 | （默认禁用） |
-| `PDG_TOOL_MODE` | PDG 工具暴露模式（`standard`/`full`） | `standard` |
-| `PDG_SQLITE_CONCURRENCY` | PDG 工具并行查询的 `sqlite3` 进程数上限 | `4` |
-
-### Zotero Local API 设置（Zotero 7）
-
-1. 在 Zotero 中启用 **Local API**（Advanced → Local API）。
-2. 为 MCP server 设置环境变量：
-   - `ZOTERO_BASE_URL=http://127.0.0.1:23119`
-   - （可选）`ZOTERO_DATA_DIR=~/Zotero`（仅当你的 Zotero 数据目录不是默认位置时需要）
-   - （可选加固）`ZOTERO_FILE_REDIRECT_GUARD=1`（默认会阻止 linked attachment，除非你显式放行其目录）
-   - （可选加固）`ZOTERO_FILE_REDIRECT_ALLOWED_ROOTS=/path/to/linked/pdfs`（多个根目录用 `:`/`;` 分隔）
-3. 快速自检（应返回 JSON，而不是 HTML）：
-
-```bash
-curl "http://127.0.0.1:23119/api/users/0/collections?limit=1"
-```
-
-如果你用浏览器直接打开 `/api/...` URL 看到 `Request not allowed`，这是正常现象（Zotero 会拦截浏览器型请求）；请以 `curl` 或本地程序（如本 MCP server）的访问结果为准。
-
-参考文档：https://www.zotero.org/support/dev/zotero_7_for_developers
-
-说明：Zotero 的 Local API 暴露在 `http://127.0.0.1:23119/api/`，接口形态与字段/分页/查询参数大体遵循 Zotero Web API v3。可以把 Web API v3 文档当作“端点与字段参考”（但实际请求仍然只打 localhost，不使用 zotero.org Web API）：https://www.zotero.org/support/dev/web_api/v3/basics
-
-说明：所有 `*_at`/`generated_at` 时间戳均使用 ISO 8601 **UTC（带 `Z`）**，不是本地时区字符串。
-
-### 在 Zotero 中查找条目（`zotero_find_items`）
-
-`zotero_find_items` 支持两类查询：
-- `identifiers`：DOI/arXiv/INSPIRE recid/title/item_key
-- `filters`：tags/authors（creators）/publication_title/year/volume/issue
-
-最小示例（tool args JSON）：
-
-```json
-{ "identifiers": { "doi": "10.1103/PhysRevLett.116.061102" } }
-```
-
-```json
-{ "filters": { "tags": ["hep-th"], "authors": ["Witten"], "publication_title": "Physical Review Letters", "year": 2016 } }
-```
-
-### 向 Zotero 添加条目（`zotero_add`）
-
-`zotero_add` 的入参里 **必须**有 `source`，并且 `source` 是一个 discriminated union（这是最常见的调用方误用点）。
-
-- 典型用法：先在 Zotero 左侧选中目标 collection，然后不传 `collection_keys` 直接调用 `zotero_add`（会写入当前选中 collection）。
-- 如果 Zotero 当前选中的是 library root，则会报错；除非显式传 `allow_library_root=true` 才允许写入 root。
-
-最小示例（tool args JSON）：
-
-```json
-{ "source": { "type": "doi", "doi": "10.1103/PhysRevLett.116.061102" }, "tags": ["hep"], "note": "可选 note" }
-```
-
-```json
-{ "source": { "type": "arxiv", "arxiv_id": "2001.00001" } }
-```
-
-```json
-{ "source": { "type": "inspire", "recid": "123456" } }
-```
-
-```json
-{ "source": { "type": "item", "item": { "itemType": "journalArticle", "title": "My Paper", "DOI": "10.1000/xyz" } } }
-```
-
-### 数据目录结构（`HEP_DATA_DIR`）
-
-所有 vNext 状态都只在本地、并统一落在 `HEP_DATA_DIR` 下：
-
-```
+```text
 <HEP_DATA_DIR>/
-  cache/                  # 持久化磁盘缓存（可安全删除）
-  corpora/                # 可选本地语料（写作风格包等）
-  downloads/              # 临时 arXiv 下载（TTL 自动清理）
-  models/                 # 可选本地模型（embedding/rerank；仅本地）
-  projects/<project_id>/  # 长期研究资产（papers、evidence catalogs）
-  runs/<run_id>/          # run manifests + artifacts（审计与复现）
+  cache/
+  downloads/
+  projects/<project_id>/
+    project.json
+    artifacts/
+    papers/<paper_id>/
+      paper.json
+      evidence/
+  runs/<run_id>/
+    manifest.json
+    artifacts/
 ```
 
-> 注：PDG artifacts 位于 `PDG_DATA_DIR` 下。若设置了 `HEP_DATA_DIR`，则 `PDG_DATA_DIR` 默认会跟随为 `<HEP_DATA_DIR>/pdg`（更便于随项目迁移/清理）；否则默认是 `~/.hep-research-mcp/pdg`。`PDG_DATA_DIR/artifacts` 视为查询缓存，按 `PDG_ARTIFACT_TTL_HOURS` 自动清理。
+- Project 根位于 `projects/<project_id>/...`。
+- Run 状态位于 `runs/<run_id>/manifest.json` 与 `runs/<run_id>/artifacts/...`。
+- `PDG_DATA_DIR` 是 PDG 的本地 companion root，常见布局是 `<HEP_DATA_DIR>/pdg`。
+- 文本 artifacts 会通过 MCP resources 直接返回，二进制 artifacts 默认返回 metadata，避免客户端把大 payload 内联进上下文。
 
-#### 多项目 vs 多根目录
+### 当前资源 schemes
 
-- **默认推荐：单根目录**：保持一个固定的用户级 `HEP_DATA_DIR`（例如 `~/.hep-research-mcp`），在其中创建多个 `hep_project_create` 项目；旧项目/旧 run 会持续在 `hep://projects` / `hep://runs` 中可发现。
-- **多根目录**：仅当你明确需要“根目录级隔离”、便携迁移、或一次性归档/清理时，才把 `HEP_DATA_DIR` 设到某个研究目录下（例如 `<research>/.hep-research-mcp`）。
+`@autoresearch/hep-mcp` 当前暴露的是一个精简的 “iceberg” resources 列表，加上若干 templates：
 
-重要说明：`HEP_DATA_DIR` 是 **MCP server 进程级** 配置，不是单次 tool call 的参数。server 实际使用的是它启动时读到的那个值。
+- `hep://projects`
+- `hep://runs`
+- `hep://projects/{project_id}`
+- `hep://projects/{project_id}/papers`
+- `hep://projects/{project_id}/artifact/{artifact_name}`
+- `hep://projects/{project_id}/papers/{paper_id}`
+- `hep://projects/{project_id}/papers/{paper_id}/evidence/catalog`
+- `hep://runs/{run_id}/manifest`
+- `hep://runs/{run_id}/artifact/{artifact_name}`
+- `pdg://info`
+- `pdg://artifacts`
+- `pdg://artifacts/{artifact_name}`
 
-- 如果多个研究项目共用同一个正在运行的 MCP server 实例，它们也会共用同一个 `HEP_DATA_DIR`。
-- 仅仅切换 shell 当前目录，或在另一个聊天/线程里继续调用，并不会自动切换数据根目录。
-- 如果你想做到“每个项目一个 `HEP_DATA_DIR` 且互不串写”，每个项目都必须使用自己独立的 MCP server 配置/alias，也就是各自独立启动的 server 进程，并在启动时绑定自己的 `HEP_DATA_DIR`。
-- 如果你希望一个 MCP server 同时服务多个项目，更推荐使用单一全局 `HEP_DATA_DIR`，再用 `project_id` / `run_id` 做项目隔离，而不是依赖多个根目录。
+### 通用 lifecycle state
 
-注意：切换 `HEP_DATA_DIR` 后，之前聊天里返回的 `hep://...` URI 只会在切回原根目录时再次可读。
+`autoresearch init` 会在真实外部 project root 中初始化 `.autoresearch/`。当前 lifecycle 包会读写：
 
-#### 快速清理
+```text
+<project_root>/
+  .autoresearch/
+    state.json
+    ledger.jsonl
+    plan.md
+    approval_policy.json
+    fleet_queue.json          # 使用 fleet 功能时
+    fleet_workers.json        # 使用 fleet 功能时
+  artifacts/
+    runs/<run_id>/
+      approvals/<approval_id>/
+        approval_packet_v1.json
+```
 
-- PDG 查询缓存：`rm -rf "${PDG_DATA_DIR:-$HOME/.hep-research-mcp/pdg}/artifacts"`（安全；仅影响可重复生成的 PDG 查询输出）
-- HEP 持久化缓存：`rm -rf "${HEP_DATA_DIR:-$HOME/.hep-research-mcp}/cache"`（安全）
+编排器的 read model 还会暴露形如 `orch://runs/{run_id}/approvals/{approval_id}` 的 approval packet URI。
 
-说明：部分 MCP 客户端会把“曾经返回过的 artifact URI”也展示在 Resources 列表中；删除文件能回收磁盘空间，但 UI 列表是否立即变干净取决于客户端缓存策略，通常重启/重新加载 MCP server 后会刷新。
+## 5. 用户如何从 MCP clients / agent clients 接入
 
-### 磁盘缓存
+当前的 MCP 接入模型是本地 stdio only。今天的主要 MCP front door 是 `hep-mcp` server；通用 orchestrator 目前暴露的是 lifecycle CLI，而不是 root 的主 MCP server。
 
-默认情况下，持久化缓存位于 `<HEP_DATA_DIR>/cache`（gzip 压缩条目）。若升级后怀疑缓存陈旧/损坏，可直接删除该目录，功能不受影响。
-
-### 进度与续跑（Run-based）
-
-vNext 工作流的进度统一记录在 run manifest：`hep://runs/{run_id}/manifest`（steps + artifacts）。
-
-### INSPIRE 搜索语法
-
-**作者重名消歧提示：** INSPIRE 提供稳定的作者标识 **BAI**（例如 `E.Witten.1`）。做作者检索时建议优先用 BAI：`a:E.Witten.1`（而不是歧义较大的姓名检索）。
-
-| 语法 | 示例 | 说明 |
-|------|------|------|
-| `a:` | `a:witten` | 按作者搜索（支持 INSPIRE BAI，例如 `a:E.Witten.1`） |
-| `t:` | `t:supersymmetry` | 按标题搜索 |
-| `aff:` | `aff:CERN` | 按机构搜索 |
-| `topcite:` | `topcite:500+` | 引用数过滤 |
-| `date:` | `date:2020->2024` | 日期范围 |
-| `j:` | `j:Phys.Rev.D` | 期刊过滤 |
-| `eprint:` | `eprint:2301.12345` | arXiv ID |
-| `fulltext:` | `fulltext:"dark matter"` | 全文搜索 |
-
-## MCP 服务器安装
-
-### 工具名前缀（客户端 Namespacing）
-
-一些 MCP 客户端/agent runtime 会对工具名做 namespacing，把工具暴露成 `mcp__<serverAlias>__<toolName>`（例如：`mcp__hep__inspire_search`）。其中 `serverAlias` 是你在客户端配置里的 MCP server key（例如 `hep`、`hep-research-mcp` 等）。
-
-务必以 **客户端 Tools 列表里显示的完整工具名** 为准调用；如果出现 “tool not found”，请打开 Tools 列表复制/粘贴完整名字（不要靠猜）。
-
-快速自检：调用 `hep_health`（如需探测 INSPIRE 连通性，可传 `check_inspire=true`）。
-
-### Claude Desktop
-
-编辑配置文件 `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) 或 `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+通用 MCP 配置模式：
 
 ```json
 {
   "mcpServers": {
-    "hep-research-mcp": {
+    "hep-mcp": {
       "command": "node",
-      "args": ["/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js"]
+      "args": [
+        "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
+      ],
+      "env": {
+        "HEP_DATA_DIR": "/absolute/path/to/hep-data",
+        "HEP_TOOL_MODE": "standard",
+        "ZOTERO_BASE_URL": "http://127.0.0.1:23119"
+      }
     }
   }
 }
 ```
 
-### Cursor
+说明：
 
-可在 Cursor 设置界面（Settings → MCP）添加服务器，或直接编辑 `~/.cursor/mcp.json`：
-
-```json
-{
-  "mcpServers": {
-    "hep-research-mcp": {
-      "command": "node",
-      "args": ["/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js"]
-    }
-  }
-}
-```
-
-**如果你看到 `spawn node ENOENT`**
-- 这表示 Cursor 在启动 MCP server 时找不到 `node`（PATH 里没有）。在 macOS 上，若 Cursor 作为 GUI App 启动，往往不会继承你 shell 里的 PATH。
-- 解决：把 `"command"` 改为 node 的绝对路径（例如 Homebrew 常见是 `/opt/homebrew/bin/node`），或在 `"env"` 里显式设置 `PATH`。
-
-**如何在 Cursor 里看到 Tools**
-1. 确保已构建：`pnpm -r build`（需要存在 `dist/index.js`）。
-2. 重启 Cursor（或在你的版本里手动刷新 MCP servers 列表）。
-3. 打开 Chat/Agent → 找到 **Tools** 列表/面板 → 对 `hep-research-mcp` 启用工具（Cursor 通常对每个 MCP server 需要单独“信任/启用工具”）。
-
-**如果仍然看不到 Tools**
-- Cursor 可能会在 `listTools` 返回的 schema 不合法时直接隐藏 Tools。请先重新执行 `pnpm -r build`，重启 Cursor，然后按 `docs/TESTING_GUIDE.md` 的 “listTools sanity check” 小节排查。
-
-**如果你发现 Resources 列表没有列出每个 artifact**
-- 这是预期：Resources 列表采用 “Iceberg” 入口模型，只显示 `hep://projects` / `hep://runs` / `pdg://artifacts` 等入口。
-- 想查看“之前做过哪些项目”：读取 `hep://projects`。
-- 想查看 runs：读取 `hep://runs`，再读 `hep://runs/{run_id}/manifest` 获取该 run 的 artifacts 列表。
-
-### Claude Code CLI
+- 先构建：`pnpm -r build`。
+- GUI 客户端有时需要把 `node` 换成绝对路径。
+- 有些客户端会把工具名 namespacing 成 `mcp__<serverAlias>__<toolName>`；务必以客户端实际显示的名字为准调用。
+- 常见的 MCP-compatible client 包括 Cursor、Claude Desktop、Claude Code CLI、Chatbox、Cherry Studio、Continue、Cline、Zed。
+- lifecycle CLI 与 MCP 配置分离，直接在 shell 中调用：
 
 ```bash
-claude mcp add hep-research-mcp -- node /path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js
+autoresearch init --project-root /absolute/path/to/external-project
+autoresearch status --project-root /absolute/path/to/external-project
 ```
 
-### Chatbox
+## 6. 更深的架构 / 治理文档在哪里
 
-[Chatbox](https://chatboxai.app/) 是一款跨平台 AI 聊天客户端，支持 MCP 协议。
+- [架构总览](./ARCHITECTURE.md)
+- [测试指南](./TESTING_GUIDE.md)
+- [项目状态](./PROJECT_STATUS.md)
+- [工具分类](./TOOL_CATEGORIES.md)
+- [URI 注册表](./URI_REGISTRY.md)
+- [英文 README](../README.md)
+- [仓库治理规则](../AGENTS.md)
+- [重构计划](../meta/REDESIGN_PLAN.md)
+- [开发契约](../meta/ECOSYSTEM_DEV_CONTRACT.md)
 
-1. 打开 Chatbox 设置 → MCP 服务器
-2. 点击"添加服务器"
-3. 配置如下：
+## Quick Start
 
-```json
-{
-  "hep-research-mcp": {
-    "command": "node",
-    "args": ["/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js"]
-  }
-}
+```bash
+pnpm install
+pnpm -r build
+pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 ```
 
-或通过配置文件 `~/.chatbox/mcp.json`（路径可能因系统而异）。
+把 MCP client 接到 `packages/hep-mcp/dist/index.js` 之后，最小 smoke path 是：
 
-### Cherry Studio
+1. 调用 `hep_health`
+1. 调用 `hep_project_create`
+1. 调用 `hep_run_create`
+1. 读取 `hep://runs/{run_id}/manifest`
 
-[Cherry Studio](https://cherry-ai.com/) 是一款支持多模型的 AI 助手，支持 MCP 协议。
+如果你想直接走当前最强的端到端 workflow family，再继续：
 
-1. 打开 Cherry Studio 设置 → MCP 设置
-2. 添加新的 MCP 服务器
-3. 填写配置：
-   - **名称**: `hep-research-mcp`
-   - **命令**: `node`
-   - **参数**: `/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js`
+1. `hep_run_build_citation_mapping`
+1. `hep_run_build_writing_evidence` 或 `hep_project_build_evidence`
+1. `hep_render_latex`
+1. `hep_export_project`
 
-### 其他支持 MCP 的工具
+## 当前 HEP 应如何出现在 Root 文档中
 
-MCP 是开放协议，以下工具也支持 MCP 服务器：
+HEP 在 root docs 中今天应被表述为：
 
-| 工具                                   | 配置方式                    | 说明                |
-| -------------------------------------- | --------------------------- | ------------------- |
-| **Cline** (VS Code)              | 设置 → MCP Servers         | VS Code AI 编程助手 |
-| **Continue** (VS Code/JetBrains) | `~/.continue/config.json` | 开源 AI 编程助手    |
-| **Zed**                          | 设置 → Assistant → MCP    | 现代代码编辑器      |
+- 当前最成熟的 provider family
+- 当前最强的端到端 workflow family
+- evidence-first Project/Run 流程的当前 provider 示例
 
-**通用配置格式**（大多数工具兼容）：
+HEP 不应被表述为：
 
-```json
-{
-  "mcpServers": {
-    "hep-research-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js"],
-      "env": {}
-    }
-  }
-}
-```
-
-> **提示**: 请将 `/path/to/` 替换为实际的绝对路径。
-
-### 可选配置
-
-通过环境变量自定义 hep-research-mcp 行为：
-
-	```json
-	{
-	  "mcpServers": {
-	    "hep-research-mcp": {
-	      "command": "node",
-	      "args": ["/path/to/hep-research-mcp/packages/hep-research-mcp/dist/index.js"],
-		      "env": {
-		        "HEP_DATA_DIR": "/path/to/hep-data",
-		        "HEP_TOOL_MODE": "full",
-		        "HEP_DOWNLOAD_DIR": "/path/to/hep-data/downloads",
-		        "HEP_DEBUG": "tools,downloads",
-		        "ZOTERO_BASE_URL": "http://127.0.0.1:23119",
-		        "ZOTERO_DATA_DIR": "/path/to/Zotero",
-		      }
-	    }
-	  }
-	}
-	```
-
-Zotero Local API 无认证：不需要 Local API Key。
-
-说明：Zotero Local API 不提供稳定的 fulltext HTTP 端点。`zotero_local`（mode=`get_attachment_fulltext`）用于解析 `ZOTERO_DATA_DIR/storage/<attachmentKey>/.zotero-ft-cache` 路径（默认 `~/Zotero`）；当 `hep_run_build_pdf_evidence` 传 `zotero_attachment_key` 时会自动读取该缓存。
-
-> 注意：不要提交任何包含真实 API Key 的配置文件。请将本地 MCP 配置（如 `.mcp.json`）排除在 git 之外。
-
-详见 [环境变量](#环境变量) 部分的完整说明。
-
-## 工具调用示例
-
-以下展示 AI 助手如何调用 hep-research-mcp 工具完成各种任务：
-
-### 示例 1：深度调研某个主题
-
-```
-用户: 帮我调研 pentaquark 领域的发展历程
-
-AI: [通过 checked-in literature workflow launcher 解析 literature_gap_analysis]
-    [调用 inspire_search] 搜索 pentaquark 相关文献
-    [调用 inspire_network_analysis] 分析引用网络（mode=citation）
-    [调用 inspire_topic_analysis] 生成时间线（mode=timeline）
-
-    ## Pentaquark 研究发展历程
-
-    ### 奠基性工作
-    - LHCb 2015 (recid: 1380672) - 首次发现五夸克态
-    ...
-```
-
-### 示例 2：深度内容分析与综述生成
-
-```
-用户: 帮我分析这几篇论文的核心公式和方法，生成综述
-
-AI: [运行 literature_fetch.py workflow-plan --recipe literature_to_evidence] 解析 workflow authority
-    [调用 inspire_paper_source] 获取源码/内容入口
-    [调用 inspire_parse_latex] 提取公式、关键章节与引用上下文
-    [调用 inspire_critical_analysis / inspire_classify_reviews] 对论文集合做 bounded analysis / review posture 检查
-
-    ## Review: Pentaquark States
-
-    ### Methodology Group: QCD Sum Rules
-    - Paper 1: 使用 QCD sum rules 方法...
-
-    ### Key Equations
-    ```latex
-    \Pi(q^2) = \int d^4x e^{iq\cdot x} \langle 0|T\{J(x)J^\dagger(0)\}|0\rangle
-    ```
-```
-
-### 示例 3：发现新兴研究方向（社会学指标）
-
-```
-用户: 哪些 exotic hadron 论文可能代表范式转移？
-
-AI: [调用 inspire_topic_analysis] 检测新兴论文（mode=emerging）
-    - include_sociology: true
-    - sample_mode: 'fast'
-
-    ## 潜在范式转移论文
-
-    1. recid: 2847123
-       - 引用动量: 0.85 (Hot!)
-       - 新进入者比例: 0.45 (高)
-       - 颠覆指数: 0.32 (颠覆性)
-       - 置信度: high
-       - 类型: kinematic + sociological
-```
+- 唯一目标领域
+- 理解仓库的唯一方式
+- root 产品身份本身
 
 ## 文档
 
-- [功能测试指南（逐项对照版）](./TESTING_GUIDE.md)
+- [功能测试指南](./TESTING_GUIDE.md)
+- [项目状态](./PROJECT_STATUS.md)
+- [架构总览](./ARCHITECTURE.md)
 - [pdg-mcp 文档](../packages/pdg-mcp/README_zh.md)
-
-## 相关项目
-
-- [zotero-inspire](https://github.com/fkguo/zotero-inspire) - Zotero INSPIRE 插件
-- [INSPIRE-HEP](https://inspirehep.net) - 高能物理文献数据库
-- [INSPIRE REST API](https://github.com/inspirehep/rest-api-doc) - INSPIRE API 文档
-
-## 引用
-
-### 引用本项目
-
-如果本项目对您的研究有帮助，欢迎在致谢中提及。
-
-### 引用 INSPIRE API
-
-如果在学术工作中使用了 INSPIRE 数据，请按 INSPIRE 要求引用：
-
-```bibtex
-@article{Moskovic:2021zjs,
-    author = "Moskovic, Micha",
-    title = "{The INSPIRE REST API}",
-    url = "https://github.com/inspirehep/rest-api-doc",
-    doi = "10.5281/zenodo.5788550",
-    year = "2021"
-}
-```
 
 ## Development
 
-本项目使用 AI 辅助开发。AI 协助完成了代码实现、文档编写和代码审查。
+检查 front-door drift 时，优先看：
+
+- `packages/hep-mcp/tests/docs/docToolDrift.test.ts`
+- `pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check`
+- `pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts`
 
 ## License
 

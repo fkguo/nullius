@@ -1,9 +1,8 @@
-# Project Status Report (vNext baseline)
+# Project Status Report (front-door rebaseline)
 
-**Date**: 2026-01-18  
-**Branch**: `main`  
-**Baseline commit**: `1496734`  
-**Status**: Production Ready (local-first, evidence-first)
+**Date**: 2026-03-29
+**Status**: Active local-first, evidence-first monorepo
+**Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity
 
 ---
 
@@ -12,49 +11,38 @@
 - `pnpm -r build` ✅
 - `pnpm -r test` ✅
 - `pnpm -r lint` ✅
-
-**Tool counts (after build)**  
-SSOT:
-
-```bash
-node --input-type=module -e "import('./packages/hep-mcp/dist/tools/index.js').then(({getTools})=>console.log('standard',getTools('standard').length,'full',getTools('full').length))"
-```
-
-Current (after build):
+- `pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check` ✅
 - `standard=73`, `full=102`
 - `HEP_ENABLE_ZOTERO=0` → `standard=65`, `full=94`
 
-Workspace vitest summary:
-- `packages/shared`: 15 passed
-- `packages/zotero-mcp`: 18 passed
-- `packages/pdg-mcp`: 41 passed
-- `packages/hep-mcp`: 553 passed, 2 skipped (eval/live smoke)
+## What is live today
 
----
+- **Main MCP front door**: `@autoresearch/hep-mcp` exposed through `packages/hep-mcp/dist/index.js`
+- **Main generic lifecycle entrypoint**: `autoresearch` CLI for external project roots and `.autoresearch/` state
+- **Current strongest end-to-end workflow family**: `hep_*` Project/Run + evidence + writing + export
+- **Direct provider families**: `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*`
+- **Launcher-backed workflow shells**: `hepar literature-gap` and `literature_fetch.py workflow-plan`
 
-## What’s included
+## Current truthful workflows
 
-- **vNext Project/Run + `hep://` resources**: artifacts-first, reproducible workflows (`hep_*`)
-- **INSPIRE workflows**: search/export, launcher-backed literature front door (`hepar literature-gap`, `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`), bounded atomic operators (`inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`, `inspire_trace_original_source`, `inspire_grade_evidence`, `inspire_detect_measurement_conflicts`, `inspire_critical_analysis`, `inspire_classify_reviews`, `inspire_theoretical_conflicts`), run-scoped LaTeX parsing (`inspire_parse_latex`)
-- **Bibliography usability audit (Phase 4.1)**: `inspire_validate_bibliography` is manual-first + non-blocking warnings; optional INSPIRE cross-check
-- **Zotero Local API**: local-only integration (`zotero_local` + related tools; optional; gated by `HEP_ENABLE_ZOTERO`)
-- **Zotero read bridge (Phase 4.5)**: `zotero_find_items` + `zotero_search_items` share internal bridge execution while preserving semantics
-- **PDG offline DB**: local-only tools/resources (`pdg_*`, requires `PDG_DB_PATH`)
-- **PDG version transparency (Phase 4.7)**: use `pdg_info` / `pdg://info` to inspect local DB edition metadata without freshness judgments
-- **Skill↔MCP bridge contract (Phase 4.10, slice 1)**: run-scoped responses include `job` envelope (`job_id`, `status_uri`, `polling`) for consistent long-task polling semantics
-- **Telemetry (Phase 4.9)**: opt-in tool usage counters (disabled by default) exported via `hep_health.telemetry` for scheduling diagnostics
+- **Project/Run evidence workflow**: `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> `hep_export_project`
+- **Writing/export workflow**: citation mapping, evidence build, verifier-enforced rendering, research pack export, paper scaffold export/import
+- **Literature/data workflow**: direct provider search, retrieval, export, and bounded analysis operators
+- **Local reference workflow**: Zotero Local API and offline PDG lookups
+- **Generic lifecycle workflow**: `autoresearch init/status/approve/pause/resume/export`
 
----
+## State and resource truth
 
-## Canonical writing workflows
+- `HEP_DATA_DIR` defaults to `~/.hep-mcp`
+- HEP project/run artifacts live under `projects/<project_id>/...` and `runs/<run_id>/...`
+- HEP resources surface through `hep://projects`, `hep://runs`, and resource templates for papers, manifests, and artifacts
+- Generic lifecycle state lives in external project roots under `.autoresearch/`
+- Approval packets are materialized under `artifacts/runs/<run_id>/approvals/<approval_id>/approval_packet_v1.json`
 
-### Draft Path (external draft → MCP render/verify/export)
+## Canonical docs
 
-- `hep_project_create` → `hep_run_create`
-- `hep_render_latex` (hard verifier)
-- Draft Path: `hep_render_latex` → `hep_export_project`
-- Publication round-trip: `hep_export_paper_scaffold` → *(external editing / research-writer)* → `hep_import_paper_bundle`
-
-See: `docs/WRITING_RECIPE_DRAFT_PATH.md`
-
-See: `docs/WRITING_RECIPE_CLIENT_PATH.md`
+- [`README.md`](../README.md)
+- [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md)
+- [`docs/TESTING_GUIDE.md`](./TESTING_GUIDE.md)
+- [`docs/TOOL_CATEGORIES.md`](./TOOL_CATEGORIES.md)
+- [`docs/URI_REGISTRY.md`](./URI_REGISTRY.md)
