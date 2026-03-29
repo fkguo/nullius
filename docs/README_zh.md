@@ -311,9 +311,10 @@ export HEP_TOOL_MODE=full
 
 **关于 citekey 选择：**当同一 recid 映射到多个 BibTeX key 时，`hep_render_latex` 选择**字典序最小**的 key（稳定且可复现）。
 
-### vNext Resources（`hep://...`）—— 如何读取 artifacts
+### vNext Resources（`hep://` / `pdg://`）—— 如何读取 artifacts
 
 多数 vNext 工具只返回 **URI**。实际文件内容通过 MCP resources 读取（本地落盘）。
+跨组件的 live URI schemes（含 `orch://` ownership boundary）统一登记在 [`docs/URI_REGISTRY.md`](./URI_REGISTRY.md)。
 
 | Resource URI | 含义 |
 |--------------|------|
@@ -325,7 +326,6 @@ export HEP_TOOL_MODE=full
 | `hep://runs` | run 索引（列出本地 runs） |
 | `hep://runs/{run_id}/manifest` | run manifest（steps + artifact refs） |
 | `hep://runs/{run_id}/artifact/{name}` | 任意 run artifact（JSON/JSONL/TEX/PDF/PNG/ZIP/…） |
-| `hep://corpora` | style corpora 索引（列出本地 corpora） |
 | `pdg://info` | PDG 资源信息（server + artifacts 根目录元信息） |
 | `pdg://artifacts` | PDG artifacts 索引（缓存文件列表） |
 | `pdg://artifacts/<name>` | 读取单个 PDG artifact（文本直接返回；二进制返回元信息 JSON） |
@@ -783,7 +783,7 @@ vNext 工作流的进度统一记录在 run manifest：`hep://runs/{run_id}/mani
 - Cursor 可能会在 `listTools` 返回的 schema 不合法时直接隐藏 Tools。请先重新执行 `pnpm -r build`，重启 Cursor，然后按 `docs/TESTING_GUIDE.md` 的 “listTools sanity check” 小节排查。
 
 **如果你发现 Resources 列表没有列出每个 artifact**
-- 这是预期：Resources 列表采用 “Iceberg” 入口模型，只显示 `hep://projects` / `hep://runs` / `hep://corpora` / `pdg://artifacts` 等入口。
+- 这是预期：Resources 列表采用 “Iceberg” 入口模型，只显示 `hep://projects` / `hep://runs` / `pdg://artifacts` 等入口。
 - 想查看“之前做过哪些项目”：读取 `hep://projects`。
 - 想查看 runs：读取 `hep://runs`，再读 `hep://runs/{run_id}/manifest` 获取该 run 的 artifacts 列表。
 

@@ -175,7 +175,9 @@ interface RunArtifactRef {
 }
 ```
 
-### 3.3 hep:// 资源协议
+### 3.3 Resource URI 协议
+
+> Cross-package canonical URI inventory now lives in [`URI_REGISTRY.md`](./URI_REGISTRY.md). The table below focuses on the MCP resource schemes currently surfaced by `hep-mcp` and `pdg-mcp`.
 
 | URI 模式 | 描述 |
 |----------|------|

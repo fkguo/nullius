@@ -223,26 +223,31 @@ Configured in `approval_policy.schema.json` under `budgets`:
 
 ## 5. URI Scheme
 
-### 5.1 `orch://` URI Scheme
+### 5.1 `orch://` Current Live Surface
 
 ```
-orch://runs/<run_id>                      → run root
-orch://runs/<run_id>/state                → state.json
-orch://runs/<run_id>/ledger               → ledger.jsonl
-orch://runs/<run_id>/approvals/<id>       → approval record
+orch://runs/<run_id>                      → run lifecycle/read-model root
+orch://runs/<run_id>/approvals/<id>       → approval record/read-model entry
+orch://runs/export                        → export summary
 ```
+
+**Note**: older design examples such as `orch://runs/<run_id>/state` and `orch://runs/<run_id>/ledger` describe underlying files, but they are not current live emitted URIs in `packages/orchestrator/src/orch-tools/*.ts`.
 
 ### 5.2 Relationship with `hep://`
 
 ```
 hep://projects/<project_id>               → project root (owned by hep-mcp)
-hep://runs/<run_id>                       → run artifacts (owned by hep-mcp)
-orch://runs/<run_id>                      → run lifecycle (owned by orchestrator)
+hep://runs/<run_id>/manifest              → run manifest/resource view (owned by hep-mcp)
+hep://runs/<run_id>/artifact/<name>       → run artifact resource (owned by hep-mcp)
+orch://runs/<run_id>                      → run lifecycle/read-model pointer (owned by orchestrator)
+orch://runs/<run_id>/approvals/<id>       → approval record pointer (owned by orchestrator)
 ```
 
-**Rule**: `hep://runs/<run_id>` and `orch://runs/<run_id>` refer to the same filesystem directory but different logical scopes. `hep://` addresses research artifacts. `orch://` addresses lifecycle state.
+**Rule**: the `hep://` run-manifest/artifact views and the `orch://` lifecycle/read-model views are separate owned namespaces. `hep://` addresses research artifacts. `orch://` addresses lifecycle state. A higher-level workflow may correlate them explicitly, but the current codebase does not expose a shared resolver or alias between the two schemes.
 
-**Resolution**: Both URI schemes resolve to `<HEP_DATA_DIR>/projects/<project_id>/runs/<run_id>/`. The orchestrator and hep-mcp share the same filesystem root but operate on disjoint file sets.
+**Registry**: the centralized live scheme inventory now lives in [`../../docs/URI_REGISTRY.md`](../../docs/URI_REGISTRY.md).
+
+**Resolution**: `hep://` is resolved by `packages/hep-mcp/src/core/resources.ts` against the hep-mcp data root. `orch://` is emitted by `packages/orchestrator/src/orch-tools/*.ts` against an explicit `project_root` orchestration workspace. Cross-scheme correlation, when needed, must be carried by higher-level workflow metadata rather than implicit URI conversion.
 
 ---
 
