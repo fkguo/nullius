@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from idea_core.engine.operators import (
     SearchOperator,
@@ -91,6 +91,12 @@ class DomainPackIndex:
             self._cache[pack_id] = assets
             return assets
 
+    def export_catalog(self, *, catalog_id: str) -> dict[str, Any]:
+        return describe_domain_pack_descriptors(
+            self._descriptors.values(),
+            catalog_id=catalog_id,
+        )
+
 
 def build_default_abstract_problem_registry() -> dict[str, Any]:
     return {
@@ -104,6 +110,44 @@ def build_default_abstract_problem_registry() -> dict[str, Any]:
             }
         ]
     }
+
+
+def describe_domain_pack_descriptors(
+    descriptors: Iterable[DomainPackDescriptor],
+    *,
+    catalog_id: str,
+) -> dict[str, Any]:
+    descriptor_list = tuple(descriptors)
+    packs = [
+        {
+            "pack_id": descriptor.pack_id,
+            "domain_prefixes": list(descriptor.domain_prefixes),
+            "description": descriptor.description,
+        }
+        for descriptor in descriptor_list
+    ]
+    return {
+        "catalog_id": catalog_id,
+        "pack_ids": [pack["pack_id"] for pack in packs],
+        "packs": packs,
+    }
+
+
+def build_builtin_domain_pack_catalog_descriptors() -> tuple[DomainPackDescriptor, ...]:
+    from idea_core.engine.default_domain_pack import build_builtin_default_domain_pack_descriptors
+    from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_descriptors
+
+    return (
+        *build_builtin_default_domain_pack_descriptors(),
+        *build_builtin_hep_domain_pack_descriptors(),
+    )
+
+
+def build_builtin_domain_pack_catalog() -> dict[str, Any]:
+    return describe_domain_pack_descriptors(
+        build_builtin_domain_pack_catalog_descriptors(),
+        catalog_id="idea_core.builtin_domain_pack_catalog.v1",
+    )
 
 
 def build_builtin_domain_pack_index() -> DomainPackIndex:

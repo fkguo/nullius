@@ -12,6 +12,7 @@ from idea_core.engine.domain_pack import (
     DomainConstraintPolicy,
     DomainPackAssets,
     DomainPackIndex,
+    build_builtin_domain_pack_catalog,
     build_builtin_domain_pack_index,
 )
 from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_index
@@ -76,6 +77,7 @@ class IdeaCoreService:
             "campaign.pause": self.campaign_pause,
             "campaign.resume": self.campaign_resume,
             "campaign.complete": self.campaign_complete,
+            "domain_pack.catalog": self.domain_pack_catalog,
             "node.get": self.node_get,
             "node.list": self.node_list,
             "search.step": self.search_step,
@@ -1164,6 +1166,15 @@ class IdeaCoreService:
                 state="committed",
             )
             return result
+
+    def domain_pack_catalog(self, params: dict[str, Any]) -> dict[str, Any]:
+        del params
+        return {
+            "builtin_catalog": build_builtin_domain_pack_catalog(),
+            "runtime_catalog": self.domain_pack_index.export_catalog(
+                catalog_id="idea_core.service_runtime_domain_pack_catalog.v1"
+            ),
+        }
 
     def campaign_status(self, params: dict[str, Any]) -> dict[str, Any]:
         campaign_id = params["campaign_id"]

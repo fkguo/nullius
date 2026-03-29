@@ -981,6 +981,130 @@
         "title": "CampaignStatus v1",
         "type": "object"
       },
+      "domain_pack_catalog_result_v1": {
+        "$id": "domain_pack_catalog_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Read-only export of builtin domain-pack truth plus the current service runtime view.",
+        "properties": {
+          "builtin_catalog": {
+            "additionalProperties": false,
+            "properties": {
+              "catalog_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "pack_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "packs": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "domain_prefixes": {
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "uniqueItems": true
+                    },
+                    "pack_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "pack_id",
+                    "domain_prefixes",
+                    "description"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "catalog_id",
+              "pack_ids",
+              "packs"
+            ],
+            "type": "object"
+          },
+          "runtime_catalog": {
+            "additionalProperties": false,
+            "properties": {
+              "catalog_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "pack_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "packs": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "domain_prefixes": {
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "uniqueItems": true
+                    },
+                    "pack_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "pack_id",
+                    "domain_prefixes",
+                    "description"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "catalog_id",
+              "pack_ids",
+              "packs"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "builtin_catalog",
+          "runtime_catalog"
+        ],
+        "title": "DomainPackCatalogResult v1",
+        "type": "object"
+      },
       "elo_config_v1": {
         "$id": "elo_config_v1.schema.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3187,7 +3311,7 @@
   "info": {
     "description": "JSON-RPC interface between the idea-generator adapter (hepar skill) and the standalone idea-core engine. Contract schemas are referenced via $ref to sibling files in this directory.\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted \u2192 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods (e.g., LLM generation), this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, elo_config_required, elo_config_unexpected.",
     "title": "idea-core RPC (v1)",
-    "version": "1.9.8"
+    "version": "1.9.9"
   },
   "methods": [
     {
@@ -3452,6 +3576,25 @@
         }
       },
       "summary": "Mark a campaign as completed (\u2192 completed)."
+    },
+    {
+      "description": "Read-only. Exposes two runtime-backed catalog views without changing campaign/search/eval semantics: the builtin idea-core pack catalog (currently generic.default.v1 + hep.operators.v1) and the current service instance runtime catalog (for example, the stdio/default-service front door remains HEP-only).",
+      "errors": [
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        }
+      ],
+      "name": "domain_pack.catalog",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "domain_pack_catalog_result",
+        "schema": {
+          "$ref": "#/components/schemas/domain_pack_catalog_result_v1"
+        }
+      },
+      "summary": "Export builtin domain-pack truth and the current service runtime catalog."
     },
     {
       "description": "Side-effecting. Only permitted when campaign status is running. Definition: one search step is one SearchPolicy tick that selects (at minimum) an island and an operator (and runs the configured TeamPolicy/topology for that island), then writes any newly created nodes/artifacts and/or updates existing nodes (e.g., Formalizer adding idea_card, Derivation adding consistency report). New nodes are surfaced via new_node_ids (+ new_nodes_artifact_ref); mutated nodes are surfaced via updated_node_ids (+ updated_nodes_artifact_ref when non-empty). Atomicity: each tick MUST be all-or-nothing (no partial writes within a tick), but the overall call may partially execute multiple ticks and report progress via n_steps_executed. Idempotency note: if n_steps_executed < n_steps_requested (early stop), retries with the same idempotency_key MUST replay the same partial result; callers MUST use a new idempotency_key to request fresh work/continuation. Campaign status transitions triggered during this call (e.g., running \u2192 exhausted due to budget depletion, running \u2192 early_stopped due to policy halt) are part of the idempotency-protected side-effects: they MUST be committed atomically with tick writes and the idempotency record. If paused|early_stopped|completed: campaign_not_active. If exhausted: budget_exhausted.",

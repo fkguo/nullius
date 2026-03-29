@@ -5,9 +5,15 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from idea_core.contracts.validate import DEFAULT_CONTRACT_DIR
-from idea_core.engine.domain_pack import DomainPackAssets, DomainPackDescriptor, DomainPackIndex
-from idea_core.engine.operators import OperatorOutput
 from idea_core.engine.coordinator import IdeaCoreService, RpcError
+from idea_core.engine.domain_pack import (
+    DomainPackAssets,
+    DomainPackDescriptor,
+    DomainPackIndex,
+    build_builtin_domain_pack_catalog,
+)
+from idea_core.engine.hep_domain_pack import build_builtin_hep_domain_pack_index
+from idea_core.engine.operators import OperatorOutput
 from idea_core.engine.retrieval import build_default_librarian_recipe_book
 
 
@@ -146,6 +152,39 @@ def test_domain_pack_matches_domain_prefix_without_hep_global_default(tmp_path: 
     seed_node_id = next(iter(service.store.load_nodes(campaign_id).keys()))
     seed_node = service.handle("node.get", {"campaign_id": campaign_id, "node_id": seed_node_id})
     assert "candidate_formalisms" not in seed_node["idea_card"]
+
+
+def test_builtin_domain_pack_catalog_contains_generic_and_hep_truth() -> None:
+    catalog = build_builtin_domain_pack_catalog()
+
+    assert catalog["catalog_id"] == "idea_core.builtin_domain_pack_catalog.v1"
+    assert catalog["pack_ids"] == ["generic.default.v1", "hep.operators.v1"]
+
+    pack_map = {pack["pack_id"]: pack for pack in catalog["packs"]}
+    assert pack_map["generic.default.v1"]["domain_prefixes"] == []
+    assert pack_map["hep.operators.v1"]["domain_prefixes"] == ["hep-"]
+
+
+def test_domain_pack_catalog_method_exposes_builtin_and_runtime_views(tmp_path: Path) -> None:
+    service = _make_service(tmp_path, build_builtin_hep_domain_pack_index())
+
+    result = service.handle("domain_pack.catalog", {})
+
+    assert result["builtin_catalog"]["pack_ids"] == ["generic.default.v1", "hep.operators.v1"]
+    assert result["runtime_catalog"]["pack_ids"] == ["hep.operators.v1"]
+    assert result["runtime_catalog"]["packs"][0]["description"].startswith("HEP operator families")
+
+
+def test_domain_pack_catalog_method_reflects_default_runtime_catalog(tmp_path: Path) -> None:
+    service = IdeaCoreService(
+        data_dir=tmp_path / "runs",
+        contract_dir=DEFAULT_CONTRACT_DIR,
+    )
+
+    result = service.handle("domain_pack.catalog", {})
+
+    assert result["builtin_catalog"]["pack_ids"] == ["generic.default.v1", "hep.operators.v1"]
+    assert result["runtime_catalog"]["pack_ids"] == ["generic.default.v1"]
 
 
 def test_non_hep_domain_pack_runtime_uses_explicit_non_hep_retrieval(tmp_path: Path) -> None:

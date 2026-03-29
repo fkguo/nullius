@@ -63,3 +63,32 @@ def test_main_returns_invalid_request_for_non_object_json(monkeypatch, tmp_path:
     response = json.loads(stdout.getvalue().strip())
     assert response["error"]["code"] == -32600
     assert response["error"]["message"] == "invalid_request"
+
+
+def test_main_domain_pack_catalog_exposes_builtin_and_runtime_views(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        rpc_server,
+        "parse_args",
+        lambda: SimpleNamespace(data_dir=tmp_path / "runs", contract_dir=DEFAULT_CONTRACT_DIR),
+    )
+    request = {
+        "jsonrpc": "2.0",
+        "id": 9,
+        "method": "domain_pack.catalog",
+        "params": {},
+    }
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(request) + "\n"))
+    stdout = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    assert rpc_server.main() == 0
+
+    response = json.loads(stdout.getvalue().strip())
+    assert response["result"]["builtin_catalog"]["pack_ids"] == [
+        "generic.default.v1",
+        "hep.operators.v1",
+    ]
+    assert response["result"]["runtime_catalog"]["pack_ids"] == ["hep.operators.v1"]

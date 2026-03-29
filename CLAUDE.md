@@ -32,7 +32,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-approval-cluster-rebaseline** (11349 symbols, 27012 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-evo05-domain-pack-catalog-first** (11381 symbols, 27039 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -48,7 +48,7 @@ This project is indexed by GitNexus as **autoresearch-lab-approval-cluster-rebas
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-approval-cluster-rebaseline/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-evo05-domain-pack-catalog-first/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -87,10 +87,10 @@ This project is indexed by GitNexus as **autoresearch-lab-approval-cluster-rebas
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-approval-cluster-rebaseline/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-approval-cluster-rebaseline/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-approval-cluster-rebaseline/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-approval-cluster-rebaseline/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-evo05-domain-pack-catalog-first/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-evo05-domain-pack-catalog-first/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-evo05-domain-pack-catalog-first/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-evo05-domain-pack-catalog-first/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 
