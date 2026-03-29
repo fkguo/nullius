@@ -75,6 +75,6 @@ Today’s approval/report authority is intentionally split:
 
 ## Residual Bounded Follow-up
 
-1. Keep `M-22` open only for cross-component consumer/mapping rollout and explicit authority adoption beyond the registry/test surface.
+1. Keep `M-22` open only for cross-component consumer/mapping rollout and explicit authority adoption beyond the registry/test surface. The current next slice is the checked-in `TS approvals first` implementation prompt at `meta/docs/prompts/prompt-2026-03-29-m22-gatespec-ts-approval-consumers-first.md`.
 2. If/when Python legacy retirement or TS front-door repointing resumes, treat generic trio/show/report replacement as a separate bounded migration slice. Do not retroactively claim the current bounded TS A3 support already finished that work.
 3. Do not reopen this cluster into a runtime rewrite: the governance correction here is about truthful status mapping, not about rebuilding approval/report infrastructure from scratch.
