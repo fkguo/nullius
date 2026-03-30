@@ -307,3 +307,12 @@
 - DeerFlow is borrowed here only for the boundary-test anti-drift pattern; DeerFlow gateway/frontend/workspace shell remain later adaptation work rather than current authority.
 
 **Why**: The architectural boundary is already decided in ADRs and prior closeouts. The missing gap is continuously enforced packaging truth that keeps future shell/product work from drifting back into root/shared/orchestrator/provider authority confusion.
+
+### [2026-03-30] Coordinator output contract reminder: lane launches ship as complete forwardable packages
+
+**Decision**:
+- Supporting reminder only: root main-thread lane-launch outputs should default to one best complete forwardable package with explicit `plan_mode` and an embedded `report_back` template, rather than split instructions that the human must assemble manually.
+- Do not proactively emit shortened/non-best variants unless the user explicitly asks for them.
+- Normative governance authority remains `AGENTS.md`; this memory is only a concise cross-session reminder and must not become a second SSOT.
+
+**Why**: Keeping lane-launch packets complete by default reduces avoidable coordinator-output drift while preserving a single governance authority.
