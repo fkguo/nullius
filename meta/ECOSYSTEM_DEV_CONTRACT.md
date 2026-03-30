@@ -232,7 +232,7 @@ bash autoresearch-meta/tests/integration/test_smoke.sh --mode full --schema-only
 
 ### SYNC-06: 跨语言类型代码生成门禁
 
-**规则**: `autoresearch-meta/schemas/` 下的 JSON Schema 为所有跨语言共享类型的唯一 SSOT。TS 接口（`json-schema-to-typescript`）和 Python dataclass（`datamodel-code-generator`）必须由 CI 自动生成。禁止手写跨语言镜像类型。
+**规则**: `meta/schemas/` 下的 JSON Schema 为所有跨语言共享类型的唯一 SSOT。TS 接口（`json-schema-to-typescript`）和 Python 生成模型 / bindings（`datamodel-code-generator`，当前输出为 `meta/generated/python/` 下的 Pydantic v2 artifacts）必须由 CI 自动生成。禁止手写跨语言镜像类型。
 
 **CI 验证**:
 ```bash
