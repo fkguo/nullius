@@ -23,6 +23,7 @@ type WritingEvidenceMetaV1 = {
     enrichment_artifact_name?: string;
   };
   pdf?: {
+    paper_id?: string | null;
     catalog_uri?: string | null;
     output_prefix?: string;
     embeddings_artifact_name?: string;
@@ -131,11 +132,24 @@ function artifactNameFromUri(uri: string | null | undefined): string | null {
   }
 }
 
-function resolvePdfPaperId(sourceStatus: WritingEvidenceSourceStatusV1 | null): string | undefined {
-  const latexPapers = (sourceStatus?.sources ?? [])
-    .filter(source => source.source_kind === 'latex' && source.status === 'success' && typeof source.paper_id === 'string')
-    .map(source => source.paper_id as string);
-  return latexPapers.length === 1 ? latexPapers[0] : undefined;
+function normalizeOptionalString(value: string | null | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function resolvePdfPaperId(params: {
+  meta: WritingEvidenceMetaV1 | null;
+  sourceStatus: WritingEvidenceSourceStatusV1 | null;
+}): string | undefined {
+  const pdfPaperIds = Array.from(new Set(
+    (params.sourceStatus?.sources ?? [])
+      .filter(source => source.source_kind === 'pdf' && source.status === 'success')
+      .map(source => normalizeOptionalString(source.paper_id))
+      .filter((paperId): paperId is string => Boolean(paperId)),
+  ));
+  if (pdfPaperIds.length === 1) return pdfPaperIds[0];
+  return normalizeOptionalString(params.meta?.pdf?.paper_id);
 }
 
 function summarizeMultimodal(multimodal: EvidenceMultimodalArtifact) {
@@ -201,7 +215,7 @@ export async function queryProjectEvidenceSemantic(params: {
     ? getRunArtifactPath(params.run_id, meta.source_status_artifact)
     : null;
   const sourceStatus = sourceStatusPath ? safeReadJson<WritingEvidenceSourceStatusV1>(sourceStatusPath) : null;
-  const resolvedPdfPaperId = resolvePdfPaperId(sourceStatus);
+  const resolvedPdfPaperId = resolvePdfPaperId({ meta, sourceStatus });
 
   const surfaceStatuses: SurfaceStatuses = {
     latex: { status: 'missing', item_count: 0 },
@@ -247,6 +261,17 @@ export async function queryProjectEvidenceSemantic(params: {
         paper_id: item.paper_id ?? surface.defaultPaperId,
       }));
       const parsedEmbeddings = parseEmbeddingsJsonl({ content: embeddingsText });
+      if (surface.kind === 'pdf') {
+        const missingPaperIds = parsedItems
+          .filter(item => !normalizeOptionalString(item.paper_id))
+          .map(item => item.evidence_id)
+          .slice(0, 5);
+        if (missingPaperIds.length > 0) {
+          status.status = 'invalid';
+          status.reason = `missing_real_paper_id:${missingPaperIds.join(',')}`;
+          return;
+        }
+      }
       catalogItems.push(...parsedItems);
       embeddings.push(...parsedEmbeddings);
       if (enrichmentPath) {
@@ -524,22 +549,34 @@ export async function queryProjectEvidenceSemantic(params: {
     });
   }
 
-  const hits: QueryEvidenceHit[] = localization.selected.map((entry, index) => ({
-    evidence_id: entry.candidate.item.evidence_id,
-    project_id: entry.candidate.item.project_id,
-    paper_id: entry.candidate.item.paper_id ?? params.paper_id ?? resolvedPdfPaperId ?? 'run_pdf',
-    type: entry.candidate.item.type,
-    score: entry.candidate.score,
-    semantic_score: entry.candidate.semantic_score,
-    token_overlap_ratio: entry.candidate.token_overlap_ratio,
-    importance_score: entry.candidate.importance_score,
-    retrieval_mode: 'semantic_reranked',
-    rank: index + 1,
-    matched_tokens: includeExplanation ? entry.candidate.matched_tokens ?? [] : undefined,
-    text_preview: String(entry.candidate.item.text ?? '').slice(0, 400),
-    locator: entry.candidate.item.locator,
-    localization: entry.localization,
-  }));
+  const hits: QueryEvidenceHit[] = localization.selected.map((entry, index) => {
+    const paperId = normalizeOptionalString(entry.candidate.item.paper_id) ?? normalizeOptionalString(params.paper_id);
+    if (!paperId) {
+      throw invalidParams('Semantic evidence hit is missing a real paper_id after surface validation (fail-closed)', {
+        run_id: params.run_id,
+        project_id: params.project_id,
+        evidence_id: entry.candidate.item.evidence_id,
+        type: entry.candidate.item.type,
+        surfaces: surfaceStatuses,
+      });
+    }
+    return {
+      evidence_id: entry.candidate.item.evidence_id,
+      project_id: entry.candidate.item.project_id,
+      paper_id: paperId,
+      type: entry.candidate.item.type,
+      score: entry.candidate.score,
+      semantic_score: entry.candidate.semantic_score,
+      token_overlap_ratio: entry.candidate.token_overlap_ratio,
+      importance_score: entry.candidate.importance_score,
+      retrieval_mode: 'semantic_reranked',
+      rank: index + 1,
+      matched_tokens: includeExplanation ? entry.candidate.matched_tokens ?? [] : undefined,
+      text_preview: String(entry.candidate.item.text ?? '').slice(0, 400),
+      locator: entry.candidate.item.locator,
+      localization: entry.localization,
+    };
+  });
 
   const result: QueryEvidenceResult = {
     project_id: params.project_id,

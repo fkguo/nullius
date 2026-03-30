@@ -217,6 +217,7 @@ const EvidenceTypeSchema = z.enum([
   'theorem',
   'citation_context',
 ]);
+const QueryEvidenceTypeSchema = z.union([EvidenceTypeSchema, PdfEvidenceTypeSchema]);
 
 export const HepRunBuildMeasurementsToolSchema = z.object({
   run_id: SafePathSegmentSchema,
@@ -261,6 +262,7 @@ const WritingLatexSourceSchema = z
 
 const WritingPdfSourceSchema = z
   .object({
+    paper_id: SafePathSegmentSchema.optional(),
     pdf_path: z.string().min(1).optional(),
     pdf_artifact_name: SafePathSegmentSchema.optional(),
     zotero_attachment_key: SafePathSegmentSchema.optional(),
@@ -326,7 +328,7 @@ export const HepProjectQueryEvidenceToolSchema = z
     project_id: SafePathSegmentSchema,
     paper_id: SafePathSegmentSchema.optional(),
     query: z.string().min(1),
-    types: z.array(EvidenceTypeSchema).optional(),
+    types: z.array(QueryEvidenceTypeSchema).optional(),
     mode: z.enum(['lexical', 'semantic']).optional().default('lexical'),
     run_id: SafePathSegmentSchema.optional(),
     include_explanation: z.boolean().optional().default(false),
@@ -348,7 +350,7 @@ export const HepProjectQueryEvidenceSemanticToolSchema = z.object({
   project_id: SafePathSegmentSchema,
   paper_id: SafePathSegmentSchema.optional(),
   query: z.string().min(1),
-  types: z.array(EvidenceTypeSchema).optional(),
+  types: z.array(QueryEvidenceTypeSchema).optional(),
   include_explanation: z.boolean().optional().default(false),
   limit: optionalBudgetInt({ min: 1, max: 50 }).default(10),
 });

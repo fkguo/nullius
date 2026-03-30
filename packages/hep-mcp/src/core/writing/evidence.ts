@@ -599,6 +599,7 @@ export type WritingLatexSourceInput = {
 };
 
 export type WritingPdfSourceInput = {
+  paper_id?: string;
   pdf_path?: string;
   pdf_artifact_name?: string;
   zotero_attachment_key?: string;
@@ -713,7 +714,8 @@ function identifierForLatexSource(src: WritingLatexSourceInput, index: number): 
 
 function identifierForPdfSource(src: WritingPdfSourceInput): string {
   const raw = (
-    src.zotero_attachment_key
+    src.paper_id
+    || src.zotero_attachment_key
     || src.pdf_artifact_name
     || src.pdf_path
     || src.fulltext_artifact_name
@@ -722,6 +724,93 @@ function identifierForPdfSource(src: WritingPdfSourceInput): string {
     || 'pdf'
   );
   return String(raw).trim() || 'pdf';
+}
+
+function normalizeOptionalString(value: string | null | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+type ResolvedPdfIdentity =
+  | {
+      ok: true;
+      paper_id: string;
+      source: 'explicit_pdf_source' | 'unique_successful_latex';
+      same_paper_as_successful_latex: boolean;
+    }
+  | {
+      ok: false;
+      error_code: 'PDF_PAPER_ID_REQUIRED' | 'PDF_PAPER_ID_AMBIGUOUS';
+      message: string;
+    };
+
+function resolvePdfPaperIdentity(params: {
+  pdfSource: WritingPdfSourceInput;
+  successfulLatexPaperIds: string[];
+}): ResolvedPdfIdentity {
+  const explicitPaperId = normalizeOptionalString(params.pdfSource.paper_id);
+  if (explicitPaperId) {
+    return {
+      ok: true,
+      paper_id: explicitPaperId,
+      source: 'explicit_pdf_source',
+      same_paper_as_successful_latex: params.successfulLatexPaperIds.includes(explicitPaperId),
+    };
+  }
+
+  if (params.successfulLatexPaperIds.length === 1) {
+    return {
+      ok: true,
+      paper_id: params.successfulLatexPaperIds[0]!,
+      source: 'unique_successful_latex',
+      same_paper_as_successful_latex: true,
+    };
+  }
+
+  if (params.successfulLatexPaperIds.length === 0) {
+    return {
+      ok: false,
+      error_code: 'PDF_PAPER_ID_REQUIRED',
+      message: 'pdf_source.paper_id is required when no successful LaTeX paper exists in the same run.',
+    };
+  }
+
+  return {
+    ok: false,
+    error_code: 'PDF_PAPER_ID_AMBIGUOUS',
+    message: 'pdf_source.paper_id is required when multiple successful LaTeX papers exist in the same run.',
+  };
+}
+
+function withPdfPaperIdentity(
+  items: PdfEvidenceCatalogItemV1[],
+  paperId: string,
+): Array<PdfEvidenceCatalogItemV1 & { paper_id: string }> {
+  return items.map(item => ({
+    ...item,
+    paper_id: paperId,
+  }));
+}
+
+function buildPdfIdentityErrorData(params: {
+  pdfSource: WritingPdfSourceInput;
+  successfulLatexPaperIds: string[];
+  identifier: string;
+}) {
+  return {
+    pdf_source: {
+      identifier: params.identifier,
+      paper_id: normalizeOptionalString(params.pdfSource.paper_id) ?? null,
+      pdf_path: params.pdfSource.pdf_path ?? null,
+      pdf_artifact_name: params.pdfSource.pdf_artifact_name ?? null,
+      zotero_attachment_key: params.pdfSource.zotero_attachment_key ?? null,
+      fulltext_artifact_name: params.pdfSource.fulltext_artifact_name ?? null,
+      docling_json_path: params.pdfSource.docling_json_path ?? null,
+      docling_json_artifact_name: params.pdfSource.docling_json_artifact_name ?? null,
+    },
+    successful_latex_paper_ids: params.successfulLatexPaperIds,
+  };
 }
 
 export async function buildRunWritingEvidence(params: {
@@ -986,6 +1075,37 @@ export async function buildRunWritingEvidence(params: {
       const mode = pdf.mode ?? 'text';
 
       const pdfIdentifier = identifierForPdfSource(pdf);
+      const successfulLatexPaperIds = Array.from(new Set(builtPapers.map(p => p.paper_id)));
+      const pdfIdentity = resolvePdfPaperIdentity({
+        pdfSource: pdf,
+        successfulLatexPaperIds,
+      });
+
+      if (!pdfIdentity.ok) {
+        sourceStatuses.push({
+          source_kind: 'pdf',
+          identifier: pdfIdentifier,
+          status: 'failed',
+          error: pdfIdentity.message,
+          error_code: pdfIdentity.error_code,
+        });
+        if (!continueOnError) {
+          writeSourceStatusArtifact();
+          throw invalidParams(pdfIdentity.message, buildPdfIdentityErrorData({
+            pdfSource: pdf,
+            successfulLatexPaperIds,
+            identifier: pdfIdentifier,
+          }));
+        }
+      } else if (pdfIdentity.same_paper_as_successful_latex) {
+        sourceStatuses.push({
+          source_kind: 'pdf',
+          identifier: pdfIdentifier,
+          paper_id: pdfIdentity.paper_id,
+          status: 'skipped',
+          error_code: 'PDF_SKIPPED_LATEX_AUTHORITY',
+        });
+      } else {
       const t0 = Date.now();
       try {
         pdfBuildResult = await buildRunPdfEvidence({
@@ -1012,6 +1132,7 @@ export async function buildRunWritingEvidence(params: {
         pdfStatus = {
           source_kind: 'pdf',
           identifier: pdfIdentifier,
+          paper_id: pdfIdentity.paper_id,
           status: 'success',
           duration_ms: Date.now() - t0,
           fallback_used: pdfBuildResult.summary.used_zotero_fulltext
@@ -1040,7 +1161,8 @@ export async function buildRunWritingEvidence(params: {
         const catalogName = `${output_prefix}_evidence_catalog.jsonl`;
         const pdfCatalogPath = getRunArtifactPath(runId, catalogName);
         const pdfItemsRaw = readJsonlFile<PdfEvidenceCatalogItemV1>(pdfCatalogPath);
-        const pdfItemsFiltered = ensureUniqueByEvidenceId(pdfItemsRaw.filter(it => params.pdf_types.includes(it.type)));
+        const pdfItemsWithPaperId = withPdfPaperIdentity(pdfItemsRaw, pdfIdentity.paper_id);
+        const pdfItemsFiltered = ensureUniqueByEvidenceId(pdfItemsWithPaperId.filter(it => params.pdf_types.includes(it.type)));
         const pdfItems = sortByEvidenceId(pdfItemsFiltered).slice(0, maxEvidenceItems);
         if (pdfItemsFiltered.length > pdfItems.length) {
           const msg =
@@ -1067,6 +1189,7 @@ export async function buildRunWritingEvidence(params: {
             evidence_id: it.evidence_id,
             text: it.normalized_text ?? it.text ?? '',
             type: it.type,
+            paper_id: it.paper_id,
             run_id: it.run_id,
           })),
         });
@@ -1083,6 +1206,7 @@ export async function buildRunWritingEvidence(params: {
             evidence_id: it.evidence_id,
             importance_score: importanceScoreForPdf(it),
             type: it.type,
+            paper_id: it.paper_id,
             run_id: it.run_id,
           })),
           labelsFor: it => (it.type ? [String(it.type)] : []),
@@ -1094,6 +1218,7 @@ export async function buildRunWritingEvidence(params: {
           mimeType: 'application/x-ndjson',
         });
         artifacts.push(pdfEnrichmentRef);
+      }
       }
     }
 
@@ -1148,6 +1273,7 @@ export async function buildRunWritingEvidence(params: {
       pdf: pdfBuildResult
         ? {
             ...params.pdf_source!,
+            paper_id: pdfStatus?.paper_id ?? null,
             catalog_uri: pdfCatalogUri ?? null,
             embeddings_artifact_name: params.pdf_embeddings_artifact_name,
             enrichment_artifact_name: params.pdf_enrichment_artifact_name,
@@ -1188,7 +1314,7 @@ export async function buildRunWritingEvidence(params: {
         bridge_sources: bridgeSummaries.length,
         latex_items: latexItems.length,
         latex_types: Array.from(new Set(latexItems.map(it => it.type))).sort(),
-        pdf_included: Boolean(params.pdf_source),
+        pdf_included: Boolean(pdfBuildResult),
         embedding_model: embeddingModel,
         embedding_dim: params.embedding_dim,
         warnings_total: warnings.length,
