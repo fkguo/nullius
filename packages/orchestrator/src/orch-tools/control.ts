@@ -1,11 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  APPROVAL_GATE_TO_POLICY_KEY,
+  APPROVAL_REQUIRED_DEFAULTS,
+  getApprovalPolicyKey,
+} from '@autoresearch/shared';
 import { z } from 'zod';
 import {
   createStateManager,
-  DEFAULT_APPROVAL_REQUIRED,
   pauseFilePath,
-  POLICY_KEYS,
   requireState,
 } from './common.js';
 import {
@@ -100,10 +103,12 @@ export async function handleOrchPolicyQuery(
 ): Promise<unknown> {
   const { manager } = createStateManager(params.project_root);
   const policy = manager.readPolicy();
-  const effectivePolicy = Object.keys(policy).length > 0 ? policy : { approval_required: DEFAULT_APPROVAL_REQUIRED };
+  const effectivePolicy = Object.keys(policy).length > 0
+    ? policy
+    : { approval_required: APPROVAL_REQUIRED_DEFAULTS };
   const result: Record<string, unknown> = {
     policy: effectivePolicy,
-    gate_to_policy_key: POLICY_KEYS,
+    gate_to_policy_key: APPROVAL_GATE_TO_POLICY_KEY,
     policy_path: fs.existsSync(manager.policyPath) ? manager.policyPath : null,
     policy_exists: fs.existsSync(manager.policyPath),
   };
@@ -117,7 +122,7 @@ export async function handleOrchPolicyQuery(
   if (params.include_history && fs.existsSync(manager.statePath)) {
     const state = manager.readState();
     result.precedents = state.approval_history
-      .filter(entry => entry.category !== null && POLICY_KEYS[entry.category] === params.operation)
+      .filter(entry => entry.category !== null && getApprovalPolicyKey(entry.category) === params.operation)
       .slice(-5);
   }
   return result;

@@ -94,8 +94,35 @@ export const GATE_REGISTRY: readonly GateSpec[] = [
   },
 ] as const;
 
+export type ApprovalGateSpec = GateSpec & { gate_type: 'approval' };
+export type ApprovalGateId = string;
+export type ApprovalOperationKey = string;
+
+const APPROVAL_GATE_SPECS = GATE_REGISTRY.filter(
+  (gate): gate is ApprovalGateSpec => gate.gate_type === 'approval',
+);
+
+function approvalPolicyKey(gate: ApprovalGateSpec): ApprovalOperationKey {
+  const policyKey = (gate.policy as Record<string, unknown>).approval_category;
+  if (typeof policyKey !== 'string' || policyKey !== gate.scope) {
+    throw new Error(
+      `Approval gate ${gate.gate_id} must keep policy.approval_category aligned with scope.`,
+    );
+  }
+  return gate.scope;
+}
+
+const APPROVAL_GATE_ENTRIES = APPROVAL_GATE_SPECS.map((gate) => [
+  gate.gate_id,
+  approvalPolicyKey(gate),
+] as const);
+
 const GATE_BY_ID = new Map<string, GateSpec>(
   GATE_REGISTRY.map((gate) => [gate.gate_id, gate]),
+);
+
+const APPROVAL_GATE_ID_SET = new Set<string>(
+  APPROVAL_GATE_SPECS.map((gate) => gate.gate_id),
 );
 
 if (GATE_BY_ID.size !== GATE_REGISTRY.length) {
@@ -104,8 +131,38 @@ if (GATE_BY_ID.size !== GATE_REGISTRY.length) {
   throw new Error(`GATE_REGISTRY has duplicate gate ids: ${duplicates.join(', ')}`);
 }
 
+export const APPROVAL_GATE_IDS = APPROVAL_GATE_SPECS.map(
+  (gate) => gate.gate_id,
+) as readonly string[];
+
+export const APPROVAL_GATE_TO_POLICY_KEY = Object.freeze(
+  Object.fromEntries(APPROVAL_GATE_ENTRIES),
+) as Readonly<Record<ApprovalGateId, ApprovalOperationKey>>;
+
+export const APPROVAL_REQUIRED_DEFAULTS = Object.freeze(
+  Object.fromEntries(
+    APPROVAL_GATE_ENTRIES.map(([, policyKey]) => [policyKey, true] as const),
+  ),
+) as Readonly<Record<ApprovalOperationKey, boolean>>;
+
 export function getGateSpec(gateId: string): GateSpec | undefined {
   return GATE_BY_ID.get(gateId);
+}
+
+export function getApprovalGateSpecs(): readonly ApprovalGateSpec[] {
+  return APPROVAL_GATE_SPECS;
+}
+
+export function isApprovalGateId(gateId: string): gateId is ApprovalGateId {
+  return APPROVAL_GATE_ID_SET.has(gateId);
+}
+
+export function getApprovalPolicyKey(
+  gateId: string,
+): ApprovalOperationKey | undefined {
+  return isApprovalGateId(gateId)
+    ? APPROVAL_GATE_TO_POLICY_KEY[gateId]
+    : undefined;
 }
 
 export function getRegisteredGateNames(): string[] {

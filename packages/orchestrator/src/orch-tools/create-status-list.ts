@@ -1,10 +1,16 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { invalidParams } from '@autoresearch/shared';
+import { APPROVAL_GATE_IDS, invalidParams } from '@autoresearch/shared';
 import { z } from 'zod';
 import { createStateManager, requireState } from './common.js';
 import { buildRunStatusView, readRunListView } from './run-read-model.js';
 import { OrchRunCreateSchema, OrchRunListSchema, OrchRunStatusSchema } from './schemas.js';
+
+function approvalSequenceTemplate(): Record<string, number> {
+  return Object.fromEntries(
+    APPROVAL_GATE_IDS.map((gateId) => [gateId, 0] as const),
+  ) as Record<string, number>;
+}
 
 function buildIdleState(runId: string, workflowId?: string) {
   return {
@@ -17,7 +23,7 @@ function buildIdleState(runId: string, workflowId?: string) {
     plan_md_path: null,
     checkpoints: { last_checkpoint_at: null, checkpoint_interval_seconds: 900 },
     pending_approval: null,
-    approval_seq: { A1: 0, A2: 0, A3: 0, A4: 0, A5: 0 },
+    approval_seq: approvalSequenceTemplate(),
     gate_satisfied: {},
     approval_history: [],
     artifacts: {},

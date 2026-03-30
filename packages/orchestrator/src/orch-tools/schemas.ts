@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { type ApprovalGateFilter } from './common.js';
+import { APPROVAL_GATE_FILTER_VALUES, isApprovalGateFilter } from './common.js';
 import { TeamExecutionConfigSchema } from './team-schemas.js';
 
 const ProjectRootSchema = z
@@ -51,6 +53,12 @@ const LeaseDurationSchema = z.number().int().positive();
 const WorkerIdSchema = z.string().min(1).max(128);
 const WorkerSlotSchema = z.number().int().positive();
 const HeartbeatTimeoutSchema = z.number().int().positive();
+const ApprovalGateFilterSchema = z.custom<ApprovalGateFilter>(
+  (value): value is ApprovalGateFilter => typeof value === 'string' && isApprovalGateFilter(value),
+  {
+    message: `gate_filter must be one of ${APPROVAL_GATE_FILTER_VALUES.join(', ')}`,
+  },
+);
 
 export const OrchRunCreateSchema = z.object({
   project_root: ProjectRootSchema,
@@ -111,9 +119,7 @@ export const OrchRunResumeSchema = z.object({
 export const OrchRunApprovalsListSchema = z.object({
   project_root: ProjectRootSchema,
   run_id: z.string().optional().describe('Run ID to list approvals for. Defaults to current run_id in state.'),
-  gate_filter: z
-    .enum(['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'all'])
-    .optional()
+  gate_filter: ApprovalGateFilterSchema.optional()
     .default('all')
     .describe('Filter by gate category.'),
   include_history: z

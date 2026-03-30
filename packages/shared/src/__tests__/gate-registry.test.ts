@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  APPROVAL_GATE_IDS,
+  APPROVAL_GATE_TO_POLICY_KEY,
+  APPROVAL_REQUIRED_DEFAULTS,
   GATE_REGISTRY,
   GateValidationError,
+  getApprovalGateSpecs,
+  getApprovalPolicyKey,
   getGateSpec,
   getRegisteredGateNames,
+  isApprovalGateId,
   isRegisteredGate,
   type GateType,
   validateGates,
@@ -50,6 +56,31 @@ describe('GATE_REGISTRY', () => {
     expect(gateIds).toContain('A5');
     expect(gateIds).toContain('team_convergence');
     expect(gateIds).toContain('draft_convergence');
+  });
+
+  it('should derive approval ids and policy keys from shared GateSpec without A0', () => {
+    expect(APPROVAL_GATE_IDS).toEqual(['A1', 'A2', 'A3', 'A4', 'A5']);
+    expect(APPROVAL_GATE_IDS).not.toContain('A0');
+    expect(APPROVAL_GATE_TO_POLICY_KEY).toEqual({
+      A1: 'mass_search',
+      A2: 'code_changes',
+      A3: 'compute_runs',
+      A4: 'paper_edits',
+      A5: 'final_conclusions',
+    });
+    expect(APPROVAL_REQUIRED_DEFAULTS).toEqual({
+      mass_search: true,
+      code_changes: true,
+      compute_runs: true,
+      paper_edits: true,
+      final_conclusions: true,
+    });
+  });
+
+  it('should keep approval gate scope aligned with policy.approval_category', () => {
+    for (const gate of getApprovalGateSpecs()) {
+      expect(gate.policy.approval_category).toBe(gate.scope);
+    }
   });
 });
 
@@ -105,5 +136,18 @@ describe('isRegisteredGate', () => {
   it('should return false for unregistered gates', () => {
     expect(isRegisteredGate('A6')).toBe(false);
     expect(isRegisteredGate('')).toBe(false);
+  });
+});
+
+describe('approval gate helpers', () => {
+  it('should expose approval gate ids as a dedicated type guard', () => {
+    expect(isApprovalGateId('A1')).toBe(true);
+    expect(isApprovalGateId('A0')).toBe(false);
+  });
+
+  it('should return policy keys only for registered approval gates', () => {
+    expect(getApprovalPolicyKey('A3')).toBe('compute_runs');
+    expect(getApprovalPolicyKey('A0')).toBeUndefined();
+    expect(getApprovalPolicyKey('quality_compile')).toBeUndefined();
   });
 });

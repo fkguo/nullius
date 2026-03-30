@@ -2,8 +2,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import {
+  APPROVAL_GATE_IDS,
+  APPROVAL_GATE_TO_POLICY_KEY,
+  APPROVAL_REQUIRED_DEFAULTS,
+} from '@autoresearch/shared';
 import { StateManager, LedgerWriter, ApprovalGate, approvalPacketSha256 } from '../src/index.js';
 import type { RunState } from '../src/index.js';
+import { handleOrchPolicyQuery } from '../src/orch-tools/control.js';
+import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
+import { readApprovalsView } from '../src/orch-tools/run-read-model.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'orch-test-'));
@@ -22,6 +30,12 @@ function writePolicy(repoRoot: string, policy: Record<string, unknown>): void {
 }
 
 /** Minimal valid RunState for tests (Python SSOT shape). */
+function approvalSequenceTemplate(): Record<string, number> {
+  return Object.fromEntries(
+    APPROVAL_GATE_IDS.map((gateId) => [gateId, 0] as const),
+  ) as Record<string, number>;
+}
+
 function baseState(overrides?: Partial<RunState>): RunState {
   return {
     schema_version: 1,
@@ -33,7 +47,7 @@ function baseState(overrides?: Partial<RunState>): RunState {
     plan_md_path: null,
     checkpoints: { last_checkpoint_at: null, checkpoint_interval_seconds: 900 },
     pending_approval: null,
-    approval_seq: { A1: 0, A2: 0, A3: 0, A4: 0, A5: 0 },
+    approval_seq: approvalSequenceTemplate(),
     gate_satisfied: {},
     approval_history: [],
     artifacts: {},
@@ -799,8 +813,8 @@ describe('requestApproval (Stage 3a)', () => {
     expect(state.notes).toBe('need review');
   });
 
-  it('reads timeout from policy via APPROVAL_CATEGORY_TO_POLICY_KEY mapping (Python parity)', () => {
-    // Python maps A2 → 'code_changes' for policy lookup
+  it('reads timeout from policy via shared GateSpec approval mapping (Python parity)', () => {
+    // Shared GateSpec keeps A2 → code_changes for policy lookup.
     writePolicy(tmpDir, {
       timeouts: { code_changes: { timeout_seconds: 7200, on_timeout: 'reject' } },
     });
@@ -1724,6 +1738,13 @@ describe('Stage 3c: validatePlan', () => {
     expect(() => sm.validatePlan(plan)).toThrow(/not in enum/);
   });
 
+  it('rejects compatibility-only A0 in expected_approvals', () => {
+    const plan = basePlan({
+      steps: [{ step_id: 's1', description: 'x', status: 'pending', expected_approvals: ['A0'], expected_outputs: [], recovery_notes: '' }],
+    });
+    expect(() => sm.validatePlan(plan)).toThrow(/not in enum/);
+  });
+
   it('rejects step with unexpected properties (additionalProperties)', () => {
     const plan = basePlan({
       steps: [{ step_id: 's1', description: 'x', status: 'pending', expected_approvals: [], expected_outputs: [], recovery_notes: '', bonus: true }],
@@ -1843,6 +1864,78 @@ describe('Stage 3c: validatePlan', () => {
   it('accepts plan with branching=null', () => {
     const plan = basePlan({ branching: null });
     expect(() => sm.validatePlan(plan)).not.toThrow();
+  });
+});
+
+describe('orch approval/query read models', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns shared GateSpec-derived approval policy metadata', async () => {
+    const result = await handleOrchPolicyQuery({
+      project_root: tmpDir,
+      include_history: false,
+      operation: 'compute_runs',
+    });
+
+    expect(result).toMatchObject({
+      gate_to_policy_key: APPROVAL_GATE_TO_POLICY_KEY,
+      policy: { approval_required: APPROVAL_REQUIRED_DEFAULTS },
+      operation: 'compute_runs',
+      requires_approval: true,
+    });
+    expect((result as Record<string, unknown>).gate_to_policy_key).not.toHaveProperty('A0');
+  });
+
+  it('creates idle runs with GateSpec-derived approval sequence keys only', async () => {
+    const result = await handleOrchRunCreate({
+      project_root: tmpDir,
+      run_id: 'run-1',
+      workflow_id: 'ingest',
+    });
+
+    expect(result).toMatchObject({
+      run_id: 'run-1',
+      run_status: 'idle',
+      uri: 'orch://runs/run-1',
+    });
+
+    const state = new StateManager(tmpDir).readState();
+    expect(state.approval_seq).toEqual(approvalSequenceTemplate());
+    expect(state.approval_seq).not.toHaveProperty('A0');
+  });
+
+  it('keeps A0 as a compatibility-only approval filter', () => {
+    const manager = new StateManager(tmpDir);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'run-1';
+    state.workflow_id = 'ingest';
+    state.pending_approval = {
+      approval_id: 'A1-0001',
+      category: 'A1',
+      plan_step_ids: [],
+      requested_at: '2026-03-29T00:00:00Z',
+      timeout_at: null,
+      on_timeout: 'block',
+      packet_path: 'artifacts/runs/run-1/approvals/A1-0001/packet.md',
+    };
+    manager.saveState(state);
+
+    const view = readApprovalsView(tmpDir, state, {
+      gate_filter: 'A0',
+      include_history: false,
+    });
+
+    expect(view.approvals).toEqual([]);
+    expect(view.total).toBe(0);
   });
 });
 

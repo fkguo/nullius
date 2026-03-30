@@ -1,24 +1,25 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { notFound } from '@autoresearch/shared';
+import {
+  APPROVAL_GATE_IDS,
+  isApprovalGateId,
+  notFound,
+  type ApprovalGateId,
+} from '@autoresearch/shared';
 import { StateManager } from '../state-manager.js';
 
-export const POLICY_KEYS: Record<string, string> = {
-  A1: 'mass_search',
-  A2: 'code_changes',
-  A3: 'compute_runs',
-  A4: 'paper_edits',
-  A5: 'final_conclusions',
-};
+export type ApprovalGateFilter = ApprovalGateId | 'A0' | 'all';
 
-export const DEFAULT_APPROVAL_REQUIRED: Record<string, boolean> = {
-  mass_search: true,
-  code_changes: true,
-  compute_runs: true,
-  paper_edits: true,
-  final_conclusions: true,
-};
+export function isApprovalGateFilter(value: string): value is ApprovalGateFilter {
+  return value === 'A0' || value === 'all' || isApprovalGateId(value);
+}
+
+export const APPROVAL_GATE_FILTER_VALUES = [
+  'A0',
+  ...APPROVAL_GATE_IDS,
+  'all',
+] as const satisfies readonly ApprovalGateFilter[];
 
 export function expandTilde(rawPath: string): string {
   if (rawPath === '~') {

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { invalidParams } from '@autoresearch/shared';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
-import { pauseFilePath, readJson } from './common.js';
+import { pauseFilePath, readJson, type ApprovalGateFilter } from './common.js';
 
 export type VisibleRunStatusFilter =
   | 'idle'
@@ -149,7 +149,7 @@ export function readApprovalsView(
   state: RunState,
   params: {
     run_id?: string;
-    gate_filter: 'A0' | 'A1' | 'A2' | 'A3' | 'A4' | 'A5' | 'all';
+    gate_filter: ApprovalGateFilter;
     include_history: boolean;
   },
 ): { run_id: string; approvals: ApprovalEntry[]; total: number; errors: ReadModelError[] } {

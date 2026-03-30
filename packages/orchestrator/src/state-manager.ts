@@ -4,6 +4,10 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  APPROVAL_GATE_IDS,
+  getApprovalPolicyKey,
+} from '@autoresearch/shared';
 import type { RunState, RunStatus, ApprovalPolicy, ApprovalHistoryEntry, LedgerEvent } from './types.js';
 import { sortKeysRecursive, utcNowIso } from './util.js';
 
@@ -42,7 +46,7 @@ const PLAN_SCHEMA: Record<string, unknown> = {
   },
   additionalProperties: false,
   $defs: {
-    approval_category: { type: 'string', enum: ['A1', 'A2', 'A3', 'A4', 'A5'] },
+    approval_category: { type: 'string', enum: APPROVAL_GATE_IDS },
     branch_status: { type: 'string', enum: ['candidate', 'active', 'abandoned', 'failed', 'completed'] },
     branch_candidate: {
       type: 'object',
@@ -246,15 +250,11 @@ function schemaValidate(
   return errors;
 }
 
-/** Maps approval category (A1–A5) to policy timeout key.
- *  Must match Python APPROVAL_CATEGORY_TO_POLICY_KEY in orchestrator_state.py. */
-const APPROVAL_CATEGORY_TO_POLICY_KEY: Record<string, string> = {
-  A1: 'mass_search',
-  A2: 'code_changes',
-  A3: 'compute_runs',
-  A4: 'paper_edits',
-  A5: 'final_conclusions',
-};
+function approvalSequenceTemplate(): Record<string, number> {
+  return Object.fromEntries(
+    APPROVAL_GATE_IDS.map((gateId) => [gateId, 0] as const),
+  ) as Record<string, number>;
+}
 
 function autoresearchDir(repoRoot: string): string {
   const override = process.env[AUTORESEARCH_CONTROL_DIR_ENV];
@@ -275,7 +275,7 @@ function defaultState(): RunState {
     plan_md_path: null,
     checkpoints: { last_checkpoint_at: null, checkpoint_interval_seconds: 900 },
     pending_approval: null,
-    approval_seq: { A1: 0, A2: 0, A3: 0, A4: 0, A5: 0 },
+    approval_seq: approvalSequenceTemplate(),
     gate_satisfied: {},
     approval_history: [],
     artifacts: {},
@@ -775,8 +775,7 @@ export class StateManager {
 
     const approvalId = this.nextApprovalId(state, category);
     const policy = this.readPolicy();
-    // Python uses APPROVAL_CATEGORY_TO_POLICY_KEY to map A1→mass_search, etc.
-    const policyKey = APPROVAL_CATEGORY_TO_POLICY_KEY[category] ?? category;
+    const policyKey = getApprovalPolicyKey(category) ?? category;
     const timeoutCfg = policy.timeouts?.[policyKey] ?? { timeout_seconds: 86400, on_timeout: 'block' };
     const timeoutSeconds = timeoutCfg.timeout_seconds ?? 0;
     const onTimeout = timeoutCfg.on_timeout ?? 'block';
