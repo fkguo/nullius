@@ -692,6 +692,7 @@ class MultiTaskTests(unittest.TestCase):
             system = td_path / "system.md"
             prompt = td_path / "prompt.md"
             gemini_runner = td_path / "run_gemini.sh"
+            fake_home = td_path / "home"
 
             _write_stub_runner(gemini_runner)
             system.write_text("SYSTEM\n", encoding="utf-8")
@@ -713,7 +714,8 @@ class MultiTaskTests(unittest.TestCase):
                 "gemini=review",
                 "--no-parallel",
             ]
-            code = _run_main_with_argv(self.mod, argv)
+            with _temp_env(HOME=str(fake_home)):
+                code = _run_main_with_argv(self.mod, argv)
             self.assertEqual(code, 0)
 
             events = _read_trace_events(out_dir / "trace.jsonl")
@@ -734,6 +736,71 @@ class MultiTaskTests(unittest.TestCase):
             start_event = next(e for e in events if e.get("event") == "agent_0_start")
             self.assertIn("--gemini-cli-home", start_event["cmd"])
             self.assertIn(str(home_path), start_event["cmd"])
+
+    def test_gemini_review_auto_isolates_cli_home_and_bridges_oauth_personal(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            system = td_path / "system.md"
+            prompt = td_path / "prompt.md"
+            gemini_runner = td_path / "run_gemini.sh"
+            fake_home = td_path / "home"
+            source_gemini_home = fake_home / ".gemini"
+
+            _write_stub_runner(gemini_runner)
+            system.write_text("SYSTEM\n", encoding="utf-8")
+            prompt.write_text("PROMPT\n", encoding="utf-8")
+            source_gemini_home.mkdir(parents=True, exist_ok=True)
+            (source_gemini_home / "settings.json").write_text(
+                json.dumps(
+                    {
+                        "security": {
+                            "auth": {
+                                "selectedType": "oauth-personal",
+                            }
+                        }
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (source_gemini_home / "oauth_creds.json").write_text('{"token":"secret"}\n', encoding="utf-8")
+            (source_gemini_home / "google_accounts.json").write_text('{"accounts":[]}\n', encoding="utf-8")
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir",
+                str(out_dir),
+                "--gemini-runner",
+                str(gemini_runner),
+                "--system",
+                str(system),
+                "--prompt",
+                str(prompt),
+                "--models",
+                "gemini/default",
+                "--backend-tool-mode",
+                "gemini=review",
+                "--no-parallel",
+            ]
+            with _temp_env(HOME=str(fake_home)):
+                code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 0)
+
+            events = _read_trace_events(out_dir / "trace.jsonl")
+            config_event = next(e for e in events if e.get("event") == "config")
+            profile = config_event["gemini_review_profiles"][0]
+            self.assertEqual(profile["auth_bridge"]["selected_type"], "oauth-personal")
+            self.assertEqual(
+                sorted(profile["auth_bridge"]["copied_files"]),
+                ["google_accounts.json", "oauth_creds.json"],
+            )
+
+            settings_path = Path(profile["settings_path"])
+            settings_payload = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(settings_payload["security"]["auth"]["selectedType"], "oauth-personal")
+            self.assertTrue((settings_path.parent / "oauth_creds.json").exists())
+            self.assertTrue((settings_path.parent / "google_accounts.json").exists())
 
     def test_explicit_gemini_cli_home_preserves_override_for_review_mode(self):
         with tempfile.TemporaryDirectory() as td:

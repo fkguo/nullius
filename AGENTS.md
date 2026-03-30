@@ -136,8 +136,12 @@ Autoresearch 是一个 evidence-first 的理论研究 substrate / control plane�
 - **默认不使用 `superpowers` 通用 skills 作为执行依据**。本仓库的权威执行依据始终是：`AGENTS.md`、batch prompt、`meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`、GitNexus 证据、`review-swarm` 与 `self-review` 门禁。
 - **默认直接在主仓 `main` worktree 工作**；只有当存在并行 lane、需要隔离未收敛实现、或人类明确要求保留独立工作区时，才创建与主仓平行的本地 `worktree`（例如 `/home/user/Coding/Agents/autoresearch-lab-<branch-or-batch>`）；除非人类明确要求，否则不默认使用 `~/.config/superpowers/worktrees/...`。
 - **主协调线程与 lane `branch/worktree` 必须分离**：主协调线程默认固定在根仓 `/home/user/Coding/Agents/autoresearch-lab` 的 `main` worktree；允许通过 shell 创建、删除或维护 lane `worktree` / `branch`，但这些 lane 仅是独立执行面，不得改变主协调线程的 `branch/worktree` 关联。
+- **sub-agent lane 默认先有经主协调审核批准的计划，再启动执行**：若 lane 将由主协调线程直接驱动的 sub-agent / worker 承担，必须先在主协调线程形成可审核的 substantive plan，再由人类批准后启动；未经批准，不得直接让 sub-agent 进入实现、验收或 formal review。
 - **主协调线程默认输出最佳完整、可直接转发的 lane instruction package**：当根 `main` 线程 coordinator 向 lane 下发指令时，默认输出必须是最佳、完整、可直接转发的单包材料；同一处必须同时包含 `branch`、`worktree`、`starting_point`、显式 `plan_mode: required | not_required`、`required_setup`、`task`、`acceptance`、`review` 与内嵌 `report_back` 模板。不得要求人类手工拼接任务正文、验收/审核要求与单独的汇报模板。
 - **除非人类明确要求，否则主协调线程不主动提供次优/缩略指令变体**：不得主动输出 shortened / partial / non-best 版本，也不得主动询问用户是否还要“更短版”或把 `report_back` 拆出去；默认只给最佳完整 forwardable package。
+- **sub-agent lane 的 approved plan 默认应有可复核落点**：凡属真正的 implementation lane，且会触及多包边界、治理/流程边界、public/front-door surface、或后续需要复核/复用的 scope，默认应先把 approved plan 落成 checked-in `meta/docs/prompts/prompt-*.md`；仅 planning-only 的并行排期/队列编排可落在 `meta/docs/plans/*.md`；只有极小、一次性、无治理外溢的 bounded hotfix 才可只用主协调线程中的 plan packet 而不先写 checked-in plan doc。
+- **lane 默认先回 substantive `plan_packet`，获批后再自动执行到下一个必要检查点**：主协调线程对 lane 的人工审核重点应放在真正有内容的实施方案、authority / framework / process boundary 与 out-of-scope 判断上；lane 在方案获批后，默认应自行完成实现、验收、formal review、self-review、plan/tracker 同步、状态归一与常规 rerun / rebase 判断，而不是为 routine bookkeeping 频繁回到主协调线程。
+- **lane 仅应在少数必要检查点回到主协调线程**：默认只允许 `plan approval needed`、`blocker decision needed`、`version control authorization needed`、`merge decision needed` 这四类检查点打断主协调线程；具体 packet 结构、状态判定与推荐工作流以 `meta/docs/2026-03-30-coordinator-lane-checkpoint-protocol.md` 为准。
 - **通用 skill 不得覆盖项目级硬门禁**：不得覆盖实现 prompt、GitNexus freshness / post-change evidence、正式 `review-swarm`、正式 `self-review`、tracker / memory / `AGENTS.md` 同步、以及版本控制门禁。
 - 若某个通用 skill 与本仓库规则冲突，**一律以本仓库规则为准**；必要时直接忽略该 skill 的默认建议。
 
@@ -291,7 +295,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 - 本节唯一允许的状态信息是 phase 级完成度数字与全局 blocker 摘要；禁止新增或保留任何 item-specific bullet、item id、reopened/done/blocked/follow-up 叙事、review/self-review/validation/tool-failure 信息。
 - Phase 0: 14/14 完成
 - Phase 1: 22/23 完成
-- Phase 2: 45/51 完成
+- Phase 2: 46/51 完成
 - Phase 3: 40/53 完成
 - Phase 4: 4/8 完成，blocked by earlier phases
 - Phase 5: 17/24 完成，blocked by earlier phases

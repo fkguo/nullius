@@ -22,6 +22,7 @@ import json
 import os
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import threading
@@ -46,6 +47,10 @@ _ALLOWED_BACKEND_TOOL_MODES = {
     "gemini": {"none", "review"},
     "opencode": {"none", "workspace"},
 }
+_GEMINI_OAUTH_BRIDGE_FILES = (
+    "oauth_creds.json",
+    "google_accounts.json",
+)
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -490,16 +495,60 @@ def _resolve_backend_tool_mode(backend: str, overrides: dict[str, str]) -> Optio
     return _DEFAULT_BACKEND_TOOL_MODES.get(backend)
 
 
-def _write_gemini_review_settings(home_root: Path) -> tuple[Path, dict[str, Any]]:
+def _load_default_gemini_oauth_auth() -> Optional[dict[str, Any]]:
+    settings_path = Path.home() / ".gemini" / "settings.json"
+    if not settings_path.is_file():
+        return None
+    try:
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    security = payload.get("security")
+    if not isinstance(security, dict):
+        return None
+    auth = security.get("auth")
+    if not isinstance(auth, dict):
+        return None
+    selected_type = auth.get("selectedType")
+    if not isinstance(selected_type, str) or not selected_type.startswith("oauth"):
+        return None
+    return auth
+
+
+def _copy_default_gemini_oauth_support_files(home_root: Path) -> list[str]:
+    source_root = Path.home() / ".gemini"
+    target_root = home_root / ".gemini"
+    copied: list[str] = []
+    for name in _GEMINI_OAUTH_BRIDGE_FILES:
+        src = source_root / name
+        if not src.is_file():
+            continue
+        target_root.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, target_root / name)
+        copied.append(name)
+    return copied
+
+
+def _write_gemini_review_settings(home_root: Path) -> tuple[Path, dict[str, Any], Optional[dict[str, Any]]]:
     settings_payload: dict[str, Any] = {
         "mcp": {
             "allowed": [],
         },
         "mcpServers": {},
     }
+    auth_bridge: Optional[dict[str, Any]] = None
+    oauth_auth = _load_default_gemini_oauth_auth()
+    if oauth_auth is not None:
+        settings_payload["security"] = {"auth": oauth_auth}
+        auth_bridge = {
+            "selected_type": oauth_auth.get("selectedType"),
+            "copied_files": _copy_default_gemini_oauth_support_files(home_root),
+            "source": str((Path.home() / ".gemini").resolve()),
+        }
     settings_path = home_root / ".gemini" / "settings.json"
     _write_json_file(settings_path, settings_payload)
-    return settings_path, settings_payload
+    return settings_path, settings_payload, auth_bridge
 
 
 class AgentPlan:
@@ -678,7 +727,7 @@ def _resolve_gemini_review_profile(
         return None, profile
 
     home_root = out_dir / "runtime" / "gemini_cli_home" / f"agent_{plan.index + 1}"
-    settings_path, settings_payload = _write_gemini_review_settings(home_root)
+    settings_path, settings_payload, auth_bridge = _write_gemini_review_settings(home_root)
     profile.update(
         {
             "source": "auto_isolated_review",
@@ -687,6 +736,8 @@ def _resolve_gemini_review_profile(
             "settings_payload": settings_payload,
         }
     )
+    if auth_bridge is not None:
+        profile["auth_bridge"] = auth_bridge
     return str(home_root), profile
 
 

@@ -219,7 +219,7 @@ load_auth_env_from_default_home() {
   if [[ -z "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
     return 0
   fi
-  if [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" || -n "${GOOGLE_GEMINI_BASE_URL:-}" ]]; then
+  if [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" || -n "${GOOGLE_GEMINI_BASE_URL:-}" || -n "${GOOGLE_GENAI_USE_VERTEXAI:-}" || -n "${GOOGLE_GENAI_USE_GCA:-}" ]]; then
     return 0
   fi
   if ! command -v python3 >/dev/null 2>&1; then
@@ -241,6 +241,8 @@ allowed = {
     "GOOGLE_CLOUD_LOCATION",
     "GOOGLE_CLOUD_PROJECT",
     "GOOGLE_GEMINI_BASE_URL",
+    "GOOGLE_GENAI_USE_VERTEXAI",
+    "GOOGLE_GENAI_USE_GCA",
 }
 
 path = Path(sys.argv[1])
@@ -265,6 +267,73 @@ PY
   done <<EOF
 ${auth_lines}
 EOF
+}
+
+bridge_oauth_personal_from_default_home() {
+  if [[ -z "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
+    return 0
+  fi
+  if [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" || -n "${GOOGLE_GEMINI_BASE_URL:-}" || -n "${GOOGLE_GENAI_USE_VERTEXAI:-}" || -n "${GOOGLE_GENAI_USE_GCA:-}" ]]; then
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local default_gemini_home="${HOME}/.gemini"
+  local default_settings="${default_gemini_home}/settings.json"
+  [[ -f "${default_settings}" ]] || return 0
+
+  python3 - "${default_gemini_home}" "${GEMINI_CLI_HOME_OVERRIDE}" <<'PY'
+import json
+import shutil
+import sys
+from pathlib import Path
+
+source_home = Path(sys.argv[1])
+target_home = Path(sys.argv[2])
+source_settings = source_home / "settings.json"
+target_settings = target_home / ".gemini" / "settings.json"
+
+try:
+    source_payload = json.loads(source_settings.read_text(encoding="utf-8", errors="replace"))
+except Exception:
+    raise SystemExit(0)
+
+security = source_payload.get("security")
+if not isinstance(security, dict):
+    raise SystemExit(0)
+auth = security.get("auth")
+if not isinstance(auth, dict):
+    raise SystemExit(0)
+selected_type = auth.get("selectedType")
+if not isinstance(selected_type, str) or not selected_type.startswith("oauth"):
+    raise SystemExit(0)
+
+target_payload = {}
+if target_settings.exists():
+    try:
+        existing = json.loads(target_settings.read_text(encoding="utf-8", errors="replace"))
+        if isinstance(existing, dict):
+            target_payload = existing
+    except Exception:
+        target_payload = {}
+
+target_security = target_payload.get("security")
+if not isinstance(target_security, dict):
+    target_security = {}
+target_security["auth"] = auth
+target_payload["security"] = target_security
+
+target_root = target_settings.parent
+target_root.mkdir(parents=True, exist_ok=True)
+target_settings.write_text(json.dumps(target_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+for name in ("oauth_creds.json", "google_accounts.json"):
+    src = source_home / name
+    if src.is_file():
+        shutil.copy2(src, target_root / name)
+PY
 }
 
 try_generatecontent_fallback() {
@@ -562,6 +631,7 @@ if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
   mkdir -p "${GEMINI_CLI_HOME_OVERRIDE}"
 fi
 load_auth_env_from_default_home
+bridge_oauth_personal_from_default_home
 cleanup() {
   # Do not let cleanup affect the script exit status.
   if [[ -n "${tmp_out}" ]]; then

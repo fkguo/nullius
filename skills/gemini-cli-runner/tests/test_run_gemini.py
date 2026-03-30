@@ -235,5 +235,37 @@ def test_isolated_gemini_home_bootstraps_auth_env_from_default_home(tmp_path: Pa
     assert "google_gemini_base_url=http://127.0.0.1:5000" in _out_text(out_path)
 
 
+def test_isolated_gemini_home_bridges_oauth_personal_from_default_home(tmp_path: Path) -> None:
+    home_dir = tmp_path / "home"
+    home_gemini_dir = home_dir / ".gemini"
+    isolated_home = tmp_path / "isolated-home"
+    home_gemini_dir.mkdir(parents=True, exist_ok=True)
+    (home_gemini_dir / "settings.json").write_text(
+        '{"security":{"auth":{"selectedType":"oauth-personal"}}}\n',
+        encoding="utf-8",
+    )
+    (home_gemini_dir / "oauth_creds.json").write_text('{"token":"secret"}\n', encoding="utf-8")
+    (home_gemini_dir / "google_accounts.json").write_text('{"accounts":[]}\n', encoding="utf-8")
+
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=[
+            "--gemini-cli-home",
+            str(isolated_home),
+            "--model",
+            "gemini-3.1-pro-preview",
+            "--no-fallback",
+        ],
+        extra_env={"HOME": str(home_dir)},
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _out_text(out_path) == "OK_DEFAULT\n"
+
+    settings_payload = (isolated_home / ".gemini" / "settings.json").read_text(encoding="utf-8")
+    assert '"selectedType": "oauth-personal"' in settings_payload
+    assert (isolated_home / ".gemini" / "oauth_creds.json").exists()
+    assert (isolated_home / ".gemini" / "google_accounts.json").exists()
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
