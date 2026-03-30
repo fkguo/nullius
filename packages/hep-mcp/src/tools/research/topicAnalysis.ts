@@ -10,7 +10,8 @@
  */
 
 import { buildResearchTimeline, type TimelineResult } from './timeline.js';
-import { analyzeTopicEvolution, type TopicEvolutionResult } from './topicEvolution.js';
+import type { TopicEvolution, TopicEvolutionParams as SharedTopicEvolutionParams } from '@autoresearch/shared';
+import { analyzeTopicEvolution } from './topicEvolution.js';
 import { findEmergingPapers, type FindEmergingResult } from './emergingPapers.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,8 +39,8 @@ export interface TopicAnalysisOptions {
   end_year?: number;
 
   // Evolution options
-  granularity?: 'year' | '5year' | 'decade';
-  include_subtopics?: boolean;
+  granularity?: SharedTopicEvolutionParams['granularity'];
+  include_subtopics?: SharedTopicEvolutionParams['include_subtopics'];
 
   // Emerging options
   min_citations?: number;
@@ -67,7 +68,7 @@ export interface TopicAnalysisResult {
   /** Timeline results (if mode includes 'timeline') */
   timeline?: TimelineResult;
   /** Evolution results (if mode includes 'evolution') */
-  evolution?: TopicEvolutionResult;
+  evolution?: TopicEvolution;
   /** Emerging papers results (if mode includes 'emerging') */
   emerging?: FindEmergingResult;
 }
@@ -112,8 +113,8 @@ export async function analyzeTopicUnified(
         topic,
         start_year: options.start_year ?? time_range?.start,
         end_year: options.end_year ?? time_range?.end,
-        granularity: options.granularity,
-        include_subtopics: options.include_subtopics,
+        granularity: options.granularity ?? '5year',
+        include_subtopics: options.include_subtopics ?? false,
       }).then(r => { result.evolution = r; })
     );
   }

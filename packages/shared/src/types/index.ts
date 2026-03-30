@@ -109,6 +109,8 @@ export {
 } from './network.js';
 
 // Analysis Types (consolidated — NEW-R06)
+// Handwritten Zod exports remain the live TS/runtime authority for the
+// analysis-tool path; generated analysis-types-v1 stays a codegen artifact.
 export {
   AnalysisTypeSchema,
   RelatedStrategySchema,

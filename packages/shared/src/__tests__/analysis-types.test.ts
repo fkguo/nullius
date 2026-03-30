@@ -5,6 +5,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import * as SharedRoot from '../index.js';
+import * as SharedGenerated from '../generated/index.js';
 import {
   AnalyzePapersParamsSchema,
   AnalyzeCollectionParamsSchema,
@@ -12,6 +14,7 @@ import {
   ResearchExpansionParamsSchema,
   GenerateSurveyParamsSchema,
   TopicEvolutionParamsSchema,
+  TopicEvolutionSchema,
   BatchImportParamsSchema,
   CollectionAnalysisSchema,
   ConnectionsResultSchema,
@@ -82,6 +85,16 @@ describe('TopicEvolutionParamsSchema', () => {
   it('validates minimal', () => {
     const result = TopicEvolutionParamsSchema.parse({ topic: 'QCD' });
     expect(result.granularity).toBe('year');
+    expect(result.include_subtopics).toBe(false);
+  });
+});
+
+describe('Analysis-type public ownership', () => {
+  it('keeps runtime topic-evolution authority on the handwritten shared surface', () => {
+    expect(SharedRoot.TopicEvolutionParamsSchema).toBe(TopicEvolutionParamsSchema);
+    expect(SharedRoot.TopicEvolutionSchema).toBe(TopicEvolutionSchema);
+    expect('TopicEvolutionParamsSchema' in SharedGenerated).toBe(false);
+    expect('TopicEvolutionSchema' in SharedGenerated).toBe(false);
   });
 });
 

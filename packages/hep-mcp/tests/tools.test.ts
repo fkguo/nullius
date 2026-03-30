@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { TopicEvolutionSchema } from '@autoresearch/shared';
 
 // Mock the API client
 vi.mock('../src/api/client.js', () => ({
@@ -297,6 +298,100 @@ describe('Tool Handlers (current exposure)', () => {
 
     expect(api.search).toHaveBeenCalledWith('t:qcd', expect.objectContaining({ size: 2 }));
     expect(api.searchByUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('topicEvolution preserves legacy omitted granularity while consuming shared result authority', async () => {
+    vi.mocked(api.search)
+      .mockResolvedValueOnce({
+        total: 2,
+        papers: [
+          {
+            recid: 'p1',
+            title: 'Phase-one paper',
+            authors: ['Author A'],
+            year: 2020,
+            citation_count: 12,
+          },
+          {
+            recid: 'p2',
+            title: 'Phase-two paper',
+            authors: ['Author B'],
+            year: 2024,
+            citation_count: 6,
+          },
+        ],
+        has_more: false,
+      })
+      .mockResolvedValueOnce({
+        total: 3,
+        papers: [],
+        has_more: false,
+      });
+
+    const { analyzeTopicEvolution } = await import('../src/tools/research/topicEvolution.js');
+    const result = await analyzeTopicEvolution({
+      topic: 'QCD',
+      start_year: 2020,
+      end_year: 2024,
+    });
+
+    expect(api.search).toHaveBeenNthCalledWith(
+      1,
+      'QCD date:2020->2024',
+      expect.objectContaining({ sort: 'mostcited', size: 1000 }),
+    );
+    expect(api.search).toHaveBeenCalledTimes(2);
+    expect(result.phases).toHaveLength(1);
+    expect(result.phases[0]?.period).toBe('2020-2024');
+    expect(TopicEvolutionSchema.parse(result)).toEqual(result);
+  });
+
+  it('topicAnalysis keeps legacy omitted granularity on the live evolution path', async () => {
+    vi.mocked(api.search)
+      .mockResolvedValueOnce({
+        total: 2,
+        papers: [
+          {
+            recid: 'p1',
+            title: 'Phase-one paper',
+            authors: ['Author A'],
+            year: 2020,
+            citation_count: 12,
+          },
+          {
+            recid: 'p2',
+            title: 'Phase-two paper',
+            authors: ['Author B'],
+            year: 2024,
+            citation_count: 6,
+          },
+        ],
+        has_more: false,
+      })
+      .mockResolvedValueOnce({
+        total: 3,
+        papers: [],
+        has_more: false,
+      });
+
+    const { analyzeTopicUnified: analyzeTopicUnifiedActual } =
+      await vi.importActual('../src/tools/research/topicAnalysis.js') as typeof import('../src/tools/research/topicAnalysis.js');
+    const result = await analyzeTopicUnifiedActual({
+      topic: 'QCD',
+      mode: 'evolution',
+      options: {
+        start_year: 2020,
+        end_year: 2024,
+      },
+    });
+
+    expect(api.search).toHaveBeenNthCalledWith(
+      1,
+      'QCD date:2020->2024',
+      expect.objectContaining({ sort: 'mostcited', size: 1000 }),
+    );
+    expect(result.evolution?.phases).toHaveLength(1);
+    expect(result.evolution?.phases[0]?.period).toBe('2020-2024');
   });
 
   it('inspire_search_next should reject review_mode="none" (compat removed)', async () => {

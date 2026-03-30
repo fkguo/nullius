@@ -4,49 +4,22 @@
  */
 
 import * as api from '../../api/client.js';
-import type { PaperSummary } from '@autoresearch/shared';
+import {
+  type TopicEvolution,
+  type TopicEvolutionParams,
+  TopicEvolutionParamsSchema,
+  TopicEvolutionSchema,
+} from '@autoresearch/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types
+// Types derived from the shared analysis-types authority
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface TopicEvolutionParams {
-  topic: string;
-  start_year?: number;
-  end_year?: number;
-  granularity?: 'year' | '5year' | 'decade';
-  include_subtopics?: boolean;
-}
-
-export interface EvolutionPhase {
-  period: string;
-  paper_count: number;
-  citation_momentum: number;
-  key_papers: PaperSummary[];
-  key_authors: string[];
-  description?: string;
-}
-
-export interface Subtopic {
-  name: string;
-  emerged_year: number;
-  paper_count: number;
-  key_papers: string[];
-}
-
-export interface CurrentStatus {
-  recent_papers: number;
-  growth_rate: number;
-  trend: 'growing' | 'stable' | 'declining';
-}
-
-export interface TopicEvolutionResult {
-  topic: string;
-  time_range: { start: number; end: number };
-  phases: EvolutionPhase[];
-  subtopics?: Subtopic[];
-  current_status: CurrentStatus;
-}
+export type TopicEvolutionResult = TopicEvolution;
+export type EvolutionPhase = TopicEvolutionResult['phases'][number];
+export type Subtopic = NonNullable<TopicEvolutionResult['subtopics']>[number];
+type TopicTrend = TopicEvolutionResult['current_status']['trend'];
+type TopicGranularity = NonNullable<TopicEvolutionParams['granularity']>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
@@ -55,7 +28,7 @@ export interface TopicEvolutionResult {
 function getPeriodRanges(
   startYear: number,
   endYear: number,
-  granularity: 'year' | '5year' | 'decade'
+  granularity: TopicGranularity
 ): { label: string; start: number; end: number }[] {
   const ranges: { label: string; start: number; end: number }[] = [];
 
@@ -87,12 +60,18 @@ export async function analyzeTopicEvolution(
   params: TopicEvolutionParams
 ): Promise<TopicEvolutionResult> {
   const currentYear = new Date().getFullYear();
+  const validated = TopicEvolutionParamsSchema.parse({
+    ...params,
+    // Preserve the preexisting hep-mcp runtime default while delegating
+    // params ownership and validation to the shared analysis-types surface.
+    granularity: params.granularity ?? '5year',
+  });
   const {
     topic,
     start_year,
     end_year = currentYear,
-    granularity = '5year',
-  } = params;
+    granularity,
+  } = validated;
 
   // Detect start year if not provided
   let startYear = start_year;
@@ -176,7 +155,7 @@ export async function analyzeTopicEvolution(
 
   // Calculate growth rate
   let growth_rate = 0;
-  let trend: 'growing' | 'stable' | 'declining' = 'stable';
+  let trend: TopicTrend = 'stable';
 
   if (phases.length >= 2) {
     const lastPhase = phases[phases.length - 1];
@@ -188,7 +167,7 @@ export async function analyzeTopicEvolution(
     }
   }
 
-  return {
+  return TopicEvolutionSchema.parse({
     topic,
     time_range: { start: startYear, end: end_year },
     phases,
@@ -197,5 +176,5 @@ export async function analyzeTopicEvolution(
       growth_rate,
       trend,
     },
-  };
+  });
 }

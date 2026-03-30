@@ -61,10 +61,12 @@ export {
 
 export {
   analyzeTopicEvolution,
-  type TopicEvolutionParams,
-  type TopicEvolutionResult,
   type EvolutionPhase,
 } from './topicEvolution.js';
+export {
+  type TopicEvolutionParams,
+  type TopicEvolution as TopicEvolutionResult,
+} from '@autoresearch/shared';
 
 export {
   buildCollaborationNetwork,
