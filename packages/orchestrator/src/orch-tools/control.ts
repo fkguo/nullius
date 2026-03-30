@@ -105,7 +105,7 @@ export async function handleOrchPolicyQuery(
   const policy = manager.readPolicy();
   const effectivePolicy = Object.keys(policy).length > 0
     ? policy
-    : { approval_required: APPROVAL_REQUIRED_DEFAULTS };
+    : { require_approval_for: APPROVAL_REQUIRED_DEFAULTS };
   const result: Record<string, unknown> = {
     policy: effectivePolicy,
     gate_to_policy_key: APPROVAL_GATE_TO_POLICY_KEY,
@@ -117,7 +117,18 @@ export async function handleOrchPolicyQuery(
     return result;
   }
   result.operation = params.operation;
-  const approvalRequired = (effectivePolicy as { approval_required?: Record<string, boolean> }).approval_required;
+  const approvalRequired = (
+    effectivePolicy as {
+      require_approval_for?: Record<string, boolean>;
+      approval_required?: Record<string, boolean>;
+    }
+  ).require_approval_for
+    ?? (
+      effectivePolicy as {
+        require_approval_for?: Record<string, boolean>;
+        approval_required?: Record<string, boolean>;
+      }
+    ).approval_required;
   result.requires_approval = approvalRequired ? (approvalRequired[params.operation] ?? true) : true;
   if (params.include_history && fs.existsSync(manager.statePath)) {
     const state = manager.readState();

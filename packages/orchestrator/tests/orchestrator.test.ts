@@ -1887,11 +1887,64 @@ describe('orch approval/query read models', () => {
 
     expect(result).toMatchObject({
       gate_to_policy_key: APPROVAL_GATE_TO_POLICY_KEY,
-      policy: { approval_required: APPROVAL_REQUIRED_DEFAULTS },
+      policy: { require_approval_for: APPROVAL_REQUIRED_DEFAULTS },
       operation: 'compute_runs',
       requires_approval: true,
     });
     expect((result as Record<string, unknown>).gate_to_policy_key).not.toHaveProperty('A0');
+  });
+
+  it('reads schema-shaped require_approval_for policy files when computing approval decisions', async () => {
+    writePolicy(tmpDir, {
+      require_approval_for: {
+        mass_search: true,
+        code_changes: true,
+        compute_runs: false,
+        paper_edits: true,
+        final_conclusions: true,
+      },
+    });
+
+    const result = await handleOrchPolicyQuery({
+      project_root: tmpDir,
+      include_history: false,
+      operation: 'compute_runs',
+    });
+
+    expect(result).toMatchObject({
+      policy: {
+        require_approval_for: {
+          mass_search: true,
+          code_changes: true,
+          compute_runs: false,
+          paper_edits: true,
+          final_conclusions: true,
+        },
+      },
+      requires_approval: false,
+    });
+  });
+
+  it('keeps approval_required as a compatibility alias for approval decisions', async () => {
+    writePolicy(tmpDir, {
+      approval_required: {
+        mass_search: true,
+        code_changes: true,
+        compute_runs: false,
+        paper_edits: true,
+        final_conclusions: true,
+      },
+    });
+
+    const result = await handleOrchPolicyQuery({
+      project_root: tmpDir,
+      include_history: false,
+      operation: 'compute_runs',
+    });
+
+    expect(result).toMatchObject({
+      requires_approval: false,
+    });
   });
 
   it('creates idle runs with GateSpec-derived approval sequence keys only', async () => {
