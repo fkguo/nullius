@@ -99,6 +99,32 @@ run_gemini_cmd() {
   fi
 }
 
+load_proxy_env_from_interactive_shell() {
+  if [[ -n "${http_proxy:-}" || -n "${https_proxy:-}" || -n "${all_proxy:-}" || -n "${HTTP_PROXY:-}" || -n "${HTTPS_PROXY:-}" || -n "${ALL_PROXY:-}" ]]; then
+    return 0
+  fi
+  if ! command -v zsh >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local proxy_lines=""
+  proxy_lines="$(
+    zsh -lic '
+      if command -v proxy_on >/dev/null 2>&1; then
+        proxy_on >/dev/null 2>&1 || exit 0
+        env | grep -E "^(http_proxy|https_proxy|all_proxy|no_proxy|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY)=" || true
+      fi
+    ' 2>/dev/null || true
+  )"
+
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    export "${line}"
+  done <<EOF
+${proxy_lines}
+EOF
+}
+
 print_gemini_cmd_with_sandbox() {
   if [[ "${SANDBOX}" -eq 1 ]]; then
     print_gemini_cmd --sandbox "$@"
@@ -630,6 +656,7 @@ tmp_err=""
 if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
   mkdir -p "${GEMINI_CLI_HOME_OVERRIDE}"
 fi
+load_proxy_env_from_interactive_shell
 load_auth_env_from_default_home
 bridge_oauth_personal_from_default_home
 cleanup() {
