@@ -316,3 +316,16 @@
 - Normative governance authority remains `AGENTS.md`; this memory is only a concise cross-session reminder and must not become a second SSOT.
 
 **Why**: Keeping lane-launch packets complete by default reduces avoidable coordinator-output drift while preserving a single governance authority.
+
+
+### [2026-03-31] Research-team validation tier naming cleanup is post-M-22 doc debt, not current runtime authority work
+
+**Decision**:
+- The `research-team` skill's `P0` / `P1` / `P2` validation-tier labels still carry live meaning inside `FULL_VALIDATION_CONTRACT.md`, but the labels are semantically overloaded with broader repo phase/priority numbering and are no longer ideal front-door names.
+- This is naming/front-door documentation debt rather than runtime authority debt. It should **not** expand the current `M-22 GateSpec research-team convergence first` implementation slice.
+- The right sequencing is: finish the bounded `M-22` consumer-authority lane first, then handle a separate small doc-only cleanup that renames front-door validation-tier surfaces to semantic names (for example `validated` / `stable` / `optional hardening`) and renames files such as `P1_GATE_DOC_ALIGNMENT.md` accordingly.
+- Until that cleanup lands, current `P0` / `P1` / `P2` labels remain acceptable as internal validation-tier references, but should not be promoted further as long-term generic/public naming.
+
+**Why**:
+- The current labels still encode real validation semantics, so removing them ad hoc inside `M-22` would widen scope and mix naming cleanup with runtime authority work.
+- A later bounded doc-only slice can improve clarity without disturbing the now-active authority-convergence lane.
