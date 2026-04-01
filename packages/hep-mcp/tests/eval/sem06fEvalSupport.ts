@@ -76,6 +76,20 @@ function artifactUri(runId: string, artifactName: string): string {
   return `hep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
 }
 
+function readRunPaperId(runId: string): string {
+  const catalogPath = getRunArtifactPath(runId, 'latex_evidence_catalog.jsonl');
+  const firstLine = fs.readFileSync(catalogPath, 'utf-8')
+    .split('\n')
+    .map(line => line.trim())
+    .find(Boolean);
+  if (!firstLine) throw new Error(`latex evidence catalog is empty for run ${runId}`);
+  const firstItem = JSON.parse(firstLine) as { paper_id?: unknown };
+  if (typeof firstItem.paper_id !== 'string' || firstItem.paper_id.trim().length === 0) {
+    throw new Error(`latex evidence catalog is missing paper_id for run ${runId}`);
+  }
+  return firstItem.paper_id;
+}
+
 export function buildSem06fLatex(): string {
   return `\\documentclass{article}
 \\begin{document}
@@ -89,6 +103,7 @@ The page-native visual evidence lives on the PDF surface rather than in explicit
 export function augmentRunWithSem06fPdfSurface(runId: string, scenario: Sem06fScenario): void {
   const metaPath = getRunArtifactPath(runId, 'writing_evidence_meta_v1.json');
   const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as Record<string, unknown>;
+  const paperId = readRunPaperId(runId);
   const outputPrefix = `pdf_sem06f_${scenario}`;
   const catalogArtifactName = `${outputPrefix}_evidence_catalog.jsonl`;
   const embeddingsArtifactName = `${outputPrefix}_evidence_embeddings.jsonl`;
@@ -102,23 +117,23 @@ export function augmentRunWithSem06fPdfSurface(runId: string, scenario: Sem06fSc
     : {};
 
   const pdfItems: Array<Record<string, unknown>> = [
-    { version: 1, evidence_id: 'pdf_page_1', run_id: runId, project_id: meta.project_id, type: 'pdf_page', locator: { kind: 'pdf', page: 1 }, text: 'VISPAGE_GOLD_001 TEXT_GOLD threshold enhancement prose discussion.', normalized_text: normalize('VISPAGE_GOLD_001 TEXT_GOLD threshold enhancement prose discussion.'), meta: scenario === 'visual_enabled' || scenario === 'visual_ambiguous' ? { page_render_uri: artifactUri(runId, `${outputPrefix}_page_0001.png`) } : {} },
-    { version: 1, evidence_id: 'pdf_page_2', run_id: runId, project_id: meta.project_id, type: 'pdf_page', locator: { kind: 'pdf', page: 2 }, text: 'VISPAGE_GOLD_002 phase diagram evidence and mass spectrum overview.', normalized_text: normalize('VISPAGE_GOLD_002 phase diagram evidence and mass spectrum overview.'), meta: visualPageMeta },
+    { version: 1, evidence_id: 'pdf_page_1', run_id: runId, project_id: meta.project_id, paper_id: paperId, type: 'pdf_page', locator: { kind: 'pdf', page: 1 }, text: 'VISPAGE_GOLD_001 TEXT_GOLD threshold enhancement prose discussion.', normalized_text: normalize('VISPAGE_GOLD_001 TEXT_GOLD threshold enhancement prose discussion.'), meta: scenario === 'visual_enabled' || scenario === 'visual_ambiguous' ? { page_render_uri: artifactUri(runId, `${outputPrefix}_page_0001.png`) } : {} },
+    { version: 1, evidence_id: 'pdf_page_2', run_id: runId, project_id: meta.project_id, paper_id: paperId, type: 'pdf_page', locator: { kind: 'pdf', page: 2 }, text: 'VISPAGE_GOLD_002 phase diagram evidence and mass spectrum overview.', normalized_text: normalize('VISPAGE_GOLD_002 phase diagram evidence and mass spectrum overview.'), meta: visualPageMeta },
   ];
 
   if (scenario === 'visual_enabled' || scenario === 'visual_unavailable') {
     const regionMeta = scenario === 'visual_enabled';
     pdfItems.push(
-      { version: 1, evidence_id: 'pdf_region_figure', run_id: runId, project_id: meta.project_id, type: 'pdf_region', locator: { kind: 'pdf', page: 2, bbox: { x0: 0.1, y0: 0.1, x1: 0.8, y1: 0.4 } }, text: 'VISFIG_GOLD mass spectrum anomaly on the phase diagram.', normalized_text: normalize('VISFIG_GOLD mass spectrum anomaly on the phase diagram.'), meta: { label: 'picture', ...(regionMeta ? { region_uri: artifactUri(runId, `${outputPrefix}_region_figure.png`) } : {}) } },
-      { version: 1, evidence_id: 'pdf_region_table', run_id: runId, project_id: meta.project_id, type: 'pdf_region', locator: { kind: 'pdf', page: 3, bbox: { x0: 0.2, y0: 0.2, x1: 0.9, y1: 0.45 } }, text: 'VISTABLE_GOLD branching fractions for the benchmark channel.', normalized_text: normalize('VISTABLE_GOLD branching fractions for the benchmark channel.'), meta: { label: 'table', ...(regionMeta ? { region_uri: artifactUri(runId, `${outputPrefix}_region_table.png`) } : {}) } },
-      { version: 1, evidence_id: 'pdf_region_equation', run_id: runId, project_id: meta.project_id, type: 'pdf_region', locator: { kind: 'pdf', page: 4, bbox: { x0: 0.15, y0: 0.15, x1: 0.85, y1: 0.35 } }, text: 'VISEQ_GOLD beta function running coupling relation.', normalized_text: normalize('VISEQ_GOLD beta function running coupling relation.'), meta: { label: 'formula', ...(regionMeta ? { region_uri: artifactUri(runId, `${outputPrefix}_region_equation.png`) } : {}) } },
+      { version: 1, evidence_id: 'pdf_region_figure', run_id: runId, project_id: meta.project_id, paper_id: paperId, type: 'pdf_region', locator: { kind: 'pdf', page: 2, bbox: { x0: 0.1, y0: 0.1, x1: 0.8, y1: 0.4 } }, text: 'VISFIG_GOLD mass spectrum anomaly on the phase diagram.', normalized_text: normalize('VISFIG_GOLD mass spectrum anomaly on the phase diagram.'), meta: { label: 'picture', ...(regionMeta ? { region_uri: artifactUri(runId, `${outputPrefix}_region_figure.png`) } : {}) } },
+      { version: 1, evidence_id: 'pdf_region_table', run_id: runId, project_id: meta.project_id, paper_id: paperId, type: 'pdf_region', locator: { kind: 'pdf', page: 3, bbox: { x0: 0.2, y0: 0.2, x1: 0.9, y1: 0.45 } }, text: 'VISTABLE_GOLD branching fractions for the benchmark channel.', normalized_text: normalize('VISTABLE_GOLD branching fractions for the benchmark channel.'), meta: { label: 'table', ...(regionMeta ? { region_uri: artifactUri(runId, `${outputPrefix}_region_table.png`) } : {}) } },
+      { version: 1, evidence_id: 'pdf_region_equation', run_id: runId, project_id: meta.project_id, paper_id: paperId, type: 'pdf_region', locator: { kind: 'pdf', page: 4, bbox: { x0: 0.15, y0: 0.15, x1: 0.85, y1: 0.35 } }, text: 'VISEQ_GOLD beta function running coupling relation.', normalized_text: normalize('VISEQ_GOLD beta function running coupling relation.'), meta: { label: 'formula', ...(regionMeta ? { region_uri: artifactUri(runId, `${outputPrefix}_region_equation.png`) } : {}) } },
     );
   }
 
   if (scenario === 'visual_ambiguous') {
     pdfItems.push(
-      { version: 1, evidence_id: 'pdf_region_figure_a', run_id: runId, project_id: meta.project_id, type: 'pdf_region', locator: { kind: 'pdf', page: 5, bbox: { x0: 0.1, y0: 0.1, x1: 0.45, y1: 0.4 } }, text: 'AMBIG_A resonance anomaly plot in the benchmark channel.', normalized_text: normalize('AMBIG_A resonance anomaly plot in the benchmark channel.'), meta: { label: 'picture', region_uri: artifactUri(runId, `${outputPrefix}_region_figure_a.png`) } },
-      { version: 1, evidence_id: 'pdf_region_figure_b', run_id: runId, project_id: meta.project_id, type: 'pdf_region', locator: { kind: 'pdf', page: 5, bbox: { x0: 0.5, y0: 0.1, x1: 0.9, y1: 0.4 } }, text: 'AMBIG_B resonance anomaly panel in the benchmark channel.', normalized_text: normalize('AMBIG_B resonance anomaly panel in the benchmark channel.'), meta: { label: 'picture', region_uri: artifactUri(runId, `${outputPrefix}_region_figure_b.png`) } },
+      { version: 1, evidence_id: 'pdf_region_figure_a', run_id: runId, project_id: meta.project_id, paper_id: paperId, type: 'pdf_region', locator: { kind: 'pdf', page: 5, bbox: { x0: 0.1, y0: 0.1, x1: 0.45, y1: 0.4 } }, text: 'AMBIG_A resonance anomaly plot in the benchmark channel.', normalized_text: normalize('AMBIG_A resonance anomaly plot in the benchmark channel.'), meta: { label: 'picture', region_uri: artifactUri(runId, `${outputPrefix}_region_figure_a.png`) } },
+      { version: 1, evidence_id: 'pdf_region_figure_b', run_id: runId, project_id: meta.project_id, paper_id: paperId, type: 'pdf_region', locator: { kind: 'pdf', page: 5, bbox: { x0: 0.5, y0: 0.1, x1: 0.9, y1: 0.4 } }, text: 'AMBIG_B resonance anomaly panel in the benchmark channel.', normalized_text: normalize('AMBIG_B resonance anomaly panel in the benchmark channel.'), meta: { label: 'picture', region_uri: artifactUri(runId, `${outputPrefix}_region_figure_b.png`) } },
     );
   }
 
@@ -126,6 +141,7 @@ export function augmentRunWithSem06fPdfSurface(runId: string, scenario: Sem06fSc
   writeJsonlArtifact(embeddingsPath, pdfItems.map(item => ({ evidence_id: item.evidence_id, model: 'fixture_sparse', vector: buildSparseVector(String(item.text ?? ''), dim), type: item.type, run_id: runId })));
   writeJsonlArtifact(enrichmentPath, pdfItems.map(item => ({ evidence_id: item.evidence_id, importance_score: item.type === 'pdf_page' ? 0.45 : 0.8, type: item.type, run_id: runId })));
   meta.pdf = {
+    paper_id: paperId,
     output_prefix: outputPrefix,
     catalog_uri: artifactUri(runId, catalogArtifactName),
     embeddings_artifact_name: embeddingsArtifactName,
