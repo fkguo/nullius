@@ -20,6 +20,7 @@
     "pdg-mcp": "./bin/pdg-mcp.js"
   },
   "scripts": {
+    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared",
     "build": "tsc",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",

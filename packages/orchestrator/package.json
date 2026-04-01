@@ -10,13 +10,16 @@
     "autoresearch": "dist/cli.js"
   },
   "scripts": {
+    "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared",
     "build": "tsc",
+    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared",
     "test": "vitest run",
     "lint": "echo \"no lint yet\"",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "typescript": "^5.4.0",
     "vitest": "^3.0.0"
   },
   "dependencies": {
