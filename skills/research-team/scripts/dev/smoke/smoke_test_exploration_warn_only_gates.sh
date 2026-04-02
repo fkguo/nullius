@@ -14,7 +14,7 @@ trap cleanup EXIT
 
 echo "[smoke] tmp_root=${tmp_root}"
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeTest"
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeTest" --full
 
 mkdir -p "${tmp_root}/runs/exploration" "${tmp_root}/scripts"
 cat > "${tmp_root}/runs/exploration/manifest.json" <<'JSON'

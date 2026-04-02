@@ -12,7 +12,7 @@ trap cleanup EXIT
 echo "[smoke] tmp_root=${tmp_root}"
 
 echo "[test1] scaffold with profile=toolkit_extraction"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeToolkit" --profile "toolkit_extraction"
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeToolkit" --profile "toolkit_extraction" --full
 if [[ ! -f "${tmp_root}/TOOLKIT_API.md" ]]; then
   echo "[fail] expected TOOLKIT_API.md to be scaffolded for profile=toolkit_extraction" >&2
   exit 1

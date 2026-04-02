@@ -15,7 +15,7 @@ trap cleanup EXIT
 
 echo "[smoke] tmp_root=${tmp_root}"
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "LitFetchNoteMathHygiene" >/dev/null
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "LitFetchNoteMathHygiene" --full >/dev/null
 
 # Ensure the mode enables knowledge_layers_gate by default (theory_numerics).
 python3 - <<PY
@@ -114,4 +114,3 @@ PY
 python3 "${GATES_DIR}/check_knowledge_layers.py" --notes "${tmp_root}/research_contract.md" >/dev/null
 
 echo "[smoke][ok] literature_fetch KB note template passes knowledge-layers math hygiene"
-

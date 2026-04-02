@@ -17,7 +17,7 @@ trap cleanup EXIT
 
 echo "[smoke] tmp_root=${tmp_root}"
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeClaimDAG"
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeClaimDAG" --full
 
 # Fill the capsule minimally + create required artifacts so deterministic gates can run.
 python3 - "${tmp_root}/research_contract.md" <<'PY'

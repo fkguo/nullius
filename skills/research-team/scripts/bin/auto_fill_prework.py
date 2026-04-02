@@ -35,6 +35,47 @@ TEMPLATE_LINE_MARKERS = (
     "example:",
 )
 
+_INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+
+
+def _looks_like_md_path(token: str) -> bool:
+    s = token.strip()
+    if not s:
+        return False
+    if any(ch.isspace() for ch in s):
+        return False
+    # Avoid rewriting placeholders/globs/snippets.
+    if any(ch in s for ch in ("*", "<", ">", "{", "}", "|")):
+        return False
+    # Avoid code-pointer conventions like path:Symbol.
+    if ":" in s:
+        return False
+
+    base = s.split("#", 1)[0]
+    if base.lower().endswith((".md", ".markdown")):
+        return True
+    if base.startswith(("knowledge_base/", "./knowledge_base/")) and base.endswith("/"):
+        return True
+    return False
+
+
+def _rewrite_inline_code_md_pointers(line: str) -> str:
+    """
+    Auto-fill should not introduce link-hygiene gate violations by copying backticked
+    Markdown file pointers from the user's initial instruction into research_preflight.md.
+
+    Convert `foo.md` -> [foo.md](foo.md) when the inline code span looks like a Markdown path.
+    """
+
+    def repl(m: re.Match[str]) -> str:
+        token = m.group(1)
+        if _looks_like_md_path(token):
+            t = token.strip()
+            return f"[{t}]({t})"
+        return m.group(0)
+
+    return _INLINE_CODE_RE.sub(repl, line)
+
 
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
@@ -231,6 +272,8 @@ def main() -> int:
 
     instr_path, instr_text = _find_first_nonempty(root, instr_paths)
     goal_line = _extract_goal_line(instr_text) if instr_text.strip() else ""
+    if goal_line:
+        goal_line = _rewrite_inline_code_md_pointers(goal_line)
 
     prework = root / "research_preflight.md"
     if not prework.is_file():

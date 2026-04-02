@@ -549,7 +549,7 @@ run_profile() {
   report_append "## Profile: ${profile}"
   report_append ""
 
-  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-${profile}" --profile "${profile}" >/dev/null 2>&1
+  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-${profile}" --profile "${profile}" --full >/dev/null 2>&1
   bash "${DEMO}" --root "${root}" --tag "${tag_full}" >/dev/null 2>&1
   approve_project_charter "${root}" "${profile}" >/dev/null 2>&1
   configure_validation_features "${root}"
@@ -601,7 +601,7 @@ run_brake_not_converged() {
   report_append "## Brake check: not_converged propagation"
   report_append ""
 
-  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakeNotConverged" --profile "mixed" >/dev/null 2>&1
+  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakeNotConverged" --profile "mixed" --full >/dev/null 2>&1
   bash "${DEMO}" --root "${root}" --tag "${tag}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
   configure_validation_features "${root}"
@@ -646,7 +646,7 @@ run_brake_sidecar_warn_only() {
   report_append "## Brake check: sidecar warn-only (failure does not block convergence)"
   report_append ""
 
-  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakeSidecarWarnOnly" --profile "mixed" >/dev/null 2>&1
+  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakeSidecarWarnOnly" --profile "mixed" --full >/dev/null 2>&1
   bash "${DEMO}" --root "${root}" --tag "${tag}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
   configure_validation_features "${root}"
@@ -692,7 +692,7 @@ run_brake_preflight_fail_fast() {
   report_append "## Brake check: preflight fail-fast (no runner calls)"
   report_append ""
 
-  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakePreflightFail" --profile "mixed" >/dev/null 2>&1
+  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakePreflightFail" --profile "mixed" --full >/dev/null 2>&1
   rm -f "${marker}"
 
   set +e
@@ -741,7 +741,7 @@ run_brake_plan_tracking_sentinel() {
   report_append "## Brake check: plan_tracking sentinel preservation"
   report_append ""
 
-  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakePlanSentinel" --profile "mixed" >/dev/null 2>&1
+  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakePlanSentinel" --profile "mixed" --full >/dev/null 2>&1
   bash "${DEMO}" --root "${root}" --tag "${tag_full}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
   configure_validation_features "${root}"
@@ -805,7 +805,7 @@ run_draft_cycle_contract() {
   report_append "## Draft cycle contract"
   report_append ""
 
-  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-Draft" --profile "mixed" >/dev/null 2>&1
+  bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-Draft" --profile "mixed" --full >/dev/null 2>&1
 
   mkdir -p "${root}/knowledge_base/literature"
   cat >"${root}/main.tex" <<'EOF'

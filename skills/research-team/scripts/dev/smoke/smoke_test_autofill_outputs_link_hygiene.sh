@@ -15,7 +15,7 @@ trap cleanup EXIT
 
 echo "[smoke] tmp_root=${tmp_root}"
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeAutofillLinkHygiene" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeAutofillLinkHygiene" --profile "mixed" --full >/dev/null 2>&1
 
 python3 - "${tmp_root}/research_team_config.json" <<'PY'
 from __future__ import annotations
@@ -37,4 +37,3 @@ python3 "${BIN_DIR}/auto_fill_research_plan.py" --root "${tmp_root}" --determini
 python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
 echo "[ok] autofill outputs satisfy markdown link hygiene gate"
-

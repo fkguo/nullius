@@ -9,9 +9,6 @@ from typing import Any
 STATUS_VALUES = frozenset({"converged", "not_converged", "parse_error", "early_stop"})
 EXIT_CODE_VALUES = frozenset({0, 1, 2, 3})
 VERDICT_VALUES = frozenset({"ready", "needs_revision", "unknown"})
-GATE_ID_VALUES = frozenset({"team_convergence", "draft_convergence"})
-SCHEMA_ID = "convergence_gate_result_v1"
-SCHEMA_VERSION = 1
 PARSER_VERSION = "sem07-v1"
 STATUS_TO_EXIT = {
     "converged": 0,
@@ -19,6 +16,92 @@ STATUS_TO_EXIT = {
     "parse_error": 2,
     "early_stop": 3,
 }
+
+_CONVERGENCE_RESULT_SCHEMA_BASENAME = "convergence_gate_result_v1.schema.json"
+
+
+def _find_convergence_result_schema_path() -> Path | None:
+    """Locate the shared convergence result schema (SSOT) from the skill tree.
+
+    This is the bounded M-22 consumer-adoption slice:
+    - remove duplicated local authority for convergence gate ids and schema id/version
+    - derive those identifiers from the shared JSON Schema SSOT under `meta/schemas/`
+    - fail closed if the shared schema cannot be located (invalid install/mount)
+    """
+
+    start = Path(__file__).resolve()
+    for idx, parent in enumerate(start.parents):
+        if idx >= 12:
+            break
+        candidate = parent / "meta" / "schemas" / _CONVERGENCE_RESULT_SCHEMA_BASENAME
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, int, str | None]:
+    schema_path = _find_convergence_result_schema_path()
+    if schema_path is None:
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            "shared convergence schema SSOT not found (expected meta/schemas/"
+            f"{_CONVERGENCE_RESULT_SCHEMA_BASENAME} reachable from this skill install); "
+            "install `research-team` via a symlink into an autoresearch-lab worktree (not a copy-only install).",
+        )
+
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    except Exception as e:  # CONTRACT-EXEMPT: CODE-01.5 explicit fail-closed diagnostics
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            f"failed to read shared convergence schema SSOT at {schema_path}: {e}",
+        )
+
+    try:
+        meta_props = schema["properties"]["meta"]["properties"]
+        gate_ids = meta_props["gate_id"]["enum"]
+        schema_id = meta_props["schema_id"]["const"]
+        schema_version = meta_props["schema_version"]["const"]
+    except Exception as e:  # CONTRACT-EXEMPT: CODE-01.5 explicit fail-closed diagnostics
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            f"shared convergence schema SSOT at {schema_path} missing expected meta authority fields: {e}",
+        )
+
+    if not isinstance(gate_ids, list) or not gate_ids or any(not isinstance(x, str) for x in gate_ids):
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            f"shared convergence schema SSOT at {schema_path} has invalid meta.gate_id enum: {gate_ids!r}",
+        )
+    if not isinstance(schema_id, str) or not schema_id.strip():
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            f"shared convergence schema SSOT at {schema_path} has invalid meta.schema_id const: {schema_id!r}",
+        )
+    if not isinstance(schema_version, int) or isinstance(schema_version, bool):
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            f"shared convergence schema SSOT at {schema_path} has invalid meta.schema_version const: {schema_version!r}",
+        )
+
+    return frozenset(gate_ids), schema_id, schema_version, None
+
+
+GATE_ID_VALUES, SCHEMA_ID, SCHEMA_VERSION, _SCHEMA_AUTHORITY_ERROR = (
+    _load_convergence_result_schema_authority()
+)
 
 
 def _utc_now() -> str:
@@ -78,6 +161,10 @@ def _validate_member_summary(member: str, payload: Any) -> list[str]:
 
 
 def validate_convergence_result(result: Any) -> list[str]:
+    if _SCHEMA_AUTHORITY_ERROR is not None:
+        # Fail closed: do not silently fall back to local hardcoded identifiers.
+        return [_SCHEMA_AUTHORITY_ERROR]
+
     errors: list[str] = []
     if not isinstance(result, dict):
         return ["result must be an object"]

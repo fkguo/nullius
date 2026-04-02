@@ -17,7 +17,7 @@ if [[ ! -f "${GATE}" ]]; then
   exit 2
 fi
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeFullAccessLogicIsolation" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeFullAccessLogicIsolation" --profile "mixed" --full >/dev/null 2>&1
 notes="${tmp_root}/research_contract.md"
 
 # Enable full_access + logic_isolation_gate.
@@ -93,4 +93,3 @@ if ! grep -nF -- "- Gate: PASS" "${tmp_root}/li_pass.log" >/dev/null 2>&1; then
   exit 1
 fi
 echo "[ok] logic isolation gate smoke test passed"
-

@@ -15,7 +15,7 @@ tag="M4-r1"
 run_dir="${tmp_root}/team_full_access/runs/${tag}"
 
 echo "[setup] scaffold + demo milestone"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeFullAccessWorkspace" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeFullAccessWorkspace" --profile "mixed" --full >/dev/null 2>&1
 bash "${BIN_DIR}/generate_demo_milestone.sh" --root "${tmp_root}" --tag "${tag}" >/dev/null 2>&1
 
 echo "[setup] enable full_access gates and relax unrelated gates"

@@ -20,7 +20,7 @@ if [[ ! -f "${GATE}" ]]; then
   exit 2
 fi
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeLitTraceGate" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeLitTraceGate" --profile "mixed" --full >/dev/null 2>&1
 
 # Enable the gate.
 python3 - "${tmp_root}/research_team_config.json" <<'PY'
@@ -61,4 +61,3 @@ python3 "${BIN_DIR}/literature_fetch.py" trace-add \
 python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
 echo "[ok] literature trace gate smoke test passed"
-

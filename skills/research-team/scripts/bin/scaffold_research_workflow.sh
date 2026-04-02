@@ -165,6 +165,11 @@ copy_template "${ASSETS_DIR}/mechanisms/examples/clarifier_example.md" "${ROOT}/
 copy_template "${ASSETS_DIR}/mechanisms/examples/analogy_mining_example.md" "${ROOT}/mechanisms/examples/analogy_mining_example.md"
 copy_template "${ASSETS_DIR}/mechanisms/examples/problem_framing_protocol_example.md" "${ROOT}/mechanisms/examples/problem_framing_protocol_example.md"
 
+profile_lc="$(printf '%s' "${PROFILE}" | tr '[:upper:]' '[:lower:]')"
+if [[ "${profile_lc}" == "toolkit_extraction" ]]; then
+  copy_template "${ASSETS_DIR}/TOOLKIT_API_template.md" "${ROOT}/TOOLKIT_API.md"
+fi
+
 for rel in \
   "knowledge_graph/claims.jsonl" \
   "knowledge_graph/edges.jsonl" \

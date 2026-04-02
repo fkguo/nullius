@@ -25,7 +25,7 @@ if [[ ! -f "${FIX}" ]]; then
   exit 2
 fi
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeDoubleBackslashGate" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeDoubleBackslashGate" --profile "mixed" --full >/dev/null 2>&1
 
 # Ensure the gate is enabled (explicit).
 python3 - "${tmp_root}/research_team_config.json" <<'PY'
@@ -93,4 +93,3 @@ if ! grep -nF "\\\\Delta = 1" "${tmp_root}/team/runs/old/report.md" >/dev/null 2
 fi
 
 echo "[ok] double-backslash math gate smoke test passed"
-
