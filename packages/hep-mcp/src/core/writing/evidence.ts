@@ -3,6 +3,9 @@ import {
   invalidParams,
   parseScopedArtifactUri,
   type ArtifactRefV1,
+  type EvidenceCatalogItemV1,
+  type EvidenceType,
+  type PdfLocatorV1,
   type VerificationCoverageV1,
   type VerificationSubjectVerdictV1,
   type WritingReviewBridgeV1,
@@ -12,11 +15,13 @@ import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunM
 import { getProjectPaperEvidenceCatalogPath, getRunArtifactPath } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { HEP_RUN_BUILD_WRITING_EVIDENCE } from '../../tool-names.js';
-import { buildProjectEvidenceCatalog, type EvidenceCatalogItemV1, type EvidenceType } from '../evidence.js';
-import { buildRunPdfEvidence, type PdfEvidenceCatalogItemV1, type PdfEvidenceType, type PdfExtractMode } from '../pdf/evidence.js';
+import { buildProjectEvidenceCatalog } from '../evidence.js';
+import { buildRunPdfEvidence, type PdfExtractMode } from '../pdf/evidence.js';
 import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics.js';
 import { createHepRunArtifactRef, makeHepRunManifestUri } from '../runArtifactUri.js';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
+
+type WritingPdfEvidenceKind = 'pdf_page' | 'pdf_region';
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -206,8 +211,8 @@ function importanceScoreForLatex(item: EvidenceCatalogItemV1): number {
   return clamp01((baseByType[item.type] ?? 0.4) + lenBoost + citeBoost);
 }
 
-function importanceScoreForPdf(item: PdfEvidenceCatalogItemV1): number {
-  const baseByType: Record<PdfEvidenceType, number> = {
+function importanceScoreForPdf(item: EvidenceCatalogItemV1 & { type: WritingPdfEvidenceKind }): number {
+  const baseByType: Record<WritingPdfEvidenceKind, number> = {
     pdf_page: 0.45,
     pdf_region: 0.8,
   };
@@ -783,14 +788,62 @@ function resolvePdfPaperIdentity(params: {
   };
 }
 
-function withPdfPaperIdentity(
-  items: PdfEvidenceCatalogItemV1[],
-  paperId: string,
-): Array<PdfEvidenceCatalogItemV1 & { paper_id: string }> {
-  return items.map(item => ({
-    ...item,
-    paper_id: paperId,
-  }));
+type RawPdfCatalogItemV1 = {
+  evidence_id?: unknown;
+  project_id?: unknown;
+  type?: unknown;
+  locator?: unknown;
+  text?: unknown;
+  normalized_text?: unknown;
+  meta?: unknown;
+};
+
+function normalizePdfPage(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  if (!Number.isFinite(n)) return null;
+  const page = Math.trunc(n);
+  if (page < 1) return null;
+  return page;
+}
+
+function materializePdfWritingCatalogItems(params: {
+  rawItems: RawPdfCatalogItemV1[];
+  paperId: string;
+  defaultProjectId: string;
+}): Array<EvidenceCatalogItemV1 & { type: WritingPdfEvidenceKind }> {
+  const out: Array<EvidenceCatalogItemV1 & { type: WritingPdfEvidenceKind }> = [];
+  for (const raw of params.rawItems) {
+    if (!raw || typeof raw !== 'object') continue;
+    const evidence_id = typeof raw.evidence_id === 'string' ? raw.evidence_id : null;
+    if (!evidence_id) continue;
+
+    const project_id = typeof raw.project_id === 'string' ? raw.project_id : params.defaultProjectId;
+    const type = raw.type === 'pdf_page' || raw.type === 'pdf_region' ? raw.type : null;
+    if (!type) continue;
+
+    const locatorRaw = raw.locator;
+    const locatorObj = locatorRaw && typeof locatorRaw === 'object' ? (locatorRaw as Record<string, unknown>) : null;
+    const page = normalizePdfPage(locatorObj?.page);
+    if (!page) continue;
+
+    const locator: PdfLocatorV1 = { kind: 'pdf', page };
+    const text = typeof raw.text === 'string' ? raw.text : '';
+    const normalized_text = typeof raw.normalized_text === 'string' ? raw.normalized_text : undefined;
+    const meta = raw.meta && typeof raw.meta === 'object' && !Array.isArray(raw.meta) ? (raw.meta as Record<string, unknown>) : undefined;
+
+    out.push({
+      version: 1,
+      evidence_id,
+      project_id,
+      paper_id: params.paperId,
+      type,
+      locator,
+      text,
+      normalized_text,
+      meta,
+    });
+  }
+  return out;
 }
 
 function buildPdfIdentityErrorData(params: {
@@ -820,7 +873,7 @@ export async function buildRunWritingEvidence(params: {
   bridge_artifact_names?: string[];
   continue_on_error?: boolean;
   latex_types: EvidenceType[];
-  pdf_types: PdfEvidenceType[];
+  pdf_types: WritingPdfEvidenceKind[];
   max_evidence_items: number;
   embedding_dim: number;
   latex_catalog_artifact_name: string;
@@ -1106,119 +1159,133 @@ export async function buildRunWritingEvidence(params: {
           error_code: 'PDF_SKIPPED_LATEX_AUTHORITY',
         });
       } else {
-      const t0 = Date.now();
-      try {
-        pdfBuildResult = await buildRunPdfEvidence({
-          run_id: runId,
-          pdf_path: pdf.pdf_path,
-          pdf_artifact_name: pdf.pdf_artifact_name,
-          zotero_attachment_key: pdf.zotero_attachment_key,
-          fulltext_artifact_name: pdf.fulltext_artifact_name,
-          docling_json_path: pdf.docling_json_path,
-          docling_json_artifact_name: pdf.docling_json_artifact_name,
-          mode,
-          max_pages: pdf.max_pages ?? 50,
-          render_dpi: pdf.render_dpi ?? 144,
-          output_prefix,
-          max_regions_total: pdf.max_regions_total,
-          budget_hints: {
-            max_pages_provided: pdf.max_pages !== undefined,
-            max_regions_total_provided: pdf.max_regions_total !== undefined,
-          },
-        });
-        artifacts.push(...pdfBuildResult.artifacts);
-        pdfCatalogUri = pdfBuildResult.catalog_uri;
-
-        pdfStatus = {
-          source_kind: 'pdf',
-          identifier: pdfIdentifier,
-          paper_id: pdfIdentity.paper_id,
-          status: 'success',
-          duration_ms: Date.now() - t0,
-          fallback_used: pdfBuildResult.summary.used_zotero_fulltext
-            ? 'zotero_fulltext'
-            : pdfBuildResult.summary.used_docling_json
-              ? 'docling_json'
-              : undefined,
-        };
-        sourceStatuses.push(pdfStatus);
-      } catch (err) {
-        sourceStatuses.push({
-          source_kind: 'pdf',
-          identifier: pdfIdentifier,
-          status: 'failed',
-          error: errorMessage(err),
-          error_code: inferEvidenceErrorCode('pdf', err),
-          duration_ms: Date.now() - t0,
-        });
-        if (!continueOnError) {
-          writeSourceStatusArtifact();
-          throw err;
-        }
-      }
-
-      if (pdfBuildResult) {
-        const catalogName = `${output_prefix}_evidence_catalog.jsonl`;
-        const pdfCatalogPath = getRunArtifactPath(runId, catalogName);
-        const pdfItemsRaw = readJsonlFile<PdfEvidenceCatalogItemV1>(pdfCatalogPath);
-        const pdfItemsWithPaperId = withPdfPaperIdentity(pdfItemsRaw, pdfIdentity.paper_id);
-        const pdfItemsFiltered = ensureUniqueByEvidenceId(pdfItemsWithPaperId.filter(it => params.pdf_types.includes(it.type)));
-        const pdfItems = sortByEvidenceId(pdfItemsFiltered).slice(0, maxEvidenceItems);
-        if (pdfItemsFiltered.length > pdfItems.length) {
-          const msg =
-            `PDF writing evidence truncated at max_evidence_items=${maxEvidenceItems} (available=${pdfItemsFiltered.length}, returned=${pdfItems.length}).`;
-          warnings.push(msg);
-          budget.recordHit({
-            key: 'writing.max_evidence_items',
-            dimension: 'breadth',
-            unit: 'items',
-            limit: maxEvidenceItems,
-            observed: pdfItemsFiltered.length,
-            action: 'truncate',
-            message: msg,
-            data: { kind: 'pdf', available: pdfItemsFiltered.length, returned: pdfItems.length },
+        const t0 = Date.now();
+        try {
+          pdfBuildResult = await buildRunPdfEvidence({
+            run_id: runId,
+            pdf_path: pdf.pdf_path,
+            pdf_artifact_name: pdf.pdf_artifact_name,
+            zotero_attachment_key: pdf.zotero_attachment_key,
+            fulltext_artifact_name: pdf.fulltext_artifact_name,
+            docling_json_path: pdf.docling_json_path,
+            docling_json_artifact_name: pdf.docling_json_artifact_name,
+            mode,
+            max_pages: pdf.max_pages ?? 50,
+            render_dpi: pdf.render_dpi ?? 144,
+            output_prefix,
+            max_regions_total: pdf.max_regions_total,
+            budget_hints: {
+              max_pages_provided: pdf.max_pages !== undefined,
+              max_regions_total_provided: pdf.max_regions_total !== undefined,
+            },
           });
+          artifacts.push(...pdfBuildResult.artifacts);
+
+          pdfStatus = {
+            source_kind: 'pdf',
+            identifier: pdfIdentifier,
+            paper_id: pdfIdentity.paper_id,
+            status: 'success',
+            duration_ms: Date.now() - t0,
+            fallback_used: pdfBuildResult.summary.used_zotero_fulltext
+              ? 'zotero_fulltext'
+              : pdfBuildResult.summary.used_docling_json
+                ? 'docling_json'
+                : undefined,
+          };
+          sourceStatuses.push(pdfStatus);
+        } catch (err) {
+          sourceStatuses.push({
+            source_kind: 'pdf',
+            identifier: pdfIdentifier,
+            status: 'failed',
+            error: errorMessage(err),
+            error_code: inferEvidenceErrorCode('pdf', err),
+            duration_ms: Date.now() - t0,
+          });
+          if (!continueOnError) {
+            writeSourceStatusArtifact();
+            throw err;
+          }
         }
 
-        if (pdfStatus) pdfStatus.items_extracted = pdfItemsFiltered.length;
+        if (pdfBuildResult) {
+          const rawCatalogName = `${output_prefix}_evidence_catalog.jsonl`;
+          const rawCatalogPath = getRunArtifactPath(runId, rawCatalogName);
+          const rawItems = readJsonlFile<RawPdfCatalogItemV1>(rawCatalogPath);
+          const pdfItemsAll = materializePdfWritingCatalogItems({
+            rawItems,
+            paperId: pdfIdentity.paper_id,
+            defaultProjectId: run.project_id,
+          });
+          const pdfItemsFiltered = ensureUniqueByEvidenceId(pdfItemsAll.filter(it => params.pdf_types.includes(it.type)));
+          const pdfItems = sortByEvidenceId(pdfItemsFiltered).slice(0, maxEvidenceItems);
+          if (pdfItemsFiltered.length > pdfItems.length) {
+            const msg =
+              `PDF writing evidence truncated at max_evidence_items=${maxEvidenceItems} (available=${pdfItemsFiltered.length}, returned=${pdfItems.length}).`;
+            warnings.push(msg);
+            budget.recordHit({
+              key: 'writing.max_evidence_items',
+              dimension: 'breadth',
+              unit: 'items',
+              limit: maxEvidenceItems,
+              observed: pdfItemsFiltered.length,
+              action: 'truncate',
+              message: msg,
+              data: { kind: 'pdf', available: pdfItemsFiltered.length, returned: pdfItems.length },
+            });
+          }
 
-        const pdfEmbeddingsContent = buildEmbeddingsJsonl({
-          model: embeddingModel,
-          dim: params.embedding_dim,
-          items: pdfItems.map(it => ({
-            evidence_id: it.evidence_id,
-            text: it.normalized_text ?? it.text ?? '',
-            type: it.type,
-            paper_id: it.paper_id,
-            run_id: it.run_id,
-          })),
-        });
-        const pdfEmbeddingsRef = writeRunTextArtifact({
-          runId,
-          artifactName: params.pdf_embeddings_artifact_name,
-          content: pdfEmbeddingsContent,
-          mimeType: 'application/x-ndjson',
-        });
-        artifacts.push(pdfEmbeddingsRef);
+          if (pdfStatus) pdfStatus.items_extracted = pdfItemsFiltered.length;
 
-        const pdfEnrichmentContent = buildEnrichmentJsonl({
-          items: pdfItems.map(it => ({
-            evidence_id: it.evidence_id,
-            importance_score: importanceScoreForPdf(it),
-            type: it.type,
-            paper_id: it.paper_id,
-            run_id: it.run_id,
-          })),
-          labelsFor: it => (it.type ? [String(it.type)] : []),
-        });
-        const pdfEnrichmentRef = writeRunTextArtifact({
-          runId,
-          artifactName: params.pdf_enrichment_artifact_name,
-          content: pdfEnrichmentContent,
-          mimeType: 'application/x-ndjson',
-        });
-        artifacts.push(pdfEnrichmentRef);
-      }
+          const sharedCatalogName = `${output_prefix}_writing_evidence_catalog.jsonl`;
+          const sharedCatalogContent = pdfItems.map(it => JSON.stringify(it)).join('\n') + '\n';
+          const sharedCatalogRef = writeRunTextArtifact({
+            runId,
+            artifactName: sharedCatalogName,
+            content: sharedCatalogContent,
+            mimeType: 'application/x-ndjson',
+          });
+          artifacts.push(sharedCatalogRef);
+          pdfCatalogUri = sharedCatalogRef.uri;
+
+          const pdfEmbeddingsContent = buildEmbeddingsJsonl({
+            model: embeddingModel,
+            dim: params.embedding_dim,
+            items: pdfItems.map(it => ({
+              evidence_id: it.evidence_id,
+              text: it.normalized_text ?? it.text ?? '',
+              type: it.type,
+              paper_id: it.paper_id,
+              run_id: runId,
+            })),
+          });
+          const pdfEmbeddingsRef = writeRunTextArtifact({
+            runId,
+            artifactName: params.pdf_embeddings_artifact_name,
+            content: pdfEmbeddingsContent,
+            mimeType: 'application/x-ndjson',
+          });
+          artifacts.push(pdfEmbeddingsRef);
+
+          const pdfEnrichmentContent = buildEnrichmentJsonl({
+            items: pdfItems.map(it => ({
+              evidence_id: it.evidence_id,
+              importance_score: importanceScoreForPdf(it),
+              type: it.type,
+              paper_id: it.paper_id,
+              run_id: runId,
+            })),
+            labelsFor: it => (it.type ? [String(it.type)] : []),
+          });
+          const pdfEnrichmentRef = writeRunTextArtifact({
+            runId,
+            artifactName: params.pdf_enrichment_artifact_name,
+            content: pdfEnrichmentContent,
+            mimeType: 'application/x-ndjson',
+          });
+          artifacts.push(pdfEnrichmentRef);
+        }
       }
     }
 

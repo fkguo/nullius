@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams, type EvidenceCatalogItemV1, type EvidenceType, type LatexLocatorV1 } from '@autoresearch/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';
@@ -10,29 +10,11 @@ import { BudgetTrackerV1, writeRunStepDiagnosticsArtifact } from '../diagnostics
 import { createHepRunArtifactRef, makeHepRunArtifactUri, makeHepRunManifestUri } from '../runArtifactUri.js';
 import { startRunStep, completeRunStep } from '../zotero/runSteps.js';
 import { canonicalizeUnit, detectUnitCategory } from '../../tools/research/config.js';
-import type { LatexLocatorV1 } from '../evidence.js';
 
-type EvidenceType =
-  | 'title'
-  | 'abstract'
-  | 'section'
-  | 'paragraph'
-  | 'equation'
-  | 'figure'
-  | 'table'
-  | 'theorem'
-  | 'citation_context';
+type LatexEvidenceType = Exclude<EvidenceType, 'pdf_page' | 'pdf_region'>;
 
-export interface EvidenceCatalogItemV1Like {
-  version?: number;
-  evidence_id: string;
-  project_id: string;
-  paper_id: string;
-  type: EvidenceType;
-  locator: LatexLocatorV1;
-  text: string;
-  normalized_text?: string;
-  meta?: Record<string, unknown>;
+function isLatexEvidenceType(value: EvidenceType): value is LatexEvidenceType {
+  return value !== 'pdf_page' && value !== 'pdf_region';
 }
 
 export interface HepMeasurementArtifactItemV1 {
@@ -42,7 +24,7 @@ export interface HepMeasurementArtifactItemV1 {
   project_id: string;
   paper_id: string;
   evidence_id: string;
-  evidence_type: EvidenceType;
+  evidence_type: LatexEvidenceType;
   locator: LatexLocatorV1;
   quantity_hint: string;
   quantity_normalized: string;
@@ -66,7 +48,7 @@ export interface HepMeasurementsMetaV1 {
   project_id: string;
   source: {
     latex_catalog_artifact_name: string;
-    include_types: EvidenceType[];
+    include_types: LatexEvidenceType[];
   };
   budgets: {
     max_results: number;
@@ -394,7 +376,7 @@ function extractMeasurementsFromText(text: string): ParsedMeasurement[] {
 
 function makeArtifactNames(params: {
   latex_catalog_artifact_name: string;
-  include_types: EvidenceType[];
+  include_types: LatexEvidenceType[];
   max_results: number;
   measurements_artifact_name?: string;
   meta_artifact_name?: string;
@@ -418,7 +400,7 @@ function makeArtifactNames(params: {
 export async function buildRunMeasurements(params: {
   run_id: string;
   latex_catalog_artifact_name: string;
-  include_types: EvidenceType[];
+  include_types: LatexEvidenceType[];
   target_quantities?: string[];
   max_results: number;
   measurements_artifact_name?: string;
@@ -462,7 +444,7 @@ export async function buildRunMeasurements(params: {
     max: 50_000,
   });
 
-  const includeTypes = Array.from(new Set(params.include_types)).sort() as EvidenceType[];
+  const includeTypes = Array.from(new Set(params.include_types)).sort();
 
   const { measurementsName, metaName } = makeArtifactNames({
     latex_catalog_artifact_name: params.latex_catalog_artifact_name,
@@ -500,7 +482,7 @@ export async function buildRunMeasurements(params: {
     map.set(key, (map.get(key) ?? 0) + 1);
   };
 
-  const pushMeasurement = (item: EvidenceCatalogItemV1Like, m: ParsedMeasurement) => {
+  const pushMeasurement = (item: EvidenceCatalogItemV1 & { locator: LatexLocatorV1; type: LatexEvidenceType }, m: ParsedMeasurement) => {
     const ctx = extractContext(item.text, m.start, m.end - m.start);
     const hint = extractQuantityHint(ctx, params.target_quantities);
     const normalizedQuantity = normalizeQuantityHint(hint);
@@ -586,21 +568,22 @@ export async function buildRunMeasurements(params: {
           const trimmed = line.trim();
           if (!trimmed) continue;
 
-          let item: EvidenceCatalogItemV1Like | null = null;
+          let item: EvidenceCatalogItemV1 | null = null;
           try {
-            item = JSON.parse(trimmed) as EvidenceCatalogItemV1Like;
+            item = JSON.parse(trimmed) as EvidenceCatalogItemV1;
           } catch {
             warnings.push('invalid_jsonl_line');
             continue;
           }
 
           if (!item || typeof item.text !== 'string' || typeof item.evidence_id !== 'string') continue;
-          if (!includeTypes.includes(item.type)) continue;
+          if (!isLatexEvidenceType(item.type) || !includeTypes.includes(item.type)) continue;
+          if (!item.locator || typeof item.locator !== 'object' || (item.locator as any).kind !== 'latex') continue;
 
           evidenceItemsScanned += 1;
           const ms = extractMeasurementsFromText(item.text);
           for (const m of ms) {
-            pushMeasurement(item, m);
+            pushMeasurement({ ...item, locator: item.locator as LatexLocatorV1, type: item.type }, m);
           }
         }
       });
@@ -609,10 +592,20 @@ export async function buildRunMeasurements(params: {
 
     if (buffer.trim()) {
       try {
-        const item = JSON.parse(buffer) as EvidenceCatalogItemV1Like;
-        if (item && typeof item.text === 'string' && includeTypes.includes(item.type)) {
+        const item = JSON.parse(buffer) as EvidenceCatalogItemV1;
+        if (
+          item
+          && typeof item.text === 'string'
+          && isLatexEvidenceType(item.type)
+          && includeTypes.includes(item.type)
+          && item.locator
+          && typeof item.locator === 'object'
+          && (item.locator as any).kind === 'latex'
+        ) {
           evidenceItemsScanned += 1;
-          for (const m of extractMeasurementsFromText(item.text)) pushMeasurement(item, m);
+          for (const m of extractMeasurementsFromText(item.text)) {
+            pushMeasurement({ ...item, locator: item.locator as LatexLocatorV1, type: item.type }, m);
+          }
         }
       } catch {
         // ignore trailing partial

@@ -241,6 +241,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     };
     expect(buildPayload.summary.pdf_included).toBe(true);
     expect(buildPayload.artifacts.some(a => a.name === 'writing_evidence_pdf_evidence_catalog.jsonl')).toBe(true);
+    expect(buildPayload.artifacts.some(a => a.name === 'writing_evidence_pdf_writing_evidence_catalog.jsonl')).toBe(true);
 
     const statusUri = buildPayload.artifacts.find(a => a.name === 'writing_evidence_source_status.json')?.uri;
     const metaUri = buildPayload.artifacts.find(a => a.name === 'writing_evidence_meta_v1.json')?.uri;
@@ -259,8 +260,18 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(status.summary.failed).toBe(0);
     expect(status.summary.skipped).toBe(0);
 
-    const meta = readJsonResource<{ pdf: { paper_id?: string | null } | null }>(metaUri!);
+    const meta = readJsonResource<{ pdf: { paper_id?: string | null; catalog_uri?: string | null } | null }>(metaUri!);
     expect(meta.pdf?.paper_id).toBe('paper_pdf');
+    expect(meta.pdf?.catalog_uri).toContain('writing_evidence_pdf_writing_evidence_catalog.jsonl');
+
+    const pdfCatalogText = String((readHepResource(meta.pdf!.catalog_uri!) as any).text);
+    const pdfItems = pdfCatalogText
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line)) as Array<{ paper_id?: string; type?: string; locator?: { kind?: string; page?: number } }>;
+    expect(pdfItems.length).toBeGreaterThan(0);
+    expect(pdfItems.every(it => it.paper_id === 'paper_pdf')).toBe(true);
+    expect(pdfItems.every(it => it.locator?.kind === 'pdf' && typeof it.locator?.page === 'number')).toBe(true);
 
     const semanticRes = await handleToolCall('hep_project_query_evidence_semantic', {
       run_id: run.run_id,
