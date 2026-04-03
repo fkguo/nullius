@@ -59,11 +59,12 @@ export async function buildResearchTimeline(
     const oldestSearch = await api.search(topic, { size: 1 });
     start_year = oldestSearch.papers[0]?.year || end_year - 20;
   }
+  const effectiveStartYear = start_year ?? end_year - 20;
 
   // Build timeline by year (parallel batches)
   const phases: TimelinePhase[] = [];
   const years: number[] = [];
-  for (let year = start_year; year <= end_year; year++) {
+  for (let year = effectiveStartYear; year <= end_year; year++) {
     years.push(year);
   }
 
@@ -106,7 +107,7 @@ export async function buildResearchTimeline(
 
   return {
     topic,
-    time_range: { start: start_year, end: end_year },
+    time_range: { start: effectiveStartYear, end: end_year },
     phases,
     total_papers: initialSearch.total,
   };

@@ -42,7 +42,7 @@ function extractContribution(paper: DeepPaperAnalysis): string {
  */
 function clusterEvidence(cluster: SemanticCluster): string[] {
   return cluster.keywords
-    .filter(keyword => keyword !== 'uncertain' && keyword !== 'insufficient_signal')
+    .filter((keyword: string) => keyword !== 'uncertain' && keyword !== 'insufficient_signal')
     .slice(0, 3);
 }
 
@@ -109,8 +109,10 @@ export function groupByMethodology(
   if (papers.length === 0) return [];
   const clusters = groupCollectionSemantics(papers.map(toGroupingPaper)).method_groups;
   const paperMap = new Map(papers.map(paper => [paper.recid, paper]));
-  return clusters.map((cluster, index) => {
-    const members = cluster.paper_ids.map(recid => paperMap.get(recid)).filter((paper): paper is DeepPaperAnalysis => !!paper);
+  return clusters.map((cluster: SemanticCluster, index: number) => {
+    const members = cluster.paper_ids
+      .map((recid: string) => paperMap.get(recid))
+      .filter((paper: DeepPaperAnalysis | undefined): paper is DeepPaperAnalysis => !!paper);
     const evidence = clusterEvidence(cluster);
     const evidenceSentence = evidence.length > 0
       ? `Evidence terms: ${evidence.join(', ')}.`
@@ -123,7 +125,11 @@ export function groupByMethodology(
     return {
       name: `Method cluster ${index + 1}`,
       description,
-      papers: members.slice(0, maxPerGroup).map(paper => ({ recid: paper.recid, title: paper.title, contribution: extractContribution(paper) })),
+      papers: members.slice(0, maxPerGroup).map((paper: DeepPaperAnalysis) => ({
+        recid: paper.recid,
+        title: paper.title,
+        contribution: extractContribution(paper),
+      })),
       key_insights: extractGroupInsights(cluster, members),
     };
   });

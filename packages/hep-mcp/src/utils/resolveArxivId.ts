@@ -14,17 +14,30 @@ export interface ResolveResult {
   doi?: string;
 }
 
+function extractIdentifiers(paper: { arxiv_id?: string; recid?: string; doi?: string } | null | undefined): ResolveResult {
+  return {
+    arxivId: paper?.arxiv_id ?? null,
+    recid: paper?.recid,
+    doi: paper?.doi,
+  };
+}
+
 /** Resolve any identifier (arXiv ID, DOI, INSPIRE recid) to arXiv ID. */
 export async function resolveArxivId(identifier: string): Promise<string | null> {
   const normalized = normalizeArxivId(identifier);
   if (normalized) return normalized;
 
-  let query: string;
   const recidMatch = identifier.match(/^(?:inspire:)?(\d+)$/);
-  if (recidMatch) query = `recid:${recidMatch[1]}`;
-  else if (identifier.startsWith('10.')) query = `doi:${identifier}`;
-  else query = identifier;
+  if (recidMatch) {
+    const paper = await api.getPaper(recidMatch[1]);
+    return paper.arxiv_id ?? null;
+  }
+  if (identifier.startsWith('10.')) {
+    const paper = await api.getByDoi(identifier);
+    return paper.arxiv_id ?? null;
+  }
 
+  const query = identifier;
   const result = await api.search(query, { size: 1 });
   return result.papers[0]?.arxiv_id ?? null;
 }
@@ -34,19 +47,19 @@ export async function resolveArxivIdRich(identifier: string): Promise<ResolveRes
   const normalized = normalizeArxivId(identifier);
   if (normalized) return { arxivId: normalized };
 
-  let query: string;
-  let inputRecid: string | undefined;
-  let inputDoi: string | undefined;
   const recidMatch = identifier.match(/^(?:inspire:)?(\d+)$/);
-  if (recidMatch) { query = `recid:${recidMatch[1]}`; inputRecid = recidMatch[1]; }
-  else if (identifier.startsWith('10.')) { query = `doi:${identifier}`; inputDoi = identifier; }
-  else query = identifier;
+  if (recidMatch) {
+    const recid = recidMatch[1];
+    const resolved = extractIdentifiers(await api.getPaper(recid));
+    return { ...resolved, recid: resolved.recid ?? recid };
+  }
+  if (identifier.startsWith('10.')) {
+    const resolved = extractIdentifiers(await api.getByDoi(identifier));
+    return { ...resolved, doi: resolved.doi ?? identifier };
+  }
 
+  const query = identifier;
   const result = await api.search(query, { size: 1 });
   const paper = result.papers[0];
-  return {
-    arxivId: paper?.arxiv_id ?? null,
-    recid: paper?.recid ?? inputRecid,
-    doi: paper?.doi ?? inputDoi,
-  };
+  return extractIdentifiers(paper);
 }

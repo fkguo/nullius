@@ -50,6 +50,11 @@ export interface ReviewPaper extends PaperSummary {
 }
 
 export interface SeminalPaper extends PaperSummary {
+  recid?: string;
+  title: string;
+  authors: string[];
+  year?: number;
+  citation_count?: number;
   /** Core contribution/idea */
   contribution?: string;
   /** Discovery source: 'review_ref' | 'high_cited' | 'citation_trace' */

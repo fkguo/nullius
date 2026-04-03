@@ -243,7 +243,7 @@ function extractTopics(papers: PaperSummary[]): string[] {
     const words = paper.title.toLowerCase()
       .replace(/[^a-z0-9\s-]/g, '')
       .split(/\s+/)
-      .filter(w => w.length > 3 && !stopWords.has(w));
+      .filter((w: string) => w.length > 3 && !stopWords.has(w));
 
     for (const word of words) {
       wordCounts.set(word, (wordCounts.get(word) || 0) + 1);

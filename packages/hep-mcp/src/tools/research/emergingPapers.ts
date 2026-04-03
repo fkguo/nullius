@@ -49,6 +49,11 @@ export interface SociologyMetrics {
 }
 
 export interface EmergingPaperResult extends PaperSummary {
+  recid?: string;
+  title: string;
+  authors: string[];
+  year?: number;
+  citation_count?: number;
   momentum: CitationMomentum;
   emergence_reason: string;
   /** Sociological metrics (only if include_sociology=true) */

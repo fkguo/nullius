@@ -33,15 +33,27 @@ export function buildDiscoveryQueryProbe(params: {
   papers: CanonicalPaper[];
   preranked: DiscoveryRerankedPaper[];
 }): DiscoveryQueryProbe {
+  type CandidateGenerationBatch = DiscoveryCandidateGenerationArtifact['batches'][number];
   const normalized = normalizeDiscoveryQuery(params.query);
   const tokens = normalized.split(' ').filter(Boolean);
   const meaningful = tokens.filter(token => token.length > 2 && !STOPWORDS.has(token));
   const ids = extractQueryIdentifiers(params.query);
   const topPaper = params.papers.find(paper => paper.canonical_key === params.preranked[0]?.canonical_key) ?? null;
-  const counts = params.candidateGeneration.batches.reduce((acc, batch) => {
-    acc[batch.provider] += batch.result_count;
-    return acc;
-  }, { inspire: 0, openalex: 0, arxiv: 0 });
+  const batches = params.candidateGeneration.batches as CandidateGenerationBatch[];
+  const counts = { inspire: 0, openalex: 0, arxiv: 0 };
+  for (const batch of batches) {
+    switch (batch.provider) {
+      case 'inspire':
+        counts.inspire += batch.result_count;
+        break;
+      case 'openalex':
+        counts.openalex += batch.result_count;
+        break;
+      case 'arxiv':
+        counts.arxiv += batch.result_count;
+        break;
+    }
+  }
 
   return DiscoveryQueryProbeSchema.parse({
     structured_identifier_detected: hasStructuredIdentifier(ids),
@@ -50,9 +62,9 @@ export function buildDiscoveryQueryProbe(params: {
     verbose_query: tokens.length >= 8,
     low_anchor_density: meaningful.length <= 3,
     provider_result_counts: counts,
-    candidate_count: params.candidateGeneration.batches.reduce((sum, batch) => sum + batch.result_count, 0),
+    candidate_count: batches.reduce((sum: number, batch: CandidateGenerationBatch) => sum + batch.result_count, 0),
     canonical_paper_count: params.papers.length,
-    exact_identifier_hit: params.papers.some(paper => paper.match_reasons.some(reason => reason.startsWith('exact_'))),
+    exact_identifier_hit: params.papers.some(paper => paper.match_reasons.some((reason: string) => reason.startsWith('exact_'))),
     top_stage1_score: params.preranked[0]?.stage1_score ?? null,
     top_title_overlap: topPaper ? overlapFraction(params.query, topPaper.title) : null,
     top_provider_source_count: topPaper?.provider_sources.length ?? 0,

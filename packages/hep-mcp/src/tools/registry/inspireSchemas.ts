@@ -70,20 +70,34 @@ const InspireLiteratureRecidsSchema = z.preprocess(
 
 export const InspireLiteratureToolSchema = z
   .object({
-    mode: InspireLiteratureModeSchema,
-    recid: z.string().min(1).optional(),
-    size: optionalBudgetInt({ min: 1 }),
-    identifier: z.string().min(1).optional(),
-    sort: SortSchema.optional(),
-    affiliation: z.string().min(1).optional(),
-    recids: InspireLiteratureRecidsSchema.optional(),
+    mode: InspireLiteratureModeSchema.describe(
+      "Operation to run. For mode='get_paper', provide recid only; do not pass size, page, or options."
+    ),
+    recid: z.string().min(1).optional().describe(
+      "INSPIRE literature record id. Required for get_paper, get_references, and get_citations."
+    ),
+    size: optionalBudgetInt({ min: 1 }).describe(
+      "Page size / result limit. Only for get_references, get_citations, and search_affiliation. Do not provide when mode='get_paper' or mode='lookup_by_id'."
+    ),
+    identifier: z.string().min(1).optional().describe(
+      "Lookup identifier for lookup_by_id or get_author. Can be recid, DOI, arXiv id, INSPIRE BAI, ORCID, or a name query depending on mode."
+    ),
+    sort: SortSchema.optional().describe(
+      "Optional INSPIRE sort order. Only for get_citations and search_affiliation."
+    ),
+    affiliation: z.string().min(1).optional().describe(
+      "Affiliation query string. Required only for search_affiliation."
+    ),
+    recids: InspireLiteratureRecidsSchema.optional().describe(
+      "One or more INSPIRE recids. Required only for get_bibtex."
+    ),
   })
   .passthrough()
   .superRefine((v, ctx) => {
     const allowed = (() => {
       switch (v.mode) {
         case 'get_paper':
-          return new Set(['recid']);
+          return new Set(['recid', 'size']);
         case 'get_references':
           return new Set(['recid', 'size']);
         case 'lookup_by_id':

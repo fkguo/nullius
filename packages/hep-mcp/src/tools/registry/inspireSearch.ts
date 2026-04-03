@@ -149,13 +149,17 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
     description: `Unified INSPIRE literature access tool (network).
 
 Modes + required args:
-- get_paper: { recid }
+- get_paper: { recid } only. Do not pass size, page, or options.
 - get_references: { recid, size? }
 - lookup_by_id: { identifier } // identifier can be a recid, DOI (10.x), or arXiv id; tool auto-routes
 - get_citations: { recid, size?, sort? } // IMPORTANT: use recid (not identifier); use size (not options.limit)
 - search_affiliation: { affiliation, size?, sort? }
 - get_bibtex: { recids }
 - get_author: { identifier } // identifier can be INSPIRE BAI (e.g. E.Witten.1), ORCID, or a name query; returns \`bai\` for disambiguation.
+
+Examples:
+- get_paper: \`{ mode: "get_paper", recid: "854586" }\`
+- get_citations: \`{ mode: "get_citations", recid: "854586", size: 10, sort: "mostcited" }\`
 
 Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\` with \`query=\"a:<bai>\"\`.`,
     zodSchema: InspireLiteratureToolSchema,
