@@ -1,12 +1,21 @@
+import type { Tool } from './backends/chat-backend.js';
 import type { TeamExecutionAssignmentInput, TeamInterventionCommand, TeamPermissionMatrix } from './team-execution-types.js';
+import { buildRuntimeToolPermissionView, type ToolPermissionView } from './tool-execution-policy.js';
+
+function findDelegationPermission(
+  permissions: TeamPermissionMatrix,
+  assignment: TeamExecutionAssignmentInput,
+) {
+  return permissions.delegation.find(
+    entry => entry.from_role === assignment.owner_role && entry.to_role === assignment.delegate_role,
+  );
+}
 
 export function assertDelegationAllowed(
   permissions: TeamPermissionMatrix,
   assignment: TeamExecutionAssignmentInput,
 ): void {
-  const match = permissions.delegation.find(
-    entry => entry.from_role === assignment.owner_role && entry.to_role === assignment.delegate_role,
-  );
+  const match = findDelegationPermission(permissions, assignment);
   if (!match) {
     throw new Error(`delegation denied: ${assignment.owner_role} cannot delegate to ${assignment.delegate_role}`);
   }
@@ -20,6 +29,24 @@ export function assertDelegationAllowed(
       `delegation denied: handoff kind ${assignment.handoff_kind} is not allowed for ${assignment.owner_role} -> ${assignment.delegate_role}`,
     );
   }
+}
+
+export function buildDelegatedToolPermissionView(
+  permissions: TeamPermissionMatrix,
+  assignment: TeamExecutionAssignmentInput,
+  tools: ReadonlyArray<Pick<Tool, 'name'>>,
+): ToolPermissionView {
+  const match = findDelegationPermission(permissions, assignment);
+  if (!match) {
+    throw new Error(`delegation denied: ${assignment.owner_role} cannot delegate to ${assignment.delegate_role}`);
+  }
+  return buildRuntimeToolPermissionView({
+    tools,
+    allowedToolNames: match.allowed_tool_names,
+    scope: 'delegated_assignment',
+    actorId: assignment.delegate_id,
+    authority: 'team_permission_matrix',
+  });
 }
 
 export function assertInterventionAllowed(

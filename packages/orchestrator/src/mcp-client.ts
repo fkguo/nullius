@@ -14,8 +14,10 @@ import {
 } from './mcp-jsonrpc.js';
 import { handleMcpServerRequest, type SamplingRuntime } from './mcp-server-request-handler.js';
 import { loadSamplingRoutingConfig } from './routing/sampling-loader.js';
+import { assertToolCallAllowed, type ToolPermissionView } from './tool-execution-policy.js';
 
 export type { McpToolResult } from './mcp-jsonrpc.js';
+export type { ToolPermissionView } from './tool-execution-policy.js';
 export type ToolCaller = {
   callTool(toolName: string, args: Record<string, unknown>, timeoutMs?: number): Promise<McpToolResult>;
 };
@@ -174,11 +176,28 @@ export class McpClient {
     });
   }
 
-  async callTool(toolName: string, args: Record<string, unknown>, timeoutMs?: number): Promise<McpToolResult> {
+  private async requestToolCall(toolName: string, args: Record<string, unknown>, timeoutMs?: number): Promise<McpToolResult> {
     if (!this.initialized) {
       throw new Error('McpClient not initialized — call start() first');
     }
     return toMcpToolResult(await this.request('tools/call', { name: toolName, arguments: args }, timeoutMs));
+  }
+
+  async callTool(toolName: string, args: Record<string, unknown>, timeoutMs?: number): Promise<McpToolResult> {
+    return this.requestToolCall(toolName, args, timeoutMs);
+  }
+
+  async callToolWithPermissionView(
+    toolName: string,
+    args: Record<string, unknown>,
+    permissionView: ToolPermissionView,
+    timeoutMs?: number,
+  ): Promise<McpToolResult> {
+    if (!this.initialized) {
+      throw new Error('McpClient not initialized — call start() first');
+    }
+    assertToolCallAllowed(toolName, permissionView);
+    return this.requestToolCall(toolName, args, timeoutMs);
   }
 
   async close(): Promise<void> {
@@ -205,4 +224,19 @@ export class McpClient {
     this.initialized = false;
     this.ledger?.log('mcp_client.closed');
   }
+}
+
+export function bindToolPermissionView(toolCaller: ToolCaller, permissionView: ToolPermissionView): ToolCaller {
+  if (toolCaller instanceof McpClient) {
+    return {
+      callTool: (toolName: string, args: Record<string, unknown>, timeoutMs?: number) =>
+        toolCaller.callToolWithPermissionView(toolName, args, permissionView, timeoutMs),
+    };
+  }
+  return {
+    callTool: async (toolName: string, args: Record<string, unknown>, timeoutMs?: number) => {
+      assertToolCallAllowed(toolName, permissionView);
+      return toolCaller.callTool(toolName, args, timeoutMs);
+    },
+  };
 }

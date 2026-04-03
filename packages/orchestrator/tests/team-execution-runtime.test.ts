@@ -141,4 +141,59 @@ describe('executeTeamDelegatedRuntime', () => {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
   });
+
+  it('filters delegated tool visibility and fail-closes blocked tool calls at runtime', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const createMessage = vi.fn(async params => {
+        expect(params.tools.map(tool => tool.name)).toEqual(['allowed_tool']);
+        return toolUseResponse('tu_blocked', 'blocked_tool');
+      });
+      const callTool = vi.fn(async () => ({ ok: true, isError: false, rawText: 'should-not-run', json: null, errorCode: null }));
+
+      const result = await executeTeamDelegatedRuntime({
+        projectRoot,
+        runId: 'run-tool-filter',
+        workspaceId: 'ws-tool-filter',
+        taskId: 'task-tool-filter',
+        taskKind: 'compute',
+        ownerRole: 'lead',
+        delegateRole: 'delegate',
+        delegateId: 'delegate-1',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: {
+          delegation: [
+            {
+              ...PERMISSIONS.delegation[0]!,
+              allowed_tool_names: ['allowed_tool'],
+            },
+          ],
+          interventions: PERMISSIONS.interventions,
+        },
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [
+          { name: 'allowed_tool', input_schema: { type: 'object', properties: {} } },
+          { name: 'blocked_tool', input_schema: { type: 'object', properties: {} } },
+        ],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: createMessage,
+      });
+
+      expect(callTool).not.toHaveBeenCalled();
+      expect(result.events).toMatchObject([
+        {
+          type: 'error',
+          error: {
+            code: 'INVALID_PARAMS',
+            message: expect.stringContaining('blocked_tool'),
+          },
+        },
+      ]);
+      expect(result.team_state.delegate_assignments[0]?.status).toBe('failed');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
 });

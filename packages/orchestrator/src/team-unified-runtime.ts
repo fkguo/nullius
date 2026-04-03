@@ -38,7 +38,10 @@ function ensureAssignmentRegistration(
   assignment: TeamRuntimeAssignmentInput & { assignment_id: string },
 ): TeamExecutionState['delegate_assignments'][number] {
   const existing = findMatchingAssignment(state.delegate_assignments, assignment);
-  if (existing) return existing;
+  if (existing) {
+    existing.delegation_protocol = buildRuntimeProtocol(input, assignment, assignment.assignment_id);
+    return existing;
+  }
   return registerDelegateAssignment(state, {
     ...assignment,
     delegation_protocol: buildRuntimeProtocol(input, assignment, assignment.assignment_id),

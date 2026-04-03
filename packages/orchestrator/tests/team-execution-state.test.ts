@@ -422,6 +422,40 @@ describe('team execution state', () => {
     }
   });
 
+  it('preserves explicit deny-all tool visibility through persisted team state', () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const manager = new TeamExecutionStateManager(projectRoot);
+      const state = createTeamExecutionState({
+        workspace_id: 'ws-deny-all-tools',
+        coordination_policy: 'supervised_delegate',
+        assignment: {
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          task_id: 'task-deny-all-tools',
+          task_kind: 'compute',
+          handoff_kind: 'compute',
+        },
+        permissions: {
+          delegation: [
+            {
+              ...PERMISSIONS.delegation[0]!,
+              allowed_tool_names: [],
+            },
+          ],
+          interventions: PERMISSIONS.interventions,
+        },
+      }, 'run-deny-all-tools');
+      manager.save(state);
+
+      const loaded = manager.load('run-deny-all-tools');
+      expect(loaded?.permissions.delegation[0]?.allowed_tool_names).toEqual([]);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it('marks active assignments as timed out without touching terminal ones', () => {
     const state = createTeamExecutionState({
       workspace_id: 'ws-6',

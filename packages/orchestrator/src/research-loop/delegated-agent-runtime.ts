@@ -3,8 +3,12 @@ import type { ApprovalGate } from '../approval-gate.js';
 import { AgentRunner, type AgentEvent, type MessageParam, type Tool } from '../agent-runner.js';
 import type { ChatBackendFactory } from '../backends/backend-factory.js';
 import type { MessagesCreateFn, ToolUseContent } from '../backends/chat-backend.js';
-import type { ToolCaller } from '../mcp-client.js';
+import { bindToolPermissionView, type ToolCaller, type ToolPermissionView } from '../mcp-client.js';
 import { RunManifestManager, type RunManifest } from '../run-manifest.js';
+import {
+  buildRuntimeToolPermissionView,
+  filterToolsForPermissionView,
+} from '../tool-execution-policy.js';
 import type { SpanCollector } from '../tracing.js';
 
 export interface ExecuteDelegatedAgentRuntimeInput {
@@ -14,6 +18,7 @@ export interface ExecuteDelegatedAgentRuntimeInput {
   messages: MessageParam[];
   tools: Tool[];
   mcpClient: ToolCaller;
+  toolPermissionView?: ToolPermissionView;
   approvalGate: ApprovalGate;
   resumeFrom?: string;
   maxTurns?: number;
@@ -66,6 +71,11 @@ export async function executeDelegatedAgentRuntime(
   const manifestManager = createManifestManager(input.projectRoot);
   const persistedManifest = manifestManager.loadManifest(input.runId);
   const runtimeManifest = buildResumeManifest(persistedManifest, input.resumeFrom);
+  const toolPermissionView = input.toolPermissionView ?? buildRuntimeToolPermissionView({
+    tools: input.tools,
+    scope: 'agent_session',
+    authority: 'runtime_tools',
+  });
   const skippedStepIds = runtimeManifest
     ? pendingToolUses(input.messages)
       .map(toolUse => toolUse.id)
@@ -75,7 +85,7 @@ export async function executeDelegatedAgentRuntime(
     model: input.model,
     maxTurns: input.maxTurns,
     runId: input.runId,
-    mcpClient: input.mcpClient,
+    mcpClient: bindToolPermissionView(input.mcpClient, toolPermissionView),
     approvalGate: input.approvalGate,
     spanCollector: input.spanCollector,
     routingConfig: input.routingConfig,
@@ -84,7 +94,8 @@ export async function executeDelegatedAgentRuntime(
     _messagesCreate: input._messagesCreate,
   });
   const events: AgentEvent[] = [];
-  for await (const event of runner.run(input.messages, input.tools, runtimeManifest ? { manifest: runtimeManifest } : undefined)) {
+  const visibleTools = filterToolsForPermissionView(input.tools, toolPermissionView);
+  for await (const event of runner.run(input.messages, visibleTools, runtimeManifest ? { manifest: runtimeManifest } : undefined)) {
     events.push(event);
   }
   const savedManifest = manifestManager.loadManifest(input.runId);

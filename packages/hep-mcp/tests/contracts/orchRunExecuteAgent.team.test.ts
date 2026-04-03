@@ -175,6 +175,96 @@ describe('orch_run_execute_agent team bridge', () => {
     expect(error.message).toMatch(/delegation denied/i);
   });
 
+  it('filters delegated tool visibility and blocks out-of-view tool calls through the shared host path', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-team-tool-filter', workflow_id: 'runtime' },
+      'full',
+    );
+
+    let observedToolNames: string[] = [];
+    const callTool = vi.fn(async () => ({ content: [{ type: 'text', text: 'should-not-run' }], isError: false }));
+    const payload = extractPayload(await handleToolCall(
+      'orch_run_execute_agent',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: 'run-team-tool-filter',
+        model: 'claude-test',
+        messages: [{ role: 'user', content: 'filter the delegated tools' }],
+        tools: [
+          {
+            name: 'allowed_tool',
+            input_schema: { type: 'object', properties: {} },
+          },
+          {
+            name: 'blocked_tool',
+            input_schema: { type: 'object', properties: {} },
+          },
+        ],
+        team: {
+          workspace_id: 'workspace:run-team-tool-filter',
+          task_id: 'task-tool-filter',
+          task_kind: 'draft_update',
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+          permissions: {
+            delegation: [{
+              from_role: 'lead',
+              to_role: 'delegate',
+              allowed_task_kinds: ['draft_update'],
+              allowed_handoff_kinds: ['writing'],
+              allowed_tool_names: ['allowed_tool'],
+            }],
+            interventions: [{
+              actor_role: 'lead',
+              allowed_scopes: ['task', 'team'],
+              allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
+            }],
+          },
+        },
+      },
+      'full',
+      {
+        callTool,
+        createMessage: async params => {
+          observedToolNames = params.tools.map(tool => tool.name);
+          return {
+            model: 'claude-test',
+            role: 'assistant',
+            content: { type: 'tool_use', id: 'tu_blocked', name: 'blocked_tool', input: {} },
+            stopReason: 'tool_use',
+          };
+        },
+      },
+    )) as {
+      assignment_results: Array<{
+        status: string;
+        events: Array<{ type: string; error?: { code?: string; message?: string } }>;
+      }>;
+      team_state: {
+        delegate_assignments: Array<{ status: string }>;
+      };
+    };
+
+    expect(observedToolNames).toEqual(['allowed_tool']);
+    expect(callTool).not.toHaveBeenCalled();
+    expect(payload.assignment_results[0]?.status).toBe('failed');
+    expect(payload.assignment_results[0]?.events).toMatchObject([
+      {
+        type: 'error',
+        error: {
+          code: 'INVALID_PARAMS',
+          message: expect.stringContaining('blocked_tool'),
+        },
+      },
+    ]);
+    expect(payload.team_state.delegate_assignments[0]?.status).toBe('failed');
+  });
+
   it('surfaces nested approval metadata in team state and resumes after a task-scoped approve intervention', async () => {
     const projectRoot = makeTmpDir();
     await handleToolCall(

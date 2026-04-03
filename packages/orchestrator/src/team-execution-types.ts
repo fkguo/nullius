@@ -22,6 +22,7 @@ export interface TeamDelegationPermission {
   to_role: string;
   allowed_task_kinds: ResearchTaskKind[];
   allowed_handoff_kinds: ResearchHandoff['handoff_kind'][];
+  allowed_tool_names?: string[];
 }
 
 export interface TeamInterventionPermission {

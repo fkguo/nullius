@@ -10,6 +10,7 @@ const TeamExecutionPermissionEntrySchema = z.object({
   to_role: z.string().min(1),
   allowed_task_kinds: z.array(TaskKindSchema).min(1),
   allowed_handoff_kinds: z.array(HandoffKindSchema).min(1),
+  allowed_tool_names: z.array(z.string().min(1)).optional(),
 });
 
 const TeamInterventionPermissionSchema = z.object({

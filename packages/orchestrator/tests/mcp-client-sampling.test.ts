@@ -4,7 +4,9 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { McpClient, loadSamplingRoutingConfig } from '../src/index.js';
+import { bindToolPermissionView } from '../src/mcp-client.js';
 import { handleMcpServerRequest } from '../src/mcp-server-request-handler.js';
+import { buildRuntimeToolPermissionView } from '../src/tool-execution-policy.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-client-sampling-'));
@@ -32,6 +34,28 @@ async function waitForFile(filePath: string, timeoutMs = 4_000): Promise<string>
     await new Promise(resolve => setTimeout(resolve, 25));
   }
   throw new Error(`Timed out waiting for ${filePath}`);
+}
+
+async function waitForJson<T>(
+  filePath: string,
+  predicate: (value: T) => boolean,
+  timeoutMs = 4_000,
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) {
+      try {
+        const value = JSON.parse(fs.readFileSync(filePath, 'utf8')) as T;
+        if (predicate(value)) {
+          return value;
+        }
+      } catch {
+        // The stub server can rewrite the file while the test is polling.
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for JSON predicate on ${filePath}`);
 }
 
 describe('McpClient sampling support', () => {
@@ -75,6 +99,101 @@ describe('McpClient sampling support', () => {
     await client.close();
 
     expect(result.capabilities).toMatchObject({ sampling: {} });
+  });
+
+  it('blocks bound tool calls before tools/call reaches the server', async () => {
+    const tmpDir = makeTmpDir();
+    tmpDirs.push(tmpDir);
+    const scriptPath = path.join(tmpDir, 'stub-server.mjs');
+    const resultPath = path.join(tmpDir, 'methods.json');
+    fs.writeFileSync(scriptPath, `
+      import fs from 'node:fs';
+      import readline from 'node:readline';
+      const resultPath = process.env.RESULT_PATH;
+      const methods = [];
+      const persist = () => fs.writeFileSync(resultPath, JSON.stringify({ methods }, null, 2));
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on('line', (line) => {
+        const msg = JSON.parse(line);
+        if (msg.method) {
+          methods.push(msg.method);
+          persist();
+        }
+        if (msg.method === 'initialize') {
+          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
+        }
+        if (msg.method === 'tools/call') {
+          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { content: [{ type: 'text', text: 'unexpected' }], isError: false } }) + '\\n');
+        }
+      });
+    `);
+
+    const client = new McpClient();
+    await client.start(process.execPath, [scriptPath], { RESULT_PATH: resultPath });
+
+    const scoped = bindToolPermissionView(
+      client,
+      buildRuntimeToolPermissionView({
+        tools: [{ name: 'allowed_tool', input_schema: {} }],
+        allowedToolNames: ['allowed_tool'],
+      }),
+    );
+
+    await expect(scoped.callTool('blocked_tool', {})).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+    });
+
+    const result = await waitForJson<{ methods: string[] }>(resultPath, value => value.methods.includes('initialize'));
+    await client.close();
+
+    expect(result.methods).toContain('initialize');
+    expect(result.methods).not.toContain('tools/call');
+  });
+
+  it('keeps visible tool calls backward compatible through the bound permission seam', async () => {
+    const tmpDir = makeTmpDir();
+    tmpDirs.push(tmpDir);
+    const scriptPath = path.join(tmpDir, 'stub-server.mjs');
+    const resultPath = path.join(tmpDir, 'methods.json');
+    fs.writeFileSync(scriptPath, `
+      import fs from 'node:fs';
+      import readline from 'node:readline';
+      const resultPath = process.env.RESULT_PATH;
+      const methods = [];
+      const persist = () => fs.writeFileSync(resultPath, JSON.stringify({ methods }, null, 2));
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on('line', (line) => {
+        const msg = JSON.parse(line);
+        if (msg.method) {
+          methods.push(msg.method);
+          persist();
+        }
+        if (msg.method === 'initialize') {
+          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
+        }
+        if (msg.method === 'tools/call') {
+          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { content: [{ type: 'text', text: 'allowed-result' }], isError: false } }) + '\\n');
+        }
+      });
+    `);
+
+    const client = new McpClient();
+    await client.start(process.execPath, [scriptPath], { RESULT_PATH: resultPath });
+
+    const scoped = bindToolPermissionView(
+      client,
+      buildRuntimeToolPermissionView({
+        tools: [{ name: 'allowed_tool', input_schema: {} }],
+        allowedToolNames: ['allowed_tool'],
+      }),
+    );
+
+    const result = await scoped.callTool('allowed_tool', {});
+    const methods = await waitForJson<{ methods: string[] }>(resultPath, value => value.methods.includes('tools/call'));
+    await client.close();
+
+    expect(result.rawText).toContain('allowed-result');
+    expect(methods.methods).toContain('tools/call');
   });
 
   it('answers server sampling/createMessage requests via host routing handler', async () => {

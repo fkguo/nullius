@@ -15,6 +15,7 @@ export function clonePermissions(permissions: TeamPermissionMatrix): TeamPermiss
       to_role: entry.to_role,
       allowed_task_kinds: [...entry.allowed_task_kinds],
       allowed_handoff_kinds: [...entry.allowed_handoff_kinds],
+      ...(entry.allowed_tool_names !== undefined ? { allowed_tool_names: [...entry.allowed_tool_names] } : {}),
     })),
     interventions: permissions.interventions.map(entry => ({
       actor_role: entry.actor_role,

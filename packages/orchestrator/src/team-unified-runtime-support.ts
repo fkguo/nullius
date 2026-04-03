@@ -11,6 +11,7 @@ import {
   type ExecuteDelegatedAgentRuntimeResult,
 } from './research-loop/delegated-agent-runtime.js';
 import { renderPendingRedirect } from './team-execution-intervention-payloads.js';
+import { buildDelegatedToolPermissionView } from './team-execution-permissions.js';
 import {
   isTerminalAssignmentStatus,
   markTimedOutAssignments,
@@ -27,6 +28,7 @@ import type {
   TeamAssignmentExecutionResult,
   TeamRuntimeAssignmentInput,
 } from './team-unified-runtime-types.js';
+import { filterToolsForPermissionView } from './tool-execution-policy.js';
 import { utcNowIso } from './util.js';
 
 export function runtimeRunId(runId: string, assignmentId: string): string {
@@ -146,6 +148,7 @@ export function buildRuntimeProtocol(
   assignment: TeamRuntimeAssignmentInput,
   assignmentId: string,
 ): TeamDelegationProtocol {
+  const toolPermissionView = buildDelegatedToolPermissionView(input.permissions, assignment, input.tools);
   return assignment.delegation_protocol ?? buildTeamDelegationProtocol({
     assignment_id: assignmentId,
     workspace_id: input.workspaceId,
@@ -159,7 +162,7 @@ export function buildRuntimeProtocol(
     handoff_id: assignment.handoff_id ?? null,
     handoff_kind: assignment.handoff_kind ?? null,
     checkpoint_id: assignment.checkpoint_id ?? null,
-    required_tools: input.tools.map(tool => tool.name),
+    required_tools: toolPermissionView.allowed_tool_names,
   });
 }
 
@@ -279,14 +282,16 @@ async function executeLaunch(
   launch: PendingLaunch,
 ): Promise<LaunchOutcome> {
   const assignment = state.delegate_assignments.find(item => item.assignment_id === launch.assignmentId)!;
+  const toolPermissionView = buildDelegatedToolPermissionView(input.permissions, assignment, input.tools);
   try {
     const runtimeResult = await executeDelegatedAgentRuntime({
       projectRoot: input.projectRoot,
       runId: launch.delegatedRunId,
       model: input.model,
       messages: buildRuntimeMessages(input.messages, assignment.delegation_protocol, assignment.pending_redirect),
-      tools: input.tools,
+      tools: filterToolsForPermissionView(input.tools, toolPermissionView),
       mcpClient: input.mcpClient,
+      toolPermissionView,
       approvalGate: input.approvalGate,
       resumeFrom:
         input.resumeFrom
