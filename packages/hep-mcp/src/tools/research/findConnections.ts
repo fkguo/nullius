@@ -42,9 +42,9 @@ export async function findConnections(
 
   // Fetch references for each paper in parallel batches
   for (let i = 0; i < recids.length; i += BATCH_SIZE) {
-    const batch = recids.slice(i, i + BATCH_SIZE);
+    const batch: string[] = recids.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
-      batch.map(async (recid) => {
+      batch.map(async (recid: string) => {
         try {
           return { recid, refs: await api.getReferences(recid) };
         } catch {
@@ -89,7 +89,7 @@ export async function findConnections(
     connectedRecids.add(edge.source);
     connectedRecids.add(edge.target);
   }
-  const isolatedPapers = recids.filter(r => !connectedRecids.has(r));
+  const isolatedPapers = recids.filter((r: string) => !connectedRecids.has(r));
 
   const result: ConnectionsResult = {
     internal_edges: internalEdges,

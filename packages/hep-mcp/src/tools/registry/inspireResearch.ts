@@ -264,6 +264,20 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
             },
           };
         }
+        if (params.mode === 'metadata') {
+          return {
+            mode: params.mode,
+            identifier: params.identifier,
+            provenance: { downloaded: false, retrieval_level: 'none', source_available: null },
+            urls: {
+              has_source: false,
+              source_available: null,
+              ...(resolved.doi ? { doi_url: `https://doi.org/${resolved.doi}` } : {}),
+              ...(resolved.recid ? { inspire_url: `https://inspirehep.net/literature/${resolved.recid}` } : {}),
+            },
+            error: `Could not resolve arXiv ID for: ${params.identifier}`,
+          };
+        }
         throw new Error(`Could not resolve "${params.identifier}" to an arXiv ID`);
       }
       const { auto_cleanup, output_dir: _outputDir, ...arxivOptions } = params.options ?? {};

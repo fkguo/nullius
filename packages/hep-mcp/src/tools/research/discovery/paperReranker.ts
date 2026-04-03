@@ -39,7 +39,7 @@ function stage1Score(query: string, paper: CanonicalPaper, maxCitation: number):
   const exact = hasExactIdentifierMatch(query, paper) ? 1 : 0;
   const providerAgreement = Math.min(1, paper.provider_sources.length / 3);
   const citation = maxCitation > 0 ? (paper.citation_count ?? 0) / maxCitation : 0;
-  const semanticHints = paper.match_reasons.some(reason => reason.startsWith('exact_')) ? 1 : paper.match_reasons.length > 0 ? 0.6 : 0.2;
+  const semanticHints = paper.match_reasons.some((reason: string) => reason.startsWith('exact_')) ? 1 : paper.match_reasons.length > 0 ? 0.6 : 0.2;
   return clamp01(0.5 * exact + 0.2 * overlap + 0.15 * providerAgreement + 0.1 * semanticHints + 0.05 * citation);
 }
 

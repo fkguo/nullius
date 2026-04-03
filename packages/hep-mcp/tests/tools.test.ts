@@ -446,6 +446,17 @@ describe('Tool Handlers (current exposure)', () => {
     expect(res.isError).toBeFalsy();
   });
 
+  it('inspire_literature(get_paper) should tolerate size for compatibility', async () => {
+    vi.mocked(api.getPaper).mockResolvedValueOnce({ recid: '854586' } as any);
+    const res = await handleToolCall('inspire_literature', {
+      mode: 'get_paper',
+      recid: '854586',
+      size: 1,
+    });
+    expect(api.getPaper).toHaveBeenCalledWith('854586');
+    expect(res.isError).toBeFalsy();
+  });
+
   it('inspire_literature(lookup_by_id) should route by identifier type', async () => {
     vi.mocked(api.getPaper).mockResolvedValueOnce({ recid: '2' } as any);
     await handleToolCall('inspire_literature', { mode: 'lookup_by_id', identifier: '2' });
@@ -732,6 +743,31 @@ describe('Tool Handlers (current exposure)', () => {
     } as any);
     await handleToolCall('inspire_paper_source', { identifier: '123', mode: 'urls' });
     expect(arxivTooling.accessPaperSource).toHaveBeenCalled();
+  });
+
+  it('inspire_paper_source(metadata) should return structured fallback when no arXiv id exists', async () => {
+    const resolveArxivIdModule = await import('../src/utils/resolveArxivId.js');
+    vi.mocked(resolveArxivIdModule.resolveArxivIdRich).mockResolvedValueOnce({ arxivId: null, recid: '1821180' });
+
+    const res = await handleToolCall('inspire_paper_source', { identifier: '1821180', mode: 'metadata' });
+
+    expect(res.isError).toBeFalsy();
+    expect(arxivTooling.accessPaperSource).not.toHaveBeenCalled();
+
+    const payload = JSON.parse(readTextBlock(res)) as {
+      mode: string;
+      identifier: string;
+      provenance?: { retrieval_level?: string; source_available?: boolean | null };
+      urls?: { has_source?: boolean; source_available?: boolean | null; inspire_url?: string };
+      error?: string;
+    };
+
+    expect(payload.mode).toBe('metadata');
+    expect(payload.identifier).toBe('1821180');
+    expect(payload.provenance?.retrieval_level).toBe('none');
+    expect(payload.urls?.has_source).toBe(false);
+    expect(payload.urls?.inspire_url).toBe('https://inspirehep.net/literature/1821180');
+    expect(payload.error).toContain('Could not resolve arXiv ID');
   });
 
   it('inspire_parse_latex should require run_id', async () => {

@@ -418,12 +418,13 @@ EOF
 **调用**
 
 ```json
-{ "mode": "get_paper", "recid": "1833986", "size": 1 }
+{ "mode": "get_paper", "recid": "1833986" }
 ```
 
 **预期**
 
 - 返回单篇论文的结构化元信息
+- `get_paper` 不需要 `size`
 
 ### 5.3 `inspire_topic_analysis`
 

@@ -8,9 +8,11 @@ import {
   type DiscoveryCandidateGenerationArtifact,
   type DiscoveryDedupArtifact,
   type DiscoveryPlan,
-  type DiscoveryProviderId,
   type DiscoveryQueryIntent,
 } from '@autoresearch/shared';
+
+const DISCOVERY_PROVIDERS = ['inspire', 'openalex', 'arxiv'] as const;
+type DiscoveryProviderId = (typeof DISCOVERY_PROVIDERS)[number];
 
 export type DiscoveryProviderResult = {
   provider: DiscoveryProviderId;
@@ -27,18 +29,23 @@ export type DiscoveryProviderExecutor = (request: {
   limit: number;
 }) => Promise<DiscoveryProviderResult>;
 
-export type DiscoveryProviderExecutors = Record<DiscoveryProviderId, DiscoveryProviderExecutor>;
+export type DiscoveryProviderExecutors = {
+  inspire: DiscoveryProviderExecutor;
+  openalex: DiscoveryProviderExecutor;
+  arxiv: DiscoveryProviderExecutor;
+};
 
 function aggregateProviderResults(batches: DiscoveryCandidateGenerationArtifact['batches']): DiscoveryProviderResult[] {
-  const providers: DiscoveryProviderId[] = ['inspire', 'openalex', 'arxiv'];
-  return providers.flatMap(provider => {
-    const matched = batches.filter(batch => batch.provider === provider && batch.executed);
+  type CandidateGenerationBatch = DiscoveryCandidateGenerationArtifact['batches'][number];
+  const typedBatches = batches as CandidateGenerationBatch[];
+  return DISCOVERY_PROVIDERS.flatMap((provider): DiscoveryProviderResult[] => {
+    const matched = typedBatches.filter((batch: CandidateGenerationBatch) => batch.provider === provider && batch.executed);
     if (matched.length === 0) return [];
     return [{
       provider,
       query: matched[0]?.candidates[0]?.provenance.query ?? '',
-      candidates: matched.flatMap(batch => batch.candidates),
-      result_count: matched.reduce((sum, batch) => sum + batch.result_count, 0),
+      candidates: matched.flatMap((batch: CandidateGenerationBatch) => batch.candidates),
+      result_count: matched.reduce((sum: number, batch: CandidateGenerationBatch) => sum + batch.result_count, 0),
     }];
   });
 }
@@ -51,8 +58,8 @@ async function overrideCandidateGeneration(params: {
   executors: Partial<DiscoveryProviderExecutors>;
 }): Promise<DiscoveryCandidateGenerationArtifact> {
   const normalizedQuery = normalizeDiscoveryQuery(params.query);
-  const batches = [] as DiscoveryCandidateGenerationArtifact['batches'];
-  for (const provider of params.plan.selected_providers) {
+  const batches: DiscoveryCandidateGenerationArtifact['batches'] = [];
+  for (const provider of params.plan.selected_providers as DiscoveryProviderId[]) {
     const executor = params.executors[provider];
     if (!executor) {
       throw invalidParams(`Missing discovery executor for provider: ${provider}`, { provider, selected_providers: params.plan.selected_providers });
@@ -80,6 +87,7 @@ export async function executeDiscoveryRound(params: {
   papers: CanonicalPaper[];
   dedup: DiscoveryDedupArtifact;
 }> {
+  type CandidateGenerationBatch = DiscoveryCandidateGenerationArtifact['batches'][number];
   const executionPlan: DiscoveryPlan = { ...params.plan, query: params.query, normalized_query: normalizeDiscoveryQuery(params.query) };
   const candidate_generation = params.executors
     ? await overrideCandidateGeneration({ ...params, plan: executionPlan, executors: params.executors })
@@ -91,6 +99,9 @@ export async function executeDiscoveryRound(params: {
       batches: await runProviderBackbone(executionPlan, params.limit),
     });
   const provider_results = aggregateProviderResults(candidate_generation.batches);
-  const { papers, dedup } = canonicalizeDiscoveryCandidates({ query: params.query, candidates: candidate_generation.batches.flatMap(batch => batch.candidates) });
+  const { papers, dedup } = canonicalizeDiscoveryCandidates({
+    query: params.query,
+    candidates: (candidate_generation.batches as CandidateGenerationBatch[]).flatMap((batch: CandidateGenerationBatch) => batch.candidates),
+  });
   return { candidate_generation, provider_results, papers, dedup };
 }

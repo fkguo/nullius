@@ -162,7 +162,7 @@ export async function findRelatedPapers(
   const validated = FindRelatedParamsSchema.parse(params);
   const { recids, strategy, limit, min_relevance } = validated;
 
-  const recidSet = new Set(recids);
+  const recidSet = new Set<string>(recids);
   let candidates: CandidatePaper[] = [];
 
   switch (strategy) {

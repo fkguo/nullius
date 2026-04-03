@@ -41,6 +41,15 @@ export async function accessPaperSource(params: PaperSourceParamsCompat) {
         content: { success: false, source_type: 'pdf' as const, file_path: '', arxiv_id: '',
           error: `Could not resolve arXiv ID for: ${params.identifier}` } };
     }
+    if (params.mode === 'metadata') {
+      return {
+        mode: params.mode,
+        identifier: params.identifier,
+        provenance: { downloaded: false, retrieval_level: 'none' as const, source_available: null },
+        urls: { has_source: false, source_available: null },
+        error: `Could not resolve arXiv ID for: ${params.identifier}`,
+      };
+    }
     throw new Error(`Could not resolve "${params.identifier}" to an arXiv ID`);
   }
   const { auto_cleanup, ...arxivOptions } = params.options ?? {};

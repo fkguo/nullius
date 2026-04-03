@@ -29,6 +29,11 @@ export interface FindSeminalParams {
 export type PaperCategory = 'seminal' | 'emerging' | 'classic' | 'review';
 
 export interface EnhancedSeminalPaper extends PaperSummary {
+  recid?: string;
+  title: string;
+  authors: string[];
+  year?: number;
+  citation_count?: number;
   seminal_score: number;
   category: PaperCategory;
   paper_type: PaperType;

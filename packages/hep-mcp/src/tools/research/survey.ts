@@ -39,11 +39,20 @@ interface SurveySection {
   papers: SurveyPaper[];
 }
 
+interface SurveyGoalConfig {
+  sections: string[];
+  max_papers: number;
+  backward_depth: number;
+  forward_depth: number;
+}
+
+type SurveyGoalKey = 'comprehensive_review' | 'quick_overview' | 'find_methods' | 'historical_context';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Goal Strategies
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GOAL_CONFIG = {
+const GOAL_CONFIG: Record<SurveyGoalKey, SurveyGoalConfig> = {
   comprehensive_review: {
     sections: ['Foundational Papers', 'Key Methods', 'Recent Advances', 'Reviews'],
     max_papers: 50,
@@ -215,8 +224,9 @@ export async function generateSurvey(
   params: GenerateSurveyParams
 ): Promise<SurveyResult> {
   const validated = GenerateSurveyParamsSchema.parse(params);
-  const { seed_recids, goal, max_papers, prioritize, include_reviews } = validated;
+  const { seed_recids, goal: rawGoal, max_papers, prioritize, include_reviews } = validated;
 
+  const goal = rawGoal as SurveyGoalKey;
   const config = GOAL_CONFIG[goal];
   const limit = max_papers || config.max_papers;
 

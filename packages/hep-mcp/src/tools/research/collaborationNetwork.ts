@@ -362,8 +362,10 @@ export async function buildCollaborationNetwork(
 
     if (effectiveAuthorCount > fold_collaboration_author_count_threshold) {
       foldedCollaborationPapers++;
-      const collabs = (paper.collaborations || []).map(normalizeAuthorName).filter(v => v.length > 0);
-      const uniqueCollabs = [...new Set(collabs)];
+      const collabs: string[] = (paper.collaborations ?? [])
+        .map((name: unknown) => normalizeAuthorName(String(name)))
+        .filter((value: string) => value.length > 0);
+      const uniqueCollabs = Array.from(new Set<string>(collabs));
       if (uniqueCollabs.length === 0) {
         skippedLargeCollaborationPapers++;
         continue;
@@ -373,11 +375,11 @@ export async function buildCollaborationNetwork(
       continue;
     }
 
-    const limitedAuthors = (paper.authors || [])
+    const limitedAuthors: string[] = (paper.authors || [])
       .slice(0, max_authors_per_paper)
-      .map(normalizeAuthorName)
-      .filter(v => v.length > 0);
-    const uniqueAuthors = [...new Set(limitedAuthors)];
+      .map((name: unknown) => normalizeAuthorName(String(name)))
+      .filter((value: string) => value.length > 0);
+    const uniqueAuthors = Array.from(new Set<string>(limitedAuthors));
     if (uniqueAuthors.length === 0) continue;
 
     if (effectiveAuthorCount > uniqueAuthors.length) truncatedAuthorPapers++;

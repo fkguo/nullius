@@ -77,7 +77,7 @@ async function calculateSelfCitationRate(recid: string, authors: string[]): Prom
     const refs = await api.getReferences(recid);
     if (refs.length === 0) return undefined;
     const authorLastNames = new Set(authors.map(author => author.toLowerCase().split(' ').pop() || '').filter(Boolean));
-    const selfCitations = refs.filter(ref => (ref.authors ?? []).some(author => authorLastNames.has(author.toLowerCase().split(' ').pop() || ''))).length;
+    const selfCitations = refs.filter(ref => (ref.authors ?? []).some((author: string) => authorLastNames.has(author.toLowerCase().split(' ').pop() || ''))).length;
     return selfCitations / refs.length;
   } catch {
     return undefined;
