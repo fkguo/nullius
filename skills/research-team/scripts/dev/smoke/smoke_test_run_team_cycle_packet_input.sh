@@ -14,7 +14,7 @@ echo "[smoke] tmp_root=${tmp_root}"
 tag="M0-demo"
 
 echo "[setup] scaffold + demo milestone"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokePacketInput" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokePacketInput" --profile "mixed" --full >/dev/null 2>&1
 bash "${BIN_DIR}/generate_demo_milestone.sh" --root "${tmp_root}" --tag "${tag}" >/dev/null 2>&1
 
 echo "[setup] focus the smoke on packet input + explicit hep-provider gating"

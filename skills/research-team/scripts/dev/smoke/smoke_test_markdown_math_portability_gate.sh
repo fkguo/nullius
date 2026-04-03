@@ -21,7 +21,7 @@ if [[ ! -f "${GATE}" ]]; then
   exit 2
 fi
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeMarkdownMathPortability" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeMarkdownMathPortability" --profile "mixed" --full >/dev/null 2>&1
 
 # Ensure the gate is enabled (explicit) and warn-only by default.
 python3 - "${tmp_root}/research_team_config.json" <<'PY'
@@ -143,4 +143,3 @@ if ! grep -nF "[fail] markdown math portability gate failed" "${tmp_root}/gate_e
 fi
 
 echo "[ok] markdown math portability gate smoke test passed"
-

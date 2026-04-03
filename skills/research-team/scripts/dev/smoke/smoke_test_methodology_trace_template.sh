@@ -12,7 +12,7 @@ trap cleanup EXIT
 echo "[smoke] tmp_root=${tmp_root}"
 
 echo "[test1] scaffold copies updated methodology trace template"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeMethTrace" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeMethTrace" --profile "mixed" --full >/dev/null 2>&1
 
 trace_tmpl="${tmp_root}/knowledge_base/methodology_traces/_template.md"
 if [[ ! -f "${trace_tmpl}" ]]; then

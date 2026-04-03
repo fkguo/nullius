@@ -17,7 +17,7 @@ if [[ ! -f "${GATE}" ]]; then
   exit 2
 fi
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokePointerLint" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokePointerLint" --profile "mixed" --full >/dev/null 2>&1
 
 notes="${tmp_root}/research_contract.md"
 

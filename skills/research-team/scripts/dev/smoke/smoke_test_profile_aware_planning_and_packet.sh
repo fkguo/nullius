@@ -18,7 +18,7 @@ echo "[smoke] tmp3=${tmp3}"
 echo "[smoke] tmp4=${tmp4}"
 
 echo "[test1] deterministic plan is profile-aware: toolkit_extraction includes toolkit framing + KB expansion"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp1}" --project "SmokePlanToolkit" --profile "toolkit_extraction" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp1}" --project "SmokePlanToolkit" --profile "toolkit_extraction" --full >/dev/null 2>&1
 python3 "${BIN_DIR}/auto_fill_research_plan.py" --root "${tmp1}" --deterministic --force >/dev/null 2>&1
 if ! grep -nF "Toolkit framing" "${tmp1}/research_plan.md" >/dev/null 2>&1; then
   echo "[fail] expected toolkit_extraction Task Board to include 'Toolkit framing'; got:" >&2
@@ -33,7 +33,7 @@ fi
 echo "[ok] toolkit_extraction plan ok"
 
 echo "[test2] deterministic plan includes KB expansion even in theory_only"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp2}" --project "SmokePlanTheory" --profile "theory_only" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp2}" --project "SmokePlanTheory" --profile "theory_only" --full >/dev/null 2>&1
 python3 "${BIN_DIR}/auto_fill_research_plan.py" --root "${tmp2}" --deterministic --force >/dev/null 2>&1
 if ! grep -nF "Milestone kind: theory" "${tmp2}/research_plan.md" >/dev/null 2>&1; then
   echo "[fail] expected theory_only Task Board to mention 'Milestone kind: theory'; got:" >&2
@@ -79,7 +79,7 @@ fi
 echo "[ok] autopilot fallback injection ok"
 
 echo "[test4] team packet includes mode/profile summary and profile-aware reviewer focus"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp4}" --project "SmokePacket" --profile "methodology_dev" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp4}" --project "SmokePacket" --profile "methodology_dev" --full >/dev/null 2>&1
 python3 "${BIN_DIR}/generate_demo_milestone.py" --root "${tmp4}" --tag "M0-demo" >/dev/null 2>&1
 python3 "${BIN_DIR}/build_team_packet.py" --tag "M0-demo" --notes "${tmp4}/research_contract.md" --out "${tmp4}/prompts/team_packet_M0-demo.txt" >/dev/null 2>&1
 if ! grep -nF "Project mode/profile" "${tmp4}/prompts/team_packet_M0-demo.txt" >/dev/null 2>&1; then

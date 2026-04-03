@@ -16,7 +16,7 @@ echo "[smoke] tmp2=${tmp2}"
 echo "[smoke] tmp3=${tmp3}"
 
 echo "[test1] profile from config: toolkit_extraction should NOT be overwritten to mixed"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp1}" --project "SmokeKickoff1" --profile "toolkit_extraction" >/tmp/smoke_kickoff_profile_out1.txt 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp1}" --project "SmokeKickoff1" --profile "toolkit_extraction" --full >/tmp/smoke_kickoff_profile_out1.txt 2>&1
 python3 "${BIN_DIR}/generate_project_start_prompt.py" --root "${tmp1}" --force >/tmp/smoke_kickoff_profile_out2.txt 2>&1
 if ! grep -nF "  --profile toolkit_extraction" "${tmp1}/PROJECT_START_PROMPT.md" >/dev/null 2>&1; then
   echo "[fail] expected kickoff prompt to include '--profile toolkit_extraction'; got:" >&2
@@ -31,7 +31,7 @@ fi
 echo "[ok] config profile preserved"
 
 echo "[test2] profile from config: mixed should be reflected"
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp2}" --project "SmokeKickoff2" --profile "mixed" >/tmp/smoke_kickoff_profile_out3.txt 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp2}" --project "SmokeKickoff2" --profile "mixed" --full >/tmp/smoke_kickoff_profile_out3.txt 2>&1
 python3 "${BIN_DIR}/generate_project_start_prompt.py" --root "${tmp2}" --force >/tmp/smoke_kickoff_profile_out4.txt 2>&1
 if ! grep -nF "  --profile mixed" "${tmp2}/PROJECT_START_PROMPT.md" >/dev/null 2>&1; then
   echo "[fail] expected kickoff prompt to include '--profile mixed'; got:" >&2

@@ -11,7 +11,7 @@ trap cleanup EXIT
 
 echo "[smoke] tmp_root=${tmp_root}"
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeDemo"
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeDemo" --full
 
 echo "[test1] generate demo milestone fills capsule + creates artifacts"
 python3 "${BIN_DIR}/generate_demo_milestone.py" --root "${tmp_root}" --tag M0-demo >/tmp/smoke_demo_out1.txt 2>&1

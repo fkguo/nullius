@@ -26,7 +26,7 @@ pgrep_q() {
 }
 
 echo "[test1] full scaffold creates mechanisms/"
-bash "${SCAFFOLD_ALL}" --root "${tmp_root}/proj" --project "SmokeProject"
+bash "${SCAFFOLD_ALL}" --root "${tmp_root}/proj" --project "SmokeProject" --full
 
 req_files=(
   "${tmp_root}/proj/mechanisms/00_pre_task_clarifier.md"
@@ -53,7 +53,7 @@ if ! pgrep_q "mixed" "${tmp_root}/proj/mechanisms/00_pre_task_clarifier.md"; the
 fi
 
 echo "[test1c] explicit profile propagation (theory_only)"
-bash "${SCAFFOLD_ALL}" --root "${tmp_root}/proj_profile" --project "ProfileProject" --profile "theory_only"
+bash "${SCAFFOLD_ALL}" --root "${tmp_root}/proj_profile" --project "ProfileProject" --profile "theory_only" --full
 if ! pgrep_q "theory_only" "${tmp_root}/proj_profile/mechanisms/00_pre_task_clarifier.md"; then
   echo "ERROR: expected substituted profile 'theory_only' in clarifier output" >&2
   exit 1

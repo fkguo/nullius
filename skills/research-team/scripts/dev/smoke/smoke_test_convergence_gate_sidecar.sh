@@ -19,7 +19,7 @@ log_timeout_invalid="${tmp_root}/smoke_sidecar_timeout_invalid.txt"
 
 echo "[smoke] tmp_root=${tmp_root}"
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeConvergenceGate"
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeConvergenceGate" --full
 python3 "${BIN_DIR}/generate_demo_milestone.py" --root "${tmp_root}" --tag M0-demo >"${gen_log}" 2>&1
 
 echo "[setup] approve project_charter.md (required by project_charter_gate)"

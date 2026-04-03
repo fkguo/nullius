@@ -20,7 +20,7 @@ if [[ ! -f "${GATE}" ]]; then
   exit 2
 fi
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeMarkdownLinkHygiene" --profile "mixed" >/dev/null 2>&1
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeMarkdownLinkHygiene" --profile "mixed" --full >/dev/null 2>&1
 
 # Ensure the gate is enabled (explicit).
 python3 - "${tmp_root}/research_team_config.json" <<'PY'
@@ -70,4 +70,3 @@ python3 "${BIN_DIR}/fix_markdown_link_hygiene.py" --root "${tmp_root}/research_p
 python3 "${GATE}" --notes "${tmp_root}/research_contract.md" >/dev/null 2>&1
 
 echo "[ok] markdown link hygiene gate smoke test passed"
-

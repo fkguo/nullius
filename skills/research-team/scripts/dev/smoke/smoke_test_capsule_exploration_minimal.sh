@@ -15,7 +15,7 @@ trap cleanup EXIT
 
 echo "[smoke] tmp_root=${tmp_root}"
 
-bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeTest"
+bash "${BIN_DIR}/scaffold_research_workflow.sh" --root "${tmp_root}" --project "SmokeTest" --full
 
 # Switch to exploration stage.
 python3 - "${tmp_root}/research_team_config.json" <<'PY'
