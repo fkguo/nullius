@@ -1,5 +1,7 @@
-import { McpError } from '@autoresearch/shared';
+import { McpError, internalError } from '@autoresearch/shared';
 import type { MessageContent, MessageParam, ToolResultContent, ToolUseContent } from './backends/chat-backend.js';
+import { normalizeStopReason } from './agent-runner-stop-reasons.js';
+import { buildTruncationRecovery, type AgentRuntimeMarkerEvent, type AgentRuntimeState } from './agent-runner-runtime-state.js';
 import type { McpToolResult, ToolCaller } from './mcp-client.js';
 import type { RunManifest, StepCheckpoint } from './run-manifest.js';
 import type { SpanCollector } from './tracing.js';
@@ -8,6 +10,7 @@ export type AgentEvent =
   | { type: 'text'; text: string }
   | { type: 'tool_call'; name: string; input: unknown; result: unknown }
   | { type: 'approval_required'; approvalId: string; packetPath: string }
+  | AgentRuntimeMarkerEvent
   | { type: 'done'; stopReason: string; turnCount: number }
   | { type: 'error'; error: McpError };
 
@@ -60,6 +63,7 @@ export async function handleAssistantResponse(params: {
   messages: MessageParam[];
   stopReason: string;
   turnCount: number;
+  runtimeState: AgentRuntimeState;
   traceId: string;
   mcpClient: ToolCaller;
   spanCollector: SpanCollector | null;
@@ -93,20 +97,39 @@ export async function handleAssistantResponse(params: {
     toolResults.push(toolResult.toolResult);
   }
 
-  if (toolResults.length === 0) {
-    events.push({ type: 'done', stopReason: params.stopReason || 'end_turn', turnCount: params.turnCount });
-    return { events, messages: params.messages, done: true };
+  const stopReason = normalizeStopReason(params.stopReason);
+  if (toolResults.length > 0) {
+    if (stopReason.kind === 'truncation') {
+      throw internalError('Assistant response hit max_tokens while requesting tool execution.');
+    }
+    return {
+      events,
+      messages: [
+        ...params.messages,
+        { role: 'assistant', content: assistantContent },
+        { role: 'user', content: toolResults },
+      ],
+      done: false,
+    };
   }
-
-  return {
-    events,
-    messages: [
-      ...params.messages,
-      { role: 'assistant', content: assistantContent },
-      { role: 'user', content: toolResults },
-    ],
-    done: false,
-  };
+  if (stopReason.kind === 'tool_use') {
+    throw internalError('Assistant returned tool_use stop_reason without tool_use blocks.');
+  }
+  if (stopReason.kind === 'truncation') {
+    const recovery = buildTruncationRecovery({
+      messages: params.messages,
+      assistantContent,
+      turnCount: params.turnCount,
+      runtimeState: params.runtimeState,
+    });
+    if (!recovery) {
+      throw internalError('Assistant response remained truncated after the bounded recovery budget was exhausted.');
+    }
+    events.push(recovery.marker);
+    return { events, messages: recovery.messages, done: false };
+  }
+  events.push({ type: 'done', stopReason: stopReason.normalized, turnCount: params.turnCount });
+  return { events, messages: params.messages, done: true };
 }
 
 export async function resolveIncompleteToolUses(params: {

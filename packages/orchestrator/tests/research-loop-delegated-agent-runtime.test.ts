@@ -30,10 +30,15 @@ function toolUseResponse(id: string, name: string, input: Record<string, unknown
   };
 }
 
-function textResponse(text: string) {
+function textResponse(
+  text: string,
+  stopReason: 'end_turn' | 'max_tokens' = 'end_turn',
+  usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number },
+) {
   return {
     content: [{ type: 'text' as const, text }],
-    stop_reason: 'end_turn',
+    stop_reason: stopReason,
+    usage: usage ?? null,
   };
 }
 
@@ -136,6 +141,40 @@ describe('executeDelegatedAgentRuntime', () => {
       expect(resumed.events.find(event => event.type === 'text')).toMatchObject({ type: 'text', text: 'resumed' });
       expect(resumedClient.callTool).not.toHaveBeenCalled();
       expect(resumed.last_completed_step).toBe('tu_resume');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('surfaces auditable truncation recovery through the shared delegated runtime entrypoint', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const result = await executeDelegatedAgentRuntime({
+        projectRoot,
+        runId: 'run-truncation-live',
+        model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'finish the report' }],
+        tools: TOOLS,
+        mcpClient: makeMockMcpClient({
+          ok: true,
+          isError: false,
+          rawText: 'unused',
+          json: null,
+          errorCode: null,
+        }).client,
+        approvalGate: new ApprovalGate({}),
+        _messagesCreate: vi.fn()
+          .mockResolvedValueOnce(textResponse('partial', 'max_tokens', { input_tokens: 90, output_tokens: 60, total_tokens: 150 }))
+          .mockResolvedValueOnce(textResponse('complete')),
+      });
+
+      expect(result.events).toContainEqual({ type: 'text', text: 'partial' });
+      expect(result.events).toContainEqual(expect.objectContaining({
+        type: 'runtime_marker',
+        kind: 'truncation_retry',
+        detail: expect.objectContaining({ attempt: 1 }),
+      }));
+      expect(result.events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 2 });
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

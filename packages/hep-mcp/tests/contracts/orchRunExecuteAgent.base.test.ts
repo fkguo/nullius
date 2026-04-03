@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { handleToolCall } from '../../src/tools/index.js';
 import { extractPayload, ledgerLineCount, makeTmpDir } from './orchRunExecuteAgentTestSupport.js';
@@ -100,5 +100,46 @@ describe('orch_run_execute_agent base contract', () => {
     expect((second.events as Array<{ type: string }>).some(event => event.type === 'error')).toBe(false);
     expect((second.events as Array<{ type: string; stopReason?: string }>).some(event => event.type === 'done')).toBe(true);
     expect(ledgerLineCount(projectRoot)).toBe(ledgerAfterCreate + 1);
+  });
+
+  it('recovers from a truncated host response through the shared tool surface with an auditable runtime marker', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-truncation-live', workflow_id: 'runtime' },
+      'full',
+    );
+
+    const payload = extractPayload(await handleToolCall(
+      'orch_run_execute_agent',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: 'run-truncation-live',
+        model: 'claude-test',
+        messages: [{ role: 'user', content: 'finish the response' }],
+        tools: [],
+      },
+      'full',
+      {
+        createMessage: vi.fn()
+          .mockResolvedValueOnce({
+            model: 'claude-test',
+            role: 'assistant',
+            content: { type: 'text', text: 'partial host answer' },
+            stopReason: 'maxTokens',
+            usage: { input_tokens: 50, output_tokens: 30, total_tokens: 80 },
+          })
+          .mockResolvedValueOnce({
+            model: 'claude-test',
+            role: 'assistant',
+            content: { type: 'text', text: 'completed host answer' },
+            stopReason: 'endTurn',
+          }),
+      },
+    )) as { events: Array<{ type: string; kind?: string; stopReason?: string }> };
+
+    expect(payload.events).toContainEqual(expect.objectContaining({ type: 'runtime_marker', kind: 'truncation_retry' }));
+    expect(payload.events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn' });
   });
 });

@@ -14,7 +14,15 @@ export type Tool = {
   input_schema: Record<string, unknown>;
 };
 
-export type LlmResponse = { content: MessageContent[]; stop_reason: string };
+export type LlmUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  total_tokens?: number;
+};
+
+export type LlmResponse = { content: MessageContent[]; stop_reason: string; usage?: LlmUsage | null };
 
 export type MessagesCreateFn = (params: {
   model: string;

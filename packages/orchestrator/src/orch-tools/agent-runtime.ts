@@ -1,7 +1,7 @@
 import { invalidParams } from '@autoresearch/shared';
 import { z } from 'zod';
 import { ApprovalGate } from '../approval-gate.js';
-import type { MessageContent, MessageParam, MessagesCreateFn } from '../backends/chat-backend.js';
+import type { LlmUsage, MessageContent, MessageParam, MessagesCreateFn } from '../backends/chat-backend.js';
 import type { McpToolResult, ToolCaller } from '../mcp-client.js';
 import { executeDelegatedAgentRuntime } from '../research-loop/delegated-agent-runtime.js';
 import { executeTeamRuntimeFromToolParams } from '../team-execution-bridge.js';
@@ -24,7 +24,7 @@ type SamplingCreateMessage = (params: {
   modelPreferences?: { hints?: Array<{ name?: string }> };
   tools?: SamplingTool[];
   toolChoice?: { mode?: 'auto' | 'required' | 'none' };
-}) => Promise<{ model: string; content: SamplingBlock | SamplingBlock[]; stopReason?: string }>;
+}) => Promise<{ model: string; content: SamplingBlock | SamplingBlock[]; stopReason?: string; usage?: LlmUsage | null }>;
 type LoopbackToolCall = (name: string, args: Record<string, unknown>) => Promise<{
   content: Array<{ type: string; text?: string }>;
   isError?: boolean;
@@ -90,6 +90,7 @@ function createSamplingAdapter(createMessage: SamplingCreateMessage): MessagesCr
     return {
       content: fromSamplingContent(response.content),
       stop_reason: response.stopReason ?? 'endTurn',
+      usage: response.usage ?? null,
     };
   };
 }

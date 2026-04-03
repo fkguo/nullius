@@ -11,6 +11,7 @@ import type { ResolvedChatRoute } from './routing/types.js';
 import { DEFAULT_CHAT_MAX_TOKENS, loadRoutingConfig, resolveChatRoute } from './routing/loader.js';
 import type { SpanCollector } from './tracing.js';
 import { asMcpError, handleAssistantResponse, resolveIncompleteToolUses, type AgentEvent } from './agent-runner-ops.js';
+import { createAgentRuntimeState, recordTurnUsage, recoverFromContextOverflow } from './agent-runner-runtime-state.js';
 
 export type { AgentEvent } from './agent-runner-ops.js';
 export type { MessageParam, Tool } from './backends/chat-backend.js';
@@ -76,6 +77,7 @@ export class AgentRunner {
 
   private async *runImpl(messages: MessageParam[], tools: Tool[], manifest: RunManifest | null): AsyncGenerator<AgentEvent> {
     let currentMessages: MessageParam[] = [...messages];
+    const runtimeState = createAgentRuntimeState();
     const traceId = generateTraceId();
     const manifestManager = this.manifestManager;
     const checkpointRecorder = async (stepId: string, resultSummary: string) => {
@@ -104,12 +106,20 @@ export class AgentRunner {
           messages: currentMessages,
           tools,
         });
+        recordTurnUsage(runtimeState, response.usage);
+        turnSpan?.setAttribute('window_pressure', runtimeState.windowPressure);
+        if (runtimeState.lastTurnUsage) {
+          turnSpan?.setAttribute('input_tokens', runtimeState.lastTurnUsage.input_tokens);
+          turnSpan?.setAttribute('output_tokens', runtimeState.lastTurnUsage.output_tokens);
+          turnSpan?.setAttribute('total_tokens', runtimeState.lastTurnUsage.total_tokens);
+        }
         turnSpan?.end('OK');
         const next = await handleAssistantResponse({
           blocks: response.content,
           messages: currentMessages,
           stopReason: response.stop_reason,
           turnCount: turn + 1,
+          runtimeState,
           traceId,
           mcpClient: this.mcpClient,
           spanCollector: this.spanCollector,
@@ -119,6 +129,19 @@ export class AgentRunner {
         if (next.done) return;
         currentMessages = next.messages;
       } catch (error) {
+        const recovery = recoverFromContextOverflow({
+          error,
+          messages: currentMessages,
+          turnCount: turn + 1,
+          runtimeState,
+        });
+        if (recovery) {
+          turnSpan?.setAttribute('window_pressure', runtimeState.windowPressure);
+          turnSpan?.end('ERROR');
+          yield recovery.marker;
+          currentMessages = recovery.messages;
+          continue;
+        }
         turnSpan?.end('ERROR');
         yield { type: 'error', error: asMcpError(error) };
         return;

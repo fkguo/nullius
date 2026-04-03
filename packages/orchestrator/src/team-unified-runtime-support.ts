@@ -1,5 +1,6 @@
 import type { MessageParam } from './backends/chat-backend.js';
 import { asMcpError, type AgentEvent } from './agent-runner-ops.js';
+import { isTerminalCompletionStopReason } from './agent-runner-stop-reasons.js';
 import {
   buildTeamDelegationProtocol,
   renderTeamDelegationProtocol,
@@ -123,8 +124,9 @@ export function deriveAssignmentStatus(
   let status: TeamAssignmentStatus = 'running';
   for (const event of runtimeResult.events) {
     if (event.type === 'approval_required') status = 'awaiting_approval';
-    if (event.type === 'done' && status === 'running' && event.stopReason !== 'max_turns') {
-      status = event.stopReason === 'approval_required' ? 'awaiting_approval' : 'completed';
+    if (event.type === 'done' && status === 'running') {
+      if (event.stopReason === 'approval_required') status = 'awaiting_approval';
+      if (isTerminalCompletionStopReason(event.stopReason)) status = 'completed';
     }
   }
   if (status !== 'running') return status;

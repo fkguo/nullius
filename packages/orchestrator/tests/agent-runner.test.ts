@@ -23,8 +23,12 @@ function makeMockApprovalGate(): ApprovalGate {
   return {} as ApprovalGate;
 }
 
-function textResponse(text: string) {
-  return { content: [{ type: 'text' as const, text }], stop_reason: 'end_turn' };
+function textResponse(
+  text: string,
+  stopReason: 'end_turn' | 'stop_sequence' | 'max_tokens' | 'tool_use' | 'weird_reason' = 'end_turn',
+  usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number },
+) {
+  return { content: [{ type: 'text' as const, text }], stop_reason: stopReason, usage: usage ?? null };
 }
 
 function toolUseResponse(id: string, name: string, input: Record<string, unknown> = {}) {
@@ -464,5 +468,113 @@ describe('AgentRunner', () => {
     const events = await collectEvents(runner.run([{ role: 'user', content: 'go' }], TOOLS));
     expect(events[0]).toMatchObject({ type: 'error' });
     expect((events[0] as { type: 'error'; error: { message: string } }).error.message).toContain('API error');
+  });
+
+  it('retries once after max_tokens truncation and keeps the recovery marker auditable', async () => {
+    const createFn = vi.fn()
+      .mockResolvedValueOnce(textResponse('partial answer', 'max_tokens', { input_tokens: 120, output_tokens: 80, total_tokens: 200 }))
+      .mockResolvedValueOnce(textResponse('completed answer'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-truncation-retry',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'finish the draft' }], TOOLS));
+
+    expect(events).toContainEqual({ type: 'text', text: 'partial answer' });
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'runtime_marker',
+      kind: 'truncation_retry',
+      turnCount: 1,
+      detail: expect.objectContaining({ attempt: 1 }),
+    }));
+    expect(events).toContainEqual({ type: 'text', text: 'completed answer' });
+    expect(events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 2 });
+    expect(createFn.mock.calls[1]?.[0]?.messages.at(-2)).toMatchObject({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'partial answer' }],
+    });
+    expect(createFn.mock.calls[1]?.[0]?.messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: expect.stringContaining('[runtime marker] Previous assistant response was truncated by max_tokens.'),
+    });
+  });
+
+  it('fails closed when max_tokens truncation exceeds the bounded retry budget', async () => {
+    const createFn = vi.fn()
+      .mockResolvedValueOnce(textResponse('partial answer', 'max_tokens'))
+      .mockResolvedValueOnce(textResponse('still partial', 'max_tokens'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-truncation-exhausted',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'finish the draft' }], TOOLS));
+
+    expect(events.filter(event => event.type === 'runtime_marker')).toHaveLength(1);
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('bounded recovery budget was exhausted') },
+    });
+    expect(events.some(event => event.type === 'done')).toBe(false);
+  });
+
+  it('retries once after prompt-too-long overflow by compacting prior history with an auditable marker', async () => {
+    const createFn = vi.fn()
+      .mockRejectedValueOnce(new Error('prompt is too long for the model context window'))
+      .mockResolvedValueOnce(textResponse('overflow recovered'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-overflow-retry',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    const messages: MessageParam[] = [
+      { role: 'user', content: 'Open the project and inspect every artifact carefully.' },
+      { role: 'assistant', content: [{ type: 'text', text: 'Initial assessment.' }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu_big', content: 'x'.repeat(1200) }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'Tool result received.' }] },
+      { role: 'user', content: 'Continue with the full synthesis.' },
+      { role: 'assistant', content: [{ type: 'text', text: 'Preparing the synthesis.' }] },
+    ];
+    const events = await collectEvents(runner.run(messages, TOOLS));
+
+    expect(events[0]).toMatchObject({
+      type: 'runtime_marker',
+      kind: 'context_overflow_retry',
+      detail: expect.objectContaining({ attempt: 1 }),
+    });
+    expect(events).toContainEqual({ type: 'text', text: 'overflow recovered' });
+    expect(events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn' });
+    expect(createFn.mock.calls[1]?.[0]?.messages.some((message: MessageParam) =>
+      typeof message.content === 'string' && message.content.includes('[runtime marker] Context compaction applied'),
+    )).toBe(true);
+  });
+
+  it('fails closed when the backend returns an unknown stop_reason', async () => {
+    const createFn = vi.fn().mockResolvedValue(textResponse('mystery response', 'weird_reason'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-unknown-stop-reason',
+      mcpClient: makeMockMcpClient(),
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'go' }], TOOLS));
+
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('Unknown assistant stop_reason') },
+    });
+    expect(events.some(event => event.type === 'done')).toBe(false);
   });
 });

@@ -85,6 +85,7 @@ export function createSamplingAdapter(ctx: AgentToolHandlerContext): MessagesCre
     return {
       content: fromSamplingContent(response.content),
       stop_reason: response.stopReason ?? 'endTurn',
+      usage: response.usage ?? null,
     };
   };
 }
