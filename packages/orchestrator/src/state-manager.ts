@@ -402,6 +402,9 @@ export class StateManager {
       pending_approval: state.pending_approval
         ? {
             approval_id: state.pending_approval.approval_id,
+            agent_id: 'root',
+            assignment_id: null,
+            session_id: null,
             category: state.pending_approval.category,
             timed_out: this.isApprovalTimedOut(state),
           }

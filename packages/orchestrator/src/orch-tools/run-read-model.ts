@@ -61,7 +61,14 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     run_status: paused ? 'paused' : state.run_status,
     workflow_id: state.workflow_id ?? null,
     current_step: state.current_step ?? null,
-    pending_approval: state.pending_approval ?? null,
+    pending_approval: state.pending_approval
+      ? {
+          ...state.pending_approval,
+          agent_id: 'root',
+          assignment_id: null,
+          session_id: null,
+        }
+      : null,
     gate_satisfied: state.gate_satisfied ?? {},
     notes: state.notes ?? '',
     uri: state.run_id ? `orch://runs/${state.run_id}` : null,
@@ -179,7 +186,13 @@ export function readApprovalsView(
   if (state.pending_approval) {
     const category = typeof state.pending_approval.category === 'string' ? state.pending_approval.category : '';
     if (params.gate_filter === 'all' || category === params.gate_filter) {
-      upsert({ ...state.pending_approval, status: 'pending' });
+      upsert({
+        ...state.pending_approval,
+        agent_id: 'root',
+        assignment_id: null,
+        session_id: null,
+        status: 'pending',
+      });
     }
   }
 
@@ -221,6 +234,9 @@ export function readApprovalsView(
     } else {
       entry.status = state.pending_approval?.approval_id === entry.approval_id ? 'pending' : 'unknown';
     }
+    entry.agent_id = 'root';
+    entry.assignment_id = null;
+    entry.session_id = null;
     upsert(entry);
   }
 

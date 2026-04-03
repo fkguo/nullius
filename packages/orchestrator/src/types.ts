@@ -51,6 +51,7 @@ export interface RunState {
   plan: Record<string, unknown> | null;
   plan_md_path: string | null;
   checkpoints: CheckpointInfo;
+  /** Root-run approval slot only. Delegated approvals live in team-execution-state.json. */
   pending_approval: PendingApproval | null;
   approval_seq: Record<string, number>;
   gate_satisfied: Record<string, string | boolean>;

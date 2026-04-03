@@ -13,6 +13,7 @@ import {
   buildRuntimeProtocol,
   executeRuntimeBucket,
 } from './team-unified-runtime-support.js';
+import { normalizeTeamScopingState } from './team-execution-scoping.js';
 import {
   assertSequentialPolicyBoundary,
   executeSequentialRuntime,
@@ -72,7 +73,9 @@ export async function executeUnifiedTeamRuntime(
     assignment.approval_packet_path ??= null;
     assignment.approval_requested_at ??= null;
     assignment.pending_redirect ??= null;
+    assignment.session_id ??= null;
   }
+  normalizeTeamScopingState(state, input.runId);
   state.blocked_stage ??= null;
   state.event_log ??= [];
   preparedAssignments.forEach(assignment =>

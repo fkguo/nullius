@@ -1,6 +1,10 @@
 import type { TeamDelegationProtocol } from './delegation-protocol.js';
 import type { ResearchHandoff } from './research-loop/handoff-types.js';
-import type { ResearchTaskKind } from './research-loop/task-types.js';
+import type {
+  ResearchTaskKind,
+  ResearchTaskLifecycleProjection,
+  ResearchTaskStatus,
+} from './research-loop/task-types.js';
 
 export type TeamCoordinationPolicy = 'sequential' | 'parallel' | 'stage_gated' | 'supervised_delegate';
 export type TeamInterventionScope = 'task' | 'team' | 'project';
@@ -92,6 +96,7 @@ export interface TeamDelegateAssignment {
   status: TeamAssignmentStatus;
   timeout_at: string | null;
   paused_from_status: TeamAssignmentStatus | null;
+  session_id: string | null;
   last_heartbeat_at: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
@@ -100,6 +105,32 @@ export interface TeamDelegateAssignment {
   approval_requested_at: string | null;
   pending_redirect: TeamPendingRedirect | null;
   updated_at: string;
+}
+
+export interface TeamPendingApproval {
+  approval_id: string;
+  agent_id: string;
+  assignment_id: string;
+  session_id: string | null;
+  runtime_run_id: string;
+  packet_path: string;
+  requested_at: string;
+}
+
+export interface TeamAssignmentSession {
+  session_id: string;
+  parent_session_id: string | null;
+  agent_id: string;
+  assignment_id: string;
+  runtime_run_id: string;
+  runtime_status: TeamAssignmentStatus;
+  task_lifecycle_status: ResearchTaskLifecycleProjection;
+  task_status: ResearchTaskStatus;
+  started_at: string;
+  ended_at: string | null;
+  checkpoint_id: string | null;
+  last_completed_step: string | null;
+  resume_from: string | null;
 }
 
 export interface TeamCheckpointBinding {
@@ -155,6 +186,8 @@ export interface TeamExecutionState {
   coordination_policy: TeamCoordinationPolicy;
   permissions: TeamPermissionMatrix;
   delegate_assignments: TeamDelegateAssignment[];
+  pending_approvals: TeamPendingApproval[];
+  sessions: TeamAssignmentSession[];
   active_assignment_ids: string[];
   checkpoints: TeamCheckpointBinding[];
   interventions: TeamInterventionRecord[];

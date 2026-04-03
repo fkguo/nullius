@@ -11,6 +11,8 @@ export type ResearchTaskKind =
 
 export type ResearchTaskStatus = 'pending' | 'active' | 'completed' | 'blocked' | 'cancelled';
 
+export type ResearchTaskLifecycleProjection = 'pending' | 'running' | 'completed' | 'failed' | 'killed';
+
 export interface ResearchTaskInput {
   kind: ResearchTaskKind;
   title: string;
@@ -29,4 +31,21 @@ export interface ResearchTask extends ResearchTaskInput {
   created_at: string;
   updated_at: string;
   actor_id: string | null;
+}
+
+export function projectResearchTaskStatusFromLifecycle(
+  lifecycle: ResearchTaskLifecycleProjection,
+): ResearchTaskStatus {
+  switch (lifecycle) {
+    case 'pending':
+      return 'pending';
+    case 'running':
+      return 'active';
+    case 'completed':
+      return 'completed';
+    case 'failed':
+      return 'blocked';
+    case 'killed':
+      return 'cancelled';
+  }
 }

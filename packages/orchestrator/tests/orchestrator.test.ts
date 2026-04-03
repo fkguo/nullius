@@ -11,7 +11,7 @@ import { StateManager, LedgerWriter, ApprovalGate, approvalPacketSha256 } from '
 import type { RunState } from '../src/index.js';
 import { handleOrchPolicyQuery } from '../src/orch-tools/control.js';
 import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
-import { readApprovalsView } from '../src/orch-tools/run-read-model.js';
+import { buildRunStatusView, readApprovalsView } from '../src/orch-tools/run-read-model.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'orch-test-'));
@@ -1989,6 +1989,44 @@ describe('orch approval/query read models', () => {
 
     expect(view.approvals).toEqual([]);
     expect(view.total).toBe(0);
+  });
+
+  it('keeps root-run approval ownership explicit in read-model projections', () => {
+    const manager = new StateManager(tmpDir);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'run-1';
+    state.workflow_id = 'ingest';
+    state.pending_approval = {
+      approval_id: 'A1-0001',
+      category: 'A1',
+      plan_step_ids: [],
+      requested_at: '2026-03-29T00:00:00Z',
+      timeout_at: null,
+      on_timeout: 'block',
+      packet_path: 'artifacts/runs/run-1/approvals/A1-0001/packet.md',
+    };
+    manager.saveState(state);
+
+    const statusView = buildRunStatusView(tmpDir, state);
+    expect(statusView.pending_approval).toMatchObject({
+      approval_id: 'A1-0001',
+      agent_id: 'root',
+      assignment_id: null,
+      session_id: null,
+    });
+
+    const approvalsView = readApprovalsView(tmpDir, state, {
+      gate_filter: 'all',
+      include_history: false,
+    });
+    expect(approvalsView.approvals[0]).toMatchObject({
+      approval_id: 'A1-0001',
+      agent_id: 'root',
+      assignment_id: null,
+      session_id: null,
+      status: 'pending',
+    });
   });
 });
 

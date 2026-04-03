@@ -16,6 +16,7 @@ import {
   isTerminalAssignmentStatus,
   updateStateTimestamp,
 } from './team-execution-assignment-state.js';
+import { syncPendingApprovals } from './team-execution-scoping.js';
 import type {
   TeamDelegateAssignment,
   TeamExecutionState,
@@ -153,6 +154,7 @@ export function applyTeamIntervention(
       },
     });
     updateStateTimestamp(state, timestamp);
+    syncPendingApprovals(state, state.run_id);
     return record;
   }
 
@@ -193,6 +195,7 @@ export function applyTeamIntervention(
       },
     });
     updateStateTimestamp(state, timestamp);
+    syncPendingApprovals(state, state.run_id);
     return record;
   }
 
@@ -205,6 +208,14 @@ export function applyTeamIntervention(
     }
     if (!assignment.approval_id || !assignment.approval_packet_path || !assignment.approval_requested_at) {
       throw new Error('approve intervention requires persisted approval metadata');
+    }
+    const approval = state.pending_approvals.find(item =>
+      item.approval_id === assignment.approval_id
+      && item.assignment_id === assignment.assignment_id
+      && item.agent_id === assignment.delegate_id,
+    );
+    if (!approval) {
+      throw new Error('approve intervention requires persisted delegated approval ownership');
     }
   }
   const record = buildRecord(command, timestamp);
@@ -245,5 +256,6 @@ export function applyTeamIntervention(
     });
   }
   updateStateTimestamp(state, timestamp);
+  syncPendingApprovals(state, state.run_id);
   return record;
 }

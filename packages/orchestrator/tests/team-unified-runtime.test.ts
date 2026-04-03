@@ -192,6 +192,33 @@ describe('team unified runtime control paths', () => {
         approval_id: 'apr_nested',
         approval_packet_path: 'artifacts/runs/run-approval/approval_packet_v1.json',
       });
+      expect(first.team_state.pending_approvals[0]).toMatchObject({
+        approval_id: 'apr_nested',
+        agent_id: 'delegate-1',
+        assignment_id: first.team_state.delegate_assignments[0]?.assignment_id,
+        runtime_run_id: 'run-approval__' + first.team_state.delegate_assignments[0]?.assignment_id,
+        packet_path: 'artifacts/runs/run-approval/approval_packet_v1.json',
+      });
+      expect(first.team_state.sessions[0]).toMatchObject({
+        agent_id: 'delegate-1',
+        assignment_id: first.team_state.delegate_assignments[0]?.assignment_id,
+        runtime_status: 'awaiting_approval',
+        task_lifecycle_status: 'running',
+        task_status: 'active',
+      });
+      const firstSessionId = first.team_state.sessions[0]!.session_id;
+      expect(first.live_status.pending_approvals[0]).toMatchObject({
+        approval_id: 'apr_nested',
+        agent_id: 'delegate-1',
+        session_id: firstSessionId,
+      });
+      expect(first.live_status.background_tasks[0]).toMatchObject({
+        agent_id: 'delegate-1',
+        session_id: firstSessionId,
+        runtime_status: 'awaiting_approval',
+        task_lifecycle_status: 'running',
+        task_status: 'active',
+      });
 
       const resumedCallTool = vi.fn(async () => ({
         ok: true,
@@ -229,6 +256,20 @@ describe('team unified runtime control paths', () => {
         approval_id: null,
         approval_packet_path: null,
         approval_requested_at: null,
+      });
+      expect(resumed.team_state.pending_approvals).toEqual([]);
+      expect(resumed.team_state.sessions).toHaveLength(2);
+      expect(resumed.team_state.sessions[1]).toMatchObject({
+        parent_session_id: firstSessionId,
+        runtime_status: 'completed',
+        task_lifecycle_status: 'completed',
+        task_status: 'completed',
+      });
+      expect(resumed.live_status.pending_approvals).toEqual([]);
+      expect(resumed.live_status.background_tasks[0]).toMatchObject({
+        runtime_status: 'completed',
+        task_lifecycle_status: 'completed',
+        task_status: 'completed',
       });
       expect(resumedCallTool).not.toHaveBeenCalled();
     } finally {

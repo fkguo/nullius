@@ -63,6 +63,7 @@ export function buildTeamDelegateAssignment(
     status: 'pending',
     timeout_at: input.timeout_at ?? null,
     paused_from_status: null,
+    session_id: null,
     last_heartbeat_at: null,
     last_completed_step: null,
     resume_from: null,

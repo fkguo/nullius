@@ -1,10 +1,16 @@
+import type { ResearchTaskLifecycleProjection, ResearchTaskStatus } from './research-loop/task-types.js';
 import type { TeamDelegationProtocol } from './delegation-protocol.js';
+import {
+  runtimeRunId,
+  taskLifecycleFromAssignmentStatus,
+} from './team-execution-scoping.js';
 import type {
   TeamAssignmentStatus,
   TeamCoordinationPolicy,
   TeamExecutionEvent,
   TeamExecutionState,
 } from './team-execution-types.js';
+import { projectResearchTaskStatusFromLifecycle } from './research-loop/task-types.js';
 
 function manifestPath(runId: string, assignmentId: string): string {
   return `artifacts/runs/${runId}__${assignmentId}/manifest.json`;
@@ -12,6 +18,7 @@ function manifestPath(runId: string, assignmentId: string): string {
 
 export interface TeamAssignmentView {
   assignment_id: string;
+  agent_id: string;
   stage: number;
   status: TeamAssignmentStatus;
   workspace_id: string;
@@ -23,12 +30,32 @@ export interface TeamAssignmentView {
   timeout_at: string | null;
   last_heartbeat_at: string | null;
   manifest_path: string;
+  runtime_run_id: string;
+  session_id: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
   approval_id: string | null;
   approval_packet_path: string | null;
   approval_requested_at: string | null;
   delegation_protocol: TeamDelegationProtocol;
+}
+
+export type TeamPendingApprovalView = TeamExecutionState['pending_approvals'][number];
+
+export interface TeamBackgroundTaskView {
+  assignment_id: string;
+  agent_id: string;
+  task_id: string;
+  task_kind: TeamExecutionState['delegate_assignments'][number]['task_kind'];
+  session_id: string | null;
+  runtime_run_id: string;
+  runtime_status: TeamAssignmentStatus;
+  task_lifecycle_status: ResearchTaskLifecycleProjection;
+  task_status: ResearchTaskStatus;
+  checkpoint_id: string | null;
+  last_completed_step: string | null;
+  resume_from: string | null;
+  approval_id: string | null;
 }
 
 export interface TeamLiveStatusView {
@@ -39,6 +66,8 @@ export interface TeamLiveStatusView {
   active_assignment_ids: string[];
   active_assignments: TeamAssignmentView[];
   terminal_assignments: TeamAssignmentView[];
+  pending_approvals: TeamPendingApprovalView[];
+  background_tasks: TeamBackgroundTaskView[];
   updated_at: string;
 }
 
@@ -57,6 +86,7 @@ function toAssignmentView(
 ): TeamAssignmentView {
   return {
     assignment_id: assignment.assignment_id,
+    agent_id: assignment.delegate_id,
     stage: assignment.stage,
     status: assignment.status,
     workspace_id: state.workspace_id,
@@ -68,12 +98,36 @@ function toAssignmentView(
     timeout_at: assignment.timeout_at,
     last_heartbeat_at: assignment.last_heartbeat_at,
     manifest_path: manifestPath(state.run_id, assignment.assignment_id),
+    runtime_run_id: runtimeRunId(state.run_id, assignment.assignment_id),
+    session_id: assignment.session_id,
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,
     approval_id: assignment.approval_id,
     approval_packet_path: assignment.approval_packet_path,
     approval_requested_at: assignment.approval_requested_at,
     delegation_protocol: assignment.delegation_protocol,
+  };
+}
+
+function toBackgroundTaskView(
+  state: TeamExecutionState,
+  assignment: TeamExecutionState['delegate_assignments'][number],
+): TeamBackgroundTaskView {
+  const task_lifecycle_status = taskLifecycleFromAssignmentStatus(assignment.status);
+  return {
+    assignment_id: assignment.assignment_id,
+    agent_id: assignment.delegate_id,
+    task_id: assignment.task_id,
+    task_kind: assignment.task_kind,
+    session_id: assignment.session_id,
+    runtime_run_id: runtimeRunId(state.run_id, assignment.assignment_id),
+    runtime_status: assignment.status,
+    task_lifecycle_status,
+    task_status: projectResearchTaskStatusFromLifecycle(task_lifecycle_status),
+    checkpoint_id: assignment.checkpoint_id,
+    last_completed_step: assignment.last_completed_step,
+    resume_from: assignment.resume_from,
+    approval_id: assignment.approval_id,
   };
 }
 
@@ -93,6 +147,8 @@ export function buildTeamLiveStatusView(state: TeamExecutionState): TeamLiveStat
     active_assignment_ids: [...state.active_assignment_ids],
     active_assignments: activeAssignments,
     terminal_assignments: terminalAssignments,
+    pending_approvals: (state.pending_approvals ?? []).map(entry => ({ ...entry })),
+    background_tasks: state.delegate_assignments.map(assignment => toBackgroundTaskView(state, assignment)),
     updated_at: state.updated_at,
   };
 }

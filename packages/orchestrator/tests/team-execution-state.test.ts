@@ -150,6 +150,11 @@ describe('team execution state', () => {
     expect(cascadeState.active_assignment_ids).toEqual([]);
     const view = buildTeamControlPlaneView(cascadeState);
     expect(view.live_status.terminal_assignments[0]?.status).toBe('cascade_stopped');
+    expect(view.live_status.background_tasks[0]).toMatchObject({
+      task_lifecycle_status: 'killed',
+      task_status: 'cancelled',
+      runtime_status: 'cascade_stopped',
+    });
     expect(view.replay.some(entry => entry.kind === 'intervention_applied')).toBe(true);
   });
 
@@ -241,6 +246,15 @@ describe('team execution state', () => {
     state.delegate_assignments[0]!.approval_id = 'apr_nested';
     state.delegate_assignments[0]!.approval_packet_path = 'artifacts/runs/run-approve__assignment/approval_packet_v1.json';
     state.delegate_assignments[0]!.approval_requested_at = '2026-03-21T00:00:00Z';
+    state.pending_approvals.push({
+      approval_id: 'apr_nested',
+      agent_id: 'delegate-1',
+      assignment_id: state.delegate_assignments[0]!.assignment_id,
+      session_id: null,
+      runtime_run_id: `run-approve__${state.delegate_assignments[0]!.assignment_id}`,
+      packet_path: 'artifacts/runs/run-approve__assignment/approval_packet_v1.json',
+      requested_at: '2026-03-21T00:00:00Z',
+    });
 
     applyTeamIntervention(state, {
       kind: 'approve',
@@ -256,6 +270,7 @@ describe('team execution state', () => {
       approval_packet_path: null,
       approval_requested_at: null,
     });
+    expect(state.pending_approvals).toEqual([]);
   });
 
   it('stores task-scoped redirect payloads on the targeted assignment without mutating sibling assignments', () => {
@@ -480,5 +495,10 @@ describe('team execution state', () => {
     const view = buildTeamControlPlaneView(state);
     expect(view.live_status.terminal_assignments[0]?.timeout_at).toBe('2026-03-19T00:00:00Z');
     expect(view.live_status.terminal_assignments[0]?.last_heartbeat_at).toBe('2026-03-19T12:00:00Z');
+    expect(view.live_status.background_tasks[0]).toMatchObject({
+      task_lifecycle_status: 'failed',
+      task_status: 'blocked',
+      runtime_status: 'timed_out',
+    });
   });
 });

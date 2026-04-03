@@ -65,7 +65,7 @@ export class ApprovalGate {
     };
   }
 
-  /** Check if an approval action is allowed given current state. */
+  /** Check if a root-run approval action is allowed given current state. */
   checkApproval(state: RunState, approvalId: string): ApprovalCheckResult {
     const pending = state.pending_approval;
     if (!pending) {
@@ -109,7 +109,7 @@ export class ApprovalGate {
     return { allowed: true };
   }
 
-  /** Check if the pending approval has timed out (for checkpoint enforcement). */
+  /** Check if the root-run pending approval has timed out (for checkpoint enforcement). */
   checkTimeout(state: RunState): ApprovalCheckResult {
     const pending = state.pending_approval;
     if (!pending?.timeout_at) {

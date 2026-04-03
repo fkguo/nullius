@@ -20,6 +20,13 @@ import {
   restoreTeamCheckpoint,
   updateDelegateAssignment,
 } from './team-execution-assignment-state.js';
+import {
+  finalizeAssignmentSession,
+  normalizeTeamScopingState,
+  openAssignmentSession,
+  runtimeRunId,
+  syncPendingApprovals,
+} from './team-execution-scoping.js';
 import { appendTeamEvent } from './team-execution-events.js';
 import { TeamExecutionStateManager } from './team-execution-storage.js';
 import type { TeamAssignmentStatus, TeamExecutionState } from './team-execution-types.js';
@@ -30,10 +37,6 @@ import type {
 } from './team-unified-runtime-types.js';
 import { filterToolsForPermissionView } from './tool-execution-policy.js';
 import { utcNowIso } from './util.js';
-
-export function runtimeRunId(runId: string, assignmentId: string): string {
-  return `${runId}__${assignmentId}`;
-}
 
 export function hasPendingAssistantToolUse(messages: MessageParam[]): boolean {
   const last = messages.at(-1);
@@ -103,6 +106,17 @@ export function buildRuntimeMessages(
     return [...scopedMessages.slice(0, -1), protocolMessage, ...redirectMessage, last];
   }
   return [...scopedMessages, protocolMessage, ...redirectMessage];
+}
+
+function resolveAssignmentResumeFrom(
+  input: ExecuteUnifiedTeamRuntimeInput,
+  assignment: TeamExecutionState['delegate_assignments'][number],
+): string | undefined {
+  return input.resumeFrom
+    ?? assignment.resume_from
+    ?? assignment.last_completed_step
+    ?? pendingResumeStepId(input.messages, assignment.task_id)
+    ?? undefined;
 }
 
 function approvalMetadataFromEvents(events: AgentEvent[]): {
@@ -268,6 +282,7 @@ function prepareAssignmentOutcome(
   updateDelegateAssignment(state, refreshed.assignment_id, { status: 'running' });
   recordHeartbeat(state, refreshed.assignment_id);
   const running = state.delegate_assignments.find(item => item.assignment_id === assignment.assignment_id)!;
+  openAssignmentSession(state, input.runId, running, resolveAssignmentResumeFrom(input, running) ?? null);
   appendTeamEvent(state, { kind: 'assignment_started', assignment: running, payload: { stage: running.stage } });
   return {
     kind: 'launch',
@@ -293,12 +308,7 @@ async function executeLaunch(
       mcpClient: input.mcpClient,
       toolPermissionView,
       approvalGate: input.approvalGate,
-      resumeFrom:
-        input.resumeFrom
-        ?? assignment.resume_from
-        ?? assignment.last_completed_step
-        ?? pendingResumeStepId(input.messages, assignment.task_id)
-        ?? undefined,
+      resumeFrom: resolveAssignmentResumeFrom(input, assignment),
       maxTurns: input.maxTurns,
       routingConfig: input.routingConfig,
       spanCollector: input.spanCollector,
@@ -328,6 +338,8 @@ function mergeLaunchOutcome(
       : 'failed';
     updateDelegateAssignment(state, current.assignment_id, { status });
     const updated = state.delegate_assignments.find(item => item.assignment_id === current.assignment_id)!;
+    finalizeAssignmentSession(state, updated);
+    syncPendingApprovals(state, input.runId);
     appendTeamEvent(state, {
       kind: 'assignment_status_changed',
       assignment: updated,
@@ -388,6 +400,8 @@ function mergeLaunchOutcome(
       resume_from: runtimeResult.resume_from,
     });
   }
+  finalizeAssignmentSession(state, updated);
+  syncPendingApprovals(state, input.runId);
   manager.save(state);
   return {
     ...runtimeResult,
@@ -409,7 +423,10 @@ export async function executeRuntimeBucket(
   bucket: RuntimeBucket,
 ): Promise<TeamAssignmentExecutionResult[]> {
   const resumeRequested = Boolean(input.resumeFrom) || hasPendingAssistantToolUse(input.messages);
-  markTimedOutAssignments(state);
+  normalizeTeamScopingState(state, input.runId);
+  const timedOutBeforeLaunch = markTimedOutAssignments(state);
+  timedOutBeforeLaunch.forEach(assignment => finalizeAssignmentSession(state, assignment));
+  syncPendingApprovals(state, input.runId);
   const prepared = bucket.assignments.map(assignment =>
     prepareAssignmentOutcome(input, state, manager, assignment, resumeRequested),
   );
@@ -426,7 +443,9 @@ export async function executeRuntimeBucket(
   const results = prepared.map(item => item.kind === 'snapshot'
     ? item.result
     : mergeLaunchOutcome(input, state, manager, outcomeByAssignmentId.get(item.assignmentId)!));
-  markTimedOutAssignments(state);
+  const timedOutAfterMerge = markTimedOutAssignments(state);
+  timedOutAfterMerge.forEach(assignment => finalizeAssignmentSession(state, assignment));
+  syncPendingApprovals(state, input.runId);
   manager.save(state);
   return results.map(result => {
     const current = state.delegate_assignments.find(item => item.assignment_id === result.assignment_id);

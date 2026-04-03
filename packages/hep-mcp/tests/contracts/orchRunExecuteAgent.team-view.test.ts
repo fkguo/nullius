@@ -183,11 +183,25 @@ describe('orch_run_execute_agent team control-plane views', () => {
       },
     )) as {
       live_status: {
+        pending_approvals: Array<{
+          approval_id: string;
+          agent_id: string;
+          assignment_id: string;
+          session_id: string | null;
+        }>;
         active_assignments: Array<{
           status: string;
+          session_id: string | null;
           approval_id: string | null;
           approval_packet_path: string | null;
           approval_requested_at: string | null;
+        }>;
+        background_tasks: Array<{
+          agent_id: string;
+          session_id: string | null;
+          runtime_status: string;
+          task_lifecycle_status: string;
+          task_status: string;
         }>;
       };
     };
@@ -198,5 +212,18 @@ describe('orch_run_execute_agent team control-plane views', () => {
       approval_packet_path: 'artifacts/runs/run-team-approval-view__nested/approval_packet_v1.json',
     });
     expect(payload.live_status.active_assignments[0]?.approval_requested_at).toBeTruthy();
+    expect(payload.live_status.pending_approvals[0]).toMatchObject({
+      approval_id: 'apr_view',
+      agent_id: 'delegate-1',
+      assignment_id: expect.any(String),
+      session_id: payload.live_status.active_assignments[0]?.session_id ?? null,
+    });
+    expect(payload.live_status.background_tasks[0]).toMatchObject({
+      agent_id: 'delegate-1',
+      session_id: payload.live_status.active_assignments[0]?.session_id ?? null,
+      runtime_status: 'awaiting_approval',
+      task_lifecycle_status: 'running',
+      task_status: 'active',
+    });
   });
 });
