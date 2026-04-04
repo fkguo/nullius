@@ -146,12 +146,14 @@ describe('vNext M9: hep_run_build_pdf_evidence (PDF→Evidence)', () => {
     const items = catalogText
       .split('\n')
       .filter(Boolean)
-      .map(line => JSON.parse(line)) as Array<{ type: string; locator?: { page?: number }; text?: string }>;
+      .map(line => JSON.parse(line)) as Array<{ type: string; locator?: { kind?: string; page?: number }; text?: string; paper_id?: unknown }>;
 
     const pages = items.filter(i => i.type === 'pdf_page');
     const regions = items.filter(i => i.type === 'pdf_region');
     expect(regions.length).toBe(0);
     expect(pages.length).toBe(payload.summary.processed_pages);
+    expect(items.every(i => i.paper_id === undefined)).toBe(true);
+    expect(pages.every(p => p.locator?.kind === 'pdf')).toBe(true);
 
     const p1 = pages.find(p => p.locator?.page === 1)?.text ?? '';
     const p2 = pages.find(p => p.locator?.page === 2)?.text ?? '';
@@ -253,10 +255,20 @@ describe('vNext M9: hep_run_build_pdf_evidence (PDF→Evidence)', () => {
     const items = catalogText
       .split('\n')
       .filter(Boolean)
-      .map(line => JSON.parse(line)) as Array<{ type: string; meta?: Record<string, unknown> }>;
+      .map(line => JSON.parse(line)) as Array<{
+        type: string;
+        locator?: { kind?: string; bbox?: { coord_origin?: string } };
+        meta?: Record<string, unknown>;
+        paper_id?: unknown;
+      }>;
     const pageItem = items.find(i => i.type === 'pdf_page');
     const regionItem = items.find(i => i.type === 'pdf_region');
     expect(regionItem).toBeTruthy();
+    expect(pageItem?.paper_id).toBeUndefined();
+    expect(regionItem?.paper_id).toBeUndefined();
+    expect(pageItem?.locator?.kind).toBe('pdf');
+    expect(regionItem?.locator?.kind).toBe('pdf');
+    expect(regionItem?.locator?.bbox?.coord_origin).toBe('top_left');
     expect(typeof pageItem?.meta?.page_render_uri).toBe('string');
     expect(typeof regionItem?.meta?.region_uri).toBe('string');
     expect(typeof regionItem?.meta?.label).toBe('string');

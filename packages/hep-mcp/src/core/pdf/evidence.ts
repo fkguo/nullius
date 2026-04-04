@@ -41,7 +41,9 @@ interface DoclingRawRegion {
   text?: string;
 }
 
-export interface PdfBBoxNormalizedV1 {
+// Run-local raw PDF producer shapes stay private to this module.
+// Shared paper-aware evidence authority lives in @autoresearch/shared.
+interface RawPdfNormalizedBBox {
   coord_origin: 'top_left';
   x0: number;
   y0: number;
@@ -49,21 +51,21 @@ export interface PdfBBoxNormalizedV1 {
   y1: number;
 }
 
-export interface PdfLocatorV1 {
+interface RawPdfLocator {
   kind: 'pdf';
   page: number;
-  bbox?: PdfBBoxNormalizedV1;
+  bbox?: RawPdfNormalizedBBox;
 }
 
-export type PdfEvidenceType = 'pdf_page' | 'pdf_region';
+type RawPdfEvidenceType = 'pdf_page' | 'pdf_region';
 
-export interface PdfEvidenceCatalogItemV1 {
+interface RawPdfEvidenceCatalogItem {
   version: 1;
   evidence_id: string;
   run_id: string;
   project_id: string;
-  type: PdfEvidenceType;
-  locator: PdfLocatorV1;
+  type: RawPdfEvidenceType;
+  locator: RawPdfLocator;
   text: string;
   normalized_text?: string;
   meta?: Record<string, unknown>;
@@ -83,8 +85,8 @@ function normalizeText(text: string): string {
 
 function buildEvidenceId(params: {
   runId: string;
-  type: PdfEvidenceType;
-  locator: PdfLocatorV1;
+  type: RawPdfEvidenceType;
+  locator: RawPdfLocator;
   text: string;
 }): string {
   const material = JSON.stringify({
@@ -340,7 +342,7 @@ function extractDoclingRawRegions(docling: unknown, maxPages: number): Map<numbe
   return byPage;
 }
 
-function doclingBBoxToNormalizedTopLeft(bbox: DoclingBBox, pageWidth: number, pageHeight: number): PdfBBoxNormalizedV1 {
+function doclingBBoxToNormalizedTopLeft(bbox: DoclingBBox, pageWidth: number, pageHeight: number): RawPdfNormalizedBBox {
   const w = pageWidth > 0 ? pageWidth : 1;
   const h = pageHeight > 0 ? pageHeight : 1;
 
@@ -460,7 +462,7 @@ async function finishRunStep(params: {
   });
 }
 
-function chooseFallbackRegionBBoxNormalized(pageWidth: number, pageHeight: number): PdfBBoxNormalizedV1 {
+function chooseFallbackRegionBBoxNormalized(pageWidth: number, pageHeight: number): RawPdfNormalizedBBox {
   // A conservative "equation-like" band around the upper-middle region.
   const x0 = 0.15;
   const x1 = 0.85;
@@ -662,7 +664,7 @@ export async function buildRunPdfEvidence(params: {
       });
     }
 
-    const items: PdfEvidenceCatalogItemV1[] = [];
+    const items: RawPdfEvidenceCatalogItem[] = [];
     const pageRecords: Array<{ page: number; text: string; source: string }> = [];
     const scale = params.render_dpi / 72;
 
@@ -710,7 +712,7 @@ export async function buildRunPdfEvidence(params: {
 
       if (!text) warnings.push(`empty_text_page:${pageNum}`);
 
-      const pageEvidence: PdfEvidenceCatalogItemV1 = {
+      const pageEvidence: RawPdfEvidenceCatalogItem = {
         version: 1,
         evidence_id: 'placeholder',
         run_id: runId,
@@ -758,7 +760,7 @@ export async function buildRunPdfEvidence(params: {
       const pageW = Number(pageViewportPoints.width) > 0 ? Number(pageViewportPoints.width) : 1;
       const pageH = Number(pageViewportPoints.height) > 0 ? Number(pageViewportPoints.height) : 1;
 
-      const proposals: Array<{ bbox: PdfBBoxNormalizedV1; label: DoclingRegionLabel | 'fallback'; text?: string; strategy: string }> =
+      const proposals: Array<{ bbox: RawPdfNormalizedBBox; label: DoclingRegionLabel | 'fallback'; text?: string; strategy: string }> =
         pageRegions.map(r => ({
           bbox: doclingBBoxToNormalizedTopLeft(r.bbox, pageW, pageH),
           label: r.label,
@@ -804,7 +806,7 @@ export async function buildRunPdfEvidence(params: {
         artifacts.push(regionRef);
 
         const regionText = proposal.text ?? '';
-        const regionEvidence: PdfEvidenceCatalogItemV1 = {
+        const regionEvidence: RawPdfEvidenceCatalogItem = {
           version: 1,
           evidence_id: 'placeholder',
           run_id: runId,
