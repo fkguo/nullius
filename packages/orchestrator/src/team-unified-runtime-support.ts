@@ -159,11 +159,12 @@ function isSuspended(status: TeamAssignmentStatus): boolean {
 
 export function buildRuntimeProtocol(
   input: ExecuteUnifiedTeamRuntimeInput,
+  state: TeamExecutionState,
   assignment: TeamRuntimeAssignmentInput,
   assignmentId: string,
 ): TeamDelegationProtocol {
-  const toolPermissionView = buildDelegatedToolPermissionView(input.permissions, assignment, input.tools);
-  return assignment.delegation_protocol ?? buildTeamDelegationProtocol({
+  const toolPermissionView = buildDelegatedToolPermissionView(input.permissions, assignment, input.tools, state);
+  const baseProtocol = assignment.delegation_protocol ?? buildTeamDelegationProtocol({
     assignment_id: assignmentId,
     workspace_id: input.workspaceId,
     task_id: assignment.task_id,
@@ -178,6 +179,28 @@ export function buildRuntimeProtocol(
     checkpoint_id: assignment.checkpoint_id ?? null,
     required_tools: toolPermissionView.allowed_tool_names,
   });
+
+  return {
+    ...baseProtocol,
+    TASK: {
+      ...baseProtocol.TASK,
+      assignment_id: assignmentId,
+      task_id: assignment.task_id,
+      task_kind: assignment.task_kind,
+      owner_role: assignment.owner_role,
+      delegate_role: assignment.delegate_role,
+      delegate_id: assignment.delegate_id,
+      stage: assignment.stage ?? 0,
+    },
+    REQUIRED_TOOLS: { tool_names: [...toolPermissionView.allowed_tool_names] },
+    CONTEXT: {
+      ...baseProtocol.CONTEXT,
+      workspace_id: input.workspaceId,
+      coordination_policy: input.coordinationPolicy,
+      handoff_id: assignment.handoff_id ?? null,
+      checkpoint_id: assignment.checkpoint_id ?? null,
+    },
+  };
 }
 
 export function snapshotResult(
@@ -297,7 +320,7 @@ async function executeLaunch(
   launch: PendingLaunch,
 ): Promise<LaunchOutcome> {
   const assignment = state.delegate_assignments.find(item => item.assignment_id === launch.assignmentId)!;
-  const toolPermissionView = buildDelegatedToolPermissionView(input.permissions, assignment, input.tools);
+  const toolPermissionView = buildDelegatedToolPermissionView(input.permissions, assignment, input.tools, state);
   try {
     const runtimeResult = await executeDelegatedAgentRuntime({
       projectRoot: input.projectRoot,
@@ -336,7 +359,17 @@ function mergeLaunchOutcome(
     const status: TeamAssignmentStatus = current.checkpoint_id || current.last_completed_step || current.resume_from
       ? 'needs_recovery'
       : 'failed';
-    updateDelegateAssignment(state, current.assignment_id, { status });
+    updateDelegateAssignment(state, current.assignment_id, {
+      status,
+      ...(status === 'failed'
+        ? {
+            pending_redirect: null,
+            approval_id: null,
+            approval_packet_path: null,
+            approval_requested_at: null,
+          }
+        : {}),
+    });
     const updated = state.delegate_assignments.find(item => item.assignment_id === current.assignment_id)!;
     finalizeAssignmentSession(state, updated);
     syncPendingApprovals(state, input.runId);

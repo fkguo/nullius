@@ -37,6 +37,8 @@ function extractTaskId(params: {
   if (!protocol || typeof protocol !== 'string') {
     throw new Error('missing delegation protocol');
   }
+  if (protocol.includes('task-mcp-parent')) return 'task-mcp-parent';
+  if (protocol.includes('task-mcp-child')) return 'task-mcp-child';
   if (protocol.includes('task-parallel-1')) return 'task-parallel-1';
   if (protocol.includes('task-parallel-2')) return 'task-parallel-2';
   if (protocol.includes('task-recover-1')) return 'task-recover-1';
@@ -202,6 +204,7 @@ describe('team unified runtime control paths', () => {
       expect(first.team_state.sessions[0]).toMatchObject({
         agent_id: 'delegate-1',
         assignment_id: first.team_state.delegate_assignments[0]?.assignment_id,
+        context_kind: 'fresh',
         runtime_status: 'awaiting_approval',
         task_lifecycle_status: 'running',
         task_status: 'active',
@@ -215,6 +218,7 @@ describe('team unified runtime control paths', () => {
       expect(first.live_status.background_tasks[0]).toMatchObject({
         agent_id: 'delegate-1',
         session_id: firstSessionId,
+        session_context_kind: 'fresh',
         runtime_status: 'awaiting_approval',
         task_lifecycle_status: 'running',
         task_status: 'active',
@@ -261,6 +265,7 @@ describe('team unified runtime control paths', () => {
       expect(resumed.team_state.sessions).toHaveLength(2);
       expect(resumed.team_state.sessions[1]).toMatchObject({
         parent_session_id: firstSessionId,
+        context_kind: 'resumed',
         runtime_status: 'completed',
         task_lifecycle_status: 'completed',
         task_status: 'completed',
@@ -272,6 +277,98 @@ describe('team unified runtime control paths', () => {
         task_status: 'completed',
       });
       expect(resumedCallTool).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves delegated MCP/tool inheritance via typed state while staying permission-matrix bounded', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const createMessage = vi.fn(async params => {
+        const taskId = extractTaskId(params);
+        if (taskId === 'task-mcp-parent') {
+          expect(params.tools.map((tool: { name: string }) => tool.name)).toEqual(['tool_a']);
+        }
+        if (taskId === 'task-mcp-child') {
+          expect(params.tools.map((tool: { name: string }) => tool.name)).toEqual(['tool_a', 'tool_b']);
+        }
+        return textResponse(`${taskId} complete`);
+      });
+
+      const permissions: TeamPermissionMatrix = {
+        delegation: [
+          {
+            from_role: 'lead',
+            to_role: 'delegate',
+            allowed_task_kinds: ['compute'],
+            allowed_handoff_kinds: ['compute'],
+            allowed_tool_names: ['tool_a'],
+          },
+          {
+            from_role: 'lead',
+            to_role: 'delegate_plus',
+            allowed_task_kinds: ['compute'],
+            allowed_handoff_kinds: ['compute'],
+            allowed_tool_names: ['tool_a', 'tool_b'],
+          },
+        ],
+        interventions: PERMISSIONS.interventions,
+      };
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-mcp-inherit',
+        workspaceId: 'workspace:run-mcp-inherit',
+        coordinationPolicy: 'sequential',
+        permissions,
+        assignments: [
+          {
+            assignment_id: 'assignment-mcp-parent',
+            stage: 0,
+            owner_role: 'lead',
+            delegate_role: 'delegate',
+            delegate_id: 'delegate-1',
+            task_id: 'task-mcp-parent',
+            task_kind: 'compute',
+          },
+          {
+            assignment_id: 'assignment-mcp-child',
+            stage: 1,
+            owner_role: 'lead',
+            delegate_role: 'delegate_plus',
+            delegate_id: 'delegate-2',
+            task_id: 'task-mcp-child',
+            task_kind: 'compute',
+            mcp_tool_inheritance: {
+              mode: 'inherit_from_assignment',
+              inherit_from_assignment_id: 'assignment-mcp-parent',
+              additive_tool_names: ['tool_b'],
+            },
+          },
+        ],
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [
+          { name: 'tool_a', input_schema: { type: 'object', properties: {} } },
+          { name: 'tool_b', input_schema: { type: 'object', properties: {} } },
+          { name: 'tool_c', input_schema: { type: 'object', properties: {} } },
+        ],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: createMessage,
+      });
+
+      expect(result.assignment_results.map(item => item.task_id)).toEqual(['task-mcp-parent', 'task-mcp-child']);
+      expect(result.assignment_results.every(item => item.status === 'completed')).toBe(true);
+      expect(result.team_state.delegate_assignments[1]).toMatchObject({
+        assignment_id: 'assignment-mcp-child',
+        mcp_tool_inheritance: {
+          mode: 'inherit_from_assignment',
+          inherit_from_assignment_id: 'assignment-mcp-parent',
+          additive_tool_names: ['tool_b'],
+        },
+      });
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
@@ -370,6 +467,12 @@ describe('team unified runtime control paths', () => {
       expect(result.assignment_results.map(item => item.task_id)).toEqual(['task-compute-seed', 'task-review-followup']);
       expect(result.assignment_results.every(item => item.status === 'completed')).toBe(true);
       expect(result.team_state.delegate_assignments).toHaveLength(2);
+      const [seed, followup] = result.team_state.delegate_assignments;
+      expect(followup?.forked_from_assignment_id).toBe(seed?.assignment_id);
+      expect(result.team_state.sessions.map(session => [session.assignment_id, session.context_kind])).toEqual([
+        [seed?.assignment_id, 'fresh'],
+        [followup?.assignment_id, 'forked'],
+      ]);
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

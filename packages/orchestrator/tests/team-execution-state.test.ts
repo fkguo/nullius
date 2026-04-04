@@ -112,6 +112,30 @@ describe('team execution state', () => {
       permissions: PERMISSIONS,
     }, 'run-3');
     const assignment = state.delegate_assignments[0]!;
+    assignment.status = 'running';
+    assignment.session_id = 'session-cancel-1';
+    assignment.pending_redirect = { note: 'cancel me', payload: { reason: 'test' }, created_at: '2026-03-21T00:00:00Z' };
+    assignment.approval_id = 'apr_cancel';
+    assignment.approval_packet_path = 'artifacts/runs/run-3__assignment/approval_packet_v1.json';
+    assignment.approval_requested_at = '2026-03-21T00:00:00Z';
+    state.sessions.push({
+      session_id: 'session-cancel-1',
+      parent_session_id: null,
+      context_kind: 'fresh',
+      agent_id: assignment.delegate_id,
+      assignment_id: assignment.assignment_id,
+      runtime_run_id: `run-3__${assignment.assignment_id}`,
+      runtime_status: 'running',
+      task_lifecycle_status: 'running',
+      task_status: 'active',
+      started_at: '2026-03-21T00:00:00Z',
+      ended_at: null,
+      checkpoint_id: null,
+      last_completed_step: null,
+      resume_from: null,
+      forked_from_assignment_id: null,
+      forked_from_session_id: null,
+    });
 
     const cancelRecord = applyTeamIntervention(state, {
       kind: 'cancel',
@@ -124,6 +148,19 @@ describe('team execution state', () => {
     });
     expect(cancelRecord.kind).toBe('cancel');
     expect(state.delegate_assignments[0]?.status).toBe('cancelled');
+    expect(state.delegate_assignments[0]).toMatchObject({
+      pending_redirect: null,
+      approval_id: null,
+      approval_packet_path: null,
+      approval_requested_at: null,
+    });
+    expect(state.pending_approvals).toEqual([]);
+    expect(state.sessions[0]).toMatchObject({
+      ended_at: expect.any(String),
+      runtime_status: 'cancelled',
+      task_lifecycle_status: 'killed',
+      task_status: 'cancelled',
+    });
 
     const cascadeState = createTeamExecutionState({
       workspace_id: 'ws-4',
@@ -138,6 +175,30 @@ describe('team execution state', () => {
       },
       permissions: PERMISSIONS,
     }, 'run-4');
+    cascadeState.delegate_assignments[0]!.status = 'awaiting_approval';
+    cascadeState.delegate_assignments[0]!.session_id = 'session-cascade-1';
+    cascadeState.delegate_assignments[0]!.pending_redirect = { note: 'stop', payload: {}, created_at: '2026-03-21T00:00:00Z' };
+    cascadeState.delegate_assignments[0]!.approval_id = 'apr_cascade';
+    cascadeState.delegate_assignments[0]!.approval_packet_path = 'artifacts/runs/run-4__assignment/approval_packet_v1.json';
+    cascadeState.delegate_assignments[0]!.approval_requested_at = '2026-03-21T00:00:00Z';
+    cascadeState.sessions.push({
+      session_id: 'session-cascade-1',
+      parent_session_id: null,
+      context_kind: 'fresh',
+      agent_id: cascadeState.delegate_assignments[0]!.delegate_id,
+      assignment_id: cascadeState.delegate_assignments[0]!.assignment_id,
+      runtime_run_id: `run-4__${cascadeState.delegate_assignments[0]!.assignment_id}`,
+      runtime_status: 'awaiting_approval',
+      task_lifecycle_status: 'running',
+      task_status: 'active',
+      started_at: '2026-03-21T00:00:00Z',
+      ended_at: null,
+      checkpoint_id: null,
+      last_completed_step: null,
+      resume_from: null,
+      forked_from_assignment_id: null,
+      forked_from_session_id: null,
+    });
     const cascadeRecord = applyTeamIntervention(cascadeState, {
       kind: 'cascade_stop',
       scope: 'team',
@@ -147,6 +208,8 @@ describe('team execution state', () => {
     });
     expect(cascadeRecord.kind).toBe('cascade_stop');
     expect(cascadeState.delegate_assignments.every(item => item.status === 'cascade_stopped')).toBe(true);
+    expect(cascadeState.delegate_assignments.every(item => item.pending_redirect === null)).toBe(true);
+    expect(cascadeState.delegate_assignments.every(item => item.approval_id === null)).toBe(true);
     expect(cascadeState.active_assignment_ids).toEqual([]);
     const view = buildTeamControlPlaneView(cascadeState);
     expect(view.live_status.terminal_assignments[0]?.status).toBe('cascade_stopped');
@@ -155,6 +218,8 @@ describe('team execution state', () => {
       task_status: 'cancelled',
       runtime_status: 'cascade_stopped',
     });
+    expect(cascadeState.sessions[0]?.ended_at).toEqual(expect.any(String));
+    expect(cascadeState.sessions[0]?.runtime_status).toBe('cascade_stopped');
     expect(view.replay.some(entry => entry.kind === 'intervention_applied')).toBe(true);
   });
 
@@ -487,11 +552,21 @@ describe('team execution state', () => {
       permissions: PERMISSIONS,
     }, 'run-6');
     const assignmentId = state.delegate_assignments[0]!.assignment_id;
+    state.delegate_assignments[0]!.pending_redirect = { note: 'timeout', payload: { test: true }, created_at: '2026-03-19T00:00:00Z' };
+    state.delegate_assignments[0]!.approval_id = 'apr_timeout';
+    state.delegate_assignments[0]!.approval_packet_path = 'artifacts/runs/run-6__assignment/approval_packet_v1.json';
+    state.delegate_assignments[0]!.approval_requested_at = '2026-03-19T00:00:00Z';
     recordHeartbeat(state, assignmentId, '2026-03-19T12:00:00Z');
 
     const timedOut = markTimedOutAssignments(state, '2026-03-20T00:00:00Z');
     expect(timedOut).toHaveLength(1);
     expect(state.delegate_assignments[0]?.status).toBe('timed_out');
+    expect(state.delegate_assignments[0]).toMatchObject({
+      pending_redirect: null,
+      approval_id: null,
+      approval_packet_path: null,
+      approval_requested_at: null,
+    });
     const view = buildTeamControlPlaneView(state);
     expect(view.live_status.terminal_assignments[0]?.timeout_at).toBe('2026-03-19T00:00:00Z');
     expect(view.live_status.terminal_assignments[0]?.last_heartbeat_at).toBe('2026-03-19T12:00:00Z');

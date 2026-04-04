@@ -21,6 +21,8 @@ export type TeamAssignmentStatus =
   | 'cancelled'
   | 'cascade_stopped';
 
+export type TeamSessionContextKind = 'fresh' | 'resumed' | 'forked' | 'synthetic';
+
 export interface TeamDelegationPermission {
   from_role: string;
   to_role: string;
@@ -28,6 +30,17 @@ export interface TeamDelegationPermission {
   allowed_handoff_kinds: ResearchHandoff['handoff_kind'][];
   allowed_tool_names?: string[];
 }
+
+export type TeamMcpToolInheritance =
+  | {
+      mode: 'team_permission_matrix';
+      additive_tool_names?: string[];
+    }
+  | {
+      mode: 'inherit_from_assignment';
+      inherit_from_assignment_id: string;
+      additive_tool_names?: string[];
+    };
 
 export interface TeamInterventionPermission {
   actor_role: string;
@@ -59,6 +72,9 @@ export interface TeamExecutionAssignmentInput {
   handoff_kind?: ResearchHandoff['handoff_kind'] | null;
   checkpoint_id?: string | null;
   timeout_at?: string | null;
+  forked_from_assignment_id?: string | null;
+  forked_from_session_id?: string | null;
+  mcp_tool_inheritance?: TeamMcpToolInheritance;
 }
 
 export interface TeamInterventionCommand {
@@ -97,6 +113,9 @@ export interface TeamDelegateAssignment {
   timeout_at: string | null;
   paused_from_status: TeamAssignmentStatus | null;
   session_id: string | null;
+  forked_from_assignment_id: string | null;
+  forked_from_session_id: string | null;
+  mcp_tool_inheritance: TeamMcpToolInheritance;
   last_heartbeat_at: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
@@ -120,6 +139,7 @@ export interface TeamPendingApproval {
 export interface TeamAssignmentSession {
   session_id: string;
   parent_session_id: string | null;
+  context_kind: TeamSessionContextKind;
   agent_id: string;
   assignment_id: string;
   runtime_run_id: string;
@@ -131,6 +151,8 @@ export interface TeamAssignmentSession {
   checkpoint_id: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
+  forked_from_assignment_id: string | null;
+  forked_from_session_id: string | null;
 }
 
 export interface TeamCheckpointBinding {
