@@ -3,7 +3,7 @@ import {
   type DiscoveryProviderDescriptor,
 } from '@autoresearch/shared';
 import { zodToMcpInputSchema } from '../mcpSchema.js';
-import { HEP_RENDER_LATEX, HEP_RUN_BUILD_PDF_EVIDENCE } from '../../tool-names.js';
+import { HEP_RENDER_LATEX } from '../../tool-names.js';
 import {
   type ToolExposure,
   type ToolExposureMode,
@@ -59,25 +59,19 @@ export const DISCOVERY_PROVIDER_DESCRIPTORS: DiscoveryProviderDescriptor[] = [
 ];
 
 const projectCoreRenderLatexIndex = PROJECT_CORE_TOOL_SPECS.findIndex(spec => spec.name === HEP_RENDER_LATEX);
-const projectCoreBuildPdfIndex = PROJECT_CORE_TOOL_SPECS.findIndex(spec => spec.name === HEP_RUN_BUILD_PDF_EVIDENCE);
 
-if (projectCoreRenderLatexIndex < 0 || projectCoreBuildPdfIndex <= projectCoreRenderLatexIndex) {
+if (projectCoreRenderLatexIndex < 0) {
   throw new Error('Unexpected project core ordering in registry split');
 }
 
 const PROJECT_CORE_PREFIX_TOOL_SPECS = PROJECT_CORE_TOOL_SPECS.slice(0, projectCoreRenderLatexIndex);
-const PROJECT_CORE_RENDER_EXPORT_TOOL_SPECS = PROJECT_CORE_TOOL_SPECS.slice(
-  projectCoreRenderLatexIndex,
-  projectCoreBuildPdfIndex,
-);
-const PROJECT_CORE_POST_ZOTERO_TOOL_SPECS = PROJECT_CORE_TOOL_SPECS.slice(projectCoreBuildPdfIndex);
+const PROJECT_CORE_RENDER_EXPORT_TOOL_SPECS = PROJECT_CORE_TOOL_SPECS.slice(projectCoreRenderLatexIndex);
 
 export const TOOL_SPECS: ToolSpec[] = [
   ...PROJECT_CORE_PREFIX_TOOL_SPECS,
   ...PROJECT_CITATION_TOOL_SPECS,
   ...PROJECT_CORE_RENDER_EXPORT_TOOL_SPECS,
   ...ZOTERO_TOOL_SPECS,
-  ...PROJECT_CORE_POST_ZOTERO_TOOL_SPECS,
   ...INSPIRE_TOOL_SPECS,
   ...PDG_TOOL_SPECS,
   ...OPENALEX_TOOL_SPECS,

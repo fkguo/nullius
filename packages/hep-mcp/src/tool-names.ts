@@ -21,7 +21,6 @@ export const HEP_RUN_CREATE = 'hep_run_create' as const;
 export const HEP_RUN_READ_ARTIFACT_CHUNK = 'hep_run_read_artifact_chunk' as const;
 export const HEP_RUN_CLEAR_MANIFEST_LOCK = 'hep_run_clear_manifest_lock' as const;
 export const HEP_RUN_STAGE_CONTENT = 'hep_run_stage_content' as const;
-export const HEP_RUN_BUILD_PDF_EVIDENCE = 'hep_run_build_pdf_evidence' as const;
 export const HEP_RUN_INGEST_SKILL_ARTIFACTS = 'hep_run_ingest_skill_artifacts' as const;
 export const HEP_RUN_EXECUTE_MANIFEST = 'hep_run_execute_manifest' as const;
 export const HEP_RUN_CREATE_FROM_IDEA = 'hep_run_create_from_idea' as const;

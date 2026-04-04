@@ -1,4 +1,4 @@
-# Tool Categories（standard=73 / full=102）
+# Tool Categories（standard=72 / full=101）
 
 本文件把 `hep-mcp` 的 **standard 暴露**工具按"场景/闭环"分组，目的是让你不必理解全部工具，也能快速完成闭环。
 
@@ -82,7 +82,6 @@
 - `hep_run_build_writing_evidence`
 
 **PDF evidence（Zotero/PDF → run artifacts）**
-- `hep_run_build_pdf_evidence`
 
 ## C) Evidence 查询（从 catalog 中取回证据）
 

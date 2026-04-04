@@ -27,17 +27,17 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 
 | Surface | Current entrypoint | What it is for |
 | --- | --- | --- |
-| Main MCP front door today | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | Local MCP server for research/navigation/evidence/export workflows `(73 std / 102)` |
+| Main MCP front door today | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | Local MCP server for research/navigation/evidence/export workflows `(72 std / 101)` |
 | Generic lifecycle front door | `autoresearch` | External project-root lifecycle state, approvals, pause/resume, export |
 | High-level literature workflow shells | `hepar literature-gap`, `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | Checked-in recipe consumers for launcher-backed workflow plans |
 | Leaf provider packages | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Provider-specific capabilities that can be composed into client workflows |
 
-Tool counts: **73 tools in `standard` mode** (default, compact surface) and **102 tools in `full` mode** (adds advanced tools).
+Tool counts: **72 tools in `standard` mode** (default, compact surface) and **101 tools in `full` mode** (adds advanced tools).
 
 | Mode | Tools | Use when |
 | --- | --- | --- |
-| `standard` | 73 | Compact front door for everyday client use |
-| `full` | 102 | Adds advanced and lifecycle-adjacent slices |
+| `standard` | 72 | Compact front door for everyday client use |
+| `full` | 101 | Adds advanced and lifecycle-adjacent slices |
 
 Current package map, grouped by capability rather than identity:
 

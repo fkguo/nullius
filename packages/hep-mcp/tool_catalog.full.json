@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-03-28T08:13:34.090Z",
-  "commit": "76fe900",
+  "generated_at": "2026-04-04T14:56:23.536Z",
+  "commit": "14a9502",
   "mode": "full",
-  "count": 102,
+  "count": 101,
   "tools": [
     "arxiv_get_metadata",
     "arxiv_paper_source",
@@ -25,7 +25,6 @@
     "hep_render_latex",
     "hep_run_build_citation_mapping",
     "hep_run_build_measurements",
-    "hep_run_build_pdf_evidence",
     "hep_run_build_writing_evidence",
     "hep_run_clear_manifest_lock",
     "hep_run_create",

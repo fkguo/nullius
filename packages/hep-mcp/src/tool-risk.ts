@@ -25,7 +25,6 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   [T.HEP_RUN_READ_ARTIFACT_CHUNK]: 'read',
   [T.HEP_RUN_CLEAR_MANIFEST_LOCK]: 'write',
   [T.HEP_RUN_STAGE_CONTENT]: 'write',
-  [T.HEP_RUN_BUILD_PDF_EVIDENCE]: 'write',
   [T.HEP_RUN_INGEST_SKILL_ARTIFACTS]: 'write',
   [T.HEP_RUN_EXECUTE_MANIFEST]: 'destructive',
   [T.HEP_RUN_CREATE_FROM_IDEA]: 'write',

@@ -132,7 +132,6 @@ These tools can often be called directly without a Project/Run. Project/Run beco
 Representative tools:
 
 - `hep_run_build_citation_mapping`
-- `hep_run_build_pdf_evidence`
 - `hep_run_build_measurements`
 - `hep_project_compare_measurements`
 - `hep_render_latex`

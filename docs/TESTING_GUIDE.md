@@ -100,8 +100,8 @@ EOF
 
 **预期**
 
-- `standard` 模式工具数为 `73`
-- `full` 模式工具数为 `102`
+- `standard` 模式工具数为 `72`
+- `full` 模式工具数为 `101`
 - `bad` 为空数组
 
 ### 0.5 可选依赖：Zotero / PDG
@@ -293,24 +293,6 @@ EOF
 
 - 返回稳定 snippet
 - snippet 与 evidence catalog 中的原文本对得上
-
-### 3.5 `hep_run_build_pdf_evidence`
-
-**调用**
-
-```json
-{
-  "run_id": "<run_id>",
-  "pdf_path": "/absolute/path/to/local.pdf",
-  "mode": "text",
-  "max_pages": 2
-}
-```
-
-**预期**
-
-- 生成 PDF evidence catalog
-- 如选择 visual 模式，会多出 page / region 相关 artifacts
 
 ---
 

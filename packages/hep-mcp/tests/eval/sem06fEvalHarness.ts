@@ -54,14 +54,11 @@ export async function setupSem06fFixtures(): Promise<FixtureBundle> {
       continue_on_error: false,
       latex_sources: [{ identifier: `paper_sem06f_${scenario}`, main_tex_path: texPath, include_inline_math: true }],
       latex_types: ['paragraph', 'equation', 'figure', 'table', 'citation_context'],
-      pdf_types: ['pdf_page', 'pdf_region'],
       max_evidence_items: 400,
       embedding_dim: 256,
       latex_catalog_artifact_name: 'latex_evidence_catalog.jsonl',
       latex_embeddings_artifact_name: 'latex_evidence_embeddings.jsonl',
       latex_enrichment_artifact_name: 'latex_evidence_enrichment.jsonl',
-      pdf_embeddings_artifact_name: 'pdf_evidence_embeddings.jsonl',
-      pdf_enrichment_artifact_name: 'pdf_evidence_enrichment.jsonl',
     });
     augmentRunWithSem06fPdfSurface(manifest.run_id, scenario);
     runs[scenario] = manifest.run_id;

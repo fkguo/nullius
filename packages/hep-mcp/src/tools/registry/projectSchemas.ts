@@ -146,25 +146,7 @@ export const HepImportFromZoteroToolSchema = z.object({
   message: 'Either collection_key or item_keys is required',
 });
 
-const PdfExtractModeSchema = z.enum(['text', 'visual', 'visual+ocr']);
 const PdfEvidenceTypeSchema = z.enum(['pdf_page', 'pdf_region']);
-
-export const HepRunBuildPdfEvidenceToolSchema = z.object({
-  run_id: SafePathSegmentSchema,
-  pdf_path: z.string().min(1).optional(),
-  pdf_artifact_name: SafePathSegmentSchema.optional(),
-  zotero_attachment_key: SafePathSegmentSchema.optional(),
-  fulltext_artifact_name: SafePathSegmentSchema.optional(),
-  docling_json_path: z.string().min(1).optional(),
-  docling_json_artifact_name: SafePathSegmentSchema.optional(),
-  mode: PdfExtractModeSchema.optional().default('text'),
-  max_pages: optionalBudgetInt({ min: 1 }).default(80),
-  render_dpi: z.number().int().positive().optional().default(144),
-  output_prefix: SafePathSegmentSchema.optional().default('pdf'),
-  max_regions_total: optionalBudgetInt({ min: 0 }).default(25),
-}).refine(v => Boolean(v.pdf_path) || Boolean(v.pdf_artifact_name) || Boolean(v.zotero_attachment_key), {
-  message: 'Either pdf_path, pdf_artifact_name, or zotero_attachment_key is required',
-});
 
 export const HepRunIngestSkillArtifactsToolSchema = z.object({
   run_id: SafePathSegmentSchema,
@@ -260,37 +242,16 @@ const WritingLatexSourceSchema = z
     message: 'Either identifier or main_tex_path is required',
   });
 
-const WritingPdfSourceSchema = z
-  .object({
-    paper_id: SafePathSegmentSchema.optional(),
-    pdf_path: z.string().min(1).optional(),
-    pdf_artifact_name: SafePathSegmentSchema.optional(),
-    zotero_attachment_key: SafePathSegmentSchema.optional(),
-    fulltext_artifact_name: SafePathSegmentSchema.optional(),
-    docling_json_path: z.string().min(1).optional(),
-    docling_json_artifact_name: SafePathSegmentSchema.optional(),
-    mode: PdfExtractModeSchema.optional(),
-    max_pages: optionalBudgetInt({ min: 1 }),
-    render_dpi: z.number().int().positive().optional(),
-    output_prefix: SafePathSegmentSchema.optional(),
-    max_regions_total: optionalBudgetInt({ min: 0 }),
-  })
-  .refine(v => Boolean(v.pdf_path) || Boolean(v.pdf_artifact_name) || Boolean(v.zotero_attachment_key), {
-    message: 'Either pdf_path, pdf_artifact_name, or zotero_attachment_key is required',
-  });
-
 export const HepRunBuildWritingEvidenceToolSchema = z
   .object({
     run_id: SafePathSegmentSchema,
     latex_sources: z.array(WritingLatexSourceSchema).optional().default([]),
-    pdf_source: WritingPdfSourceSchema.optional(),
     bridge_artifact_names: z.array(SafePathSegmentSchema).optional().default([]),
     continue_on_error: z.boolean().optional().default(false),
     latex_types: z
       .array(EvidenceTypeSchema)
       .optional()
       .default(['paragraph', 'equation', 'figure', 'table', 'citation_context']),
-    pdf_types: z.array(PdfEvidenceTypeSchema).optional().default(['pdf_page', 'pdf_region']),
     max_evidence_items: optionalBudgetInt({ min: 1, max: 20000 }).default(2000),
     // Embedding dimension is a bounded technical shape parameter, not an omit-to-default budget field.
     embedding_dim: z
@@ -302,11 +263,9 @@ export const HepRunBuildWritingEvidenceToolSchema = z
     latex_catalog_artifact_name: SafePathSegmentSchema.optional().default('latex_evidence_catalog.jsonl'),
     latex_embeddings_artifact_name: SafePathSegmentSchema.optional().default('latex_evidence_embeddings.jsonl'),
     latex_enrichment_artifact_name: SafePathSegmentSchema.optional().default('latex_evidence_enrichment.jsonl'),
-    pdf_embeddings_artifact_name: SafePathSegmentSchema.optional().default('pdf_evidence_embeddings.jsonl'),
-    pdf_enrichment_artifact_name: SafePathSegmentSchema.optional().default('pdf_evidence_enrichment.jsonl'),
   })
-  .refine(v => v.latex_sources.length > 0 || Boolean(v.pdf_source) || v.bridge_artifact_names.length > 0, {
-    message: 'At least one latex_sources entry, pdf_source, or bridge_artifact_names entry is required',
+  .refine(v => v.latex_sources.length > 0 || v.bridge_artifact_names.length > 0, {
+    message: 'At least one latex_sources entry or bridge_artifact_names entry is required',
   });
 
 export const HepProjectBuildEvidenceToolSchema = z
