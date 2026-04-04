@@ -16,7 +16,7 @@ import {
   isTerminalAssignmentStatus,
   updateStateTimestamp,
 } from './team-execution-assignment-state.js';
-import { syncPendingApprovals } from './team-execution-scoping.js';
+import { finalizeAssignmentSession, syncPendingApprovals } from './team-execution-scoping.js';
 import type {
   TeamDelegateAssignment,
   TeamExecutionState,
@@ -49,6 +49,7 @@ function nextAssignmentUpdate(
   approval_id?: string | null;
   approval_packet_path?: string | null;
   approval_requested_at?: string | null;
+  pending_redirect?: TeamExecutionState['delegate_assignments'][number]['pending_redirect'];
   status: TeamExecutionState['delegate_assignments'][number]['status'];
   paused_from_status?: TeamExecutionState['delegate_assignments'][number]['paused_from_status'];
 } {
@@ -77,8 +78,24 @@ function nextAssignmentUpdate(
       approval_requested_at: null,
     };
   }
-  if (command === 'cancel') return { status: 'cancelled', paused_from_status: null };
-  return { status: 'cascade_stopped', paused_from_status: null };
+  if (command === 'cancel') {
+    return {
+      status: 'cancelled',
+      paused_from_status: null,
+      pending_redirect: null,
+      approval_id: null,
+      approval_packet_path: null,
+      approval_requested_at: null,
+    };
+  }
+  return {
+    status: 'cascade_stopped',
+    paused_from_status: null,
+    pending_redirect: null,
+    approval_id: null,
+    approval_packet_path: null,
+    approval_requested_at: null,
+  };
 }
 
 function assertInterventionImplemented(command: TeamInterventionCommand): void {
@@ -164,7 +181,15 @@ export function applyTeamIntervention(
     if (isTerminalAssignmentStatus(source.status)) {
       throw new Error('cannot inject a follow-on task from a terminal team assignment');
     }
-    const assignmentInput = buildInjectedAssignmentInput(source, command);
+    const assignmentInput = {
+      ...buildInjectedAssignmentInput(source, command),
+      forked_from_assignment_id: source.assignment_id,
+      forked_from_session_id: source.session_id,
+      mcp_tool_inheritance: {
+        mode: 'inherit_from_assignment',
+        inherit_from_assignment_id: source.assignment_id,
+      } as const,
+    };
     const existing = findMatchingAssignment(state.delegate_assignments, assignmentInput);
     const injected = existing ?? appendRegisteredAssignment(
       state,
@@ -243,6 +268,9 @@ export function applyTeamIntervention(
       update,
       timestamp,
     );
+    if (isTerminalAssignmentStatus(assignment.status)) {
+      finalizeAssignmentSession(state, assignment, timestamp);
+    }
     appendTeamEvent(state, {
       kind: 'assignment_status_changed',
       assignment,

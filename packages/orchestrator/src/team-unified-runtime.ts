@@ -40,12 +40,12 @@ function ensureAssignmentRegistration(
 ): TeamExecutionState['delegate_assignments'][number] {
   const existing = findMatchingAssignment(state.delegate_assignments, assignment);
   if (existing) {
-    existing.delegation_protocol = buildRuntimeProtocol(input, assignment, assignment.assignment_id);
+    existing.delegation_protocol = buildRuntimeProtocol(input, state, assignment, assignment.assignment_id);
     return existing;
   }
   return registerDelegateAssignment(state, {
     ...assignment,
-    delegation_protocol: buildRuntimeProtocol(input, assignment, assignment.assignment_id),
+    delegation_protocol: buildRuntimeProtocol(input, state, assignment, assignment.assignment_id),
   });
 }
 
@@ -62,10 +62,7 @@ export async function executeUnifiedTeamRuntime(
   const state = manager.load(input.runId) ?? createTeamExecutionState({
     workspace_id: input.workspaceId,
     coordination_policy: input.coordinationPolicy,
-    assignment: {
-      ...headAssignment,
-      delegation_protocol: buildRuntimeProtocol(input, headAssignment, headAssignment.assignment_id),
-    },
+    assignment: headAssignment,
     permissions: input.permissions,
   }, input.runId);
   for (const assignment of state.delegate_assignments) {
@@ -82,6 +79,9 @@ export async function executeUnifiedTeamRuntime(
     ensureAssignmentRegistration(state, input, assignment),
   );
   for (const command of input.interventions ?? []) applyTeamIntervention(state, command);
+  for (const assignment of state.delegate_assignments) {
+    assignment.delegation_protocol = buildRuntimeProtocol(input, state, assignment, assignment.assignment_id);
+  }
   manager.save(state);
 
   const orderedAssignments = [...state.delegate_assignments].sort((left, right) => left.stage - right.stage);

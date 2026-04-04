@@ -37,6 +37,22 @@ function cloneAssignment(assignment: TeamDelegateAssignment): TeamDelegateAssign
     handoff_kind: assignment.handoff_kind,
     checkpoint_id: assignment.checkpoint_id,
     stage: assignment.stage,
+    forked_from_assignment_id: assignment.forked_from_assignment_id,
+    forked_from_session_id: assignment.forked_from_session_id,
+    mcp_tool_inheritance: assignment.mcp_tool_inheritance.mode === 'inherit_from_assignment'
+      ? {
+          mode: 'inherit_from_assignment',
+          inherit_from_assignment_id: assignment.mcp_tool_inheritance.inherit_from_assignment_id,
+          ...(assignment.mcp_tool_inheritance.additive_tool_names !== undefined
+            ? { additive_tool_names: [...assignment.mcp_tool_inheritance.additive_tool_names] }
+            : {}),
+        }
+      : {
+          mode: 'team_permission_matrix',
+          ...(assignment.mcp_tool_inheritance.additive_tool_names !== undefined
+            ? { additive_tool_names: [...assignment.mcp_tool_inheritance.additive_tool_names] }
+            : {}),
+        },
     delegation_protocol: {
       TASK: { ...assignment.delegation_protocol.TASK },
       EXPECTED_OUTCOME: { ...assignment.delegation_protocol.EXPECTED_OUTCOME },

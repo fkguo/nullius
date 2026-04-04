@@ -203,7 +203,17 @@ export function markTimedOutAssignments(
     if (!assignment.timeout_at || !isActiveAssignmentStatus(assignment.status)) continue;
     const timeoutMs = new Date(assignment.timeout_at).getTime();
     if (Number.isNaN(timeoutMs) || timeoutMs > nowMs) continue;
-    applyAssignmentUpdate(assignment, { status: 'timed_out' }, now);
+    applyAssignmentUpdate(
+      assignment,
+      {
+        status: 'timed_out',
+        pending_redirect: null,
+        approval_id: null,
+        approval_packet_path: null,
+        approval_requested_at: null,
+      },
+      now,
+    );
     assignment.paused_from_status = null;
     timedOut.push(assignment);
     appendTeamEvent(state, {

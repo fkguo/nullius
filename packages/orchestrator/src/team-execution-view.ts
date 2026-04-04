@@ -9,6 +9,7 @@ import type {
   TeamCoordinationPolicy,
   TeamExecutionEvent,
   TeamExecutionState,
+  TeamSessionContextKind,
 } from './team-execution-types.js';
 import { projectResearchTaskStatusFromLifecycle } from './research-loop/task-types.js';
 
@@ -32,6 +33,10 @@ export interface TeamAssignmentView {
   manifest_path: string;
   runtime_run_id: string;
   session_id: string | null;
+  session_parent_id: string | null;
+  session_context_kind: TeamSessionContextKind | null;
+  forked_from_assignment_id: string | null;
+  forked_from_session_id: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
   approval_id: string | null;
@@ -48,6 +53,10 @@ export interface TeamBackgroundTaskView {
   task_id: string;
   task_kind: TeamExecutionState['delegate_assignments'][number]['task_kind'];
   session_id: string | null;
+  session_parent_id: string | null;
+  session_context_kind: TeamSessionContextKind | null;
+  forked_from_assignment_id: string | null;
+  forked_from_session_id: string | null;
   runtime_run_id: string;
   runtime_status: TeamAssignmentStatus;
   task_lifecycle_status: ResearchTaskLifecycleProjection;
@@ -80,10 +89,19 @@ export interface TeamReplayEntry {
   payload: Record<string, unknown>;
 }
 
+function currentSession(
+  state: TeamExecutionState,
+  assignment: TeamExecutionState['delegate_assignments'][number],
+) {
+  if (!assignment.session_id) return null;
+  return state.sessions?.find(session => session.session_id === assignment.session_id) ?? null;
+}
+
 function toAssignmentView(
   state: TeamExecutionState,
   assignment: TeamExecutionState['delegate_assignments'][number],
 ): TeamAssignmentView {
+  const session = currentSession(state, assignment);
   return {
     assignment_id: assignment.assignment_id,
     agent_id: assignment.delegate_id,
@@ -100,6 +118,10 @@ function toAssignmentView(
     manifest_path: manifestPath(state.run_id, assignment.assignment_id),
     runtime_run_id: runtimeRunId(state.run_id, assignment.assignment_id),
     session_id: assignment.session_id,
+    session_parent_id: session?.parent_session_id ?? null,
+    session_context_kind: session?.context_kind ?? null,
+    forked_from_assignment_id: assignment.forked_from_assignment_id,
+    forked_from_session_id: assignment.forked_from_session_id,
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,
     approval_id: assignment.approval_id,
@@ -114,12 +136,17 @@ function toBackgroundTaskView(
   assignment: TeamExecutionState['delegate_assignments'][number],
 ): TeamBackgroundTaskView {
   const task_lifecycle_status = taskLifecycleFromAssignmentStatus(assignment.status);
+  const session = currentSession(state, assignment);
   return {
     assignment_id: assignment.assignment_id,
     agent_id: assignment.delegate_id,
     task_id: assignment.task_id,
     task_kind: assignment.task_kind,
     session_id: assignment.session_id,
+    session_parent_id: session?.parent_session_id ?? null,
+    session_context_kind: session?.context_kind ?? null,
+    forked_from_assignment_id: assignment.forked_from_assignment_id,
+    forked_from_session_id: assignment.forked_from_session_id,
     runtime_run_id: runtimeRunId(state.run_id, assignment.assignment_id),
     runtime_status: assignment.status,
     task_lifecycle_status,

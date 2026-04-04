@@ -15,8 +15,15 @@ export function findMatchingAssignment(
   assignments: TeamDelegateAssignment[],
   input: TeamExecutionAssignmentInput,
 ): TeamDelegateAssignment | null {
+  const forkedFromAssignmentId = input.forked_from_assignment_id ?? null;
+  const forkedFromSessionId = input.forked_from_session_id ?? null;
+  const inheritance = input.mcp_tool_inheritance ?? { mode: 'team_permission_matrix' as const };
+  const normalizeAdditive = (toolNames: ReadonlyArray<string> | undefined): string[] =>
+    [...new Set((toolNames ?? []).map(name => String(name)).filter(name => name.length > 0))].sort();
+  const additive = normalizeAdditive(inheritance.additive_tool_names);
   return assignments.find(candidate =>
-    candidate.task_id === input.task_id
+    normalizeAdditive(candidate.mcp_tool_inheritance.additive_tool_names).join('\n') === additive.join('\n')
+    && candidate.task_id === input.task_id
     && candidate.delegate_id === input.delegate_id
     && candidate.stage === (input.stage ?? 0)
     && candidate.task_kind === input.task_kind
@@ -24,6 +31,12 @@ export function findMatchingAssignment(
     && candidate.delegate_role === input.delegate_role
     && candidate.handoff_id === (input.handoff_id ?? null)
     && candidate.handoff_kind === (input.handoff_kind ?? null)
+    && candidate.forked_from_assignment_id === forkedFromAssignmentId
+    && candidate.forked_from_session_id === forkedFromSessionId
+    && candidate.mcp_tool_inheritance.mode === inheritance.mode
+    && (candidate.mcp_tool_inheritance.mode !== 'inherit_from_assignment'
+      || (inheritance.mode === 'inherit_from_assignment'
+        && candidate.mcp_tool_inheritance.inherit_from_assignment_id === inheritance.inherit_from_assignment_id))
   ) ?? null;
 }
 
@@ -34,6 +47,7 @@ export function buildTeamDelegateAssignment(
   timestamp: string = utcNowIso(),
 ): TeamDelegateAssignment {
   const assignmentId = input.assignment_id ?? randomUUID();
+  const inheritance = input.mcp_tool_inheritance ?? { mode: 'team_permission_matrix' as const };
   return {
     assignment_id: assignmentId,
     stage: input.stage ?? 0,
@@ -64,6 +78,22 @@ export function buildTeamDelegateAssignment(
     timeout_at: input.timeout_at ?? null,
     paused_from_status: null,
     session_id: null,
+    forked_from_assignment_id: input.forked_from_assignment_id ?? null,
+    forked_from_session_id: input.forked_from_session_id ?? null,
+    mcp_tool_inheritance: inheritance.mode === 'inherit_from_assignment'
+      ? {
+          mode: 'inherit_from_assignment',
+          inherit_from_assignment_id: inheritance.inherit_from_assignment_id,
+          ...(inheritance.additive_tool_names !== undefined
+            ? { additive_tool_names: [...inheritance.additive_tool_names] }
+            : {}),
+        }
+      : {
+          mode: 'team_permission_matrix',
+          ...(inheritance.additive_tool_names !== undefined
+            ? { additive_tool_names: [...inheritance.additive_tool_names] }
+            : {}),
+        },
     last_heartbeat_at: null,
     last_completed_step: null,
     resume_from: null,
