@@ -27,17 +27,17 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 | Surface | 当前入口 | 用途 |
 | --- | --- | --- |
-| 今天的主 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的本地 MCP server `(73 std / 102)` |
+| 今天的主 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的本地 MCP server `(72 std / 101)` |
 | 通用 lifecycle front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、pause/resume、export |
 | 高层文献工作流 shell | `hepar literature-gap`、`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | launcher-backed workflow recipe 的 consumer |
 | 叶子 provider 包 | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 可组合进客户端工作流的 provider-specific capabilities |
 
-工具数量：**`standard` 模式 73 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 102 个**（额外暴露 advanced 工具）。
+工具数量：**`standard` 模式 72 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 101 个**（额外暴露 advanced 工具）。
 
 | 模式 | 工具数 | 适用场景 |
 | --- | --- | --- |
-| `standard` | 73 | 日常客户端使用的紧凑 front door |
-| `full` | 102 | 额外暴露 advanced 与 lifecycle-adjacent slices |
+| `standard` | 72 | 日常客户端使用的紧凑 front door |
+| `full` | 101 | 额外暴露 advanced 与 lifecycle-adjacent slices |
 
 按 capability 而不是按产品身份理解当前包面：
 

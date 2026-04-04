@@ -1,3 +1,4 @@
+import { invalidParams } from '@autoresearch/shared';
 import {
   HEP_PROJECT_CREATE,
   HEP_PROJECT_GET,
@@ -12,7 +13,6 @@ import {
   HEP_RUN_READ_ARTIFACT_CHUNK,
   HEP_RUN_CLEAR_MANIFEST_LOCK,
   HEP_RUN_STAGE_CONTENT,
-  HEP_RUN_BUILD_PDF_EVIDENCE,
   HEP_RUN_BUILD_WRITING_EVIDENCE,
   HEP_RUN_BUILD_MEASUREMENTS,
   HEP_RENDER_LATEX,
@@ -26,7 +26,6 @@ import { createProject, getProject, listProjects } from '../../core/projects.js'
 import { createRun } from '../../core/runs.js';
 import { buildProjectEvidenceCatalog, playbackProjectEvidence, queryProjectEvidence } from '../../core/evidence.js';
 import { renderLatexForRun } from '../../core/writing/renderLatex.js';
-import { buildRunPdfEvidence } from '../../core/pdf/evidence.js';
 import { exportProjectForRun } from '../../core/export/exportProject.js';
 import { exportPaperScaffoldForRun } from '../../core/export/exportPaperScaffold.js';
 import { importPaperBundleForRun } from '../../core/export/importPaperBundle.js';
@@ -53,7 +52,6 @@ import {
   HepExportProjectToolSchema,
   HepExportPaperScaffoldToolSchema,
   HepImportPaperBundleToolSchema,
-  HepRunBuildPdfEvidenceToolSchema,
   HepInspireSearchExportToolSchema,
   HepInspireResolveIdentifiersToolSchema,
   HepProjectBuildEvidenceToolSchema,
@@ -281,27 +279,31 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; optional PDF evidence; Evidence-first, local-only).',
+      'Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; plus bridge artifacts; Evidence-first, local-only).',
     zodSchema: HepRunBuildWritingEvidenceToolSchema,
     handler: async (params, ctx) => {
       const { buildRunWritingEvidence } = await import('../../core/writing/evidence.js');
       const raw = ctx.rawArgs ?? {};
+      const forbiddenKeys = ['pdf_source', 'pdf_types', 'pdf_embeddings_artifact_name', 'pdf_enrichment_artifact_name'];
+      const forbidden = forbiddenKeys.filter(k => Object.prototype.hasOwnProperty.call(raw, k));
+      if (forbidden.length > 0) {
+        throw invalidParams('PDF producer inputs are no longer supported by hep_run_build_writing_evidence', {
+          removed_fields: forbidden,
+          hint: 'Build LaTeX-first writing evidence or supply bridge artifacts. Direct PDF reading is intentionally left to the agent/runtime layer.',
+        });
+      }
       const maxEvidenceItemsProvided = Object.prototype.hasOwnProperty.call(raw, 'max_evidence_items');
       return buildRunWritingEvidence({
         run_id: params.run_id,
         latex_sources: params.latex_sources,
-        pdf_source: params.pdf_source,
         bridge_artifact_names: params.bridge_artifact_names,
         continue_on_error: params.continue_on_error,
         latex_types: params.latex_types,
-        pdf_types: params.pdf_types,
         max_evidence_items: params.max_evidence_items,
         embedding_dim: params.embedding_dim,
         latex_catalog_artifact_name: params.latex_catalog_artifact_name,
         latex_embeddings_artifact_name: params.latex_embeddings_artifact_name,
         latex_enrichment_artifact_name: params.latex_enrichment_artifact_name,
-        pdf_embeddings_artifact_name: params.pdf_embeddings_artifact_name,
-        pdf_enrichment_artifact_name: params.pdf_enrichment_artifact_name,
         budget_hints: { max_evidence_items_provided: maxEvidenceItemsProvided },
       });
     },
@@ -427,37 +429,6 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       dereference_symlinks: params.dereference_symlinks,
       allow_external_symlink_targets: params.allow_external_symlink_targets,
     }),
-  },
-  {
-    name: HEP_RUN_BUILD_PDF_EVIDENCE,
-    tier: 'core',
-    exposure: 'standard',
-    description:
-      'Build PDF evidence for a run (text pages + optional visual region snippets) and write artifacts (Evidence-first, local-only)',
-    zodSchema: HepRunBuildPdfEvidenceToolSchema,
-    handler: async (params, ctx) => {
-      const raw = ctx.rawArgs ?? {};
-      const maxPagesProvided = Object.prototype.hasOwnProperty.call(raw, 'max_pages');
-      const maxRegionsTotalProvided = Object.prototype.hasOwnProperty.call(raw, 'max_regions_total');
-      return buildRunPdfEvidence({
-        run_id: params.run_id,
-        pdf_path: params.pdf_path,
-        pdf_artifact_name: params.pdf_artifact_name,
-        zotero_attachment_key: params.zotero_attachment_key,
-        fulltext_artifact_name: params.fulltext_artifact_name,
-        docling_json_path: params.docling_json_path,
-        docling_json_artifact_name: params.docling_json_artifact_name,
-        mode: params.mode,
-        max_pages: params.max_pages,
-        render_dpi: params.render_dpi,
-        output_prefix: params.output_prefix,
-        max_regions_total: params.max_regions_total,
-        budget_hints: {
-          max_pages_provided: maxPagesProvided,
-          max_regions_total_provided: maxRegionsTotalProvided,
-        },
-      });
-    },
   },
   {
     name: HEP_INSPIRE_SEARCH_EXPORT,

@@ -4,25 +4,9 @@ import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 import { handleToolCall } from '../../src/tools/index.js';
 import { readHepResource } from '../../src/core/resources.js';
-
-async function makeTinyPdfBytes(): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const page = pdfDoc.addPage([320, 420]);
-  page.drawText('Writing evidence PDF fixture', { x: 24, y: 380, size: 14, font });
-  return await pdfDoc.save();
-}
-
-function writeTempPdf(bytes: Uint8Array): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hep-writing-evidence-'));
-  const p = path.join(dir, 'fixture.pdf');
-  fs.writeFileSync(p, Buffer.from(bytes));
-  return p;
-}
 
 function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex');
@@ -46,7 +30,6 @@ function makeVerificationArtifactRef(runId: string, artifactName: string, conten
 describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semantic query', () => {
   let dataDir: string;
   let originalDataDirEnv: string | undefined;
-  const tempDirs: string[] = [];
 
   beforeEach(() => {
     originalDataDirEnv = process.env.HEP_DATA_DIR;
@@ -60,20 +43,14 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     } else {
       delete process.env.HEP_DATA_DIR;
     }
-    for (const d of tempDirs) {
-      if (fs.existsSync(d)) fs.rmSync(d, { recursive: true, force: true });
-    }
     if (fs.existsSync(dataDir)) {
       fs.rmSync(dataDir, { recursive: true, force: true });
     }
   });
 
-  it('builds LaTeX evidence artifacts, skips same-paper PDF before build, and enables semantic query when embeddings exist', async () => {
+  it('builds LaTeX evidence artifacts and enables semantic query when embeddings exist', async () => {
     const fixtureDir = new URL('../fixtures/latex/multifile/', import.meta.url);
     const mainTexPath = fileURLToPath(new URL('main.tex', fixtureDir));
-
-    const pdfPath = writeTempPdf(await makeTinyPdfBytes());
-    tempDirs.push(path.dirname(pdfPath));
 
     const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
@@ -83,7 +60,6 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
       run_id: run.run_id,
       latex_sources: [{ main_tex_path: mainTexPath, include_cross_refs: true, paper_id: 'paper_shared' }],
-      pdf_source: { pdf_path: pdfPath, mode: 'text', max_pages: 2, output_prefix: 'writing_evidence_pdf' },
     });
     expect(buildRes.isError).not.toBe(true);
 
@@ -116,18 +92,12 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
       summary: { succeeded: number; failed: number; skipped: number };
     }>(statusUri!);
     expect(status.version).toBe(1);
-    expect(status.sources).toEqual(expect.arrayContaining([
+    expect(status.sources).toEqual([
       expect.objectContaining({ source_kind: 'latex', status: 'success', paper_id: 'paper_shared' }),
-      expect.objectContaining({
-        source_kind: 'pdf',
-        status: 'skipped',
-        paper_id: 'paper_shared',
-        error_code: 'PDF_SKIPPED_LATEX_AUTHORITY',
-      }),
-    ]));
+    ]);
     expect(status.summary.succeeded).toBe(1);
     expect(status.summary.failed).toBe(0);
-    expect(status.summary.skipped).toBe(1);
+    expect(status.summary.skipped).toBe(0);
 
     const meta = readJsonResource<{ pdf: unknown | null }>(metaUri!);
     expect(meta.pdf).toBeNull();
@@ -210,194 +180,25 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(unifiedArtifact.result.hits.some(h => h.paper_id === 'run_pdf')).toBe(false);
   });
 
-  it('uses explicit pdf_source.paper_id for a different paper and never emits run_pdf in semantic hits', async () => {
+  it('fails closed when pdf_source is provided (raw-PDF producer surface removed)', async () => {
     const fixtureDir = new URL('../fixtures/latex/multifile/', import.meta.url);
     const mainTexPath = fileURLToPath(new URL('main.tex', fixtureDir));
 
-    const pdfPath = writeTempPdf(await makeTinyPdfBytes());
-    tempDirs.push(path.dirname(pdfPath));
-
-    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence explicit pdf', description: 'semantic-query' });
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence rejects pdf_source', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
     const run = JSON.parse(runRes.content[0].text) as { run_id: string };
 
     const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
       run_id: run.run_id,
-      latex_sources: [{ main_tex_path: mainTexPath, include_cross_refs: true, paper_id: 'paper_latex' }],
-      pdf_source: {
-        paper_id: 'paper_pdf',
-        pdf_path: pdfPath,
-        mode: 'text',
-        max_pages: 2,
-        output_prefix: 'writing_evidence_pdf',
-      },
-    });
-    expect(buildRes.isError).not.toBe(true);
-
-    const buildPayload = JSON.parse(buildRes.content[0].text) as {
-      artifacts: Array<{ name: string; uri: string }>;
-      summary: { pdf_included: boolean };
-    };
-    expect(buildPayload.summary.pdf_included).toBe(true);
-    expect(buildPayload.artifacts.some(a => a.name === 'writing_evidence_pdf_evidence_catalog.jsonl')).toBe(true);
-    expect(buildPayload.artifacts.some(a => a.name === 'writing_evidence_pdf_writing_evidence_catalog.jsonl')).toBe(true);
-
-    const statusUri = buildPayload.artifacts.find(a => a.name === 'writing_evidence_source_status.json')?.uri;
-    const metaUri = buildPayload.artifacts.find(a => a.name === 'writing_evidence_meta_v1.json')?.uri;
-    expect(statusUri).toBeTruthy();
-    expect(metaUri).toBeTruthy();
-
-    const status = readJsonResource<{
-      sources: Array<{ source_kind: string; status: string; paper_id?: string }>;
-      summary: { succeeded: number; failed: number; skipped: number };
-    }>(statusUri!);
-    expect(status.sources).toEqual(expect.arrayContaining([
-      expect.objectContaining({ source_kind: 'latex', status: 'success', paper_id: 'paper_latex' }),
-      expect.objectContaining({ source_kind: 'pdf', status: 'success', paper_id: 'paper_pdf' }),
-    ]));
-    expect(status.summary.succeeded).toBe(2);
-    expect(status.summary.failed).toBe(0);
-    expect(status.summary.skipped).toBe(0);
-
-    const meta = readJsonResource<{ pdf: { paper_id?: string | null; catalog_uri?: string | null } | null }>(metaUri!);
-    expect(meta.pdf?.paper_id).toBe('paper_pdf');
-    expect(meta.pdf?.catalog_uri).toContain('writing_evidence_pdf_writing_evidence_catalog.jsonl');
-
-    const pdfCatalogText = String((readHepResource(meta.pdf!.catalog_uri!) as any).text);
-    const pdfItems = pdfCatalogText
-      .split('\n')
-      .filter(Boolean)
-      .map(line => JSON.parse(line)) as Array<{ paper_id?: string; type?: string; locator?: { kind?: string; page?: number } }>;
-    expect(pdfItems.length).toBeGreaterThan(0);
-    expect(pdfItems.every(it => it.paper_id === 'paper_pdf')).toBe(true);
-    expect(pdfItems.every(it => it.locator?.kind === 'pdf' && typeof it.locator?.page === 'number')).toBe(true);
-
-    const semanticRes = await handleToolCall('hep_project_query_evidence_semantic', {
-      run_id: run.run_id,
-      project_id: project.project_id,
-      paper_id: 'paper_pdf',
-      query: 'Writing evidence PDF fixture',
-      limit: 3,
-      types: ['pdf_page'],
-    });
-    expect(semanticRes.isError).not.toBe(true);
-
-    const semanticPayload = JSON.parse(semanticRes.content[0].text) as {
-      artifacts: Array<{ uri: string }>;
-      summary: { semantic: { implemented: boolean } };
-    };
-    expect(semanticPayload.summary.semantic.implemented).toBe(true);
-
-    const queryArtifact = readJsonResource<{
-      result: { total_hits: number; hits: Array<{ paper_id: string; text_preview: string }> };
-    }>(semanticPayload.artifacts[0]!.uri);
-    expect(queryArtifact.result.total_hits).toBeGreaterThan(0);
-    expect(queryArtifact.result.hits.some(h => h.text_preview.includes('Writing evidence PDF fixture'))).toBe(true);
-    expect(queryArtifact.result.hits.every(h => h.paper_id === 'paper_pdf')).toBe(true);
-    expect(queryArtifact.result.hits.some(h => h.paper_id === 'run_pdf')).toBe(false);
-
-    const unifiedSemanticRes = await handleToolCall('hep_project_query_evidence', {
-      run_id: run.run_id,
-      project_id: project.project_id,
-      paper_id: 'paper_pdf',
-      query: 'Writing evidence PDF fixture',
-      limit: 3,
-      types: ['pdf_page'],
-    });
-    expect(unifiedSemanticRes.isError).not.toBe(true);
-
-    const unifiedSemanticPayload = JSON.parse(unifiedSemanticRes.content[0].text) as {
-      summary: { semantic: { implemented: boolean } };
-      artifacts: Array<{ uri: string }>;
-    };
-    expect(unifiedSemanticPayload.summary.semantic.implemented).toBe(true);
-
-    const unifiedQueryArtifact = readJsonResource<{
-      result: { hits: Array<{ paper_id: string }> };
-    }>(unifiedSemanticPayload.artifacts[0]!.uri);
-    expect(unifiedQueryArtifact.result.hits.length).toBeGreaterThan(0);
-    expect(unifiedQueryArtifact.result.hits.every(h => h.paper_id === 'paper_pdf')).toBe(true);
-  });
-
-  it('fails closed when pdf_source.paper_id is missing and no successful LaTeX paper exists', async () => {
-    const pdfPath = writeTempPdf(await makeTinyPdfBytes());
-    tempDirs.push(path.dirname(pdfPath));
-
-    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence pdf missing id', description: 'semantic-query' });
-    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
-    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
-    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
-
-    const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
-      run_id: run.run_id,
-      pdf_source: { pdf_path: pdfPath, mode: 'text', max_pages: 2, output_prefix: 'writing_evidence_pdf' },
+      latex_sources: [{ main_tex_path: mainTexPath, include_cross_refs: true, paper_id: 'paper_shared' }],
+      pdf_source: { pdf_path: '/tmp/fake.pdf' },
     });
     expect(buildRes.isError).toBe(true);
 
     const err = JSON.parse(buildRes.content[0].text) as { error: { code: string; message: string } };
     expect(err.error.code).toBe('INVALID_PARAMS');
-    expect(err.error.message).toContain('pdf_source.paper_id is required');
-
-    const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = readJsonResource<{
-      sources: Array<{ source_kind: string; status: string; error_code?: string }>;
-      summary: { succeeded: number; failed: number; skipped: number };
-    }>(statusUri);
-    expect(status.sources).toEqual([
-      expect.objectContaining({
-        source_kind: 'pdf',
-        status: 'failed',
-        error_code: 'PDF_PAPER_ID_REQUIRED',
-      }),
-    ]);
-    expect(status.summary.succeeded).toBe(0);
-    expect(status.summary.failed).toBe(1);
-    expect(status.summary.skipped).toBe(0);
-  });
-
-  it('fails closed when pdf_source.paper_id is missing and multiple successful LaTeX papers exist', async () => {
-    const fixtureDir = new URL('../fixtures/latex/multifile/', import.meta.url);
-    const mainTexPath = fileURLToPath(new URL('main.tex', fixtureDir));
-    const pdfPath = writeTempPdf(await makeTinyPdfBytes());
-    tempDirs.push(path.dirname(pdfPath));
-
-    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence pdf ambiguous id', description: 'semantic-query' });
-    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
-    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
-    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
-
-    const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
-      run_id: run.run_id,
-      latex_sources: [
-        { main_tex_path: mainTexPath, include_cross_refs: true, paper_id: 'paper_a' },
-        { main_tex_path: mainTexPath, include_cross_refs: true, paper_id: 'paper_b' },
-      ],
-      pdf_source: { pdf_path: pdfPath, mode: 'text', max_pages: 2, output_prefix: 'writing_evidence_pdf' },
-    });
-    expect(buildRes.isError).toBe(true);
-
-    const err = JSON.parse(buildRes.content[0].text) as { error: { code: string; message: string } };
-    expect(err.error.code).toBe('INVALID_PARAMS');
-    expect(err.error.message).toContain('multiple successful LaTeX papers exist');
-
-    const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = readJsonResource<{
-      sources: Array<{ source_kind: string; status: string; paper_id?: string; error_code?: string }>;
-      summary: { succeeded: number; failed: number; skipped: number };
-    }>(statusUri);
-    expect(status.sources).toEqual(expect.arrayContaining([
-      expect.objectContaining({ source_kind: 'latex', status: 'success', paper_id: 'paper_a' }),
-      expect.objectContaining({ source_kind: 'latex', status: 'success', paper_id: 'paper_b' }),
-      expect.objectContaining({
-        source_kind: 'pdf',
-        status: 'failed',
-        error_code: 'PDF_PAPER_ID_AMBIGUOUS',
-      }),
-    ]));
-    expect(status.summary.succeeded).toBe(2);
-    expect(status.summary.failed).toBe(1);
-    expect(status.summary.skipped).toBe(0);
+    expect(err.error.message.toLowerCase()).toContain('no longer supported');
   });
 
   it('records diagnostics when max_evidence_items truncates writing evidence selection', async () => {

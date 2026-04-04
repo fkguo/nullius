@@ -394,32 +394,8 @@
           }
         },
         {
-          "name": "hep_run_build_pdf_evidence",
-          "description": "Build PDF evidence for a run (text pages + optional visual region snippets) and write artifacts (Evidence-first, local-only)",
-          "input_schema": {
-            "type": "object",
-            "properties": [
-              "docling_json_artifact_name",
-              "docling_json_path",
-              "fulltext_artifact_name",
-              "max_pages",
-              "max_regions_total",
-              "mode",
-              "output_prefix",
-              "pdf_artifact_name",
-              "pdf_path",
-              "render_dpi",
-              "run_id",
-              "zotero_attachment_key"
-            ],
-            "required": [
-              "run_id"
-            ]
-          }
-        },
-        {
           "name": "hep_run_build_writing_evidence",
-          "description": "Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; optional PDF evidence; Evidence-first, local-only).",
+          "description": "Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; plus bridge artifacts; Evidence-first, local-only).",
           "input_schema": {
             "type": "object",
             "properties": [
@@ -432,10 +408,6 @@
               "latex_sources",
               "latex_types",
               "max_evidence_items",
-              "pdf_embeddings_artifact_name",
-              "pdf_enrichment_artifact_name",
-              "pdf_source",
-              "pdf_types",
               "run_id"
             ],
             "required": [
@@ -1673,32 +1645,8 @@
           }
         },
         {
-          "name": "hep_run_build_pdf_evidence",
-          "description": "Build PDF evidence for a run (text pages + optional visual region snippets) and write artifacts (Evidence-first, local-only)",
-          "input_schema": {
-            "type": "object",
-            "properties": [
-              "docling_json_artifact_name",
-              "docling_json_path",
-              "fulltext_artifact_name",
-              "max_pages",
-              "max_regions_total",
-              "mode",
-              "output_prefix",
-              "pdf_artifact_name",
-              "pdf_path",
-              "render_dpi",
-              "run_id",
-              "zotero_attachment_key"
-            ],
-            "required": [
-              "run_id"
-            ]
-          }
-        },
-        {
           "name": "hep_run_build_writing_evidence",
-          "description": "Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; optional PDF evidence; Evidence-first, local-only).",
+          "description": "Build reusable writing evidence artifacts for a run (LaTeX evidence catalog + embeddings + enrichment; plus bridge artifacts; Evidence-first, local-only).",
           "input_schema": {
             "type": "object",
             "properties": [
@@ -1711,10 +1659,6 @@
               "latex_sources",
               "latex_types",
               "max_evidence_items",
-              "pdf_embeddings_artifact_name",
-              "pdf_enrichment_artifact_name",
-              "pdf_source",
-              "pdf_types",
               "run_id"
             ],
             "required": [
