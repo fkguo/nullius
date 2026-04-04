@@ -14,12 +14,19 @@ import {
 } from './mcp-jsonrpc.js';
 import { handleMcpServerRequest, type SamplingRuntime } from './mcp-server-request-handler.js';
 import { loadSamplingRoutingConfig } from './routing/sampling-loader.js';
-import { assertToolCallAllowed, type ToolPermissionView } from './tool-execution-policy.js';
+import {
+  assertToolCallAllowed,
+  resolveToolExecutionPolicy,
+  safeFallbackToolExecutionPolicy,
+  type ToolExecutionPolicy,
+  type ToolPermissionView,
+} from './tool-execution-policy.js';
 
 export type { McpToolResult } from './mcp-jsonrpc.js';
-export type { ToolPermissionView } from './tool-execution-policy.js';
+export type { ToolExecutionPolicy, ToolPermissionView } from './tool-execution-policy.js';
 export type ToolCaller = {
   callTool(toolName: string, args: Record<string, unknown>, timeoutMs?: number): Promise<McpToolResult>;
+  getExecutionPolicy?(toolName: string): ToolExecutionPolicy;
 };
 
 export interface McpClientSamplingOptions {
@@ -187,6 +194,10 @@ export class McpClient {
     return this.requestToolCall(toolName, args, timeoutMs);
   }
 
+  getExecutionPolicy(toolName: string): ToolExecutionPolicy {
+    return resolveToolExecutionPolicy(toolName);
+  }
+
   async callToolWithPermissionView(
     toolName: string,
     args: Record<string, unknown>,
@@ -227,10 +238,17 @@ export class McpClient {
 }
 
 export function bindToolPermissionView(toolCaller: ToolCaller, permissionView: ToolPermissionView): ToolCaller {
+  const permissionViewExecutionPolicy = (toolName: string): ToolExecutionPolicy => {
+    if (!permissionView.allowed_tool_names.includes(toolName)) {
+      return safeFallbackToolExecutionPolicy(toolName);
+    }
+    return permissionView.execution_policies[toolName] ?? resolveToolExecutionPolicy(toolName);
+  };
   if (toolCaller instanceof McpClient) {
     return {
       callTool: (toolName: string, args: Record<string, unknown>, timeoutMs?: number) =>
         toolCaller.callToolWithPermissionView(toolName, args, permissionView, timeoutMs),
+      getExecutionPolicy: permissionViewExecutionPolicy,
     };
   }
   return {
@@ -238,5 +256,6 @@ export function bindToolPermissionView(toolCaller: ToolCaller, permissionView: T
       assertToolCallAllowed(toolName, permissionView);
       return toolCaller.callTool(toolName, args, timeoutMs);
     },
+    getExecutionPolicy: permissionViewExecutionPolicy,
   };
 }

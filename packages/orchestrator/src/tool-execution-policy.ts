@@ -26,7 +26,7 @@ import {
 import type { Tool } from './backends/chat-backend.js';
 
 export type ToolMutationClass = 'read_only' | 'stateful' | 'approval_required';
-export type ToolConcurrencyClass = 'serial_only';
+export type ToolConcurrencyClass = 'serial_only' | 'batch_safe';
 
 export interface ToolExecutionPolicyDefinition {
   mutation_class: ToolMutationClass;
@@ -48,9 +48,9 @@ export interface ToolPermissionView {
   execution_policies: Record<string, ToolExecutionPolicy>;
 }
 
-const READ_ONLY_SERIAL_POLICY: ToolExecutionPolicyDefinition = {
+const READ_ONLY_BATCH_SAFE_POLICY: ToolExecutionPolicyDefinition = {
   mutation_class: 'read_only',
-  concurrency: 'serial_only',
+  concurrency: 'batch_safe',
 };
 
 const STATEFUL_SERIAL_POLICY: ToolExecutionPolicyDefinition = {
@@ -66,11 +66,11 @@ const APPROVAL_REQUIRED_SERIAL_POLICY: ToolExecutionPolicyDefinition = {
 export const SAFE_FALLBACK_TOOL_EXECUTION_POLICY: ToolExecutionPolicyDefinition = STATEFUL_SERIAL_POLICY;
 
 export const ORCHESTRATOR_TOOL_EXECUTION_POLICIES: ToolExecutionPolicyTable = {
-  [ORCH_RUN_STATUS]: READ_ONLY_SERIAL_POLICY,
-  [ORCH_RUN_LIST]: READ_ONLY_SERIAL_POLICY,
-  [ORCH_RUN_APPROVALS_LIST]: READ_ONLY_SERIAL_POLICY,
-  [ORCH_POLICY_QUERY]: READ_ONLY_SERIAL_POLICY,
-  [ORCH_FLEET_STATUS]: READ_ONLY_SERIAL_POLICY,
+  [ORCH_RUN_STATUS]: READ_ONLY_BATCH_SAFE_POLICY,
+  [ORCH_RUN_LIST]: READ_ONLY_BATCH_SAFE_POLICY,
+  [ORCH_RUN_APPROVALS_LIST]: READ_ONLY_BATCH_SAFE_POLICY,
+  [ORCH_POLICY_QUERY]: READ_ONLY_BATCH_SAFE_POLICY,
+  [ORCH_FLEET_STATUS]: READ_ONLY_BATCH_SAFE_POLICY,
 
   [ORCH_RUN_CREATE]: STATEFUL_SERIAL_POLICY,
   [ORCH_RUN_PAUSE]: STATEFUL_SERIAL_POLICY,
@@ -90,6 +90,15 @@ export const ORCHESTRATOR_TOOL_EXECUTION_POLICIES: ToolExecutionPolicyTable = {
   [ORCH_RUN_EXPORT]: APPROVAL_REQUIRED_SERIAL_POLICY,
   [ORCH_RUN_EXECUTE_AGENT]: APPROVAL_REQUIRED_SERIAL_POLICY,
 };
+
+export function safeFallbackToolExecutionPolicy(toolName: string): ToolExecutionPolicy {
+  return {
+    tool_name: toolName,
+    metadata_source: 'safe_fallback',
+    mutation_class: SAFE_FALLBACK_TOOL_EXECUTION_POLICY.mutation_class,
+    concurrency: SAFE_FALLBACK_TOOL_EXECUTION_POLICY.concurrency,
+  };
+}
 
 function uniqueToolNames(tools: ReadonlyArray<Pick<Tool, 'name'>>): string[] {
   const names = new Set<string>();
@@ -112,12 +121,13 @@ export function resolveToolExecutionPolicy(
       concurrency: definition.concurrency,
     };
   }
-  return {
-    tool_name: toolName,
-    metadata_source: 'safe_fallback',
-    mutation_class: SAFE_FALLBACK_TOOL_EXECUTION_POLICY.mutation_class,
-    concurrency: SAFE_FALLBACK_TOOL_EXECUTION_POLICY.concurrency,
-  };
+  return safeFallbackToolExecutionPolicy(toolName);
+}
+
+export function isParallelBatchSafeToolExecutionPolicy(
+  policy: Pick<ToolExecutionPolicyDefinition, 'mutation_class' | 'concurrency'> | null | undefined,
+): boolean {
+  return policy?.mutation_class === 'read_only' && policy.concurrency === 'batch_safe';
 }
 
 export function buildRuntimeToolPermissionView(params: {

@@ -2,6 +2,7 @@ import { McpError, internalError } from '@autoresearch/shared';
 import type { MessageContent, MessageParam, ToolResultContent, ToolUseContent } from './backends/chat-backend.js';
 import { normalizeStopReason } from './agent-runner-stop-reasons.js';
 import { buildTruncationRecovery, type AgentRuntimeMarkerEvent, type AgentRuntimeState } from './agent-runner-runtime-state.js';
+import { groupToolUsesForExecution } from './agent-runner-tool-groups.js';
 import type { McpToolResult, ToolCaller } from './mcp-client.js';
 import type { RunManifest, StepCheckpoint } from './run-manifest.js';
 import type { SpanCollector } from './tracing.js';
@@ -58,6 +59,39 @@ async function executeToolCall(params: {
   }
 }
 
+async function executeToolUseGroups(params: {
+  blocks: ToolUseContent[];
+  turnCount: number;
+  traceId: string;
+  mcpClient: ToolCaller;
+  spanCollector: SpanCollector | null;
+  checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
+}): Promise<{ events: AgentEvent[]; toolResults: ToolResultContent[]; done: boolean }> {
+  const events: AgentEvent[] = [];
+  const toolResults: ToolResultContent[] = [];
+
+  for (const group of groupToolUsesForExecution(params.blocks, params.mcpClient)) {
+    const executions = group.length > 1
+      ? await Promise.all(group.map(block => executeToolCall({ ...params, block })))
+      : [await executeToolCall({ ...params, block: group[0]! })];
+
+    for (const [index, execution] of executions.entries()) {
+      if (group.length > 1 && execution.done) {
+        throw internalError(
+          `Batch-safe tool ${group[index]!.name} unexpectedly requested approval during parallel execution.`,
+        );
+      }
+      events.push(...execution.events);
+      if (execution.done) {
+        return { events, toolResults, done: true };
+      }
+      toolResults.push(execution.toolResult);
+    }
+  }
+
+  return { events, toolResults, done: false };
+}
+
 export async function handleAssistantResponse(params: {
   blocks: MessageContent[];
   messages: MessageParam[];
@@ -72,30 +106,46 @@ export async function handleAssistantResponse(params: {
   const assistantContent: MessageContent[] = [];
   const toolResults: ToolResultContent[] = [];
   const events: AgentEvent[] = [];
+  let pendingToolUses: ToolUseContent[] = [];
 
-  for (const block of params.blocks) {
-    if (block.type === 'text') {
-      assistantContent.push(block);
-      if (block.text.trim()) events.push({ type: 'text', text: block.text });
-      continue;
+  const flushPendingToolUses = async (): Promise<boolean> => {
+    if (pendingToolUses.length === 0) {
+      return false;
     }
-    if (block.type !== 'tool_use') {
-      assistantContent.push(block);
-      continue;
-    }
-    assistantContent.push(block);
-    const toolResult = await executeToolCall({
-      block,
+    const grouped = await executeToolUseGroups({
+      blocks: pendingToolUses,
       turnCount: params.turnCount,
       traceId: params.traceId,
       mcpClient: params.mcpClient,
       spanCollector: params.spanCollector,
       checkpointRecorder: params.checkpointRecorder,
     });
-    events.push(...toolResult.events);
-    if (toolResult.done) return { events, messages: params.messages, done: true };
-    toolResults.push(toolResult.toolResult);
+    pendingToolUses = [];
+    events.push(...grouped.events);
+    if (grouped.done) {
+      return true;
+    }
+    toolResults.push(...grouped.toolResults);
+    return false;
+  };
+
+  for (const block of params.blocks) {
+    if (block.type === 'text') {
+      if (await flushPendingToolUses()) return { events, messages: params.messages, done: true };
+      assistantContent.push(block);
+      if (block.text.trim()) events.push({ type: 'text', text: block.text });
+      continue;
+    }
+    if (block.type !== 'tool_use') {
+      if (await flushPendingToolUses()) return { events, messages: params.messages, done: true };
+      assistantContent.push(block);
+      continue;
+    }
+    assistantContent.push(block);
+    pendingToolUses.push(block);
   }
+
+  if (await flushPendingToolUses()) return { events, messages: params.messages, done: true };
 
   const stopReason = normalizeStopReason(params.stopReason);
   if (toolResults.length > 0) {

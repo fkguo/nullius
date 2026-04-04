@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@autoresearch/shared';
 
 import { handleToolCall } from '../../src/tools/index.js';
 import { extractPayload, makeTmpDir } from './orchRunExecuteAgentTestSupport.js';
@@ -263,6 +264,102 @@ describe('orch_run_execute_agent team bridge', () => {
       },
     ]);
     expect(payload.team_state.delegate_assignments[0]?.status).toBe('failed');
+  });
+
+  it('runs batch-safe read-only tool groups in parallel through the shared host path while preserving result order', async () => {
+    const projectRoot = makeTmpDir();
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-team-batch-safe', workflow_id: 'runtime' },
+      'full',
+    );
+
+    let resolveStatus!: (value: { content: Array<{ type: 'text'; text: string }>; isError: boolean }) => void;
+    let resolveList!: (value: { content: Array<{ type: 'text'; text: string }>; isError: boolean }) => void;
+    const statusResult = new Promise<{ content: Array<{ type: 'text'; text: string }>; isError: boolean }>(resolve => {
+      resolveStatus = resolve;
+    });
+    const listResult = new Promise<{ content: Array<{ type: 'text'; text: string }>; isError: boolean }>(resolve => {
+      resolveList = resolve;
+    });
+    const started: string[] = [];
+    let createMessageCalls = 0;
+
+    const resultPromise = handleToolCall(
+      'orch_run_execute_agent',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: 'run-team-batch-safe',
+        model: 'claude-test',
+        messages: [{ role: 'user', content: 'inspect the runtime state' }],
+        tools: [
+          { name: ORCH_RUN_STATUS, input_schema: { type: 'object', properties: {} } },
+          { name: ORCH_RUN_LIST, input_schema: { type: 'object', properties: {} } },
+        ],
+        team: {
+          workspace_id: 'workspace:run-team-batch-safe',
+          task_id: 'task-team-batch-safe',
+          task_kind: 'draft_update',
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+        },
+      },
+      'full',
+      {
+        callTool: async (name: string) => {
+          started.push(name);
+          if (name === ORCH_RUN_STATUS) return statusResult;
+          if (name === ORCH_RUN_LIST) return listResult;
+          return { content: [{ type: 'text', text: `unexpected:${name}` }], isError: false };
+        },
+        createMessage: async () => {
+          createMessageCalls += 1;
+          if (createMessageCalls === 1) {
+            return {
+              model: 'claude-test',
+              role: 'assistant',
+              content: [
+                { type: 'tool_use', id: 'tu_status', name: ORCH_RUN_STATUS, input: {} },
+                { type: 'tool_use', id: 'tu_list', name: ORCH_RUN_LIST, input: {} },
+              ],
+              stopReason: 'tool_use',
+            };
+          }
+          return {
+            model: 'claude-test',
+            role: 'assistant',
+            content: { type: 'text', text: 'batched tools complete' },
+            stopReason: 'endTurn',
+          };
+        },
+      },
+    );
+
+    for (let attempt = 0; attempt < 20 && started.length < 2; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    expect(started).toEqual([ORCH_RUN_STATUS, ORCH_RUN_LIST]);
+
+    resolveList({ content: [{ type: 'text', text: 'list-result' }], isError: false });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(createMessageCalls).toBe(1);
+
+    resolveStatus({ content: [{ type: 'text', text: 'status-result' }], isError: false });
+    const payload = extractPayload(await resultPromise) as {
+      assignment_results: Array<{
+        status: string;
+        events: Array<{ type: string; name?: string; result?: string }>;
+      }>;
+    };
+
+    expect(payload.assignment_results[0]?.status).toBe('completed');
+    expect(payload.assignment_results[0]?.events.filter(event => event.type === 'tool_call')).toMatchObject([
+      { type: 'tool_call', name: ORCH_RUN_STATUS, result: 'status-result' },
+      { type: 'tool_call', name: ORCH_RUN_LIST, result: 'list-result' },
+    ]);
   });
 
   it('surfaces nested approval metadata in team state and resumes after a task-scoped approve intervention', async () => {

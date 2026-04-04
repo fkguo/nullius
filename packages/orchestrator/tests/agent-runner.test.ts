@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { ORCH_RUN_CREATE, ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@autoresearch/shared';
 import { AgentRunner, _resetLaneQueue, type MessageParam, type Tool, type AgentEvent } from '../src/agent-runner.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
 import type { ApprovalGate } from '../src/approval-gate.js';
@@ -34,6 +35,18 @@ function textResponse(
 function toolUseResponse(id: string, name: string, input: Record<string, unknown> = {}) {
   return {
     content: [{ type: 'tool_use' as const, id, name, input }],
+    stop_reason: 'tool_use',
+  };
+}
+
+function multiToolUseResponse(blocks: Array<{ id: string; name: string; input?: Record<string, unknown> }>) {
+  return {
+    content: blocks.map(block => ({
+      type: 'tool_use' as const,
+      id: block.id,
+      name: block.name,
+      input: block.input ?? {},
+    })),
     stop_reason: 'tool_use',
   };
 }
@@ -106,6 +119,99 @@ describe('AgentRunner', () => {
     expect(doneEvt).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 2 });
 
     expect(createFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('runs contiguous batch-safe read-only tool groups in parallel while keeping tool-call event order stable', async () => {
+    let resolveStatus!: (value: McpToolResult) => void;
+    let resolveList!: (value: McpToolResult) => void;
+    const statusResult = new Promise<McpToolResult>(resolve => { resolveStatus = resolve; });
+    const listResult = new Promise<McpToolResult>(resolve => { resolveList = resolve; });
+    const started: string[] = [];
+    const mcpClient = {
+      callTool: vi.fn((name: string) => {
+        started.push(name);
+        if (name === ORCH_RUN_STATUS) return statusResult;
+        if (name === ORCH_RUN_LIST) return listResult;
+        return Promise.resolve({ ok: true, isError: false, rawText: `result:${name}`, json: null, errorCode: null });
+      }),
+    } as unknown as McpClient;
+    const createFn = vi.fn()
+      .mockResolvedValueOnce(multiToolUseResponse([
+        { id: 'tu_status', name: ORCH_RUN_STATUS },
+        { id: 'tu_list', name: ORCH_RUN_LIST },
+      ]))
+      .mockResolvedValueOnce(textResponse('Parallel tools complete'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-batch-safe-group',
+      mcpClient,
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+    const runtimePromise = collectEvents(runner.run([{ role: 'user', content: 'Inspect the runs' }], [
+      { name: ORCH_RUN_STATUS, input_schema: { type: 'object', properties: {} } },
+      { name: ORCH_RUN_LIST, input_schema: { type: 'object', properties: {} } },
+    ]));
+
+    for (let attempt = 0; attempt < 20 && started.length < 2; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    expect(started).toEqual([ORCH_RUN_STATUS, ORCH_RUN_LIST]);
+
+    resolveList({ ok: true, isError: false, rawText: 'list-result', json: null, errorCode: null });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(createFn).toHaveBeenCalledTimes(1);
+
+    resolveStatus({ ok: true, isError: false, rawText: 'status-result', json: null, errorCode: null });
+    const events = await runtimePromise;
+
+    expect(events.filter(event => event.type === 'tool_call')).toMatchObject([
+      { type: 'tool_call', name: ORCH_RUN_STATUS, result: 'status-result' },
+      { type: 'tool_call', name: ORCH_RUN_LIST, result: 'list-result' },
+    ]);
+    expect(createFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps mixed mutation and batch-safe tool groups serial-only', async () => {
+    let resolveStatus!: (value: McpToolResult) => void;
+    const statusResult = new Promise<McpToolResult>(resolve => { resolveStatus = resolve; });
+    const started: string[] = [];
+    const mcpClient = {
+      callTool: vi.fn((name: string) => {
+        started.push(name);
+        if (name === ORCH_RUN_STATUS) {
+          return statusResult;
+        }
+        return Promise.resolve({ ok: true, isError: false, rawText: `result:${name}`, json: null, errorCode: null });
+      }),
+    } as unknown as McpClient;
+    const createFn = vi.fn()
+      .mockResolvedValueOnce(multiToolUseResponse([
+        { id: 'tu_status', name: ORCH_RUN_STATUS },
+        { id: 'tu_create', name: ORCH_RUN_CREATE },
+        { id: 'tu_list', name: ORCH_RUN_LIST },
+      ]))
+      .mockResolvedValueOnce(textResponse('Mixed tools complete'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-mixed-grouping',
+      mcpClient,
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+    const runtimePromise = collectEvents(runner.run([{ role: 'user', content: 'Do the mixed work' }], [
+      { name: ORCH_RUN_STATUS, input_schema: { type: 'object', properties: {} } },
+      { name: ORCH_RUN_CREATE, input_schema: { type: 'object', properties: {} } },
+      { name: ORCH_RUN_LIST, input_schema: { type: 'object', properties: {} } },
+    ]));
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(started).toEqual([ORCH_RUN_STATUS]);
+
+    resolveStatus({ ok: true, isError: false, rawText: 'status-result', json: null, errorCode: null });
+    await runtimePromise;
+
+    expect(started).toEqual([ORCH_RUN_STATUS, ORCH_RUN_CREATE, ORCH_RUN_LIST]);
   });
 
   it('routing config: direct route key resolves to backend model', async () => {
@@ -318,6 +424,61 @@ describe('AgentRunner', () => {
 
     // side_effect_tool must NOT have been called
     expect(secondToolCalls).toHaveLength(0);
+  });
+
+  it('fails closed when a batch-safe parallel tool unexpectedly returns requires_approval', async () => {
+    const started: string[] = [];
+    const mcpClient = {
+      callTool: vi.fn(async (name: string) => {
+        started.push(name);
+        if (name === ORCH_RUN_STATUS) {
+          return {
+            ok: true,
+            isError: false,
+            rawText: '{"requires_approval":true,"approval_id":"apr_parallel","packet_path":"/parallel.json"}',
+            json: { requires_approval: true, approval_id: 'apr_parallel', packet_path: '/parallel.json' },
+            errorCode: null,
+          };
+        }
+        return {
+          ok: true,
+          isError: false,
+          rawText: 'list-result',
+          json: null,
+          errorCode: null,
+        };
+      }),
+    } as unknown as McpClient;
+    const createFn = vi.fn().mockResolvedValue(multiToolUseResponse([
+      { id: 'tu_status', name: ORCH_RUN_STATUS },
+      { id: 'tu_list', name: ORCH_RUN_LIST },
+    ]));
+
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-batch-safe-approval-guard',
+      mcpClient,
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'Inspect the runtime state' }], [
+      { name: ORCH_RUN_STATUS, input_schema: { type: 'object', properties: {} } },
+      { name: ORCH_RUN_LIST, input_schema: { type: 'object', properties: {} } },
+    ]));
+
+    expect(started).toEqual([ORCH_RUN_STATUS, ORCH_RUN_LIST]);
+    expect(events).toMatchObject([
+      {
+        type: 'error',
+        error: {
+          message: expect.stringContaining('unexpectedly requested approval during parallel execution'),
+        },
+      },
+    ]);
+    expect(events.some(event => event.type === 'approval_required')).toBe(false);
+    expect(events.some(event => event.type === 'done')).toBe(false);
+    expect(createFn).toHaveBeenCalledTimes(1);
   });
 
   it('crash recovery: approval_required during recovery emits done and halts', async () => {

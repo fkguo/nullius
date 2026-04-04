@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@autoresearch/shared';
 
 import { executeTeamDelegatedRuntime, type MessageParam, type Tool, type TeamPermissionMatrix } from '../src/index.js';
 
@@ -32,6 +33,18 @@ const TOOLS: Tool[] = [{ name: 'do_thing', input_schema: { type: 'object', prope
 function toolUseResponse(id: string, name: string, input: Record<string, unknown> = {}) {
   return {
     content: [{ type: 'tool_use' as const, id, name, input }],
+    stop_reason: 'tool_use',
+  };
+}
+
+function multiToolUseResponse(blocks: Array<{ id: string; name: string; input?: Record<string, unknown> }>) {
+  return {
+    content: blocks.map(block => ({
+      type: 'tool_use' as const,
+      id: block.id,
+      name: block.name,
+      input: block.input ?? {},
+    })),
     stop_reason: 'tool_use',
   };
 }
@@ -188,6 +201,64 @@ describe('executeTeamDelegatedRuntime', () => {
           error: {
             code: 'INVALID_PARAMS',
             message: expect.stringContaining('blocked_tool'),
+          },
+        },
+      ]);
+      expect(result.team_state.delegate_assignments[0]?.status).toBe('failed');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps blocked known read-only tools out of batch-safe groups in the delegated runtime path', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const createMessage = vi.fn(async params => {
+        expect(params.tools.map(tool => tool.name)).toEqual([ORCH_RUN_LIST]);
+        return multiToolUseResponse([
+          { id: 'tu_blocked_status', name: ORCH_RUN_STATUS },
+          { id: 'tu_allowed_list', name: ORCH_RUN_LIST },
+        ]);
+      });
+      const callTool = vi.fn(async () => ({ ok: true, isError: false, rawText: 'should-not-run', json: null, errorCode: null }));
+
+      const result = await executeTeamDelegatedRuntime({
+        projectRoot,
+        runId: 'run-known-tool-filter',
+        workspaceId: 'ws-known-tool-filter',
+        taskId: 'task-known-tool-filter',
+        taskKind: 'compute',
+        ownerRole: 'lead',
+        delegateRole: 'delegate',
+        delegateId: 'delegate-1',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: {
+          delegation: [
+            {
+              ...PERMISSIONS.delegation[0]!,
+              allowed_tool_names: [ORCH_RUN_LIST],
+            },
+          ],
+          interventions: PERMISSIONS.interventions,
+        },
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [
+          { name: ORCH_RUN_STATUS, input_schema: { type: 'object', properties: {} } },
+          { name: ORCH_RUN_LIST, input_schema: { type: 'object', properties: {} } },
+        ],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: createMessage,
+      });
+
+      expect(callTool).not.toHaveBeenCalled();
+      expect(result.events).toMatchObject([
+        {
+          type: 'error',
+          error: {
+            code: 'INVALID_PARAMS',
+            message: expect.stringContaining(ORCH_RUN_STATUS),
           },
         },
       ]);
