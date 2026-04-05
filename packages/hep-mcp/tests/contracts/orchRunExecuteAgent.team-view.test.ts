@@ -50,6 +50,10 @@ describe('orch_run_execute_agent team control-plane views', () => {
     expect(payload.assignment_results.map(item => item.task_id)).toEqual(['task-compute-1', 'task-review-2']);
     expect(payload.live_status.terminal_assignments).toHaveLength(2);
     expect(payload.replay.some(entry => entry.kind === 'stage_started' && entry.payload.stage === 0)).toBe(true);
+    expect(payload).not.toHaveProperty('runtime_diagnostics_bridge_path');
+    expect(payload).not.toHaveProperty('runtime_diagnostics_summary');
+    expect(payload.assignment_results[0]).not.toHaveProperty('runtime_diagnostics_bridge_path');
+    expect(payload.assignment_results[0]).not.toHaveProperty('runtime_diagnostics_summary');
   });
 
   it('surfaces timed-out lifecycle fields through the live team control-plane view without launching the expired assignment', async () => {

@@ -9,6 +9,10 @@ import {
   buildRuntimeToolPermissionView,
   filterToolsForPermissionView,
 } from '../tool-execution-policy.js';
+import {
+  writeRuntimeDiagnosticsBridgeArtifact,
+  type RuntimeDiagnosticsSummaryV1,
+} from '../runtime-diagnostics-bridge.js';
 import type { SpanCollector } from '../tracing.js';
 
 export interface ExecuteDelegatedAgentRuntimeInput {
@@ -32,6 +36,9 @@ export interface ExecuteDelegatedAgentRuntimeResult {
   events: AgentEvent[];
   manifest: RunManifest | null;
   manifest_path: string;
+  spans_path: string;
+  runtime_diagnostics_bridge_path: string;
+  runtime_diagnostics_summary: RuntimeDiagnosticsSummaryV1;
   resume_from: string | null;
   resumed: boolean;
   skipped_step_ids: string[];
@@ -40,6 +47,10 @@ export interface ExecuteDelegatedAgentRuntimeResult {
 
 function manifestPath(runId: string): string {
   return path.posix.join('artifacts', 'runs', runId, 'manifest.json');
+}
+
+function spansPath(runId: string): string {
+  return path.posix.join('artifacts', 'runs', runId, 'spans.jsonl');
 }
 
 function createManifestManager(projectRoot: string): RunManifestManager {
@@ -99,10 +110,23 @@ export async function executeDelegatedAgentRuntime(
     events.push(event);
   }
   const savedManifest = manifestManager.loadManifest(input.runId);
+  const manifestPathValue = manifestPath(input.runId);
+  const spansPathValue = spansPath(input.runId);
+  const diagnosticsBridge = writeRuntimeDiagnosticsBridgeArtifact({
+    projectRoot: input.projectRoot,
+    runId: input.runId,
+    events,
+    manifestPath: manifestPathValue,
+    spansPath: spansPathValue,
+    savedManifest,
+  });
   return {
     events,
     manifest: savedManifest,
-    manifest_path: manifestPath(input.runId),
+    manifest_path: manifestPathValue,
+    spans_path: spansPathValue,
+    runtime_diagnostics_bridge_path: diagnosticsBridge.artifactPath,
+    runtime_diagnostics_summary: diagnosticsBridge.payload.summary,
     resume_from: runtimeManifest?.resume_from ?? null,
     resumed: runtimeManifest?.resume_from !== undefined,
     skipped_step_ids: skippedStepIds,

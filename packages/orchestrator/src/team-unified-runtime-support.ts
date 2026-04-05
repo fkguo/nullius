@@ -438,13 +438,18 @@ function mergeLaunchOutcome(
   syncPendingApprovals(state, input.runId);
   manager.save(state);
   return {
-    ...runtimeResult,
     assignment_id: updated.assignment_id,
     task_id: updated.task_id,
     stage: updated.stage,
     status: updated.status,
     delegation_protocol: updated.delegation_protocol,
     runtime_run_id: launch.delegatedRunId,
+    events: runtimeResult.events,
+    last_completed_step: runtimeResult.last_completed_step,
+    manifest_path: runtimeResult.manifest_path,
+    resume_from: runtimeResult.resume_from,
+    resumed: runtimeResult.resumed,
+    skipped_step_ids: runtimeResult.skipped_step_ids,
     team_state: state,
     team_state_path: manager.pathFor(input.runId),
   };

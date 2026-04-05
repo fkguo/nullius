@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 import { handleToolCall } from '../../src/tools/index.js';
 import { extractPayload, ledgerLineCount, makeTmpDir } from './orchRunExecuteAgentTestSupport.js';
@@ -99,6 +101,12 @@ describe('orch_run_execute_agent base contract', () => {
     expect(second.last_completed_step).toBe('tu_pause');
     expect((second.events as Array<{ type: string }>).some(event => event.type === 'error')).toBe(false);
     expect((second.events as Array<{ type: string; stopReason?: string }>).some(event => event.type === 'done')).toBe(true);
+    expect(second.runtime_diagnostics_summary).toEqual({
+      status: 'ok',
+      primary_cause: 'none',
+      recommended_action: 'none',
+    });
+    expect(fs.existsSync(path.join(projectRoot, second.runtime_diagnostics_bridge_path as string))).toBe(true);
     expect(ledgerLineCount(projectRoot)).toBe(ledgerAfterCreate + 1);
   });
 
@@ -137,9 +145,23 @@ describe('orch_run_execute_agent base contract', () => {
             stopReason: 'endTurn',
           }),
       },
-    )) as { events: Array<{ type: string; kind?: string; stopReason?: string }> };
+    )) as {
+      events: Array<{ type: string; kind?: string; stopReason?: string }>;
+      runtime_diagnostics_bridge_path: string;
+      runtime_diagnostics_summary: {
+        status: string;
+        primary_cause: string;
+        recommended_action: string;
+      };
+    };
 
     expect(payload.events).toContainEqual(expect.objectContaining({ type: 'runtime_marker', kind: 'truncation_retry' }));
     expect(payload.events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn' });
+    expect(payload.runtime_diagnostics_summary).toEqual({
+      status: 'degraded',
+      primary_cause: 'truncation',
+      recommended_action: 'compact_or_reduce_context',
+    });
+    expect(fs.existsSync(path.join(projectRoot, payload.runtime_diagnostics_bridge_path as string))).toBe(true);
   });
 });

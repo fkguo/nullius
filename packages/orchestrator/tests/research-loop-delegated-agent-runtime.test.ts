@@ -80,6 +80,12 @@ describe('executeDelegatedAgentRuntime', () => {
       expect(result.last_completed_step).toBe('tu_live');
       expect(result.manifest?.checkpoints[0]).toMatchObject({ step_id: 'tu_live', result_summary: 'tool-result' });
       expect(fs.existsSync(path.join(projectRoot, result.manifest_path))).toBe(true);
+      expect(fs.existsSync(path.join(projectRoot, result.runtime_diagnostics_bridge_path))).toBe(true);
+      expect(result.runtime_diagnostics_summary).toEqual({
+        status: 'ok',
+        primary_cause: 'none',
+        recommended_action: 'none',
+      });
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
@@ -141,6 +147,13 @@ describe('executeDelegatedAgentRuntime', () => {
       expect(resumed.events.find(event => event.type === 'text')).toMatchObject({ type: 'text', text: 'resumed' });
       expect(resumedClient.callTool).not.toHaveBeenCalled();
       expect(resumed.last_completed_step).toBe('tu_resume');
+      const diagnostics = JSON.parse(
+        fs.readFileSync(path.join(projectRoot, resumed.runtime_diagnostics_bridge_path), 'utf-8'),
+      ) as {
+        evidence: { manifest: { path: string }; runtime_markers: unknown[] };
+      };
+      expect(diagnostics.evidence.manifest.path).toBe(resumed.manifest_path);
+      expect(diagnostics.evidence.runtime_markers).toEqual([]);
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
@@ -175,6 +188,19 @@ describe('executeDelegatedAgentRuntime', () => {
         detail: expect.objectContaining({ attempt: 1 }),
       }));
       expect(result.events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 2 });
+      expect(result.runtime_diagnostics_summary).toEqual({
+        status: 'degraded',
+        primary_cause: 'truncation',
+        recommended_action: 'compact_or_reduce_context',
+      });
+      const diagnostics = JSON.parse(
+        fs.readFileSync(path.join(projectRoot, result.runtime_diagnostics_bridge_path), 'utf-8'),
+      ) as {
+        evidence: { spans: { path: string; exists: boolean }; terminal_event: { stop_reason?: string } | null };
+      };
+      expect(diagnostics.evidence.spans.path).toBe(result.spans_path);
+      expect(diagnostics.evidence.spans.exists).toBe(false);
+      expect(diagnostics.evidence.terminal_event?.stop_reason).toBe('end_turn');
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
