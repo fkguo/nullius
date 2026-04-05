@@ -7,6 +7,16 @@ function repoRootFromModule(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 }
 
+function splitProjectRootFlag(args: string[]): { globalArgs: string[]; commandArgs: string[] } {
+  if (args.length >= 2 && args[0] === '--project-root') {
+    return { globalArgs: args.slice(0, 2), commandArgs: args.slice(2) };
+  }
+  if (args.length >= 1 && args[0].startsWith('--project-root=')) {
+    return { globalArgs: [args[0]], commandArgs: args.slice(1) };
+  }
+  return { globalArgs: [], commandArgs: args };
+}
+
 function extendPythonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const repoRoot = repoRootFromModule();
   const sources = [
@@ -25,9 +35,10 @@ function extendPythonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 export function runLegacyPythonSubcommand(command: 'init' | 'export', args: string[]): number {
   const python = process.env.HEP_AUTORESEARCH_PYTHON || 'python3';
+  const { globalArgs, commandArgs } = splitProjectRootFlag(args);
   const result = spawnSync(
     python,
-    ['-m', 'hep_autoresearch', command, ...args],
+    ['-m', 'hep_autoresearch', ...globalArgs, command, ...commandArgs],
     {
       env: extendPythonPath(process.env),
       stdio: 'inherit',

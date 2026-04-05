@@ -5,6 +5,9 @@ import type { ResolvedSamplingRoute, SamplingRouteSelectorMatch, SamplingRouting
 
 export const DEFAULT_SAMPLING_MAX_TOKENS = 1024;
 
+type SamplingRiskLevelKey = keyof SamplingRoutingConfig['selectors']['risk_levels'];
+type SamplingCostClassKey = keyof SamplingRoutingConfig['selectors']['cost_classes'];
+
 function normalizeInput(input: unknown): unknown {
   if (typeof input !== 'string') return input;
   const trimmed = input.trim();
@@ -86,8 +89,8 @@ export function resolveSamplingRoute(config: SamplingRoutingConfig, metadataInpu
     ['module_prompt_version', modulePromptVersionKey, config.selectors.module_prompt_versions[modulePromptVersionKey]],
     ['module', metadata.module, config.selectors.modules[metadata.module]],
     ['tool', metadata.tool, config.selectors.tools[metadata.tool]],
-    ['risk_level', metadata.risk_level, config.selectors.risk_levels[metadata.risk_level]],
-    ['cost_class', metadata.cost_class, config.selectors.cost_classes[metadata.cost_class]],
+    ['risk_level', metadata.risk_level, config.selectors.risk_levels[metadata.risk_level as SamplingRiskLevelKey]],
+    ['cost_class', metadata.cost_class, config.selectors.cost_classes[metadata.cost_class as SamplingCostClassKey]],
   ];
   const match = matches.find(([, , routeKey]) => Boolean(routeKey));
   const routeKey = match?.[2] ?? config.default_route;
