@@ -335,11 +335,17 @@ describe('AgentRunner', () => {
   it('maxTurns enforcement: emits done with max_turns stopReason', async () => {
     // Always return a tool_use so the loop never terminates on its own
     const createFn = vi.fn().mockResolvedValue(toolUseResponse('tu_x', 'do_thing'));
+    let callCount = 0;
     const runner = new AgentRunner({
       model: 'claude-opus-4-6',
       maxTurns: 3,
       runId: 'run-maxturn',
-      mcpClient: makeMockMcpClient(),
+      mcpClient: makeMockMcpClient({
+        do_thing: () => {
+          callCount += 1;
+          return { ok: true, isError: false, rawText: `result-${callCount}`, json: null, errorCode: null };
+        },
+      }),
       approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
@@ -349,6 +355,121 @@ describe('AgentRunner', () => {
     const doneEvt = events.find((e) => e.type === 'done');
     expect(doneEvt).toMatchObject({ type: 'done', stopReason: 'max_turns', turnCount: 3 });
     expect(createFn).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops after repeated low-gain tool turns and keeps the guard auditable', async () => {
+    const mcpClient = makeMockMcpClient({
+      do_thing: { ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null },
+    });
+    const createFn = vi.fn()
+      .mockResolvedValueOnce(toolUseResponse('tu_1', 'do_thing'))
+      .mockResolvedValueOnce(toolUseResponse('tu_2', 'do_thing'))
+      .mockResolvedValueOnce(toolUseResponse('tu_3', 'do_thing'))
+      .mockResolvedValueOnce(textResponse('unexpected completion'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      maxTurns: 10,
+      runId: 'run-diminishing-returns',
+      mcpClient,
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'loop until stopped' }], TOOLS));
+
+    expect(createFn).toHaveBeenCalledTimes(3);
+    expect(events.at(-1)).toMatchObject({ type: 'done', stopReason: 'diminishing_returns', turnCount: 3 });
+    expect(events).not.toContainEqual(expect.objectContaining({
+      type: 'runtime_marker',
+      kind: 'low_gain_turn',
+      turnCount: 1,
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'runtime_marker',
+      kind: 'low_gain_turn',
+      turnCount: 2,
+      detail: expect.objectContaining({ low_gain_streak: 1 }),
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'runtime_marker',
+      kind: 'diminishing_returns_stop',
+      turnCount: 3,
+    }));
+  });
+
+  it('stops after consecutive all-error tool turns and keeps the guard auditable', async () => {
+    const mcpClient = makeMockMcpClient({
+      do_thing: { ok: false, isError: true, rawText: 'tool-error', json: null, errorCode: null },
+    });
+    const createFn = vi.fn()
+      .mockResolvedValueOnce(toolUseResponse('tu_1', 'do_thing'))
+      .mockResolvedValueOnce(toolUseResponse('tu_2', 'do_thing'))
+      .mockResolvedValueOnce(textResponse('unexpected completion'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      maxTurns: 10,
+      runId: 'run-diminishing-returns-all-errors',
+      mcpClient,
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'keep failing' }], TOOLS));
+
+    expect(createFn).toHaveBeenCalledTimes(2);
+    expect(events.at(-1)).toMatchObject({ type: 'done', stopReason: 'diminishing_returns', turnCount: 2 });
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'runtime_marker',
+      kind: 'low_gain_turn',
+      turnCount: 1,
+      detail: expect.objectContaining({ reason: 'all_tools_errored', low_gain_streak: 1 }),
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'runtime_marker',
+      kind: 'diminishing_returns_stop',
+      turnCount: 2,
+    }));
+  });
+
+  it('resets the low-gain streak after a non-low-gain tool turn', async () => {
+    let toolCalls = 0;
+    const mcpClient = makeMockMcpClient({
+      do_thing: () => {
+        toolCalls += 1;
+        if (toolCalls === 1) {
+          return { ok: false, isError: true, rawText: 'tool-error', json: null, errorCode: null };
+        }
+        return { ok: true, isError: false, rawText: 'tool-ok', json: null, errorCode: null };
+      },
+    });
+    const createFn = vi.fn()
+      .mockResolvedValueOnce(toolUseResponse('tu_1', 'do_thing'))
+      .mockResolvedValueOnce(toolUseResponse('tu_2', 'do_thing'))
+      .mockResolvedValueOnce(textResponse('recovered and completed'));
+    const runner = new AgentRunner({
+      model: 'claude-opus-4-6',
+      maxTurns: 10,
+      runId: 'run-diminishing-returns-reset',
+      mcpClient,
+      approvalGate: makeMockApprovalGate(),
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'recover from error loop' }], TOOLS));
+
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'runtime_marker',
+      kind: 'low_gain_turn',
+      turnCount: 1,
+      detail: expect.objectContaining({ reason: 'all_tools_errored', low_gain_streak: 1 }),
+    }));
+    expect(events).not.toContainEqual(expect.objectContaining({
+      type: 'runtime_marker',
+      kind: 'low_gain_turn',
+      turnCount: 2,
+    }));
+    expect(events.some(event => event.type === 'done' && event.stopReason === 'diminishing_returns')).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 3 });
   });
 
   it('approval gate: requires_approval in tool result emits approval_required event', async () => {

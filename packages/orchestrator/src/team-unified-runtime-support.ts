@@ -142,6 +142,7 @@ export function deriveAssignmentStatus(
     if (event.type === 'approval_required') status = 'awaiting_approval';
     if (event.type === 'done' && status === 'running') {
       if (event.stopReason === 'approval_required') status = 'awaiting_approval';
+      if (event.stopReason === 'diminishing_returns') status = 'needs_recovery';
       if (isTerminalCompletionStopReason(event.stopReason)) status = 'completed';
     }
   }

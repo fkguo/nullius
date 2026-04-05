@@ -341,7 +341,7 @@ Agent 在代码审查和自检时必须检测以下反模式：
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab-m22-gatespec-ts-approval-consumers-first** (11379 symbols, 27078 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab-new-rt08-diminishing-returns-guard-second-slice** (11442 symbols, 27241 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -357,7 +357,7 @@ This project is indexed by GitNexus as **autoresearch-lab-m22-gatespec-ts-approv
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/autoresearch-lab-m22-gatespec-ts-approval-consumers-first/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/autoresearch-lab-new-rt08-diminishing-returns-guard-second-slice/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -396,10 +396,10 @@ This project is indexed by GitNexus as **autoresearch-lab-m22-gatespec-ts-approv
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/autoresearch-lab-m22-gatespec-ts-approval-consumers-first/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/autoresearch-lab-m22-gatespec-ts-approval-consumers-first/clusters` | All functional areas |
-| `gitnexus://repo/autoresearch-lab-m22-gatespec-ts-approval-consumers-first/processes` | All execution flows |
-| `gitnexus://repo/autoresearch-lab-m22-gatespec-ts-approval-consumers-first/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/autoresearch-lab-new-rt08-diminishing-returns-guard-second-slice/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/autoresearch-lab-new-rt08-diminishing-returns-guard-second-slice/clusters` | All functional areas |
+| `gitnexus://repo/autoresearch-lab-new-rt08-diminishing-returns-guard-second-slice/processes` | All execution flows |
+| `gitnexus://repo/autoresearch-lab-new-rt08-diminishing-returns-guard-second-slice/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 

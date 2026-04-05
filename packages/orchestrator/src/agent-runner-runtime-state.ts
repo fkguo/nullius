@@ -6,7 +6,7 @@ type WindowPressure = 'normal' | 'high';
 
 export type AgentRuntimeMarkerEvent = {
   type: 'runtime_marker';
-  kind: 'context_overflow_retry' | 'truncation_retry';
+  kind: 'context_overflow_retry' | 'truncation_retry' | 'low_gain_turn' | 'diminishing_returns_stop';
   turnCount: number;
   detail: Record<string, unknown>;
 };
@@ -17,11 +17,15 @@ export interface AgentRuntimeState {
   truncationRetryCount: number;
   lastTurnUsage: Required<LlmUsage> | null;
   usageTotals: Required<LlmUsage>;
+  lowGainStreak: number;
+  lastToolCallSignature: string | null;
+  lastToolOutcomeSignature: string | null;
 }
 
 const MARKER_PREFIX = '[runtime marker]';
 const MAX_OVERFLOW_RETRIES = 1;
 const MAX_TRUNCATION_RETRIES = 1;
+const MAX_LOW_GAIN_STREAK = 2;
 const CONTEXT_OVERFLOW_RE = /prompt (?:is )?too long|context length|context window|maximum context length|too many tokens/i;
 
 export function createAgentRuntimeState(): AgentRuntimeState {
@@ -31,6 +35,9 @@ export function createAgentRuntimeState(): AgentRuntimeState {
     truncationRetryCount: 0,
     lastTurnUsage: null,
     usageTotals: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, total_tokens: 0 },
+    lowGainStreak: 0,
+    lastToolCallSignature: null,
+    lastToolOutcomeSignature: null,
   };
 }
 
@@ -54,6 +61,77 @@ export function recordTurnUsage(state: AgentRuntimeState, usage?: LlmUsage | nul
   state.usageTotals.cache_creation_input_tokens += normalized.cache_creation_input_tokens;
   state.usageTotals.cache_read_input_tokens += normalized.cache_read_input_tokens;
   state.usageTotals.total_tokens += normalized.total_tokens;
+}
+
+export function resetLowGainTracking(state: AgentRuntimeState): void {
+  state.lowGainStreak = 0;
+  state.lastToolCallSignature = null;
+  state.lastToolOutcomeSignature = null;
+}
+
+export function evaluateLowGainTurn(params: {
+  turnCount: number;
+  runtimeState: AgentRuntimeState;
+  toolCallSignature: string;
+  toolOutcomeSignature: string;
+  toolCallCount: number;
+  toolErrorCount: number;
+}): { markers: AgentRuntimeMarkerEvent[]; shouldStop: boolean } {
+  if (params.toolCallCount === 0) {
+    params.runtimeState.lowGainStreak = 0;
+    params.runtimeState.lastToolCallSignature = null;
+    params.runtimeState.lastToolOutcomeSignature = null;
+    return { markers: [], shouldStop: false };
+  }
+
+  const repeatedOutcome = params.toolOutcomeSignature.length > 0
+    && params.toolOutcomeSignature === params.runtimeState.lastToolOutcomeSignature;
+  const allToolErrors = params.toolErrorCount === params.toolCallCount;
+  const lowGain = repeatedOutcome || allToolErrors;
+
+  params.runtimeState.lastToolCallSignature = params.toolCallSignature;
+  params.runtimeState.lastToolOutcomeSignature = params.toolOutcomeSignature;
+  params.runtimeState.lowGainStreak = lowGain ? params.runtimeState.lowGainStreak + 1 : 0;
+
+  if (!lowGain) return { markers: [], shouldStop: false };
+
+  const markers: AgentRuntimeMarkerEvent[] = [
+    {
+      type: 'runtime_marker',
+      kind: 'low_gain_turn',
+      turnCount: params.turnCount,
+      detail: {
+        low_gain_streak: params.runtimeState.lowGainStreak,
+        threshold: MAX_LOW_GAIN_STREAK,
+        reason: allToolErrors ? 'all_tools_errored' : 'repeated_tool_outcome',
+        tool_call_count: params.toolCallCount,
+        tool_error_count: params.toolErrorCount,
+        tool_call_signature: params.toolCallSignature,
+        tool_outcome_signature: params.toolOutcomeSignature,
+        last_turn_usage: params.runtimeState.lastTurnUsage,
+      },
+    },
+  ];
+
+  if (params.runtimeState.lowGainStreak < MAX_LOW_GAIN_STREAK) {
+    return { markers, shouldStop: false };
+  }
+
+  markers.push({
+    type: 'runtime_marker',
+    kind: 'diminishing_returns_stop',
+    turnCount: params.turnCount,
+    detail: {
+      low_gain_streak: params.runtimeState.lowGainStreak,
+      threshold: MAX_LOW_GAIN_STREAK,
+      tool_call_count: params.toolCallCount,
+      tool_error_count: params.toolErrorCount,
+      tool_call_signature: params.toolCallSignature,
+      tool_outcome_signature: params.toolOutcomeSignature,
+      last_turn_usage: params.runtimeState.lastTurnUsage,
+    },
+  });
+  return { markers, shouldStop: true };
 }
 
 export function isContextOverflowError(error: unknown): boolean {

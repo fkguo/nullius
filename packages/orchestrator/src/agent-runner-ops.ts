@@ -1,7 +1,14 @@
+import { createHash } from 'node:crypto';
 import { McpError, internalError } from '@autoresearch/shared';
 import type { MessageContent, MessageParam, ToolResultContent, ToolUseContent } from './backends/chat-backend.js';
 import { normalizeStopReason } from './agent-runner-stop-reasons.js';
-import { buildTruncationRecovery, type AgentRuntimeMarkerEvent, type AgentRuntimeState } from './agent-runner-runtime-state.js';
+import {
+  buildTruncationRecovery,
+  evaluateLowGainTurn,
+  resetLowGainTracking,
+  type AgentRuntimeMarkerEvent,
+  type AgentRuntimeState,
+} from './agent-runner-runtime-state.js';
 import { groupToolUsesForExecution } from './agent-runner-tool-groups.js';
 import type { McpToolResult, ToolCaller } from './mcp-client.js';
 import type { RunManifest, StepCheckpoint } from './run-manifest.js';
@@ -21,6 +28,22 @@ export function asMcpError(error: unknown, prefix = ''): McpError {
   return new McpError('INTERNAL_ERROR', `${prefix}${message}`);
 }
 
+function stableStringify(value: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (typeof value !== 'object') return JSON.stringify(value);
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, nested]) => `${JSON.stringify(key)}:${stableStringify(nested)}`);
+  return `{${entries.join(',')}}`;
+}
+
+function hashText(text: string): string {
+  return createHash('sha256').update(text).digest('hex').slice(0, 12);
+}
+
 function checkpointSummary(result: McpToolResult): string {
   if (typeof result.rawText === 'string' && result.rawText.length > 0) {
     return result.rawText;
@@ -31,6 +54,8 @@ function checkpointSummary(result: McpToolResult): string {
   return '';
 }
 
+type ToolExecutionSignature = { call: string; outcome: string; isError: boolean };
+
 async function executeToolCall(params: {
   block: ToolUseContent;
   turnCount: number;
@@ -38,7 +63,7 @@ async function executeToolCall(params: {
   mcpClient: ToolCaller;
   spanCollector: SpanCollector | null;
   checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
-}): Promise<{ events: AgentEvent[]; toolResult: ToolResultContent; done: boolean }> {
+}): Promise<{ events: AgentEvent[]; toolResult: ToolResultContent; done: boolean; signature: ToolExecutionSignature }> {
   const toolSpan = params.spanCollector?.startSpan(params.block.name, params.traceId);
   try {
     const result = await params.mcpClient.callTool(params.block.name, params.block.input);
@@ -47,12 +72,16 @@ async function executeToolCall(params: {
     const resultValue = result.json ?? result.rawText;
     const events: AgentEvent[] = [{ type: 'tool_call', name: params.block.name, input: params.block.input, result: resultValue }];
     const json = result.json as Record<string, unknown> | null;
+    const inputSignature = stableStringify(params.block.input);
+    const callSignature = `${params.block.name}:${inputSignature}`;
+    const outcomeSignature = `${callSignature}:${result.isError ? 'err' : 'ok'}:${hashText(result.rawText)}`;
+    const signature: ToolExecutionSignature = { call: callSignature, outcome: outcomeSignature, isError: result.isError };
     if (json?.['requires_approval'] === true) {
       events.push({ type: 'approval_required', approvalId: String(json['approval_id'] ?? ''), packetPath: String(json['packet_path'] ?? '') });
       events.push({ type: 'done', stopReason: 'approval_required', turnCount: params.turnCount });
-      return { events, toolResult: { type: 'tool_result', tool_use_id: params.block.id, content: result.rawText }, done: true };
+      return { events, toolResult: { type: 'tool_result', tool_use_id: params.block.id, content: result.rawText }, done: true, signature };
     }
-    return { events, toolResult: { type: 'tool_result', tool_use_id: params.block.id, content: result.rawText }, done: false };
+    return { events, toolResult: { type: 'tool_result', tool_use_id: params.block.id, content: result.rawText }, done: false, signature };
   } catch (error) {
     toolSpan?.end('ERROR');
     throw asMcpError(error, 'Tool call failed: ');
@@ -66,9 +95,10 @@ async function executeToolUseGroups(params: {
   mcpClient: ToolCaller;
   spanCollector: SpanCollector | null;
   checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
-}): Promise<{ events: AgentEvent[]; toolResults: ToolResultContent[]; done: boolean }> {
+}): Promise<{ events: AgentEvent[]; toolResults: ToolResultContent[]; done: boolean; signatures: ToolExecutionSignature[] }> {
   const events: AgentEvent[] = [];
   const toolResults: ToolResultContent[] = [];
+  const signatures: ToolExecutionSignature[] = [];
 
   for (const group of groupToolUsesForExecution(params.blocks, params.mcpClient)) {
     const executions = group.length > 1
@@ -83,13 +113,15 @@ async function executeToolUseGroups(params: {
       }
       events.push(...execution.events);
       if (execution.done) {
-        return { events, toolResults, done: true };
+        signatures.push(execution.signature);
+        return { events, toolResults, signatures, done: true };
       }
       toolResults.push(execution.toolResult);
+      signatures.push(execution.signature);
     }
   }
 
-  return { events, toolResults, done: false };
+  return { events, toolResults, signatures, done: false };
 }
 
 export async function handleAssistantResponse(params: {
@@ -107,6 +139,7 @@ export async function handleAssistantResponse(params: {
   const toolResults: ToolResultContent[] = [];
   const events: AgentEvent[] = [];
   let pendingToolUses: ToolUseContent[] = [];
+  const toolSignatures: ToolExecutionSignature[] = [];
 
   const flushPendingToolUses = async (): Promise<boolean> => {
     if (pendingToolUses.length === 0) {
@@ -126,6 +159,7 @@ export async function handleAssistantResponse(params: {
       return true;
     }
     toolResults.push(...grouped.toolResults);
+    toolSignatures.push(...grouped.signatures);
     return false;
   };
 
@@ -152,6 +186,22 @@ export async function handleAssistantResponse(params: {
     if (stopReason.kind === 'truncation') {
       throw internalError('Assistant response hit max_tokens while requesting tool execution.');
     }
+    const callSignature = toolSignatures.map(signature => signature.call).join('|');
+    const outcomeSignature = toolSignatures.map(signature => signature.outcome).join('|');
+    const toolErrorCount = toolSignatures.filter(signature => signature.isError).length;
+    const lowGain = evaluateLowGainTurn({
+      turnCount: params.turnCount,
+      runtimeState: params.runtimeState,
+      toolCallSignature: callSignature,
+      toolOutcomeSignature: outcomeSignature,
+      toolCallCount: toolSignatures.length,
+      toolErrorCount,
+    });
+    events.push(...lowGain.markers);
+    if (lowGain.shouldStop) {
+      events.push({ type: 'done', stopReason: 'diminishing_returns', turnCount: params.turnCount });
+      return { events, messages: params.messages, done: true };
+    }
     return {
       events,
       messages: [
@@ -166,6 +216,7 @@ export async function handleAssistantResponse(params: {
     throw internalError('Assistant returned tool_use stop_reason without tool_use blocks.');
   }
   if (stopReason.kind === 'truncation') {
+    resetLowGainTracking(params.runtimeState);
     const recovery = buildTruncationRecovery({
       messages: params.messages,
       assistantContent,

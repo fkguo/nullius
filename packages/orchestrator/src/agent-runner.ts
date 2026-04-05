@@ -11,7 +11,12 @@ import type { ResolvedChatRoute } from './routing/types.js';
 import { DEFAULT_CHAT_MAX_TOKENS, loadRoutingConfig, resolveChatRoute } from './routing/loader.js';
 import type { SpanCollector } from './tracing.js';
 import { asMcpError, handleAssistantResponse, resolveIncompleteToolUses, type AgentEvent } from './agent-runner-ops.js';
-import { createAgentRuntimeState, recordTurnUsage, recoverFromContextOverflow } from './agent-runner-runtime-state.js';
+import {
+  createAgentRuntimeState,
+  recordTurnUsage,
+  recoverFromContextOverflow,
+  resetLowGainTracking,
+} from './agent-runner-runtime-state.js';
 
 export type { AgentEvent } from './agent-runner-ops.js';
 export type { MessageParam, Tool } from './backends/chat-backend.js';
@@ -136,6 +141,7 @@ export class AgentRunner {
           runtimeState,
         });
         if (recovery) {
+          resetLowGainTracking(runtimeState);
           turnSpan?.setAttribute('window_pressure', runtimeState.windowPressure);
           turnSpan?.end('ERROR');
           yield recovery.marker;

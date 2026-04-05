@@ -104,6 +104,36 @@ describe('team unified runtime control paths', () => {
     }
   });
 
+  it('maps diminishing_returns guard stop to needs_recovery team state', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const result = await executeTeamDelegatedRuntime({
+        projectRoot,
+        runId: 'run-diminishing-returns',
+        workspaceId: 'ws-diminishing-returns',
+        taskId: 'task-diminishing-returns',
+        taskKind: 'compute',
+        ownerRole: 'lead',
+        delegateRole: 'delegate',
+        delegateId: 'delegate-1',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: PERMISSIONS,
+        messages: [{ role: 'user', content: 'loop until diminishing returns guard triggers' }],
+        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        maxTurns: 10,
+        mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null })) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn().mockResolvedValue(toolUseResponse('tu_loop', 'do_thing')),
+      });
+
+      expect(result.events.at(-1)).toMatchObject({ type: 'done', stopReason: 'diminishing_returns' });
+      expect(result.team_state.delegate_assignments[0]?.status).toBe('needs_recovery');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it('respects pause and cascade_stop interventions through structured team state', async () => {
     const projectRoot = makeTmpDir();
     try {
