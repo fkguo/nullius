@@ -49,6 +49,15 @@ export interface SearchParams {
   sort_by?: 'relevance' | 'lastUpdatedDate' | 'submittedDate';
 }
 
+interface BuildSearchUrlOptions {
+  includeDateFilter?: boolean;
+}
+
+interface BuiltSearchUrl {
+  url: string;
+  includesDateFilter: boolean;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Query Normalization (§7a, §7g)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,11 +76,24 @@ function normalizeQuery(raw: string): string {
   }
 }
 
+/**
+ * Normalize date filters to arXiv's YYYYMMDD format.
+ * Accepts strict YYYYMMDD and common ISO-style separators (YYYY-MM-DD / YYYY/MM/DD).
+ * Returns null for unsupported shapes so callers can safely omit the date constraint.
+ */
+function normalizeDateFilter(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (/^\d{8}$/.test(trimmed)) return trimmed;
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  return /^\d{8}$/.test(digitsOnly) ? digitsOnly : null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // URL Builder
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildSearchUrl(params: SearchParams): string {
+function buildSearchUrl(params: SearchParams, options: BuildSearchUrlOptions = {}): BuiltSearchUrl {
   const {
     query,
     categories,
@@ -81,6 +103,7 @@ function buildSearchUrl(params: SearchParams): string {
     date_to,
     sort_by = 'relevance',
   } = params;
+  const { includeDateFilter = true } = options;
 
   const normalized = normalizeQuery(query);
 
@@ -96,10 +119,15 @@ function buildSearchUrl(params: SearchParams): string {
   }
 
   // Date range filter
-  if (date_from || date_to) {
-    const from = date_from ?? '00000000';
-    const to = date_to ?? '99999999';
-    parts.push(`submittedDate:[${from} TO ${to}]`);
+  const normalizedDateFrom = normalizeDateFilter(date_from);
+  const normalizedDateTo = normalizeDateFilter(date_to);
+  const canApplyDateFilter = includeDateFilter && Boolean(normalizedDateFrom || normalizedDateTo);
+  if (canApplyDateFilter) {
+    const from = normalizedDateFrom ?? '00000000';
+    const to = normalizedDateTo ?? '99999999';
+    if (from <= to) {
+      parts.push(`submittedDate:[${from} TO ${to}]`);
+    }
   }
 
   const searchQuery = parts.join(' AND ');
@@ -115,7 +143,10 @@ function buildSearchUrl(params: SearchParams): string {
   const encodedQuery = encodeURIComponent(searchQuery);
   const sortParam = sortMap[sort_by] ?? 'relevance';
 
-  return `${ARXIV_API_BASE}?search_query=${encodedQuery}&start=${start}&max_results=${max_results}&sortBy=${sortParam}&sortOrder=descending`;
+  return {
+    url: `${ARXIV_API_BASE}?search_query=${encodedQuery}&start=${start}&max_results=${max_results}&sortBy=${sortParam}&sortOrder=descending`,
+    includesDateFilter: searchQuery.includes('submittedDate:['),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,9 +203,20 @@ export function parseArxivAtomEntry(xml: string): ArxivMetadata | null {
  * Search the arXiv API and return parsed results.
  */
 export async function searchArxiv(params: SearchParams): Promise<ArxivSearchResult> {
-  const url = buildSearchUrl(params);
+  const primary = buildSearchUrl(params);
 
-  const response = await arxivFetch(url);
+  let response = await arxivFetch(primary.url);
+  if (!response.ok
+    && response.status >= 500
+    && response.status < 600
+    && primary.includesDateFilter
+  ) {
+    const fallback = buildSearchUrl(params, { includeDateFilter: false });
+    if (fallback.url !== primary.url) {
+      response = await arxivFetch(fallback.url);
+    }
+  }
+
   if (!response.ok) {
     throw new Error(`arXiv API error: ${response.status} ${response.statusText}`);
   }
