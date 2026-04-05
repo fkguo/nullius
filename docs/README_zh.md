@@ -8,7 +8,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 - 运行本地优先的 MCP providers，覆盖文献、数据、参考资料与证据工作流。
 - 创建可审计的 Project/Run 工作空间，把 artifacts 落盘，并通过 `hep://...` resources 暴露给客户端。
-- 从 LaTeX、PDF、Zotero 附件以及受限网络 provider 构建证据，再把这些证据用于写作、回放与评审。
+- 从 LaTeX、Zotero 附件以及受限网络 provider 构建证据，再把这些证据用于写作、回放与评审。
 - 导出研究资产包与投稿脚手架，并把最终论文 bundle 回灌回 run artifacts。
 - 通过 `@autoresearch/orchestrator` 与 `autoresearch` CLI 管理真实外部 project root 的通用 lifecycle state。
 

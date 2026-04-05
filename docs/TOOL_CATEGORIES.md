@@ -81,8 +81,6 @@
 **Writing evidence（run 级复用资产：catalog/embeddings/enrichment + source status）**
 - `hep_run_build_writing_evidence`
 
-**PDF evidence（Zotero/PDF → run artifacts）**
-
 ## C) Evidence 查询（从 catalog 中取回证据）
 
 - `hep_project_query_evidence`（unified：`mode=lexical|semantic`，默认 lexical；semantic 需 `run_id`）
