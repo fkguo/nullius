@@ -44,11 +44,28 @@ async function runDemoEval(evalSet: EvalSet) {
       const expectedEmpty =
         Array.isArray(expected.expected_evidence_ids) && expected.expected_evidence_ids.length === 0;
       const passed = expectedEmpty ? actual.length === 0 : rank !== null && rank <= 10;
+      const partialProgress = expectedEmpty
+        ? (actual.length === 0 ? 1 : 0)
+        : (rank === null ? 0 : Math.max(0, Math.min(1, 1 / rank)));
+      const tokenUsage = {
+        input_tokens: String((evalCase.input as DemoInput).query ?? '').trim().split(/\s+/).filter(Boolean).length,
+        output_tokens: actual.length,
+        total_tokens: String((evalCase.input as DemoInput).query ?? '').trim().split(/\s+/).filter(Boolean).length
+          + actual.length,
+      };
       return {
         passed,
         metrics: {
           recall_at_10_case: rank !== null && rank <= 10 ? 1 : 0,
           mrr_at_10_case: rank !== null && rank <= 10 ? 1 / rank : 0,
+        },
+        outcome: {
+          task_success: passed,
+          partial_progress: partialProgress,
+        },
+        resource_overhead: {
+          token_usage: tokenUsage,
+          cost_usd: null,
         },
       };
     },
@@ -88,6 +105,11 @@ describe('eval framework: demo retrieval eval set', () => {
     expect(report.evalSetVersion).toBe(evalSet.version);
     expect(report.summary.total).toBe(evalSet.cases.length);
     expect(report.caseResults).toHaveLength(evalSet.cases.length);
+    expect(report.summary.taskSuccessRate).toBeCloseTo(report.summary.passRate, 6);
+    expect(report.summary.partialProgressMean).toBeGreaterThanOrEqual(0);
+    expect(report.summary.partialProgressMean).toBeLessThanOrEqual(1);
+    expect(report.summary.resourceOverhead.durationMsAvg).toBeGreaterThanOrEqual(0);
+    expect(report.summary.resourceOverhead.tokenUsageAvg?.total_tokens ?? 0).toBeGreaterThan(0);
   });
 
   it('computes nDCG@k for ranked binary relevance lists', () => {
@@ -99,6 +121,9 @@ describe('eval framework: demo retrieval eval set', () => {
     const report = await runDemoEval(evalSet);
     expect(report.aggregateMetrics.recall_at_10).toBeCloseTo(0.75, 6);
     expect(report.aggregateMetrics.mrr_at_10).toBeCloseTo(0.4947916667, 6);
+    expect(report.aggregateOutcome.task_success_rate).toBeCloseTo(report.summary.taskSuccessRate, 6);
+    expect(report.aggregateOutcome.partial_progress_mean).toBeCloseTo(report.summary.partialProgressMean, 6);
+    expect(report.aggregateOutcome.resource_overhead.duration_ms_mean).toBeGreaterThanOrEqual(0);
   });
 
   it('saves and loads baseline', async () => {
@@ -111,6 +136,7 @@ describe('eval framework: demo retrieval eval set', () => {
       expect(baseline?.evalSetName).toBe(evalSet.name);
       expect(baseline?.evalSetVersion).toBe(evalSet.version);
       expect(baseline?.metrics.recall_at_10).toBeCloseTo(0.75, 6);
+      expect(baseline?.aggregateOutcome?.task_success_rate ?? 0).toBeGreaterThan(0);
     } finally {
       fs.rmSync(baselineDir, { recursive: true, force: true });
     }
@@ -126,6 +152,9 @@ describe('eval framework: demo retrieval eval set', () => {
       expect(same.isFirstRun).toBe(false);
       expect(same.deltas.recall_at_10?.delta ?? NaN).toBeCloseTo(0, 9);
       expect(same.deltas.mrr_at_10?.delta ?? NaN).toBeCloseTo(0, 9);
+      expect(same.aggregateOutcomeDeltas?.task_success_rate.delta ?? NaN).toBeCloseTo(0, 9);
+      expect(same.aggregateOutcomeDeltas?.partial_progress_mean.delta ?? NaN).toBeCloseTo(0, 9);
+      expect(same.aggregateOutcomeDeltas?.duration_ms_mean.delta ?? NaN).toBeCloseTo(0, 9);
 
       const regressedReport = {
         ...report,
@@ -133,10 +162,33 @@ describe('eval framework: demo retrieval eval set', () => {
           ...report.aggregateMetrics,
           recall_at_10: report.aggregateMetrics.recall_at_10 - 0.125,
         },
+        aggregateOutcome: {
+          ...report.aggregateOutcome,
+          resource_overhead: {
+            ...report.aggregateOutcome.resource_overhead,
+            duration_ms_mean: report.aggregateOutcome.resource_overhead.duration_ms_mean + 10,
+          },
+        },
       };
       const regression = compareWithBaseline(regressedReport, baseline);
       expect(regression.deltas.recall_at_10?.delta ?? 0).toBeLessThan(0);
       expect(regression.deltas.recall_at_10?.improved).toBe(false);
+      expect(regression.aggregateOutcomeDeltas?.duration_ms_mean.delta ?? 0).toBeGreaterThan(0);
+      expect(regression.aggregateOutcomeDeltas?.duration_ms_mean.improved).toBe(false);
+
+      const fasterReport = {
+        ...report,
+        aggregateOutcome: {
+          ...report.aggregateOutcome,
+          resource_overhead: {
+            ...report.aggregateOutcome.resource_overhead,
+            duration_ms_mean: Math.max(0, report.aggregateOutcome.resource_overhead.duration_ms_mean - 10),
+          },
+        },
+      };
+      const faster = compareWithBaseline(fasterReport, baseline);
+      expect(faster.aggregateOutcomeDeltas?.duration_ms_mean.delta ?? 0).toBeLessThanOrEqual(0);
+      expect(faster.aggregateOutcomeDeltas?.duration_ms_mean.improved).toBe(true);
 
       const firstRun = compareWithBaseline(report, null);
       expect(firstRun.isFirstRun).toBe(true);

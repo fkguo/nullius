@@ -195,11 +195,22 @@ describe('eval: dataset export stability (mocked INSPIRE)', () => {
             total: actual.payload.summary.total,
             exported: actual.payload.summary.exported,
           },
+          outcome: {
+            task_success: true,
+            partial_progress: actual.payload.summary.has_more ? 0.75 : 1,
+          },
+          resource_overhead: {
+            token_usage: null,
+            cost_usd: null,
+          },
         };
       },
     });
 
     expect(report.summary.total).toBe(1);
+    expect(report.summary.taskSuccessRate).toBe(1);
+    expect(report.summary.partialProgressMean).toBeGreaterThan(0.7);
+    expect(report.aggregateOutcome.resource_overhead.duration_ms_mean).toBeGreaterThanOrEqual(0);
     if (report.summary.failed > 0) {
       const failedCase = report.caseResults.find(result => result.passed === false);
       throw new Error(`Dataset eval failed: ${failedCase?.error ?? 'unknown runtime error'}`);

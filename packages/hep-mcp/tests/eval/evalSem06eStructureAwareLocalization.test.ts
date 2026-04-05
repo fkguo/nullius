@@ -117,6 +117,11 @@ describe('eval: SEM-06e structure-aware localization', () => {
         judge: (expected, actual) => ({
           passed: actual.topUnit === (expected as Sem06eExpected).top_unit && actual.topPreviewHasMarker,
           metrics: { baseline_page_hit: actual.topUnit === 'page' && actual.topPreviewHasMarker ? 1 : 0 },
+          outcome: {
+            task_success: actual.topUnit === (expected as Sem06eExpected).top_unit && actual.topPreviewHasMarker,
+            partial_progress: actual.topPreviewHasMarker ? 0.75 : (actual.topUnit === (expected as Sem06eExpected).top_unit ? 0.5 : 0),
+          },
+          resource_overhead: { token_usage: null, cost_usd: null },
         }),
         aggregate: aggregateBaseline,
       });
@@ -144,6 +149,14 @@ describe('eval: SEM-06e structure-aware localization', () => {
               availability_match: actual.availability === exp.expected_status ? 1 : 0,
               structure_scans: actual.structureScans,
             },
+            outcome: {
+              task_success: passed,
+              partial_progress:
+                actual.topUnit === exp.top_unit
+                  ? (actual.topPreviewHasMarker ? 1 : 0.75)
+                  : (actual.availability === exp.expected_status ? 0.5 : 0),
+            },
+            resource_overhead: { token_usage: null, cost_usd: null },
           };
         },
         aggregate: aggregateImproved,
@@ -155,6 +168,9 @@ describe('eval: SEM-06e structure-aware localization', () => {
       expect(improved.aggregateMetrics.availability_match_rate ?? 0).toBeGreaterThanOrEqual(0.95);
       expect(improved.aggregateMetrics.easy_pass_rate ?? 0).toBeGreaterThanOrEqual(1);
       expect(improved.aggregateMetrics.avg_structure_scans ?? 0).toBeGreaterThanOrEqual(0);
+      expect(improved.aggregateOutcome.task_success_rate).toBeGreaterThanOrEqual(0.95);
+      expect(improved.aggregateOutcome.partial_progress_mean).toBeGreaterThanOrEqual(0.95);
+      expect(improved.aggregateOutcome.resource_overhead.duration_ms_mean).toBeGreaterThanOrEqual(0);
 
       if (process.env.EVAL_UPDATE_BASELINES === '1') saveBaseline(improved, BASELINES_DIR);
       const saved = loadBaseline(evalSet.name, BASELINES_DIR);
@@ -180,12 +196,19 @@ describe('eval: SEM-06e structure-aware localization', () => {
         judge: (expected, actual) => {
           const exp = expected as Sem06eExpected;
           const passed = actual.topUnit === exp.top_unit && actual.availability === exp.expected_status && actual.topPreviewHasMarker;
-          return { passed, metrics: { passed: passed ? 1 : 0 } };
+          return {
+            passed,
+            metrics: { passed: passed ? 1 : 0 },
+            outcome: { task_success: passed, partial_progress: passed ? 1 : 0.6 },
+            resource_overhead: { token_usage: null, cost_usd: null },
+          };
         },
         aggregate: aggregateImproved,
       });
 
       expect(report.summary.passRate).toBeGreaterThanOrEqual(0.95);
+      expect(report.summary.taskSuccessRate).toBeGreaterThanOrEqual(0.95);
+      expect(report.summary.partialProgressMean).toBeGreaterThan(0.95);
       expect(report.aggregateMetrics.page_hit_rate ?? 0).toBeGreaterThanOrEqual(1);
       expect(report.aggregateMetrics.exact_unit_hit_rate ?? 0).toBeGreaterThanOrEqual(0.95);
     } finally {

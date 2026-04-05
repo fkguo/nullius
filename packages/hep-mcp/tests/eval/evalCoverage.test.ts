@@ -128,12 +128,23 @@ describe('eval: coverage_report completeness (local-only)', () => {
               source_attempted: Number(coverage.sources?.attempted ?? 0),
               source_failed: Number(coverage.sources?.failed ?? 0),
             },
+            outcome: {
+              task_success: true,
+              partial_progress: Number(coverage.sources?.failed ?? 0) === 0 ? 1 : 0.5,
+            },
+            resource_overhead: {
+              token_usage: null,
+              cost_usd: null,
+            },
           };
         },
       });
 
       expect(report.summary.total).toBe(1);
       expect(report.summary.failed).toBe(0);
+      expect(report.summary.taskSuccessRate).toBe(1);
+      expect(report.summary.partialProgressMean).toBeGreaterThanOrEqual(0.5);
+      expect(report.aggregateOutcome.resource_overhead.duration_ms_mean).toBeGreaterThanOrEqual(0);
     } finally {
       if (fs.existsSync(tmp)) fs.rmSync(tmp, { recursive: true, force: true });
     }

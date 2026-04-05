@@ -49,7 +49,15 @@ describe('eval: SEM-02 evidence claim grading (local-only)', () => {
 
     const baseline = await runEvalSet<Sem02Input, Sem02Actual>(evalSet, {
       run: async input => baselineGrade(input),
-      judge: (expected, actual) => ({ passed: actual.stance === (expected as Sem02Expected).stance, metrics: { passed: actual.stance === (expected as Sem02Expected).stance ? 1 : 0 } }),
+      judge: (expected, actual) => {
+        const passed = actual.stance === (expected as Sem02Expected).stance;
+        return {
+          passed,
+          metrics: { passed: passed ? 1 : 0 },
+          outcome: { task_success: passed, partial_progress: passed ? 1 : 0 },
+          resource_overhead: { token_usage: null, cost_usd: null },
+        };
+      },
       aggregate: buildAggregate,
     });
 
@@ -82,7 +90,16 @@ describe('eval: SEM-02 evidence claim grading (local-only)', () => {
         );
         return { stance: grade.aggregate_stance, usedFallback: grade.used_fallback, abstained: grade.aggregate_stance === 'not_supported' && grade.aggregate_confidence <= 0.3 };
       },
-      judge: (expected, actual) => ({ passed: actual.stance === (expected as Sem02Expected).stance, metrics: { passed: actual.stance === (expected as Sem02Expected).stance ? 1 : 0 } }),
+      judge: (expected, actual) => {
+        const passed = actual.stance === (expected as Sem02Expected).stance;
+        const partialProgress = passed ? 1 : (actual.abstained ? 0.5 : 0.25);
+        return {
+          passed,
+          metrics: { passed: passed ? 1 : 0 },
+          outcome: { task_success: passed, partial_progress: partialProgress },
+          resource_overhead: { token_usage: null, cost_usd: null },
+        };
+      },
       aggregate: buildAggregate,
     });
 
@@ -94,6 +111,9 @@ describe('eval: SEM-02 evidence claim grading (local-only)', () => {
     expect(improved.aggregateMetrics.fallback_rate_overall ?? 1).toBeLessThanOrEqual(0.2);
     expect((improved.aggregateMetrics.stance_accuracy_overall ?? 0) - (baseline.aggregateMetrics.stance_accuracy_overall ?? 0)).toBeGreaterThanOrEqual(0.2);
     expect((improved.aggregateMetrics.macro_f1_overall ?? 0) - (baseline.aggregateMetrics.macro_f1_overall ?? 0)).toBeGreaterThanOrEqual(0.2);
+    expect(improved.aggregateOutcome.task_success_rate).toBeGreaterThanOrEqual(0.85);
+    expect(improved.aggregateOutcome.partial_progress_mean).toBeGreaterThanOrEqual(0.85);
+    expect(improved.aggregateOutcome.resource_overhead.duration_ms_mean).toBeGreaterThanOrEqual(0);
 
     if (process.env.EVAL_UPDATE_BASELINES === '1') saveBaseline(improved, BASELINES_DIR);
     expect(compareWithBaseline(improved, loadBaseline(evalSet.name, BASELINES_DIR)).isFirstRun).toBe(false);
@@ -131,12 +151,23 @@ describe('eval: SEM-02 evidence claim grading (local-only)', () => {
         );
         return { stance: grade.aggregate_stance, usedFallback: grade.used_fallback, abstained: grade.aggregate_stance === 'not_supported' && grade.aggregate_confidence <= 0.3 };
       },
-      judge: (expected, actual) => ({ passed: actual.stance === (expected as Sem02Expected).stance, metrics: { passed: actual.stance === (expected as Sem02Expected).stance ? 1 : 0 } }),
+      judge: (expected, actual) => {
+        const passed = actual.stance === (expected as Sem02Expected).stance;
+        const partialProgress = passed ? 1 : (actual.abstained ? 0.5 : 0.25);
+        return {
+          passed,
+          metrics: { passed: passed ? 1 : 0 },
+          outcome: { task_success: passed, partial_progress: partialProgress },
+          resource_overhead: { token_usage: null, cost_usd: null },
+        };
+      },
       aggregate: results => aggregateMetrics(results, () => true),
     });
 
     expect(report.summary.total).toBe(4);
     expect(report.aggregateMetrics.accuracy ?? 0).toBeGreaterThanOrEqual(0.75);
     expect(report.aggregateMetrics.fallback_rate ?? 1).toBeLessThanOrEqual(0.3);
+    expect(report.summary.taskSuccessRate).toBeGreaterThanOrEqual(0.75);
+    expect(report.summary.partialProgressMean).toBeGreaterThan(0.8);
   });
 });
