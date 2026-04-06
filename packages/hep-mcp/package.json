@@ -11,9 +11,13 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./provider-descriptors": {
+      "import": "./dist/provider-descriptors.js",
+      "types": "./src/provider-descriptors.ts"
+    },
     "./tooling": {
       "import": "./dist/tooling.js",
-      "types": "./src/tooling.ts"
+      "types": "./dist/tooling.d.ts"
     }
   },
   "bin": {

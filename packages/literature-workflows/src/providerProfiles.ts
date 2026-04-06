@@ -1,5 +1,5 @@
 import { ARXIV_DISCOVERY_DESCRIPTOR } from '@autoresearch/arxiv-mcp/tooling';
-import { INSPIRE_DISCOVERY_DESCRIPTOR } from '@autoresearch/hep-mcp/tooling';
+import { INSPIRE_DISCOVERY_DESCRIPTOR } from '@autoresearch/hep-mcp/provider-descriptors';
 import { OPENALEX_DISCOVERY_DESCRIPTOR } from '@autoresearch/openalex-mcp/tooling';
 import type { DiscoveryProviderDescriptor } from '@autoresearch/shared';
 import type { WorkflowActionId, WorkflowCapabilityId, WorkflowProviderId } from './types.js';
