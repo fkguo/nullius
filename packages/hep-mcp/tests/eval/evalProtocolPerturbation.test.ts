@@ -316,7 +316,14 @@ describe('eval: protocol perturbation harness for evidence query front-door surf
     });
 
     const simplified = {
-      summary: report.summary,
+      summary: {
+        total: report.summary.total,
+        passed: report.summary.passed,
+        failed: report.summary.failed,
+        passRate: report.summary.passRate,
+        taskSuccessRate: report.summary.taskSuccessRate,
+        partialProgressMean: report.summary.partialProgressMean,
+      },
       aggregateMetrics: report.aggregateMetrics,
       caseResults: report.caseResults.map(result => ({
         caseId: result.caseId,
@@ -336,5 +343,27 @@ describe('eval: protocol perturbation harness for evidence query front-door surf
     expect(report.aggregateMetrics.acceptable_fail_closed_rejection).toBe(2);
     expect(report.aggregateMetrics.overfit_failure).toBe(0);
     expect(report.aggregateMetrics.bad_shortcut_success).toBe(0);
+  });
+
+  it('does not treat a perturbed fail-closed rejection as acceptable when the canonical path already failed', () => {
+    const classified = classifyPerturbation({
+      expectation: 'fail_closed',
+      canonical: {
+        ok: false,
+        error_code: 'INVALID_PARAMS',
+        next_action_tools: ['hep_project_query_evidence'],
+      },
+      perturbed: {
+        ok: false,
+        error_code: 'INVALID_PARAMS',
+        next_action_tools: ['hep_project_query_evidence'],
+      },
+      required_next_action_tools: ['hep_project_query_evidence'],
+    });
+
+    expect(classified).toEqual({
+      classification: 'overfit_failure',
+      passed: false,
+    });
   });
 });

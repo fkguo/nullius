@@ -47,7 +47,8 @@ export function classifyPerturbation(params: {
   }
 
   const failClosed =
-    !params.perturbed.ok
+    params.canonical.ok
+    && !params.perturbed.ok
     && allowedErrorCodes.includes(params.perturbed.error_code ?? '')
     && requiredNextActionTools.every(tool => params.perturbed.next_action_tools?.includes(tool));
 

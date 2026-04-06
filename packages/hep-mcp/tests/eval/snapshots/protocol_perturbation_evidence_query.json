@@ -3,7 +3,9 @@
     "total": 6,
     "passed": 6,
     "failed": 0,
-    "passRate": 1
+    "passRate": 1,
+    "taskSuccessRate": 1,
+    "partialProgressMean": 1
   },
   "aggregateMetrics": {
     "canonical_success_retained": 4,

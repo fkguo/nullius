@@ -213,7 +213,13 @@ export async function searchArxiv(params: SearchParams): Promise<ArxivSearchResu
   ) {
     const fallback = buildSearchUrl(params, { includeDateFilter: false });
     if (fallback.url !== primary.url) {
-      response = await arxivFetch(fallback.url);
+      const fallbackResponse = await arxivFetch(fallback.url);
+      if (fallbackResponse.ok) {
+        throw new Error(
+          'arXiv API could not satisfy the requested date-constrained search; retry without date filters to allow a broader fallback query',
+        );
+      }
+      response = fallbackResponse;
     }
   }
 

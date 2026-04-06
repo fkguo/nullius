@@ -58,20 +58,18 @@ describe('searchArxiv hardening', () => {
     expect(searchQuery).not.toContain('submittedDate:[');
   });
 
-  it('retries once without date filter when date-constrained query gets a 5xx', async () => {
+  it('probes once without date filter but fails closed when date-constrained query gets a 5xx', async () => {
     fetchSpy
       .mockResolvedValueOnce(new Response('upstream fail', { status: 500, statusText: 'Internal Server Error' }))
       .mockResolvedValueOnce(new Response(EMPTY_FEED, { status: 200 }));
 
-    const result = await searchArxiv({
+    await expect(searchArxiv({
       query: 'all:agent',
       categories: ['cs.AI'],
       date_from: '20240101',
       date_to: '20241231',
       max_results: 5,
-    });
-
-    expect(result.total_results).toBe(0);
+    })).rejects.toThrow('arXiv API could not satisfy the requested date-constrained search');
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     const firstQuery = getSearchQueryArg(fetchSpy.mock.calls[0][0]);
     const secondQuery = getSearchQueryArg(fetchSpy.mock.calls[1][0]);
