@@ -260,7 +260,7 @@ describe('Docs tool drift guard', () => {
     }
   });
 
-  it('root docs keep generic lifecycle and shell-boundary framing', () => {
+  it('front-door docs keep generic lifecycle and shell-boundary framing', () => {
     for (const { relPath, snippets, forbiddenSnippets = [] } of FRONT_DOOR_SNIPPETS) {
       const text = readText(root, relPath);
       assertContainsAll({ text, snippets, label: relPath });

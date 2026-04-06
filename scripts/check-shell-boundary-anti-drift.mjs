@@ -79,7 +79,7 @@ function main() {
   checkFutureShellPackages(errors);
 
   if (errors.length > 0) {
-    process.stderr.write('[boundary-drift] root/shell boundary anti-drift check failed.\n');
+    process.stderr.write('[boundary-drift] front-door and shell-boundary anti-drift check failed.\n');
     for (const error of errors) {
       process.stderr.write(` - ${error}\n`);
     }
@@ -87,7 +87,7 @@ function main() {
     return;
   }
 
-  process.stdout.write('[ok] generic entrypoint truth and shell boundary wording are locked.\n');
+  process.stdout.write('[ok] generic entrypoint truth, package first-touch framing, and shell boundary wording are locked.\n');
 }
 
 main();

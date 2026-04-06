@@ -1,10 +1,12 @@
-# Beginner tutorial（小白教程）
+# Beginner tutorial（legacy package walkthrough）
 
 English quickstart: `docs/BEGINNER_TUTORIAL.md`。本文件是中文详版。
 
 本教程默认你是在**外部研究项目目录**里使用当前 CLI surfaces。`packages/hep-autoresearch` 所在仓库是开发仓库，不应再被当作日常研究项目根目录；真实研究项目的中间产物也不应再写回这个开发仓。
 
-生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，只承载尚未 repoint 的命令与 workflow。因此本教程对 lifecycle verbs 使用 `autoresearch`，而尚未 repoint 的 workflow 命令仍保留在 legacy surface。
+如果你想先看当前 generic front door，请先读仓库根级 `../../docs/QUICKSTART.md` 与 `../../docs/TESTING_GUIDE.md`。本教程是一个 package-level 的 legacy / maintainer 兼容路径说明，只面向那些确实需要触碰收窄后 Pipeline A shell 的读者。
+
+生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，但现在只承载 residual non-computation workflow/support commands。安装态 public shell 已不再暴露 public computation、`doctor`、`bridge` 与 `literature-gap`。因此本教程对 lifecycle verbs 使用 `autoresearch`，而任何 legacy shell 示例都只作为兼容路径说明。
 
 ## 0）先建立 4 个概念
 
@@ -54,7 +56,9 @@ autoresearch status
 本教程后面出现的 workflow 命令仍在过渡中的 Pipeline A legacy surface 上。
 如果你显式传 `HEP_DATA_DIR`，它也应留在开发仓外；public real-project flow 现在会对 repo 内 override 直接 fail-close。
 
-## 3）先跑一个不依赖外部 LLM 的烟测
+## 3）先跑一个 legacy compatibility 烟测
+
+这是一条可选的兼容路径烟测，不是推荐的 first-touch 路径。
 
 先在新项目里生成 context pack：
 
@@ -71,7 +75,7 @@ hep-autoresearch context \
 
 这一步确认运行时确实能看到你项目本地的 charter / plan / notebook / gate contract，而不是只盯当前命令。
 
-## 4）跑一个最小 workflow
+## 4）跑一个最小 legacy workflow 示例
 
 示例：先跑一个不依赖外部 LLM 的 ingest。
 
@@ -97,7 +101,7 @@ hep-autoresearch run --run-id M1-ingest-r1 --workflow-id ingest --arxiv-id 2310.
 
 ## 5）其他 workflow 入口
 
-- `computation`：`workflows/computation.md`
+- `computation`：`docs/COMPUTATION.md`，并通过 `autoresearch run --workflow-id computation` 进入（不是 `hep-autoresearch run`）
 - `reproduce`：`workflows/reproduce.md`
 - `draft`：`workflows/draft.md`
 - `revision`：`workflows/revision.md`

@@ -329,3 +329,13 @@
 **Why**:
 - The current labels still encode real validation semantics, so removing them ad hoc inside `M-22` would widen scope and mix naming cleanup with runtime authority work.
 - A later bounded doc-only slice can improve clarity without disturbing the now-active authority-convergence lane.
+
+### [2026-04-07] Post-runtime eval authority invariant: eval stays bounded, bridge stays derived
+
+**Decision**:
+- Multi-axis post-runtime evaluation should extend the existing `packages/hep-mcp/src/eval/*` substrate rather than creating a second orchestrator-local or generic eval stack.
+- Orchestrator may emit a runtime diagnostics bridge artifact that summarizes `run-manifest`, `spans.jsonl`, runtime markers, and terminal state, but that artifact remains derived bridge evidence rather than a second runtime authority or a new generic evaluation control plane.
+- Protocol/interface perturbation remains a package-local eval harness until a later explicit genericization decision widens its scope; it must not silently become a generic runtime policy layer.
+- Governance may ratify such bounded slices through tracker-only umbrella items when needed, but umbrella ratification records machine-readable truth without inventing new phase-counted remediation ids.
+
+**Why**: Current evidence supports richer evaluation and diagnostics, but it does not support moving evaluation authority up into the generic control plane. Keeping outcome/perturbation close to the current domain-pack eval substrate while treating diagnostics as a derived bridge preserves the generic-first architecture and avoids parallel runtime authority drift.

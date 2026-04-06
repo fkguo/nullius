@@ -2,7 +2,7 @@
 
 Chinese version: `docs/WORKFLOWS.zh.md`.
 
-Lifecycle note: `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python CLI surface for unrepointed commands such as `run`, `doctor`, and `bridge`. This document therefore keeps those unrepointed commands on the legacy surface while describing lifecycle verbs with `autoresearch`.
+Lifecycle note: `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python CLI surface for residual non-computation workflow/support commands. The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`; those retired command paths remain only on the internal full parser for maintainer/eval/regression coverage. This document therefore keeps public legacy workflow/support commands on the narrowed legacy surface while describing lifecycle verbs with `autoresearch`.
 
 English workflow specs live under `workflows/`:
 
@@ -26,7 +26,9 @@ English workflow specs live under `workflows/`:
 
 ## Orchestrator operations (CLI)
 
-### `hepar doctor` (entrypoints + MCP)
+### Internal full-parser compatibility only: `doctor` (maintainer/eval/regression)
+
+The installable public shell no longer exposes `hepar doctor`. The notes below describe the internal full-parser compatibility path only, for maintainer/eval/regression coverage while retirement continues.
 
 - Default behavior:
   - runs `entrypoint_discovery` first (checks `autoresearch` on `PATH`)

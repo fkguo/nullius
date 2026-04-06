@@ -101,7 +101,7 @@ Web 入口不改变契约，只改变 UI：
 
 ### 现阶段实现（v0）
 
-当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，用于尚未 repoint 的 workflow shell（例如 `run`、`logs`、`doctor`、`bridge`）。v0.4 可执行 `ingest`、`reproduce`（toy）、`computation`、`revision`（v0）、`literature_survey_polish`、`shell_adapter_smoke`，并按 `approval_policy.json` 自动触发默认同意点：
+当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，但安装态 public shell 现在只保留 residual non-computation workflow/support commands（例如 `run` 的非 computation workflows、`logs`、`context`）。public computation、`doctor`、`bridge` 与 `literature-gap` 已从 installable shell 退役，仅保留在内部 full parser 供 maintainer/eval/regression 使用。v0.4 当前仍可执行 `ingest`、`reproduce`（toy）、`revision`（v0）、`literature_survey_polish`、`shell_adapter_smoke`，而 computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：
 
 ```bash
 # 在你的研究项目根目录里执行（不是在 packages/hep-autoresearch/ 里）
@@ -119,11 +119,11 @@ autoresearch status   # 查看 pending_approval（默认 A3）
 autoresearch approve <approval_id>
 hepar run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
 
-# computation (run_card v2 DAG; example: schrodinger_ho)
-hepar run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir /path/to/packages/hep-autoresearch/examples/schrodinger_ho --run-card /path/to/packages/hep-autoresearch/examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
+# computation 现在走 native TS front door，而不是 installable `hepar run`
+autoresearch run --run-id M0-computation-demo-r1 --workflow-id computation --manifest /path/to/external-project/M0-computation-demo-r1/computation/manifest.json --project-root /path/to/external-project
 autoresearch status   # 查看 pending_approval（默认 A3）
 autoresearch approve <approval_id>
-hepar run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir /path/to/packages/hep-autoresearch/examples/schrodinger_ho --run-card /path/to/packages/hep-autoresearch/examples/schrodinger_ho/run_cards/ho_groundstate.json --trust-project
+autoresearch run --run-id M0-computation-demo-r1 --workflow-id computation --manifest /path/to/external-project/M0-computation-demo-r1/computation/manifest.json --project-root /path/to/external-project
 
 # revision v0 (compile gate + provenance table)
 hepar run --run-id M2-orch-revision-r1 --workflow-id revision

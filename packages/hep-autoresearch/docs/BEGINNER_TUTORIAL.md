@@ -1,8 +1,10 @@
-# Beginner tutorial (English)
+# Beginner tutorial (legacy package walkthrough)
 
 This quickstart assumes you are using the current CLI surfaces in an **external research project directory**. The package repo itself is a development repo, not the default place to run your day-to-day project, and real-project intermediate outputs should not be routed back into the repo either.
 
-Lifecycle note: the canonical generic lifecycle entrypoint is now `autoresearch` for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python surface for unrepointed commands and workflows. This tutorial therefore uses `autoresearch` for lifecycle verbs, while workflow commands that have not yet been repointed stay on the legacy surface.
+For the current generic front door, start with the repo-root `../../docs/QUICKSTART.md` and `../../docs/TESTING_GUIDE.md`. This package tutorial is a legacy-surface / maintainer-oriented compatibility walkthrough for readers who intentionally need the narrowed Pipeline A shell around an external research project.
+
+Lifecycle note: the canonical generic lifecycle entrypoint is now `autoresearch` for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python surface for residual non-computation workflow/support commands. The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`. This tutorial therefore uses `autoresearch` for lifecycle verbs, while any legacy-shell examples stay on the residual compatibility surface only.
 
 ## 0) Core ideas
 
@@ -51,7 +53,9 @@ After initialization, you can run `autoresearch ...` for lifecycle verbs from an
 Workflow commands shown below remain on the transitional Pipeline A surface in this batch.
 If you pass an explicit `HEP_DATA_DIR`, keep that directory outside the dev repo as well; public real-project flows now fail closed on repo-internal overrides.
 
-## 3) Smoke test without external LLM calls
+## 3) Legacy compatibility smoke test without external LLM calls
+
+This is an optional compatibility smoke path, not the recommended first-touch path.
 
 Write a context pack in the new project:
 
@@ -68,7 +72,7 @@ Check the outputs:
 
 This confirms the project-local charter / plan / notebook / gate contracts are visible to the runtime.
 
-## 4) Run a minimal workflow
+## 4) Run a minimal legacy workflow example
 
 Example: deterministic ingest run with no external LLM dependency.
 
@@ -94,7 +98,7 @@ hep-autoresearch run --run-id M1-ingest-r1 --workflow-id ingest --arxiv-id 2310.
 
 ## 5) Other workflows
 
-- `computation`: `workflows/computation.md`
+- `computation`: `docs/COMPUTATION.md` via `autoresearch run --workflow-id computation` (native TS front door, not `hep-autoresearch run`)
 - `reproduce`: `workflows/reproduce.md`
 - `draft`: `workflows/draft.md`
 - `revision`: `workflows/revision.md`

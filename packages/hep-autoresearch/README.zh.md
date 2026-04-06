@@ -9,7 +9,9 @@
 - `research-writer`：paper scaffold + 引用与 LaTeX 卫生 + 证据门禁。
 - `review-swarm`：干净室双模型对同一任务的收敛检查（快速一致性审阅）。
 
-## 你现在应该从哪里读起？
+## 你现在应该从哪里读起？（package docs，不是 generic front door）
+
+如果你先想确认当前 mainline 的 front-door 真相，请先看仓库根级的 [README](../../README.md)、[docs/QUICKSTART.md](../../docs/QUICKSTART.md) 与 [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md)。下面这些内容是 `packages/hep-autoresearch/` 的 package-local legacy / maintainer 文档链路，不是默认产品前门。
 
 1) `docs/INDEX.md`（文档总入口）
 2) `docs/BEGINNER_TUTORIAL.zh.md`（外部研究项目的首次上手）
@@ -29,7 +31,7 @@
 - `branch list|add|switch`
 - `migrate`
 
-## Quickstart（小白 5 分钟）
+## Package docs / compatibility quickstart（小白 5 分钟）
 
 见：`docs/BEGINNER_TUTORIAL.zh.md`
 

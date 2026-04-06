@@ -13,7 +13,9 @@ Language: English is the release default. Chinese docs are kept for bilingual pu
 
 > Note: this repo was previously named `hep-research-autopilot`. The CLI keeps a compatibility alias (`hep-autopilot`). If you have local scripts that `cd hep-research-autopilot`, create a symlink next to the repo (e.g. `ln -s hep-autoresearch hep-research-autopilot`).
 
-## Start here
+## Start here (package docs, not the generic front door)
+
+Need the current mainline front-door truth first? Start with the repo-root [README](../../README.md), [docs/QUICKSTART.md](../../docs/QUICKSTART.md), and [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md). The package docs below are package-local legacy / maintainer-oriented docs around the residual Pipeline A surface, not the default product first touch.
 
 1) `docs/INDEX.md` (documentation index)
 2) `docs/BEGINNER_TUTORIAL.md` (first external-project walkthrough)
@@ -24,7 +26,7 @@ Important: this package repo is the **development home** of `hep-autoresearch`, 
 
 Lifecycle note: `hep-autoresearch`, its installable alias `hepar`, and the older compatibility alias `hep-autopilot` remain the transitional **Pipeline A** Python CLI surface. They are no longer the canonical generic lifecycle or computation entrypoint, and `meta/REDESIGN_PLAN.md` treats them as a legacy surface that should keep moving together. Unless a later design decision explicitly repoints one of these names, retirement semantics apply to all three names together. The installable public legacy surface now excludes public computation plus `doctor`, `bridge`, and `literature-gap`; computation now stays on `autoresearch run --workflow-id computation`, while the retired legacy command paths remain only on the internal full parser for maintainer/eval/test coverage and the public shell stays narrowed to workflow/support commands such as `start`, `checkpoint`, `request-approval`, `reject`, `approvals show`, `report render`, residual non-computation `run` workflows, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card validate|render`, `branch list|add|switch`, and `migrate`.
 
-## Quickstart
+## Package docs / compatibility quickstart
 
 - Documentation index (English): `docs/INDEX.md`
 - Beginner tutorial: `docs/BEGINNER_TUTORIAL.md` (English) / `docs/BEGINNER_TUTORIAL.zh.md` (Chinese)

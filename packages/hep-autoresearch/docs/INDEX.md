@@ -6,7 +6,9 @@ If a document has both languages, we use:
 - `*.md` for English
 - `*.zh.md` for Chinese
 
-## Entry points
+If you need the current mainline front-door truth, start with the repo-root `README.md`, `../../docs/QUICKSTART.md`, and `../../docs/TESTING_GUIDE.md`. This package index is for package-local legacy / maintainer docs around `hep-autoresearch` / `hepar`; it is not the default product front door.
+
+## Package-doc entry points (legacy / maintainer-oriented)
 
 - Beginner tutorial: `docs/BEGINNER_TUTORIAL.md` (EN) / `docs/BEGINNER_TUTORIAL.zh.md` (Chinese)
 - Vision & scope: `docs/VISION.md` (EN stub) / `docs/VISION.zh.md` (Chinese)
@@ -15,7 +17,7 @@ If a document has both languages, we use:
 
 ## External project scaffold
 
-Use `autoresearch init` in your **research project directory**. `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`, while `hep-autoresearch` / `hepar` / `hep-autopilot` remain the transitional Pipeline A legacy surface for unrepointed commands such as `run`, `doctor`, and `bridge`. `autoresearch init` now enters through the TS lifecycle front door but still reuses the single shared neutral scaffold authority in `packages/project-contracts/` to scaffold the project-local files below:
+Use `autoresearch init` in your **research project directory**. `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`, while `hep-autoresearch` / `hepar` / `hep-autopilot` remain the transitional Pipeline A legacy surface for unrepointed workflow/support commands. The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`; those retired command paths remain only on the internal full parser for maintainer/eval/regression coverage. `autoresearch init` now enters through the TS lifecycle front door but still reuses the single shared neutral scaffold authority in `packages/project-contracts/` to scaffold the project-local files below:
 
 - Project charter: `project_charter.md`
 - Project index: `project_index.md`
