@@ -4,7 +4,12 @@ This is a small, self-contained **declarative computation** example that solves 
 and validates against a known analytical solution. It is intended to stress-test `run_card v2` without
 relying on any prior narrow domain-specific legacy code.
 
-## Run
+Front-door note:
+
+- The current mainline computation entrypoint is `autoresearch run --workflow-id computation` on an initialized external project root with a prepared `computation/manifest.json`.
+- The commands below remain the legacy Pipeline A run-card example path for this checked-in fixture.
+
+## Legacy run-card example
 
 Validate the run-card:
 

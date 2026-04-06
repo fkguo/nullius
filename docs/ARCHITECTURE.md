@@ -46,7 +46,7 @@ Autoresearch Lab currently combines:
 ```text
 repo root
 ├── @autoresearch/orchestrator
-│   └── generic lifecycle/control-plane package + `autoresearch` CLI
+│   └── generic lifecycle/control-plane + native TS computation package + `autoresearch` CLI
 ├── @autoresearch/hep-mcp
 │   └── current most mature domain MCP front door and strongest end-to-end workflow family
 ├── provider packages
@@ -79,10 +79,11 @@ Current responsibilities:
 
 - generic lifecycle state and approval handling
 - external project-root initialization via `autoresearch init`
+- native TS computation manifest execution via `autoresearch run --workflow-id computation`
 - status / pause / resume / export CLI flows
 - full-surface orchestrator tool specs (`orch_*`) for host integrations
 
-The current user-facing generic lifecycle + workflow-plan entrypoint is the `autoresearch` CLI, not the root MCP server.
+The current user-facing generic lifecycle + computation + workflow-plan entrypoint is the `autoresearch` CLI, not the root MCP server.
 
 ### 3.4 Launcher-backed workflow consumers
 
@@ -141,18 +142,26 @@ Representative tools:
 - `hep_export_paper_scaffold`
 - `hep_import_paper_bundle`
 
-### 4.4 Generic lifecycle workflow
+### 4.4 Generic lifecycle + bounded computation execution
 
 Current CLI path:
 
 ```bash
 autoresearch init --project-root /abs/path/to/project
+autoresearch run --workflow-id computation --run-id <run_id> [--manifest /abs/path/to/project/<run_id>/computation/manifest.json] --project-root /abs/path/to/project
 autoresearch status --project-root /abs/path/to/project
 autoresearch approve <approval_id> --project-root /abs/path/to/project
 autoresearch pause --project-root /abs/path/to/project
 autoresearch resume --project-root /abs/path/to/project
 autoresearch export --project-root /abs/path/to/project
 ```
+
+Current bounded computation note:
+
+- `autoresearch run --workflow-id computation` is the native TS computation entrypoint in this slice.
+- It requires an initialized external project root plus a prepared `computation/manifest.json`.
+- Gate handling stays on `autoresearch status/approve`.
+- `run-card validate/render` and residual non-computation Pipeline A `run` workflows remain on the legacy Python surface pending retirement.
 
 Current tool-surface path inside the package:
 

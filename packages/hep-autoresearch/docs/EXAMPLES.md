@@ -50,6 +50,11 @@ Start from:
 - schema: [specs/run_card_v2.schema.json](../specs/run_card_v2.schema.json)
 - workflow overview: [workflows/computation.md](../workflows/computation.md)
 
+Current front-door note:
+
+- Mainline computation execution now goes through `autoresearch run --workflow-id computation` on an initialized external project root with a prepared `computation/manifest.json`.
+- Python `hep-autoresearch` / `hepar run` remains legacy-only for unrepointed non-computation/support workflows.
+
 Validate before running:
 
 ```bash
@@ -60,11 +65,11 @@ python3 scripts/orchestrator.py run-card validate \
 ## Running a plugin with computation
 
 ```bash
-python3 scripts/orchestrator.py run \
+autoresearch run \
+  --project-root /abs/path/to/external-project \
   --run-id M0-my-plugin-r1 \
   --workflow-id computation \
-  --run-card examples/<project_id>/run_cards/<card>.json \
-  --trust-project
+  --manifest /abs/path/to/external-project/M0-my-plugin-r1/computation/manifest.json
 ```
 
 Artifacts land under:
@@ -76,4 +81,3 @@ Artifacts land under:
 - Strict I/O: write outputs only to declared output paths; avoid hidden side effects.
 - Keep domain code out of `src/`: platform core should not depend on project plugins.
 - Evidence-first: write machine-readable `analysis.json` headline numbers to support downstream evals/writing.
-

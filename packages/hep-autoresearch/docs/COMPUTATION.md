@@ -8,11 +8,16 @@ This doc focuses on:
 - what a `run_card v2` is
 - how computation resolves paths/parameters
 - what artifacts you should expect
-- how to validate/run/resume safely
+- how to validate and execute safely
 
 For the workflow-level overview, see: [workflows/computation.md](../workflows/computation.md).
 
-## Quickstart (schrodinger_ho)
+Front-door status:
+
+- `autoresearch run --workflow-id computation` is now the canonical bounded TS computation entrypoint for initialized external project roots with a prepared `computation/manifest.json`.
+- The `run-card validate/render` and `python3 scripts/orchestrator.py run --run-card ...` commands below remain legacy Pipeline A authoring/execution surfaces pending retirement; they are documented here so existing run-card-oriented examples stay interpretable.
+
+## Quickstart
 
 Validate the run-card:
 
@@ -30,24 +35,36 @@ python3 scripts/orchestrator.py run-card render \
   --out artifacts/runs/M0-computation-demo-r1/computation/dag.mmd
 ```
 
-Run (non-interactive; shell phases require explicit trust):
+Current TS front-door execution:
 
 ```bash
-python3 scripts/orchestrator.py run \
+autoresearch run \
+  --project-root /abs/path/to/external-project \
   --run-id M0-computation-demo-r1 \
   --workflow-id computation \
-  --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json \
-  --trust-project
+  --manifest /abs/path/to/external-project/M0-computation-demo-r1/computation/manifest.json
 ```
 
-If your approval policy triggers A3, you will see `awaiting_approval`:
+Legacy helper utilities that still exist on the transitional Pipeline A surface:
 
 ```bash
-python3 scripts/orchestrator.py status
-python3 scripts/orchestrator.py approve <approval_id>
+python3 scripts/orchestrator.py run-card validate \
+  --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json
+
+python3 scripts/orchestrator.py run-card render \
+  --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json \
+  --format mermaid \
+  --out artifacts/runs/M0-computation-demo-r1/computation/dag.mmd
 ```
 
-Then rerun the same `run` command.
+If your approval policy triggers A3 on the current mainline TS surface, you will see `awaiting_approval`:
+
+```bash
+autoresearch status --project-root /abs/path/to/project
+autoresearch approve <approval_id> --project-root /abs/path/to/project
+```
+
+Then rerun the same `autoresearch run --workflow-id computation ...` command.
 
 ## What is a run_card v2?
 
@@ -105,20 +122,11 @@ Typical outputs include:
 - `phase_state.json` (per-phase status + provenance pointers)
 - `logs/<phase_id>/{stdout,stderr}.txt`
 
-## Resume and crash recovery
+## Re-run after approval
 
-If supported by the run-card and the workspace state, you can resume:
+The current TS front door does not expose a separate `--resume` flag. After A3 approval, rerun the same `autoresearch run --workflow-id computation ...` command against the same initialized external project root and manifest path.
 
-```bash
-python3 scripts/orchestrator.py run \
-  --run-id M0-computation-demo-r1 \
-  --workflow-id computation \
-  --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json \
-  --trust-project \
-  --resume
-```
-
-Resume is fail-closed: if the run-card snapshot or phase outputs do not match the expected state, computation should refuse to resume and ask you to rerun cleanly.
+If a later execution attempt leaves the run in `paused`, `blocked`, or `needs_recovery`, do not assume the same command will auto-resume it. Check `autoresearch status` first and either follow the explicit recovery path for that run state or reset to a clean rerun. Recovery remains fail-closed: if state or artifacts do not match the expected computation inputs, execution should refuse to proceed.
 
 ## Acceptance checks and headline numbers
 

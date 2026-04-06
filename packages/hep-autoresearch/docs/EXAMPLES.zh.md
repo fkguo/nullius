@@ -50,6 +50,11 @@ examples/<project_id>/
 - schema：[specs/run_card_v2.schema.json](../specs/run_card_v2.schema.json)
 - 工作流概览：[workflows/computation.md](../workflows/computation.md)
 
+当前前门说明：
+
+- mainline 的 computation 执行现在走 `autoresearch run --workflow-id computation`，目标是已初始化的外部 project root，并要求 `computation/manifest.json` 已经准备好。
+- Python `hep-autoresearch` / `hepar run` 现在只保留给尚未 repoint 的非 computation / support workflows。
+
 运行前先校验：
 
 ```bash
@@ -60,11 +65,11 @@ python3 scripts/orchestrator.py run-card validate \
 ## 用 computation 运行一个插件
 
 ```bash
-python3 scripts/orchestrator.py run \
+autoresearch run \
+  --project-root /abs/path/to/external-project \
   --run-id M0-my-plugin-r1 \
   --workflow-id computation \
-  --run-card examples/<project_id>/run_cards/<card>.json \
-  --trust-project
+  --manifest /abs/path/to/external-project/M0-my-plugin-r1/computation/manifest.json
 ```
 
 产物落盘位置：
@@ -76,4 +81,3 @@ python3 scripts/orchestrator.py run \
 - I/O 显式：只写声明过的 outputs；避免隐式副作用。
 - 领域代码不进 `src/`：平台核心不应依赖具体项目插件。
 - Evidence-first：把 headline numbers 写进 `analysis.json`，为 evals/写作等下游门禁提供可机读证据。
-

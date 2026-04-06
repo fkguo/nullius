@@ -20,6 +20,8 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
    - 直接使用 `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 等 provider 工具。
 1. Launcher-backed 文献工作流家族
    - `autoresearch workflow-plan` 是推荐的 stateful launcher-backed 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in generic workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。checked-in 的 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 仍是同一 workflow authority 的较底层 consumer；`hepar literature-gap` 仍然存在，但只作为待退役的 legacy compatibility shell。
+1. 原生 TS computation 工作流
+   - `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。
 1. 通用 lifecycle 工作流
    - `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。
 
@@ -28,7 +30,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | Surface | 当前入口 | 用途 |
 | --- | --- | --- |
 | 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的 HEP 领域 MCP server `(72 std / 101)` |
-| 通用 lifecycle + workflow-plan front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、pause/resume、export，以及 stateful workflow-plan 持久化 |
+| 通用 lifecycle + computation + workflow-plan front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful workflow-plan 持久化 |
 | 高层文献工作流入口 | `autoresearch workflow-plan` | 推荐的 stateful launcher-backed 前门，面向已初始化的外部 project root；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer，`hepar literature-gap` 仅作 legacy compatibility |
 | 叶子 provider 包 | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 可组合进客户端工作流的 provider-specific capabilities |
 
@@ -45,7 +47,7 @@ Legacy compatibility 说明：`hepar literature-gap` 仍在旧的 Pipeline A CLI
 
 | 能力家族 | 当前 surface | 备注 |
 | --- | --- | --- |
-| 通用 lifecycle 与 approvals | `@autoresearch/orchestrator`、`autoresearch` | 当前 front door 上仍是 lifecycle-only |
+| 通用 lifecycle、computation 与 approvals | `@autoresearch/orchestrator`、`autoresearch` | 当前 front door 上覆盖 lifecycle state、审批，以及受限原生 TS computation run slice |
 | Evidence-first Project/Run 工作流 | `@autoresearch/hep-mcp`、`hep_*`、`hep://...` | 当前最强的端到端 workflow family |
 | 文献与数据 providers | `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*` | 直接搜索、下载、导出、受限分析的组合面 |
 | 本地参考 providers | `zotero_*`、`pdg_*` | 可选的本地输入与查验工具 |
@@ -117,7 +119,7 @@ Legacy compatibility 说明：`hepar literature-gap` 仍在旧的 Pipeline A CLI
 
 ## 5. 用户如何从 MCP clients / agent clients 接入
 
-当前的 MCP 接入模型是本地 stdio only。仓库目前还没有单一的 generic root MCP server；今天最成熟的领域 MCP 入口是 `hep-mcp`，而通用 `autoresearch` surface 仍主要承担 lifecycle/control-plane CLI。
+当前的 MCP 接入模型是本地 stdio only。仓库目前还没有单一的 generic root MCP server；今天最成熟的领域 MCP 入口是 `hep-mcp`，而通用 `autoresearch` surface 现在主要承担 lifecycle/control-plane CLI、原生 TS computation `run`，以及 stateful `workflow-plan`。
 
 通用 MCP 配置模式：
 
