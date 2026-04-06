@@ -24,6 +24,14 @@ function makeTempRoots() {
   };
 }
 
+function writePackageJson(root: string, pkgJson: object): void {
+  writeFileWithMtime(
+    path.join(root, 'package.json'),
+    `${JSON.stringify(pkgJson, null, 2)}\n`,
+    new Date('2026-03-21T08:55:00.000Z')
+  );
+}
+
 function writeFileWithMtime(targetPath: string, content: string, when: Date): void {
   mkdirSync(path.dirname(targetPath), { recursive: true });
   writeFileSync(targetPath, content, 'utf-8');
@@ -58,6 +66,79 @@ describe('orchestrator package freshness gate', () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('[ok] temp-orchestrator package output is fresh.');
       expect(result.stderr).toBe('');
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('infers src/dist roots from --package-dir when package artifacts share a dist root', () => {
+    const { root, srcRoot, distRoot } = makeTempRoots();
+    try {
+      const sourceTime = new Date('2026-03-21T09:00:00.000Z');
+      const artifactTime = new Date('2026-03-21T09:05:00.000Z');
+      writePackageJson(root, {
+        name: '@tmp/workspace-package',
+        type: 'module',
+        main: './dist/index.js',
+        types: './dist/index.d.ts',
+        exports: {
+          '.': {
+            import: './dist/index.js',
+            types: './dist/index.d.ts',
+          },
+          './cli': {
+            import: './dist/cli.js',
+            types: './dist/cli.d.ts',
+          },
+        },
+        bin: {
+          tmp: './dist/cli.js',
+        },
+      });
+      writeFileWithMtime(path.join(srcRoot, 'index.ts'), 'export const value = 1;\n', sourceTime);
+      writeFileWithMtime(path.join(srcRoot, 'cli.ts'), 'export const cli = 1;\n', sourceTime);
+      writeFileWithMtime(path.join(distRoot, 'index.js'), 'export const value = 1;\n', artifactTime);
+      writeFileWithMtime(path.join(distRoot, 'index.d.ts'), 'export declare const value = 1;\n', artifactTime);
+      writeFileWithMtime(path.join(distRoot, 'cli.js'), 'export const cli = 1;\n', artifactTime);
+      writeFileWithMtime(path.join(distRoot, 'cli.d.ts'), 'export declare const cli = 1;\n', artifactTime);
+
+      const result = runFreshnessCheck(['--package-dir', root]);
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('[ok] @tmp/workspace-package package output is fresh.');
+      expect(result.stderr).toBe('');
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('fails when --package-dir inference finds stale emitted artifacts', () => {
+    const { root, srcRoot, distRoot } = makeTempRoots();
+    try {
+      const artifactTime = new Date('2026-03-21T09:00:00.000Z');
+      const sourceTime = new Date('2026-03-21T09:05:00.000Z');
+      writePackageJson(root, {
+        name: '@tmp/stale-package',
+        type: 'module',
+        main: './dist/index.js',
+        types: './dist/index.d.ts',
+        exports: {
+          '.': {
+            import: './dist/index.js',
+            types: './dist/index.d.ts',
+          },
+        },
+      });
+      writeFileWithMtime(path.join(srcRoot, 'index.ts'), 'export const value = 1;\n', sourceTime);
+      writeFileWithMtime(path.join(distRoot, 'index.js'), 'export const value = 1;\n', artifactTime);
+      writeFileWithMtime(path.join(distRoot, 'index.d.ts'), 'export declare const value = 1;\n', artifactTime);
+
+      const result = runFreshnessCheck(['--package-dir', root]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('[stale-dist] @tmp/stale-package package output is missing or out of date.');
+      expect(result.stderr).toContain('src/index.ts');
+      expect(result.stderr).toContain('dist/index.js');
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

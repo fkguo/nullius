@@ -5,49 +5,14 @@ import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 
+import {
+  collectArtifactPaths,
+  collectFreshnessErrors,
+  readJson,
+  resolvePackageFreshnessRoots,
+} from './lib/workspace-package-freshness.mjs';
+
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function collectArtifactPaths(pkgJson) {
-  const artifacts = new Set();
-
-  const addMaybe = value => {
-    if (typeof value === 'string' && value.trim() !== '') {
-      artifacts.add(value);
-    }
-  };
-
-  addMaybe(pkgJson.main);
-  addMaybe(pkgJson.module);
-  addMaybe(pkgJson.types);
-
-  if (pkgJson.bin && typeof pkgJson.bin === 'object') {
-    for (const value of Object.values(pkgJson.bin)) {
-      addMaybe(value);
-    }
-  }
-
-  if (pkgJson.exports && typeof pkgJson.exports === 'object') {
-    const stack = [pkgJson.exports];
-    while (stack.length > 0) {
-      const node = stack.pop();
-      if (typeof node === 'string') {
-        addMaybe(node);
-        continue;
-      }
-      if (node && typeof node === 'object') {
-        for (const value of Object.values(node)) {
-          stack.push(value);
-        }
-      }
-    }
-  }
-
-  return [...artifacts];
-}
 
 function findWorkspacePackageDir(packageName) {
   const packagesDir = path.join(repoRoot, 'packages');
@@ -69,6 +34,17 @@ function hasAllArtifacts(packageDir, pkgJson) {
   return relativePaths.every(relPath => fs.existsSync(path.join(packageDir, relPath)));
 }
 
+function needsFreshBuild(packageDir, pkgJson) {
+  const roots = resolvePackageFreshnessRoots(packageDir, pkgJson);
+  if (roots === null) {
+    return false;
+  }
+  if (!fs.existsSync(roots.srcRoot) || !fs.existsSync(roots.distRoot)) {
+    return false;
+  }
+  return collectFreshnessErrors({ repoRoot, ...roots }).length > 0;
+}
+
 function ensureBuilt(packageName) {
   const packageDir = findWorkspacePackageDir(packageName);
   if (!packageDir) {
@@ -78,7 +54,7 @@ function ensureBuilt(packageName) {
 
   const packageJsonPath = path.join(packageDir, 'package.json');
   const pkgJson = readJson(packageJsonPath);
-  if (hasAllArtifacts(packageDir, pkgJson)) {
+  if (hasAllArtifacts(packageDir, pkgJson) && !needsFreshBuild(packageDir, pkgJson)) {
     console.log(`[ensure-artifacts] ok ${packageName}`);
     return;
   }
