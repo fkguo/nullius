@@ -1,0 +1,73 @@
+{
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "passRate": 1
+  },
+  "aggregateMetrics": {
+    "canonical_success_retained": 4,
+    "acceptable_fail_closed_rejection": 2,
+    "overfit_failure": 0,
+    "bad_shortcut_success": 0
+  },
+  "caseResults": [
+    {
+      "caseId": "lexical_default_vs_explicit_mode",
+      "passed": true,
+      "classification": "canonical_success_retained",
+      "canonical_ok": true,
+      "perturbed_ok": true,
+      "perturbed_error_code": null,
+      "next_action_tools": []
+    },
+    {
+      "caseId": "lexical_budget_noise_falls_back",
+      "passed": true,
+      "classification": "canonical_success_retained",
+      "canonical_ok": true,
+      "perturbed_ok": true,
+      "perturbed_error_code": null,
+      "next_action_tools": []
+    },
+    {
+      "caseId": "semantic_explicit_vs_implicit_mode",
+      "passed": true,
+      "classification": "canonical_success_retained",
+      "canonical_ok": true,
+      "perturbed_ok": true,
+      "perturbed_error_code": null,
+      "next_action_tools": []
+    },
+    {
+      "caseId": "semantic_legacy_vs_unified",
+      "passed": true,
+      "classification": "canonical_success_retained",
+      "canonical_ok": true,
+      "perturbed_ok": true,
+      "perturbed_error_code": null,
+      "next_action_tools": []
+    },
+    {
+      "caseId": "semantic_missing_run_id_unified_fail_closed",
+      "passed": true,
+      "classification": "acceptable_fail_closed_rejection",
+      "canonical_ok": true,
+      "perturbed_ok": false,
+      "perturbed_error_code": "INVALID_PARAMS",
+      "next_action_tools": [
+        "hep_run_create",
+        "hep_project_query_evidence"
+      ]
+    },
+    {
+      "caseId": "semantic_missing_run_id_legacy_fail_closed",
+      "passed": true,
+      "classification": "acceptable_fail_closed_rejection",
+      "canonical_ok": true,
+      "perturbed_ok": false,
+      "perturbed_error_code": "INVALID_PARAMS",
+      "next_action_tools": []
+    }
+  ]
+}

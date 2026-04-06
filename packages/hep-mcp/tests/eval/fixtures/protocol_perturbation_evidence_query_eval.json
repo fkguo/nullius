@@ -1,0 +1,77 @@
+{
+  "name": "protocol_perturbation_evidence_query",
+  "version": 1,
+  "description": "Deterministic front-door perturbation harness for evidence-query tool surfaces.",
+  "module": "SEM-06",
+  "cases": [
+    {
+      "id": "lexical_default_vs_explicit_mode",
+      "input": {
+        "scenario": "lexical_default_vs_explicit_mode",
+        "query": "Content from subfile"
+      },
+      "expected": {
+        "expectation": "retain_success"
+      },
+      "tags": ["surface:hep_project_query_evidence", "perturbation:mode"]
+    },
+    {
+      "id": "lexical_budget_noise_falls_back",
+      "input": {
+        "scenario": "lexical_budget_noise_falls_back",
+        "query": "Content from subfile"
+      },
+      "expected": {
+        "expectation": "retain_success"
+      },
+      "tags": ["surface:hep_project_query_evidence", "perturbation:budget_noise"]
+    },
+    {
+      "id": "semantic_explicit_vs_implicit_mode",
+      "input": {
+        "scenario": "semantic_explicit_vs_implicit_mode",
+        "query": "Content from subfile"
+      },
+      "expected": {
+        "expectation": "retain_success"
+      },
+      "tags": ["surface:hep_project_query_evidence", "perturbation:implicit_mode"]
+    },
+    {
+      "id": "semantic_legacy_vs_unified",
+      "input": {
+        "scenario": "semantic_legacy_vs_unified",
+        "query": "Content from subfile"
+      },
+      "expected": {
+        "expectation": "retain_success"
+      },
+      "tags": ["surface:hep_project_query_evidence_semantic", "surface:hep_project_query_evidence", "perturbation:surface_parity"]
+    },
+    {
+      "id": "semantic_missing_run_id_unified_fail_closed",
+      "input": {
+        "scenario": "semantic_missing_run_id_unified_fail_closed",
+        "query": "Content from subfile"
+      },
+      "expected": {
+        "expectation": "fail_closed",
+        "allowed_error_codes": ["INVALID_PARAMS"],
+        "required_next_action_tools": ["hep_run_create", "hep_project_query_evidence"]
+      },
+      "tags": ["surface:hep_project_query_evidence", "perturbation:missing_run_id", "fail_closed"]
+    },
+    {
+      "id": "semantic_missing_run_id_legacy_fail_closed",
+      "input": {
+        "scenario": "semantic_missing_run_id_legacy_fail_closed",
+        "query": "Content from subfile"
+      },
+      "expected": {
+        "expectation": "fail_closed",
+        "allowed_error_codes": ["INVALID_PARAMS"]
+      },
+      "tags": ["surface:hep_project_query_evidence_semantic", "perturbation:missing_run_id", "fail_closed"]
+    }
+  ]
+}
