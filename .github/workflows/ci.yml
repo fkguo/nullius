@@ -27,6 +27,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-shell-boundary-anti-drift.mjs
+
       - run: pnpm -r build
 
       - run: pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
