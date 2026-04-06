@@ -36,7 +36,7 @@ class TestPublicCliSurface(unittest.TestCase):
                 except ValueError:
                     pass
 
-    def test_help_hides_retired_public_lifecycle_verbs(self) -> None:
+    def test_help_hides_retired_public_legacy_surfaces(self) -> None:
         rc, out, err = self._run_public_cli(["hepar", "--help"])
         self.assertEqual(rc, 0)
         self.assertEqual(err, "")
@@ -46,12 +46,12 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertNotIn(" resume ", out)
         self.assertNotIn(" approve ", out)
         self.assertNotIn(" export ", out)
+        self.assertNotIn(",doctor,", out)
+        self.assertNotIn(",bridge,", out)
         self.assertIn("run", out)
-        self.assertIn("doctor", out)
-        self.assertIn("bridge", out)
 
-    def test_public_cli_rejects_retired_lifecycle_surfaces(self) -> None:
-        for command in ("init", "status", "export"):
+    def test_public_cli_rejects_retired_public_surfaces(self) -> None:
+        for command in ("init", "status", "export", "doctor", "bridge"):
             rc, _, err = self._run_public_cli(["hepar", command])
             self.assertEqual(rc, 2)
             self.assertIn("invalid choice", err)

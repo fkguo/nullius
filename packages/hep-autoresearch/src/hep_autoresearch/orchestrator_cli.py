@@ -6033,36 +6033,37 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     p_smoke = sub.add_parser("smoke-test", help="Import MCP bridge modules (no MCP server required).")
     p_smoke.set_defaults(fn=cmd_smoke_test)
 
-    p_doc = sub.add_parser("doctor", help="Check MCP server connectivity and required tool availability (Phase B6).")
-    p_doc.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
-    p_doc.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
-    p_doc.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
-    p_doc.add_argument(
-        "--allow-missing-mcp-config",
-        action="store_true",
-        help="Do not fail when .mcp.json is missing; print warning/hints and return success.",
-    )
-    p_doc.add_argument(
-        "--entrypoints-only",
-        action="store_true",
-        help="Run entrypoint discovery only (text mode); skip MCP config/server checks.",
-    )
-    p_doc.add_argument("--strict-entrypoints", action="store_true", help="Fail if the canonical `autoresearch` entrypoint is missing on PATH.")
-    p_doc.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit JSON for entrypoint_discovery only (offline PATH diagnostics; skips MCP checks).",
-    )
-    p_doc.set_defaults(fn=cmd_doctor)
+    if not public_surface:
+        p_doc = sub.add_parser("doctor", help="Check MCP server connectivity and required tool availability (Phase B6).")
+        p_doc.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
+        p_doc.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
+        p_doc.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
+        p_doc.add_argument(
+            "--allow-missing-mcp-config",
+            action="store_true",
+            help="Do not fail when .mcp.json is missing; print warning/hints and return success.",
+        )
+        p_doc.add_argument(
+            "--entrypoints-only",
+            action="store_true",
+            help="Run entrypoint discovery only (text mode); skip MCP config/server checks.",
+        )
+        p_doc.add_argument("--strict-entrypoints", action="store_true", help="Fail if the canonical `autoresearch` entrypoint is missing on PATH.")
+        p_doc.add_argument(
+            "--json",
+            action="store_true",
+            help="Emit JSON for entrypoint_discovery only (offline PATH diagnostics; skips MCP checks).",
+        )
+        p_doc.set_defaults(fn=cmd_doctor)
 
-    p_bridge = sub.add_parser("bridge", help="Bridge a completed computation run into MCP evidence (Phase B4).")
-    p_bridge.add_argument("--run-id", help="HEPAR run id (reads artifacts/runs/<run-id>/computation).")
-    p_bridge.add_argument("--workspace", help="Explicit computation workspace dir (overrides --run-id).")
-    p_bridge.add_argument("--mcp-project-name", default="hep-autoresearch", help="MCP project name to create/reuse.")
-    p_bridge.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
-    p_bridge.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
-    p_bridge.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
-    p_bridge.set_defaults(fn=cmd_bridge)
+        p_bridge = sub.add_parser("bridge", help="Bridge a completed computation run into MCP evidence (Phase B4).")
+        p_bridge.add_argument("--run-id", help="HEPAR run id (reads artifacts/runs/<run-id>/computation).")
+        p_bridge.add_argument("--workspace", help="Explicit computation workspace dir (overrides --run-id).")
+        p_bridge.add_argument("--mcp-project-name", default="hep-autoresearch", help="MCP project name to create/reuse.")
+        p_bridge.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
+        p_bridge.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
+        p_bridge.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
+        p_bridge.set_defaults(fn=cmd_bridge)
 
     p_gap = sub.add_parser("literature-gap", help="Discover literature gaps via launcher-resolved literature workflow authority (Phase C1).")
     p_gap.add_argument("--tag", required=True, help="Run tag for output artifacts, e.g. M73-r1")
