@@ -420,17 +420,9 @@ EOF
 
 - 返回 timeline / evolution 相关摘要
 
-### 5.4 launcher-backed literature workflow shells
+### 5.4 launcher-backed literature workflow consumers
 
-这部分不是 MCP 工具，而是当前真实存在的高层 workflow shell：
-
-```bash
-python -m hep_autoresearch.orchestrator_cli \
-  --project-root /abs/path/to/project \
-  literature-gap \
-  --tag gap-smoke \
-  --topic "nucleon structure"
-```
+这部分不是 MCP 工具，而是当前真实存在的高层 workflow consumers：
 
 ```bash
 autoresearch workflow-plan \
@@ -439,12 +431,21 @@ autoresearch workflow-plan \
   --query "bootstrap amplitudes" \
   --topic "bootstrap amplitudes"
 ```
-先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer；`hepar literature-gap` 仅剩 legacy compatibility shell pending retirement。
+先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer。
+
+```bash
+python -m hep_autoresearch.orchestrator_cli \
+  --project-root /abs/path/to/project \
+  literature-gap \
+  --tag gap-smoke \
+  --topic "nucleon structure"
+```
+下面这个 `python -m hep_autoresearch.orchestrator_cli ... literature-gap` 示例只用于 maintainer/eval/regression 路径的 internal full-parser compatibility；安装态 `hepar` public shell 已不再暴露 `literature-gap`。
 
 **预期**
 
-- 能解析出 workflow plan 或 bundle
-- 这些 shell 仍是当前高层 literature recipe 的真实 consumer
+- `autoresearch workflow-plan` 仍是唯一 installable public high-level literature entrypoint
+- internal full-parser compatibility path 仍能解析 workflow plan or bundle 以供 regression coverage
 
 ---
 

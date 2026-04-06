@@ -1,7 +1,9 @@
 # Session Protocol v1 — Research Session Entry Convention
 
 > UX-06: Agent behavior protocol for guiding users through a research-session pipeline.
-> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the checked-in `packages/literature-workflows` launcher plus checked-in consumers such as `research-team` and `hepar literature-gap`.
+> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the checked-in `packages/literature-workflows` launcher plus checked-in consumers such as `research-team`, `autoresearch workflow-plan`, and the internal full-parser `literature-gap` compatibility path used for maintainer/eval coverage.
+
+> The installable `hepar` public shell no longer exposes `literature-gap`; any remaining `literature-gap` consumer is internal full-parser compatibility only.
 
 > High-level literature workflow authority for Stage 1-2 lives in checked-in workflow recipes (`meta/recipes/`) packaged as `literature-workflows`. Provider-specific MCP tools remain the bounded atomic building blocks underneath those recipes; they are not the canonical high-level workflow truth or the public front door.
 

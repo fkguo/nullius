@@ -5128,7 +5128,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
         manifest: dict[str, Any] = {
             "schema_version": 1,
             "created_at": created_at,
-            "command": "hepar literature-gap --phase discover",
+            "command": "python -m hep_autoresearch.orchestrator_cli literature-gap --phase discover",
             "cwd": manifest_cwd(repo_root=repo_root, cwd=repo_root),
             "params": {
                 "tag": tag,
@@ -5414,7 +5414,7 @@ def cmd_literature_gap(args: argparse.Namespace) -> int:
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "created_at": created_at,
-        "command": "hepar literature-gap --phase analyze",
+        "command": "python -m hep_autoresearch.orchestrator_cli literature-gap --phase analyze",
         "cwd": manifest_cwd(repo_root=repo_root, cwd=repo_root),
         "params": {"tag": tag, "phase": "analyze", "topic": topic, "mcp_server": cfg.name},
         "versions": {"python": sys.version.split()[0], "os": platform.platform()},
@@ -6065,75 +6065,76 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         p_bridge.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
         p_bridge.set_defaults(fn=cmd_bridge)
 
-    p_gap = sub.add_parser("literature-gap", help="Discover literature gaps via launcher-resolved literature workflow authority (Phase C1).")
-    p_gap.add_argument("--tag", required=True, help="Run tag for output artifacts, e.g. M73-r1")
-    p_gap.add_argument(
-        "--phase",
-        default="discover",
-        choices=["discover", "analyze"],
-        help="Phase of the C1 workflow (default: discover).",
-    )
-    p_gap.add_argument(
-        "--topic",
-        required=False,
-        help="HEP topic string (required for --phase discover; optional for analyze if inferable from candidates.json).",
-    )
-    p_gap.add_argument("--focus", action="append", default=[], help="Optional focus keywords (repeatable).")
-    p_gap.add_argument("--seed-recid", help="Optional INSPIRE seed recid (forces inclusion in the seed set).")
-    p_gap.add_argument("--iterations", type=int, default=2, help="Reserved discover knob for launcher-resolved consumers (default: 2).")
-    p_gap.add_argument("--max-papers", type=int, default=40, help="Reserved discover knob for launcher-resolved consumers (default: 40).")
-    p_gap.add_argument("--prefer-journal", action="store_true", help="Reserved discover knob for launcher-resolved consumers.")
-    p_gap.add_argument("--max-recids", type=int, default=12, help="Max seed recids extracted from discover candidates (default: 12).")
-    p_gap.add_argument(
-        "--seed-selection",
-        help="Path to seed_selection.json (required for --phase analyze).",
-    )
-    p_gap.add_argument(
-        "--candidates",
-        help="Optional path to candidates.json for --phase analyze (default: artifacts/runs/<TAG>/literature_gap/discover/candidates.json).",
-    )
-    p_gap.add_argument(
-        "--allow-external-seeds",
-        action="store_true",
-        help="Allow seed_selection recids that are not present in candidates.json (default: refuse).",
-    )
-    p_gap.add_argument(
-        "--allow-external-inputs",
-        action="store_true",
-        help="Allow --seed-selection/--candidates paths outside the project root (default: refuse).",
-    )
-    p_gap.add_argument(
-        "--topic-mode",
-        default="timeline",
-        choices=["timeline", "evolution", "emerging", "all"],
-        help="INSPIRE topic analysis mode (default: timeline).",
-    )
-    p_gap.add_argument("--topic-limit", type=int, default=40, help="INSPIRE topic analysis limit (default: 40).")
-    p_gap.add_argument("--topic-granularity", default="5year", help="INSPIRE topic analysis granularity (default: 5year).")
-    p_gap.add_argument(
-        "--critical-mode",
-        default="analysis",
-        choices=["analysis"],
-        help="Legacy compatibility flag; analyze phase now always uses inspire_critical_analysis.",
-    )
-    p_gap.add_argument(
-        "--network-mode",
-        default="citation",
-        choices=["citation", "collaboration"],
-        help="INSPIRE network analysis mode (default: citation).",
-    )
-    p_gap.add_argument("--network-limit", type=int, default=80, help="INSPIRE network analysis limit (default: 80).")
-    p_gap.add_argument("--network-depth", type=int, default=1, help="INSPIRE network analysis depth (default: 1).")
-    p_gap.add_argument(
-        "--network-direction",
-        default="both",
-        choices=["both", "in", "out"],
-        help="INSPIRE network analysis direction (default: both).",
-    )
-    p_gap.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
-    p_gap.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
-    p_gap.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
-    p_gap.set_defaults(fn=cmd_literature_gap)
+    if not public_surface:
+        p_gap = sub.add_parser("literature-gap", help="Discover literature gaps via launcher-resolved literature workflow authority (Phase C1).")
+        p_gap.add_argument("--tag", required=True, help="Run tag for output artifacts, e.g. M73-r1")
+        p_gap.add_argument(
+            "--phase",
+            default="discover",
+            choices=["discover", "analyze"],
+            help="Phase of the C1 workflow (default: discover).",
+        )
+        p_gap.add_argument(
+            "--topic",
+            required=False,
+            help="HEP topic string (required for --phase discover; optional for analyze if inferable from candidates.json).",
+        )
+        p_gap.add_argument("--focus", action="append", default=[], help="Optional focus keywords (repeatable).")
+        p_gap.add_argument("--seed-recid", help="Optional INSPIRE seed recid (forces inclusion in the seed set).")
+        p_gap.add_argument("--iterations", type=int, default=2, help="Reserved discover knob for launcher-resolved consumers (default: 2).")
+        p_gap.add_argument("--max-papers", type=int, default=40, help="Reserved discover knob for launcher-resolved consumers (default: 40).")
+        p_gap.add_argument("--prefer-journal", action="store_true", help="Reserved discover knob for launcher-resolved consumers.")
+        p_gap.add_argument("--max-recids", type=int, default=12, help="Max seed recids extracted from discover candidates (default: 12).")
+        p_gap.add_argument(
+            "--seed-selection",
+            help="Path to seed_selection.json (required for --phase analyze).",
+        )
+        p_gap.add_argument(
+            "--candidates",
+            help="Optional path to candidates.json for --phase analyze (default: artifacts/runs/<TAG>/literature_gap/discover/candidates.json).",
+        )
+        p_gap.add_argument(
+            "--allow-external-seeds",
+            action="store_true",
+            help="Allow seed_selection recids that are not present in candidates.json (default: refuse).",
+        )
+        p_gap.add_argument(
+            "--allow-external-inputs",
+            action="store_true",
+            help="Allow --seed-selection/--candidates paths outside the project root (default: refuse).",
+        )
+        p_gap.add_argument(
+            "--topic-mode",
+            default="timeline",
+            choices=["timeline", "evolution", "emerging", "all"],
+            help="INSPIRE topic analysis mode (default: timeline).",
+        )
+        p_gap.add_argument("--topic-limit", type=int, default=40, help="INSPIRE topic analysis limit (default: 40).")
+        p_gap.add_argument("--topic-granularity", default="5year", help="INSPIRE topic analysis granularity (default: 5year).")
+        p_gap.add_argument(
+            "--critical-mode",
+            default="analysis",
+            choices=["analysis"],
+            help="Legacy compatibility flag; analyze phase now always uses inspire_critical_analysis.",
+        )
+        p_gap.add_argument(
+            "--network-mode",
+            default="citation",
+            choices=["citation", "collaboration"],
+            help="INSPIRE network analysis mode (default: citation).",
+        )
+        p_gap.add_argument("--network-limit", type=int, default=80, help="INSPIRE network analysis limit (default: 80).")
+        p_gap.add_argument("--network-depth", type=int, default=1, help="INSPIRE network analysis depth (default: 1).")
+        p_gap.add_argument(
+            "--network-direction",
+            default="both",
+            choices=["both", "in", "out"],
+            help="INSPIRE network analysis direction (default: both).",
+        )
+        p_gap.add_argument("--mcp-config", help="Path to .mcp.json (default: <project_root>/.mcp.json).")
+        p_gap.add_argument("--mcp-server", default="hep-research", help="MCP server name in .mcp.json (default: hep-research).")
+        p_gap.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
+        p_gap.set_defaults(fn=cmd_literature_gap)
 
     p_md = sub.add_parser("method-design", help="Generate a runnable computation project scaffold (Phase C2).")
     p_md.add_argument("--tag", required=True, help="Run tag for artifact output paths.")

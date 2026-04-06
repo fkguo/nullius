@@ -20,11 +20,16 @@ function readRepoFile(relPath) {
 }
 
 function checkFrontDoorFiles(errors) {
-  for (const { relPath, snippets } of FRONT_DOOR_SNIPPETS) {
+  for (const { relPath, snippets, forbiddenSnippets = [] } of FRONT_DOOR_SNIPPETS) {
     const content = readRepoFile(relPath);
     for (const snippet of snippets) {
       if (!content.includes(snippet)) {
         errors.push(`${relPath}: missing required boundary wording: ${JSON.stringify(snippet)}`);
+      }
+    }
+    for (const snippet of forbiddenSnippets) {
+      if (content.includes(snippet)) {
+        errors.push(`${relPath}: forbidden retired public-shell wording still present: ${JSON.stringify(snippet)}`);
       }
     }
   }

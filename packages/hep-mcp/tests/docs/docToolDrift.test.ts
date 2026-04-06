@@ -108,6 +108,11 @@ function assertContainsAll(params: { text: string; snippets: string[]; label: st
   expect(missing, `${params.label}: missing required boundary wording: ${missing.join(' | ')}`).toEqual([]);
 }
 
+function assertContainsNone(params: { text: string; snippets: string[]; label: string }): void {
+  const present = params.snippets.filter(snippet => params.text.includes(snippet));
+  expect(present, `${params.label}: forbidden retired public-shell wording still present: ${present.join(' | ')}`).toEqual([]);
+}
+
 function mustMatch(md: string, re: RegExp, label: string): RegExpMatchArray {
   const m = md.match(re);
   expect(m, `${label}: expected to match ${String(re)}`).not.toBeNull();
@@ -256,8 +261,10 @@ describe('Docs tool drift guard', () => {
   });
 
   it('root docs keep generic lifecycle and shell-boundary framing', () => {
-    for (const { relPath, snippets } of FRONT_DOOR_SNIPPETS) {
-      assertContainsAll({ text: readText(root, relPath), snippets, label: relPath });
+    for (const { relPath, snippets, forbiddenSnippets = [] } of FRONT_DOOR_SNIPPETS) {
+      const text = readText(root, relPath);
+      assertContainsAll({ text, snippets, label: relPath });
+      assertContainsNone({ text, snippets: forbiddenSnippets, label: relPath });
     }
   });
 });
