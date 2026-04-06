@@ -17,9 +17,9 @@
 | 快速搜索论文 | `inspire_search` | 分页；用 `inspire_search_next` 翻页 |
 | 获取单篇论文元数据/引用/被引 | `inspire_literature` | 原子化访问 |
 | 深度分析论文集 | `inspire_critical_analysis` / `inspire_classify_reviews` | 高层 workflow 先经 launcher-backed consumer；这里保留的是 bounded atomic operators |
-| 文献综述 | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan --recipe literature_to_evidence` | 先解析 workflow authority，再配合 `hep_run_build_writing_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` |
-| 发现奠基性/相关论文 | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan --recipe literature_landscape` | launcher 解析后再下沉到 `inspire_search` / provenance / network operators；`hepar literature-gap` 仅剩 legacy compatibility shell |
-| 物理学家式文献调研 | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan --recipe literature_gap_analysis` | 不再通过 provider-specific high-level MCP facade；`hepar literature-gap` 不再作为推荐主入口 |
+| 文献综述 | `autoresearch workflow-plan --recipe literature_to_evidence` | 推荐的 stateful launcher-backed front door，需先 `autoresearch init`；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer，再配合 `hep_run_build_writing_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` |
+| 发现奠基性/相关论文 | `autoresearch workflow-plan --recipe literature_landscape` | launcher 解析后再下沉到 `inspire_search` / provenance / network operators；`hepar literature-gap` 仅剩 legacy compatibility shell |
+| 物理学家式文献调研 | `autoresearch workflow-plan --recipe literature_gap_analysis` | 不再通过 provider-specific high-level MCP facade；`hepar literature-gap` 不再作为推荐主入口 |
 | 主题时间线/趋势/新兴方向 | `inspire_topic_analysis` | 模式: `timeline/evolution/emerging/all` |
 | 引用/合作网络分析 | `inspire_network_analysis` | 模式: `citation/collaboration` |
 | 发现跨论文关联 | `inspire_find_connections` | 输入 `recids`；可选 external hubs |
@@ -35,7 +35,7 @@
 ### 常见任务路径
 
 **"我想写一篇关于 X 的综述论文"**
-1. `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan --recipe literature_landscape` 解析文献工作流
+1. 先 `autoresearch init`，再运行 `autoresearch workflow-plan --recipe literature_landscape` 解析文献工作流（直接通过 `@autoresearch/literature-workflows` 解析并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`）
 2. `inspire_search` + `inspire_topic_analysis` + `inspire_network_analysis` 做原子调研
 3. `hep_project_create` + `hep_run_create`
 4. `hep_run_build_writing_evidence` 构建证据
@@ -116,7 +116,7 @@
 
 ## G) INSPIRE（网络原子工具：检索/分析）
 
-> 备注：高层 literature workflow 现由 checked-in `workflow-plan` consumer 承担；`hepar literature-gap` 仍是 legacy compatibility shell，但不再是推荐的新入口。这里列的是仍可直接调用的 INSPIRE 原子工具；Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
+> 备注：高层 literature workflow 现由 stateful launcher-backed `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；checked-in 的 Python `workflow-plan` 脚本是同一 authority 的较底层 consumer；`hepar literature-gap` 仍是 legacy compatibility shell，但不再是推荐的新入口。这里列的是仍可直接调用的 INSPIRE 原子工具；Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
 
 - `inspire_search`
 - `inspire_search_next`

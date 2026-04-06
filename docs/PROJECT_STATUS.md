@@ -18,10 +18,10 @@
 ## What is live today
 
 - **Current most mature domain MCP front door**: `@autoresearch/hep-mcp` exposed through `packages/hep-mcp/dist/index.js`
-- **Main generic lifecycle entrypoint**: `autoresearch` CLI for external project roots and `.autoresearch/` state
+- **Main generic lifecycle + workflow-plan entrypoint**: `autoresearch` CLI for external project roots and `.autoresearch/` state
 - **Current strongest end-to-end workflow family**: `hep_*` Project/Run + evidence + writing + export
 - **Direct provider families**: `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*`
-- **Recommended launcher-backed literature workflow consumer**: `literature_fetch.py workflow-plan`
+- **Recommended launcher-backed literature workflow entrypoint**: `autoresearch workflow-plan` (requires an initialized external project root; resolves recipes directly via `@autoresearch/literature-workflows`; persists `.autoresearch/state.json#/plan` and derives `.autoresearch/plan.md`; the checked-in Python `workflow-plan` script remains a lower-level parallel consumer, and `hepar literature-gap` remains legacy compatibility-only)
 
 Legacy compatibility note: `hepar literature-gap` is still live on the legacy Pipeline A CLI surface, but it is no longer a recommended mainline entrypoint.
 
@@ -30,7 +30,7 @@ Legacy compatibility note: `hepar literature-gap` is still live on the legacy Pi
 - **Project/Run evidence workflow**: `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> `hep_export_project`
 - **Writing/export workflow**: citation mapping, evidence build, verifier-enforced rendering, research pack export, paper scaffold export/import
 - **Literature/data workflow**: direct provider search, retrieval, export, and bounded analysis operators
-- **Launcher-backed literature workflow**: checked-in `workflow-plan` consumer resolves literature recipes into bounded executable steps
+- **Launcher-backed literature workflow**: `autoresearch workflow-plan` resolves literature recipes directly via `@autoresearch/literature-workflows` into bounded executable steps for an initialized external project root, persists the plan substrate into `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`, and leaves the checked-in Python `workflow-plan` script as a lower-level parallel consumer
 - **Local reference workflow**: Zotero Local API and offline PDG lookups
 - **Generic lifecycle workflow**: `autoresearch init/status/approve/pause/resume/export`
 

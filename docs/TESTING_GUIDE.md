@@ -433,12 +433,13 @@ python -m hep_autoresearch.orchestrator_cli \
 ```
 
 ```bash
-python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan \
+autoresearch workflow-plan \
   --recipe literature_landscape \
   --phase prework \
   --query "bootstrap amplitudes" \
   --topic "bootstrap amplitudes"
 ```
+先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer；`hepar literature-gap` 仅剩 legacy compatibility shell pending retirement。
 
 **预期**
 

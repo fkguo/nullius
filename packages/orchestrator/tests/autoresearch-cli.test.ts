@@ -54,8 +54,124 @@ describe('autoresearch CLI', () => {
     const { io, stdout } = makeIo(process.cwd());
     const code = await runCli(['--help'], io);
     expect(code).toBe(0);
-    expect(stdout.join('')).toContain('Canonical generic lifecycle entrypoint');
+    expect(stdout.join('')).toContain('Canonical generic lifecycle and workflow-plan entrypoint');
+    expect(stdout.join('')).toContain('autoresearch workflow-plan --recipe <recipe_id> [options]');
     expect(stdout.join('')).toContain('run/doctor/bridge remain on the transitional Pipeline A surface');
+  });
+
+  it('resolves launcher-backed workflow plans through the canonical autoresearch front door', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli([
+      'workflow-plan',
+      '--recipe', 'literature_landscape',
+      '--phase', 'prework',
+      '--run-id', 'M-LIT-1',
+      '--query', 'bootstrap amplitudes',
+      '--topic', 'bootstrap amplitudes',
+      '--seed-recid', '1234',
+      '--preferred-provider', 'openalex',
+      '--available-tool', 'openalex_search',
+      '--available-tool', 'inspire_topic_analysis',
+      '--available-tool', 'inspire_network_analysis',
+      '--available-tool', 'inspire_trace_original_source',
+    ], io);
+
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout.join('')) as {
+      recipe_id: string;
+      phase?: string;
+      entry_tool: string;
+      resolved_steps: Array<Record<string, unknown>>;
+    };
+    expect(payload).toMatchObject({
+      recipe_id: 'literature_landscape',
+      phase: 'prework',
+      entry_tool: 'literature_workflows.resolve',
+    });
+    expect(payload.resolved_steps[0]).toMatchObject({
+      id: 'seed_search',
+      provider: 'openalex',
+      tool: 'openalex_search',
+    });
+    expect(manager.readState()).toMatchObject({
+      run_id: 'M-LIT-1',
+      workflow_id: 'literature_landscape',
+      run_status: 'idle',
+      plan_md_path: '.autoresearch/plan.md',
+      plan: {
+        plan_id: 'M-LIT-1:literature_landscape',
+      },
+    });
+    const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
+    expect(planMd).toContain('SSOT: `.autoresearch/state.json#/plan`');
+    expect(planMd).toContain('seed_search');
+  });
+
+  it('fails closed when workflow-plan targets an uninitialized project root', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const { io } = makeIo(projectRoot);
+
+    await expect(runCli([
+      'workflow-plan',
+      '--recipe', 'literature_landscape',
+      '--query', 'bootstrap amplitudes',
+    ], io)).rejects.toThrow(`project root is not initialized: ${projectRoot}; run autoresearch init first`);
+  });
+
+  it('rejects workflow-plan replacement while a run is active', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-ACTIVE-1';
+    state.workflow_id = 'ingest';
+    state.run_status = 'running';
+    manager.saveState(state);
+    const { io } = makeIo(projectRoot);
+
+    await expect(runCli([
+      'workflow-plan',
+      '--recipe', 'literature_landscape',
+      '--query', 'bootstrap amplitudes',
+    ], io)).rejects.toThrow('cannot replace workflow plan while run_status=running; finish or reset the current run first');
+  });
+
+  it('derives a stable fallback run_id when --run-id is omitted', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCli([
+      'workflow-plan',
+      '--recipe', 'literature_landscape',
+      '--phase', 'prework',
+      '--query', 'bootstrap amplitudes',
+      '--topic', 'bootstrap amplitudes',
+      '--seed-recid', '1234',
+      '--preferred-provider', 'openalex',
+      '--available-tool', 'openalex_search',
+      '--available-tool', 'inspire_topic_analysis',
+      '--available-tool', 'inspire_network_analysis',
+      '--available-tool', 'inspire_trace_original_source',
+    ], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      recipe_id: 'literature_landscape',
+      phase: 'prework',
+    });
+    expect(manager.readState()).toMatchObject({
+      run_id: 'literature_landscape-prework',
+      plan: {
+        plan_id: 'literature_landscape-prework:literature_landscape',
+      },
+    });
   });
 
   it('shows JSON status for the nearest project root', async () => {

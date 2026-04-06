@@ -238,6 +238,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.78.0
         version: 0.78.0(zod@4.3.6)
+      '@autoresearch/literature-workflows':
+        specifier: workspace:^
+        version: link:../literature-workflows
       '@autoresearch/shared':
         specifier: workspace:^
         version: link:../shared

@@ -52,7 +52,7 @@ repo root
 ├── provider packages
 │   └── openalex-mcp / arxiv-mcp / hepdata-mcp / pdg-mcp / zotero-mcp
 └── checked-in workflow recipes + consumers
-    └── `literature_fetch.py workflow-plan` (+ legacy `hepar literature-gap` wrapper pending retirement)
+    └── `literature_fetch.py workflow-plan` (lower-level consumer driven by `autoresearch workflow-plan`; legacy `hepar literature-gap` wrapper pending retirement)
 ```
 
 ### 3.2 `@autoresearch/hep-mcp`
@@ -82,13 +82,14 @@ Current responsibilities:
 - status / pause / resume / export CLI flows
 - full-surface orchestrator tool specs (`orch_*`) for host integrations
 
-The current user-facing generic lifecycle entrypoint is the `autoresearch` CLI, not the root MCP server. `packages/orchestrator/src/cli-help.ts` explicitly describes this surface as lifecycle-only in the current batch.
+The current user-facing generic lifecycle + workflow-plan entrypoint is the `autoresearch` CLI, not the root MCP server.
 
 ### 3.4 Launcher-backed workflow consumers
 
-High-level literature workflows are meant to enter through checked-in generic workflow-plan consumers:
+High-level literature workflows are meant to enter through the stateful launcher-backed `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:
 
-- `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`
+- `autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`
+- `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` → lower-level checked-in consumer of the same workflow authority
 
 `hepar literature-gap` still exists on the legacy Pipeline A CLI surface as a compatibility wrapper, but it is not the recommended mainline entrypoint and should keep moving toward retirement.
 

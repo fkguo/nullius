@@ -3,10 +3,20 @@ export type ParsedCliArgs =
   | { command: 'init' | 'export'; projectRoot: string | null; passthrough: string[] }
   | { command: 'status'; projectRoot: string | null; json: boolean }
   | { command: 'pause' | 'resume'; projectRoot: string | null; note: string | null }
-  | { command: 'approve'; projectRoot: string | null; approvalId: string; note: string | null };
+  | { command: 'approve'; projectRoot: string | null; approvalId: string; note: string | null }
+  | {
+    command: 'workflow-plan';
+    projectRoot: string | null;
+    recipeId: string;
+    phase: string | null;
+    inputs: Record<string, unknown>;
+    preferredProviders: string[];
+    allowedProviders: string[];
+    availableTools: string[];
+  };
 
 const HELP_FLAGS = new Set(['-h', '--help']);
-const COMMANDS = new Set(['init', 'status', 'approve', 'pause', 'resume', 'export']);
+const COMMANDS = new Set(['init', 'status', 'approve', 'pause', 'resume', 'export', 'workflow-plan']);
 
 function isHelpFlag(value: string): boolean {
   return HELP_FLAGS.has(value);
@@ -93,6 +103,78 @@ function parseApproveArgs(args: string[]): { approvalId: string; note: string | 
   return { approvalId, note };
 }
 
+function parseWorkflowPlanArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 'workflow-plan' }>, 'command' | 'projectRoot'> {
+  let recipeId: string | null = null;
+  let phase: string | null = null;
+  const inputs: Record<string, unknown> = {
+    query: '',
+    topic: '',
+    seed_recid: '',
+    analysis_seed: '',
+    recids: [],
+    project_id: '',
+    paper_id: '',
+    run_id: '',
+  };
+  const preferredProviders: string[] = [];
+  const allowedProviders: string[] = [];
+  const availableTools: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--recipe') {
+      recipeId = readOptionValue(args, index, '--recipe');
+      index += 1;
+      continue;
+    }
+    if (arg === '--phase') {
+      phase = readOptionValue(args, index, '--phase');
+      index += 1;
+      continue;
+    }
+    if (arg === '--query' || arg === '--topic' || arg === '--project-id' || arg === '--paper-id' || arg === '--run-id') {
+      const key = arg.slice(2).replaceAll('-', '_');
+      inputs[key] = readOptionValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === '--seed-recid') {
+      inputs.seed_recid = readOptionValue(args, index, '--seed-recid');
+      index += 1;
+      continue;
+    }
+    if (arg === '--analysis-seed') {
+      inputs.analysis_seed = readOptionValue(args, index, '--analysis-seed');
+      index += 1;
+      continue;
+    }
+    if (arg === '--recid') {
+      (inputs.recids as string[]).push(readOptionValue(args, index, '--recid'));
+      index += 1;
+      continue;
+    }
+    if (arg === '--preferred-provider') {
+      preferredProviders.push(readOptionValue(args, index, '--preferred-provider'));
+      index += 1;
+      continue;
+    }
+    if (arg === '--allowed-provider') {
+      allowedProviders.push(readOptionValue(args, index, '--allowed-provider'));
+      index += 1;
+      continue;
+    }
+    if (arg === '--available-tool') {
+      availableTools.push(readOptionValue(args, index, '--available-tool'));
+      index += 1;
+      continue;
+    }
+    throw new Error(`unknown workflow-plan argument: ${arg}`);
+  }
+  if (!recipeId) {
+    throw new Error('workflow-plan requires --recipe <recipe_id>');
+  }
+  return { recipeId, phase, inputs, preferredProviders, allowedProviders, availableTools };
+}
+
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const { args, projectRoot } = extractProjectRoot(argv);
   if (args.length === 0) {
@@ -122,6 +204,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'resume', projectRoot, ...parseNoteArgs('resume', rest) };
     case 'approve':
       return { command: 'approve', projectRoot, ...parseApproveArgs(rest) };
+    case 'workflow-plan':
+      return { command: 'workflow-plan', projectRoot, ...parseWorkflowPlanArgs(rest) };
     default:
       throw new Error(`unknown command: ${command}`);
   }

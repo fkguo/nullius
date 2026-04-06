@@ -1,6 +1,6 @@
 const MAIN_HELP = `autoresearch
 
-Canonical generic lifecycle entrypoint for the Autoresearch control plane.
+Canonical generic lifecycle and workflow-plan entrypoint for the Autoresearch control plane.
 
 Commands:
   autoresearch init [options]
@@ -9,13 +9,14 @@ Commands:
   autoresearch pause [--note "..."]
   autoresearch resume [--note "..."]
   autoresearch export [options]
+  autoresearch workflow-plan --recipe <recipe_id> [options]
 
 Global options:
-  --project-root <path>   Override the project root for lifecycle commands.
+  --project-root <path>   Override the target external project root.
   -h, --help              Show help.
 
 Notes:
-  - This surface is intentionally lifecycle-only in this batch.
+  - workflow-plan resolves checked-in generic literature workflow recipes into bounded steps.
   - Workflow shells such as run/doctor/bridge remain on the transitional Pipeline A surface for now.
 `;
 
@@ -68,6 +69,32 @@ Pass-through options:
   --run-id <id>
   --out <zip-path>
   --include-kb-profile
+`,
+  'workflow-plan': `autoresearch workflow-plan --recipe <recipe_id> [options]
+
+Resolve a checked-in literature workflow recipe into a bounded executable plan.
+
+Options:
+  --phase <phase>
+  --query <text>
+  --topic <text>
+  --seed-recid <recid>
+  --analysis-seed <value>
+  --recid <recid>              Repeatable
+  --project-id <id>
+  --paper-id <id>
+  --run-id <id>
+  --preferred-provider <id>   Repeatable
+  --allowed-provider <id>     Repeatable
+  --available-tool <name>     Repeatable
+
+Behavior:
+  Requires an initialized external project root (\`autoresearch init\`).
+  Persists the resolved plan into \`.autoresearch/state.json#/plan\`.
+  Derives \`.autoresearch/plan.md\` from the persisted plan.
+
+Output:
+  JSON workflow plan is still written to stdout.
 `,
 };
 

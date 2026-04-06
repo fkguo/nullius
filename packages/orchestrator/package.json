@@ -10,9 +10,9 @@
     "autoresearch": "dist/cli.js"
   },
   "scripts": {
-    "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared",
+    "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/literature-workflows",
     "build": "tsc",
-    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared",
+    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/literature-workflows",
     "test": "vitest run",
     "lint": "echo \"no lint yet\"",
     "clean": "rm -rf dist"
@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@autoresearch/literature-workflows": "workspace:^",
     "@autoresearch/shared": "workspace:^",
     "ajv": "^8.18.0",
     "zod": "^4.3.5"
