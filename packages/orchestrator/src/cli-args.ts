@@ -1,6 +1,15 @@
 export type ParsedCliArgs =
   | { command: 'help'; projectRoot: string | null; topic: string | null }
   | { command: 'init' | 'export'; projectRoot: string | null; passthrough: string[] }
+  | {
+    command: 'run';
+    projectRoot: string | null;
+    workflowId: string | null;
+    runId: string | null;
+    runDir: string | null;
+    manifestPath: string | null;
+    dryRun: boolean;
+  }
   | { command: 'status'; projectRoot: string | null; json: boolean }
   | { command: 'pause' | 'resume'; projectRoot: string | null; note: string | null }
   | { command: 'approve'; projectRoot: string | null; approvalId: string; note: string | null }
@@ -16,7 +25,7 @@ export type ParsedCliArgs =
   };
 
 const HELP_FLAGS = new Set(['-h', '--help']);
-const COMMANDS = new Set(['init', 'status', 'approve', 'pause', 'resume', 'export', 'workflow-plan']);
+const COMMANDS = new Set(['init', 'run', 'status', 'approve', 'pause', 'resume', 'export', 'workflow-plan']);
 
 function isHelpFlag(value: string): boolean {
   return HELP_FLAGS.has(value);
@@ -101,6 +110,43 @@ function parseApproveArgs(args: string[]): { approvalId: string; note: string | 
     throw new Error('approve requires an approval_id');
   }
   return { approvalId, note };
+}
+
+function parseRunArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 'run' }>, 'command' | 'projectRoot'> {
+  let workflowId: string | null = null;
+  let runId: string | null = null;
+  let runDir: string | null = null;
+  let manifestPath: string | null = null;
+  let dryRun = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--dry-run') {
+      dryRun = true;
+      continue;
+    }
+    if (arg === '--workflow-id') {
+      workflowId = readOptionValue(args, index, '--workflow-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--run-id') {
+      runId = readOptionValue(args, index, '--run-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--run-dir') {
+      runDir = readOptionValue(args, index, '--run-dir');
+      index += 1;
+      continue;
+    }
+    if (arg === '--manifest') {
+      manifestPath = readOptionValue(args, index, '--manifest');
+      index += 1;
+      continue;
+    }
+    throw new Error(`unknown run argument: ${arg}`);
+  }
+  return { workflowId, runId, runDir, manifestPath, dryRun };
 }
 
 function parseWorkflowPlanArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 'workflow-plan' }>, 'command' | 'projectRoot'> {
@@ -194,6 +240,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   switch (command) {
     case 'init':
       return { command: 'init', projectRoot, passthrough: rest };
+    case 'run':
+      return { command: 'run', projectRoot, ...parseRunArgs(rest) };
     case 'export':
       return { command: 'export', projectRoot, passthrough: rest };
     case 'status':

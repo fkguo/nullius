@@ -13,6 +13,7 @@ import {
   runStatusCommand,
 } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
+import { runComputationCommand } from './cli-run.js';
 import { runWorkflowPlanCommand } from './cli-workflow-plan.js';
 
 function defaultIo(): CliIo {
@@ -40,6 +41,9 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
   if (parsed.command === 'workflow-plan') {
     await runWorkflowPlanCommand(parsed, io);
     return 0;
+  }
+  if (parsed.command === 'run') {
+    return runComputationCommand(parsed, io);
   }
 
   const projectRoot = resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd);

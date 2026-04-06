@@ -4,6 +4,7 @@ Canonical generic lifecycle and workflow-plan entrypoint for the Autoresearch co
 
 Commands:
   autoresearch init [options]
+  autoresearch run --workflow-id computation [options]
   autoresearch status [--json]
   autoresearch approve <approval_id> [--note "..."]
   autoresearch pause [--note "..."]
@@ -17,7 +18,8 @@ Global options:
 
 Notes:
   - workflow-plan resolves checked-in generic literature workflow recipes into bounded steps.
-  - Workflow shells such as run/doctor/bridge remain on the transitional Pipeline A surface for now.
+  - \`run\` is now the native TS computation entrypoint.
+  - Provider-local \`doctor\`/\`bridge\` remain on the transitional Pipeline A surface.
 `;
 
 const COMMAND_HELP: Record<string, string> = {
@@ -32,6 +34,24 @@ Pass-through options:
   --checkpoint-interval-seconds <seconds>
 
 Use --project-root <path> to target a root explicitly.
+`,
+  run: `autoresearch run --workflow-id computation [options]
+
+Execute a computation manifest through the native TS orchestrator computation authority.
+
+Options:
+  --workflow-id <id>         Must be "computation" in this bounded slice
+  --run-id <id>              Defaults to current state.run_id when set
+  --run-dir <path>           Defaults to <project_root>/<run_id>
+  --manifest <path>          Defaults to <run_dir>/computation/manifest.json
+  --dry-run                  Validate only; do not execute steps
+
+Behavior:
+  Requires an initialized external project root (\`autoresearch init\`).
+  Non-dry-run execution requests A3 approval when gate_satisfied.A3 is absent.
+
+Output:
+  JSON execution result is written to stdout.
 `,
   status: `autoresearch status
 
