@@ -101,6 +101,11 @@ function assertAllExist(params: { referenced: ToolName[]; allowed: Set<ToolName>
   expect(missing, `${params.label}: missing tools: ${missing.join(', ')}`).toEqual([]);
 }
 
+function assertContainsAll(params: { text: string; snippets: string[]; label: string }): void {
+  const missing = params.snippets.filter(snippet => !params.text.includes(snippet));
+  expect(missing, `${params.label}: missing required boundary wording: ${missing.join(' | ')}`).toEqual([]);
+}
+
 function mustMatch(md: string, re: RegExp, label: string): RegExpMatchArray {
   const m = md.match(re);
   expect(m, `${label}: expected to match ${String(re)}`).not.toBeNull();
@@ -245,6 +250,68 @@ describe('Docs tool drift guard', () => {
       const m = mustMatch(status, /-\s*`standard=(\d+)`,\s*`full=(\d+)`/m, 'docs/PROJECT_STATUS.md');
       expect(Number(m[1])).toBe(standardCount);
       expect(Number(m[2])).toBe(fullCount);
+    }
+  });
+
+  it('root docs keep generic lifecycle and shell-boundary framing', () => {
+    const requiredByPath: Array<[string, string[]]> = [
+      [
+        'README.md',
+        [
+          '`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` resolve workflow recipes into bounded steps. `hepar literature-gap` is still live only as a legacy compatibility shell pending retirement.',
+          '| Generic lifecycle front door | `autoresearch` | External project-root lifecycle state, approvals, pause/resume, export |',
+          '| High-level literature workflow plan consumer | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | Checked-in generic recipe consumer for launcher-backed workflow plans |',
+          'Legacy compatibility note: `hepar literature-gap` still exists in the legacy Pipeline A CLI surface, but it is no longer a recommended mainline entrypoint and is headed toward retirement.',
+          '| Workflow shells | `workflow-plan` | Checked-in generic recipe consumer; `hepar literature-gap` remains only as a legacy compatibility wrapper pending retirement |',
+          'Do not treat `hepar literature-gap` as a new front-door shell.',
+          '- the root product identity',
+        ],
+      ],
+      [
+        'docs/README_zh.md',
+        [
+          '`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 这类 checked-in generic workflow-plan consumer 会把 workflow recipe 解析成受限步骤。`hepar literature-gap` 仍然存在，但只作为待退役的 legacy compatibility shell。',
+          '| 通用 lifecycle front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、pause/resume、export |',
+          '| 高层文献工作流入口 | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | launcher-backed workflow recipe 的 checked-in generic consumer |',
+          'Legacy compatibility 说明：`hepar literature-gap` 仍在旧的 Pipeline A CLI 面上存活，但已不再是推荐的新入口，并且处于退役方向上。',
+          '| Workflow shells | `workflow-plan` | checked-in generic recipe consumer；`hepar literature-gap` 仅剩 legacy compatibility wrapper，等待退役 |',
+          '不要把 `hepar literature-gap` 当成新的前门 shell。',
+          '- root 产品身份本身',
+        ],
+      ],
+      [
+        'docs/PROJECT_STATUS.md',
+        [
+          '**Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity',
+          '**Main generic lifecycle entrypoint**: `autoresearch` CLI for external project roots and `.autoresearch/` state',
+          '**Recommended launcher-backed literature workflow consumer**: `literature_fetch.py workflow-plan`',
+          'Legacy compatibility note: `hepar literature-gap` is still live on the legacy Pipeline A CLI surface, but it is no longer a recommended mainline entrypoint.',
+          '**Generic lifecycle workflow**: `autoresearch init/status/approve/pause/resume/export`',
+        ],
+      ],
+      [
+        'docs/ARCHITECTURE.md',
+        [
+          '- The root architecture is domain-neutral.',
+          '- checked-in workflow recipes that can be consumed by generic workflow-plan consumers or agent clients',
+          'The current user-facing generic lifecycle entrypoint is the `autoresearch` CLI, not the root MCP server.',
+          'High-level literature workflows are meant to enter through checked-in generic workflow-plan consumers:',
+          '`hepar literature-gap` still exists on the legacy Pipeline A CLI surface as a compatibility wrapper, but it is not the recommended mainline entrypoint and should keep moving toward retirement.',
+          'Users who need generic lifecycle state should invoke `autoresearch` directly rather than expecting the root MCP server to own that surface today.',
+        ],
+      ],
+      [
+        'docs/TOOL_CATEGORIES.md',
+        [
+          'launcher 解析后再下沉到 `inspire_search` / provenance / network operators；`hepar literature-gap` 仅剩 legacy compatibility shell',
+          '不再通过 provider-specific high-level MCP facade；`hepar literature-gap` 不再作为推荐主入口',
+          '高层 literature workflow 现由 checked-in `workflow-plan` consumer 承担；`hepar literature-gap` 仍是 legacy compatibility shell，但不再是推荐的新入口。',
+        ],
+      ],
+    ];
+
+    for (const [relPath, snippets] of requiredByPath) {
+      assertContainsAll({ text: readText(root, relPath), snippets, label: relPath });
     }
   });
 });

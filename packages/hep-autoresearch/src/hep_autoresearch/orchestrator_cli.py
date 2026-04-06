@@ -5729,8 +5729,13 @@ def cmd_migrate_wrapper(args: argparse.Namespace) -> int:
     return cmd_migrate(repo_root, registry_path=registry_path, dry_run=dry_run)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Orchestrator CLI v0.4 (run + status/pause/resume/approve).")
+def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
+    description = (
+        "Legacy Pipeline A CLI for unrepointed workflow and maintainer commands."
+        if public_surface
+        else "Orchestrator CLI v0.4 (run + status/pause/resume/approve)."
+    )
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "--project-root",
         help="Project root directory (default: search upward for .autoresearch/, else use CWD).",
@@ -5762,18 +5767,19 @@ def main() -> int:
     p_start.add_argument("--force", action="store_true", help="Override running/awaiting_approval.")
     p_start.set_defaults(fn=cmd_start)
 
-    p_status = sub.add_parser("status", help="Show current state (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch status`).")
-    p_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON output.")
-    p_status.set_defaults(fn=cmd_status)
+    if not public_surface:
+        p_status = sub.add_parser("status", help="Show current state (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch status`).")
+        p_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON output.")
+        p_status.set_defaults(fn=cmd_status)
 
-    p_pause = sub.add_parser("pause", help="Pause current run (writes .pause and updates state; canonical generic entrypoint is `autoresearch pause`).")
-    p_pause.add_argument("--note", help="Ledger note.")
-    p_pause.set_defaults(fn=cmd_pause)
+        p_pause = sub.add_parser("pause", help="Pause current run (writes .pause and updates state; canonical generic entrypoint is `autoresearch pause`).")
+        p_pause.add_argument("--note", help="Ledger note.")
+        p_pause.set_defaults(fn=cmd_pause)
 
-    p_resume = sub.add_parser("resume", help="Resume current run (removes .pause and updates state; canonical generic entrypoint is `autoresearch resume`).")
-    p_resume.add_argument("--note", help="Ledger note.")
-    p_resume.add_argument("--force", action="store_true", help="Allow resuming from idle/completed/failed.")
-    p_resume.set_defaults(fn=cmd_resume)
+        p_resume = sub.add_parser("resume", help="Resume current run (removes .pause and updates state; canonical generic entrypoint is `autoresearch resume`).")
+        p_resume.add_argument("--note", help="Ledger note.")
+        p_resume.add_argument("--force", action="store_true", help="Allow resuming from idle/completed/failed.")
+        p_resume.set_defaults(fn=cmd_resume)
 
     p_ckpt = sub.add_parser("checkpoint", help="Update checkpoint timestamp (runner heartbeat).")
     p_ckpt.add_argument("--step-id", help="Optional current step id.")
@@ -5794,10 +5800,11 @@ def main() -> int:
     p_req.add_argument("--force", action="store_true", help="Overwrite existing pending approval.")
     p_req.set_defaults(fn=cmd_request_approval)
 
-    p_app = sub.add_parser("approve", help="Approve a pending approval and resume running (canonical generic entrypoint is `autoresearch approve`).")
-    p_app.add_argument("approval_id", help="Approval id, e.g. A1-0001")
-    p_app.add_argument("--note", help="Ledger note.")
-    p_app.set_defaults(fn=cmd_approve)
+    if not public_surface:
+        p_app = sub.add_parser("approve", help="Approve a pending approval and resume running (canonical generic entrypoint is `autoresearch approve`).")
+        p_app.add_argument("approval_id", help="Approval id, e.g. A1-0001")
+        p_app.add_argument("--note", help="Ledger note.")
+        p_app.set_defaults(fn=cmd_approve)
 
     p_rej = sub.add_parser("reject", help="Reject a pending approval and pause.")
     p_rej.add_argument("approval_id", help="Approval id, e.g. A1-0001")
@@ -6265,12 +6272,16 @@ def main() -> int:
     p_migrate.add_argument("--dry-run", action="store_true", help="Show what would be migrated without writing.")
     p_migrate.set_defaults(fn=cmd_migrate_wrapper)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # trace-jsonl: configure structured JSONL logging for the orchestrator
     configure_logging("orchestrator")
 
     return int(args.fn(args))
+
+
+def public_main(argv: list[str] | None = None) -> int:
+    return main(argv, public_surface=True)
 
 
 if __name__ == "__main__":

@@ -167,7 +167,7 @@
 | 自动复现论文主结果 | 部分覆盖 | `hep-calc` + MCP 支持；还缺“差异归因模板 + 复现目标抽取/定义 + 预算控制” |
 | 自动审稿 | 覆盖 | `prl-referee-review` + `review-swarm` 可做文本审阅；仍需与“可编译/证据/引用”门禁联动 |
 | 自动改稿 | 部分覆盖 | `research-writer` 提供写作侧工具；还缺“改稿闭环状态机 + diff/rollback + compile gate” |
-| pause/resume/status/approve | 覆盖 | Orchestrator CLI/Web 已实现（见 `docs/ORCHESTRATOR_INTERACTION.md`；入口：`hep-autoresearch status/pause/resume/approve`） |
+| pause/resume/status/approve | 覆盖 | Orchestrator CLI/Web 已实现（见 `docs/ORCHESTRATOR_INTERACTION.md`；对外 generic 入口为 `autoresearch status/pause/resume/approve`，不再把 installable `hep-autoresearch` / `hepar` 当默认 lifecycle 入口） |
 | 自我进化（L1–L3） | 部分覆盖 | EVOLUTION v0 已落地：从失败 run 生成 A2-gated 改进提案 + 回归锚点；更高自治的 L2/L3 仍需在 eval suite/回滚成熟后逐步放开 |
 
 ## 4) 是否需要额外开发新的 skills？

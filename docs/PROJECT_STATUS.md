@@ -17,17 +17,20 @@
 
 ## What is live today
 
-- **Main MCP front door**: `@autoresearch/hep-mcp` exposed through `packages/hep-mcp/dist/index.js`
+- **Current most mature domain MCP front door**: `@autoresearch/hep-mcp` exposed through `packages/hep-mcp/dist/index.js`
 - **Main generic lifecycle entrypoint**: `autoresearch` CLI for external project roots and `.autoresearch/` state
 - **Current strongest end-to-end workflow family**: `hep_*` Project/Run + evidence + writing + export
 - **Direct provider families**: `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*`
-- **Launcher-backed workflow shells**: `hepar literature-gap` and `literature_fetch.py workflow-plan`
+- **Recommended launcher-backed literature workflow consumer**: `literature_fetch.py workflow-plan`
+
+Legacy compatibility note: `hepar literature-gap` is still live on the legacy Pipeline A CLI surface, but it is no longer a recommended mainline entrypoint.
 
 ## Current truthful workflows
 
 - **Project/Run evidence workflow**: `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> `hep_export_project`
 - **Writing/export workflow**: citation mapping, evidence build, verifier-enforced rendering, research pack export, paper scaffold export/import
 - **Literature/data workflow**: direct provider search, retrieval, export, and bounded analysis operators
+- **Launcher-backed literature workflow**: checked-in `workflow-plan` consumer resolves literature recipes into bounded executable steps
 - **Local reference workflow**: Zotero Local API and offline PDG lookups
 - **Generic lifecycle workflow**: `autoresearch init/status/approve/pause/resume/export`
 

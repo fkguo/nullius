@@ -9,9 +9,9 @@ This document explains the current front-door architecture of the monorepo. It i
 Autoresearch Lab currently combines:
 
 - a generic lifecycle/control-plane package (`@autoresearch/orchestrator`)
-- a local MCP front door with the strongest end-to-end workflow family today (`@autoresearch/hep-mcp`)
+- a current most mature domain MCP front door with the strongest end-to-end workflow family today (`@autoresearch/hep-mcp`)
 - additional provider packages (`openalex-mcp`, `arxiv-mcp`, `hepdata-mcp`, `pdg-mcp`, `zotero-mcp`)
-- checked-in workflow recipes that can be consumed by launcher-backed shells or agent clients
+- checked-in workflow recipes that can be consumed by generic workflow-plan consumers or agent clients
 
 ## 2. Design invariants
 
@@ -48,11 +48,11 @@ repo root
 ├── @autoresearch/orchestrator
 │   └── generic lifecycle/control-plane package + `autoresearch` CLI
 ├── @autoresearch/hep-mcp
-│   └── current main MCP front door and strongest end-to-end workflow family
+│   └── current most mature domain MCP front door and strongest end-to-end workflow family
 ├── provider packages
 │   └── openalex-mcp / arxiv-mcp / hepdata-mcp / pdg-mcp / zotero-mcp
-└── checked-in workflow recipes + shells
-    └── `hepar literature-gap` / `literature_fetch.py workflow-plan`
+└── checked-in workflow recipes + consumers
+    └── `literature_fetch.py workflow-plan` (+ legacy `hepar literature-gap` wrapper pending retirement)
 ```
 
 ### 3.2 `@autoresearch/hep-mcp`
@@ -84,14 +84,15 @@ Current responsibilities:
 
 The current user-facing generic lifecycle entrypoint is the `autoresearch` CLI, not the root MCP server. `packages/orchestrator/src/cli-help.ts` explicitly describes this surface as lifecycle-only in the current batch.
 
-### 3.4 Launcher-backed workflow shells
+### 3.4 Launcher-backed workflow consumers
 
-High-level literature workflows remain on checked-in launcher-backed shells:
+High-level literature workflows are meant to enter through checked-in generic workflow-plan consumers:
 
-- `hepar literature-gap`
 - `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`
 
-These are current front-door consumers of workflow recipes, not the root identity of the repo.
+`hepar literature-gap` still exists on the legacy Pipeline A CLI surface as a compatibility wrapper, but it is not the recommended mainline entrypoint and should keep moving toward retirement.
+
+These workflow-plan consumers are not the root identity of the repo; they are one layer above checked-in recipe authority.
 
 ## 4. Current workflow families
 

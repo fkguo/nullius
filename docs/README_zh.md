@@ -19,7 +19,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 1. 文献与数据导航工作流
    - 直接使用 `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 等 provider 工具。
 1. Launcher-backed 文献工作流家族
-   - `hepar literature-gap` 与 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 会把 checked-in workflow recipe 解析成受限步骤。
+   - `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 这类 checked-in generic workflow-plan consumer 会把 workflow recipe 解析成受限步骤。`hepar literature-gap` 仍然存在，但只作为待退役的 legacy compatibility shell。
 1. 通用 lifecycle 工作流
    - `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。
 
@@ -27,10 +27,12 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 | Surface | 当前入口 | 用途 |
 | --- | --- | --- |
-| 今天的主 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的本地 MCP server `(72 std / 101)` |
+| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的 HEP 领域 MCP server `(72 std / 101)` |
 | 通用 lifecycle front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、pause/resume、export |
-| 高层文献工作流 shell | `hepar literature-gap`、`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | launcher-backed workflow recipe 的 consumer |
+| 高层文献工作流入口 | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | launcher-backed workflow recipe 的 checked-in generic consumer |
 | 叶子 provider 包 | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 可组合进客户端工作流的 provider-specific capabilities |
+
+Legacy compatibility 说明：`hepar literature-gap` 仍在旧的 Pipeline A CLI 面上存活，但已不再是推荐的新入口，并且处于退役方向上。
 
 工具数量：**`standard` 模式 72 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 101 个**（额外暴露 advanced 工具）。
 
@@ -47,7 +49,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | Evidence-first Project/Run 工作流 | `@autoresearch/hep-mcp`、`hep_*`、`hep://...` | 当前最强的端到端 workflow family |
 | 文献与数据 providers | `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*` | 直接搜索、下载、导出、受限分析的组合面 |
 | 本地参考 providers | `zotero_*`、`pdg_*` | 可选的本地输入与查验工具 |
-| Workflow shells | `hepar literature-gap`、`workflow-plan` | 过渡中的 recipe consumer，不是 root 身份 |
+| Workflow shells | `workflow-plan` | checked-in generic recipe consumer；`hepar literature-gap` 仅剩 legacy compatibility wrapper，等待退役 |
 
 ## 4. Runs、Artifacts、Resources、State 在哪里
 
@@ -115,7 +117,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 ## 5. 用户如何从 MCP clients / agent clients 接入
 
-当前的 MCP 接入模型是本地 stdio only。今天的主要 MCP front door 是 `hep-mcp` server；通用 orchestrator 目前暴露的是 lifecycle CLI，而不是 root 的主 MCP server。
+当前的 MCP 接入模型是本地 stdio only。仓库目前还没有单一的 generic root MCP server；今天最成熟的领域 MCP 入口是 `hep-mcp`，而通用 `autoresearch` surface 仍主要承担 lifecycle/control-plane CLI。
 
 通用 MCP 配置模式：
 
@@ -149,6 +151,8 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 autoresearch init --project-root /absolute/path/to/external-project
 autoresearch status --project-root /absolute/path/to/external-project
 ```
+
+- 对 launcher-backed 文献工作流，优先使用 checked-in `workflow-plan` consumer；不要把 `hepar literature-gap` 当成新的前门 shell。
 
 ## 6. 更深的架构 / 治理文档在哪里
 

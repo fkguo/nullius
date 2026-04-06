@@ -19,7 +19,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 1. Literature and data navigation workflow
    - Direct provider tools such as `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*`.
 1. Launcher-backed literature workflow family
-   - `hepar literature-gap` and `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` resolve checked-in workflow recipes into bounded steps.
+   - Checked-in generic workflow-plan consumers such as `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` resolve workflow recipes into bounded steps. `hepar literature-gap` is still live only as a legacy compatibility shell pending retirement.
 1. Generic lifecycle workflow
    - `autoresearch init/status/approve/pause/resume/export` for `.autoresearch/` project state outside the development repo.
 
@@ -27,10 +27,12 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 
 | Surface | Current entrypoint | What it is for |
 | --- | --- | --- |
-| Main MCP front door today | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | Local MCP server for research/navigation/evidence/export workflows `(72 std / 101)` |
+| Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research/navigation/evidence/export workflows `(72 std / 101)` |
 | Generic lifecycle front door | `autoresearch` | External project-root lifecycle state, approvals, pause/resume, export |
-| High-level literature workflow shells | `hepar literature-gap`, `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | Checked-in recipe consumers for launcher-backed workflow plans |
+| High-level literature workflow plan consumer | `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` | Checked-in generic recipe consumer for launcher-backed workflow plans |
 | Leaf provider packages | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Provider-specific capabilities that can be composed into client workflows |
+
+Legacy compatibility note: `hepar literature-gap` still exists in the legacy Pipeline A CLI surface, but it is no longer a recommended mainline entrypoint and is headed toward retirement.
 
 Tool counts: **72 tools in `standard` mode** (default, compact surface) and **101 tools in `full` mode** (adds advanced tools).
 
@@ -47,7 +49,7 @@ Current package map, grouped by capability rather than identity:
 | Evidence-first Project/Run workflows | `@autoresearch/hep-mcp`, `hep_*`, `hep://...` | Current strongest end-to-end workflow family |
 | Literature and data providers | `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*` | Mix of direct search, download, export, and bounded analysis |
 | Local reference providers | `zotero_*`, `pdg_*` | Optional local-only inputs and lookups |
-| Workflow shells | `hepar literature-gap`, `workflow-plan` | Transitional recipe consumers, not root identity |
+| Workflow shells | `workflow-plan` | Checked-in generic recipe consumer; `hepar literature-gap` remains only as a legacy compatibility wrapper pending retirement |
 
 ## 4. Where Do Artifacts, Resources, and State Live
 
@@ -115,7 +117,7 @@ The orchestrator read model also surfaces approval packet URIs such as `orch://r
 
 ## 5. How Does a User Connect from MCP Clients / Agent Clients
 
-The current MCP connection story is local stdio only. The main front door today is the `hep-mcp` server; the generic orchestrator currently exposes a lifecycle CLI rather than being the main root MCP server.
+The current MCP connection story is local stdio only. There is not yet a single generic root MCP server; today the most mature domain MCP entrypoint is `hep-mcp`, while the generic `autoresearch` surface remains CLI-first for lifecycle/control-plane work.
 
 Universal MCP config pattern:
 
@@ -149,6 +151,8 @@ Notes:
 autoresearch init --project-root /absolute/path/to/external-project
 autoresearch status --project-root /absolute/path/to/external-project
 ```
+
+- For launcher-backed literature workflows, prefer checked-in `workflow-plan` consumers. Do not treat `hepar literature-gap` as a new front-door shell.
 
 ## 6. Where Are Deeper Architecture / Governance Docs
 
