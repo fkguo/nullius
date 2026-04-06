@@ -11,5 +11,8 @@
     "test": "echo \"no tests yet\"",
     "lint": "echo \"no lint yet\"",
     "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
   }
 }
