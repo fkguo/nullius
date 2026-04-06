@@ -13,7 +13,7 @@
     },
     "./tooling": {
       "import": "./dist/tooling.js",
-      "types": "./dist/tooling.d.ts"
+      "types": "./src/tooling.ts"
     }
   },
   "bin": {
