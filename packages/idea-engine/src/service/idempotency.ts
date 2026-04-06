@@ -62,6 +62,18 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     const campaignId = record.response.payload.campaign_id;
     return typeof campaignId === 'string' && existsSync(store.campaignManifestPath(campaignId));
   }
+  if (method === 'eval.run') {
+    const scorecardsRef = record.response.payload.scorecards_artifact_ref;
+    return typeof scorecardsRef === 'string' && scorecardsRef.startsWith('file://') && existsSync(scorecardsRef.slice(7));
+  }
+  if (method === 'rank.compute') {
+    const rankingRef = record.response.payload.ranking_artifact_ref;
+    return typeof rankingRef === 'string' && rankingRef.startsWith('file://') && existsSync(rankingRef.slice(7));
+  }
+  if (method === 'node.promote') {
+    const handoffRef = record.response.payload.handoff_artifact_ref;
+    return typeof handoffRef === 'string' && handoffRef.startsWith('file://') && existsSync(handoffRef.slice(7));
+  }
   return false;
 }
 

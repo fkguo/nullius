@@ -154,6 +154,9 @@ importers:
       '@types/node':
         specifier: ^25.0.3
         version: 25.3.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.3.0)(tsx@4.21.0)
