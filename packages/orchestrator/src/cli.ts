@@ -2,7 +2,9 @@
 
 import { pathToFileURL } from 'node:url';
 import { parseCliArgs } from './cli-args.js';
+import { runExportCommand } from './cli-export.js';
 import { renderHelp } from './cli-help.js';
+import { runInitCommand } from './cli-init.js';
 import {
   type CliIo,
   runApproveCommand,
@@ -11,7 +13,6 @@ import {
   runStatusCommand,
 } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
-import { runLegacyPythonSubcommand } from './cli-python.js';
 
 function defaultIo(): CliIo {
   return {
@@ -21,18 +22,19 @@ function defaultIo(): CliIo {
   };
 }
 
-function withProjectRoot(args: string[], projectRoot: string | null): string[] {
-  return projectRoot ? ['--project-root', projectRoot, ...args] : args;
-}
-
 export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<number> {
   const parsed = parseCliArgs(argv);
   if (parsed.command === 'help') {
     io.stdout(renderHelp(parsed.topic));
     return 0;
   }
-  if (parsed.command === 'init' || parsed.command === 'export') {
-    return runLegacyPythonSubcommand(parsed.command, withProjectRoot(parsed.passthrough, parsed.projectRoot));
+  if (parsed.command === 'init') {
+    await runInitCommand(parsed.projectRoot, io.cwd, parsed.passthrough, io);
+    return 0;
+  }
+  if (parsed.command === 'export') {
+    await runExportCommand(resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd), io.cwd, parsed.passthrough, io);
+    return 0;
   }
 
   const projectRoot = resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd);

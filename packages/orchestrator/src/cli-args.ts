@@ -24,7 +24,12 @@ function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: stri
   const args: string[] = [];
   let projectRoot: string | null = null;
   for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] !== '--project-root') {
+    const current = argv[index]!;
+    if (current.startsWith('--project-root=')) {
+      projectRoot = current.slice('--project-root='.length);
+      continue;
+    }
+    if (current !== '--project-root') {
       args.push(argv[index]!);
       continue;
     }

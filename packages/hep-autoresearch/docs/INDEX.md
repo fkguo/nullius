@@ -15,7 +15,7 @@ If a document has both languages, we use:
 
 ## External project scaffold
 
-Use `autoresearch init` in your **research project directory**. `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`, while `hep-autoresearch` / `hepar` / `hep-autopilot` remain the transitional Pipeline A legacy surface for unrepointed commands such as `run`, `doctor`, and `bridge`. `autoresearch init` stays a thin composition shell over the existing scaffold authority and scaffolds the project-local files below:
+Use `autoresearch init` in your **research project directory**. `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`, while `hep-autoresearch` / `hepar` / `hep-autopilot` remain the transitional Pipeline A legacy surface for unrepointed commands such as `run`, `doctor`, and `bridge`. `autoresearch init` now enters through the TS lifecycle front door but still reuses the single shared neutral scaffold authority in `packages/project-contracts/` to scaffold the project-local files below:
 
 - Project charter: `project_charter.md`
 - Project index: `project_index.md`

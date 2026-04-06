@@ -6,13 +6,13 @@ This file governs development inside `packages/hep-autoresearch/`.
 
 - This directory is the **package/development repo** for the `hep-autoresearch` CLI, toolkit, docs, evals, examples, and maintainer regressions.
 - It is **not** a live research project root.
-- Real research-project roots should be created outside this package repo via `hep-autoresearch init`.
+- Real research-project roots should be created outside this package repo via `autoresearch init`.
 
 ## Package-root boundaries
 
 - Do not treat package root as if it were a user project with a live charter, plan, notebook, manuscript, or team state.
 - Project-shaped assets belong in one of these places only:
-  - user-created external project roots (`hep-autoresearch init`);
+  - user-created external project roots (`autoresearch init`);
   - minimal generic examples under `examples/`;
   - deterministic regression fixtures under `evals/fixtures/`;
   - generated scaffold projects under `artifacts/runs/*/orchestrator_regression/project_init_project/`.

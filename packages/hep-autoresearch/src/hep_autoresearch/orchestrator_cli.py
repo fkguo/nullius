@@ -5742,20 +5742,21 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch init`).")
-    p_init.add_argument("--force", action="store_true", help="Overwrite existing state.json.")
-    p_init.add_argument(
-        "--allow-nested",
-        action="store_true",
-        help="Allow init inside a subdirectory of an existing project root (not recommended).",
-    )
-    p_init.add_argument(
-        "--runtime-only",
-        action="store_true",
-        help="Initialize only .autoresearch runtime state/policy without scaffolding project-local docs/KB/specs. Intended for maintainer regressions and harness use.",
-    )
-    p_init.add_argument("--checkpoint-interval-seconds", type=int, help="Default checkpoint interval.")
-    p_init.set_defaults(fn=cmd_init)
+    if not public_surface:
+        p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch init`).")
+        p_init.add_argument("--force", action="store_true", help="Overwrite existing state.json.")
+        p_init.add_argument(
+            "--allow-nested",
+            action="store_true",
+            help="Allow init inside a subdirectory of an existing project root (not recommended).",
+        )
+        p_init.add_argument(
+            "--runtime-only",
+            action="store_true",
+            help="Initialize only .autoresearch runtime state/policy without scaffolding project-local docs/KB/specs. Intended for maintainer regressions and harness use.",
+        )
+        p_init.add_argument("--checkpoint-interval-seconds", type=int, help="Default checkpoint interval.")
+        p_init.set_defaults(fn=cmd_init)
 
     p_start = sub.add_parser("start", help="Start a run (sets run_id/workflow_id, status=running).")
     p_start.add_argument("--run-id", required=True, help="Run tag, e.g. M1-r1")
@@ -6018,15 +6019,16 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     p_ctx.add_argument("--note", help="Optional note to include in the context pack.")
     p_ctx.set_defaults(fn=cmd_context)
 
-    p_export = sub.add_parser("export", help="Export a run bundle (zip; canonical generic entrypoint is `autoresearch export`).")
-    p_export.add_argument("--run-id", help="Run id to export (default: current).")
-    p_export.add_argument("--out", help="Output zip path (default: exports/<run_id>.zip).")
-    p_export.add_argument(
-        "--include-kb-profile",
-        action="store_true",
-        help="Also bundle the KB files referenced by artifacts/runs/<run-id>/kb_profile/kb_profile.json (allowlist: knowledge_base/ only).",
-    )
-    p_export.set_defaults(fn=cmd_export)
+    if not public_surface:
+        p_export = sub.add_parser("export", help="Export a run bundle (zip; canonical generic entrypoint is `autoresearch export`).")
+        p_export.add_argument("--run-id", help="Run id to export (default: current).")
+        p_export.add_argument("--out", help="Output zip path (default: exports/<run_id>.zip).")
+        p_export.add_argument(
+            "--include-kb-profile",
+            action="store_true",
+            help="Also bundle the KB files referenced by artifacts/runs/<run-id>/kb_profile/kb_profile.json (allowlist: knowledge_base/ only).",
+        )
+        p_export.set_defaults(fn=cmd_export)
 
     p_smoke = sub.add_parser("smoke-test", help="Import MCP bridge modules (no MCP server required).")
     p_smoke.set_defaults(fn=cmd_smoke_test)

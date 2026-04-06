@@ -16,7 +16,7 @@
 3) `docs/VISION.zh.md`（愿景与边界）
 4) `docs/ARCHITECTURE.zh.md`（总体架构与接口）
 
-注意：这里是 `hep-autoresearch` 的**开发仓库**，不是你实际做研究时的项目根目录。generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。日常使用应在你自己的研究项目目录里执行 `autoresearch init`，它会以 thin composition 调用现有 scaffold authority，生成最小核心项目面：`project_charter.md`、`project_index.md`、`research_plan.md`、`research_notebook.md`、`research_contract.md`、provider-neutral `.mcp.json.example`、`.autoresearch/`、`docs/`、`specs/`。真实研究项目的中间产物也必须留在开发仓外。`hep-autoresearch`、`hepar` 与兼容别名 `hep-autopilot` 现在只作为过渡中的 Pipeline A legacy surface 保留；像 `run`、`doctor`、`bridge` 这类尚未 repoint 的命令仍走这条 legacy surface。
+注意：这里是 `hep-autoresearch` 的**开发仓库**，不是你实际做研究时的项目根目录。generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。日常使用应在你自己的研究项目目录里执行 `autoresearch init`；它现在由 TS lifecycle 前门收口，但继续复用 `packages/project-contracts/` 中共享的中立 scaffold authority 来生成最小核心项目面：`project_charter.md`、`project_index.md`、`research_plan.md`、`research_notebook.md`、`research_contract.md`、provider-neutral `.mcp.json.example`、`.autoresearch/`、`docs/`、`specs/`。真实研究项目的中间产物也必须留在开发仓外。`hep-autoresearch`、`hepar` 与兼容别名 `hep-autopilot` 现在只作为过渡中的 Pipeline A legacy surface 保留；像 `run`、`doctor`、`bridge` 这类尚未 repoint 的命令仍走这条 legacy surface。
 
 ## Quickstart（小白 5 分钟）
 

@@ -40,19 +40,22 @@ class TestPublicCliSurface(unittest.TestCase):
         rc, out, err = self._run_public_cli(["hepar", "--help"])
         self.assertEqual(rc, 0)
         self.assertEqual(err, "")
+        self.assertNotIn(" init ", out)
         self.assertNotIn(" status ", out)
         self.assertNotIn(" pause ", out)
         self.assertNotIn(" resume ", out)
         self.assertNotIn(" approve ", out)
+        self.assertNotIn(" export ", out)
         self.assertIn("run", out)
         self.assertIn("doctor", out)
         self.assertIn("bridge", out)
 
-    def test_public_cli_rejects_retired_status_surface(self) -> None:
-        rc, _, err = self._run_public_cli(["hepar", "status"])
-        self.assertEqual(rc, 2)
-        self.assertIn("invalid choice", err)
-        self.assertIn("status", err)
+    def test_public_cli_rejects_retired_lifecycle_surfaces(self) -> None:
+        for command in ("init", "status", "export"):
+            rc, _, err = self._run_public_cli(["hepar", command])
+            self.assertEqual(rc, 2)
+            self.assertIn("invalid choice", err)
+            self.assertIn(command, err)
 
 
 if __name__ == "__main__":
