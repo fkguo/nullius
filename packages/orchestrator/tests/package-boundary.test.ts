@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const ALLOWED_WORKSPACE_IMPORTS = new Set(['@autoresearch/shared']);
+// `autoresearch workflow-plan` is a native TS front door in the orchestrator
+// package, so it may consume the checked-in generic workflow authority package
+// in addition to shared contract/control-plane helpers.
+const ALLOWED_WORKSPACE_IMPORTS = new Set([
+  '@autoresearch/shared',
+  '@autoresearch/literature-workflows',
+]);
 // Exact-name only: `app-state` or `ui-kit` do not match these reserved
 // top-level shell/app-layer directory names.
 const FORBIDDEN_TOP_LEVEL_DIRS = new Set(['shell', 'frontend', 'gateway', 'ui', 'web', 'app']);
@@ -34,7 +40,7 @@ function findWorkspaceImportOffenders(source: string): string[] {
   const importPattern = /['"](@autoresearch\/[^'"]+)['"]/g;
   for (const [index, line] of source.split('\n').entries()) {
     if (!line.includes('@autoresearch/')) continue;
-    if (!/(?:^\s*import\b|^\s*export\b|\bimport\s*\()/.test(line)) continue;
+    if (!/(?:^\s*import\b|^\s*export\b|\bfrom\s*['"]|\bimport\s*\()/.test(line)) continue;
     importPattern.lastIndex = 0;
     for (const match of line.matchAll(importPattern)) {
       if (!ALLOWED_WORKSPACE_IMPORTS.has(match[1]!)) {
@@ -62,7 +68,7 @@ function findUiImportOffenders(source: string): string[] {
   const offenders: string[] = [];
   const importPattern = /['"]([^'"]+)['"]/g;
   for (const [index, line] of source.split('\n').entries()) {
-    if (!/(?:^\s*import\b|^\s*export\b|\bimport\s*\()/.test(line)) continue;
+    if (!/(?:^\s*import\b|^\s*export\b|\bfrom\s*['"]|\bimport\s*\()/.test(line)) continue;
     importPattern.lastIndex = 0;
     for (const match of line.matchAll(importPattern)) {
       const specifier = match[1]!;
@@ -94,7 +100,7 @@ function packageDependencyOffenders(packageJsonPath: string): string[] {
 }
 
 describe('orchestrator package boundary', () => {
-  it('keeps orchestrator source limited to shared as its only workspace dependency', () => {
+  it('keeps orchestrator source limited to shared plus checked-in workflow authority workspace dependencies', () => {
     const repoRoot = repoRootFromThisFile();
     const srcRoot = path.join(repoRoot, 'packages', 'orchestrator', 'src');
     const offenders = collectTsFiles(srcRoot).flatMap(filePath => {
