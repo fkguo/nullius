@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { buildDelegatedExecutionIdentity } from './execution-identity.js';
 import {
   projectResearchTaskStatusFromLifecycle,
   type ResearchTaskLifecycleProjection,
@@ -14,7 +15,10 @@ import type {
 import { utcNowIso } from './util.js';
 
 export function runtimeRunId(runId: string, assignmentId: string): string {
-  return `${runId}__${assignmentId}`;
+  return buildDelegatedExecutionIdentity({
+    project_run_id: runId,
+    assignment_id: assignmentId,
+  }).runtime_run_id;
 }
 
 export function taskLifecycleFromAssignmentStatus(
@@ -52,12 +56,16 @@ function pendingApprovalFromAssignment(
   ) {
     return null;
   }
+  const execution = buildDelegatedExecutionIdentity({
+    project_run_id: runId,
+    assignment_id: assignment.assignment_id,
+  });
   return {
     approval_id: assignment.approval_id,
     agent_id: assignment.delegate_id,
     assignment_id: assignment.assignment_id,
     session_id: assignment.session_id,
-    runtime_run_id: runtimeRunId(runId, assignment.assignment_id),
+    runtime_run_id: execution.runtime_run_id,
     packet_path: assignment.approval_packet_path,
     requested_at: assignment.approval_requested_at,
   };
@@ -65,13 +73,17 @@ function pendingApprovalFromAssignment(
 
 function syntheticSession(assignment: TeamDelegateAssignment, runId: string): TeamAssignmentSession {
   const lifecycle = taskLifecycleFromAssignmentStatus(assignment.status);
+  const execution = buildDelegatedExecutionIdentity({
+    project_run_id: runId,
+    assignment_id: assignment.assignment_id,
+  });
   return {
     session_id: assignment.session_id!,
     parent_session_id: null,
     context_kind: 'synthetic',
     agent_id: assignment.delegate_id,
     assignment_id: assignment.assignment_id,
-    runtime_run_id: runtimeRunId(runId, assignment.assignment_id),
+    runtime_run_id: execution.runtime_run_id,
     runtime_status: assignment.status,
     task_lifecycle_status: lifecycle,
     task_status: projectResearchTaskStatusFromLifecycle(lifecycle),
@@ -147,6 +159,10 @@ export function openAssignmentSession(
 ): TeamAssignmentSession {
   const parentSessionId = assignment.session_id;
   const hasForkSource = Boolean(assignment.forked_from_assignment_id || assignment.forked_from_session_id);
+  const execution = buildDelegatedExecutionIdentity({
+    project_run_id: runId,
+    assignment_id: assignment.assignment_id,
+  });
   const contextKind = resumeFrom !== null
     ? 'resumed'
     : (parentSessionId !== null || hasForkSource)
@@ -158,7 +174,7 @@ export function openAssignmentSession(
     context_kind: contextKind,
     agent_id: assignment.delegate_id,
     assignment_id: assignment.assignment_id,
-    runtime_run_id: runtimeRunId(runId, assignment.assignment_id),
+    runtime_run_id: execution.runtime_run_id,
     runtime_status: 'running',
     task_lifecycle_status: 'running',
     task_status: projectResearchTaskStatusFromLifecycle('running'),

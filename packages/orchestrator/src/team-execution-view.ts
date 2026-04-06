@@ -1,7 +1,10 @@
 import type { ResearchTaskLifecycleProjection, ResearchTaskStatus } from './research-loop/task-types.js';
 import type { TeamDelegationProtocol } from './delegation-protocol.js';
 import {
-  runtimeRunId,
+  buildDelegatedExecutionIdentity,
+  delegatedExecutionManifestPath,
+} from './execution-identity.js';
+import {
   taskLifecycleFromAssignmentStatus,
 } from './team-execution-scoping.js';
 import type {
@@ -12,10 +15,6 @@ import type {
   TeamSessionContextKind,
 } from './team-execution-types.js';
 import { projectResearchTaskStatusFromLifecycle } from './research-loop/task-types.js';
-
-function manifestPath(runId: string, assignmentId: string): string {
-  return `artifacts/runs/${runId}__${assignmentId}/manifest.json`;
-}
 
 export interface TeamAssignmentView {
   assignment_id: string;
@@ -102,6 +101,10 @@ function toAssignmentView(
   assignment: TeamExecutionState['delegate_assignments'][number],
 ): TeamAssignmentView {
   const session = currentSession(state, assignment);
+  const execution = buildDelegatedExecutionIdentity({
+    project_run_id: state.run_id,
+    assignment_id: assignment.assignment_id,
+  });
   return {
     assignment_id: assignment.assignment_id,
     agent_id: assignment.delegate_id,
@@ -115,8 +118,8 @@ function toAssignmentView(
     checkpoint_id: assignment.checkpoint_id,
     timeout_at: assignment.timeout_at,
     last_heartbeat_at: assignment.last_heartbeat_at,
-    manifest_path: manifestPath(state.run_id, assignment.assignment_id),
-    runtime_run_id: runtimeRunId(state.run_id, assignment.assignment_id),
+    manifest_path: delegatedExecutionManifestPath(execution),
+    runtime_run_id: execution.runtime_run_id,
     session_id: assignment.session_id,
     session_parent_id: session?.parent_session_id ?? null,
     session_context_kind: session?.context_kind ?? null,
@@ -137,6 +140,10 @@ function toBackgroundTaskView(
 ): TeamBackgroundTaskView {
   const task_lifecycle_status = taskLifecycleFromAssignmentStatus(assignment.status);
   const session = currentSession(state, assignment);
+  const execution = buildDelegatedExecutionIdentity({
+    project_run_id: state.run_id,
+    assignment_id: assignment.assignment_id,
+  });
   return {
     assignment_id: assignment.assignment_id,
     agent_id: assignment.delegate_id,
@@ -147,7 +154,7 @@ function toBackgroundTaskView(
     session_context_kind: session?.context_kind ?? null,
     forked_from_assignment_id: assignment.forked_from_assignment_id,
     forked_from_session_id: assignment.forked_from_session_id,
-    runtime_run_id: runtimeRunId(state.run_id, assignment.assignment_id),
+    runtime_run_id: execution.runtime_run_id,
     runtime_status: assignment.status,
     task_lifecycle_status,
     task_status: projectResearchTaskStatusFromLifecycle(task_lifecycle_status),

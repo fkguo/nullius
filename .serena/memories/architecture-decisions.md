@@ -119,6 +119,15 @@
 
 **Why**: The shared scaffold contract cannot remain credible while public research flows can still create or route real work back into the development monorepo. The explicit real-project vs maintainer-fixture split closes that hole without expanding into a full Pipeline A repoint.
 
+### [2026-04-07] CP-OBJ delegated execution identity invariant: typed relation seam, not new durable authority
+
+**Decision**:
+- Delegated runtime identity is now expressed through one shared typed value seam, `buildDelegatedExecutionIdentity(...)` plus `delegatedExecutionManifestPath(...)`, rather than repeated ad hoc string recomposition of `project_run_id + assignment_id -> runtime_run_id -> manifest_path`.
+- This seam is deliberately not a new persisted control-plane object, public wire contract, or second read model. It is an internal relation helper consumed by delegated execution/scoping/view/runtime code.
+- Existing wire fields such as `runtime_run_id` and `manifest_path` remain the same; later `CP-OBJ-01C/01D` work must consume this seam rather than inventing transcript/job/turn authority or recomposing the strings again.
+
+**Why**: The real drift problem was string-level identity reconstruction spread across multiple layers, not the absence of another durable object family. Centralizing the relation while keeping it non-authoritative preserves boundedness and gives later session/turn/read-model slices a stable identity substrate.
+
 ### [2026-03-21] Pipeline A lifecycle invariant: `hep-autoresearch` and `hepar` move together
 
 **Decision**:
