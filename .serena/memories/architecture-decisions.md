@@ -339,3 +339,15 @@
 - Governance may ratify such bounded slices through tracker-only umbrella items when needed, but umbrella ratification records machine-readable truth without inventing new phase-counted remediation ids.
 
 **Why**: Current evidence supports richer evaluation and diagnostics, but it does not support moving evaluation authority up into the generic control plane. Keeping outcome/perturbation close to the current domain-pack eval substrate while treating diagnostics as a derived bridge preserves the generic-first architecture and avoids parallel runtime authority drift.
+
+### [2026-04-07] Control-plane object convergence invariant: keep one authority family per layer and treat projections as projections
+
+**Decision**:
+- Root project-run lifecycle and audit authority remains `RunState` + `LedgerEvent`; delegated runtime must not smuggle its own second root-run authority alongside that family.
+- Delegated execution authority remains the team-runtime family (`TeamExecutionState` + `TeamDelegateAssignment` + `TeamAssignmentSession` plus team-local approval/checkpoint/event records). This family owns assignment/session lineage and assignment-local approval/checkpoint state.
+- Runtime step-checkpoint authority remains `RunManifest`; it is a per-runtime-run resume ledger, not a project-run or task-graph authority.
+- Research decomposition / follow-up authority remains the research-loop family (`ResearchTask` + `ResearchEvent` + `ResearchCheckpoint` + handoffs). It must not be silently replaced by assignment-local metadata, but it also should not be mistaken for live delegated-session authority.
+- `AgentEvent`, runtime diagnostics bridge artifacts, run/team read models, and similar status summaries remain execution evidence or derived operator projections. They may summarize canonical authorities, but they must not become second authorities.
+- `job` and durable `turn` are not yet first-class generic control-plane authorities. Future work may introduce typed seams or projections for them, but only by converging onto the existing run / delegated-execution / research-task families rather than creating a new parallel SSOT.
+
+**Why**: The current orchestrator no longer suffers from a missing runtime substrate; it suffers from overlapping object language. Explicitly preserving one authority family per layer keeps later identity/session/read-model work from hardening today's string-convention seams into long-term architectural drift.
