@@ -19,7 +19,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 1. Literature and data navigation workflow
    - Direct provider tools such as `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*`.
 1. Launcher-backed literature workflow family
-   - `autoresearch workflow-plan` is the recommended stateful launcher-backed front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. The checked-in `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` remains a lower-level consumer of the same workflow authority. The installable legacy `hepar` public shell no longer exposes `literature-gap`; any remaining `literature-gap` path is internal full-parser compatibility only.
+   - `autoresearch workflow-plan` is the recommended stateful launcher-backed front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. The checked-in `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` remains a lower-level consumer of the same workflow authority. The installable legacy `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only.
 1. Native TS computation workflow
    - `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; approval handling stays on `autoresearch status/approve`.
 1. Generic lifecycle workflow
@@ -31,10 +31,10 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 | --- | --- | --- |
 | Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research/navigation/evidence/export workflows `(72 std / 101)` |
 | Generic lifecycle + computation + workflow-plan front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful workflow-plan persistence |
-| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended stateful launcher-backed entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`; `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` is the lower-level parallel consumer, and the installable legacy `hepar` public shell no longer exposes `literature-gap` |
+| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended stateful launcher-backed entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`; `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` is the lower-level parallel consumer, and the installable legacy `hepar` public shell no longer exposes `computation` or `literature-gap` |
 | Leaf provider packages | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Provider-specific capabilities that can be composed into client workflows |
 
-Legacy compatibility note: the installable `hepar` public shell no longer exposes `literature-gap`; any remaining `literature-gap` path is internal full-parser compatibility only and is still headed toward retirement.
+Legacy compatibility note: the installable `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only and is still headed toward retirement.
 
 Tool counts: **72 tools in `standard` mode** (default, compact surface) and **101 tools in `full` mode** (adds advanced tools).
 

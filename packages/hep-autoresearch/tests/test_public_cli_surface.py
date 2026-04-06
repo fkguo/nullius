@@ -51,12 +51,32 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertNotIn(",bridge,", out)
         self.assertIn("run", out)
 
+    def test_public_run_help_excludes_computation_surface(self) -> None:
+        rc, out, err = self._run_public_cli(["hepar", "run", "--help"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(err, "")
+        self.assertNotIn("{computation", out)
+        self.assertNotIn("|computation|", out)
+        self.assertNotIn("--trust-project", out)
+        self.assertNotIn("--resume", out)
+        self.assertNotIn("--project-dir", out)
+        self.assertNotIn("--param", out)
+        self.assertIn("non-computation", out)
+        self.assertIn("autoresearch run", out)
+        self.assertIn("for computation", out)
+
     def test_public_cli_rejects_retired_public_surfaces(self) -> None:
         for command in ("init", "status", "export", "doctor", "bridge", "literature-gap"):
             rc, _, err = self._run_public_cli(["hepar", command])
             self.assertEqual(rc, 2)
             self.assertIn("invalid choice", err)
             self.assertIn(command, err)
+
+    def test_public_run_rejects_computation_workflow(self) -> None:
+        rc, _, err = self._run_public_cli(["hepar", "run", "--run-id", "M1-public", "--workflow-id", "computation"])
+        self.assertEqual(rc, 2)
+        self.assertIn("invalid choice", err)
+        self.assertIn("computation", err)
 
 
 if __name__ == "__main__":

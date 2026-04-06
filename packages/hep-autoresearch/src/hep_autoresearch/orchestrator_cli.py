@@ -75,6 +75,29 @@ def _die(msg: str, code: int = 2) -> int:
     return code
 
 
+def _public_run_workflow_ids() -> set[str]:
+    return {
+        "ingest",
+        "reproduce",
+        "paper_reviser",
+        "revision",
+        "literature_survey_polish",
+    } | adapter_workflow_ids()
+
+
+def _all_run_workflow_ids() -> set[str]:
+    return {"computation"} | _public_run_workflow_ids()
+
+
+def _run_workflow_id_help(*, public_surface: bool) -> str:
+    if public_surface:
+        return (
+            "Workflow id for the remaining public non-computation legacy workflows, e.g. "
+            + "|".join(sorted(_public_run_workflow_ids()))
+        )
+    return "Workflow id, e.g. " + "|".join(sorted(_all_run_workflow_ids()))
+
+
 def _maybe_auto_trigger_evolution_proposal(
     repo_root: Path,
     st: dict[str, object],
@@ -2485,14 +2508,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
     st = _read_or_init_state(repo_root)
 
-    supported = {
-        "ingest",
-        "computation",
-        "reproduce",
-        "paper_reviser",
-        "revision",
-        "literature_survey_polish",
-    } | adapter_workflow_ids()
+    supported = _all_run_workflow_ids()
     if args.workflow_id not in supported:
         return _die(f"v0.4 supports --workflow-id {('|'.join(sorted(supported)))}")
 
@@ -5831,15 +5847,18 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     p_report_render.add_argument("--output-path", help="Write to file instead of stdout.")
     p_report_render.set_defaults(fn=cmd_report_render)
 
-    p_run = sub.add_parser(
-        "run",
-        help="Run a workflow (v0.4+: computation + ingest + reproduce(toy) + paper_reviser + revision + literature_survey_polish + shell_adapter_smoke).",
+    run_help = (
+        "Run a residual legacy workflow (non-computation only; use `autoresearch run --workflow-id computation` for computation)."
+        if public_surface
+        else "Run a workflow (v0.4+: computation + ingest + reproduce(toy) + paper_reviser + revision + literature_survey_polish + shell_adapter_smoke)."
     )
+    p_run = sub.add_parser("run", help=run_help, description=run_help)
     p_run.add_argument("--run-id", required=True, help="Run tag, e.g. M1-r1")
     p_run.add_argument(
         "--workflow-id",
         required=True,
-        help="Workflow id, e.g. computation|ingest|reproduce|paper_reviser|revision|literature_survey_polish|shell_adapter_smoke",
+        choices=sorted(_public_run_workflow_ids() if public_surface else _all_run_workflow_ids()),
+        help=_run_workflow_id_help(public_surface=public_surface),
     )
     p_run.add_argument("--note", help="Ledger note.")
     p_run.add_argument(
@@ -5856,15 +5875,36 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     p_run.add_argument("--gate", choices=sorted(APPROVAL_CATEGORY_TO_POLICY_KEY.keys()), help="Force a gate (A1–A5) before running.")
     p_run.add_argument(
         "--run-card",
-        help="Workflow run-card path. For computation: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON).",
+        help=(
+            "Optional adapter run-card path for adapter workflows."
+            if public_surface
+            else "Workflow run-card path. For computation: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON)."
+        ),
     )
     p_run.add_argument(
         "--project-dir",
-        help="computation: project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
+        help=argparse.SUPPRESS
+        if public_surface
+        else "computation: project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
     )
-    p_run.add_argument("--trust-project", action="store_true", help="computation: trust project to execute shell backends (non-interactive).")
-    p_run.add_argument("--resume", action="store_true", help="computation: resume from artifacts/runs/<run-id>/computation (requires matching run-card).")
-    p_run.add_argument("--param", action="append", default=[], help="computation: parameter override (repeatable: key=value).")
+    p_run.add_argument(
+        "--trust-project",
+        action="store_true",
+        help=argparse.SUPPRESS if public_surface else "computation: trust project to execute shell backends (non-interactive).",
+    )
+    p_run.add_argument(
+        "--resume",
+        action="store_true",
+        help=argparse.SUPPRESS
+        if public_surface
+        else "computation: resume from artifacts/runs/<run-id>/computation (requires matching run-card).",
+    )
+    p_run.add_argument(
+        "--param",
+        action="append",
+        default=[],
+        help=argparse.SUPPRESS if public_surface else "computation: parameter override (repeatable: key=value).",
+    )
     p_run.add_argument(
         "--sandbox",
         default="none",
