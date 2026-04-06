@@ -2,14 +2,26 @@
 // exact substring matches so front-door wording drift fails closed.
 export const FRONT_DOOR_SNIPPETS = [
   {
+    relPath: 'docs/QUICKSTART.md',
+    snippets: [
+      '本页面向当前最成熟的 domain pack 上手路径，而不是重新定义 root 产品身份。generic lifecycle + workflow-plan front door 仍是 `autoresearch`；这里的 `hep_*` 路径只是在此基础上进入当前最强的 HEP evidence/project/run workflow family。',
+      '`autoresearch workflow-plan --recipe literature_to_evidence`',
+      '这是一个 stateful launcher-backed front door，会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。',
+      '不要把它们当成新的 quickstart 默认入口。',
+    ],
+    forbiddenSnippets: [
+      '`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 仍是较底层的并行 consumer。',
+    ],
+  },
+  {
     relPath: 'README.md',
     snippets: [
       'Autoresearch Lab is a domain-neutral, evidence-first research monorepo.',
-      '`autoresearch workflow-plan` is the recommended stateful launcher-backed front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. The checked-in `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` remains a lower-level consumer of the same workflow authority. The installable legacy `hepar` public shell no longer exposes `literature-gap`; any remaining `literature-gap` path is internal full-parser compatibility only.',
+      '`autoresearch workflow-plan` is the recommended stateful launcher-backed front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. The checked-in `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` remains a lower-level consumer of the same workflow authority. The installable legacy `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only.',
       '| Generic lifecycle + computation + workflow-plan front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful workflow-plan persistence |',
-      '| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended stateful launcher-backed entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`; `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` is the lower-level parallel consumer, and the installable legacy `hepar` public shell no longer exposes `literature-gap` |',
+      '| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended stateful launcher-backed entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`; `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` is the lower-level parallel consumer, and the installable legacy `hepar` public shell no longer exposes `computation` or `literature-gap` |',
       '- `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; approval handling stays on `autoresearch status/approve`.',
-      'Legacy compatibility note: the installable `hepar` public shell no longer exposes `literature-gap`; any remaining `literature-gap` path is internal full-parser compatibility only and is still headed toward retirement.',
+      'Legacy compatibility note: the installable `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only and is still headed toward retirement.',
       '| Workflow shells | `workflow-plan` | Checked-in generic workflow authority consumed directly by `autoresearch workflow-plan` and by the lower-level `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`; no installable `hepar literature-gap` front door remains |',
       '- For launcher-backed literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`, and leaves the checked-in Python `workflow-plan` script as the lower-level parallel consumer. Do not treat any internal `literature-gap` compatibility path as a new front-door shell.',
       '- `autoresearch init/status/approve/pause/resume/export` for `.autoresearch/` project state outside the development repo.',
@@ -25,11 +37,11 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'docs/README_zh.md',
     snippets: [
       'Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first monorepo。',
-      '`autoresearch workflow-plan` 是推荐的 stateful launcher-backed 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in generic workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。checked-in 的 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 仍是同一 workflow authority 的较底层 consumer。安装态 legacy `hepar` public shell 已不再暴露 `literature-gap`；任何残余 `literature-gap` 路径都只剩 internal full-parser compatibility。',
+      '`autoresearch workflow-plan` 是推荐的 stateful launcher-backed 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in generic workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。checked-in 的 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 仍是同一 workflow authority 的较底层 consumer。安装态 legacy `hepar` public shell 已不再暴露 `computation` 或 `literature-gap`；任何残余的 public `run` 面都只剩 residual non-computation compatibility。',
       '| 通用 lifecycle + computation + workflow-plan front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful workflow-plan 持久化 |',
-      '| 高层文献工作流入口 | `autoresearch workflow-plan` | 推荐的 stateful launcher-backed 前门，面向已初始化的外部 project root；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer，安装态 legacy `hepar` public shell 已不再暴露 `literature-gap` |',
+      '| 高层文献工作流入口 | `autoresearch workflow-plan` | 推荐的 stateful launcher-backed 前门，面向已初始化的外部 project root；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer，安装态 legacy `hepar` public shell 已不再暴露 `computation` 或 `literature-gap` |',
       '- `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。',
-      'Legacy compatibility 说明：安装态 `hepar` public shell 已不再暴露 `literature-gap`；任何残余 `literature-gap` 路径都只剩 internal full-parser compatibility，并继续朝退役方向推进。',
+      'Legacy compatibility 说明：安装态 `hepar` public shell 已不再暴露 `computation` 或 `literature-gap`；任何残余 public `run` 面都只剩 residual non-computation compatibility，并继续朝退役方向推进。',
       '| Workflow shells | `workflow-plan` | checked-in generic workflow authority，由 `autoresearch workflow-plan` 直接消费，也由较底层的 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 消费；不再保留 installable `hepar literature-gap` 前门 |',
       '- 对 launcher-backed 文献工作流，先用 `autoresearch init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `autoresearch workflow-plan`。它会直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；checked-in 的 Python `workflow-plan` 脚本仍是较底层的并行 consumer；不要把任何 internal `literature-gap` compatibility path 当成新的前门 shell。',
       '- `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。',
@@ -46,9 +58,9 @@ export const FRONT_DOOR_SNIPPETS = [
     snippets: [
       '**Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity',
       '**Main generic lifecycle + native TS computation + workflow-plan entrypoint**: `autoresearch` CLI for external project roots and `.autoresearch/` state',
-      '- **Recommended launcher-backed literature workflow entrypoint**: `autoresearch workflow-plan` (requires an initialized external project root; resolves recipes directly via `@autoresearch/literature-workflows`; persists `.autoresearch/state.json#/plan` and derives `.autoresearch/plan.md`; the checked-in Python `workflow-plan` script remains a lower-level parallel consumer, and the installable legacy `hepar` public shell no longer exposes `literature-gap`)',
+      '- **Recommended launcher-backed literature workflow entrypoint**: `autoresearch workflow-plan` (requires an initialized external project root; resolves recipes directly via `@autoresearch/literature-workflows`; persists `.autoresearch/state.json#/plan` and derives `.autoresearch/plan.md`; the checked-in Python `workflow-plan` script remains a lower-level parallel consumer, and the installable legacy `hepar` public shell no longer exposes `computation` or `literature-gap`)',
       '- **Native TS computation run slice**: `autoresearch run --workflow-id computation` (requires an initialized external project root plus a prepared `computation/manifest.json`; still intentionally bounded to computation only)',
-      'Legacy compatibility note: the installable `hepar` public shell no longer exposes `literature-gap`; any remaining `literature-gap` path is internal full-parser compatibility only.',
+      'Legacy compatibility note: the installable `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only.',
       '**Native TS computation workflow**: `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; gate handling stays on `autoresearch status/approve`',
       '**Generic lifecycle workflow**: `autoresearch init/status/approve/pause/resume/export`',
     ],
@@ -67,7 +79,7 @@ export const FRONT_DOOR_SNIPPETS = [
       'High-level literature workflows are meant to enter through the stateful launcher-backed `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:',
       '`autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`',
       '`autoresearch run --workflow-id computation` is the native TS computation entrypoint in this slice.',
-      'The installable `hepar` public shell no longer exposes `literature-gap`; any remaining `literature-gap` path is internal full-parser compatibility only and should keep moving toward retirement.',
+      'The installable `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only and should keep moving toward retirement.',
       'Users who need generic lifecycle state should invoke `autoresearch` directly rather than expecting the root MCP server to own that surface today.',
     ],
     forbiddenSnippets: [
@@ -90,14 +102,22 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/TESTING_GUIDE.md',
     snippets: [
+      '本指南面向手工验收当前 front-door truth。`autoresearch` 是 generic lifecycle + workflow-plan front door；`@autoresearch/hep-mcp` 是当前最成熟的 domain MCP front door，提供 Project/Run、evidence、writing/export、literature/data、Zotero、PDG 能力。本页重点覆盖两者的衔接，而不是把 `hep-mcp` 重新写成 root 产品身份。',
+      '本文所有 MCP 配置都以 `packages/hep-mcp/dist/index.js` 为当前 domain MCP front door，而不是 generic root front door。',
+      '### 0.0 先确认 front-door 角色',
+      '- `autoresearch` = generic lifecycle + workflow-plan front door',
+      '- `@autoresearch/hep-mcp` = 当前最成熟的 domain MCP front door',
+      '- 安装态 legacy `hepar` public shell 不再是默认测试入口；任何残余 Python compatibility path 都必须明确标成 maintainer/eval/regression-only',
       '### 5.4 launcher-backed literature workflow consumers',
       '这部分不是 MCP 工具，而是当前真实存在的高层 workflow consumers：',
       '这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer。',
-      '下面这个 `python -m hep_autoresearch.orchestrator_cli ... literature-gap` 示例只用于 maintainer/eval/regression 路径的 internal full-parser compatibility；安装态 `hepar` public shell 已不再暴露 `literature-gap`。',
+      'Maintainer / eval / regression only:',
+      '这条 internal full-parser compatibility path 只用于覆盖未删净的 maintainer/eval/regression 场景；安装态 `hepar` public shell 已不再暴露 `literature-gap`。',
       '- `autoresearch workflow-plan` 仍是唯一 installable public high-level literature entrypoint',
       '- internal full-parser compatibility path 仍能解析 workflow plan or bundle 以供 regression coverage',
     ],
     forbiddenSnippets: [
+      'python -m hep_autoresearch.orchestrator_cli \\',
       '`hepar literature-gap` 仅剩 legacy compatibility shell pending retirement。',
     ],
   },

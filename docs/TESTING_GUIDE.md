@@ -1,16 +1,22 @@
 # 功能测试指南（front-door 当前真相）
 
-本指南面向手工验收当前 front-door surface。重点对象是 `@autoresearch/hep-mcp` 这条 MCP front door，以及它今天真实提供的 Project/Run、evidence、writing/export、literature/data、Zotero、PDG 能力。通用 lifecycle CLI `autoresearch` 是另一个入口，本文只在需要时简要指出。
+本指南面向手工验收当前 front-door truth。`autoresearch` 是 generic lifecycle + workflow-plan front door；`@autoresearch/hep-mcp` 是当前最成熟的 domain MCP front door，提供 Project/Run、evidence、writing/export、literature/data、Zotero、PDG 能力。本页重点覆盖两者的衔接，而不是把 `hep-mcp` 重新写成 root 产品身份。
 
 > 说明
 >
 > - 返回值里的 `project_id`、`run_id`、时间戳、URI 等动态字段请按结构和不变量核对，不要逐字比对。
-> - 本文所有 MCP 配置都以 `packages/hep-mcp/dist/index.js` 为当前 front door。
+> - 本文所有 MCP 配置都以 `packages/hep-mcp/dist/index.js` 为当前 domain MCP front door，而不是 generic root front door。
 > - 大对象默认落盘成 artifacts，通过 `hep://...` 或 `pdg://...` resources 读取。
 
 ---
 
 ## 0. 一次性准备
+
+### 0.0 先确认 front-door 角色
+
+- `autoresearch` = generic lifecycle + workflow-plan front door
+- `@autoresearch/hep-mcp` = 当前最成熟的 domain MCP front door
+- 安装态 legacy `hepar` public shell 不再是默认测试入口；任何残余 Python compatibility path 都必须明确标成 maintainer/eval/regression-only
 
 ### 0.1 构建与计数检查
 
@@ -38,7 +44,7 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 
 - `/Users/<you>/tmp/hep_data_test_001`
 
-### 0.3 在 MCP 客户端里接入当前 front door
+### 0.3 在 MCP 客户端里接入当前 domain MCP front door
 
 最小配置示例：
 
@@ -433,14 +439,11 @@ autoresearch workflow-plan \
 ```
 先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer。
 
-```bash
-python -m hep_autoresearch.orchestrator_cli \
-  --project-root /abs/path/to/project \
-  literature-gap \
-  --tag gap-smoke \
-  --topic "nucleon structure"
-```
-下面这个 `python -m hep_autoresearch.orchestrator_cli ... literature-gap` 示例只用于 maintainer/eval/regression 路径的 internal full-parser compatibility；安装态 `hepar` public shell 已不再暴露 `literature-gap`。
+> Maintainer / eval / regression only:
+>
+> `python -m hep_autoresearch.orchestrator_cli --project-root /abs/path/to/project literature-gap --tag gap-smoke --topic "nucleon structure"`
+>
+> 这条 internal full-parser compatibility path 只用于覆盖未删净的 maintainer/eval/regression 场景；安装态 `hepar` public shell 已不再暴露 `literature-gap`。
 
 **预期**
 
