@@ -75,12 +75,11 @@ def _die(msg: str, code: int = 2) -> int:
     return code
 
 
-PUBLIC_RUN_WORKFLOW_IDS: tuple[str, ...] = (
-    "paper_reviser",
-)
+PUBLIC_RUN_WORKFLOW_IDS: tuple[str, ...] = ()
 
 INTERNAL_ONLY_RUN_WORKFLOW_IDS: tuple[str, ...] = (
     "ingest",
+    "paper_reviser",
     "reproduce",
     "revision",
     "literature_survey_polish",
@@ -170,8 +169,14 @@ def _run_autoresearch_passthrough(*, repo_root: Path, argv: list[str]) -> int:
 
 def _run_workflow_id_help(*, public_surface: bool) -> str:
     if public_surface:
-        return "Workflow id for the remaining public compatibility workflow, e.g. " + "|".join(
-            sorted(_public_run_workflow_ids())
+        public_workflow_ids = sorted(_public_run_workflow_ids())
+        if public_workflow_ids:
+            return "Workflow id for the remaining public compatibility workflow, e.g. " + "|".join(
+                public_workflow_ids
+            )
+        return (
+            "No installable public legacy run workflow ids remain. "
+            "Use `autoresearch run --workflow-id ...`."
         )
     return "Workflow id, e.g. " + "|".join(sorted(_all_run_workflow_ids()))
 
@@ -5696,7 +5701,8 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     p_report_render.set_defaults(fn=cmd_report_render)
 
     run_help = (
-        "Run the remaining public legacy paper-reviser workflow (non-computation only; use `autoresearch run --workflow-id computation` for computation)."
+        "Public compatibility wrapper only; no installable public legacy run workflow ids remain. "
+        "Use `autoresearch run --workflow-id ...` (for computation: `autoresearch run --workflow-id computation`)."
         if public_surface
         else "Run a workflow (v0.4+: computation + ingest + reproduce(toy) + paper_reviser + revision + literature_survey_polish + shell_adapter_smoke)."
     )
@@ -5709,19 +5715,19 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         help=_run_workflow_id_help(public_surface=public_surface),
     )
     p_run.add_argument("--note", help="Ledger note.")
-    p_run.add_argument(
-        "--kb-profile",
-        default="minimal",
-        choices=["minimal", "curated", "user"],
-        help="KB profile selection for reviewer/LLM context (v0: writes artifacts/runs/<run-id>/kb_profile/...).",
-    )
-    p_run.add_argument(
-        "--kb-profile-user-path",
-        help="If --kb-profile=user, path to a kb_profile definition JSON (default: .autoresearch/kb_profile_user.json).",
-    )
-    p_run.add_argument("--force", action="store_true", help="Override state mismatch / rerun completed.")
-    p_run.add_argument("--gate", choices=sorted(APPROVAL_CATEGORY_TO_POLICY_KEY.keys()), help="Force a gate (A1–A5) before running.")
     if not public_surface:
+        p_run.add_argument(
+            "--kb-profile",
+            default="minimal",
+            choices=["minimal", "curated", "user"],
+            help="KB profile selection for reviewer/LLM context (v0: writes artifacts/runs/<run-id>/kb_profile/...).",
+        )
+        p_run.add_argument(
+            "--kb-profile-user-path",
+            help="If --kb-profile=user, path to a kb_profile definition JSON (default: .autoresearch/kb_profile_user.json).",
+        )
+        p_run.add_argument("--force", action="store_true", help="Override state mismatch / rerun completed.")
+        p_run.add_argument("--gate", choices=sorted(APPROVAL_CATEGORY_TO_POLICY_KEY.keys()), help="Force a gate (A1–A5) before running.")
         p_run.add_argument(
             "--run-card",
             help="Workflow run-card path. For computation: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON).",
@@ -5783,96 +5789,95 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
             choices=["none", "auto", "arxiv_source", "arxiv_pdf", "both"],
             help="Download policy for arXiv assets (if available).",
         )
-    p_run.add_argument(
-        "--paper-root",
-        default="paper",
-        help="LaTeX project root (default: paper)." if public_surface else "revision: LaTeX project root (default: paper).",
-    )
-    p_run.add_argument(
-        "--tex-main",
-        default="main.tex",
-        help="Main TeX file within paper-root." if public_surface else "revision: main TeX file within paper-root.",
-    )
-    p_run.add_argument("--draft-tex", help="paper_reviser: input draft .tex path (default: <paper-root>/<tex-main>).")
-    p_run.add_argument(
-        "--paper-reviser-mode",
-        default="run-models",
-        choices=["run-models", "stub-models", "dry-run"],
-        help="paper_reviser: paper-reviser execution mode (default: run-models).",
-    )
-    p_run.add_argument("--writer-backend", choices=["claude", "gemini"], help="paper_reviser: writer backend (required).")
-    p_run.add_argument("--writer-model", help="paper_reviser: writer model/alias (required; non-empty).")
-    p_run.add_argument("--auditor-backend", choices=["claude", "gemini"], help="paper_reviser: auditor backend (required).")
-    p_run.add_argument("--auditor-model", help="paper_reviser: auditor model/alias (required; non-empty).")
-    p_run.add_argument(
-        "--paper-reviser-max-rounds-rev1",
-        type=int,
-        default=1,
-        help="paper_reviser: paper-reviser --max-rounds for round_01 (default: 1).",
-    )
-    p_run.add_argument(
-        "--paper-reviser-no-codex-verify",
-        action="store_true",
-        help="paper_reviser: pass --no-codex-verify to paper-reviser.",
-    )
-    p_run.add_argument(
-        "--paper-reviser-min-clean-size-ratio",
-        type=float,
-        help="paper_reviser: pass --min-clean-size-ratio to paper-reviser (must be in (0, 1]).",
-    )
-    p_run.add_argument(
-        "--paper-reviser-codex-model",
-        help="paper_reviser: pass --codex-model to paper-reviser.",
-    )
-    p_run.add_argument(
-        "--paper-reviser-codex-config",
-        action="append",
-        default=[],
-        help="paper_reviser: repeatable --codex-config key=value passthrough.",
-    )
-    p_run.add_argument(
-        "--paper-reviser-fallback-auditor",
-        choices=["off", "claude"],
-        help="paper_reviser: pass --fallback-auditor to paper-reviser.",
-    )
-    p_run.add_argument(
-        "--paper-reviser-fallback-auditor-model",
-        help="paper_reviser: pass --fallback-auditor-model to paper-reviser.",
-    )
-    p_run.add_argument(
-        "--paper-reviser-secondary-deep-verify-backend",
-        choices=["off", "claude", "gemini"],
-        help="paper_reviser: pass --secondary-deep-verify-backend to paper-reviser.",
-    )
-    p_run.add_argument(
-        "--paper-reviser-secondary-deep-verify-model",
-        help="paper_reviser: pass --secondary-deep-verify-model to paper-reviser.",
-    )
-    p_run.add_argument(
-        "--manual-evidence",
-        action="store_true",
-        help="paper_reviser: stop after retrieval; require manual evidence/<VR-ID>.md before round_02.",
-    )
-    p_run.add_argument(
-        "--evidence-synth-backend",
-        choices=["stub", "claude", "gemini"],
-        help="paper_reviser: evidence synthesis backend (required unless --manual-evidence).",
-    )
-    p_run.add_argument(
-        "--evidence-synth-model",
-        help="paper_reviser: evidence synthesis model/alias (required unless --manual-evidence).",
-    )
-    p_run.add_argument(
-        "--verification-plan",
-        help="paper_reviser: explicit verification_plan.json path (copied into SSOT under artifacts/runs/<run-id>/paper_reviser/verification/).",
-    )
-    p_run.add_argument(
-        "--apply-to-draft",
-        action="store_true",
-        help="paper_reviser: apply final clean.tex back to the draft .tex (A4-gated if required by approval_policy).",
-    )
-    p_run.add_argument("--skills-dir", help="paper_reviser: override $CODEX_HOME/skills for tool discovery.")
-    if not public_surface:
+        p_run.add_argument(
+            "--paper-root",
+            default="paper",
+            help="revision: LaTeX project root (default: paper).",
+        )
+        p_run.add_argument(
+            "--tex-main",
+            default="main.tex",
+            help="revision: main TeX file within paper-root.",
+        )
+        p_run.add_argument("--draft-tex", help="paper_reviser: input draft .tex path (default: <paper-root>/<tex-main>).")
+        p_run.add_argument(
+            "--paper-reviser-mode",
+            default="run-models",
+            choices=["run-models", "stub-models", "dry-run"],
+            help="paper_reviser: paper-reviser execution mode (default: run-models).",
+        )
+        p_run.add_argument("--writer-backend", choices=["claude", "gemini"], help="paper_reviser: writer backend (required).")
+        p_run.add_argument("--writer-model", help="paper_reviser: writer model/alias (required; non-empty).")
+        p_run.add_argument("--auditor-backend", choices=["claude", "gemini"], help="paper_reviser: auditor backend (required).")
+        p_run.add_argument("--auditor-model", help="paper_reviser: auditor model/alias (required; non-empty).")
+        p_run.add_argument(
+            "--paper-reviser-max-rounds-rev1",
+            type=int,
+            default=1,
+            help="paper_reviser: paper-reviser --max-rounds for round_01 (default: 1).",
+        )
+        p_run.add_argument(
+            "--paper-reviser-no-codex-verify",
+            action="store_true",
+            help="paper_reviser: pass --no-codex-verify to paper-reviser.",
+        )
+        p_run.add_argument(
+            "--paper-reviser-min-clean-size-ratio",
+            type=float,
+            help="paper_reviser: pass --min-clean-size-ratio to paper-reviser (must be in (0, 1]).",
+        )
+        p_run.add_argument(
+            "--paper-reviser-codex-model",
+            help="paper_reviser: pass --codex-model to paper-reviser.",
+        )
+        p_run.add_argument(
+            "--paper-reviser-codex-config",
+            action="append",
+            default=[],
+            help="paper_reviser: repeatable --codex-config key=value passthrough.",
+        )
+        p_run.add_argument(
+            "--paper-reviser-fallback-auditor",
+            choices=["off", "claude"],
+            help="paper_reviser: pass --fallback-auditor to paper-reviser.",
+        )
+        p_run.add_argument(
+            "--paper-reviser-fallback-auditor-model",
+            help="paper_reviser: pass --fallback-auditor-model to paper-reviser.",
+        )
+        p_run.add_argument(
+            "--paper-reviser-secondary-deep-verify-backend",
+            choices=["off", "claude", "gemini"],
+            help="paper_reviser: pass --secondary-deep-verify-backend to paper-reviser.",
+        )
+        p_run.add_argument(
+            "--paper-reviser-secondary-deep-verify-model",
+            help="paper_reviser: pass --secondary-deep-verify-model to paper-reviser.",
+        )
+        p_run.add_argument(
+            "--manual-evidence",
+            action="store_true",
+            help="paper_reviser: stop after retrieval; require manual evidence/<VR-ID>.md before round_02.",
+        )
+        p_run.add_argument(
+            "--evidence-synth-backend",
+            choices=["stub", "claude", "gemini"],
+            help="paper_reviser: evidence synthesis backend (required unless --manual-evidence).",
+        )
+        p_run.add_argument(
+            "--evidence-synth-model",
+            help="paper_reviser: evidence synthesis model/alias (required unless --manual-evidence).",
+        )
+        p_run.add_argument(
+            "--verification-plan",
+            help="paper_reviser: explicit verification_plan.json path (copied into SSOT under artifacts/runs/<run-id>/paper_reviser/verification/).",
+        )
+        p_run.add_argument(
+            "--apply-to-draft",
+            action="store_true",
+            help="paper_reviser: apply final clean.tex back to the draft .tex (A4-gated if required by approval_policy).",
+        )
+        p_run.add_argument("--skills-dir", help="paper_reviser: override $CODEX_HOME/skills for tool discovery.")
         p_run.add_argument("--survey-topic", help="literature_survey_polish: optional topic header for the T30 survey export.")
         p_run.add_argument(
             "--survey-refkeys",

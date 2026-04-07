@@ -154,7 +154,7 @@ describe('team execution state', () => {
       approval_packet_path: null,
       approval_requested_at: null,
     });
-    expect(state.pending_approvals).toEqual([]);
+    expect(buildTeamControlPlaneView(state).live_status.pending_approvals).toEqual([]);
     expect(state.sessions[0]).toMatchObject({
       ended_at: expect.any(String),
       runtime_status: 'cancelled',
@@ -311,15 +311,6 @@ describe('team execution state', () => {
     state.delegate_assignments[0]!.approval_id = 'apr_nested';
     state.delegate_assignments[0]!.approval_packet_path = 'artifacts/runs/run-approve__assignment/approval_packet_v1.json';
     state.delegate_assignments[0]!.approval_requested_at = '2026-03-21T00:00:00Z';
-    state.pending_approvals.push({
-      approval_id: 'apr_nested',
-      agent_id: 'delegate-1',
-      assignment_id: state.delegate_assignments[0]!.assignment_id,
-      session_id: null,
-      runtime_run_id: `run-approve__${state.delegate_assignments[0]!.assignment_id}`,
-      packet_path: 'artifacts/runs/run-approve__assignment/approval_packet_v1.json',
-      requested_at: '2026-03-21T00:00:00Z',
-    });
 
     applyTeamIntervention(state, {
       kind: 'approve',
@@ -335,7 +326,7 @@ describe('team execution state', () => {
       approval_packet_path: null,
       approval_requested_at: null,
     });
-    expect(state.pending_approvals).toEqual([]);
+    expect(buildTeamControlPlaneView(state).live_status.pending_approvals).toEqual([]);
   });
 
   it('stores task-scoped redirect payloads on the targeted assignment without mutating sibling assignments', () => {

@@ -8,6 +8,7 @@ import {
   baseState,
   cleanupTmpDirs,
   makeTmpDir,
+  writeRunArtifactsDir,
   writeLedger,
   writeQueue,
   writeState,
@@ -25,17 +26,9 @@ afterEach(() => {
 });
 
 describe('orch_fleet_enqueue', () => {
-  it('fails closed for an unknown run_id', async () => {
+  it('fails closed for an unknown run_id and reports canonical evidence diagnostics', async () => {
     const projectRoot = makeTmpDir();
     writeState(projectRoot, baseState({ run_id: 'run-known' }));
-    writeLedger(projectRoot, [{
-      ts: '2026-03-22T00:00:00Z',
-      event_type: 'initialized',
-      run_id: 'run-known',
-      workflow_id: 'runtime',
-      step_id: null,
-      details: {},
-    }]);
 
     await expect(handleOrchFleetEnqueue(OrchFleetEnqueueSchema.parse({
       project_root: projectRoot,
@@ -43,8 +36,65 @@ describe('orch_fleet_enqueue', () => {
       requested_by: 'operator',
     }))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
-      data: expect.objectContaining({ run_id: 'run-missing' }),
+      data: expect.objectContaining({
+        run_id: 'run-missing',
+        projection_not_authoritative: true,
+        canonical_evidence: expect.objectContaining({
+          state: expect.objectContaining({
+            current_run_id: 'run-known',
+            matched: false,
+          }),
+          ledger: expect.objectContaining({
+            matched: false,
+            diagnostics: expect.arrayContaining([
+              expect.objectContaining({ code: 'LEDGER_MISSING' }),
+            ]),
+          }),
+          artifacts: expect.objectContaining({
+            matched: false,
+          }),
+        }),
+      }),
     });
+  });
+
+  it('accepts enqueue when run existence is proven only by ledger history', async () => {
+    const projectRoot = makeTmpDir();
+    writeState(projectRoot, baseState({ run_id: 'run-current' }));
+    writeLedger(projectRoot, [{
+      ts: '2026-03-22T00:00:00Z',
+      event_type: 'initialized',
+      run_id: 'run-ledger-only',
+      workflow_id: 'runtime',
+      step_id: null,
+      details: {},
+    }]);
+
+    const payload = await handleOrchFleetEnqueue(OrchFleetEnqueueSchema.parse({
+      project_root: projectRoot,
+      run_id: 'run-ledger-only',
+      requested_by: 'operator',
+    })) as { enqueued: boolean; queue_item: { run_id: string } };
+
+    expect(payload.enqueued).toBe(true);
+    expect(payload.queue_item.run_id).toBe('run-ledger-only');
+    expect(readQueue(projectRoot).items.map(item => item.run_id)).toContain('run-ledger-only');
+  });
+
+  it('accepts enqueue when run existence is proven only by artifacts directory', async () => {
+    const projectRoot = makeTmpDir();
+    writeState(projectRoot, baseState({ run_id: 'run-current' }));
+    writeRunArtifactsDir(projectRoot, 'run-artifacts-only');
+
+    const payload = await handleOrchFleetEnqueue(OrchFleetEnqueueSchema.parse({
+      project_root: projectRoot,
+      run_id: 'run-artifacts-only',
+      requested_by: 'operator',
+    })) as { enqueued: boolean; queue_item: { run_id: string } };
+
+    expect(payload.enqueued).toBe(true);
+    expect(payload.queue_item.run_id).toBe('run-artifacts-only');
+    expect(readQueue(projectRoot).items.map(item => item.run_id)).toContain('run-artifacts-only');
   });
 
   it('creates the queue file on first enqueue and rejects duplicate active items', async () => {

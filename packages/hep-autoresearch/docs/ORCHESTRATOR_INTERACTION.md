@@ -16,13 +16,13 @@ Current front-door truth:
 - canonical root lifecycle is `autoresearch init|status|approve|pause|resume|export`
 - canonical bounded computation is `autoresearch run --workflow-id computation`
 - installable `hep-autoresearch` / `hepar` / `hep-autopilot` keep only provider-local workflow/support commands on the public shell
-- the only remaining public `hepar run --workflow-id ...` compatibility workflow is `paper_reviser`
+- installable `hepar run` remains as a compatibility shell command, but public workflow ids are now empty
 - Exact installable public command inventory: `approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`.
 - direct public root lifecycle/approval mutations such as `start`, `checkpoint`, `request-approval`, and `reject` are retired from the installable shell; `reject` itself still remains an internal-only direct-mutation maintainer path pending canonical TS parity
 
 Suggested command families (conceptual; the concrete authority above is the current truth):
 - `init`: initialize your chosen project directory as a project root (scaffold missing docs/KB/specs; create `.autoresearch/` state + ledger)
-- `run`: bounded computation lives on `autoresearch run --workflow-id computation`; the residual installable public shell keeps only `hepar run --workflow-id paper_reviser`
+- `run`: bounded computation lives on `autoresearch run --workflow-id computation`; installable `hepar run` is now a compatibility prompt surface and does not expose public workflow ids
 - `branch`: record branching decisions in the Plan SSOT (list/add/switch; safe backtracking)
 - `status`: show current run state (steps, artifacts, pending approvals, budget usage)
 - `pause`: pause the run (write stop files or update state)

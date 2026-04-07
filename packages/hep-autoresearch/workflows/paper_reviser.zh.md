@@ -2,7 +2,7 @@
 
 英文版：`workflows/paper_reviser.md`。
 
-生命周期说明：本批仍保留 `hepar run` 作为过渡中的 Pipeline A run surface，但围绕该 run 的 lifecycle verbs 应使用 canonical `autoresearch status` / `autoresearch approve`。
+生命周期说明：安装态 `hepar run` 已不再公开 workflow id。本文档现在只覆盖 maintainer/internal full-parser 路径；若确实需要保留 legacy Python 工作流用于 eval/regression，请使用 `python -m hep_autoresearch.orchestrator_cli run ...`。围绕该 run 的 lifecycle verbs 仍应使用 canonical `autoresearch status` / `autoresearch approve`。
 
 ## 目标
 
@@ -99,12 +99,12 @@
   - 有预算上限的多轮修订直至收敛，并增强跨轮 diff/trace。
   - 增加“可选复制证据到 KB/refs”的 opt-in 步骤（默认关闭，并在 manifest 记录）。
 
-## CLI
+## Internal Maintainer CLI
 
-运行：
+仅限 maintainer/internal full-parser 调用（不是 installable public shell）：
 
 ```bash
-hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
+python -m hep_autoresearch.orchestrator_cli run --run-id <RUN_ID> --workflow-id paper_reviser \
   --writer-backend claude --writer-model <MODEL> \
   --auditor-backend gemini --auditor-model <MODEL> \
   --evidence-synth-backend gemini --evidence-synth-model <MODEL>
@@ -113,7 +113,7 @@ hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
 可选稳健性参数（会透传到 `paper_reviser_edit.py`，round_01 与 round_02 都生效）：
 
 ```bash
-hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
+python -m hep_autoresearch.orchestrator_cli run --run-id <RUN_ID> --workflow-id paper_reviser \
   ... \
   --paper-reviser-min-clean-size-ratio 0.70 \
   --paper-reviser-codex-model <CODEX_MODEL> \
@@ -130,13 +130,13 @@ hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
 ```bash
 autoresearch status
 autoresearch approve A1-0001
-hepar run --run-id <RUN_ID> --workflow-id paper_reviser ...
+python -m hep_autoresearch.orchestrator_cli run --run-id <RUN_ID> --workflow-id paper_reviser ...
 ```
 
 手工证据模式：
 
 ```bash
-hepar run ... --manual-evidence
+python -m hep_autoresearch.orchestrator_cli run ... --manual-evidence
 # 写入 artifacts/runs/<RUN_ID>/paper_reviser/verification/evidence/<VR-ID>.md
-hepar run ...
+python -m hep_autoresearch.orchestrator_cli run ...
 ```

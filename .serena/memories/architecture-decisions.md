@@ -442,14 +442,23 @@
 
 **Why**: A single cross-TS/Python "master command table" would create false shared authority and stale-doc drift. Mature runtimes instead keep one exact source per live boundary and let overview docs remain summary-level projections.
 
-### [2026-04-07] Public `hepar run` compatibility boundary: only `paper_reviser` stays installable, and the survivor set must be explicitly classified
+### [2026-04-07] Public `hepar run` compatibility boundary: installable shell keeps no public workflow ids, and residue stays explicitly internal-only
 
 **Decision**:
-- The installable public `hepar` / `hep-autoresearch` / `hep-autopilot` `run --workflow-id ...` surface is now narrowed to `paper_reviser` only.
-- `ingest`, `reproduce`, `revision`, `literature_survey_polish`, `shell_adapter_smoke`, and already-retired public `computation` are not public-shell authority anymore; they may remain temporarily on the internal full parser for maintainer/eval/regression coverage, but they must not be documented or tested as installable public entrypoints.
+- The installable public `hepar` / `hep-autoresearch` / `hep-autopilot` `run` surface now keeps the shell verb only as a compatibility pointer; it exposes no public workflow ids.
+- `paper_reviser`, `ingest`, `reproduce`, `revision`, `literature_survey_polish`, `shell_adapter_smoke`, and already-retired public `computation` are not public-shell authority anymore; if they still exist, they are internal full-parser coverage only for maintainer/eval/regression usage and must not be documented or tested as installable public entrypoints.
 - The exact survivor/boundary classification should live in a dedicated front-door authority map (`meta/front_door_authority_map_v1.json`) consumed by docs/tests, with separate surface ids for canonical `autoresearch`, installable `hepar` public shell, internal full parser residue, and exact MCP tool spec surfaces.
 
-**Why**: Once generic lifecycle and computation authority moved to `autoresearch`, leaving multiple public `hepar run` workflow ids installable would quietly re-elevate the legacy Python shell as a second workflow front door. Keeping only the single compatibility survivor, and locking the rest behind explicit internal-only classification, prevents that drift while leaving bounded maintainer coverage until full deletion.
+**Why**: Once generic lifecycle and computation authority moved to `autoresearch`, even one installable `hepar run --workflow-id ...` survivor would keep the legacy Python shell half-alive as a second workflow front door. Clearing the public workflow inventory entirely, while locking any remaining parser residue behind explicit internal-only classification, prevents that drift and keeps the remaining cleanup/delete work honest.
+
+### [2026-04-07] Projection-only mutation guard invariant: delegated approval lists and fleet run lists must not become mutation authority
+
+**Decision**:
+- Delegated approval ownership stays on assignment-local canonical metadata (`approval_id`, `approval_packet_path`, `approval_requested_at`, `delegate_id`); `live_status.pending_approvals` is a derived view only and must neither persist nor gate `approve` interventions.
+- Fleet enqueue must prove `run_id` existence from canonical project artifacts (`state.json`, `ledger.jsonl`, `artifacts/runs/<runId>`); `readRunListView()` remains observability/read-model output only and must not gate mutations.
+- Projection surfaces may still expose helpful diagnostics, but those diagnostics cannot become the canonical source for workflow ownership, approval ownership, or mutation eligibility.
+
+**Why**: Two different seams had drifted toward the same anti-pattern: a convenience projection (`pending_approvals`, run-list read model) was being treated like canonical state. Mature control planes keep mutation authority on durable typed facts and let projections stay read-time only; making that invariant explicit prevents similar drift from reappearing under new names.
 
 ### [2026-04-07] Idea host boundary invariant: installable `idea-mcp` is TS-only `idea-engine` host
 

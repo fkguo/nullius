@@ -63,6 +63,12 @@ export function writeApprovalPacket(projectRoot: string, runId: string, approval
   }, null, 2) + '\n', 'utf-8');
 }
 
+export function writeRunArtifactsDir(projectRoot: string, runId: string): string {
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  return runDir;
+}
+
 export function writeQueue(projectRoot: string, content: unknown): void {
   fs.mkdirSync(controlDir(projectRoot), { recursive: true });
   const payload = typeof content === 'string' ? content : JSON.stringify(content, null, 2) + '\n';

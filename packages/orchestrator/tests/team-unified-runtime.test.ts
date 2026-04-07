@@ -382,13 +382,7 @@ describe('team unified runtime control paths', () => {
         approval_id: 'apr_nested',
         approval_packet_path: 'artifacts/runs/run-approval/approval_packet_v1.json',
       });
-      expect(first.team_state.pending_approvals[0]).toMatchObject({
-        approval_id: 'apr_nested',
-        agent_id: 'delegate-1',
-        assignment_id: first.team_state.delegate_assignments[0]?.assignment_id,
-        runtime_run_id: 'run-approval__' + first.team_state.delegate_assignments[0]?.assignment_id,
-        packet_path: 'artifacts/runs/run-approval/approval_packet_v1.json',
-      });
+      expect(first.team_state).not.toHaveProperty('pending_approvals');
       expect(first.team_state.sessions[0]).toMatchObject({
         agent_id: 'delegate-1',
         assignment_id: first.team_state.delegate_assignments[0]?.assignment_id,
@@ -456,7 +450,7 @@ describe('team unified runtime control paths', () => {
         approval_packet_path: null,
         approval_requested_at: null,
       });
-      expect(resumed.team_state.pending_approvals).toEqual([]);
+      expect(resumed.team_state).not.toHaveProperty('pending_approvals');
       expect(resumed.team_state.sessions).toHaveLength(2);
       expect(resumed.team_state.sessions[1]).toMatchObject({
         parent_session_id: firstSessionId,

@@ -315,7 +315,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             ]
 
             # First run should request A1 approval (Step C) before running retrieval tasks.
-            rc = run_cli(base, public=True)
+            rc = run_cli(base, public=False)
             self.assertEqual(rc, 3)
 
             # SSOT should already be written even when blocked by the approval gate.
@@ -351,7 +351,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             )
 
             # Second run should complete end-to-end (offline stub paths).
-            rc2 = run_cli(base, public=True)
+            rc2 = run_cli(base, public=False)
             self.assertEqual(rc2, 0)
 
             # SSOT structure.
@@ -401,7 +401,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             # Resume/skip: rerun should not re-execute task or evidence synthesis.
             log_sha_1 = hashlib.sha256(log_path.read_bytes()).hexdigest()
             vr_sha_1 = hashlib.sha256(vr_json.read_bytes()).hexdigest()
-            rc3 = run_cli(base, public=True)
+            rc3 = run_cli(base, public=False)
             self.assertEqual(rc3, 0)
             log_sha_2 = hashlib.sha256(log_path.read_bytes()).hexdigest()
             vr_sha_2 = hashlib.sha256(vr_json.read_bytes()).hexdigest()
@@ -518,7 +518,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             ]
 
             # First run should request A1 approval.
-            rc = run_cli(base, public=True)
+            rc = run_cli(base, public=False)
             self.assertEqual(rc, 3)
             state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             approval_a1 = ((state.get("pending_approval") or {}).get("approval_id"))
@@ -529,7 +529,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             )
 
             # Second run should request A4 approval to apply edits back to the draft.
-            rc2 = run_cli(base, public=True)
+            rc2 = run_cli(base, public=False)
             self.assertEqual(rc2, 3)
             state2 = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             pending2 = state2.get("pending_approval") or {}
@@ -547,13 +547,13 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             )
 
             # Third run should complete and apply.
-            rc3 = run_cli(base, public=True)
+            rc3 = run_cli(base, public=False)
             self.assertEqual(rc3, 0)
             draft_txt_3 = draft_path.read_text(encoding="utf-8", errors="replace")
             self.assertIn("% context applied", draft_txt_3)
             self.assertTrue((run_root / "apply" / "draft.diff").exists())
 
-    def test_public_wrapper_fails_closed_on_structured_paper_reviser_errors(self) -> None:
+    def test_internal_full_parser_fails_closed_on_structured_paper_reviser_errors(self) -> None:
         import sys
         from contextlib import redirect_stderr, redirect_stdout
         from io import StringIO
@@ -644,7 +644,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             ]
 
             with patch.object(orchestrator_cli, "paper_reviser_one", side_effect=_failing_paper_reviser):
-                rc, _, err = run_cli(argv, public=True)
+                rc, _, err = run_cli(argv, public=False)
 
             self.assertEqual(rc, 2)
             self.assertNotIn("allow_errors", err)

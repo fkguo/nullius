@@ -16,7 +16,7 @@ import {
   isTerminalAssignmentStatus,
   updateStateTimestamp,
 } from './team-execution-assignment-state.js';
-import { finalizeAssignmentSession, syncPendingApprovals } from './team-execution-scoping.js';
+import { finalizeAssignmentSession } from './team-execution-scoping.js';
 import type {
   TeamDelegateAssignment,
   TeamExecutionState,
@@ -171,7 +171,6 @@ export function applyTeamIntervention(
       },
     });
     updateStateTimestamp(state, timestamp);
-    syncPendingApprovals(state, state.run_id);
     return record;
   }
 
@@ -220,7 +219,6 @@ export function applyTeamIntervention(
       },
     });
     updateStateTimestamp(state, timestamp);
-    syncPendingApprovals(state, state.run_id);
     return record;
   }
 
@@ -231,16 +229,12 @@ export function applyTeamIntervention(
     if (assignment.status !== 'awaiting_approval') {
       throw new Error("approve intervention requires assignment status 'awaiting_approval'");
     }
-    if (!assignment.approval_id || !assignment.approval_packet_path || !assignment.approval_requested_at) {
-      throw new Error('approve intervention requires persisted approval metadata');
+    if (!assignment.delegate_id) {
+      throw new Error('approve intervention requires delegated approval ownership metadata');
     }
-    const approval = state.pending_approvals.find(item =>
-      item.approval_id === assignment.approval_id
-      && item.assignment_id === assignment.assignment_id
-      && item.agent_id === assignment.delegate_id,
-    );
-    if (!approval) {
-      throw new Error('approve intervention requires persisted delegated approval ownership');
+    // Approval authority now lives on the assignment itself; there is no separate approval projection registry.
+    if (!assignment.approval_id || !assignment.approval_packet_path || !assignment.approval_requested_at) {
+      throw new Error('approve intervention requires canonical assignment approval metadata');
     }
   }
   const record = buildRecord(command, timestamp);
@@ -284,6 +278,5 @@ export function applyTeamIntervention(
     });
   }
   updateStateTimestamp(state, timestamp);
-  syncPendingApprovals(state, state.run_id);
   return record;
 }

@@ -29,7 +29,6 @@ import {
   finalizeAssignmentSession,
   normalizeTeamScopingState,
   openAssignmentSession,
-  syncPendingApprovals,
 } from './team-execution-scoping.js';
 import { appendTeamEvent } from './team-execution-events.js';
 import { TeamExecutionStateManager } from './team-execution-storage.js';
@@ -386,7 +385,6 @@ function mergeLaunchOutcome(
     if (session) {
       session.runtime_projection = null;
     }
-    syncPendingApprovals(state, input.runId);
     appendTeamEvent(state, {
       kind: 'assignment_status_changed',
       assignment: updated,
@@ -451,7 +449,6 @@ function mergeLaunchOutcome(
   if (session) {
     session.runtime_projection = runtimeResult.runtime_projection;
   }
-  syncPendingApprovals(state, input.runId);
   manager.save(state);
   return {
     assignment_id: updated.assignment_id,
@@ -481,7 +478,6 @@ export async function executeRuntimeBucket(
   normalizeTeamScopingState(state, input.runId);
   const timedOutBeforeLaunch = markTimedOutAssignments(state);
   timedOutBeforeLaunch.forEach(assignment => finalizeAssignmentSession(state, assignment));
-  syncPendingApprovals(state, input.runId);
   const prepared = bucket.assignments.map(assignment =>
     prepareAssignmentOutcome(input, state, manager, assignment, resumeRequested),
   );
@@ -500,7 +496,6 @@ export async function executeRuntimeBucket(
     : mergeLaunchOutcome(input, state, manager, outcomeByAssignmentId.get(item.assignmentId)!));
   const timedOutAfterMerge = markTimedOutAssignments(state);
   timedOutAfterMerge.forEach(assignment => finalizeAssignmentSession(state, assignment));
-  syncPendingApprovals(state, input.runId);
   manager.save(state);
   return results.map(result => {
     const current = state.delegate_assignments.find(item => item.assignment_id === result.assignment_id);

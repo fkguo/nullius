@@ -503,12 +503,6 @@ describe('orch_run_execute_agent team bridge', () => {
       },
     )) as {
       team_state: {
-        pending_approvals: Array<{
-          approval_id: string;
-          agent_id: string;
-          assignment_id: string;
-          session_id: string | null;
-        }>;
         sessions: Array<{
           session_id: string;
           runtime_status: string;
@@ -531,12 +525,7 @@ describe('orch_run_execute_agent team bridge', () => {
       approval_packet_path: 'artifacts/runs/run-team-approval__nested/approval_packet_v1.json',
     });
     expect(first.team_state.delegate_assignments[0]?.approval_requested_at).toBeTruthy();
-    expect(first.team_state.pending_approvals[0]).toMatchObject({
-      approval_id: 'apr_nested_team',
-      agent_id: 'delegate-1',
-      assignment_id: first.team_state.delegate_assignments[0]?.assignment_id,
-      session_id: first.team_state.sessions[0]?.session_id ?? null,
-    });
+    expect(first.team_state).not.toHaveProperty('pending_approvals');
     expect(first.team_state.sessions[0]).toMatchObject({
       runtime_status: 'awaiting_approval',
       task_lifecycle_status: 'running',
@@ -570,7 +559,6 @@ describe('orch_run_execute_agent team bridge', () => {
       resumed: boolean;
       skipped_step_ids: string[];
       team_state: {
-        pending_approvals: Array<unknown>;
         sessions: Array<{ parent_session_id: string | null; task_status: string }>;
         delegate_assignments: Array<{
           assignment_id: string;
@@ -590,7 +578,7 @@ describe('orch_run_execute_agent team bridge', () => {
       approval_packet_path: null,
       approval_requested_at: null,
     });
-    expect(resumed.team_state.pending_approvals).toEqual([]);
+    expect(resumed.team_state).not.toHaveProperty('pending_approvals');
     expect(resumed.team_state.sessions.at(-1)).toMatchObject({
       parent_session_id: first.team_state.sessions[0]?.session_id ?? null,
       task_status: 'completed',

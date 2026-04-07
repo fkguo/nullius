@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { invalidParams, notFound, type FleetQueueV1 } from '@autoresearch/shared';
 import { utcNowIso } from '../util.js';
 import { createStateManager } from './common.js';
-import { readRunListView } from './run-read-model.js';
+import { readRunListView, type ReadModelError } from './run-read-model.js';
 import {
   createEmptyFleetQueue,
   readFleetQueue,
@@ -19,6 +21,11 @@ import {
 } from './schemas.js';
 
 type FleetQueueDisposition = 'requeue' | 'completed' | 'failed' | 'cancelled';
+type CanonicalRunEvidence = {
+  state: { current_run_id: string | null; matched: boolean };
+  ledger: { ledger_path: string; matched: boolean; diagnostics: ReadModelError[] };
+  artifacts: { run_dir: string; matched: boolean; diagnostics: ReadModelError[] };
+};
 
 function requireValidQueue(projectRoot: string): FleetQueueV1 {
   const readResult = readFleetQueue(projectRoot);
@@ -31,19 +38,107 @@ function requireValidQueue(projectRoot: string): FleetQueueV1 {
   return readResult.queue ?? createEmptyFleetQueue();
 }
 
+function scanLedgerForRunId(ledgerPath: string, runId: string): { matched: boolean; diagnostics: ReadModelError[] } {
+  if (!fs.existsSync(ledgerPath)) {
+    return {
+      matched: false,
+      diagnostics: [{ code: 'LEDGER_MISSING', message: `No ledger found at ${ledgerPath}.` }],
+    };
+  }
+  let invalidLines = 0;
+  try {
+    const lines = fs.readFileSync(ledgerPath, 'utf-8').split('\n').filter(line => line.trim());
+    for (const line of lines) {
+      try {
+        const event = JSON.parse(line) as Record<string, unknown>;
+        if (typeof event.run_id === 'string' && event.run_id === runId) {
+          return { matched: true, diagnostics: [] };
+        }
+      } catch {
+        invalidLines += 1;
+      }
+    }
+  } catch {
+    return {
+      matched: false,
+      diagnostics: [{ code: 'LEDGER_READ_ERROR', message: `Failed to read ${ledgerPath}.` }],
+    };
+  }
+  const diagnostics: ReadModelError[] = [];
+  if (invalidLines > 0) {
+    diagnostics.push({
+      code: 'LEDGER_PARSE_ERROR',
+      message: `Skipped ${invalidLines} invalid ledger line(s) in ${ledgerPath}.`,
+    });
+  }
+  return { matched: false, diagnostics };
+}
+
+function detectArtifactsRunDir(projectRoot: string, runId: string): {
+  runDir: string;
+  matched: boolean;
+  diagnostics: ReadModelError[];
+} {
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+  if (!fs.existsSync(runDir)) {
+    return { runDir, matched: false, diagnostics: [] };
+  }
+  try {
+    const matched = fs.statSync(runDir).isDirectory();
+    return {
+      runDir,
+      matched,
+      diagnostics: matched
+        ? []
+        : [{ code: 'RUN_ARTIFACT_NOT_DIRECTORY', message: `${runDir} exists but is not a directory.` }],
+    };
+  } catch {
+    return {
+      runDir,
+      matched: false,
+      diagnostics: [{ code: 'RUN_ARTIFACT_READ_ERROR', message: `Failed to inspect ${runDir}.` }],
+    };
+  }
+}
+
 function assertKnownRun(projectRoot: string, runId: string): void {
   const { manager } = createStateManager(projectRoot);
   const state = manager.readState();
-  if (state.run_id === runId) {
+  const stateMatched = state.run_id === runId;
+  if (stateMatched) {
     return;
   }
-  const runList = readRunListView(manager, { limit: Number.MAX_SAFE_INTEGER, status_filter: 'all' });
-  if (runList.runs.some(run => run.run_id === runId)) {
+  const ledger = scanLedgerForRunId(manager.ledgerPath, runId);
+  if (ledger.matched) {
     return;
   }
+  const artifacts = detectArtifactsRunDir(projectRoot, runId);
+  if (artifacts.matched) {
+    return;
+  }
+  // Keep read-model diagnostics for observability, but do not use projection data for mutation gating.
+  const runList = readRunListView(manager, { limit: 1, status_filter: 'all' });
+  const canonicalEvidence: CanonicalRunEvidence = {
+    state: {
+      current_run_id: state.run_id ?? null,
+      matched: stateMatched,
+    },
+    ledger: {
+      ledger_path: manager.ledgerPath,
+      matched: ledger.matched,
+      diagnostics: ledger.diagnostics,
+    },
+    artifacts: {
+      run_dir: artifacts.runDir,
+      matched: artifacts.matched,
+      diagnostics: artifacts.diagnostics,
+    },
+  };
   throw invalidParams(`unknown run_id '${runId}' for ${projectRoot}`, {
     run_id: runId,
     project_root: projectRoot,
+    projection_not_authoritative: true,
+    canonical_evidence: canonicalEvidence,
     read_model_errors: runList.errors,
   });
 }

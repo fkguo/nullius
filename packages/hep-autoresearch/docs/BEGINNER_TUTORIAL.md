@@ -50,7 +50,7 @@ This creates a minimal project root with:
 - `docs/`, `specs/`
 
 After initialization, you can run `autoresearch ...` for lifecycle verbs from any subdirectory; the CLI searches upward for `.autoresearch/`.
-The only public `run` workflow still exposed on the transitional Pipeline A surface in this batch is `paper_reviser`; other workflow names in the workflow docs are semantic specs or internal maintainer paths, not current installable-shell truth.
+Installable `hep-autoresearch run` now remains only as a compatibility shell command with no public workflow ids; workflow names in the workflow docs are semantic specs or internal maintainer paths, not current installable-shell truth.
 If you pass an explicit `HEP_DATA_DIR`, keep that directory outside the dev repo as well; public real-project flows now fail closed on repo-internal overrides.
 
 ## 3) Legacy compatibility smoke test without external LLM calls
@@ -78,27 +78,12 @@ This confirms the project-local charter / plan / notebook / gate contracts are v
 hep-autoresearch run --help
 ```
 
-For an actual public `run` invocation, use the paper-reviser workflow contract:
-
-```bash
-hep-autoresearch run --run-id <RUN_ID> --workflow-id paper_reviser \
-  --paper-root /path/to/external-paper-project \
-  --tex-main main.tex \
-  --writer-backend claude --writer-model <MODEL> \
-  --auditor-backend gemini --auditor-model <MODEL> \
-  --manual-evidence
-
-autoresearch status
-autoresearch approve <approval_id>
-hep-autoresearch run --run-id <RUN_ID> --workflow-id paper_reviser ...
-```
-
-Detailed gate behavior, artifacts, and resume semantics live in `workflows/paper_reviser.md`.
+Installable `hep-autoresearch run` no longer exposes public workflow ids. Use `autoresearch run --workflow-id ...` instead.
 
 ## 5) Other workflows
 
 - `computation`: `docs/COMPUTATION.md` via `autoresearch run --workflow-id computation` (native TS front door, not `hep-autoresearch run`)
-- `paper_reviser`: `workflows/paper_reviser.md` via the remaining public compatibility `hep-autoresearch run --workflow-id paper_reviser`
+- `paper_reviser`: `workflows/paper_reviser.md` (internal maintainer/full-parser workflow coverage, not installable public shell)
 - `reproduce`: `workflows/reproduce.md` (workflow spec / maintainer coverage, not current installable public shell)
 - `draft`: `workflows/draft.md`
 - `revision`: `workflows/revision.md` (workflow spec / maintainer coverage, not current installable public shell)

@@ -2,7 +2,7 @@
 
 Chinese version: `workflows/paper_reviser.zh.md`.
 
-Lifecycle note: `hepar run` remains the transitional Pipeline A run surface in this batch. Lifecycle verbs around that run, such as gate inspection and approval, should use the canonical `autoresearch status` / `autoresearch approve` entrypoint.
+Lifecycle note: installable `hepar run` no longer exposes public workflow ids. This workflow doc is now maintainer/internal full-parser coverage only; use `python -m hep_autoresearch.orchestrator_cli run ...` if you need the legacy Python path for eval/regression work. Lifecycle verbs around that run, such as gate inspection and approval, should still use the canonical `autoresearch status` / `autoresearch approve` entrypoint.
 
 ## Goal
 
@@ -99,12 +99,12 @@ Required:
   - Multi-round revision until converged (with a bounded budget) and better cross-round diffing/traceability.
   - Optional “copy evidence into KB/refs” step (opt-in; recorded in manifest for auditability).
 
-## CLI
+## Internal Maintainer CLI
 
-Run:
+Maintainer/internal full-parser invocation only (not installable public shell):
 
 ```bash
-hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
+python -m hep_autoresearch.orchestrator_cli run --run-id <RUN_ID> --workflow-id paper_reviser \
   --writer-backend claude --writer-model <MODEL> \
   --auditor-backend gemini --auditor-model <MODEL> \
   --evidence-synth-backend gemini --evidence-synth-model <MODEL>
@@ -113,7 +113,7 @@ hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
 Optional robustness knobs (forwarded to `paper_reviser_edit.py` in both round_01 and round_02):
 
 ```bash
-hepar run --run-id <RUN_ID> --workflow-id paper_reviser \
+python -m hep_autoresearch.orchestrator_cli run --run-id <RUN_ID> --workflow-id paper_reviser \
   ... \
   --paper-reviser-min-clean-size-ratio 0.70 \
   --paper-reviser-codex-model <CODEX_MODEL> \
@@ -130,13 +130,13 @@ Approve retrieval (Step C):
 ```bash
 autoresearch status
 autoresearch approve A1-0001
-hepar run --run-id <RUN_ID> --workflow-id paper_reviser ...
+python -m hep_autoresearch.orchestrator_cli run --run-id <RUN_ID> --workflow-id paper_reviser ...
 ```
 
 Manual evidence mode:
 
 ```bash
-hepar run ... --manual-evidence
+python -m hep_autoresearch.orchestrator_cli run ... --manual-evidence
 # write artifacts/runs/<RUN_ID>/paper_reviser/verification/evidence/<VR-ID>.md
-hepar run ...
+python -m hep_autoresearch.orchestrator_cli run ...
 ```

@@ -87,6 +87,7 @@ export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
     commands: freezeCommands([
       'run --workflow-id computation',
       'run --workflow-id ingest',
+      'run --workflow-id paper_reviser',
       'run --workflow-id reproduce',
       'run --workflow-id revision',
       'run --workflow-id literature_survey_polish',

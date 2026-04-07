@@ -45,6 +45,14 @@ function pendingApprovalFromAssignment(
   };
 }
 
+export function derivePendingApprovals(
+  state: Pick<TeamExecutionState, 'run_id' | 'delegate_assignments'>,
+): TeamPendingApproval[] {
+  return state.delegate_assignments
+    .map(assignment => pendingApprovalFromAssignment(state.run_id, assignment))
+    .filter((entry): entry is TeamPendingApproval => entry !== null);
+}
+
 function syntheticSession(assignment: TeamDelegateAssignment, runId: string): TeamAssignmentSession {
   const projection = taskProjectionFromAssignmentStatus(assignment.status);
   const execution = buildDelegatedExecutionIdentity({
@@ -73,7 +81,6 @@ function syntheticSession(assignment: TeamDelegateAssignment, runId: string): Te
 }
 
 export function normalizeTeamScopingState(state: TeamExecutionState, runId: string): void {
-  state.pending_approvals ??= [];
   state.sessions ??= [];
   for (const assignment of state.delegate_assignments) {
     assignment.session_id ??= null;
@@ -125,7 +132,6 @@ export function normalizeTeamScopingState(state: TeamExecutionState, runId: stri
     if (assignment.status === 'running') continue;
     finalizeAssignmentSession(state, assignment, assignment.updated_at);
   }
-  syncPendingApprovals(state, runId);
 }
 
 export function openAssignmentSession(
@@ -189,10 +195,4 @@ export function finalizeAssignmentSession(
   session.last_completed_step = assignment.last_completed_step;
   session.resume_from = assignment.resume_from;
   return session;
-}
-
-export function syncPendingApprovals(state: TeamExecutionState, runId: string): void {
-  state.pending_approvals = state.delegate_assignments
-    .map(assignment => pendingApprovalFromAssignment(runId, assignment))
-    .filter((entry): entry is TeamPendingApproval => entry !== null);
 }

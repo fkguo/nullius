@@ -61,7 +61,7 @@ class TestPublicCliSurface(unittest.TestCase):
         return [part.strip() for part in (match.group(1) or "").split(",") if part.strip()]
 
     def _extract_run_workflow_ids(self, help_text: str) -> list[str]:
-        match = re.search(r"--workflow-id\s+\{([^}]+)\}", help_text, re.MULTILINE)
+        match = re.search(r"--workflow-id\s+\{([^}]*)\}", help_text, re.MULTILINE)
         self.assertIsNotNone(match, "expected run help to contain a workflow-id inventory")
         return [part.strip() for part in (match.group(1) or "").split(",") if part.strip()]
 
@@ -100,14 +100,17 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertNotIn("--resume", out)
         self.assertNotIn("--project-dir", out)
         self.assertNotIn("--param", out)
+        self.assertNotIn("--draft-tex", out)
+        self.assertNotIn("--writer-backend", out)
+        self.assertNotIn("--paper-reviser-mode", out)
         self.assertNotIn("ingest", out)
         self.assertNotIn("reproduce", out)
         self.assertNotIn("revision", out)
         self.assertNotIn("literature_survey_polish", out)
         self.assertNotIn("shell_adapter_smoke", out)
-        self.assertIn("non-computation", out)
+        self.assertIn("compatibility wrapper", out)
         self.assertIn("autoresearch run", out)
-        self.assertIn("for computation", out)
+        self.assertIn("No installable public legacy run workflow ids remain", out)
         self.assertEqual(self._extract_run_workflow_ids(out), sorted(cli_mod._public_run_workflow_ids()))
         self.assertEqual(
             authority_map["surfaces"]["hepar_public_shell"]["run_workflow_ids"],
@@ -133,6 +136,12 @@ class TestPublicCliSurface(unittest.TestCase):
             self.assertEqual(rc, 2)
             self.assertIn("invalid choice", err)
             self.assertIn(workflow_id, err)
+
+    def test_public_run_rejects_retired_paper_reviser_workflow(self) -> None:
+        rc, _, err = self._run_public_cli(["hepar", "run", "--run-id", "M1-public", "--workflow-id", "paper_reviser"])
+        self.assertEqual(rc, 2)
+        self.assertIn("invalid choice", err)
+        self.assertIn("paper_reviser", err)
 
     def test_package_docs_publish_exact_public_command_inventory(self) -> None:
         cli_mod = self._import_orchestrator_cli()
@@ -187,6 +196,7 @@ class TestPublicCliSurface(unittest.TestCase):
             [
                 "run --workflow-id computation",
                 "run --workflow-id ingest",
+                "run --workflow-id paper_reviser",
                 "run --workflow-id reproduce",
                 "run --workflow-id revision",
                 "run --workflow-id literature_survey_polish",

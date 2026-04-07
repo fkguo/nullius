@@ -53,7 +53,7 @@ autoresearch status
 - `specs/`
 
 之后你可以在任意子目录运行 `autoresearch ...` 处理 lifecycle verbs；CLI 会自动向上寻找 `.autoresearch/`。
-过渡中的 Pipeline A legacy surface 目前只还公开保留 `paper_reviser` 这一条 `run` workflow；workflow 文档里出现的其他语义名更多是工作流规范或 internal maintainer 路径，不再代表安装态 public shell 真相。
+安装态 `hep-autoresearch run` 现在只保留兼容壳层命令，不再公开 workflow id；workflow 文档里出现的语义名更多是工作流规范或 internal maintainer 路径，不再代表安装态 public shell 真相。
 如果你显式传 `HEP_DATA_DIR`，它也应留在开发仓外；public real-project flow 现在会对 repo 内 override 直接 fail-close。
 
 ## 3）先跑一个 legacy compatibility 烟测
@@ -81,27 +81,12 @@ hep-autoresearch context \
 hep-autoresearch run --help
 ```
 
-安装态 public shell 的 `run` 现在只剩 `paper_reviser`。如果你确实要跑它，可按下面的 skeleton：
-
-```bash
-hep-autoresearch run --run-id <RUN_ID> --workflow-id paper_reviser \
-  --paper-root /path/to/external-paper-project \
-  --tex-main main.tex \
-  --writer-backend claude --writer-model <MODEL> \
-  --auditor-backend gemini --auditor-model <MODEL> \
-  --manual-evidence
-
-autoresearch status
-autoresearch approve <approval_id>
-hep-autoresearch run --run-id <RUN_ID> --workflow-id paper_reviser ...
-```
-
-更完整的 gate、artifact 与步骤说明请看 `workflows/paper_reviser.zh.md`。
+安装态 `hep-autoresearch run` 已不再公开 workflow id；请改用 `autoresearch run --workflow-id ...`。
 
 ## 5）其他 workflow 入口
 
 - `computation`：`docs/COMPUTATION.md`，并通过 `autoresearch run --workflow-id computation` 进入（不是 `hep-autoresearch run`）
-- `paper_reviser`：`workflows/paper_reviser.zh.md`，也是当前 installable public shell 剩余的唯一 `run` workflow
+- `paper_reviser`：`workflows/paper_reviser.zh.md`（internal maintainer/full-parser workflow coverage，不再属于 installable public shell）
 - `reproduce`：`workflows/reproduce.md`（workflow 规范 / maintainer coverage，不再是当前 installable public shell）
 - `draft`：`workflows/draft.md`
 - `revision`：`workflows/revision.md`（workflow 规范 / maintainer coverage，不再是当前 installable public shell）

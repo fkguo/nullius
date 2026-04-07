@@ -2,7 +2,7 @@
 
 本文件把“科研全流程自动化”的愿景拆成可实现的 workflow，每个 workflow 都定义：输入、步骤、产物、门禁。
 
-生命周期说明：本文件覆盖当前仍可使用的 **Pipeline A** Python CLI surface（`hep-autoresearch` / `hepar`）。长期规划仍然是在 TS orchestrator 成为唯一编排器后将这组 surface 一起退役；在那之前，这些说明仍是过渡期 Python 路径的有效操作文档。当前 installable public `hepar run --workflow-id ...` 只剩 `paper_reviser` 这一条 compatibility workflow；`ingest`、`reproduce`、`revision`、`literature_survey_polish` 与 `shell_adapter_smoke` 现在都只保留在 internal full parser，供 maintainer/eval/regression 使用。
+生命周期说明：本文件覆盖当前仍可使用的 **Pipeline A** Python CLI surface（`hep-autoresearch` / `hepar`）。长期规划仍然是在 TS orchestrator 成为唯一编排器后将这组 surface 一起退役；在那之前，这些说明仍是过渡期 Python 路径的有效操作文档。当前 installable `hepar run` 只保留兼容壳层命令，不再公开 workflow id；`ingest`、`reproduce`、`revision`、`literature_survey_polish` 与 `shell_adapter_smoke` 现在都只保留在 internal full parser，供 maintainer/eval/regression 使用。
 
 ## 命名边界
 

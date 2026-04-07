@@ -210,7 +210,6 @@ export interface TeamExecutionState {
   coordination_policy: TeamCoordinationPolicy;
   permissions: TeamPermissionMatrix;
   delegate_assignments: TeamDelegateAssignment[];
-  pending_approvals: TeamPendingApproval[];
   sessions: TeamAssignmentSession[];
   active_assignment_ids: string[];
   checkpoints: TeamCheckpointBinding[];

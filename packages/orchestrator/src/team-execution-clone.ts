@@ -133,7 +133,6 @@ export function cloneTeamExecutionState(state: TeamExecutionState): TeamExecutio
     coordination_policy: state.coordination_policy,
     permissions: clonePermissions(state.permissions),
     delegate_assignments: state.delegate_assignments.map(cloneAssignment),
-    pending_approvals: (state.pending_approvals ?? []).map(entry => ({ ...entry })),
     sessions: (state.sessions ?? []).map(entry => ({ ...entry })),
     active_assignment_ids: [...state.active_assignment_ids],
     checkpoints: state.checkpoints.map(cloneCheckpoint),

@@ -23,7 +23,6 @@ export function createTeamExecutionState(input: TeamExecutionInput, runId: strin
     coordination_policy: input.coordination_policy,
     permissions: clonePermissions(input.permissions),
     delegate_assignments: [],
-    pending_approvals: [],
     sessions: [],
     active_assignment_ids: [],
     checkpoints: [],

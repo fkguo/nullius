@@ -7,7 +7,9 @@ import {
 import {
   taskProjectionFromAssignmentStatus,
 } from './operator-read-model-summary.js';
+import { derivePendingApprovals } from './team-execution-scoping.js';
 import type {
+  TeamPendingApproval,
   TeamAssignmentStatus,
   TeamCoordinationPolicy,
   TeamExecutionEvent,
@@ -43,7 +45,7 @@ export interface TeamAssignmentView {
   delegation_protocol: TeamDelegationProtocol;
 }
 
-export type TeamPendingApprovalView = TeamExecutionState['pending_approvals'][number];
+export type TeamPendingApprovalView = TeamPendingApproval;
 
 export interface TeamBackgroundTaskView {
   assignment_id: string;
@@ -180,7 +182,7 @@ export function buildTeamLiveStatusView(state: TeamExecutionState): TeamLiveStat
     active_assignment_ids: [...state.active_assignment_ids],
     active_assignments: activeAssignments,
     terminal_assignments: terminalAssignments,
-    pending_approvals: (state.pending_approvals ?? []).map(entry => ({ ...entry })),
+    pending_approvals: derivePendingApprovals(state),
     background_tasks: state.delegate_assignments.map(assignment => toBackgroundTaskView(state, assignment)),
     updated_at: state.updated_at,
   };
