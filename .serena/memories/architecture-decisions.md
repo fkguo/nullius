@@ -450,3 +450,13 @@
 - The exact survivor/boundary classification should live in a dedicated front-door authority map (`meta/front_door_authority_map_v1.json`) consumed by docs/tests, with separate surface ids for canonical `autoresearch`, installable `hepar` public shell, internal full parser residue, and exact MCP tool spec surfaces.
 
 **Why**: Once generic lifecycle and computation authority moved to `autoresearch`, leaving multiple public `hepar run` workflow ids installable would quietly re-elevate the legacy Python shell as a second workflow front door. Keeping only the single compatibility survivor, and locking the rest behind explicit internal-only classification, prevents that drift while leaving bounded maintainer coverage until full deletion.
+
+### [2026-04-07] Idea host boundary invariant: `idea-mcp` defaults to TS `idea-engine`, Python survives only as explicit compatibility backend
+
+**Decision**:
+- The installable `idea-mcp` public host path now defaults to in-process TS `IdeaEngineRpcService`; Python `idea-core` is no longer the silent default host authority.
+- The legacy Python path survives only as an explicit compatibility backend selected via `IDEA_MCP_BACKEND=idea-core-python` (or equivalent programmatic backend selection), not as fallback wording or implicit path discovery.
+- The public `idea-mcp` tool inventory is now a bounded exact-match surface with direct tool-level contract coverage: `campaign.init`, `campaign.status`, `search.step`, and `eval.run`. Unsupported lifecycle methods must be removed from the public inventory rather than advertised against a default backend that cannot serve them.
+- This first cut does not claim `idea-core retire-all` or full TS asset/contract authority migration; Python-side contract snapshots and domain-pack assets may still exist as transitional inputs until a later explicit cleanup slice lands.
+
+**Why**: The real drift was a split-brain host boundary: public `idea-mcp` still defaulted to Python while TS `idea-engine` already owned the live active RPC path, and the public tool inventory still advertised methods the default host could not serve. Making TS the default host and forcing Python onto an explicit compatibility path closes that authority gap without over-claiming full retirement.

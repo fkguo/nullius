@@ -65,17 +65,6 @@ const AbstractProblemRegistrySchema = z.object({
   }).strict()).min(1),
 }).strict();
 
-const BudgetTopupSchema = z.object({
-  add_tokens: z.number().int().min(1).optional(),
-  add_cost_usd: z.number().gt(0).optional(),
-  add_wall_clock_s: z.number().gt(0).optional(),
-  add_steps: z.number().int().min(1).optional(),
-  add_nodes: z.number().int().min(1).optional(),
-}).strict().refine(
-  value => Object.keys(value).length > 0,
-  'At least one top-up dimension is required',
-);
-
 const BudgetLimitSchema = z.object({
   max_tokens: z.number().int().min(1).optional(),
   max_cost_usd: z.number().min(0).optional(),
@@ -127,34 +116,6 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
     description: 'Get the current status of an idea campaign.',
     schema: z.object({ campaign_id: UuidString }).strict(),
     rpcMethod: 'campaign.status',
-  },
-  {
-    name: 'idea_campaign_topup',
-    description: 'Request an auditable budget top-up for an existing campaign.',
-    schema: z.object({
-      campaign_id: UuidString,
-      topup: BudgetTopupSchema,
-      idempotency_key: NonEmptyString,
-    }).strict(),
-    rpcMethod: 'campaign.topup',
-  },
-  {
-    name: 'idea_campaign_pause',
-    description: 'Pause an active campaign.',
-    schema: z.object({ campaign_id: UuidString, idempotency_key: NonEmptyString }).strict(),
-    rpcMethod: 'campaign.pause',
-  },
-  {
-    name: 'idea_campaign_resume',
-    description: 'Resume a paused campaign.',
-    schema: z.object({ campaign_id: UuidString, idempotency_key: NonEmptyString }).strict(),
-    rpcMethod: 'campaign.resume',
-  },
-  {
-    name: 'idea_campaign_complete',
-    description: 'Mark a campaign as complete and finalize results.',
-    schema: z.object({ campaign_id: UuidString, idempotency_key: NonEmptyString }).strict(),
-    rpcMethod: 'campaign.complete',
   },
   {
     name: 'idea_search_step',

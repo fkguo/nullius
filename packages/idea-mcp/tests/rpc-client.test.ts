@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'events';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { Readable, Writable } from 'stream';
 
 function createMockChild() {
@@ -32,11 +35,47 @@ describe('IdeaRpcClient', () => {
     vi.clearAllMocks();
     mockChild = createMockChild();
     spawnMock.mockImplementation(() => mockChild);
-    client = new IdeaRpcClient({ ideaCorePath: '/fake/idea-core', timeoutMs: 5000 });
+    client = new IdeaRpcClient({
+      backend: 'idea-core-python',
+      ideaCorePath: '/fake/idea-core',
+      timeoutMs: 5000,
+    });
   });
 
   afterEach(() => {
     client.close();
+  });
+
+  it('defaults to the in-process idea-engine backend when a rootDir is provided', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-mcp-engine-'));
+    const engineClient = new IdeaRpcClient({ rootDir, timeoutMs: 5000 });
+
+    try {
+      const initResult = await engineClient.call('campaign.init', {
+        budget: {
+          max_cost_usd: 100,
+          max_steps: 5,
+          max_tokens: 10_000,
+          max_wall_clock_s: 3600,
+        },
+        charter: {
+          approval_gate_ref: 'gate://idea.default-host',
+          campaign_name: 'default-engine-backend',
+          domain: 'hep-ph',
+          scope: 'idea-mcp default backend regression',
+        },
+        idempotency_key: 'default-engine-init',
+        seed_pack: {
+          seeds: [{ content: 'seed-a', seed_type: 'text' }],
+        },
+      }) as Record<string, unknown>;
+
+      expect(typeof initResult.campaign_id).toBe('string');
+      expect(spawnMock).not.toHaveBeenCalled();
+    } finally {
+      engineClient.close();
+      rmSync(rootDir, { recursive: true, force: true });
+    }
   });
 
   it('sends a JSON-RPC request and resolves with the result payload', async () => {
@@ -180,7 +219,11 @@ describe('IdeaRpcClient', () => {
   });
 
   it('rejects with a timeout when no response arrives', async () => {
-    const fastClient = new IdeaRpcClient({ ideaCorePath: '/fake/idea-core', timeoutMs: 50 });
+    const fastClient = new IdeaRpcClient({
+      backend: 'idea-core-python',
+      ideaCorePath: '/fake/idea-core',
+      timeoutMs: 50,
+    });
     const promise = fastClient.call('campaign.init', { idempotency_key: 'slow' });
 
     await expect(promise).rejects.toMatchObject({

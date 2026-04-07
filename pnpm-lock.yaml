@@ -167,6 +167,9 @@ importers:
 
   packages/idea-mcp:
     dependencies:
+      '@autoresearch/idea-engine':
+        specifier: workspace:^
+        version: link:../idea-engine
       '@autoresearch/shared':
         specifier: workspace:^
         version: link:../shared

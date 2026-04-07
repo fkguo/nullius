@@ -1,6 +1,10 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { randomUUID } from 'crypto';
+import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+import { IdeaEngineRpcService, handleJsonRpcRequest } from '@autoresearch/idea-engine';
 import { upstreamError, internalError } from '@autoresearch/shared';
+import { DEFAULT_IDEA_RPC_BACKEND, type IdeaRpcBackend } from './backend.js';
 import { mapRpcError } from './rpc-error-mapping.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,12 +31,16 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>;
 }
 
+const DEFAULT_IDEA_ENGINE_ROOT = fileURLToPath(new URL('../../idea-engine/runs', import.meta.url));
+
 export interface IdeaRpcClientOptions {
-  ideaCorePath: string;
+  backend?: IdeaRpcBackend;
+  ideaCorePath?: string;
   timeoutMs?: number;
   maxRestarts?: number;
   dataDir?: string;
   contractDir?: string;
+  rootDir?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -45,23 +53,43 @@ export class IdeaRpcClient {
   private buffer = '';
   private restartCount = 0;
   private closed = false;
+  private readonly backend: IdeaRpcBackend;
+  private readonly ideaEngine: IdeaEngineRpcService | null;
 
-  private readonly ideaCorePath: string;
+  private readonly ideaCorePath?: string;
   private readonly timeoutMs: number;
   private readonly maxRestarts: number;
   private readonly dataDir?: string;
   private readonly contractDir?: string;
 
   constructor(opts: IdeaRpcClientOptions) {
-    this.ideaCorePath = opts.ideaCorePath;
+    this.backend = opts.backend ?? DEFAULT_IDEA_RPC_BACKEND;
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.maxRestarts = opts.maxRestarts ?? 3;
     this.dataDir = opts.dataDir;
     this.contractDir = opts.contractDir;
+    if (this.backend === 'idea-core-python') {
+      if (!opts.ideaCorePath) {
+        throw new Error('ideaCorePath is required for the idea-core-python compatibility backend');
+      }
+      this.ideaCorePath = resolve(opts.ideaCorePath);
+      this.ideaEngine = null;
+      return;
+    }
+
+    const rootDir = opts.rootDir ?? opts.dataDir ?? DEFAULT_IDEA_ENGINE_ROOT;
+    this.ideaCorePath = undefined;
+    this.ideaEngine = new IdeaEngineRpcService({
+      contractDir: this.contractDir,
+      rootDir: resolve(rootDir),
+    });
   }
 
   async call(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     if (this.closed) throw internalError('IdeaRpcClient is closed');
+    if (this.backend === 'idea-engine') {
+      return this.callIdeaEngine(method, params);
+    }
     this.ensureChild();
 
     const id = randomUUID();
@@ -86,6 +114,28 @@ export class IdeaRpcClient {
     });
   }
 
+  private async callIdeaEngine(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    if (!this.ideaEngine) {
+      throw internalError('idea-engine backend missing in-process RPC service');
+    }
+    // idea-engine currently exposes a synchronous JSON-RPC helper; keep that assumption
+    // explicit here so a future async refactor does not silently change the bridge contract.
+    const response = handleJsonRpcRequest(this.ideaEngine, {
+      id: randomUUID(),
+      jsonrpc: '2.0',
+      method,
+      params,
+    }) as {
+      error?: { code: number; data?: unknown; message: string };
+      result?: unknown;
+    };
+
+    if (response.error) {
+      throw mapRpcError(response.error.code, response.error.message, response.error.data);
+    }
+    return response.result;
+  }
+
   close(): void {
     this.closed = true;
     this.rejectAllPending('IdeaRpcClient closed');
@@ -96,6 +146,7 @@ export class IdeaRpcClient {
   }
 
   private ensureChild(): void {
+    if (this.backend !== 'idea-core-python') return;
     if (this.child && this.child.exitCode === null) return;
     if (this.restartCount >= this.maxRestarts) {
       throw upstreamError(
@@ -107,6 +158,9 @@ export class IdeaRpcClient {
   }
 
   private spawnChild(): void {
+    if (!this.ideaCorePath) {
+      throw internalError('idea-core-python compatibility backend missing ideaCorePath');
+    }
     const args = ['run', 'python', '-m', 'idea_core.rpc.server'];
     if (this.dataDir) args.push('--data-dir', this.dataDir);
     if (this.contractDir) args.push('--contract-dir', this.contractDir);

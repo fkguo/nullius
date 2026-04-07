@@ -9,6 +9,21 @@ function getTool(name: string) {
 }
 
 describe('idea-mcp tool registry', () => {
+  it('keeps the public inventory aligned with the default idea-engine backend', () => {
+    expect(IDEA_TOOLS.map(tool => tool.name)).toEqual([
+      'idea_campaign_init',
+      'idea_campaign_status',
+      'idea_search_step',
+      'idea_eval_run',
+    ]);
+    expect(IDEA_TOOLS.map(tool => tool.rpcMethod)).toEqual([
+      'campaign.init',
+      'campaign.status',
+      'search.step',
+      'eval.run',
+    ]);
+  });
+
   it('exposes live-contract required fields for campaign.init', () => {
     const schema = zodToMcpInputSchema(getTool('idea_campaign_init').schema);
     expect(schema).toMatchObject({

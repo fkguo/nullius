@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import { z } from 'zod';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -9,6 +10,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { McpError, invalidParams } from '@autoresearch/shared';
+import { DEFAULT_IDEA_RPC_BACKEND, type IdeaRpcBackend } from './backend.js';
 import { IdeaRpcClient } from './rpc-client.js';
 import { zodToMcpInputSchema } from './mcp-input-schema.js';
 import { IDEA_TOOLS } from './tool-registry.js';
@@ -17,16 +19,55 @@ import { IDEA_TOOLS } from './tool-registry.js';
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
-function resolveIdeaCorePath(): string {
-  const envPath = process.env.IDEA_CORE_PATH;
+export function resolveIdeaBackend(env: NodeJS.ProcessEnv = process.env): IdeaRpcBackend {
+  const envValue = env.IDEA_MCP_BACKEND?.trim();
+  if (!envValue) return DEFAULT_IDEA_RPC_BACKEND;
+  if (envValue === 'idea-engine' || envValue === 'idea-core-python') return envValue;
+  throw new Error(`Unsupported IDEA_MCP_BACKEND: ${envValue}`);
+}
+
+export function resolveIdeaDataDir(
+  env: NodeJS.ProcessEnv = process.env,
+  backend: IdeaRpcBackend = resolveIdeaBackend(env),
+): string {
+  const envPath = env.IDEA_MCP_DATA_DIR;
   if (envPath) return path.resolve(envPath);
-  // Default: sibling package in monorepo
+  const packageDir = backend === 'idea-core-python' ? '../../idea-core/runs' : '../../idea-engine/runs';
+  return path.resolve(import.meta.dirname, packageDir);
+}
+
+export function resolveIdeaCorePath(env: NodeJS.ProcessEnv = process.env): string {
+  // This resolver is only consumed on the explicit idea-core-python compatibility branch.
+  const envPath = env.IDEA_CORE_PATH;
+  if (envPath) return path.resolve(envPath);
   return path.resolve(import.meta.dirname, '../../idea-core');
 }
 
-export async function startServer(): Promise<void> {
-  const ideaCorePath = resolveIdeaCorePath();
-  const rpc = new IdeaRpcClient({ ideaCorePath });
+function resolveIdeaContractDir(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const envPath = env.IDEA_MCP_CONTRACT_DIR;
+  return envPath ? path.resolve(envPath) : undefined;
+}
+
+export function createIdeaRpcClient(env: NodeJS.ProcessEnv = process.env): IdeaRpcClient {
+  const backend = resolveIdeaBackend(env);
+  const contractDir = resolveIdeaContractDir(env);
+  if (backend === 'idea-core-python') {
+    return new IdeaRpcClient({
+      backend,
+      contractDir,
+      dataDir: resolveIdeaDataDir(env, backend),
+      ideaCorePath: resolveIdeaCorePath(env),
+    });
+  }
+  return new IdeaRpcClient({
+    backend,
+    contractDir,
+    rootDir: resolveIdeaDataDir(env, backend),
+  });
+}
+
+export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const rpc = createIdeaRpcClient(env);
 
   const server = new Server(
     { name: 'idea-mcp', version: '0.0.1' },
@@ -87,7 +128,9 @@ export async function startServer(): Promise<void> {
   });
 }
 
-startServer().catch((err) => {
-  process.stderr.write(`[idea-mcp] Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
-  process.exit(1);
-});
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  startServer().catch((err) => {
+    process.stderr.write(`[idea-mcp] Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exit(1);
+  });
+}
