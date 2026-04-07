@@ -287,6 +287,10 @@ describe('team unified runtime control paths', () => {
       expect(result.live_status.background_tasks[0]).not.toHaveProperty('research_task_ref');
       expect(result.replay[0]).not.toHaveProperty('research_task_ref');
       expect(result.assignment_results[0]).not.toHaveProperty('research_task_ref');
+      expect(result.team_state.sessions[0]).not.toHaveProperty('delegated_runtime_handle');
+      expect(result.live_status.terminal_assignments[0]).not.toHaveProperty('delegated_runtime_handle');
+      expect(result.replay[0]).not.toHaveProperty('delegated_runtime_handle');
+      expect(result.assignment_results[0]).not.toHaveProperty('delegated_runtime_handle');
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

@@ -1,4 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import {
+  buildDelegatedRuntimeHandleV1,
+  type DelegatedRuntimeHandleV1,
+} from './delegated-runtime-handle.js';
 import { buildDelegatedExecutionIdentity } from './execution-identity.js';
 import {
   assignmentNeedsApprovalAttention,
@@ -134,18 +138,30 @@ export function normalizeTeamScopingState(state: TeamExecutionState, runId: stri
   }
 }
 
+export interface OpenAssignmentSessionOutcome {
+  session: TeamAssignmentSession;
+  handle: DelegatedRuntimeHandleV1;
+}
+
 export function openAssignmentSession(
   state: TeamExecutionState,
   runId: string,
   assignment: TeamDelegateAssignment,
   resumeFrom: string | null,
   startedAt: string = utcNowIso(),
-): TeamAssignmentSession {
+): OpenAssignmentSessionOutcome {
   const parentSessionId = assignment.session_id;
   const hasForkSource = Boolean(assignment.forked_from_assignment_id || assignment.forked_from_session_id);
-  const execution = buildDelegatedExecutionIdentity({
+  const sessionId = randomUUID();
+  const handle = buildDelegatedRuntimeHandleV1({
     project_run_id: runId,
     assignment_id: assignment.assignment_id,
+    session_id: sessionId,
+    task_id: assignment.task_id,
+    checkpoint_id: assignment.checkpoint_id,
+    parent_session_id: parentSessionId,
+    forked_from_assignment_id: assignment.forked_from_assignment_id,
+    forked_from_session_id: assignment.forked_from_session_id,
   });
   const contextKind = resumeFrom !== null
     ? 'resumed'
@@ -153,12 +169,12 @@ export function openAssignmentSession(
       ? 'forked'
       : 'fresh';
   const session: TeamAssignmentSession = {
-    session_id: randomUUID(),
+    session_id: sessionId,
     parent_session_id: parentSessionId,
     context_kind: contextKind,
     agent_id: assignment.delegate_id,
     assignment_id: assignment.assignment_id,
-    runtime_run_id: execution.runtime_run_id,
+    runtime_run_id: handle.identity.runtime_run_id,
     runtime_status: 'running',
     ...taskProjectionFromAssignmentStatus('running'),
     started_at: startedAt,
@@ -174,7 +190,7 @@ export function openAssignmentSession(
   assignment.updated_at = startedAt;
   state.sessions.push(session);
   state.updated_at = startedAt;
-  return session;
+  return { session, handle };
 }
 
 export function finalizeAssignmentSession(

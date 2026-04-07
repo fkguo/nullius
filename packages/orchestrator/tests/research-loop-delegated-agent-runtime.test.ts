@@ -9,6 +9,7 @@ import {
   type MessageParam,
   type Tool,
 } from '../src/index.js';
+import { buildDelegatedRuntimeHandleV1 } from '../src/delegated-runtime-handle.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
 
 function makeTmpDir(): string {
@@ -199,6 +200,81 @@ describe('executeDelegatedAgentRuntime', () => {
       };
       expect(diagnostics.evidence.manifest.path).toBe(resumed.manifest_path);
       expect(diagnostics.evidence.runtime_markers).toEqual([]);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts delegated runtime handle refs and keeps runtime artifacts canonical', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const handle = buildDelegatedRuntimeHandleV1({
+        project_run_id: 'run-handle',
+        assignment_id: 'assignment-handle',
+        session_id: 'session-handle',
+        task_id: 'task-handle',
+        checkpoint_id: null,
+        parent_session_id: null,
+        forked_from_assignment_id: null,
+        forked_from_session_id: null,
+      });
+      const result = await executeDelegatedAgentRuntime({
+        projectRoot,
+        runId: handle.identity.runtime_run_id,
+        model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'use-handle' }],
+        tools: TOOLS,
+        mcpClient: makeMockMcpClient({
+          ok: true,
+          isError: false,
+          rawText: 'tool-result',
+          json: null,
+          errorCode: null,
+        }).client,
+        delegated_runtime_handle: handle,
+        approvalGate: new ApprovalGate({}),
+        _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('done')),
+      });
+
+      expect(result.manifest_path).toBe(handle.artifacts.manifest_path);
+      expect(result.spans_path).toBe(handle.artifacts.spans_path);
+      expect(result.runtime_diagnostics_bridge_path).toBe(handle.artifacts.runtime_diagnostics_bridge_path);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed when delegated runtime handle run id mismatches input run id', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const handle = buildDelegatedRuntimeHandleV1({
+        project_run_id: 'run-handle',
+        assignment_id: 'assignment-handle',
+        session_id: 'session-handle',
+        task_id: 'task-handle',
+        checkpoint_id: null,
+        parent_session_id: null,
+        forked_from_assignment_id: null,
+        forked_from_session_id: null,
+      });
+
+      await expect(executeDelegatedAgentRuntime({
+        projectRoot,
+        runId: 'run-mismatch',
+        model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'use-handle' }],
+        tools: TOOLS,
+        mcpClient: makeMockMcpClient({
+          ok: true,
+          isError: false,
+          rawText: 'tool-result',
+          json: null,
+          errorCode: null,
+        }).client,
+        delegated_runtime_handle: handle,
+        approvalGate: new ApprovalGate({}),
+        _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('done')),
+      })).rejects.toThrow('delegated runtime handle run id mismatch');
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

@@ -10,10 +10,10 @@ import {
   executeDelegatedAgentRuntime,
   type ExecuteDelegatedAgentRuntimeResult,
 } from './research-loop/delegated-agent-runtime.js';
+import type { DelegatedRuntimeHandleV1 } from './delegated-runtime-handle.js';
 import {
   buildDelegatedExecutionIdentity,
   delegatedExecutionManifestPath,
-  type DelegatedExecutionIdentity,
 } from './execution-identity.js';
 import { renderPendingRedirect } from './team-execution-intervention-payloads.js';
 import { buildDelegatedToolPermissionView } from './team-execution-permissions.js';
@@ -250,12 +250,12 @@ type SnapshotOutcome = {
 type PendingLaunch = {
   kind: 'launch';
   assignmentId: string;
-  execution: DelegatedExecutionIdentity;
+  handle: DelegatedRuntimeHandleV1;
 };
 
 type LaunchOutcome = {
   assignmentId: string;
-  execution: DelegatedExecutionIdentity;
+  handle: DelegatedRuntimeHandleV1;
   runtimeResult?: ExecuteDelegatedAgentRuntimeResult;
   error?: AgentEvent & { type: 'error' };
 };
@@ -312,15 +312,17 @@ function prepareAssignmentOutcome(
   updateDelegateAssignment(state, refreshed.assignment_id, { status: 'running' });
   recordHeartbeat(state, refreshed.assignment_id);
   const running = state.delegate_assignments.find(item => item.assignment_id === assignment.assignment_id)!;
-  openAssignmentSession(state, input.runId, running, resolveAssignmentResumeFrom(input, running) ?? null);
+  const { handle } = openAssignmentSession(
+    state,
+    input.runId,
+    running,
+    resolveAssignmentResumeFrom(input, running) ?? null,
+  );
   appendTeamEvent(state, { kind: 'assignment_started', assignment: running, payload: { stage: running.stage } });
   return {
     kind: 'launch',
     assignmentId: running.assignment_id,
-    execution: buildDelegatedExecutionIdentity({
-      project_run_id: input.runId,
-      assignment_id: running.assignment_id,
-    }),
+    handle,
   };
 }
 
@@ -334,12 +336,13 @@ async function executeLaunch(
   try {
     const runtimeResult = await executeDelegatedAgentRuntime({
       projectRoot: input.projectRoot,
-      runId: launch.execution.runtime_run_id,
+      runId: launch.handle.identity.runtime_run_id,
       model: input.model,
       messages: buildRuntimeMessages(input.messages, assignment.delegation_protocol, assignment.pending_redirect),
       tools: filterToolsForPermissionView(input.tools, toolPermissionView),
       mcpClient: input.mcpClient,
       toolPermissionView,
+      delegated_runtime_handle: launch.handle,
       approvalGate: input.approvalGate,
       resumeFrom: resolveAssignmentResumeFrom(input, assignment),
       maxTurns: input.maxTurns,
@@ -348,11 +351,11 @@ async function executeLaunch(
       backendFactory: input.backendFactory,
       _messagesCreate: input._messagesCreate,
     });
-    return { assignmentId: launch.assignmentId, execution: launch.execution, runtimeResult };
+    return { assignmentId: launch.assignmentId, handle: launch.handle, runtimeResult };
   } catch (error) {
     return {
       assignmentId: launch.assignmentId,
-      execution: launch.execution,
+      handle: launch.handle,
       error: { type: 'error', error: asMcpError(error, 'Delegated runtime failed: ') },
     };
   }
@@ -391,7 +394,7 @@ function mergeLaunchOutcome(
       payload: {
         stage: updated.stage,
         status,
-        runtime_run_id: launch.execution.runtime_run_id,
+        runtime_run_id: launch.handle.identity.runtime_run_id,
         error: launch.error.error.message,
       },
     });
@@ -403,10 +406,10 @@ function mergeLaunchOutcome(
       stage: updated.stage,
       status: updated.status,
       delegation_protocol: updated.delegation_protocol,
-      runtime_run_id: launch.execution.runtime_run_id,
+      runtime_run_id: launch.handle.identity.runtime_run_id,
       events: [launch.error],
       last_completed_step: updated.last_completed_step,
-      manifest_path: delegatedExecutionManifestPath(launch.execution),
+      manifest_path: launch.handle.artifacts.manifest_path,
       resume_from: updated.resume_from,
       resumed: Boolean(updated.resume_from),
       skipped_step_ids: [],
@@ -432,7 +435,7 @@ function mergeLaunchOutcome(
   appendTeamEvent(state, {
     kind: 'assignment_status_changed',
     assignment: updated,
-    payload: { stage: updated.stage, status, runtime_run_id: launch.execution.runtime_run_id },
+    payload: { stage: updated.stage, status, runtime_run_id: launch.handle.identity.runtime_run_id },
   });
   recordHeartbeat(state, updated.assignment_id);
   if (runtimeResult.last_completed_step || updated.checkpoint_id) {
@@ -456,7 +459,7 @@ function mergeLaunchOutcome(
     stage: updated.stage,
     status: updated.status,
     delegation_protocol: updated.delegation_protocol,
-    runtime_run_id: launch.execution.runtime_run_id,
+    runtime_run_id: launch.handle.identity.runtime_run_id,
     events: runtimeResult.events,
     last_completed_step: runtimeResult.last_completed_step,
     manifest_path: runtimeResult.manifest_path,

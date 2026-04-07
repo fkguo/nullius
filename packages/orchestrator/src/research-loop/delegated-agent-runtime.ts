@@ -14,7 +14,10 @@ import {
   type RuntimeDiagnosticsSummaryV1,
 } from '../runtime-diagnostics-bridge.js';
 import type { SpanCollector } from '../tracing.js';
-import { delegatedExecutionManifestPath } from '../execution-identity.js';
+import {
+  delegatedRuntimeArtifactRefs,
+  type DelegatedRuntimeHandleV1,
+} from '../delegated-runtime-handle.js';
 import type { DelegatedRuntimeProjectionV1 } from './delegated-runtime-projection.js';
 
 export interface ExecuteDelegatedAgentRuntimeInput {
@@ -25,6 +28,7 @@ export interface ExecuteDelegatedAgentRuntimeInput {
   tools: Tool[];
   mcpClient: ToolCaller;
   toolPermissionView?: ToolPermissionView;
+  delegated_runtime_handle?: DelegatedRuntimeHandleV1;
   approvalGate: ApprovalGate;
   resumeFrom?: string;
   maxTurns?: number;
@@ -46,10 +50,6 @@ export interface ExecuteDelegatedAgentRuntimeResult {
   resumed: boolean;
   skipped_step_ids: string[];
   last_completed_step: string | null;
-}
-
-function spansPath(runId: string): string {
-  return path.posix.join('artifacts', 'runs', runId, 'spans.jsonl');
 }
 
 function createManifestManager(projectRoot: string): RunManifestManager {
@@ -78,6 +78,12 @@ function buildResumeManifest(manifest: RunManifest | null, resumeFrom?: string):
 export async function executeDelegatedAgentRuntime(
   input: ExecuteDelegatedAgentRuntimeInput,
 ): Promise<ExecuteDelegatedAgentRuntimeResult> {
+  if (input.delegated_runtime_handle
+    && input.delegated_runtime_handle.identity.runtime_run_id !== input.runId) {
+    throw new Error('delegated runtime handle run id mismatch');
+  }
+  const artifactRefs = input.delegated_runtime_handle?.artifacts
+    ?? delegatedRuntimeArtifactRefs({ runtime_run_id: input.runId });
   const manifestManager = createManifestManager(input.projectRoot);
   const persistedManifest = manifestManager.loadManifest(input.runId);
   const runtimeManifest = buildResumeManifest(persistedManifest, input.resumeFrom);
@@ -119,23 +125,24 @@ export async function executeDelegatedAgentRuntime(
     approval_requested: false,
     terminal_outcome: null,
   };
-  const manifestPathValue = delegatedExecutionManifestPath({ runtime_run_id: input.runId });
-  const spansPathValue = spansPath(input.runId);
   const diagnosticsBridge = writeRuntimeDiagnosticsBridgeArtifact({
     projectRoot: input.projectRoot,
     runId: input.runId,
     runtimeProjection,
-    manifestPath: manifestPathValue,
-    spansPath: spansPathValue,
+    manifestPath: artifactRefs.manifest_path,
+    spansPath: artifactRefs.spans_path,
     savedManifest,
   });
+  if (diagnosticsBridge.artifactPath !== artifactRefs.runtime_diagnostics_bridge_path) {
+    throw new Error('delegated runtime diagnostics bridge path mismatch');
+  }
   return {
     events,
     runtime_projection: runtimeProjection,
     manifest: savedManifest,
-    manifest_path: manifestPathValue,
-    spans_path: spansPathValue,
-    runtime_diagnostics_bridge_path: diagnosticsBridge.artifactPath,
+    manifest_path: artifactRefs.manifest_path,
+    spans_path: artifactRefs.spans_path,
+    runtime_diagnostics_bridge_path: artifactRefs.runtime_diagnostics_bridge_path,
     runtime_diagnostics_summary: diagnosticsBridge.payload.summary,
     resume_from: runtimeManifest?.resume_from ?? null,
     resumed: runtimeManifest?.resume_from !== undefined,
