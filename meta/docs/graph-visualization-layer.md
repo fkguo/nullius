@@ -1,5 +1,7 @@
 # Graph Visualization Layer — Design Document
 
+> **Historical rebaseline (2026-04-07)**: the current live shared implementation keeps 4 active adapters (`claim-dag`, `memory-graph`, `literature`, `progress`). The previously shipped `idea-map` adapter was removed because no current generic/public authority consumes an Idea Map rendering surface; do not read older sections of this memo as authority to restore it.
+
 > **Status**: Approved (dual-model convergence: Codex READY + Gemini READY after 9 rounds)
 > **Branch**: `design/graph-viz`
 > **Review history**:
@@ -15,14 +17,13 @@
 
 ## 1. Motivation
 
-Five subsystems in Autoresearch produce typed directed graphs:
+Four active subsystems in Autoresearch currently produce typed directed graphs through the live shared visualization layer:
 
 | Subsystem | Node types | Edge types | Source format |
 |---|---|---|---|
 | Claim DAG | claim (with status) | supports, contradicts, requires, fork, supersedes, competitor | claims.jsonl + edges.jsonl |
 | Memory Graph (EVO-20) | signal, gene, capsule, outcome, skill, module, ... | resolved_by, confidence, co_change, supersedes, ... | SQLite (mg_nodes/mg_edges) |
 | Literature graph | paper | cites, extends, contradicts, reviews | INSPIRE API JSON |
-| Idea map | idea_node, claim, evidence | parent_of, supports, refutes, mentions, derived_from | nodes_latest.json + artifacts/ |
 | Progress graph | milestone, task | depends_on | RESEARCH_PLAN.md task board |
 
 The existing `render_claim_graph.py` (~458 LOC) already does `typed nodes + typed edges → Graphviz DOT/PNG/SVG`. This design extracts a domain-agnostic core and defines per-domain adapters.
@@ -262,8 +263,8 @@ generation. Never throw on missing `dot` binary.
 first-appearance of each type/status. This ensures diffable, reproducible DOT.
 
 **Adapter ordering contract**: Every adapter MUST produce nodes and edges in a
-deterministic, stable order. For file-based adapters (claim, progress, literature,
-idea-map), insertion order from the source file provides this naturally. For
+deterministic, stable order. For file-based adapters (claim, progress, literature),
+insertion order from the source file provides this naturally. For
 database-backed adapters (Memory Graph), the `exportGraph()` query MUST include an
 explicit `ORDER BY id` clause on both nodes and edges to guarantee reproducible
 ordering across calls.
@@ -273,7 +274,7 @@ ordering across calls.
 Each adapter is a function: `domain data → UniversalGraph + StyleSheet`.
 
 **Adapter placement rule**: All adapters live in `packages/shared/`. JSON-parsing
-adapters (claim, progress, literature, idea-map) live in `graph-viz/adapters/`
+adapters (claim, progress, literature) live in `graph-viz/adapters/`
 since they have zero TypeScript imports from domain packages. The Memory Graph
 adapter lives in `memory-graph/viz-adapter.ts` since it imports the `exportGraph()`
 API. See §5.1 for the full placement rationale.
@@ -460,7 +461,7 @@ Evidence graph nodes with `kind=idea_node` are **not emitted** as separate nodes
 they are resolved to the corresponding `idea:*` node from `nodes_latest.json`. This
 dedup rule ensures exactly one node per idea, even when both sources reference it.
 
-**Location**: `packages/shared/src/graph-viz/adapters/idea-map.ts`
+**Status**: historical-only. The `idea-map` adapter described in this section was removed from the live shared implementation on 2026-04-07 and should not be treated as current authority.
 
 **Node mapping** (from `nodes_latest.json` IdeaNode):
 
@@ -647,7 +648,7 @@ This follows the same pattern as Claim DAG's `requires → "enables"` reversal.
 ### 5.1 Decision: Core + adapters in `packages/shared/` (library-first)
 
 The visualization **core** (types + renderer + graphviz wrapper) and **JSON-parsing
-adapters** (claim, progress, literature, idea-map) live in `packages/shared/`.
+adapters** (claim, progress, literature) live in `packages/shared/`.
 These adapters have **zero TypeScript imports from domain packages** — they parse
 plain JSON/JSONL files and map fields, with no compile-time dependency on domain
 modules.
@@ -667,7 +668,7 @@ Memory Graph adapter is colocated with the MemoryGraph service (also in `shared`
 packages/shared/src/graph-viz/
   ├── core: types.ts, render.ts, graphviz.ts   (zero external imports)
   └── adapters/: claim-dag.ts, progress.ts,    (zero external imports — parse JSON only)
-      literature.ts, idea-map.ts
+      literature.ts
 
 packages/shared/src/memory-graph/
   └── viz-adapter.ts                           (imports graph-viz/types.ts only)
@@ -689,7 +690,6 @@ packages/shared/src/graph-viz/
     ├── claim-dag.ts            -- Claim DAG adapter + stylesheet (~90 eLOC)
     ├── progress.ts             -- Progress graph adapter + stylesheet (~70 eLOC)
     ├── literature.ts           -- Literature graph adapter + stylesheet (~80 eLOC)
-    └── idea-map.ts             -- Idea Map adapter + stylesheet (~100 eLOC)
 ```
 
 **Memory Graph adapter** (colocated with MemoryGraph service):
@@ -698,7 +698,7 @@ packages/shared/src/memory-graph/
 └── viz-adapter.ts              -- Memory Graph adapter + stylesheet (~100 eLOC)
 ```
 
-**Estimated total**: ~950 eLOC across 11 implementation files, all ≤200 eLOC.
+**Estimated total**: historical implementation estimate only; the current live tree is smaller after the 2026-04-07 `idea-map` retirement.
 
 ### 5.3 REDESIGN_PLAN Placement
 
@@ -712,7 +712,7 @@ packages/shared/src/memory-graph/
 > - **Description**: Extract domain-agnostic graph renderer from `render_claim_graph.py`,
 >   define universal node/edge schema. Core + adapters in `packages/shared/src/graph-viz/`.
 > - **eLOC budget**: ≤ 950 (11 files)
-> - **Acceptance**: All 5 adapters produce valid DOT; existing claim graph rendering
+> - **Acceptance**: All 4 active adapters produce valid DOT; existing claim graph rendering
 >   has parity snapshots for the claim adapter. (Call-site wiring is deferred while
 >   legacy Python pipelines are still authoritative.)
 
@@ -921,10 +921,10 @@ the renderer core and adapters remain unchanged.
 | Rendering | Static only: DOT → PNG/SVG via Graphviz |
 | Memory Graph | Via atomic `exportGraph()` API (DEFERRED transaction), JSONL fallback |
 | Progress Graph | Parsed from `RESEARCH_PLAN.md` task board + progress log; `ProgressItem` schema |
-| Idea Map | Composite sources with ID namespacing (`idea:`/`ev:`/`form:`) + edge endpoint resolution |
+| Idea Map | Historical-only design slice; removed from live shared implementation on 2026-04-07 |
 | REDESIGN_PLAN | Proposed item NEW-VIZ-01, Phase 2, depends on NEW-05 + EVO-20 |
 | Budget | ~950 eLOC, 11 files, all ≤200 eLOC (CODE-01 compliant) |
-| Adapters | 5 adapters (4 JSON-parsing in shared, 1 API-based in memory-graph) + 1 progress parser |
+| Adapters | 4 active adapters: claim-dag, memory-graph, literature, progress. `parse-progress.ts` is the parser used by the progress adapter, not a fifth adapter. |
 | Testing | Snapshot tests + parity test + adapter unit tests |
 
 ## 11. Future Extension: Graph Compute Layer (派生节点 + 结构化查询)

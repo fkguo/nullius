@@ -19,62 +19,14 @@
       "output_contract_ids": ["idea_core_rpc_v1"]
     },
     {
-      "capability_id": "campaign.topup",
-      "description": "Top up campaign budget.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
-    },
-    {
-      "capability_id": "campaign.pause",
-      "description": "Pause a campaign.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
-    },
-    {
-      "capability_id": "campaign.resume",
-      "description": "Resume a campaign.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
-    },
-    {
-      "capability_id": "campaign.complete",
-      "description": "Complete a campaign.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
-    },
-    {
       "capability_id": "search.step",
       "description": "Advance campaign search by one or more steps.",
       "input_contract_ids": ["idea_core_rpc_v1"],
       "output_contract_ids": ["idea_core_rpc_v1"]
     },
     {
-      "capability_id": "node.get",
-      "description": "Read one node from a campaign.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
-    },
-    {
-      "capability_id": "node.list",
-      "description": "List nodes from a campaign.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
-    },
-    {
-      "capability_id": "node.promote",
-      "description": "Promote a node inside a campaign.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
-    },
-    {
       "capability_id": "eval.run",
       "description": "Run evaluator passes on campaign nodes.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
-    },
-    {
-      "capability_id": "rank.compute",
-      "description": "Compute rankings from campaign outputs.",
       "input_contract_ids": ["idea_core_rpc_v1"],
       "output_contract_ids": ["idea_core_rpc_v1"]
     }

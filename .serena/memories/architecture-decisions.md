@@ -50,6 +50,15 @@
 
 **Why**: This preserves a domain-neutral core without preventing composition across providers.
 
+### [2026-04-07] Discovery-card truth invariant: checked-in capability cards must match the live public host exactly
+
+**Decision**:
+- Checked-in discovery / agent-card capability inventories must advertise only the capabilities that the current public host actually serves.
+- Unsupported lifecycle, ranking, or node methods must be deleted from discovery truth instead of being kept as aspirational placeholders, compatibility promises, or “future” capability claims.
+- When a shared helper or adapter no longer has a live generic/public authority consumer, it should be removed rather than preserved as dormant compatibility surface.
+
+**Why**: Over-advertised capability cards and dead shared surfaces create split-brain authority at the front door and quietly reintroduce legacy baggage into the generic substrate.
+
 ### [2026-03-10] Formalism boundary invariant: formalism is optional run-local metadata, not core contract authority
 
 **Decision**:
