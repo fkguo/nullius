@@ -451,12 +451,21 @@
 
 **Why**: Once generic lifecycle and computation authority moved to `autoresearch`, leaving multiple public `hepar run` workflow ids installable would quietly re-elevate the legacy Python shell as a second workflow front door. Keeping only the single compatibility survivor, and locking the rest behind explicit internal-only classification, prevents that drift while leaving bounded maintainer coverage until full deletion.
 
-### [2026-04-07] Idea host boundary invariant: `idea-mcp` defaults to TS `idea-engine`, Python survives only as explicit compatibility backend
+### [2026-04-07] Idea host boundary invariant: installable `idea-mcp` is TS-only `idea-engine` host
 
 **Decision**:
-- The installable `idea-mcp` public host path now defaults to in-process TS `IdeaEngineRpcService`; Python `idea-core` is no longer the silent default host authority.
-- The legacy Python path survives only as an explicit compatibility backend selected via `IDEA_MCP_BACKEND=idea-core-python` (or equivalent programmatic backend selection), not as fallback wording or implicit path discovery.
+- The installable `idea-mcp` public host path is now the in-process TS `IdeaEngineRpcService`; legacy Python host selection/env knobs (`IDEA_MCP_BACKEND`, `IDEA_CORE_PATH`) are deleted from the public surface and must fail closed if provided.
 - The public `idea-mcp` tool inventory is now a bounded exact-match surface with direct tool-level contract coverage: `campaign.init`, `campaign.status`, `search.step`, and `eval.run`. Unsupported lifecycle methods must be removed from the public inventory rather than advertised against a default backend that cannot serve them.
 - This first cut does not claim `idea-core retire-all` or full TS asset/contract authority migration; Python-side contract snapshots and domain-pack assets may still exist as transitional inputs until a later explicit cleanup slice lands.
 
-**Why**: The real drift was a split-brain host boundary: public `idea-mcp` still defaulted to Python while TS `idea-engine` already owned the live active RPC path, and the public tool inventory still advertised methods the default host could not serve. Making TS the default host and forcing Python onto an explicit compatibility path closes that authority gap without over-claiming full retirement.
+**Why**: The real drift was a split-brain host boundary: public `idea-mcp` still carried Python-side host semantics while TS `idea-engine` already owned the live active RPC path, and the public tool inventory still advertised methods the active host could not serve. Because this repo has no backward-compatibility requirement, preserving a public compatibility backend would only keep a second-rate authority path and ongoing maintenance burden alive. Deleting the fallback closes that boundary cleanly without over-claiming full retirement.
+
+### [2026-04-07] Delegated runtime structural seam invariant: handle first, permission profile compile-first, transport delivery-only
+
+**Decision**:
+- The deeper delegated-runtime batch should land in the order `DelegatedRuntimeHandleV1 -> RuntimePermissionProfileV1 -> DelegatedRuntimeTransport`, even if earlier planning drafts listed transport before permission profile.
+- `DelegatedRuntimeHandleV1` should stay an internal lineage/artifact seam over `project_run_id`, `assignment_id`, `session_id`, `runtime_run_id`, and delegated runtime artifact refs. It must not be promoted into public `team` payloads, `live_status`, `replay`, or transcript/history authority.
+- `RuntimePermissionProfileV1` should become the typed compile source for tool visibility, execution policy, sandbox/filesystem/network allowances, approval scope/reviewer, and provenance/source context. Narrower runtime views such as `ToolPermissionView` should compile from it rather than remain the authority themselves.
+- `DelegatedRuntimeTransport` should own delivery, liveness, interrupt/reconnect behavior only. It may carry handles and permission profiles, but it must not become canonical runtime/session state, fleet lease truth, or remote/UI session authority.
+
+**Why**: Current orchestrator code still reconstructs delegated runtime identity across `execution-identity.ts`, `team-execution-scoping.ts`, `team-unified-runtime-support.ts`, and `delegated-agent-runtime.ts`, while permission semantics remain split across `team-execution-permissions.ts`, `tool-execution-policy.ts`, and host runtime inputs. Source audits of Codex and Claude Code converged on the same stable pattern: canonical state/lineage separate from transport, and typed permission surfaces separate from operator/UI rule stores.
