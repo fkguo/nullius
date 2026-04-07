@@ -105,7 +105,9 @@ describe('autoresearch CLI', () => {
     expect(helpText).toContain('Canonical generic lifecycle and workflow-plan entrypoint');
     expect(helpText).toContain('autoresearch run --workflow-id computation [options]');
     expect(helpText).toContain('autoresearch workflow-plan --recipe <recipe_id> [options]');
-    expect(helpText).toContain('Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface');
+    expect(helpText).toContain('Pipeline A internal support launcher residue is now only `literature-gap`.');
+    expect(helpText).toContain('Retired-public maintainer helpers such as `method-design`, `run-card`, and `branch` remain internal full-parser only.');
+    expect(helpText).not.toContain('Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface');
     expect(extractTopLevelCommands(helpText)).toEqual([...AUTORESEARCH_PUBLIC_COMMANDS]);
   });
 
