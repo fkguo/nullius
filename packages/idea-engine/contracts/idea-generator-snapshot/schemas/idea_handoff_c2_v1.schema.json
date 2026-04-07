@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_handoff_c2_v1.schema.json",
+  "title": "IdeaHandoffC2 v1",
+  "description": "C2 intake handoff artifact produced by node.promote. This is the only allowed entry into C2: must be schema-valid and grounded (pass).",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "node_id",
+    "idea_id",
+    "promoted_at",
+    "idea_card",
+    "grounding_audit"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "node_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "idea_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "promoted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "idea_card": {
+      "$ref": "./idea_card_v1.schema.json"
+    },
+    "grounding_audit": {
+      "type": "object",
+      "required": [
+        "status",
+        "folklore_risk_score",
+        "failures",
+        "timestamp"
+      ],
+      "properties": {
+        "status": {
+          "const": "pass"
+        },
+        "folklore_risk_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "failures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reduction_report": {
+      "oneOf": [
+        {
+          "$ref": "./reduction_report_v1.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Present when the promoted node went through ProblemReduction/TechniqueTransplant. null otherwise."
+    },
+    "reduction_audit": {
+      "oneOf": [
+        {
+          "$ref": "./reduction_audit_v1.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Present (and status=pass) when reduction_report is non-null. null otherwise."
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "reduction_report": {
+            "not": {
+              "type": "null"
+            }
+          }
+        },
+        "required": [
+          "reduction_report"
+        ]
+      },
+      "then": {
+        "required": [
+          "reduction_audit"
+        ],
+        "properties": {
+          "reduction_audit": {
+            "allOf": [
+              {
+                "$ref": "./reduction_audit_v1.schema.json"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

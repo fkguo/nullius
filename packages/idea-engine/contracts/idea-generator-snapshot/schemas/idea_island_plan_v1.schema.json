@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_island_plan_v1.schema.json",
+  "title": "IdeaIslandPlan v1",
+  "description": "Single island research plan/strategy (machine-checkable) for long-running campaigns.",
+  "type": "object",
+  "required": [
+    "version",
+    "island_id",
+    "title",
+    "research_question",
+    "mechanism_tags",
+    "evaluation_metrics",
+    "current_status",
+    "next_actions",
+    "key_artifacts",
+    "evidence_uris",
+    "tags",
+    "created_at_utc",
+    "updated_at_utc"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "island_id": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "research_question": { "type": "string", "minLength": 1 },
+    "strategy_notes": { "type": "string", "minLength": 1 },
+    "mechanism_tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Retrieval keys for the relevant mechanism family (e.g., symmetry, closure, analyticity, reduction strategy)."
+    },
+    "evaluation_metrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["metric_id", "description"],
+        "properties": {
+          "metric_id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "target": { "type": "string", "minLength": 1 },
+          "measurement_artifact_paths": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "current_status": {
+      "enum": ["PLANNED", "IN_PROGRESS", "BLOCKED", "KILLED", "COMPLETED"]
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "next_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "key_artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "description"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "evidence_uris": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "format": "uri" }
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:consistency-search\", \"topic:target-observable\")."
+    },
+    "created_at_utc": { "type": "string", "format": "date-time" },
+    "updated_at_utc": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

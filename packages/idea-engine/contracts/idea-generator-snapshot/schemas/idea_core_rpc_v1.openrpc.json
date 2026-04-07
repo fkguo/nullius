@@ -1,0 +1,725 @@
+{
+  "openrpc": "1.2.6",
+  "info": {
+    "title": "idea-core RPC (v1)",
+    "version": "1.9.9",
+    "description": "JSON-RPC interface between the idea-generator adapter (hepar skill) and the standalone idea-core engine. Contract schemas are referenced via $ref to sibling files in this directory.\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods (e.g., LLM generation), this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, elo_config_required, elo_config_unexpected."
+  },
+  "x-error-data-contract": {
+    "schema": {
+      "$ref": "./rpc_error_data_v1.schema.json"
+    },
+    "known_reasons": {
+      "-32001": [
+        "dimension_exhausted"
+      ],
+      "-32002": [
+        "schema_invalid",
+        "idempotency_key_conflict",
+        "elo_config_required",
+        "elo_config_unexpected"
+      ],
+      "-32013": [
+        "insufficient_nodes",
+        "insufficient_dimensions",
+        "no_scorecards"
+      ],
+      "-32016": [
+        "reduction_audit_not_pass",
+        "reduction_audit_missing",
+        "abstract_problem_not_in_registry"
+      ]
+    }
+  },
+  "methods": [
+    {
+      "name": "campaign.init",
+      "summary": "Initialize a campaign.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "charter",
+          "schema": {
+            "$ref": "./campaign_charter_v1.schema.json"
+          },
+          "required": true
+        },
+        {
+          "name": "seed_pack",
+          "schema": {
+            "$ref": "./seed_pack_v1.schema.json"
+          },
+          "required": true
+        },
+        {
+          "name": "budget",
+          "schema": {
+            "$ref": "./budget_envelope_v1.schema.json"
+          },
+          "required": true
+        },
+        {
+          "name": "abstract_problem_registry",
+          "schema": {
+            "$ref": "./abstract_problem_registry_v1.schema.json"
+          },
+          "description": "Override or supplement the DomainPack default abstract problem registry. If omitted, the engine uses the DomainPack built-in registry. If provided, entries are merged by abstract_problem_type (caller entries take precedence on collision). The engine MUST reject inputs that contain duplicate abstract_problem_type values with schema_validation_failed (-32002) and error.data.reason=schema_invalid. Used at reduction_audit time to validate reduction_report.abstract_problem.",
+          "required": false
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "campaign_init_result",
+        "schema": {
+          "$ref": "./campaign_init_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32010,
+          "message": "invalid_charter"
+        }
+      ]
+    },
+    {
+      "name": "campaign.status",
+      "summary": "Get campaign status.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "description": "Read-only. Permitted in any campaign status.",
+      "result": {
+        "name": "campaign_status",
+        "schema": {
+          "$ref": "./campaign_status_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        }
+      ]
+    },
+    {
+      "name": "campaign.topup",
+      "summary": "Monotonic budget top-up for an existing campaign (pilot-then-scale).",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "topup",
+          "schema": {
+            "$ref": "./budget_topup_v1.schema.json"
+          },
+          "required": true
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Monotonic, additive budget top-up. Permitted when campaign status is running|paused|early_stopped|exhausted. If status is exhausted, successful topup MUST transition campaign status to running only if the campaign is no longer budget-exhausted after applying the top-up; otherwise it remains exhausted. If status is early_stopped (policy halt, not budget), topup adds budget but does NOT change the status; the caller must explicitly campaign.resume to re-enter running. If the campaign is completed, the engine MUST reject the request with campaign_not_active. campaign.topup MUST NOT return budget_exhausted; insufficient topups are represented by a successful result whose campaign_status remains exhausted. Idempotency note: on replay, the returned campaign_status/budget_snapshot reflects the first-call snapshot; callers MUST use campaign.status for current budget.",
+      "result": {
+        "name": "campaign_mutation_result",
+        "schema": {
+          "$ref": "./campaign_mutation_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ]
+    },
+    {
+      "name": "campaign.pause",
+      "summary": "Pause a campaign (running → paused).",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Permitted when campaign status is running|early_stopped|exhausted (running|early_stopped|exhausted → paused). Otherwise campaign_not_active.",
+      "result": {
+        "name": "campaign_mutation_result",
+        "schema": {
+          "$ref": "./campaign_mutation_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ]
+    },
+    {
+      "name": "campaign.resume",
+      "summary": "Resume a campaign (paused|early_stopped → running).",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Accepted when campaign status is paused|early_stopped. When resuming from paused or early_stopped, the engine MUST verify that no BudgetEnvelope dimension has remaining <= 0; if any does, it MUST reject with budget_exhausted (-32001) without changing state. Transitions paused|early_stopped → running. If status is exhausted, the engine MUST reject with budget_exhausted (-32001) without changing state (caller should campaign.topup first). If campaign is completed, returns campaign_not_active (-32015).",
+      "result": {
+        "name": "campaign_mutation_result",
+        "schema": {
+          "$ref": "./campaign_mutation_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ]
+    },
+    {
+      "name": "campaign.complete",
+      "summary": "Mark a campaign as completed (→ completed).",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Permitted when status is running|paused|early_stopped|exhausted|completed. Transitions the campaign into a terminal completed state. If already completed, the engine MUST treat this as a no-op (but still idempotent, with transition.changed=false). Read-only methods remain available after completion.",
+      "result": {
+        "name": "campaign_mutation_result",
+        "schema": {
+          "$ref": "./campaign_mutation_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        }
+      ]
+    },
+    {
+      "name": "domain_pack.catalog",
+      "summary": "Export builtin domain-pack truth and the current service runtime catalog.",
+      "paramStructure": "by-name",
+      "params": [],
+      "description": "Read-only. Exposes two runtime-backed catalog views without changing campaign/search/eval semantics: the builtin idea-core pack catalog (currently generic.default.v1 + hep.operators.v1) and the current service instance runtime catalog (for example, the stdio/default-service front door remains HEP-only).",
+      "result": {
+        "name": "domain_pack_catalog_result",
+        "schema": {
+          "$ref": "./domain_pack_catalog_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        }
+      ]
+    },
+    {
+      "name": "search.step",
+      "summary": "Advance the search by a bounded step budget.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "n_steps",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "required": true,
+          "description": "Number of search steps to execute (>= 1)."
+        },
+        {
+          "name": "step_budget",
+          "schema": {
+            "$ref": "./budget_limit_v1.schema.json"
+          },
+          "required": false,
+          "description": "Optional local budget fuse for this call only. Any omitted field is treated as unbounded for that dimension. When exhausted, the engine SHOULD stop early and return early_stopped=true (recommended early_stop_reason: step_budget_exhausted) even if the global campaign budget remains."
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Only permitted when campaign status is running. Definition: one search step is one SearchPolicy tick that selects (at minimum) an island and an operator (and runs the configured TeamPolicy/topology for that island), then writes any newly created nodes/artifacts and/or updates existing nodes (e.g., Formalizer adding idea_card, Derivation adding consistency report). New nodes are surfaced via new_node_ids (+ new_nodes_artifact_ref); mutated nodes are surfaced via updated_node_ids (+ updated_nodes_artifact_ref when non-empty). Atomicity: each tick MUST be all-or-nothing (no partial writes within a tick), but the overall call may partially execute multiple ticks and report progress via n_steps_executed. Idempotency note: if n_steps_executed < n_steps_requested (early stop), retries with the same idempotency_key MUST replay the same partial result; callers MUST use a new idempotency_key to request fresh work/continuation. Campaign status transitions triggered during this call (e.g., running → exhausted due to budget depletion, running → early_stopped due to policy halt) are part of the idempotency-protected side-effects: they MUST be committed atomically with tick writes and the idempotency record. If paused|early_stopped|completed: campaign_not_active. If exhausted: budget_exhausted.",
+      "result": {
+        "name": "search_step_result",
+        "schema": {
+          "$ref": "./search_step_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ]
+    },
+    {
+      "name": "node.get",
+      "summary": "Fetch a single IdeaNode by node_id within a campaign scope.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "node_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "description": "Read-only. Permitted in any campaign status.",
+      "result": {
+        "name": "node",
+        "schema": {
+          "$ref": "./idea_node_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        }
+      ]
+    },
+    {
+      "name": "node.list",
+      "summary": "List IdeaNodes in a campaign (paginated).",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "filter",
+          "schema": {
+            "$ref": "./idea_list_filter_v1.schema.json"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 50
+          },
+          "description": "Page size. Defaults to 50 if omitted. Maximum 500."
+        }
+      ],
+      "description": "Read-only. Permitted in any campaign status. Results are always scoped to the given campaign; filters that do not match the campaign return empty results. If limit is omitted, the engine MUST treat it as 50.",
+      "result": {
+        "name": "node_list",
+        "schema": {
+          "$ref": "./node_list_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        }
+      ]
+    },
+    {
+      "name": "node.promote",
+      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding gates) within a campaign scope.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "node_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid and grounding_audit.status must be pass. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
+      "result": {
+        "name": "promotion_result",
+        "schema": {
+          "$ref": "./promotion_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32011,
+          "message": "grounding_audit_failed"
+        },
+        {
+          "code": -32016,
+          "message": "reduction_audit_failed"
+        }
+      ]
+    },
+    {
+      "name": "eval.run",
+      "summary": "Run evaluation (multi-agent scoring) on a set of nodes and persist eval_info.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "node_ids",
+          "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": true
+        },
+        {
+          "name": "evaluator_config",
+          "schema": {
+            "$ref": "./evaluator_config_v1.schema.json"
+          },
+          "required": true
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Only permitted when campaign status is running; otherwise campaign_not_active. Batch size is capped (node_ids maxItems=100) to bound rollback cost. Returns updated_node_ids to indicate which nodes were mutated (eval_info appended) during this operation. Atomicity (MUST): on any error (including budget_exhausted, node_not_found, node_not_in_campaign), the engine MUST perform no partial writes/mutations; if partial work occurs internally it MUST be rolled back before returning (and before storing the idempotency record).",
+      "result": {
+        "name": "eval_result",
+        "schema": {
+          "$ref": "./eval_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        }
+      ]
+    },
+    {
+      "name": "rank.compute",
+      "summary": "Compute rankings (Pareto/Elo) for a campaign.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "name": "method",
+          "schema": {
+            "enum": [
+              "pareto",
+              "elo"
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "filter",
+          "schema": {
+            "$ref": "./idea_list_filter_v1.schema.json"
+          }
+        },
+        {
+          "name": "scorecards_artifact_ref",
+          "schema": {
+            "type": "string",
+            "format": "uri"
+          },
+          "required": false,
+          "description": "Explicit reference to the scorecards artifact to rank against (produced by eval.run). If omitted, the engine SHOULD use the latest available scorecards for the campaign. Providing this enables deterministic ranking against a specific eval snapshot. The engine MUST echo the effective snapshot in ranking_result.scorecards_artifact_ref. If provided but not resolvable within the campaign scope, the engine MUST return schema_validation_failed (-32002) with error.data.reason=schema_invalid."
+        },
+        {
+          "name": "dimensions",
+          "schema": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "novelty",
+                "feasibility",
+                "impact",
+                "tractability",
+                "grounding"
+              ]
+            }
+          },
+          "required": false,
+          "description": "Score dimensions to use for ranking. If omitted, the engine SHOULD use the dimensions available in the effective scorecards snapshot (optionally intersected with EvaluatorConfig.dimensions). For method=pareto, the effective dimension count MUST be >= 2; otherwise insufficient_eval_data (-32013) with error.data.reason=insufficient_dimensions."
+        },
+        {
+          "name": "elo_config",
+          "schema": {
+            "$ref": "./elo_config_v1.schema.json"
+          },
+          "required": false,
+          "description": "Required when method=elo. MUST bound tournament cost and ensure deterministic matchups. Engine MUST return schema_validation_failed (-32002) with error.data.reason=elo_config_required if method=elo and elo_config is absent, or error.data.reason=elo_config_unexpected if method=pareto and elo_config is provided."
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Only permitted when campaign status is running; otherwise campaign_not_active. Filter is applied within campaign scope. Rankings are computed against the scorecards snapshot generated by prior eval.run calls (optionally pinned via scorecards_artifact_ref). For method=pareto, the filter MUST resolve to >= 1 node (a single node is allowed and yields rank=1). Dimension selection: let observed_keys be the set of distinct keys observed in scorecards[].scores across the resolved node set, considering ONLY scorecards with status in {complete, partial}. The engine MUST ignore scorecards with status=failed when computing observed_keys. If dimensions is provided, effective_dimensions = dimensions ∩ observed_keys; otherwise effective_dimensions = observed_keys. Normative failure reasons (MUST): (1) If observed_keys is empty (i.e., eval.run has never been called for the resolved set, or all scorecards are missing/failed), the engine MUST return insufficient_eval_data (-32013) with error.data.reason=no_scorecards and MUST NOT write ranking artifacts. (2) Else if method=pareto and effective dimension count < 2, the engine MUST return insufficient_eval_data (-32013) with error.data.reason=insufficient_dimensions and MUST NOT write ranking artifacts. (3) Else if method=elo and resolved node count < 2 (or method=pareto and resolved node count < 1), the engine MUST return insufficient_eval_data (-32013) with error.data.reason=insufficient_nodes and MUST NOT write ranking artifacts. For method=elo, the filter MUST resolve to >= 2 nodes.",
+      "result": {
+        "name": "ranking_result",
+        "schema": {
+          "$ref": "./ranking_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32013,
+          "message": "insufficient_eval_data"
+        }
+      ]
+    }
+  ]
+}

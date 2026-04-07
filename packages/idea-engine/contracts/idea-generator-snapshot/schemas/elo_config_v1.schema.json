@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "elo_config_v1.schema.json",
+  "title": "EloConfig v1",
+  "description": "Optional configuration for Elo-based ranking in rank.compute. Provides a bounded and reproducible tournament specification.",
+  "type": "object",
+  "required": ["max_rounds", "seed"],
+  "properties": {
+    "max_rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Upper bound on Elo tournament rounds/matchups (implementation-defined, but MUST bound runtime/cost)."
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Deterministic seed for pairing/matchup scheduling."
+    },
+    "k_factor": {
+      "type": "number",
+      "minimum": 1,
+      "default": 32,
+      "description": "Elo K-factor controlling rating volatility."
+    },
+    "initial_rating": {
+      "type": "number",
+      "minimum": 0,
+      "default": 1500,
+      "description": "Initial Elo rating for unrated nodes."
+    }
+  },
+  "additionalProperties": false
+}

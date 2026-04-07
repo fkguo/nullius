@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rationale_draft_v1.schema.json",
+  "title": "RationaleDraft v1",
+  "description": "Stage-1 (Explain) artifact: human-readable motivation, intuition, risks, and minimal validation plan before formalization.",
+  "type": "object",
+  "required": ["rationale", "risks", "kill_criteria"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "rationale": { "type": "string", "minLength": 1 },
+    "mechanism": { "type": "string" },
+    "analogy_mapping": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "target", "mapping"],
+        "properties": {
+          "source": { "type": "string", "minLength": 1 },
+          "target": { "type": "string", "minLength": 1 },
+          "mapping": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "risks": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "kill_criteria": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "references": { "type": "array", "items": { "type": "string", "format": "uri" } }
+  },
+  "additionalProperties": false
+}

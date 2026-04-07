@@ -35,16 +35,16 @@
     {
       "contract_id": "idea_core_rpc_v1",
       "format": "openrpc",
-      "description": "Shared OpenRPC authority currently consumed by idea-core and idea-engine.",
-      "source_path": "packages/idea-core/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json"
+      "description": "TS-owned OpenRPC authority for the public idea-engine host surface.",
+      "source_path": "packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json"
     }
   ],
   "output_contracts": [
     {
       "contract_id": "idea_core_rpc_v1",
       "format": "openrpc",
-      "description": "Shared OpenRPC authority currently consumed by idea-core and idea-engine.",
-      "source_path": "packages/idea-core/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json"
+      "description": "TS-owned OpenRPC authority for the public idea-engine host surface.",
+      "source_path": "packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json"
     }
   ]
 }

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_card_v1.schema.json",
+  "title": "IdeaCard v1",
+  "description": "Stage-2 (Formalize) artifact: C2-ready structured research idea with claim-level provenance and an executable minimal plan.",
+  "type": "object",
+  "required": [
+    "thesis_statement",
+    "testable_hypotheses",
+    "required_observables",
+    "minimal_compute_plan",
+    "claims"
+  ],
+  "properties": {
+    "thesis_statement": { "type": "string", "minLength": 20 },
+    "testable_hypotheses": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "required_observables": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "candidate_formalisms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Optional non-authoritative run-local method/formalism hints. Engines may preserve these strings for local context, but MUST NOT treat them as a mandatory gate or canonical registry membership."
+    },
+    "minimal_compute_plan": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["step", "method", "estimated_difficulty"],
+        "properties": {
+          "step": { "type": "string", "minLength": 1 },
+          "method": { "type": "string", "minLength": 1 },
+          "estimated_difficulty": { "enum": ["straightforward", "moderate", "challenging", "research_frontier"] },
+          "estimate_confidence": {
+            "enum": ["high", "medium", "low"],
+            "description": "Confidence in the difficulty/compute-hours estimate."
+          },
+          "estimated_compute_hours_log10": {
+            "type": "number",
+            "description": "Order-of-magnitude estimate: log10(compute hours). Example: -2 ~ seconds, 0 ~ 1 hour, 3 ~ 1000 hours."
+          },
+          "required_infrastructure": { "enum": ["laptop", "workstation", "cluster", "not_yet_feasible"] },
+          "blockers": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Known blockers or unknowns that could affect feasibility of this step."
+          },
+          "tool_hint": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["claim_text", "support_type", "evidence_uris"],
+        "properties": {
+          "claim_text": { "type": "string", "minLength": 1 },
+          "support_type": {
+            "enum": ["literature", "data", "calculation", "llm_inference", "assumption", "expert_consensus"],
+            "description": "Source category. 'expert_consensus' should be backed by ≥1 review-level reference (PDG review, SPIRES review, community white paper) in evidence_uris."
+          },
+          "evidence_uris": { "type": "array", "items": { "type": "string", "format": "uri" } },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "verification_plan": {
+            "type": "string",
+            "description": "Required when support_type is llm_inference or assumption."
+          },
+          "verification_status": { "enum": ["verified", "unverified", "falsified"], "default": "unverified" },
+          "verification_notes": { "type": "string" }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "support_type": { "enum": ["literature", "data", "calculation", "expert_consensus"] } },
+              "required": ["support_type"]
+            },
+            "then": { "properties": { "evidence_uris": { "minItems": 1 } } }
+          },
+          {
+            "if": {
+              "properties": { "support_type": { "enum": ["llm_inference", "assumption"] } },
+              "required": ["support_type"]
+            },
+            "then": { "required": ["verification_plan"], "properties": { "verification_plan": { "minLength": 1 } } }
+          }
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

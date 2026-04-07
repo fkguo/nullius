@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "search_step_result_v1.schema.json",
+  "title": "SearchStepResult v1",
+  "description": "Result of a bounded search step. Must expose budget and island states for observability and control.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "step_id",
+    "n_steps_requested",
+    "n_steps_executed",
+    "new_node_ids",
+    "updated_node_ids",
+    "island_states",
+    "budget_snapshot",
+    "idempotency"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "step_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "n_steps_requested": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "n_steps_executed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "new_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "new_nodes_artifact_ref": {
+      "type": "string",
+      "format": "uri"
+    },
+    "updated_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "description": "IDs of existing nodes that were mutated during this step (e.g., formalized, derivation added, eval_info updated)."
+    },
+    "updated_nodes_artifact_ref": {
+      "type": "string",
+      "format": "uri",
+      "description": "Artifact ref for a bounded diff/changelog of mutations applied to updated_node_ids (e.g., idea_card added, eval_info updated). Intended to point to an artifact conforming to schemas/node_mutation_log_v1.schema.json (including before/after revision counters for stale-read detection)."
+    },
+    "island_states": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "./island_state_v1.schema.json"
+      }
+    },
+    "budget_snapshot": {
+      "$ref": "./budget_snapshot_v1.schema.json"
+    },
+    "distributor_policy_config_ref": {
+      "type": "string",
+      "format": "uri",
+      "description": "Artifact ref to the immutable distributor_policy_config_v1.json for this campaign (required for audit/replay when Distributor is used)."
+    },
+    "idempotency": {
+      "$ref": "./idempotency_meta_v1.schema.json"
+    },
+    "degradation_events": {
+      "type": "array",
+      "description": "Optional degradation events that occurred during this step (for observability).",
+      "items": {
+        "type": "object",
+        "required": [
+          "action",
+          "timestamp"
+        ],
+        "properties": {
+          "action": {
+            "enum": [
+              "reduce_eval_rounds",
+              "reduce_islands",
+              "disable_cross_domain_operators",
+              "reduce_population",
+              "early_stop"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "budget_at_trigger": {
+            "$ref": "./budget_snapshot_v1.schema.json"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "early_stopped": {
+      "type": "boolean",
+      "default": false
+    },
+    "early_stop_reason": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "early_stopped": {
+            "const": true
+          }
+        },
+        "required": [
+          "early_stopped"
+        ]
+      },
+      "then": {
+        "required": [
+          "early_stop_reason"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "new_node_ids": {
+            "type": "array",
+            "minItems": 1
+          }
+        },
+        "required": [
+          "new_node_ids"
+        ]
+      },
+      "then": {
+        "required": [
+          "new_nodes_artifact_ref"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "updated_node_ids": {
+            "type": "array",
+            "minItems": 1
+          }
+        },
+        "required": [
+          "updated_node_ids"
+        ]
+      },
+      "then": {
+        "required": [
+          "updated_nodes_artifact_ref"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

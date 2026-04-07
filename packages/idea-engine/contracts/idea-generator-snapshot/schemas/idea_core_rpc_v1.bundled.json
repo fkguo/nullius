@@ -1,0 +1,4035 @@
+{
+  "components": {
+    "schemas": {
+      "abstract_problem_registry_v1": {
+        "$id": "abstract_problem_registry_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "DomainPack-declared registry mapping abstract problem types to known solution families, prerequisites, and references. Used by ProblemReduction/TechniqueTransplant operators and validated at reduction_audit time.",
+        "properties": {
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "abstract_problem_type": {
+                  "description": "Canonical type ID (e.g., optimization, inference, graph, pde, geometry, algebra, control, signal_processing, numerics).",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "description": {
+                  "minLength": 10,
+                  "type": "string"
+                },
+                "known_solution_families": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "prerequisite_checklist": {
+                  "description": "Conditions that must hold for the abstract problem type to be applicable (e.g., convexity, finite dimensionality).",
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "reference_uris": {
+                  "items": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "abstract_problem_type",
+                "description",
+                "known_solution_families",
+                "prerequisite_checklist",
+                "reference_uris"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "title": "AbstractProblemRegistry v1",
+        "type": "object"
+      },
+      "budget_envelope_v1": {
+        "$id": "budget_envelope_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Budget envelope for a campaign/search step. Used by the Budget Circuit Breaker.",
+        "properties": {
+          "degradation_order": {
+            "description": "Optional ordered degradation strategy when budget is tight.",
+            "items": {
+              "enum": [
+                "reduce_eval_rounds",
+                "reduce_islands",
+                "disable_cross_domain_operators",
+                "reduce_population",
+                "early_stop"
+              ]
+            },
+            "type": "array"
+          },
+          "extensions": {
+            "additionalProperties": true,
+            "description": "Implementation-specific knobs (kept out of the stable surface).",
+            "type": "object"
+          },
+          "max_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "max_nodes": {
+            "description": "Optional hard cap on the total number of IdeaNodes that may be created in this campaign.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_steps": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_tokens": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_wall_clock_s": {
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "max_tokens",
+          "max_cost_usd",
+          "max_wall_clock_s"
+        ],
+        "title": "BudgetEnvelope v1",
+        "type": "object"
+      },
+      "budget_limit_v1": {
+        "$id": "budget_limit_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Optional local budget limit (fuse) for a single operation. Any omitted field is treated as unbounded for that dimension. At least one field must be provided.",
+        "minProperties": 1,
+        "properties": {
+          "max_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "max_nodes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_steps": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_tokens": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_wall_clock_s": {
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "title": "BudgetLimit v1",
+        "type": "object"
+      },
+      "budget_snapshot_v1": {
+        "$id": "budget_snapshot_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Budget usage snapshot returned by the engine for monitoring and circuit breaking.",
+        "properties": {
+          "cost_usd_remaining": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "cost_usd_used": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "nodes_remaining": {
+            "description": "null if max_nodes was not set in the BudgetEnvelope.",
+            "oneOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nodes_used": {
+            "description": "Total IdeaNodes created so far in the campaign.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "steps_remaining": {
+            "description": "null if max_steps was not set in the BudgetEnvelope.",
+            "oneOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps_used": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tokens_remaining": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tokens_used": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "wall_clock_s_elapsed": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "wall_clock_s_remaining": {
+            "description": "Remaining wall-clock seconds under the BudgetEnvelope. Engine MUST clamp at 0 (never negative).",
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "tokens_used",
+          "tokens_remaining",
+          "cost_usd_used",
+          "cost_usd_remaining",
+          "wall_clock_s_elapsed",
+          "wall_clock_s_remaining",
+          "steps_used",
+          "steps_remaining",
+          "nodes_used",
+          "nodes_remaining"
+        ],
+        "title": "BudgetSnapshot v1",
+        "type": "object"
+      },
+      "budget_topup_v1": {
+        "$id": "budget_topup_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Monotonic budget top-up request for an existing campaign. At least one field must be provided. All fields must be non-negative. Note: If a dimension was originally unbounded (e.g., omitted in the effective envelope or treated as infinite by an implementation), applying a top-up to that dimension is undefined; implementations SHOULD treat it as a no-op or reject with schema_validation_failed to avoid silent semantic changes.",
+        "minProperties": 1,
+        "properties": {
+          "add_cost_usd": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "add_nodes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "add_steps": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "add_tokens": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "add_wall_clock_s": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        },
+        "title": "BudgetTopUp v1",
+        "type": "object"
+      },
+      "campaign_charter_v1": {
+        "$id": "campaign_charter_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "A0.1 campaign charter: defines direction, constraints, and governance for a campaign.",
+        "properties": {
+          "approval_gate_ref": {
+            "description": "Reference to the orchestrator gate config or an artifact URI for A0.1.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "campaign_name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "constraints": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "distributor": {
+            "additionalProperties": false,
+            "description": "Distributor/BanditPolicy campaign-level configuration (auditable; must remain stable within a campaign).",
+            "properties": {
+              "factorization": {
+                "default": "factorized",
+                "enum": [
+                  "joint",
+                  "factorized"
+                ]
+              },
+              "notes": {
+                "type": "string"
+              },
+              "policy_config_ref": {
+                "format": "uri",
+                "type": "string"
+              },
+              "policy_id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "factorization"
+            ],
+            "type": "object"
+          },
+          "domain": {
+            "description": "Primary target domain for evaluation/constraints. Not a hard lock: cross-domain method/analogy operators may consult other domains as configured (typically via extensions), but must still satisfy target-domain constraints and grounding.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "extensions": {
+            "additionalProperties": true,
+            "description": "DomainPack-specific knobs (kept out of the stable surface). Recommended keys: folklore_risk_threshold (number in [0,1], default 0.7; if folklore_risk_score >= threshold then require A0-folklore human gate).",
+            "type": "object"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "objectives": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "minLength": 10,
+            "type": "string"
+          },
+          "search_policy_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "team_policy_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain",
+          "scope",
+          "approval_gate_ref"
+        ],
+        "title": "CampaignCharter v1",
+        "type": "object"
+      },
+      "campaign_init_result_v1": {
+        "$id": "campaign_init_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Result of campaign.init.",
+        "properties": {
+          "budget_snapshot": {
+            "$ref": "#/components/schemas/budget_snapshot_v1"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "distributor_policy_config_ref": {
+            "description": "Artifact ref to the immutable distributor_policy_config_v1.json for this campaign (if Distributor is enabled).",
+            "format": "uri",
+            "type": "string"
+          },
+          "idempotency": {
+            "$ref": "#/components/schemas/idempotency_meta_v1"
+          },
+          "island_states": {
+            "items": {
+              "$ref": "#/components/schemas/island_state_v1"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "status": {
+            "const": "running",
+            "description": "Initial campaign status. Always 'running' on successful init."
+          }
+        },
+        "required": [
+          "campaign_id",
+          "status",
+          "created_at",
+          "budget_snapshot",
+          "island_states",
+          "idempotency"
+        ],
+        "title": "CampaignInitResult v1",
+        "type": "object"
+      },
+      "campaign_mutation_result_v1": {
+        "$id": "campaign_mutation_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "pause"
+                }
+              },
+              "required": [
+                "mutation"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": true
+                    },
+                    "current_status": {
+                      "const": "paused"
+                    },
+                    "previous_status": {
+                      "enum": [
+                        "running",
+                        "early_stopped",
+                        "exhausted"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "resume"
+                }
+              },
+              "required": [
+                "mutation"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": true
+                    },
+                    "current_status": {
+                      "const": "running"
+                    },
+                    "previous_status": {
+                      "enum": [
+                        "paused",
+                        "early_stopped"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "topup"
+                }
+              },
+              "required": [
+                "mutation"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "previous_status": {
+                      "enum": [
+                        "running",
+                        "paused",
+                        "early_stopped",
+                        "exhausted"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "topup"
+                },
+                "transition": {
+                  "properties": {
+                    "previous_status": {
+                      "const": "running"
+                    }
+                  },
+                  "required": [
+                    "previous_status"
+                  ]
+                }
+              },
+              "required": [
+                "mutation",
+                "transition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": false
+                    },
+                    "current_status": {
+                      "const": "running"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "topup"
+                },
+                "transition": {
+                  "properties": {
+                    "previous_status": {
+                      "const": "paused"
+                    }
+                  },
+                  "required": [
+                    "previous_status"
+                  ]
+                }
+              },
+              "required": [
+                "mutation",
+                "transition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": false
+                    },
+                    "current_status": {
+                      "const": "paused"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "topup"
+                },
+                "transition": {
+                  "properties": {
+                    "previous_status": {
+                      "const": "early_stopped"
+                    }
+                  },
+                  "required": [
+                    "previous_status"
+                  ]
+                }
+              },
+              "required": [
+                "mutation",
+                "transition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": false
+                    },
+                    "current_status": {
+                      "const": "early_stopped"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "topup"
+                },
+                "transition": {
+                  "properties": {
+                    "previous_status": {
+                      "const": "exhausted"
+                    }
+                  },
+                  "required": [
+                    "previous_status"
+                  ]
+                }
+              },
+              "required": [
+                "mutation",
+                "transition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "current_status": {
+                      "enum": [
+                        "running",
+                        "exhausted"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "topup"
+                },
+                "transition": {
+                  "properties": {
+                    "current_status": {
+                      "const": "exhausted"
+                    },
+                    "previous_status": {
+                      "const": "exhausted"
+                    }
+                  },
+                  "required": [
+                    "previous_status",
+                    "current_status"
+                  ]
+                }
+              },
+              "required": [
+                "mutation",
+                "transition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "topup"
+                },
+                "transition": {
+                  "properties": {
+                    "current_status": {
+                      "const": "running"
+                    },
+                    "previous_status": {
+                      "const": "exhausted"
+                    }
+                  },
+                  "required": [
+                    "previous_status",
+                    "current_status"
+                  ]
+                }
+              },
+              "required": [
+                "mutation",
+                "transition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "complete"
+                }
+              },
+              "required": [
+                "mutation"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "current_status": {
+                      "const": "completed"
+                    },
+                    "previous_status": {
+                      "enum": [
+                        "running",
+                        "paused",
+                        "early_stopped",
+                        "exhausted",
+                        "completed"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "complete"
+                },
+                "transition": {
+                  "properties": {
+                    "previous_status": {
+                      "const": "completed"
+                    }
+                  },
+                  "required": [
+                    "previous_status"
+                  ]
+                }
+              },
+              "required": [
+                "mutation",
+                "transition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mutation": {
+                  "const": "complete"
+                },
+                "transition": {
+                  "properties": {
+                    "previous_status": {
+                      "enum": [
+                        "running",
+                        "paused",
+                        "early_stopped",
+                        "exhausted"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "previous_status"
+                  ]
+                }
+              },
+              "required": [
+                "mutation",
+                "transition"
+              ]
+            },
+            "then": {
+              "properties": {
+                "transition": {
+                  "properties": {
+                    "changed": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "description": "Result of a side-effecting campaign mutation (e.g., campaign.topup / campaign.pause / campaign.resume / campaign.complete), including idempotency metadata.",
+        "properties": {
+          "campaign_status": {
+            "$ref": "#/components/schemas/campaign_status_v1"
+          },
+          "idempotency": {
+            "$ref": "#/components/schemas/idempotency_meta_v1"
+          },
+          "mutation": {
+            "description": "Which campaign mutation RPC produced this result. Enables machine-checkable transition constraints.",
+            "enum": [
+              "topup",
+              "pause",
+              "resume",
+              "complete"
+            ]
+          },
+          "transition": {
+            "additionalProperties": false,
+            "description": "Machine-readable status transition summary for this mutation call (useful for automated adapters). Normative: previous_status/current_status MUST obey the state-machine transitions defined by the called RPC method (campaign.topup/pause/resume/complete).",
+            "properties": {
+              "changed": {
+                "description": "True if the campaign status changed during this call; false for no-ops or insufficient topups.",
+                "type": "boolean"
+              },
+              "current_status": {
+                "enum": [
+                  "running",
+                  "paused",
+                  "early_stopped",
+                  "exhausted",
+                  "completed"
+                ]
+              },
+              "exhausted_dimensions_after": {
+                "description": "Budget dimensions that are exhausted after applying this mutation (as-of this response snapshot).",
+                "items": {
+                  "enum": [
+                    "tokens",
+                    "cost_usd",
+                    "wall_clock_s",
+                    "steps",
+                    "nodes"
+                  ]
+                },
+                "type": "array"
+              },
+              "previous_status": {
+                "enum": [
+                  "running",
+                  "paused",
+                  "early_stopped",
+                  "exhausted",
+                  "completed"
+                ]
+              }
+            },
+            "required": [
+              "previous_status",
+              "current_status",
+              "changed",
+              "exhausted_dimensions_after"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "campaign_status",
+          "idempotency",
+          "mutation",
+          "transition"
+        ],
+        "title": "CampaignMutationResult v1",
+        "type": "object"
+      },
+      "campaign_status_v1": {
+        "$id": "campaign_status_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "early_stopped"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            },
+            "then": {
+              "required": [
+                "early_stop_reason"
+              ]
+            }
+          }
+        ],
+        "description": "Campaign status returned by the engine. Must expose island states and budget for observability.",
+        "properties": {
+          "budget_snapshot": {
+            "$ref": "#/components/schemas/budget_snapshot_v1"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "distributor_policy_config_ref": {
+            "description": "Artifact ref to the immutable distributor_policy_config_v1.json for this campaign (if Distributor is enabled).",
+            "format": "uri",
+            "type": "string"
+          },
+          "early_stop_reason": {
+            "description": "Optional machine-readable reason when status=early_stopped (policy halt rather than budget exhaustion).",
+            "type": "string"
+          },
+          "island_states": {
+            "items": {
+              "$ref": "#/components/schemas/island_state_v1"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "last_step_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "node_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "paused",
+              "early_stopped",
+              "exhausted",
+              "completed"
+            ]
+          }
+        },
+        "required": [
+          "campaign_id",
+          "status",
+          "budget_snapshot",
+          "island_states"
+        ],
+        "title": "CampaignStatus v1",
+        "type": "object"
+      },
+      "domain_pack_catalog_result_v1": {
+        "$id": "domain_pack_catalog_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Read-only export of builtin domain-pack truth plus the current service runtime view.",
+        "properties": {
+          "builtin_catalog": {
+            "additionalProperties": false,
+            "properties": {
+              "catalog_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "pack_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "packs": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "domain_prefixes": {
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "uniqueItems": true
+                    },
+                    "pack_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "pack_id",
+                    "domain_prefixes",
+                    "description"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "catalog_id",
+              "pack_ids",
+              "packs"
+            ],
+            "type": "object"
+          },
+          "runtime_catalog": {
+            "additionalProperties": false,
+            "properties": {
+              "catalog_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "pack_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "packs": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "domain_prefixes": {
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "uniqueItems": true
+                    },
+                    "pack_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "pack_id",
+                    "domain_prefixes",
+                    "description"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "catalog_id",
+              "pack_ids",
+              "packs"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "builtin_catalog",
+          "runtime_catalog"
+        ],
+        "title": "DomainPackCatalogResult v1",
+        "type": "object"
+      },
+      "elo_config_v1": {
+        "$id": "elo_config_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Optional configuration for Elo-based ranking in rank.compute. Provides a bounded and reproducible tournament specification.",
+        "properties": {
+          "initial_rating": {
+            "default": 1500,
+            "description": "Initial Elo rating for unrated nodes.",
+            "minimum": 0,
+            "type": "number"
+          },
+          "k_factor": {
+            "default": 32,
+            "description": "Elo K-factor controlling rating volatility.",
+            "minimum": 1,
+            "type": "number"
+          },
+          "max_rounds": {
+            "description": "Upper bound on Elo tournament rounds/matchups (implementation-defined, but MUST bound runtime/cost).",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "seed": {
+            "description": "Deterministic seed for pairing/matchup scheduling.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_rounds",
+          "seed"
+        ],
+        "title": "EloConfig v1",
+        "type": "object"
+      },
+      "eval_result_v1": {
+        "$id": "eval_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Result of eval.run. Engine persists eval_info into IdeaNodes and returns artifact refs + budget snapshot. Atomicity invariant: on success, updated_node_ids MUST be set-equal to node_ids (all nodes are updated or none are).",
+        "properties": {
+          "budget_snapshot": {
+            "$ref": "#/components/schemas/budget_snapshot_v1"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "idempotency": {
+            "$ref": "#/components/schemas/idempotency_meta_v1"
+          },
+          "node_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "node_revisions": {
+            "additionalProperties": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Map of node_id \u2192 revision after this eval.run mutation. On success, MUST contain an entry for each node_id.",
+            "propertyNames": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "scorecards_artifact_ref": {
+            "format": "uri",
+            "type": "string"
+          },
+          "updated_node_ids": {
+            "description": "IDs of nodes that were mutated (e.g., eval_info appended) during this operation. MUST be set-equal to node_ids on success.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "node_ids",
+          "updated_node_ids",
+          "node_revisions",
+          "scorecards_artifact_ref",
+          "budget_snapshot",
+          "idempotency"
+        ],
+        "title": "EvalResult v1",
+        "type": "object"
+      },
+      "evaluator_config_v1": {
+        "$id": "evaluator_config_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Configuration for multi-agent evaluation (dimensions, reviewer count, debate trigger).",
+        "properties": {
+          "clean_room": {
+            "default": true,
+            "type": "boolean"
+          },
+          "debate_threshold": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "dimensions": {
+            "items": {
+              "enum": [
+                "novelty",
+                "feasibility",
+                "impact",
+                "tractability",
+                "grounding"
+              ]
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "extensions": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "n_reviewers": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "weights": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "dimensions",
+          "n_reviewers"
+        ],
+        "title": "EvaluatorConfig v1",
+        "type": "object"
+      },
+      "idea_card_v1": {
+        "$id": "idea_card_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Stage-2 (Formalize) artifact: C2-ready structured research idea with claim-level provenance and an executable minimal plan.",
+        "properties": {
+          "candidate_formalisms": {
+            "description": "Optional non-authoritative run-local method/formalism hints. Engines may preserve these strings for local context, but MUST NOT treat them as a mandatory gate or canonical registry membership.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "claims": {
+            "items": {
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "support_type": {
+                        "enum": [
+                          "literature",
+                          "data",
+                          "calculation",
+                          "expert_consensus"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "support_type"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "evidence_uris": {
+                        "minItems": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "support_type": {
+                        "enum": [
+                          "llm_inference",
+                          "assumption"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "support_type"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "verification_plan": {
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "verification_plan"
+                    ]
+                  }
+                }
+              ],
+              "properties": {
+                "claim_text": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "confidence": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "evidence_uris": {
+                  "items": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "support_type": {
+                  "description": "Source category. 'expert_consensus' should be backed by \u22651 review-level reference (PDG review, SPIRES review, community white paper) in evidence_uris.",
+                  "enum": [
+                    "literature",
+                    "data",
+                    "calculation",
+                    "llm_inference",
+                    "assumption",
+                    "expert_consensus"
+                  ]
+                },
+                "verification_notes": {
+                  "type": "string"
+                },
+                "verification_plan": {
+                  "description": "Required when support_type is llm_inference or assumption.",
+                  "type": "string"
+                },
+                "verification_status": {
+                  "default": "unverified",
+                  "enum": [
+                    "verified",
+                    "unverified",
+                    "falsified"
+                  ]
+                }
+              },
+              "required": [
+                "claim_text",
+                "support_type",
+                "evidence_uris"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minimal_compute_plan": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "blockers": {
+                  "description": "Known blockers or unknowns that could affect feasibility of this step.",
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "estimate_confidence": {
+                  "description": "Confidence in the difficulty/compute-hours estimate.",
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                },
+                "estimated_compute_hours_log10": {
+                  "description": "Order-of-magnitude estimate: log10(compute hours). Example: -2 ~ seconds, 0 ~ 1 hour, 3 ~ 1000 hours.",
+                  "type": "number"
+                },
+                "estimated_difficulty": {
+                  "enum": [
+                    "straightforward",
+                    "moderate",
+                    "challenging",
+                    "research_frontier"
+                  ]
+                },
+                "method": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "required_infrastructure": {
+                  "enum": [
+                    "laptop",
+                    "workstation",
+                    "cluster",
+                    "not_yet_feasible"
+                  ]
+                },
+                "step": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "tool_hint": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "step",
+                "method",
+                "estimated_difficulty"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "required_observables": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "testable_hypotheses": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "thesis_statement": {
+            "minLength": 20,
+            "type": "string"
+          }
+        },
+        "required": [
+          "thesis_statement",
+          "testable_hypotheses",
+          "required_observables",
+          "minimal_compute_plan",
+          "claims"
+        ],
+        "title": "IdeaCard v1",
+        "type": "object"
+      },
+      "idea_list_filter_v1": {
+        "$id": "idea_list_filter_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Filter options for listing IdeaNodes in a campaign.",
+        "properties": {
+          "grounding_status": {
+            "enum": [
+              "pass",
+              "fail",
+              "partial"
+            ]
+          },
+          "has_eval_info": {
+            "description": "Filter on presence of eval_info (true=eval_info!=null; false=eval_info==null).",
+            "type": "boolean"
+          },
+          "has_idea_card": {
+            "type": "boolean"
+          },
+          "has_reduction_report": {
+            "description": "Filter on presence of reduction_report (true=non-null; false=null).",
+            "type": "boolean"
+          },
+          "idea_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "island_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "node_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "operator_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "title": "IdeaListFilter v1",
+        "type": "object"
+      },
+      "idea_node_v1": {
+        "$id": "idea_node_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "A single candidate node in the ideation search space, with lineage, traces, diagnostics, and optional formalized IdeaCard.\n\nMutability contract (audit-first): Fields campaign_id, idea_id, node_id, parent_node_ids, island_id, operator_id, operator_family, origin, operator_trace, rationale_draft, created_at are IMMUTABLE after creation. Fields revision, idea_card, eval_info, grounding_audit, reduction_report, reduction_audit, updated_at are MUTABLE (append/replace semantics; prior values should be preserved in the ledger or history artifacts). revision is engine-managed: initialized to 1 at creation and incremented on each mutation.",
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eval_info": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "failure_modes": {
+                    "description": "Superset of failure modes (may include free-text diagnostics beyond the fix_suggestions enum). Structured actionable failures should appear in fix_suggestions; this field captures all detected issues including informational ones.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "fix_suggestions": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "failure_mode": {
+                          "enum": [
+                            "missing_evidence",
+                            "too_similar",
+                            "physics_inconsistency",
+                            "not_computable",
+                            "folklore_overlap",
+                            "untestable"
+                          ]
+                        },
+                        "operator_hint": {
+                          "type": "string"
+                        },
+                        "priority": {
+                          "enum": [
+                            "critical",
+                            "major",
+                            "minor"
+                          ]
+                        },
+                        "suggested_action": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_field": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "failure_mode",
+                        "suggested_action",
+                        "target_field",
+                        "priority"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "novelty_delta_table": {
+                    "$ref": "#/components/schemas/novelty_delta_table_v1"
+                  },
+                  "scores": {
+                    "additionalProperties": {
+                      "type": "number"
+                    },
+                    "description": "Aggregated per-dimension scores for this node (from the latest eval snapshot). Keys should match EvaluatorConfig.dimensions.",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "scores",
+                  "fix_suggestions",
+                  "failure_modes"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "grounding_audit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "failures": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "folklore_risk_score": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "status": {
+                    "enum": [
+                      "pass",
+                      "fail",
+                      "partial"
+                    ]
+                  },
+                  "timestamp": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "folklore_risk_score",
+                  "failures",
+                  "timestamp"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "idea_card": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/idea_card_v1"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "idea_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "island_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "node_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "operator_family": {
+            "description": "Operator family (stable tag for audits/gates; recommended but not strictly required in v0.2).",
+            "minLength": 1,
+            "type": "string"
+          },
+          "operator_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "operator_trace": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence_uris_used": {
+                "items": {
+                  "format": "uri",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "inputs": {
+                "type": "object"
+              },
+              "params": {
+                "type": "object"
+              },
+              "prompt_snapshot_hash": {
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "random_seed": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "inputs",
+              "params",
+              "evidence_uris_used"
+            ],
+            "type": "object"
+          },
+          "origin": {
+            "additionalProperties": false,
+            "properties": {
+              "model": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "prompt_hash": {
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "role": {
+                "description": "Physicist role/persona that produced this node (e.g., Ideator, Librarian, Formalizer, Derivation, Checker, Referee, Editor).",
+                "minLength": 1,
+                "type": "string"
+              },
+              "temperature": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "timestamp": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "model",
+              "temperature",
+              "prompt_hash",
+              "timestamp",
+              "role"
+            ],
+            "type": "object"
+          },
+          "parent_node_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rationale_draft": {
+            "$ref": "#/components/schemas/rationale_draft_v1"
+          },
+          "reduction_audit": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/reduction_audit_v1"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reduction_report": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/reduction_report_v1"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "description": "Monotonically increasing revision counter. Incremented on each mutation (eval_info, grounding_audit, idea_card update). Enables stale-read detection and future optimistic concurrency.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "updated_at": {
+            "description": "Timestamp of last mutation (e.g., eval_info update, grounding re-audit).",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "idea_id",
+          "node_id",
+          "revision",
+          "parent_node_ids",
+          "island_id",
+          "operator_id",
+          "origin",
+          "operator_trace",
+          "rationale_draft",
+          "created_at"
+        ],
+        "title": "IdeaNode v1",
+        "type": "object"
+      },
+      "idempotency_meta_v1": {
+        "$id": "idempotency_meta_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Idempotency metadata echoed by side-effecting RPC methods to support auditability and replay debugging.",
+        "properties": {
+          "idempotency_key": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "is_replay": {
+            "description": "True if this response was served from the idempotency store (duplicate hit).",
+            "type": "boolean"
+          },
+          "payload_hash": {
+            "description": "SHA-256 hash of canonical JSON of request params (excluding idempotency_key). Enables client-side verification and debugging of idempotency_key_conflict.",
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "is_replay",
+          "payload_hash"
+        ],
+        "title": "IdempotencyMeta v1",
+        "type": "object"
+      },
+      "island_state_v1": {
+        "$id": "island_state_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Observable state of a strategy island in the multi-island search policy.",
+        "properties": {
+          "best_score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "island_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "population_size": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "repopulation_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stagnation_counter": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "SEEDING",
+              "EXPLORING",
+              "CONVERGING",
+              "STAGNANT",
+              "REPOPULATED",
+              "EXHAUSTED"
+            ]
+          },
+          "team_policy_id": {
+            "description": "Reference to the TeamPolicy governing role composition and coordination on this island.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "island_id",
+          "state",
+          "population_size"
+        ],
+        "title": "IslandState v1",
+        "type": "object"
+      },
+      "node_list_result_v1": {
+        "$id": "node_list_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Result of node.list (paginated).",
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cursor": {
+            "description": "Opaque pagination cursor. null if no more results.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/idea_node_v1"
+            },
+            "type": "array"
+          },
+          "total_count": {
+            "description": "Total number of nodes matching the filter at the time this page is generated. May differ across pages if the underlying set changes; callers MUST paginate until cursor is null.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "nodes",
+          "cursor",
+          "total_count"
+        ],
+        "title": "NodeListResult v1",
+        "type": "object"
+      },
+      "novelty_delta_table_v1": {
+        "$id": "novelty_delta_table_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Structured novelty deltas to avoid mistaking superficial changes for innovation (Referee hard constraint).",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "closest_prior_uris": {
+              "items": {
+                "format": "uri",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "delta_statement": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "delta_types": {
+              "items": {
+                "enum": [
+                  "new_mechanism",
+                  "new_observable",
+                  "new_regime",
+                  "new_method",
+                  "new_formalism",
+                  "new_dataset",
+                  "new_constraint"
+                ]
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "non_novelty_flags": {
+              "items": {
+                "enum": [
+                  "parameter_tuning_only",
+                  "relabeling_only",
+                  "equivalent_reformulation",
+                  "no_new_prediction",
+                  "known_components_no_testable_delta"
+                ]
+              },
+              "type": "array"
+            },
+            "verification_hook": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "closest_prior_uris",
+            "delta_types",
+            "delta_statement",
+            "verification_hook"
+          ],
+          "type": "object"
+        },
+        "minItems": 1,
+        "title": "NoveltyDeltaTable v1",
+        "type": "array"
+      },
+      "promotion_result_v1": {
+        "$id": "promotion_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "has_reduction_report": {
+                  "const": true
+                }
+              },
+              "required": [
+                "has_reduction_report"
+              ]
+            },
+            "then": {
+              "properties": {
+                "reduction_audit_summary": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "abstract_problem": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "all_assumptions_satisfied": {
+                      "const": true
+                    },
+                    "assumption_count": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "status": {
+                      "const": "pass"
+                    },
+                    "toy_check_result": {
+                      "enum": [
+                        "pass"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "abstract_problem",
+                    "toy_check_result",
+                    "assumption_count",
+                    "all_assumptions_satisfied"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "reduction_audit_summary"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "has_reduction_report": {
+                  "const": false
+                }
+              },
+              "required": [
+                "has_reduction_report"
+              ]
+            },
+            "then": {
+              "properties": {
+                "reduction_audit_summary": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "reduction_audit_summary"
+              ]
+            }
+          }
+        ],
+        "description": "Success result of promoting an idea to a C2 handoff artifact (after schema + grounding checks). Failed promotions MUST be surfaced via JSON-RPC errors, not via this success result.",
+        "properties": {
+          "budget_snapshot": {
+            "$ref": "#/components/schemas/budget_snapshot_v1"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "grounding_audit_summary": {
+            "additionalProperties": false,
+            "properties": {
+              "failures": {
+                "description": "Expected to be empty on success. Blocking failures must be returned via JSON-RPC error grounding_audit_failed.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "folklore_risk_score": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          "handoff_artifact_ref": {
+            "format": "uri",
+            "type": "string"
+          },
+          "has_reduction_report": {
+            "description": "True iff the promoted node has a non-null reduction_report (ProblemReduction/TechniqueTransplant). Used to make the success result machine-auditable without dereferencing handoff_artifact_ref.",
+            "type": "boolean"
+          },
+          "idea_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "idempotency": {
+            "$ref": "#/components/schemas/idempotency_meta_v1"
+          },
+          "node_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reduction_audit_summary": {
+            "description": "Non-null when has_reduction_report is true. Summarizes the passed reduction audit.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "abstract_problem": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "all_assumptions_satisfied": {
+                    "const": true
+                  },
+                  "assumption_count": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "status": {
+                    "const": "pass"
+                  },
+                  "toy_check_result": {
+                    "enum": [
+                      "pass"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "abstract_problem",
+                  "toy_check_result",
+                  "assumption_count",
+                  "all_assumptions_satisfied"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "campaign_id",
+          "node_id",
+          "idea_id",
+          "handoff_artifact_ref",
+          "grounding_audit_summary",
+          "budget_snapshot",
+          "idempotency",
+          "has_reduction_report",
+          "reduction_audit_summary"
+        ],
+        "title": "PromotionResult v1",
+        "type": "object"
+      },
+      "ranking_result_v1": {
+        "$id": "ranking_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "elo"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "ranked_nodes": {
+                  "minItems": 2
+                }
+              }
+            }
+          }
+        ],
+        "description": "Result of rank.compute (Pareto or Elo).",
+        "properties": {
+          "budget_snapshot": {
+            "$ref": "#/components/schemas/budget_snapshot_v1"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effective_dimensions": {
+            "description": "The dimensions actually used for ranking (intersection of requested dimensions and observed scorecard keys).",
+            "items": {
+              "enum": [
+                "novelty",
+                "feasibility",
+                "impact",
+                "tractability",
+                "grounding"
+              ]
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "idempotency": {
+            "$ref": "#/components/schemas/idempotency_meta_v1"
+          },
+          "method": {
+            "enum": [
+              "pareto",
+              "elo"
+            ]
+          },
+          "ranked_nodes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "elo_rating": {
+                  "type": "number"
+                },
+                "idea_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "node_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "pareto_front": {
+                  "type": "boolean"
+                },
+                "rank": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "node_id",
+                "rank"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "ranking_artifact_ref": {
+            "format": "uri",
+            "type": "string"
+          },
+          "scorecards_artifact_ref": {
+            "description": "Reference to the scorecards snapshot used for this ranking computation.",
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "method",
+          "effective_dimensions",
+          "scorecards_artifact_ref",
+          "ranked_nodes",
+          "budget_snapshot",
+          "idempotency",
+          "ranking_artifact_ref"
+        ],
+        "title": "RankingResult v1",
+        "type": "object"
+      },
+      "rationale_draft_v1": {
+        "$id": "rationale_draft_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Stage-1 (Explain) artifact: human-readable motivation, intuition, risks, and minimal validation plan before formalization.",
+        "properties": {
+          "analogy_mapping": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "mapping": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "source": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "target": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source",
+                "target",
+                "mapping"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "kill_criteria": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "mechanism": {
+            "type": "string"
+          },
+          "rationale": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "references": {
+            "items": {
+              "format": "uri",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "risks": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "title": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "rationale",
+          "risks",
+          "kill_criteria"
+        ],
+        "title": "RationaleDraft v1",
+        "type": "object"
+      },
+      "reduction_audit_v1": {
+        "$comment": "Status decision tree (normative): any assumptions[].status=violated => status=fail; reduction_type_valid=false => status=fail; toy_check_result=fail => status=fail; reduction_type_valid=true + toy_check_result=pass + all assumptions satisfied => status=pass; otherwise (no violated, type_valid=true, and either any pending_verification OR toy_check_result=skipped) => status=partial.",
+        "$id": "reduction_audit_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "toy_check_result": {
+                  "const": "skipped"
+                }
+              },
+              "required": [
+                "toy_check_result"
+              ]
+            },
+            "then": {
+              "properties": {
+                "skip_reason": {
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "skip_reason"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "assumptions": {
+                  "contains": {
+                    "properties": {
+                      "status": {
+                        "const": "violated"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "assumptions"
+              ]
+            },
+            "then": {
+              "properties": {
+                "status": {
+                  "const": "fail"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reduction_type_valid": {
+                  "const": false
+                }
+              },
+              "required": [
+                "reduction_type_valid"
+              ]
+            },
+            "then": {
+              "properties": {
+                "status": {
+                  "const": "fail"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "toy_check_result": {
+                  "const": "fail"
+                }
+              },
+              "required": [
+                "toy_check_result"
+              ]
+            },
+            "then": {
+              "properties": {
+                "status": {
+                  "const": "fail"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            },
+            "then": {
+              "properties": {
+                "assumptions": {
+                  "not": {
+                    "contains": {
+                      "properties": {
+                        "status": {
+                          "enum": [
+                            "pending_verification",
+                            "violated"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    }
+                  }
+                },
+                "reduction_type_valid": {
+                  "const": true
+                },
+                "toy_check_result": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "reduction_type_valid",
+                "toy_check_result",
+                "assumptions"
+              ]
+            }
+          },
+          {
+            "if": {
+              "allOf": [
+                {
+                  "properties": {
+                    "reduction_type_valid": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "reduction_type_valid"
+                  ]
+                },
+                {
+                  "properties": {
+                    "toy_check_result": {
+                      "enum": [
+                        "pass",
+                        "skipped"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "toy_check_result"
+                  ]
+                },
+                {
+                  "properties": {
+                    "assumptions": {
+                      "not": {
+                        "contains": {
+                          "properties": {
+                            "status": {
+                              "const": "violated"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "assumptions"
+                  ]
+                },
+                {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "assumptions": {
+                          "contains": {
+                            "properties": {
+                              "status": {
+                                "const": "pending_verification"
+                              }
+                            },
+                            "required": [
+                              "status"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "assumptions"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "toy_check_result": {
+                          "const": "skipped"
+                        }
+                      },
+                      "required": [
+                        "toy_check_result"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "partial"
+                  ]
+                }
+              },
+              "required": [
+                "status"
+              ]
+            }
+          }
+        ],
+        "description": "Machine-checkable audit gate for reductions/transplants. Required for promotion when a node includes a reduction_report.",
+        "properties": {
+          "abstract_problem": {
+            "description": "Echo of reduction_report.abstract_problem for provenance; used to validate against the effective abstract_problem_registry.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "assumptions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "assumption_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "evidence_uris": {
+                  "items": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "satisfied",
+                    "pending_verification",
+                    "violated"
+                  ]
+                }
+              },
+              "required": [
+                "assumption_id",
+                "status"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "auditor_origin": {
+            "additionalProperties": false,
+            "description": "Optional provenance of the audit execution (model/role/session). Recommended for clean-room verification.",
+            "properties": {
+              "model": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "role": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "session_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "failures": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reduction_type_valid": {
+            "description": "Whether the abstract problem type is registered in the DomainPack abstract_problem_registry.",
+            "type": "boolean"
+          },
+          "skip_reason": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "partial"
+            ]
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "toy_check_result": {
+            "enum": [
+              "pass",
+              "fail",
+              "skipped"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "abstract_problem",
+          "assumptions",
+          "toy_check_result",
+          "reduction_type_valid",
+          "failures",
+          "timestamp"
+        ],
+        "title": "ReductionAudit v1",
+        "type": "object"
+      },
+      "reduction_report_v1": {
+        "$id": "reduction_report_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Structured report produced by ProblemReduction/TechniqueTransplant operators: abstract problem mapping, assumptions/limits, known solutions, transfer plan, and minimal toy check.",
+        "properties": {
+          "abstract_problem": {
+            "description": "Abstract problem type (must be registered in the DomainPack abstract_problem_registry at runtime).",
+            "minLength": 1,
+            "type": "string"
+          },
+          "assumptions_and_limits": {
+            "description": "Assumptions and validity limits required for the reduction/transfer to hold.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "assumption_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "evidence_uris": {
+                  "items": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "statement": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "verification_plan": {
+                  "type": "string"
+                },
+                "verification_status": {
+                  "default": "pending",
+                  "enum": [
+                    "pending",
+                    "satisfied",
+                    "violated"
+                  ]
+                }
+              },
+              "required": [
+                "assumption_id",
+                "statement"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "compatibility_checks": {
+            "description": "Target-domain consistency checks that must pass (dimensions/symmetries/limits/reproducibility).",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 2,
+            "type": "array"
+          },
+          "extensions": {
+            "additionalProperties": true,
+            "description": "Operator/DomainPack specific extensions.",
+            "type": "object"
+          },
+          "kill_criteria": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "known_solutions": {
+            "description": "Mature solution candidates from math/CS/other domains (each must include at least one primary reference).",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "complexity_notes": {
+                  "type": "string"
+                },
+                "cost_notes": {
+                  "type": "string"
+                },
+                "failure_modes": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "name": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "one_liner": {
+                  "type": "string"
+                },
+                "prerequisites": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "reference_uris": {
+                  "items": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "name",
+                "prerequisites",
+                "failure_modes",
+                "reference_uris"
+              ],
+              "type": "object"
+            },
+            "minItems": 2,
+            "type": "array"
+          },
+          "minimal_toy_check": {
+            "additionalProperties": false,
+            "properties": {
+              "code_sketch_ref": {
+                "format": "uri",
+                "type": "string"
+              },
+              "data_ref": {
+                "format": "uri",
+                "type": "string"
+              },
+              "expected_result": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "pass_fail_criteria": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "setup": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "setup",
+              "expected_result",
+              "pass_fail_criteria"
+            ],
+            "type": "object"
+          },
+          "reduction_map": {
+            "description": "Target-domain \u2192 abstract-domain mapping table (variables/objectives/constraints/symmetries/invariants).",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "invariant": {
+                  "description": "Optional invariant that must hold under the mapping.",
+                  "type": "string"
+                },
+                "mapping": {
+                  "description": "Explanation of the correspondence.",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "source": {
+                  "description": "Target-domain element.",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "target": {
+                  "description": "Abstract-domain element.",
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source",
+                "target",
+                "mapping"
+              ],
+              "type": "object"
+            },
+            "minItems": 8,
+            "type": "array"
+          },
+          "reference_uris": {
+            "items": {
+              "format": "uri",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "transfer_plan": {
+            "description": "Minimal steps to apply the abstract-domain method back to the target domain (must be executable/auditable).",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "acceptance": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "expected_output": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "step": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "tool_hint": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "step",
+                "expected_output",
+                "acceptance"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "abstract_problem",
+          "reduction_map",
+          "assumptions_and_limits",
+          "known_solutions",
+          "transfer_plan",
+          "minimal_toy_check",
+          "kill_criteria",
+          "compatibility_checks"
+        ],
+        "title": "ReductionReport v1",
+        "type": "object"
+      },
+      "rpc_error_data_v1": {
+        "$id": "rpc_error_data_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": true,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "dimension_exhausted"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "properties": {
+                "details": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "exhausted_dimensions": {
+                      "description": "Budget dimensions that are exhausted and caused the error.",
+                      "items": {
+                        "enum": [
+                          "tokens",
+                          "cost_usd",
+                          "wall_clock_s",
+                          "steps",
+                          "nodes"
+                        ]
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "exhausted_dimensions"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "details"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reason": {
+                  "const": "idempotency_key_conflict"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            },
+            "then": {
+              "required": [
+                "idempotency_key",
+                "payload_hash"
+              ]
+            }
+          }
+        ],
+        "description": "Machine-readable JSON-RPC error.data contract for idea-core RPC. Engines MUST include error.data in all error responses (see OpenRPC x-error-data-contract).",
+        "properties": {
+          "campaign_id": {
+            "description": "Optional campaign scope identifier for correlation (when applicable).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "description": "Optional structured debug details (may be empty).",
+            "type": "object"
+          },
+          "idea_id": {
+            "description": "Optional idea identifier for correlation (when applicable).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Optional echo of the idempotency_key for correlation/debugging (when applicable).",
+            "minLength": 1,
+            "type": "string"
+          },
+          "node_id": {
+            "description": "Optional node identifier for correlation (when applicable).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "payload_hash": {
+            "description": "Optional echo of computed payload_hash for correlation/debugging (when applicable).",
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Machine-readable sub-reason (string). Example values include: schema_invalid, idempotency_key_conflict, elo_config_required, elo_config_unexpected.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RPCErrorData v1",
+        "type": "object"
+      },
+      "search_step_result_v1": {
+        "$id": "search_step_result_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "early_stopped": {
+                  "const": true
+                }
+              },
+              "required": [
+                "early_stopped"
+              ]
+            },
+            "then": {
+              "required": [
+                "early_stop_reason"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "new_node_ids": {
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "new_node_ids"
+              ]
+            },
+            "then": {
+              "required": [
+                "new_nodes_artifact_ref"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "updated_node_ids": {
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "updated_node_ids"
+              ]
+            },
+            "then": {
+              "required": [
+                "updated_nodes_artifact_ref"
+              ]
+            }
+          }
+        ],
+        "description": "Result of a bounded search step. Must expose budget and island states for observability and control.",
+        "properties": {
+          "budget_snapshot": {
+            "$ref": "#/components/schemas/budget_snapshot_v1"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "degradation_events": {
+            "description": "Optional degradation events that occurred during this step (for observability).",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "enum": [
+                    "reduce_eval_rounds",
+                    "reduce_islands",
+                    "disable_cross_domain_operators",
+                    "reduce_population",
+                    "early_stop"
+                  ]
+                },
+                "budget_at_trigger": {
+                  "$ref": "#/components/schemas/budget_snapshot_v1"
+                },
+                "timestamp": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "timestamp"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "distributor_policy_config_ref": {
+            "description": "Artifact ref to the immutable distributor_policy_config_v1.json for this campaign (required for audit/replay when Distributor is used).",
+            "format": "uri",
+            "type": "string"
+          },
+          "early_stop_reason": {
+            "type": "string"
+          },
+          "early_stopped": {
+            "default": false,
+            "type": "boolean"
+          },
+          "idempotency": {
+            "$ref": "#/components/schemas/idempotency_meta_v1"
+          },
+          "island_states": {
+            "items": {
+              "$ref": "#/components/schemas/island_state_v1"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "n_steps_executed": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "n_steps_requested": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "new_node_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "new_nodes_artifact_ref": {
+            "format": "uri",
+            "type": "string"
+          },
+          "step_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updated_node_ids": {
+            "description": "IDs of existing nodes that were mutated during this step (e.g., formalized, derivation added, eval_info updated).",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "updated_nodes_artifact_ref": {
+            "description": "Artifact ref for a bounded diff/changelog of mutations applied to updated_node_ids (e.g., idea_card added, eval_info updated). Intended to point to an artifact conforming to schemas/node_mutation_log_v1.schema.json (including before/after revision counters for stale-read detection).",
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "step_id",
+          "n_steps_requested",
+          "n_steps_executed",
+          "new_node_ids",
+          "updated_node_ids",
+          "island_states",
+          "budget_snapshot",
+          "idempotency"
+        ],
+        "title": "SearchStepResult v1",
+        "type": "object"
+      },
+      "seed_pack_v1": {
+        "$id": "seed_pack_v1.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Normalized seed inputs for a campaign. Sources may include C1 gaps, PDG tensions, KB priors, and user-provided seeds.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "extensions": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "seeds": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "metadata": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "seed_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "seed_type": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "source_uris": {
+                  "items": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "tags": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "seed_type",
+                "content"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "seeds"
+        ],
+        "title": "SeedPack v1",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "JSON-RPC interface between the idea-generator adapter (hepar skill) and the standalone idea-core engine. Contract schemas are referenced via $ref to sibling files in this directory.\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted \u2192 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods (e.g., LLM generation), this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, elo_config_required, elo_config_unexpected.",
+    "title": "idea-core RPC (v1)",
+    "version": "1.9.9"
+  },
+  "methods": [
+    {
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32010,
+          "message": "invalid_charter"
+        }
+      ],
+      "name": "campaign.init",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "charter",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/campaign_charter_v1"
+          }
+        },
+        {
+          "name": "seed_pack",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/seed_pack_v1"
+          }
+        },
+        {
+          "name": "budget",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/budget_envelope_v1"
+          }
+        },
+        {
+          "description": "Override or supplement the DomainPack default abstract problem registry. If omitted, the engine uses the DomainPack built-in registry. If provided, entries are merged by abstract_problem_type (caller entries take precedence on collision). The engine MUST reject inputs that contain duplicate abstract_problem_type values with schema_validation_failed (-32002) and error.data.reason=schema_invalid. Used at reduction_audit time to validate reduction_report.abstract_problem.",
+          "name": "abstract_problem_registry",
+          "required": false,
+          "schema": {
+            "$ref": "#/components/schemas/abstract_problem_registry_v1"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "campaign_init_result",
+        "schema": {
+          "$ref": "#/components/schemas/campaign_init_result_v1"
+        }
+      },
+      "summary": "Initialize a campaign."
+    },
+    {
+      "description": "Read-only. Permitted in any campaign status.",
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        }
+      ],
+      "name": "campaign.status",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "campaign_status",
+        "schema": {
+          "$ref": "#/components/schemas/campaign_status_v1"
+        }
+      },
+      "summary": "Get campaign status."
+    },
+    {
+      "description": "Monotonic, additive budget top-up. Permitted when campaign status is running|paused|early_stopped|exhausted. If status is exhausted, successful topup MUST transition campaign status to running only if the campaign is no longer budget-exhausted after applying the top-up; otherwise it remains exhausted. If status is early_stopped (policy halt, not budget), topup adds budget but does NOT change the status; the caller must explicitly campaign.resume to re-enter running. If the campaign is completed, the engine MUST reject the request with campaign_not_active. campaign.topup MUST NOT return budget_exhausted; insufficient topups are represented by a successful result whose campaign_status remains exhausted. Idempotency note: on replay, the returned campaign_status/budget_snapshot reflects the first-call snapshot; callers MUST use campaign.status for current budget.",
+      "errors": [
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ],
+      "name": "campaign.topup",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "topup",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/budget_topup_v1"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "campaign_mutation_result",
+        "schema": {
+          "$ref": "#/components/schemas/campaign_mutation_result_v1"
+        }
+      },
+      "summary": "Monotonic budget top-up for an existing campaign (pilot-then-scale)."
+    },
+    {
+      "description": "Side-effecting. Permitted when campaign status is running|early_stopped|exhausted (running|early_stopped|exhausted \u2192 paused). Otherwise campaign_not_active.",
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ],
+      "name": "campaign.pause",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "campaign_mutation_result",
+        "schema": {
+          "$ref": "#/components/schemas/campaign_mutation_result_v1"
+        }
+      },
+      "summary": "Pause a campaign (running \u2192 paused)."
+    },
+    {
+      "description": "Side-effecting. Accepted when campaign status is paused|early_stopped. When resuming from paused or early_stopped, the engine MUST verify that no BudgetEnvelope dimension has remaining <= 0; if any does, it MUST reject with budget_exhausted (-32001) without changing state. Transitions paused|early_stopped \u2192 running. If status is exhausted, the engine MUST reject with budget_exhausted (-32001) without changing state (caller should campaign.topup first). If campaign is completed, returns campaign_not_active (-32015).",
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ],
+      "name": "campaign.resume",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "campaign_mutation_result",
+        "schema": {
+          "$ref": "#/components/schemas/campaign_mutation_result_v1"
+        }
+      },
+      "summary": "Resume a campaign (paused|early_stopped \u2192 running)."
+    },
+    {
+      "description": "Side-effecting. Permitted when status is running|paused|early_stopped|exhausted|completed. Transitions the campaign into a terminal completed state. If already completed, the engine MUST treat this as a no-op (but still idempotent, with transition.changed=false). Read-only methods remain available after completion.",
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        }
+      ],
+      "name": "campaign.complete",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "campaign_mutation_result",
+        "schema": {
+          "$ref": "#/components/schemas/campaign_mutation_result_v1"
+        }
+      },
+      "summary": "Mark a campaign as completed (\u2192 completed)."
+    },
+    {
+      "description": "Read-only. Exposes two runtime-backed catalog views without changing campaign/search/eval semantics: the builtin idea-core pack catalog (currently generic.default.v1 + hep.operators.v1) and the current service instance runtime catalog (for example, the stdio/default-service front door remains HEP-only).",
+      "errors": [
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        }
+      ],
+      "name": "domain_pack.catalog",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "domain_pack_catalog_result",
+        "schema": {
+          "$ref": "#/components/schemas/domain_pack_catalog_result_v1"
+        }
+      },
+      "summary": "Export builtin domain-pack truth and the current service runtime catalog."
+    },
+    {
+      "description": "Side-effecting. Only permitted when campaign status is running. Definition: one search step is one SearchPolicy tick that selects (at minimum) an island and an operator (and runs the configured TeamPolicy/topology for that island), then writes any newly created nodes/artifacts and/or updates existing nodes (e.g., Formalizer adding idea_card, Derivation adding consistency report). New nodes are surfaced via new_node_ids (+ new_nodes_artifact_ref); mutated nodes are surfaced via updated_node_ids (+ updated_nodes_artifact_ref when non-empty). Atomicity: each tick MUST be all-or-nothing (no partial writes within a tick), but the overall call may partially execute multiple ticks and report progress via n_steps_executed. Idempotency note: if n_steps_executed < n_steps_requested (early stop), retries with the same idempotency_key MUST replay the same partial result; callers MUST use a new idempotency_key to request fresh work/continuation. Campaign status transitions triggered during this call (e.g., running \u2192 exhausted due to budget depletion, running \u2192 early_stopped due to policy halt) are part of the idempotency-protected side-effects: they MUST be committed atomically with tick writes and the idempotency record. If paused|early_stopped|completed: campaign_not_active. If exhausted: budget_exhausted.",
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ],
+      "name": "search.step",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Number of search steps to execute (>= 1).",
+          "name": "n_steps",
+          "required": true,
+          "schema": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        {
+          "description": "Optional local budget fuse for this call only. Any omitted field is treated as unbounded for that dimension. When exhausted, the engine SHOULD stop early and return early_stopped=true (recommended early_stop_reason: step_budget_exhausted) even if the global campaign budget remains.",
+          "name": "step_budget",
+          "required": false,
+          "schema": {
+            "$ref": "#/components/schemas/budget_limit_v1"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "search_step_result",
+        "schema": {
+          "$ref": "#/components/schemas/search_step_result_v1"
+        }
+      },
+      "summary": "Advance the search by a bounded step budget."
+    },
+    {
+      "description": "Read-only. Permitted in any campaign status.",
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        }
+      ],
+      "name": "node.get",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "node_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "node",
+        "schema": {
+          "$ref": "#/components/schemas/idea_node_v1"
+        }
+      },
+      "summary": "Fetch a single IdeaNode by node_id within a campaign scope."
+    },
+    {
+      "description": "Read-only. Permitted in any campaign status. Results are always scoped to the given campaign; filters that do not match the campaign return empty results. If limit is omitted, the engine MUST treat it as 50.",
+      "errors": [
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        }
+      ],
+      "name": "node.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "filter",
+          "schema": {
+            "$ref": "#/components/schemas/idea_list_filter_v1"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        {
+          "description": "Page size. Defaults to 50 if omitted. Maximum 500.",
+          "name": "limit",
+          "schema": {
+            "default": 50,
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        }
+      ],
+      "result": {
+        "name": "node_list",
+        "schema": {
+          "$ref": "#/components/schemas/node_list_result_v1"
+        }
+      },
+      "summary": "List IdeaNodes in a campaign (paginated)."
+    },
+    {
+      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid and grounding_audit.status must be pass. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32011,
+          "message": "grounding_audit_failed"
+        },
+        {
+          "code": -32016,
+          "message": "reduction_audit_failed"
+        }
+      ],
+      "name": "node.promote",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "node_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "promotion_result",
+        "schema": {
+          "$ref": "#/components/schemas/promotion_result_v1"
+        }
+      },
+      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding gates) within a campaign scope."
+    },
+    {
+      "description": "Side-effecting. Only permitted when campaign status is running; otherwise campaign_not_active. Batch size is capped (node_ids maxItems=100) to bound rollback cost. Returns updated_node_ids to indicate which nodes were mutated (eval_info appended) during this operation. Atomicity (MUST): on any error (including budget_exhausted, node_not_found, node_not_in_campaign), the engine MUST perform no partial writes/mutations; if partial work occurs internally it MUST be rolled back before returning (and before storing the idempotency record).",
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        }
+      ],
+      "name": "eval.run",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "node_ids",
+          "required": true,
+          "schema": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        {
+          "name": "evaluator_config",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/evaluator_config_v1"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "eval_result",
+        "schema": {
+          "$ref": "#/components/schemas/eval_result_v1"
+        }
+      },
+      "summary": "Run evaluation (multi-agent scoring) on a set of nodes and persist eval_info."
+    },
+    {
+      "description": "Side-effecting. Only permitted when campaign status is running; otherwise campaign_not_active. Filter is applied within campaign scope. Rankings are computed against the scorecards snapshot generated by prior eval.run calls (optionally pinned via scorecards_artifact_ref). For method=pareto, the filter MUST resolve to >= 1 node (a single node is allowed and yields rank=1). Dimension selection: let observed_keys be the set of distinct keys observed in scorecards[].scores across the resolved node set, considering ONLY scorecards with status in {complete, partial}. The engine MUST ignore scorecards with status=failed when computing observed_keys. If dimensions is provided, effective_dimensions = dimensions \u2229 observed_keys; otherwise effective_dimensions = observed_keys. Normative failure reasons (MUST): (1) If observed_keys is empty (i.e., eval.run has never been called for the resolved set, or all scorecards are missing/failed), the engine MUST return insufficient_eval_data (-32013) with error.data.reason=no_scorecards and MUST NOT write ranking artifacts. (2) Else if method=pareto and effective dimension count < 2, the engine MUST return insufficient_eval_data (-32013) with error.data.reason=insufficient_dimensions and MUST NOT write ranking artifacts. (3) Else if method=elo and resolved node count < 2 (or method=pareto and resolved node count < 1), the engine MUST return insufficient_eval_data (-32013) with error.data.reason=insufficient_nodes and MUST NOT write ranking artifacts. For method=elo, the filter MUST resolve to >= 2 nodes.",
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32013,
+          "message": "insufficient_eval_data"
+        }
+      ],
+      "name": "rank.compute",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        {
+          "name": "method",
+          "required": true,
+          "schema": {
+            "enum": [
+              "pareto",
+              "elo"
+            ]
+          }
+        },
+        {
+          "name": "filter",
+          "schema": {
+            "$ref": "#/components/schemas/idea_list_filter_v1"
+          }
+        },
+        {
+          "description": "Explicit reference to the scorecards artifact to rank against (produced by eval.run). If omitted, the engine SHOULD use the latest available scorecards for the campaign. Providing this enables deterministic ranking against a specific eval snapshot. The engine MUST echo the effective snapshot in ranking_result.scorecards_artifact_ref. If provided but not resolvable within the campaign scope, the engine MUST return schema_validation_failed (-32002) with error.data.reason=schema_invalid.",
+          "name": "scorecards_artifact_ref",
+          "required": false,
+          "schema": {
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Score dimensions to use for ranking. If omitted, the engine SHOULD use the dimensions available in the effective scorecards snapshot (optionally intersected with EvaluatorConfig.dimensions). For method=pareto, the effective dimension count MUST be >= 2; otherwise insufficient_eval_data (-32013) with error.data.reason=insufficient_dimensions.",
+          "name": "dimensions",
+          "required": false,
+          "schema": {
+            "items": {
+              "enum": [
+                "novelty",
+                "feasibility",
+                "impact",
+                "tractability",
+                "grounding"
+              ]
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        {
+          "description": "Required when method=elo. MUST bound tournament cost and ensure deterministic matchups. Engine MUST return schema_validation_failed (-32002) with error.data.reason=elo_config_required if method=elo and elo_config is absent, or error.data.reason=elo_config_unexpected if method=pareto and elo_config is provided.",
+          "name": "elo_config",
+          "required": false,
+          "schema": {
+            "$ref": "#/components/schemas/elo_config_v1"
+          }
+        },
+        {
+          "name": "idempotency_key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "ranking_result",
+        "schema": {
+          "$ref": "#/components/schemas/ranking_result_v1"
+        }
+      },
+      "summary": "Compute rankings (Pareto/Elo) for a campaign."
+    }
+  ],
+  "openrpc": "1.2.6",
+  "x-bundle-note": "Generated artifact for tooling compatibility. Do not hand-edit.",
+  "x-error-data-contract": {
+    "known_reasons": {
+      "-32001": [
+        "dimension_exhausted"
+      ],
+      "-32002": [
+        "schema_invalid",
+        "idempotency_key_conflict",
+        "elo_config_required",
+        "elo_config_unexpected"
+      ],
+      "-32013": [
+        "insufficient_nodes",
+        "insufficient_dimensions",
+        "no_scorecards"
+      ],
+      "-32016": [
+        "reduction_audit_not_pass",
+        "reduction_audit_missing",
+        "abstract_problem_not_in_registry"
+      ]
+    },
+    "schema": {
+      "$ref": "#/components/schemas/rpc_error_data_v1"
+    }
+  }
+}

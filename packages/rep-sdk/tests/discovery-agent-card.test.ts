@@ -87,4 +87,23 @@ describe('agent card discovery helpers', () => {
       supported_check_domains: ['ward', 'cross-check'],
     });
   });
+
+  it('keeps the live idea-engine card pointed at TS-owned contract authority', async () => {
+    const card = validateAgentCard(await loadLiveCard('idea-engine.json'));
+    expect(card.ok).toBe(true);
+
+    const data = card.data!;
+    expect(data.input_contracts).toContainEqual(
+      expect.objectContaining({
+        contract_id: 'idea_core_rpc_v1',
+        source_path: 'packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json',
+      }),
+    );
+    expect(data.output_contracts).toContainEqual(
+      expect.objectContaining({
+        contract_id: 'idea_core_rpc_v1',
+        source_path: 'packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json',
+      }),
+    );
+  });
 });

@@ -42,6 +42,12 @@ describe('IdeaRpcClient', () => {
     }
   });
 
+  it('fails closed without an explicit rootDir', () => {
+    expect(() => new IdeaRpcClient({})).toThrow(
+      'IdeaRpcClient requires explicit rootDir; repo-local defaults are forbidden',
+    );
+  });
+
   it('uses the in-process TS idea-engine host for campaign.init', async () => {
     const { client, rootDir } = createClient('idea-mcp-ts-only-');
     tempDirs.push(rootDir);

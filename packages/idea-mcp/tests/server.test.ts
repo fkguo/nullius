@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assertNoLegacyIdeaEnv, createIdeaRpcClient, resolveIdeaDataDir } from '../src/server.js';
 
@@ -34,12 +34,23 @@ describe('idea-mcp server configuration', () => {
     }
   });
 
-  it('defaults its run root to idea-engine runs', () => {
-    expect(resolveIdeaDataDir({})).toContain('/packages/idea-engine/runs');
+  it('fails closed when IDEA_MCP_DATA_DIR is missing', () => {
+    expect(() => resolveIdeaDataDir({})).toThrow(
+      'idea-mcp requires IDEA_MCP_DATA_DIR; repo-local default data roots are forbidden',
+    );
   });
 
   it('resolves explicit data dir overrides', () => {
-    expect(resolveIdeaDataDir({ IDEA_MCP_DATA_DIR: '../tmp/idea-runs' })).toContain('/tmp/idea-runs');
+    expect(resolveIdeaDataDir({ IDEA_MCP_DATA_DIR: join(tmpdir(), 'idea-runs') })).toContain('/idea-runs');
+  });
+
+  it('rejects repo-local data dir overrides', () => {
+    expect(() => resolveIdeaDataDir({ IDEA_MCP_DATA_DIR: 'packages/idea-engine/runs' })).toThrow(
+      'idea-mcp requires IDEA_MCP_DATA_DIR outside the dev repo:',
+    );
+    expect(() => resolveIdeaDataDir({
+      IDEA_MCP_DATA_DIR: resolve(import.meta.dirname, '../../idea-engine/runs'),
+    })).toThrow('idea-mcp requires IDEA_MCP_DATA_DIR outside the dev repo:');
   });
 
   it('fails closed when legacy backend envs are present', () => {

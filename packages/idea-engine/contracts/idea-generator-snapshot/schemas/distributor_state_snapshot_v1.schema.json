@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "distributor_state_snapshot_v1.schema.json",
+  "title": "DistributorStateSnapshot v1",
+  "description": "Optional periodic snapshot of Distributor/BanditPolicy internal state for debugging + replay tooling.",
+  "type": "object",
+  "required": ["campaign_id", "policy_id", "timestamp", "action_stats"],
+  "properties": {
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "policy_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "action_stats": {
+      "type": "object",
+      "description": "Map action_id → stats used by the policy (n, Q, C, variance, weights, etc.).",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "n": { "type": "integer", "minimum": 0 },
+          "Q": { "type": "number" },
+          "C": { "type": "number" },
+          "sigma": { "type": "number" },
+          "w": { "type": "number" },
+          "t_last": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "current_probs": {
+      "type": "object",
+      "description": "Map action_id → current selection probability.",
+      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "temperature": { "type": "number", "minimum": 0 },
+    "epsilon_floor": { "type": "number", "minimum": 0, "maximum": 1 }
+  },
+  "additionalProperties": false
+}

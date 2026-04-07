@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reduction_audit_v1.schema.json",
+  "title": "ReductionAudit v1",
+  "description": "Machine-checkable audit gate for reductions/transplants. Required for promotion when a node includes a reduction_report.",
+  "$comment": "Status decision tree (normative): any assumptions[].status=violated => status=fail; reduction_type_valid=false => status=fail; toy_check_result=fail => status=fail; reduction_type_valid=true + toy_check_result=pass + all assumptions satisfied => status=pass; otherwise (no violated, type_valid=true, and either any pending_verification OR toy_check_result=skipped) => status=partial.",
+  "type": "object",
+  "required": [
+    "status",
+    "abstract_problem",
+    "assumptions",
+    "toy_check_result",
+    "reduction_type_valid",
+    "failures",
+    "timestamp"
+  ],
+  "properties": {
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "partial"
+      ]
+    },
+    "assumptions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "assumption_id",
+          "status"
+        ],
+        "properties": {
+          "assumption_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "satisfied",
+              "pending_verification",
+              "violated"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "evidence_uris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "toy_check_result": {
+      "enum": [
+        "pass",
+        "fail",
+        "skipped"
+      ]
+    },
+    "skip_reason": {
+      "type": "string"
+    },
+    "reduction_type_valid": {
+      "type": "boolean",
+      "description": "Whether the abstract problem type is registered in the DomainPack abstract_problem_registry."
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "abstract_problem": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Echo of reduction_report.abstract_problem for provenance; used to validate against the effective abstract_problem_registry."
+    },
+    "auditor_origin": {
+      "type": "object",
+      "description": "Optional provenance of the audit execution (model/role/session). Recommended for clean-room verification.",
+      "properties": {
+        "model": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "format": "uuid" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "toy_check_result": {
+            "const": "skipped"
+          }
+        },
+        "required": [
+          "toy_check_result"
+        ]
+      },
+      "then": {
+        "required": [
+          "skip_reason"
+        ],
+        "properties": {
+          "skip_reason": {
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "assumptions": {
+            "contains": {
+              "properties": {
+                "status": {
+                  "const": "violated"
+                }
+              },
+              "required": [
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "assumptions"
+        ]
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "fail"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "reduction_type_valid": {
+            "const": false
+          }
+        },
+        "required": [
+          "reduction_type_valid"
+        ]
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "fail"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "toy_check_result": {
+            "const": "fail"
+          }
+        },
+        "required": [
+          "toy_check_result"
+        ]
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "fail"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pass"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "reduction_type_valid",
+          "toy_check_result",
+          "assumptions"
+        ],
+        "properties": {
+          "reduction_type_valid": {
+            "const": true
+          },
+          "toy_check_result": {
+            "const": "pass"
+          },
+          "assumptions": {
+            "not": {
+              "contains": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "pending_verification",
+                      "violated"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "properties": {
+              "reduction_type_valid": {
+                "const": true
+              }
+            },
+            "required": [
+              "reduction_type_valid"
+            ]
+          },
+          {
+            "properties": {
+              "toy_check_result": {
+                "enum": [
+                  "pass",
+                  "skipped"
+                ]
+              }
+            },
+            "required": [
+              "toy_check_result"
+            ]
+          },
+          {
+            "properties": {
+              "assumptions": {
+                "not": {
+                  "contains": {
+                    "properties": {
+                      "status": {
+                        "const": "violated"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  }
+                }
+              }
+            },
+            "required": [
+              "assumptions"
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "properties": {
+                  "assumptions": {
+                    "contains": {
+                      "properties": {
+                        "status": {
+                          "const": "pending_verification"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "assumptions"
+                ]
+              },
+              {
+                "properties": {
+                  "toy_check_result": {
+                    "const": "skipped"
+                  }
+                },
+                "required": [
+                  "toy_check_result"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "enum": [
+              "partial"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

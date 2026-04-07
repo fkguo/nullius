@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "node_list_result_v1.schema.json",
+  "title": "NodeListResult v1",
+  "description": "Result of node.list (paginated).",
+  "type": "object",
+  "required": ["campaign_id", "nodes", "cursor", "total_count"],
+  "properties": {
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "nodes": { "type": "array", "items": { "$ref": "./idea_node_v1.schema.json" } },
+    "cursor": {
+      "type": ["string", "null"],
+      "description": "Opaque pagination cursor. null if no more results."
+    },
+    "total_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of nodes matching the filter at the time this page is generated. May differ across pages if the underlying set changes; callers MUST paginate until cursor is null."
+    }
+  },
+  "additionalProperties": false
+}

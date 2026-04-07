@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_selection_v1.schema.json",
+  "title": "IdeaSelection v1",
+  "description": "SSOT artifact: final selection/promote/defer/reject decisions with rationale and references to ranking/eval artifacts.",
+  "$comment": "Stub schema (v0.2): selection can be human-in-the-loop; keep decisions + rationale auditable and campaign-scoped.",
+  "type": "object",
+  "required": ["campaign_id", "created_at", "selected_node_ids", "rejected_node_ids"],
+  "properties": {
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "ranking_artifact_ref": { "type": "string", "format": "uri" },
+    "scorecards_artifact_ref": { "type": "string", "format": "uri" },
+    "novelty_report_artifact_ref": { "type": "string", "format": "uri" },
+    "selected_node_ids": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" },
+      "description": "May be empty if all candidates were rejected/deferred."
+    },
+    "rejected_node_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+    "deferred_node_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+    "selection_rationale": { "type": "string" },
+    "extensions": { "type": "object", "additionalProperties": true }
+  },
+  "anyOf": [
+    { "required": ["selected_node_ids"], "properties": { "selected_node_ids": { "minItems": 1 } } },
+    { "required": ["rejected_node_ids"], "properties": { "rejected_node_ids": { "minItems": 1 } } },
+    { "required": ["deferred_node_ids"], "properties": { "deferred_node_ids": { "minItems": 1 } } }
+  ],
+  "additionalProperties": false
+}

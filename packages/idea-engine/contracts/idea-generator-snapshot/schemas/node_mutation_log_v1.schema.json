@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "node_mutation_log_v1.schema.json",
+  "title": "NodeMutationLog v1",
+  "description": "Mutation changelog for in-place IdeaNode updates within a search step (audit-first, bounded).",
+  "$comment": "Stub schema (v0.2): intended to back updated_nodes_artifact_ref in SearchStepResult. Keep it small and append-only; consumers should treat it as a hint for what to refetch and as an audit record of mutations.",
+  "type": "object",
+  "required": ["campaign_id", "step_id", "generated_at", "mutations"],
+  "properties": {
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "step_id": { "type": "string", "format": "uuid" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "mutations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["node_id", "before_revision", "after_revision", "mutated_fields", "timestamp"],
+        "properties": {
+          "node_id": { "type": "string", "format": "uuid" },
+          "before_revision": { "type": "integer", "minimum": 1 },
+          "after_revision": { "type": "integer", "minimum": 1 },
+          "mutated_fields": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Field paths that changed (e.g., idea_card, eval_info, grounding_audit, updated_at)."
+          },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "notes": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": false
+}

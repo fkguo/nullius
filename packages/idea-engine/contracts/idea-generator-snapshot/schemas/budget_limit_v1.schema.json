@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "budget_limit_v1.schema.json",
+  "title": "BudgetLimit v1",
+  "description": "Optional local budget limit (fuse) for a single operation. Any omitted field is treated as unbounded for that dimension. At least one field must be provided.",
+  "type": "object",
+  "minProperties": 1,
+  "properties": {
+    "max_tokens": { "type": "integer", "minimum": 1 },
+    "max_cost_usd": { "type": "number", "minimum": 0 },
+    "max_wall_clock_s": { "type": "number", "minimum": 0 },
+    "max_steps": { "type": "integer", "minimum": 1 },
+    "max_nodes": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

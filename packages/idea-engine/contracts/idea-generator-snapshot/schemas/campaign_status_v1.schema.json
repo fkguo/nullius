@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "campaign_status_v1.schema.json",
+  "title": "CampaignStatus v1",
+  "description": "Campaign status returned by the engine. Must expose island states and budget for observability.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "status",
+    "budget_snapshot",
+    "island_states"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "status": {
+      "enum": [
+        "running",
+        "paused",
+        "early_stopped",
+        "exhausted",
+        "completed"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "early_stop_reason": {
+      "type": "string",
+      "description": "Optional machine-readable reason when status=early_stopped (policy halt rather than budget exhaustion)."
+    },
+    "budget_snapshot": {
+      "$ref": "./budget_snapshot_v1.schema.json"
+    },
+    "distributor_policy_config_ref": {
+      "type": "string",
+      "format": "uri",
+      "description": "Artifact ref to the immutable distributor_policy_config_v1.json for this campaign (if Distributor is enabled)."
+    },
+    "island_states": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "./island_state_v1.schema.json"
+      }
+    },
+    "node_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_step_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "early_stopped"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "early_stop_reason"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

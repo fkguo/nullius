@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
 import { resolve } from 'path';
-import { fileURLToPath } from 'url';
 import { IdeaEngineRpcService, handleJsonRpcRequest } from '@autoresearch/idea-engine';
 import { internalError } from '@autoresearch/shared';
 import { mapRpcError } from './rpc-error-mapping.js';
@@ -8,8 +7,6 @@ import { mapRpcError } from './rpc-error-mapping.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-
-const DEFAULT_IDEA_ENGINE_ROOT = fileURLToPath(new URL('../../idea-engine/runs', import.meta.url));
 
 export interface IdeaRpcClientOptions {
   contractDir?: string;
@@ -25,7 +22,10 @@ export class IdeaRpcClient {
   private readonly ideaEngine: IdeaEngineRpcService;
 
   constructor(opts: IdeaRpcClientOptions) {
-    const rootDir = opts.rootDir ?? DEFAULT_IDEA_ENGINE_ROOT;
+    const rootDir = opts.rootDir?.trim();
+    if (!rootDir) {
+      throw new Error('IdeaRpcClient requires explicit rootDir; repo-local defaults are forbidden');
+    }
     this.ideaEngine = new IdeaEngineRpcService({
       contractDir: opts.contractDir,
       rootDir: resolve(rootDir),

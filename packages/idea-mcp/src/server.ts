@@ -18,6 +18,13 @@ import { IDEA_TOOLS } from './tool-registry.js';
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
+const IDEA_MCP_REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
+
+function isWithinRepoRoot(targetPath: string, repoRoot: string = IDEA_MCP_REPO_ROOT): boolean {
+  const relative = path.relative(repoRoot, targetPath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 export function assertNoLegacyIdeaEnv(env: NodeJS.ProcessEnv = process.env): void {
   const legacyEnvNames = ['IDEA_MCP_BACKEND', 'IDEA_CORE_PATH'].filter((name) => {
     const value = env[name];
@@ -30,9 +37,19 @@ export function assertNoLegacyIdeaEnv(env: NodeJS.ProcessEnv = process.env): voi
 }
 
 export function resolveIdeaDataDir(env: NodeJS.ProcessEnv = process.env): string {
-  const envPath = env.IDEA_MCP_DATA_DIR;
-  if (envPath) return path.resolve(envPath);
-  return path.resolve(import.meta.dirname, '../../idea-engine/runs');
+  const envPath = env.IDEA_MCP_DATA_DIR?.trim();
+  if (!envPath) {
+    throw new Error(
+      'idea-mcp requires IDEA_MCP_DATA_DIR; repo-local default data roots are forbidden',
+    );
+  }
+  const resolved = path.resolve(envPath);
+  if (isWithinRepoRoot(resolved)) {
+    throw new Error(
+      `idea-mcp requires IDEA_MCP_DATA_DIR outside the dev repo: ${IDEA_MCP_REPO_ROOT}`,
+    );
+  }
+  return resolved;
 }
 
 function resolveIdeaContractDir(env: NodeJS.ProcessEnv = process.env): string | undefined {

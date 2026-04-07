@@ -52,6 +52,15 @@ class TestAgentRegistry(unittest.TestCase):
             validator.validate(payload)
             loaded["validate_agent_card"](payload)
             discovered_ids.add(str(payload["agent_id"]))
+            if payload["agent_id"] == "idea-engine":
+                self.assertEqual(
+                    payload["input_contracts"][0]["source_path"],
+                    "packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json",
+                )
+                self.assertEqual(
+                    payload["output_contracts"][0]["source_path"],
+                    "packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json",
+                )
 
         self.assertEqual(discovered_ids, {"hep-mcp", "idea-engine"})
 

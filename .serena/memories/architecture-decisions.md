@@ -166,6 +166,15 @@
 
 **Why**: Leaving a public support-command bundle on the legacy shell recreates a second operator/public front door even when lifecycle and computation have already moved to the generic TS control plane.
 
+### [2026-04-07] Idea-engine discovery/runtime authority invariant: TS public host must not point back to legacy package paths
+
+**Decision**:
+- Once installable `idea-mcp` is TS-host-only, checked-in `idea-engine` discovery cards must point to TS-owned contract snapshots under `packages/idea-engine/**`, not `packages/idea-core/**`.
+- `idea-mcp` and `IdeaRpcClient` must require an explicit data root and must fail closed rather than defaulting to repo-local `packages/idea-engine/runs`.
+- Default runtime contract and builtin pack assets consumed by the live TS `idea-engine` path must live under package-local TS-owned paths, not legacy Python package paths.
+
+**Why**: Leaving discovery contracts or runtime default assets under `idea-core` or repo-local default run roots preserves hidden fallback authority even after TS hosting became the only public idea surface, and it violates the dev-repo boundary for real runtime state.
+
 ### [2026-03-21] Pipeline A lifecycle invariant: `hep-autoresearch` and `hepar` move together
 
 **Decision**:

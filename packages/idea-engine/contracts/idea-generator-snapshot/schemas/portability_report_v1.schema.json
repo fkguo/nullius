@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "portability_report_v1.schema.json",
+  "title": "PortabilityReport v1",
+  "description": "Portability audit report for path safety and toolchain reproducibility.",
+  "type": "object",
+  "required": [
+    "generated_at",
+    "scope",
+    "non_citation_required",
+    "project_root",
+    "absolute_path_hits",
+    "netloc_file_uri_hits",
+    "runner_checksums",
+    "tool_versions",
+    "portable"
+  ],
+  "properties": {
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "enum": [
+        "ecosystem_validation",
+        "preliminary_physics",
+        "publication_ready"
+      ]
+    },
+    "non_citation_required": {
+      "type": "boolean"
+    },
+    "project_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "absolute_path_hits": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "netloc_file_uri_hits": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^file://[^/]+/"
+      }
+    },
+    "runner_checksums": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "executable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "tool_versions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "repo_url",
+          "commit_sha",
+          "dirty"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repo_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "commit_sha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "dirty": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "portable": {
+      "type": "boolean"
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "publication_ready"
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "enum": [
+              "ecosystem_validation",
+              "preliminary_physics"
+            ]
+          }
+        },
+        "required": [
+          "scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "non_citation_required": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "portable": {
+            "const": true
+          }
+        },
+        "required": [
+          "portable"
+        ]
+      },
+      "then": {
+        "properties": {
+          "absolute_path_hits": {
+            "maxItems": 0
+          },
+          "netloc_file_uri_hits": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

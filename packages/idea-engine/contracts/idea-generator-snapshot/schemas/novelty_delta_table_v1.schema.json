@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "novelty_delta_table_v1.schema.json",
+  "title": "NoveltyDeltaTable v1",
+  "description": "Structured novelty deltas to avoid mistaking superficial changes for innovation (Referee hard constraint).",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["closest_prior_uris", "delta_types", "delta_statement", "verification_hook"],
+    "properties": {
+      "closest_prior_uris": { "type": "array", "minItems": 1, "items": { "type": "string", "format": "uri" } },
+      "delta_types": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "enum": [
+            "new_mechanism",
+            "new_observable",
+            "new_regime",
+            "new_method",
+            "new_formalism",
+            "new_dataset",
+            "new_constraint"
+          ]
+        }
+      },
+      "delta_statement": { "type": "string", "minLength": 1 },
+      "non_novelty_flags": {
+        "type": "array",
+        "items": {
+          "enum": [
+            "parameter_tuning_only",
+            "relabeling_only",
+            "equivalent_reformulation",
+            "no_new_prediction",
+            "known_components_no_testable_delta"
+          ]
+        }
+      },
+      "verification_hook": { "type": "string", "minLength": 1 }
+    },
+    "additionalProperties": false
+  }
+}

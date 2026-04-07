@@ -5,12 +5,14 @@ import type { BuiltinDomainPackProvider, DomainPackEntry } from './domain-pack-t
 import { buildHepLibrarianRecipeBook } from './hep-librarian-recipe-book.js';
 import { buildHepSearchDomainPackRuntime } from './hep-search-runtime.js';
 
-const HEP_BUILTIN_PACK_CATALOG = resolve(
-  fileURLToPath(new URL('../../../idea-core/src/idea_core/engine/hep_builtin_domain_packs.json', import.meta.url)),
+// Keep the live TS builtin-pack authority package-local to idea-engine rather
+// than inheriting default runtime assets from the legacy Python package.
+export const HEP_BUILTIN_PACK_CATALOG_PATH = resolve(
+  fileURLToPath(new URL('../../assets/hep_builtin_domain_packs.json', import.meta.url)),
 );
 
 function hepBuiltinPackCatalogEntries(): DomainPackEntry[] {
-  const payload = JSON.parse(readFileSync(HEP_BUILTIN_PACK_CATALOG, 'utf8')) as { packs?: DomainPackEntry[] };
+  const payload = JSON.parse(readFileSync(HEP_BUILTIN_PACK_CATALOG_PATH, 'utf8')) as { packs?: DomainPackEntry[] };
   return payload.packs ?? [];
 }
 

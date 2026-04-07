@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "island_state_v1.schema.json",
+  "title": "IslandState v1",
+  "description": "Observable state of a strategy island in the multi-island search policy.",
+  "type": "object",
+  "required": ["island_id", "state", "population_size"],
+  "properties": {
+    "island_id": { "type": "string", "minLength": 1 },
+    "state": { "enum": ["SEEDING", "EXPLORING", "CONVERGING", "STAGNANT", "REPOPULATED", "EXHAUSTED"] },
+    "population_size": { "type": "integer", "minimum": 0 },
+    "team_policy_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the TeamPolicy governing role composition and coordination on this island."
+    },
+    "stagnation_counter": { "type": "integer", "minimum": 0 },
+    "best_score": { "type": ["number", "null"] },
+    "repopulation_count": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}
