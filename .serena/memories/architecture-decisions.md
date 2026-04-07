@@ -480,6 +480,15 @@
 
 **Why**: Once generic lifecycle and computation authority moved to `autoresearch`, even one installable `hepar run --workflow-id ...` survivor would keep the legacy Python shell half-alive as a second workflow front door. The same drift applies to old support/operator verbs: leaving them public would preserve a second Python operator shell after the generic front door had already moved. Clearing the public workflow inventory and the remaining public support inventory, while locking any residual parser paths behind explicit internal-only classification, prevents that drift and keeps the remaining cleanup/delete work honest.
 
+### [2026-04-07] Legacy parser residue contraction invariant: delete wrappers, not underlying authority by accident
+
+**Decision**:
+- Retiring internal full-parser residue must distinguish parser wrappers from lower-level surviving authority. Deleting a legacy shell command is allowed and preferred when the shell itself is the residue, but that delete must not be misread as deleting still-live contracts, schemas, or state semantics underneath.
+- Provider-local diagnostics/bridge wrappers such as `doctor` / `bridge` are delete-first candidates when they do not own generic control-plane authority.
+- Commands that sit on top of still-live lower-level authority (for example run-card validation/normalization, branching state semantics, or revision-status reconciliation) require an explicit wrapper-vs-authority rebaseline before removal; do not keep the wrapper as a fallback, but do not delete the underlying authority blindly either.
+
+**Why**: Delete-first retirement only stays safe if we remove the real residue rather than oscillating between two failure modes: preserving dead shells as fake compatibility authority, or over-deleting the lower-level contracts they happened to call. Making the wrapper/authority distinction explicit keeps the generic-first cleanup aggressive without turning it into accidental contract loss.
+
 ### [2026-04-07] Projection-only mutation guard invariant: delegated approval lists and fleet run lists must not become mutation authority
 
 **Decision**:
