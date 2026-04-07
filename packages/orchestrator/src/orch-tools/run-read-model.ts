@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { invalidParams } from '@autoresearch/shared';
+import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
 import { pauseFilePath, readJson, type ApprovalGateFilter } from './common.js';
@@ -11,6 +12,9 @@ export type VisibleRunStatusFilter =
   | 'running'
   | 'awaiting_approval'
   | 'paused'
+  | 'blocked'
+  | 'needs_recovery'
+  | 'rejected'
   | 'completed'
   | 'failed'
   | 'all';
@@ -26,33 +30,6 @@ export type RunListEntry = {
 };
 
 export type ApprovalEntry = Record<string, unknown>;
-
-function deriveLedgerStatus(
-  eventType: string,
-  details: Record<string, unknown>,
-  previous: string,
-): { status: string; unmappedEvent: string | null } {
-  if (eventType === 'initialized') return { status: 'idle', unmappedEvent: null };
-  if (eventType === 'run_started' || eventType === 'approval_approved' || eventType === 'resumed') {
-    return { status: 'running', unmappedEvent: null };
-  }
-  if (eventType === 'approval_requested') return { status: 'awaiting_approval', unmappedEvent: null };
-  if (eventType === 'approval_rejected' || eventType === 'paused') return { status: 'paused', unmappedEvent: null };
-  if (eventType === 'approval_budget_exhausted') return { status: 'blocked', unmappedEvent: null };
-  if (eventType === 'approval_timeout') {
-    const policyAction = typeof details.policy_action === 'string' ? details.policy_action : '';
-    if (policyAction === 'reject') return { status: 'rejected', unmappedEvent: null };
-    if (policyAction === 'escalate') return { status: 'needs_recovery', unmappedEvent: null };
-    return { status: 'blocked', unmappedEvent: null };
-  }
-  if (eventType.startsWith('status_')) {
-    const status = eventType.slice('status_'.length);
-    return status
-      ? { status, unmappedEvent: null }
-      : { status: previous, unmappedEvent: 'status_(empty)' };
-  }
-  return { status: previous, unmappedEvent: eventType || '(missing event_type)' };
-}
 
 export function buildRunStatusView(projectRoot: string, state: RunState) {
   const paused = fs.existsSync(pauseFilePath(projectRoot));
@@ -111,7 +88,7 @@ export function readRunListView(
       ? event.details as Record<string, unknown>
       : {};
     const previous = runMap.get(runId)?.last_status ?? 'unknown';
-    const { status, unmappedEvent } = deriveLedgerStatus(eventType, details, previous);
+    const { status, unmappedEvent } = deriveLedgerStatusFromOperatorEvent(eventType, details, previous);
     if (unmappedEvent) {
       unmappedEvents.set(unmappedEvent, (unmappedEvents.get(unmappedEvent) ?? 0) + 1);
     }

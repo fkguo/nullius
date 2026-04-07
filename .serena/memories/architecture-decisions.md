@@ -379,3 +379,14 @@
 - Vocabulary unification and operator-facing exposure of that projection remain later `CP-OBJ-01D` work rather than being pulled back into the projection slice itself.
 
 **Why**: Raw `AgentEvent[]` lacked stable per-turn identity for tool-use turns, and the diagnostics bridge had been forced to rescan ad hoc markers after the fact. Landing one source-recorded compact projection seam fixes that specific gap without inventing another durable authority object and without transcript promotion.
+
+### [2026-04-07] Unified operator read-model invariant: one shared interpreter across root/team/runtime, not a new public view object
+
+**Decision**:
+- `CP-OBJ-01D` is now landed around one internal shared interpreter seam, `packages/orchestrator/src/operator-read-model-summary.ts`, which owns bounded operator-facing vocabulary for runtime diagnostics summary, assignment approval attention, assignment -> task lifecycle/status projection, and ledger event -> root run status mapping.
+- Root run read models remain rooted in root authority (`RunState` + `LedgerEvent` + pending approval). The shared interpreter may summarize ledger events, but it does not import team-local state or `runtime_projection` back into root authority.
+- Team scoping/view and runtime diagnostics now reuse the same vocabulary family instead of maintaining parallel local interpreters, but this does not create a new durable control-plane object or widen current public host/team/run payloads.
+- `status_*` ledger events remain an explicitly extensible operator sideband rather than a closed built-in enum, while the visible run-status filter now includes the concrete recovery/rejection states that the shared mapping can intentionally emit (`blocked`, `needs_recovery`, `rejected`).
+- `CP-OBJ-01E` task bridge and `M-22` legacy cleanup remain separate follow-on work; `01D` does not authorize task-object promotion, transcript/job authority, or public view redesign.
+
+**Why**: Once `CP-OBJ-01C` landed the runtime projection seam, the next real drift was interpretive: root run list, team live/background views, and runtime diagnostics were speaking adjacent but non-identical operator languages. Converging them onto one internal interpreter improves operator coherence and type soundness without hardening another authority family or reopening payload/UI debates.

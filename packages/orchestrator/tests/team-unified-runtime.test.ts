@@ -8,6 +8,11 @@ import {
   executeUnifiedTeamRuntime,
   type TeamPermissionMatrix,
 } from '../src/index.js';
+import {
+  assignmentNeedsApprovalAttention,
+  summarizeRuntimeProjectionForOperator,
+  taskProjectionFromAssignmentStatus,
+} from '../src/operator-read-model-summary.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'team-unified-runtime-'));
@@ -72,6 +77,67 @@ const PERMISSIONS: TeamPermissionMatrix = {
     },
   ],
 };
+
+describe('operator read-model summary helper', () => {
+  it('projects runtime diagnostics with one shared status/cause/action vocabulary', () => {
+    expect(summarizeRuntimeProjectionForOperator({
+      version: 1,
+      turn_count: 1,
+      recovery_turn_count: 0,
+      dialogue_turn_count: 1,
+      projected_turns: [],
+      runtime_marker_kinds: [],
+      approval_requested: true,
+      terminal_outcome: {
+        type: 'done',
+        phase: 'dialogue',
+        turn_count: 1,
+        stop_reason: 'approval_required',
+      },
+    })).toEqual({
+      status: 'awaiting_approval',
+      primary_cause: 'approval_required',
+      recommended_action: 'approve_or_reject_and_resume',
+    });
+
+    expect(summarizeRuntimeProjectionForOperator({
+      version: 1,
+      turn_count: 2,
+      recovery_turn_count: 0,
+      dialogue_turn_count: 2,
+      projected_turns: [],
+      runtime_marker_kinds: ['truncation_retry'],
+      approval_requested: false,
+      terminal_outcome: {
+        type: 'done',
+        phase: 'dialogue',
+        turn_count: 2,
+        stop_reason: 'end_turn',
+      },
+    })).toEqual({
+      status: 'degraded',
+      primary_cause: 'truncation',
+      recommended_action: 'compact_or_reduce_context',
+    });
+  });
+
+  it('projects assignment runtime status into task lifecycle/status and approval attention consistently', () => {
+    expect(taskProjectionFromAssignmentStatus('awaiting_approval')).toEqual({
+      task_lifecycle_status: 'running',
+      task_status: 'active',
+    });
+    expect(taskProjectionFromAssignmentStatus('timed_out')).toEqual({
+      task_lifecycle_status: 'failed',
+      task_status: 'blocked',
+    });
+    expect(taskProjectionFromAssignmentStatus('cascade_stopped')).toEqual({
+      task_lifecycle_status: 'killed',
+      task_status: 'cancelled',
+    });
+    expect(assignmentNeedsApprovalAttention('paused', 'awaiting_approval')).toBe(true);
+    expect(assignmentNeedsApprovalAttention('paused', 'running')).toBe(false);
+  });
+});
 
 describe('team unified runtime control paths', () => {
   it('keeps max_turns as non-completed team state', async () => {

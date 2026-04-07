@@ -5,8 +5,8 @@ import {
   delegatedExecutionManifestPath,
 } from './execution-identity.js';
 import {
-  taskLifecycleFromAssignmentStatus,
-} from './team-execution-scoping.js';
+  taskProjectionFromAssignmentStatus,
+} from './operator-read-model-summary.js';
 import type {
   TeamAssignmentStatus,
   TeamCoordinationPolicy,
@@ -14,7 +14,6 @@ import type {
   TeamExecutionState,
   TeamSessionContextKind,
 } from './team-execution-types.js';
-import { projectResearchTaskStatusFromLifecycle } from './research-loop/task-types.js';
 
 export interface TeamAssignmentView {
   assignment_id: string;
@@ -138,7 +137,7 @@ function toBackgroundTaskView(
   state: TeamExecutionState,
   assignment: TeamExecutionState['delegate_assignments'][number],
 ): TeamBackgroundTaskView {
-  const task_lifecycle_status = taskLifecycleFromAssignmentStatus(assignment.status);
+  const taskProjection = taskProjectionFromAssignmentStatus(assignment.status);
   const session = currentSession(state, assignment);
   const execution = buildDelegatedExecutionIdentity({
     project_run_id: state.run_id,
@@ -156,8 +155,8 @@ function toBackgroundTaskView(
     forked_from_session_id: assignment.forked_from_session_id,
     runtime_run_id: execution.runtime_run_id,
     runtime_status: assignment.status,
-    task_lifecycle_status,
-    task_status: projectResearchTaskStatusFromLifecycle(task_lifecycle_status),
+    task_lifecycle_status: taskProjection.task_lifecycle_status,
+    task_status: taskProjection.task_status,
     checkpoint_id: assignment.checkpoint_id,
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,

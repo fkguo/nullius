@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { buildDelegatedExecutionIdentity } from './execution-identity.js';
 import {
-  projectResearchTaskStatusFromLifecycle,
-  type ResearchTaskLifecycleProjection,
-} from './research-loop/task-types.js';
+  assignmentNeedsApprovalAttention,
+  taskProjectionFromAssignmentStatus,
+} from './operator-read-model-summary.js';
 import type {
   TeamAssignmentSession,
-  TeamAssignmentStatus,
   TeamDelegateAssignment,
   TeamExecutionState,
   TeamMcpToolInheritance,
@@ -21,28 +20,6 @@ export function runtimeRunId(runId: string, assignmentId: string): string {
   }).runtime_run_id;
 }
 
-export function taskLifecycleFromAssignmentStatus(
-  status: TeamAssignmentStatus,
-): ResearchTaskLifecycleProjection {
-  switch (status) {
-    case 'pending':
-      return 'pending';
-    case 'running':
-    case 'paused':
-    case 'awaiting_approval':
-    case 'needs_recovery':
-      return 'running';
-    case 'completed':
-      return 'completed';
-    case 'failed':
-    case 'timed_out':
-      return 'failed';
-    case 'cancelled':
-    case 'cascade_stopped':
-      return 'killed';
-  }
-}
-
 function pendingApprovalFromAssignment(
   runId: string,
   assignment: TeamDelegateAssignment,
@@ -50,10 +27,7 @@ function pendingApprovalFromAssignment(
   if (!assignment.approval_id || !assignment.approval_packet_path || !assignment.approval_requested_at) {
     return null;
   }
-  if (
-    assignment.status !== 'awaiting_approval'
-    && !(assignment.status === 'paused' && assignment.paused_from_status === 'awaiting_approval')
-  ) {
+  if (!assignmentNeedsApprovalAttention(assignment.status, assignment.paused_from_status)) {
     return null;
   }
   const execution = buildDelegatedExecutionIdentity({
@@ -72,7 +46,7 @@ function pendingApprovalFromAssignment(
 }
 
 function syntheticSession(assignment: TeamDelegateAssignment, runId: string): TeamAssignmentSession {
-  const lifecycle = taskLifecycleFromAssignmentStatus(assignment.status);
+  const projection = taskProjectionFromAssignmentStatus(assignment.status);
   const execution = buildDelegatedExecutionIdentity({
     project_run_id: runId,
     assignment_id: assignment.assignment_id,
@@ -85,8 +59,8 @@ function syntheticSession(assignment: TeamDelegateAssignment, runId: string): Te
     assignment_id: assignment.assignment_id,
     runtime_run_id: execution.runtime_run_id,
     runtime_status: assignment.status,
-    task_lifecycle_status: lifecycle,
-    task_status: projectResearchTaskStatusFromLifecycle(lifecycle),
+    task_lifecycle_status: projection.task_lifecycle_status,
+    task_status: projection.task_status,
     started_at: assignment.updated_at,
     ended_at: assignment.status === 'running' ? null : assignment.updated_at,
     checkpoint_id: assignment.checkpoint_id,
@@ -180,8 +154,7 @@ export function openAssignmentSession(
     assignment_id: assignment.assignment_id,
     runtime_run_id: execution.runtime_run_id,
     runtime_status: 'running',
-    task_lifecycle_status: 'running',
-    task_status: projectResearchTaskStatusFromLifecycle('running'),
+    ...taskProjectionFromAssignmentStatus('running'),
     started_at: startedAt,
     ended_at: null,
     checkpoint_id: assignment.checkpoint_id,
@@ -207,10 +180,10 @@ export function finalizeAssignmentSession(
   const session = state.sessions.find(item => item.session_id === assignment.session_id);
   if (!session) return null;
   // Callers that have a source-recorded projection attach it after finalize.
-  const lifecycle = taskLifecycleFromAssignmentStatus(assignment.status);
+  const projection = taskProjectionFromAssignmentStatus(assignment.status);
   session.runtime_status = assignment.status;
-  session.task_lifecycle_status = lifecycle;
-  session.task_status = projectResearchTaskStatusFromLifecycle(lifecycle);
+  session.task_lifecycle_status = projection.task_lifecycle_status;
+  session.task_status = projection.task_status;
   session.ended_at = endedAt;
   session.checkpoint_id = assignment.checkpoint_id;
   session.last_completed_step = assignment.last_completed_step;

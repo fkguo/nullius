@@ -11,7 +11,7 @@ import { StateManager, LedgerWriter, ApprovalGate, approvalPacketSha256 } from '
 import type { RunState } from '../src/index.js';
 import { handleOrchPolicyQuery } from '../src/orch-tools/control.js';
 import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
-import { buildRunStatusView, readApprovalsView } from '../src/orch-tools/run-read-model.js';
+import { buildRunStatusView, readApprovalsView, readRunListView } from '../src/orch-tools/run-read-model.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'orch-test-'));
@@ -2027,6 +2027,45 @@ describe('orch approval/query read models', () => {
       session_id: null,
       status: 'pending',
     });
+  });
+
+  it('maps ledger timeout policy actions through the shared operator status vocabulary', () => {
+    const manager = new StateManager(tmpDir);
+    manager.ensureDirs();
+    const ledgerPath = manager.ledgerPath;
+    fs.writeFileSync(ledgerPath, [
+      JSON.stringify({
+        ts: '2026-04-07T00:00:00Z',
+        event_type: 'approval_timeout',
+        run_id: 'run-timeout-escalate',
+        workflow_id: 'runtime',
+        step_id: null,
+        details: { policy_action: 'escalate' },
+      }),
+      JSON.stringify({
+        ts: '2026-04-07T00:00:01Z',
+        event_type: 'approval_timeout',
+        run_id: 'run-timeout-reject',
+        workflow_id: 'runtime',
+        step_id: null,
+        details: { policy_action: 'reject' },
+      }),
+    ].join('\n') + '\n');
+
+    const runList = readRunListView(manager, { limit: 10, status_filter: 'all' });
+    const statusByRun = Object.fromEntries(runList.runs.map(run => [run.run_id, run.last_status]));
+    expect(statusByRun).toMatchObject({
+      'run-timeout-escalate': 'needs_recovery',
+      'run-timeout-reject': 'rejected',
+    });
+    expect(runList.errors).toEqual([]);
+
+    expect(readRunListView(manager, { limit: 10, status_filter: 'needs_recovery' }).runs.map(run => run.run_id)).toEqual([
+      'run-timeout-escalate',
+    ]);
+    expect(readRunListView(manager, { limit: 10, status_filter: 'rejected' }).runs.map(run => run.run_id)).toEqual([
+      'run-timeout-reject',
+    ]);
   });
 });
 
