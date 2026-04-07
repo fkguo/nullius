@@ -6,7 +6,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { FRONT_DOOR_SNIPPETS } from '../../../../scripts/lib/front-door-boundary-authority.mjs';
 import {
+  FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE,
   FRONT_DOOR_AUTHORITY_SURFACE_IDS,
+  INTERNAL_ONLY_FRONT_DOOR_GROUPS,
   getFrontDoorAuthoritySurface,
 } from '../../../../scripts/lib/front-door-authority-map.mjs';
 
@@ -267,6 +269,37 @@ describe('Docs tool drift guard', () => {
       surface_kind: 'exact_doc_inventory',
       exact_inventory_source: 'meta/docs/orchestrator-mcp-tools-spec.md',
     });
+  });
+
+  it('front-door authority JS helpers stay in sync with the JSON authority map', () => {
+    expect(Object.keys(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE)).toEqual(FRONT_DOOR_AUTHORITY_SURFACE_IDS);
+
+    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.autoresearch_cli).toMatchObject({
+      surface: 'autoresearch_cli',
+      classification: getFrontDoorAuthoritySurface('autoresearch_cli').classification,
+      owner: getFrontDoorAuthoritySurface('autoresearch_cli').owner,
+      relPath: getFrontDoorAuthoritySurface('autoresearch_cli').exact_inventory_source,
+    });
+    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.hepar_public_shell).toMatchObject({
+      surface: 'hepar_public_shell',
+      classification: getFrontDoorAuthoritySurface('hepar_public_shell').classification,
+      owner: getFrontDoorAuthoritySurface('hepar_public_shell').owner,
+      relPath: getFrontDoorAuthoritySurface('hepar_public_shell').exact_inventory_source,
+    });
+    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.orchestrator_mcp_tools_spec).toMatchObject({
+      surface: 'orchestrator_mcp_tools_spec',
+      classification: getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').classification,
+      owner: getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').owner,
+      relPath: getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').exact_inventory_source,
+    });
+
+    const normalizedInternalGroups = INTERNAL_ONLY_FRONT_DOOR_GROUPS.map(entry => ({
+      group: entry.group,
+      commands: entry.commands.map(command => command.command),
+    }));
+    expect(normalizedInternalGroups).toEqual(
+      getFrontDoorAuthoritySurface('hepar_internal_full_parser').command_groups,
+    );
   });
 
   it('README tool counts match the built-in tool registry', async () => {

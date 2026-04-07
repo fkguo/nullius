@@ -176,7 +176,7 @@ class TestPublicCliSurface(unittest.TestCase):
         )
         self.assertEqual(
             groups["legacy_lifecycle_adapters"],
-            ["init", "status", "pause", "resume", "approve"],
+            ["init", "status", "pause", "resume", "approve", "export"],
         )
         self.assertEqual(
             groups["internal_support_commands"],

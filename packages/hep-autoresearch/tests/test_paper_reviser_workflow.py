@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 def _src_root() -> Path:
@@ -551,3 +552,104 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             draft_txt_3 = draft_path.read_text(encoding="utf-8", errors="replace")
             self.assertIn("% context applied", draft_txt_3)
             self.assertTrue((run_root / "apply" / "draft.diff").exists())
+
+    def test_public_wrapper_fails_closed_on_structured_paper_reviser_errors(self) -> None:
+        import sys
+        from contextlib import redirect_stderr, redirect_stdout
+        from io import StringIO
+
+        sys.path.insert(0, str(_src_root()))
+        from hep_autoresearch import orchestrator_cli
+        from hep_autoresearch.cli import main as public_cli_main
+        from hep_autoresearch.orchestrator_cli import main as internal_cli_main
+
+        def run_cli(argv: list[str], *, public: bool) -> tuple[int, str, str]:
+            argv0 = list(sys.argv)
+            try:
+                sys.argv = list(argv)
+                buf_out, buf_err = StringIO(), StringIO()
+                with redirect_stdout(buf_out), redirect_stderr(buf_err):
+                    entrypoint = public_cli_main if public else internal_cli_main
+                    rc = int(entrypoint())
+                return rc, buf_out.getvalue(), buf_err.getvalue()
+            finally:
+                sys.argv = argv0
+
+        with tempfile.TemporaryDirectory() as td:
+            repo_root = Path(td)
+            rc_init, _, _ = run_cli(["hepar", "--project-root", str(repo_root), "init"], public=False)
+            self.assertEqual(rc_init, 0)
+
+            paper_dir = repo_root / "paper"
+            paper_dir.mkdir(parents=True, exist_ok=True)
+            (paper_dir / "main.tex").write_text(
+                "\\documentclass{article}\n"
+                "\\begin{document}\n"
+                "Hello world.\n"
+                "\\end{document}\n",
+                encoding="utf-8",
+            )
+
+            run_id = "M1-test-paper-reviser-fail"
+
+            def _failing_paper_reviser(*_args, **_kwargs):
+                run_root = repo_root / "artifacts" / "runs" / run_id / "paper_reviser"
+                run_root.mkdir(parents=True, exist_ok=True)
+                analysis_path = run_root / "analysis.json"
+                analysis_path.write_text(
+                    json.dumps(
+                        {
+                            "results": {
+                                "status": "failed",
+                                "ok": False,
+                                "errors": ["stub failure"],
+                            }
+                        },
+                        indent=2,
+                        sort_keys=True,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                return {
+                    "errors": ["stub failure"],
+                    "artifact_paths": {
+                        "analysis": str(analysis_path.relative_to(repo_root)),
+                    },
+                }
+
+            argv = [
+                "hepar",
+                "--project-root",
+                str(repo_root),
+                "run",
+                "--run-id",
+                run_id,
+                "--workflow-id",
+                "paper_reviser",
+                "--paper-reviser-mode",
+                "stub-models",
+                "--writer-backend",
+                "claude",
+                "--writer-model",
+                "stub",
+                "--auditor-backend",
+                "gemini",
+                "--auditor-model",
+                "stub",
+                "--evidence-synth-backend",
+                "stub",
+                "--evidence-synth-model",
+                "stub",
+            ]
+
+            with patch.object(orchestrator_cli, "paper_reviser_one", side_effect=_failing_paper_reviser):
+                rc, _, err = run_cli(argv, public=True)
+
+            self.assertEqual(rc, 2)
+            self.assertNotIn("allow_errors", err)
+            self.assertNotIn("AttributeError", err)
+
+            state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(state.get("run_status"), "failed")
+            self.assertIn("completed with errors", str(state.get("notes") or ""))

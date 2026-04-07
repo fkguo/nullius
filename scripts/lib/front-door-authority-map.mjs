@@ -72,19 +72,30 @@ export const HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN = HEPAR_PUBLIC_SHELL_COMMANDS
 
 export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
   Object.freeze({
-    family: 'legacy_lifecycle_passthrough',
+    group: 'legacy_lifecycle_adapters',
     owner: 'installable Python shell keeps only thin passthroughs to canonical autoresearch lifecycle',
     commands: freezeCommands(['init', 'status', 'pause', 'resume', 'approve', 'export']),
   }),
   Object.freeze({
-    family: 'direct_python_mutation_residue',
-    owner: 'internal full parser retains direct local mutation helpers pending deletion or parity',
-    commands: freezeCommands(['start', 'checkpoint', 'request-approval', 'reject']),
+    group: 'internal_support_commands',
+    owner: 'internal full parser only; maintainer/eval/regression compatibility surface',
+    commands: freezeCommands(['start', 'checkpoint', 'request-approval', 'reject', 'doctor', 'bridge', 'literature-gap']),
   }),
   Object.freeze({
-    family: 'diagnostics_and_bridge_residue',
-    owner: 'internal full parser only; maintainer/eval/regression compatibility surface',
-    commands: freezeCommands(['doctor', 'bridge', 'literature-gap']),
+    group: 'internal_workflow_paths',
+    owner: 'internal full parser only; non-public workflow residue retained for maintainer/eval/regression coverage',
+    commands: freezeCommands([
+      'run --workflow-id computation',
+      'run --workflow-id ingest',
+      'run --workflow-id reproduce',
+      'run --workflow-id revision',
+      'run --workflow-id literature_survey_polish',
+    ]),
+  }),
+  Object.freeze({
+    group: 'internal_adapter_workflow_paths',
+    owner: 'internal full parser only; adapter workflow retained for maintainer/eval/regression coverage',
+    commands: freezeCommands(['run --workflow-id shell_adapter_smoke']),
   }),
 ]);
 
@@ -101,7 +112,7 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
     surface: 'hepar_public_shell',
     classification: 'compatibility_public',
     owner: 'packages/hep-autoresearch',
-    relPath: HEPAR_PUBLIC_SHELL_REL_PATH,
+    relPath: `${HEPAR_PUBLIC_SHELL_REL_PATH}#PUBLIC_SHELL_COMMANDS`,
     exactInventoryKind: 'python_public_shell_tuple',
     commands: freezeCommands(HEPAR_PUBLIC_SHELL_COMMANDS),
   }),
@@ -109,14 +120,14 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
     surface: 'hepar_internal_full_parser',
     classification: 'internal_only',
     owner: 'packages/hep-autoresearch',
-    relPath: HEPAR_PUBLIC_SHELL_REL_PATH,
+    relPath: `${HEPAR_PUBLIC_SHELL_REL_PATH}#main(public_surface=False)`,
     exactInventoryKind: 'group_classification_only',
     groups: INTERNAL_ONLY_FRONT_DOOR_GROUPS,
   }),
   Object.freeze({
-    surface: 'orch_mcp_exact_spec',
+    surface: 'orchestrator_mcp_tools_spec',
     classification: 'canonical_public',
-    owner: '@autoresearch/orchestrator',
+    owner: '@autoresearch/hep-mcp',
     relPath: ORCH_EXACT_SPEC_REL_PATH,
     exactInventoryKind: 'exact_spec_doc',
     toolPrefix: 'orch_',

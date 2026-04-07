@@ -3491,7 +3491,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     st.setdefault("checkpoints", {})["last_checkpoint_at"] = _now_z()
 
     errors = res.get("errors") or []
-    if errors and not args.allow_errors:
+    allow_errors = bool(getattr(args, "allow_errors", False))
+    if errors and not allow_errors:
         cur = st.get("current_step") if isinstance(st.get("current_step"), dict) else {}
         _sync_plan_terminal(
             repo_root,
