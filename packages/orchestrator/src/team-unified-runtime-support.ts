@@ -213,6 +213,8 @@ export function snapshotResult(
   manager: TeamExecutionStateManager,
   assignment: TeamExecutionState['delegate_assignments'][number],
 ): TeamAssignmentExecutionResult {
+  // Snapshot paths reuse deterministic identity derivation because they can be
+  // reached without producing a fresh launch handle in this invocation.
   const execution = buildDelegatedExecutionIdentity({
     project_run_id: baseRunId,
     assignment_id: assignment.assignment_id,

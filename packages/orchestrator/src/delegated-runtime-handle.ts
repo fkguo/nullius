@@ -34,6 +34,8 @@ export function delegatedRuntimeDiagnosticsBridgePath(
   return path.posix.join('artifacts', 'runs', identity.runtime_run_id, 'runtime_diagnostics_bridge_v1.json');
 }
 
+// This is the single artifact-ref seam shared by both handle construction and
+// the direct runtime fallback path, so path coherence stays structural.
 export function delegatedRuntimeArtifactRefs(identity: Pick<DelegatedExecutionIdentity, 'runtime_run_id'>): DelegatedRuntimeHandleV1['artifacts'] {
   return {
     manifest_path: delegatedExecutionManifestPath(identity),

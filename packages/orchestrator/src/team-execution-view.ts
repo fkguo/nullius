@@ -102,6 +102,8 @@ function toAssignmentView(
   assignment: TeamExecutionState['delegate_assignments'][number],
 ): TeamAssignmentView {
   const session = currentSession(state, assignment);
+  // The public view layer stays decoupled from DelegatedRuntimeHandleV1 and
+  // recomputes stable identity/path refs from canonical run + assignment ids.
   const execution = buildDelegatedExecutionIdentity({
     project_run_id: state.run_id,
     assignment_id: assignment.assignment_id,
@@ -141,6 +143,8 @@ function toBackgroundTaskView(
 ): TeamBackgroundTaskView {
   const taskProjection = taskProjectionFromAssignmentStatus(assignment.status);
   const session = currentSession(state, assignment);
+  // Background-task projection follows the same no-handle rule as the rest of
+  // the public view surface.
   const execution = buildDelegatedExecutionIdentity({
     project_run_id: state.run_id,
     assignment_id: assignment.assignment_id,
