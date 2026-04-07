@@ -238,6 +238,13 @@ describe('team unified runtime control paths', () => {
         runtime_status: 'awaiting_approval',
         task_lifecycle_status: 'running',
         task_status: 'active',
+        runtime_projection: {
+          approval_requested: true,
+          terminal_outcome: {
+            type: 'done',
+            stop_reason: 'approval_required',
+          },
+        },
       });
       const firstSessionId = first.team_state.sessions[0]!.session_id;
       expect(first.live_status.pending_approvals[0]).toMatchObject({
@@ -299,6 +306,13 @@ describe('team unified runtime control paths', () => {
         runtime_status: 'completed',
         task_lifecycle_status: 'completed',
         task_status: 'completed',
+        runtime_projection: {
+          recovery_turn_count: 1,
+          terminal_outcome: {
+            type: 'done',
+            stop_reason: 'end_turn',
+          },
+        },
       });
       expect(resumed.live_status.pending_approvals).toEqual([]);
       expect(resumed.live_status.background_tasks[0]).toMatchObject({

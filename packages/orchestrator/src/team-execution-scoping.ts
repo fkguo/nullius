@@ -92,6 +92,7 @@ function syntheticSession(assignment: TeamDelegateAssignment, runId: string): Te
     checkpoint_id: assignment.checkpoint_id,
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,
+    runtime_projection: null,
     forked_from_assignment_id: assignment.forked_from_assignment_id,
     forked_from_session_id: assignment.forked_from_session_id,
   };
@@ -135,6 +136,9 @@ export function normalizeTeamScopingState(state: TeamExecutionState, runId: stri
   }
   const assignmentIds = new Set(state.delegate_assignments.map(item => item.assignment_id));
   state.sessions = state.sessions.filter(session => assignmentIds.has(session.assignment_id));
+  for (const session of state.sessions) {
+    session.runtime_projection ??= null;
+  }
   for (const assignment of state.delegate_assignments) {
     if (!assignment.session_id) continue;
     if (state.sessions.some(session => session.session_id === assignment.session_id)) continue;
@@ -183,6 +187,7 @@ export function openAssignmentSession(
     checkpoint_id: assignment.checkpoint_id,
     last_completed_step: assignment.last_completed_step,
     resume_from: resumeFrom,
+    runtime_projection: null,
     forked_from_assignment_id: assignment.forked_from_assignment_id,
     forked_from_session_id: assignment.forked_from_session_id,
   };
@@ -201,6 +206,7 @@ export function finalizeAssignmentSession(
   if (!assignment.session_id) return null;
   const session = state.sessions.find(item => item.session_id === assignment.session_id);
   if (!session) return null;
+  // Callers that have a source-recorded projection attach it after finalize.
   const lifecycle = taskLifecycleFromAssignmentStatus(assignment.status);
   session.runtime_status = assignment.status;
   session.task_lifecycle_status = lifecycle;

@@ -78,6 +78,28 @@ describe('executeDelegatedAgentRuntime', () => {
       expect(result.resumed).toBe(false);
       expect(result.skipped_step_ids).toEqual([]);
       expect(result.last_completed_step).toBe('tu_live');
+      expect(result.runtime_projection).toMatchObject({
+        turn_count: 2,
+        projected_turns: [
+          {
+            phase: 'dialogue',
+            turn_count: 1,
+            tool_call_count: 1,
+            text_count: 0,
+          },
+          {
+            phase: 'dialogue',
+            turn_count: 2,
+            tool_call_count: 0,
+            text_count: 1,
+            terminal_outcome: {
+              type: 'done',
+              turn_count: 2,
+              stop_reason: 'end_turn',
+            },
+          },
+        ],
+      });
       expect(result.manifest?.checkpoints[0]).toMatchObject({ step_id: 'tu_live', result_summary: 'tool-result' });
       expect(fs.existsSync(path.join(projectRoot, result.manifest_path))).toBe(true);
       expect(fs.existsSync(path.join(projectRoot, result.runtime_diagnostics_bridge_path))).toBe(true);
@@ -145,6 +167,29 @@ describe('executeDelegatedAgentRuntime', () => {
         result: 'cached-result',
       });
       expect(resumed.events.find(event => event.type === 'text')).toMatchObject({ type: 'text', text: 'resumed' });
+      expect(resumed.runtime_projection).toMatchObject({
+        turn_count: 1,
+        recovery_turn_count: 1,
+        dialogue_turn_count: 1,
+        projected_turns: [
+          {
+            phase: 'recovery',
+            turn_count: 0,
+            tool_call_count: 1,
+            text_count: 0,
+          },
+          {
+            phase: 'dialogue',
+            turn_count: 1,
+            text_count: 1,
+            terminal_outcome: {
+              type: 'done',
+              turn_count: 1,
+              stop_reason: 'end_turn',
+            },
+          },
+        ],
+      });
       expect(resumedClient.callTool).not.toHaveBeenCalled();
       expect(resumed.last_completed_step).toBe('tu_resume');
       const diagnostics = JSON.parse(
@@ -188,6 +233,28 @@ describe('executeDelegatedAgentRuntime', () => {
         detail: expect.objectContaining({ attempt: 1 }),
       }));
       expect(result.events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 2 });
+      expect(result.runtime_projection).toMatchObject({
+        turn_count: 2,
+        runtime_marker_kinds: ['truncation_retry'],
+        projected_turns: [
+          {
+            phase: 'dialogue',
+            turn_count: 1,
+            text_count: 1,
+            runtime_marker_kinds: ['truncation_retry'],
+          },
+          {
+            phase: 'dialogue',
+            turn_count: 2,
+            text_count: 1,
+            terminal_outcome: {
+              type: 'done',
+              turn_count: 2,
+              stop_reason: 'end_turn',
+            },
+          },
+        ],
+      });
       expect(result.runtime_diagnostics_summary).toEqual({
         status: 'degraded',
         primary_cause: 'truncation',
@@ -196,10 +263,19 @@ describe('executeDelegatedAgentRuntime', () => {
       const diagnostics = JSON.parse(
         fs.readFileSync(path.join(projectRoot, result.runtime_diagnostics_bridge_path), 'utf-8'),
       ) as {
-        evidence: { spans: { path: string; exists: boolean }; terminal_event: { stop_reason?: string } | null };
+        evidence: {
+          spans: { path: string; exists: boolean };
+          terminal_event: { stop_reason?: string; turn_count?: number; phase?: string } | null;
+          runtime_markers: Array<{ phase: string; kind: string; turn_count: number }>;
+        };
       };
       expect(diagnostics.evidence.spans.path).toBe(result.spans_path);
       expect(diagnostics.evidence.spans.exists).toBe(false);
+      expect(diagnostics.evidence.runtime_markers).toMatchObject([
+        { phase: 'dialogue', kind: 'truncation_retry', turn_count: 1 },
+      ]);
+      expect(diagnostics.evidence.terminal_event?.phase).toBe('dialogue');
+      expect(diagnostics.evidence.terminal_event?.turn_count).toBe(2);
       expect(diagnostics.evidence.terminal_event?.stop_reason).toBe('end_turn');
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });

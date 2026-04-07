@@ -89,6 +89,34 @@ describe('AgentRunner', () => {
     expect(events).toHaveLength(2);
     expect(events[0]).toEqual({ type: 'text', text: 'Hello world' });
     expect(events[1]).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 1 });
+    expect(runner.runtimeProjection).toEqual({
+      version: 1,
+      turn_count: 1,
+      recovery_turn_count: 0,
+      dialogue_turn_count: 1,
+      projected_turns: [{
+        phase: 'dialogue',
+        turn_count: 1,
+        text_count: 1,
+        tool_call_count: 0,
+        runtime_marker_kinds: [],
+        approval_requested: false,
+        terminal_outcome: {
+          type: 'done',
+          phase: 'dialogue',
+          turn_count: 1,
+          stop_reason: 'end_turn',
+        },
+      }],
+      runtime_marker_kinds: [],
+      approval_requested: false,
+      terminal_outcome: {
+        type: 'done',
+        phase: 'dialogue',
+        turn_count: 1,
+        stop_reason: 'end_turn',
+      },
+    });
   });
 
   it('multi-turn: tool call followed by final text response', async () => {
@@ -117,6 +145,31 @@ describe('AgentRunner', () => {
 
     const doneEvt = events.find((e) => e.type === 'done');
     expect(doneEvt).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 2 });
+    expect(runner.runtimeProjection?.projected_turns).toMatchObject([
+      {
+        phase: 'dialogue',
+        turn_count: 1,
+        text_count: 0,
+        tool_call_count: 1,
+        runtime_marker_kinds: [],
+        approval_requested: false,
+        terminal_outcome: null,
+      },
+      {
+        phase: 'dialogue',
+        turn_count: 2,
+        text_count: 1,
+        tool_call_count: 0,
+        runtime_marker_kinds: [],
+        approval_requested: false,
+        terminal_outcome: {
+          type: 'done',
+          phase: 'dialogue',
+          turn_count: 2,
+          stop_reason: 'end_turn',
+        },
+      },
+    ]);
 
     expect(createFn).toHaveBeenCalledTimes(2);
   });
@@ -635,6 +688,32 @@ describe('AgentRunner', () => {
     expect(aprEvt).toMatchObject({ type: 'approval_required', approvalId: 'apr_rec', packetPath: '/rec.json' });
     const doneEvt = events.find((e) => e.type === 'done');
     expect(doneEvt).toMatchObject({ type: 'done', stopReason: 'approval_required' });
+    expect(runner.runtimeProjection).toMatchObject({
+      recovery_turn_count: 1,
+      dialogue_turn_count: 0,
+      approval_requested: true,
+      terminal_outcome: {
+        type: 'done',
+        phase: 'recovery',
+        turn_count: 0,
+        stop_reason: 'approval_required',
+      },
+      projected_turns: [
+        {
+          phase: 'recovery',
+          turn_count: 0,
+          tool_call_count: 1,
+          text_count: 0,
+          approval_requested: true,
+          terminal_outcome: {
+            type: 'done',
+            phase: 'recovery',
+            turn_count: 0,
+            stop_reason: 'approval_required',
+          },
+        },
+      ],
+    });
     expect(createFn).not.toHaveBeenCalled();
   });
 

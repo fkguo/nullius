@@ -54,6 +54,7 @@ describe('orch_run_execute_agent team control-plane views', () => {
     expect(payload).not.toHaveProperty('runtime_diagnostics_summary');
     expect(payload.assignment_results[0]).not.toHaveProperty('runtime_diagnostics_bridge_path');
     expect(payload.assignment_results[0]).not.toHaveProperty('runtime_diagnostics_summary');
+    expect(payload.assignment_results[0]).not.toHaveProperty('runtime_projection');
   });
 
   it('surfaces timed-out lifecycle fields through the live team control-plane view without launching the expired assignment', async () => {
@@ -229,5 +230,7 @@ describe('orch_run_execute_agent team control-plane views', () => {
       task_lifecycle_status: 'running',
       task_status: 'active',
     });
+    expect(payload.live_status.active_assignments[0]).not.toHaveProperty('runtime_projection');
+    expect(payload.live_status.background_tasks[0]).not.toHaveProperty('runtime_projection');
   });
 });

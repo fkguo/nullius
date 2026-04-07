@@ -474,6 +474,9 @@ describe('orch_run_execute_agent team bridge', () => {
       runtime_status: 'awaiting_approval',
       task_lifecycle_status: 'running',
       task_status: 'active',
+      runtime_projection: {
+        approval_requested: true,
+      },
     });
 
     const resumedCallTool = vi.fn(async () => ({ content: [{ type: 'text', text: 'should-not-run' }], isError: false }));
@@ -524,6 +527,9 @@ describe('orch_run_execute_agent team bridge', () => {
     expect(resumed.team_state.sessions.at(-1)).toMatchObject({
       parent_session_id: first.team_state.sessions[0]?.session_id ?? null,
       task_status: 'completed',
+      runtime_projection: {
+        recovery_turn_count: 1,
+      },
     });
     expect(resumedCallTool).not.toHaveBeenCalled();
   });

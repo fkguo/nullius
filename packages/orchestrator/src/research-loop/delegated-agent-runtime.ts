@@ -15,6 +15,7 @@ import {
 } from '../runtime-diagnostics-bridge.js';
 import type { SpanCollector } from '../tracing.js';
 import { delegatedExecutionManifestPath } from '../execution-identity.js';
+import type { DelegatedRuntimeProjectionV1 } from './delegated-runtime-projection.js';
 
 export interface ExecuteDelegatedAgentRuntimeInput {
   projectRoot: string;
@@ -35,6 +36,7 @@ export interface ExecuteDelegatedAgentRuntimeInput {
 
 export interface ExecuteDelegatedAgentRuntimeResult {
   events: AgentEvent[];
+  runtime_projection: DelegatedRuntimeProjectionV1;
   manifest: RunManifest | null;
   manifest_path: string;
   spans_path: string;
@@ -107,18 +109,29 @@ export async function executeDelegatedAgentRuntime(
     events.push(event);
   }
   const savedManifest = manifestManager.loadManifest(input.runId);
+  const runtimeProjection = runner.runtimeProjection ?? {
+    version: 1,
+    turn_count: 0,
+    recovery_turn_count: 0,
+    dialogue_turn_count: 0,
+    projected_turns: [],
+    runtime_marker_kinds: [],
+    approval_requested: false,
+    terminal_outcome: null,
+  };
   const manifestPathValue = delegatedExecutionManifestPath({ runtime_run_id: input.runId });
   const spansPathValue = spansPath(input.runId);
   const diagnosticsBridge = writeRuntimeDiagnosticsBridgeArtifact({
     projectRoot: input.projectRoot,
     runId: input.runId,
-    events,
+    runtimeProjection,
     manifestPath: manifestPathValue,
     spansPath: spansPathValue,
     savedManifest,
   });
   return {
     events,
+    runtime_projection: runtimeProjection,
     manifest: savedManifest,
     manifest_path: manifestPathValue,
     spans_path: spansPathValue,

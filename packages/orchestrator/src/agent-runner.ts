@@ -12,6 +12,12 @@ import { DEFAULT_CHAT_MAX_TOKENS, loadRoutingConfig, resolveChatRoute } from './
 import type { SpanCollector } from './tracing.js';
 import { asMcpError, handleAssistantResponse, resolveIncompleteToolUses, type AgentEvent } from './agent-runner-ops.js';
 import {
+  createDelegatedRuntimeProjectionBuilder,
+  finalizeDelegatedRuntimeProjection,
+  recordDelegatedRuntimeProjectionTurn,
+  type DelegatedRuntimeProjectionV1,
+} from './research-loop/delegated-runtime-projection.js';
+import {
   createAgentRuntimeState,
   recordTurnUsage,
   recoverFromContextOverflow,
@@ -50,6 +56,7 @@ export class AgentRunner {
   private readonly manifestManager: RunManifestManager | null;
   private readonly route: ResolvedChatRoute;
   private readonly chatBackend: ChatBackend;
+  private lastRuntimeProjection: DelegatedRuntimeProjectionV1 | null = null;
 
   constructor(options: AgentRunnerOptions) {
     this.maxTurns = options.maxTurns ?? 50;
@@ -64,6 +71,7 @@ export class AgentRunner {
   }
 
   async *run(messages: MessageParam[], tools: Tool[], runOptions?: { manifest?: RunManifest }): AsyncGenerator<AgentEvent> {
+    this.lastRuntimeProjection = null;
     const prior = _laneQueue.get(this.runId) ?? Promise.resolve();
     let releaseLane!: () => void;
     const lane = new Promise<void>(resolve => {
@@ -80,9 +88,14 @@ export class AgentRunner {
     }
   }
 
+  get runtimeProjection(): DelegatedRuntimeProjectionV1 | null {
+    return this.lastRuntimeProjection;
+  }
+
   private async *runImpl(messages: MessageParam[], tools: Tool[], manifest: RunManifest | null): AsyncGenerator<AgentEvent> {
     let currentMessages: MessageParam[] = [...messages];
     const runtimeState = createAgentRuntimeState();
+    const projectionBuilder = createDelegatedRuntimeProjectionBuilder();
     const traceId = generateTraceId();
     const manifestManager = this.manifestManager;
     const checkpointRecorder = async (stepId: string, resultSummary: string) => {
@@ -96,8 +109,17 @@ export class AgentRunner {
       shouldSkipStep: manifestManager ? (resumeManifest, stepId) => manifestManager.shouldSkipStep(resumeManifest, stepId) : undefined,
     });
     if (recovery !== null) {
+      recordDelegatedRuntimeProjectionTurn({
+        builder: projectionBuilder,
+        phase: 'recovery',
+        turnCount: 0,
+        events: recovery.events,
+      });
       for (const event of recovery.events) yield event;
-      if (recovery.done) return;
+      if (recovery.done) {
+        this.lastRuntimeProjection = finalizeDelegatedRuntimeProjection(projectionBuilder);
+        return;
+      }
       currentMessages = recovery.messages;
     }
 
@@ -130,8 +152,17 @@ export class AgentRunner {
           spanCollector: this.spanCollector,
           checkpointRecorder,
         });
+        recordDelegatedRuntimeProjectionTurn({
+          builder: projectionBuilder,
+          phase: 'dialogue',
+          turnCount: turn + 1,
+          events: next.events,
+        });
         for (const event of next.events) yield event;
-        if (next.done) return;
+        if (next.done) {
+          this.lastRuntimeProjection = finalizeDelegatedRuntimeProjection(projectionBuilder);
+          return;
+        }
         currentMessages = next.messages;
       } catch (error) {
         const recovery = recoverFromContextOverflow({
@@ -144,16 +175,38 @@ export class AgentRunner {
           resetLowGainTracking(runtimeState);
           turnSpan?.setAttribute('window_pressure', runtimeState.windowPressure);
           turnSpan?.end('ERROR');
+          recordDelegatedRuntimeProjectionTurn({
+            builder: projectionBuilder,
+            phase: 'dialogue',
+            turnCount: turn + 1,
+            events: [recovery.marker],
+          });
           yield recovery.marker;
           currentMessages = recovery.messages;
           continue;
         }
         turnSpan?.end('ERROR');
-        yield { type: 'error', error: asMcpError(error) };
+        const errorEvent = { type: 'error', error: asMcpError(error) } as const;
+        recordDelegatedRuntimeProjectionTurn({
+          builder: projectionBuilder,
+          phase: 'dialogue',
+          turnCount: turn + 1,
+          events: [errorEvent],
+        });
+        yield errorEvent;
+        this.lastRuntimeProjection = finalizeDelegatedRuntimeProjection(projectionBuilder);
         return;
       }
     }
 
-    yield { type: 'done', stopReason: 'max_turns', turnCount: this.maxTurns };
+    const doneEvent = { type: 'done', stopReason: 'max_turns', turnCount: this.maxTurns } as const;
+    recordDelegatedRuntimeProjectionTurn({
+      builder: projectionBuilder,
+      phase: 'dialogue',
+      turnCount: this.maxTurns,
+      events: [doneEvent],
+    });
+    yield doneEvent;
+    this.lastRuntimeProjection = finalizeDelegatedRuntimeProjection(projectionBuilder);
   }
 }

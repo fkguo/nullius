@@ -124,18 +124,18 @@
 **Decision**:
 - Delegated runtime identity is now expressed through one shared typed value seam, `buildDelegatedExecutionIdentity(...)` plus `delegatedExecutionManifestPath(...)`, rather than repeated ad hoc string recomposition of `project_run_id + assignment_id -> runtime_run_id -> manifest_path`.
 - This seam is deliberately not a new persisted control-plane object, public wire contract, or second read model. It is an internal relation helper consumed by delegated execution/scoping/view/runtime code.
-- Existing wire fields such as `runtime_run_id` and `manifest_path` remain the same; later `CP-OBJ-01C/01D` work must consume this seam rather than inventing transcript/job/turn authority or recomposing the strings again.
+- Existing wire fields such as `runtime_run_id` and `manifest_path` remain the same; later `CP-OBJ-01D/01E` work must consume this seam rather than inventing transcript/job/turn authority or recomposing the strings again.
 
 **Why**: The real drift problem was string-level identity reconstruction spread across multiple layers, not the absence of another durable object family. Centralizing the relation while keeping it non-authoritative preserves boundedness and gives later session/turn/read-model slices a stable identity substrate.
 
-### [2026-04-07] CP-OBJ delegated runtime projection invariant: compact turn/session sideband, not transcript promotion
+### [2026-04-07] CP-OBJ delegated runtime projection landed invariant: compact turn/session sideband, not transcript promotion
 
 **Decision**:
-- `CP-OBJ-01C` should converge delegated runtime around a compact typed session/turn projection derived from existing execution evidence (`AgentEvent`, `RunManifest`) plus `TeamAssignmentSession` lineage, rather than promoting transcript/message history into durable control-plane authority.
-- Common-path turn lineage must be recorded while the runtime still knows real turn boundaries. If raw `AgentEvent[]` is insufficient to recover turns later, the fix is to add a bounded typed sideband or projection seam at source, not to infer turns from transcript blobs after the fact.
-- The existing `runtime_run_id` and delegated manifest/spans container remain the stable delegated runtime identity. Any session-specific projection artifact or persisted summary must hang under that container as derived sideband rather than replacing the current id contract or introducing a new generic `job` / `thread` authority.
+- `CP-OBJ-01C` is now landed around a compact typed session/turn projection derived from existing execution evidence (`AgentEvent`, `RunManifest`) plus `TeamAssignmentSession` lineage, rather than promoting transcript/message history into durable control-plane authority.
+- Common-path turn lineage is now recorded while the runtime still knows real turn boundaries: `AgentRunner` records the projection at source, `executeDelegatedAgentRuntime(...)` returns the same seam, and `runtime-diagnostics-bridge.ts` consumes that seam instead of rescanning raw `AgentEvent[]`.
+- The existing `runtime_run_id` and delegated manifest/spans container remain the stable delegated runtime identity. `TeamAssignmentSession.runtime_projection` hangs under that container as nullable derived sideband, stays `null` for synthetic/repaired sessions, and does not introduce a new generic `job` / `thread` authority or widen current public host/team payloads.
 
-**Why**: The next drift seam is projection loss, not missing transcript storage. Recording a compact turn/session summary at source preserves generic-first boundedness, keeps diagnostics/read models on one seam, and avoids importing remote/UI-first conversation models into the control plane.
+**Why**: The drift seam was projection loss, not missing transcript storage. Landing one compact turn/session summary at source preserves generic-first boundedness, keeps diagnostics/read models on one seam, and avoids importing remote/UI-first conversation models into the control plane.
 
 ### [2026-03-21] Pipeline A lifecycle invariant: `hep-autoresearch` and `hepar` move together
 
@@ -370,12 +370,12 @@
 
 **Why**: The current orchestrator no longer suffers from a missing runtime substrate; it suffers from overlapping object language. Explicitly preserving one authority family per layer keeps later identity/session/read-model work from hardening today's string-convention seams into long-term architectural drift.
 
-### [2026-04-07] Delegated runtime projection invariant: record compact turn/session projection at source, not by synthetic backfill
+### [2026-04-07] Delegated runtime projection landed seam: record compact turn/session projection at source, not by synthetic backfill
 
 **Decision**:
-- The next delegated runtime projection slice should create one internal-only compact session/turn projection while `AgentRunner` still owns real turn boundaries, instead of trying to reconstruct turns later from raw `AgentEvent[]`.
-- That projection may enrich `executeDelegatedAgentRuntime(...)`, `runtime-diagnostics-bridge.ts`, and a nullable `TeamAssignmentSession.runtime_projection` field, but it must not widen current public host/team-view payloads or replace raw `AgentEvent[]` as low-level evidence.
-- Synthetic/repaired sessions must keep `runtime_projection = null`; they are allowed to preserve lineage/lifecycle continuity, but they must not fabricate turn history that never existed on the live path.
-- Vocabulary unification and operator-facing exposure of that projection remain later `CP-OBJ-01D` work rather than being pulled into the projection slice itself.
+- `recordDelegatedRuntimeProjectionTurn(...)` is now the single internal builder for compact turn/session projection while `AgentRunner` still owns true dialogue/recovery boundaries; later consumers should reuse this seam rather than reprojecting turns from raw `AgentEvent[]`.
+- Recovery pseudo-turns remain explicit sideband (`phase = 'recovery'`, `turn_count = 0`) so recovery stays auditable without pretending it is ordinary dialogue transcript authority.
+- The landed projection enriches `executeDelegatedAgentRuntime(...)`, `runtime-diagnostics-bridge.ts`, and nullable real-session persistence on `TeamAssignmentSession.runtime_projection`, but it still does not widen current public host/team-view payloads or replace raw `AgentEvent[]` as low-level evidence.
+- Vocabulary unification and operator-facing exposure of that projection remain later `CP-OBJ-01D` work rather than being pulled back into the projection slice itself.
 
-**Why**: Raw `AgentEvent[]` currently lack stable per-turn identity for tool-use turns, and the diagnostics bridge is forced to rescan ad hoc markers after the fact. The missing seam is source-recorded compact projection, not another durable authority object and not transcript promotion.
+**Why**: Raw `AgentEvent[]` lacked stable per-turn identity for tool-use turns, and the diagnostics bridge had been forced to rescan ad hoc markers after the fact. Landing one source-recorded compact projection seam fixes that specific gap without inventing another durable authority object and without transcript promotion.

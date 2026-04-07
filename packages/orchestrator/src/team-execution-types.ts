@@ -1,5 +1,6 @@
 import type { TeamDelegationProtocol } from './delegation-protocol.js';
 import type { ResearchHandoff } from './research-loop/handoff-types.js';
+import type { DelegatedRuntimeProjectionV1 } from './research-loop/delegated-runtime-projection.js';
 import type {
   ResearchTaskKind,
   ResearchTaskLifecycleProjection,
@@ -151,6 +152,7 @@ export interface TeamAssignmentSession {
   checkpoint_id: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
+  runtime_projection: DelegatedRuntimeProjectionV1 | null;
   forked_from_assignment_id: string | null;
   forked_from_session_id: string | null;
 }

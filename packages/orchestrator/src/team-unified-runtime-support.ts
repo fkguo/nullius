@@ -382,7 +382,10 @@ function mergeLaunchOutcome(
         : {}),
     });
     const updated = state.delegate_assignments.find(item => item.assignment_id === current.assignment_id)!;
-    finalizeAssignmentSession(state, updated);
+    const session = finalizeAssignmentSession(state, updated);
+    if (session) {
+      session.runtime_projection = null;
+    }
     syncPendingApprovals(state, input.runId);
     appendTeamEvent(state, {
       kind: 'assignment_status_changed',
@@ -444,7 +447,10 @@ function mergeLaunchOutcome(
       resume_from: runtimeResult.resume_from,
     });
   }
-  finalizeAssignmentSession(state, updated);
+  const session = finalizeAssignmentSession(state, updated);
+  if (session) {
+    session.runtime_projection = runtimeResult.runtime_projection;
+  }
   syncPendingApprovals(state, input.runId);
   manager.save(state);
   return {
