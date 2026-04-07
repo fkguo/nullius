@@ -33,6 +33,7 @@ export {
 export {
   bridgeStagedIdeaToComputation,
   buildTeamConfigForDelegatedFollowupTask,
+  primeDelegatedFollowupTeamState,
   executeComputationManifest,
   type ComputeBridgeInput,
   type ComputeBridgeResult,

@@ -1,5 +1,7 @@
+import * as fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@autoresearch/shared';
+import { primeDelegatedFollowupTeamState } from '@autoresearch/orchestrator';
 
 import { handleToolCall } from '../../src/tools/index.js';
 import { extractPayload, makeTmpDir } from './orchRunExecuteAgentTestSupport.js';
@@ -50,6 +52,32 @@ describe('orch_run_execute_agent team bridge', () => {
         handoff_kind: 'writing',
       },
     };
+    primeDelegatedFollowupTeamState({
+      projectRoot,
+      runId: 'run-team',
+      team: {
+        workspace_id: 'workspace:run-team',
+        task_id: 'task-draft-update',
+        task_kind: 'draft_update',
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        coordination_policy: 'supervised_delegate',
+        research_task_ref: {
+          task_id: 'task-draft-update',
+          task_kind: 'draft_update',
+          target_node_id: 'draft:results',
+          parent_task_id: 'task-finding',
+          workspace_id: 'workspace:run-team',
+          handoff_id: 'handoff-writing-1',
+          handoff_kind: 'writing',
+          source_task_id: 'task-finding',
+        },
+        handoff_id: 'handoff-writing-1',
+        handoff_kind: 'writing',
+        checkpoint_id: null,
+      },
+    });
 
     const first = extractPayload(await handleToolCall(
       'orch_run_execute_agent',
@@ -66,13 +94,22 @@ describe('orch_run_execute_agent team bridge', () => {
       team_state: {
         workspace_id: string;
         delegate_assignments: Array<{
+          assignment_id: string;
           task_id: string;
           task_kind: string;
           handoff_id: string | null;
           handoff_kind: string | null;
         }>;
-        checkpoints: Array<{ checkpoint_id: string; task_id: string; handoff_id: string | null }>;
+        checkpoints: Array<{
+          checkpoint_id: string;
+          task_id: string;
+          handoff_id: string | null;
+        }>;
+        sessions: Array<{ session_id: string }>;
       };
+      assignment_results: Array<Record<string, unknown>>;
+      live_status: { background_tasks: Array<Record<string, unknown>> };
+      replay: Array<Record<string, unknown>>;
     };
     expect(first.last_completed_step).toBe('tu_write');
     expect(first.team_state.workspace_id).toBe('workspace:run-team');
@@ -82,10 +119,40 @@ describe('orch_run_execute_agent team bridge', () => {
       handoff_id: 'handoff-writing-1',
       handoff_kind: 'writing',
     });
+    expect(first.team_state.delegate_assignments[0]).not.toHaveProperty('research_task_ref');
     expect(first.team_state.checkpoints[0]).toMatchObject({
       task_id: 'task-draft-update',
       handoff_id: 'handoff-writing-1',
     });
+    expect(first.team_state.checkpoints[0]).not.toHaveProperty('research_task_ref');
+    expect(first.team_state.sessions[0]).not.toHaveProperty('research_task_ref');
+    const registry = JSON.parse(
+      fs.readFileSync(`${projectRoot}/artifacts/runs/run-team/team-execution-task-refs.json`, 'utf-8'),
+    ) as {
+      refs_by_task_id: Record<string, { source_task_id: string | null; handoff_id: string | null }>;
+      refs_by_assignment_id: Record<string, { source_task_id: string | null; handoff_id: string | null }>;
+      refs_by_checkpoint_id: Record<string, { source_task_id: string | null; handoff_id: string | null }>;
+      refs_by_session_id: Record<string, { source_task_id: string | null; handoff_id: string | null }>;
+    };
+    expect(registry.refs_by_task_id['task-draft-update']).toMatchObject({
+      source_task_id: 'task-finding',
+      handoff_id: 'handoff-writing-1',
+    });
+    expect(registry.refs_by_assignment_id[first.team_state.delegate_assignments[0]!.assignment_id]).toMatchObject({
+      source_task_id: 'task-finding',
+      handoff_id: 'handoff-writing-1',
+    });
+    expect(registry.refs_by_checkpoint_id[first.team_state.checkpoints[0]!.checkpoint_id]).toMatchObject({
+      source_task_id: 'task-finding',
+      handoff_id: 'handoff-writing-1',
+    });
+    expect(registry.refs_by_session_id[first.team_state.sessions[0]!.session_id]).toMatchObject({
+      source_task_id: 'task-finding',
+      handoff_id: 'handoff-writing-1',
+    });
+    expect(first.assignment_results[0]).not.toHaveProperty('research_task_ref');
+    expect(first.live_status.background_tasks[0]).not.toHaveProperty('research_task_ref');
+    expect(first.replay[0]).not.toHaveProperty('research_task_ref');
 
     const resumedCallTool = vi.fn(async () => ({ content: [{ type: 'text', text: 'should-not-run' }], isError: false }));
     const resumed = extractPayload(await handleToolCall(

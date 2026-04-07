@@ -6,6 +6,10 @@ import {
   createTeamExecutionState,
   registerDelegateAssignment,
 } from './team-execution-state.js';
+import {
+  createResearchTaskExecutionRefRegistry,
+  syncResearchTaskExecutionRefRegistryFromState,
+} from './research-task-execution-ref.js';
 import { TeamExecutionStateManager } from './team-execution-storage.js';
 import { buildTeamControlPlaneView } from './team-execution-view.js';
 import {
@@ -53,6 +57,12 @@ export async function executeUnifiedTeamRuntime(
   input: ExecuteUnifiedTeamRuntimeInput,
 ): Promise<ExecuteUnifiedTeamRuntimeResult> {
   const manager = new TeamExecutionStateManager(input.projectRoot);
+  const syncTaskRefRegistry = (state: TeamExecutionState): void => {
+    const registry = manager.loadTaskRefRegistry(input.runId)
+      ?? createResearchTaskExecutionRefRegistry(input.runId);
+    syncResearchTaskExecutionRefRegistryFromState(registry, state);
+    manager.saveTaskRefRegistry(registry);
+  };
   const preparedAssignments = input.assignments.map(assignment => ({
     ...assignment,
     assignment_id: assignment.assignment_id ?? randomUUID(),
@@ -82,6 +92,7 @@ export async function executeUnifiedTeamRuntime(
   for (const assignment of state.delegate_assignments) {
     assignment.delegation_protocol = buildRuntimeProtocol(input, state, assignment, assignment.assignment_id);
   }
+  syncTaskRefRegistry(state);
   manager.save(state);
 
   const orderedAssignments = [...state.delegate_assignments].sort((left, right) => left.stage - right.stage);
@@ -90,6 +101,7 @@ export async function executeUnifiedTeamRuntime(
 
   if (input.coordinationPolicy === 'sequential') {
     assignmentResults.push(...await executeSequentialRuntime(input, state, manager, orderedAssignments));
+    syncTaskRefRegistry(state);
   } else {
     const buckets = buildRuntimeBuckets(input.coordinationPolicy, orderedAssignments);
     for (const bucket of buckets) {
@@ -102,6 +114,7 @@ export async function executeUnifiedTeamRuntime(
       }
       const bucketResults = await executeRuntimeBucket(input, state, manager, bucket);
       assignmentResults.push(...bucketResults);
+      syncTaskRefRegistry(state);
       if (input.coordinationPolicy !== 'stage_gated') continue;
       if (bucketResults.some(result => result.status !== 'completed')) {
         state.blocked_stage = bucket.stage;

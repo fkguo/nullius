@@ -390,3 +390,13 @@
 - `CP-OBJ-01E` task bridge and `M-22` legacy cleanup remain separate follow-on work; `01D` does not authorize task-object promotion, transcript/job authority, or public view redesign.
 
 **Why**: Once `CP-OBJ-01C` landed the runtime projection seam, the next real drift was interpretive: root run list, team live/background views, and runtime diagnostics were speaking adjacent but non-identical operator languages. Converging them onto one internal interpreter improves operator coherence and type soundness without hardening another authority family or reopening payload/UI debates.
+
+### [2026-04-07] Research-task bridge invariant: internal task-ref registry first, not public team-payload widening
+
+**Decision**:
+- `CP-OBJ-01E` keeps canonical task authority in research-loop and bridges it into live delegated execution through one internal typed relation seam, `research_task_ref`, derived from the existing `ResearchTask` + delegated handoff pair.
+- The bridge is established before launch by priming an internal task-ref sidecar registry (`primeDelegatedFollowupTeamState(...)`), then synchronizing that same canonical ref across assignment/session/checkpoint lineage inside team runtime, so pause/resume/recovery retain the canonical task relation even though the public `team` tool schema still only names `task_id` / `task_kind` / handoff ids.
+- `live_status`, `replay`, `assignment_results`, and the public `team` payload remain unchanged; `TeamAssignmentSession.task_status` / `task_lifecycle_status` stay projections rather than becoming a second task authority.
+- This bounded seam should remain the pattern for future control-plane convergence: persist canonical lineage in internal state first, then derive public/operator views separately if needed.
+
+**Why**: The real gap was not missing public fields; it was that live delegated execution dropped the typed relation back to canonical task authority once follow-ups entered team runtime. Preserving that relation internally matches mature thread/session systems that keep canonical ids in durable history while projecting smaller operator summaries outward, and it closes the lineage hole without reopening payload/UI scope.

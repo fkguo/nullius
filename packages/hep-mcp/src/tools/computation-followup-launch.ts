@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import { parseScopedArtifactUri, type ComputationResultV1 } from '@autoresearch/shared';
 import {
   buildTeamConfigForDelegatedFollowupTask,
+  primeDelegatedFollowupTeamState,
   type DelegatedFollowupTeamConfig,
   type ExecuteComputationManifestResult,
 } from '@autoresearch/orchestrator';
@@ -123,6 +124,12 @@ export async function maybeLaunchDelegatedComputationFollowup(params: {
     return { status: 'skipped_missing_host_context', task_id: task.task_id, task_kind: task.kind };
   }
 
+  primeDelegatedFollowupTeamState({
+    projectRoot: params.projectRoot,
+    runId: params.runId,
+    team,
+  });
+  const { research_task_ref: _researchTaskRef, ...launchTeam } = team;
   const run = getRun(params.runId);
   const launched = await params.ctx.callTool(ORCH_RUN_EXECUTE_AGENT, {
     _confirm: true,
@@ -144,7 +151,7 @@ export async function maybeLaunchDelegatedComputationFollowup(params: {
       }),
     }],
     tools: FOLLOWUP_RUNTIME_TOOLS,
-    team,
+    team: launchTeam,
   });
   const payload = parseToolPayload(launched);
   if (launched.isError || !payload) {

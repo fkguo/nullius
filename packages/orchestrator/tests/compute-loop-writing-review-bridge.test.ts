@@ -2,10 +2,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { buildTeamConfigForDelegatedFollowupTask } from '../src/computation/feedback-followups.js';
+import {
+  buildTeamConfigForDelegatedFollowupTask,
+  primeDelegatedFollowupTeamState,
+} from '../src/computation/feedback-followups.js';
 import { executeComputationManifest } from '../src/computation/index.js';
 import { assertComputationResultValid } from '../src/computation/result-schema.js';
 import { handleOrchRunExecuteAgent } from '../src/orch-tools/agent-runtime.js';
+import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
 import {
   cleanupRegisteredDirs,
   initRunState,
@@ -113,6 +117,22 @@ describe('compute-loop writing/review bridges', () => {
     const writingHandoff = outcome.workspace_feedback.handoffs.find(handoff => handoff.handoff_id === writingTeam.handoff_id)!;
     expect(reviewTeam.handoff_kind).toBe('review');
     expect(writingHandoff.workspace_id).toBe(writingTeam.workspace_id);
+    expect(writingTeam.research_task_ref).toMatchObject({
+      task_id: draftTask.task_id,
+      task_kind: 'draft_update',
+      target_node_id: draftTask.target_node_id,
+      workspace_id: writingTeam.workspace_id,
+      handoff_id: writingHandoff.handoff_id,
+      handoff_kind: 'writing',
+      source_task_id: writingHandoff.source_task_id,
+    });
+    primeDelegatedFollowupTeamState({ projectRoot, runId, team: writingTeam });
+    const primedRegistry = new TeamExecutionStateManager(projectRoot).loadTaskRefRegistry(runId);
+    expect(primedRegistry?.refs_by_task_id[draftTask.task_id]).toMatchObject({
+      task_id: draftTask.task_id,
+      source_task_id: writingHandoff.source_task_id,
+    });
+    const { research_task_ref: _researchTaskRef, ...writingLaunchTeam } = writingTeam;
 
     const runtimeArgs = {
       _confirm: true as const,
@@ -124,7 +144,7 @@ describe('compute-loop writing/review bridges', () => {
         content: [{ type: 'tool_use' as const, id: 'tu_bridge', name: 'do_thing', input: {} }],
       }],
       tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
-      team: writingTeam,
+      team: writingLaunchTeam,
     };
 
     const first = await handleOrchRunExecuteAgent(runtimeArgs, {
@@ -136,13 +156,19 @@ describe('compute-loop writing/review bridges', () => {
       team_state: {
         workspace_id: string;
         delegate_assignments: Array<{
+          assignment_id: string;
           task_id: string;
           task_kind: string;
           handoff_id: string | null;
           handoff_kind: string | null;
           checkpoint_id: string | null;
         }>;
-        checkpoints: Array<{ checkpoint_id: string; task_id: string; handoff_id: string | null }>;
+        checkpoints: Array<{
+          checkpoint_id: string;
+          task_id: string;
+          handoff_id: string | null;
+        }>;
+        sessions: Array<{ session_id: string }>;
       };
     };
     expect(first.last_completed_step).toBe('tu_bridge');
@@ -154,9 +180,29 @@ describe('compute-loop writing/review bridges', () => {
       handoff_id: writingHandoff.handoff_id,
       handoff_kind: 'writing',
     });
+    expect(first.team_state.delegate_assignments[0]).not.toHaveProperty('research_task_ref');
     expect(first.team_state.checkpoints[0]).toMatchObject({
       task_id: draftTask.task_id,
       handoff_id: writingHandoff.handoff_id,
+    });
+    expect(first.team_state.checkpoints[0]).not.toHaveProperty('research_task_ref');
+    expect(first.team_state.sessions[0]).not.toHaveProperty('research_task_ref');
+    const runtimeRegistry = new TeamExecutionStateManager(projectRoot).loadTaskRefRegistry(runId);
+    expect(runtimeRegistry?.refs_by_task_id[draftTask.task_id]).toMatchObject({
+      task_id: draftTask.task_id,
+      source_task_id: writingHandoff.source_task_id,
+    });
+    expect(runtimeRegistry?.refs_by_assignment_id[first.team_state.delegate_assignments[0]!.assignment_id]).toMatchObject({
+      task_id: draftTask.task_id,
+      source_task_id: writingHandoff.source_task_id,
+    });
+    expect(runtimeRegistry?.refs_by_checkpoint_id[first.team_state.checkpoints[0]!.checkpoint_id]).toMatchObject({
+      task_id: draftTask.task_id,
+      source_task_id: writingHandoff.source_task_id,
+    });
+    expect(runtimeRegistry?.refs_by_session_id[first.team_state.sessions[0]!.session_id]).toMatchObject({
+      task_id: draftTask.task_id,
+      source_task_id: writingHandoff.source_task_id,
     });
 
     const resumedCall = vi.fn(async () => ({ content: [{ type: 'text', text: 'should-not-run' }], isError: false }));

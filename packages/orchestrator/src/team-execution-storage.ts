@@ -1,5 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  normalizeResearchTaskExecutionRefRegistry,
+  type ResearchTaskExecutionRefRegistry,
+} from './research-task-execution-ref.js';
 import type { TeamExecutionState } from './team-execution-types.js';
 
 function stateDir(projectRoot: string, runId: string): string {
@@ -10,7 +14,11 @@ export function teamExecutionStatePath(projectRoot: string, runId: string): stri
   return path.join(stateDir(projectRoot, runId), 'team-execution-state.json');
 }
 
-function writeJsonAtomic(filePath: string, payload: TeamExecutionState): void {
+export function teamExecutionTaskRefRegistryPath(projectRoot: string, runId: string): string {
+  return path.join(stateDir(projectRoot, runId), 'team-execution-task-refs.json');
+}
+
+function writeJsonAtomic(filePath: string, payload: unknown): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
   const tmp = `${filePath}.tmp`;
@@ -38,13 +46,30 @@ export class TeamExecutionStateManager {
     return teamExecutionStatePath(this.projectRoot, runId);
   }
 
+  taskRefPathFor(runId: string): string {
+    return teamExecutionTaskRefRegistryPath(this.projectRoot, runId);
+  }
+
   load(runId: string): TeamExecutionState | null {
     const filePath = this.pathFor(runId);
     if (!fs.existsSync(filePath)) return null;
     return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as TeamExecutionState;
   }
 
+  loadTaskRefRegistry(runId: string): ResearchTaskExecutionRefRegistry | null {
+    const filePath = this.taskRefPathFor(runId);
+    if (!fs.existsSync(filePath)) return null;
+    return normalizeResearchTaskExecutionRefRegistry(
+      runId,
+      JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown,
+    );
+  }
+
   save(state: TeamExecutionState): void {
     writeJsonAtomic(this.pathFor(state.run_id), state);
+  }
+
+  saveTaskRefRegistry(registry: ResearchTaskExecutionRefRegistry): void {
+    writeJsonAtomic(this.taskRefPathFor(registry.run_id), registry);
   }
 }

@@ -11,11 +11,11 @@
   },
   "scripts": {
     "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/literature-workflows",
-    "build": "tsc",
+    "build": "tsc --build",
     "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/literature-workflows",
     "test": "vitest run",
     "lint": "echo \"no lint yet\"",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

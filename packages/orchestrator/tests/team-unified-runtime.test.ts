@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   executeTeamDelegatedRuntime,
   executeUnifiedTeamRuntime,
+  primeDelegatedFollowupTeamState,
   type TeamPermissionMatrix,
 } from '../src/index.js';
 import {
@@ -13,6 +14,7 @@ import {
   summarizeRuntimeProjectionForOperator,
   taskProjectionFromAssignmentStatus,
 } from '../src/operator-read-model-summary.js';
+import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'team-unified-runtime-'));
@@ -195,6 +197,96 @@ describe('team unified runtime control paths', () => {
 
       expect(result.events.at(-1)).toMatchObject({ type: 'done', stopReason: 'diminishing_returns' });
       expect(result.team_state.delegate_assignments[0]?.status).toBe('needs_recovery');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('persists canonical research-task refs in the sidecar registry without widening public team payloads', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const researchTaskRef = {
+        task_id: 'task-task-ref',
+        task_kind: 'draft_update' as const,
+        target_node_id: 'draft:node-1',
+        parent_task_id: null,
+        workspace_id: 'workspace:run-task-ref',
+        handoff_id: 'handoff-writing-1',
+        handoff_kind: 'writing' as const,
+        source_task_id: 'task-finding-1',
+      };
+      primeDelegatedFollowupTeamState({
+        projectRoot,
+        runId: 'run-task-ref',
+        team: {
+          workspace_id: 'workspace:run-task-ref',
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+          task_id: 'task-task-ref',
+          task_kind: 'draft_update',
+          research_task_ref: researchTaskRef,
+          handoff_id: 'handoff-writing-1',
+          handoff_kind: 'writing',
+          checkpoint_id: null,
+        },
+      });
+
+      const primedRegistry = new TeamExecutionStateManager(projectRoot).loadTaskRefRegistry('run-task-ref');
+      expect(primedRegistry?.refs_by_task_id['task-task-ref']).toEqual(researchTaskRef);
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-task-ref',
+        workspaceId: 'workspace:run-task-ref',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: {
+          delegation: [{
+            from_role: 'lead',
+            to_role: 'delegate',
+            allowed_task_kinds: ['draft_update'],
+            allowed_handoff_kinds: ['writing'],
+          }],
+          interventions: PERMISSIONS.interventions,
+        },
+        assignments: [{
+          stage: 0,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          task_id: 'task-task-ref',
+          task_kind: 'draft_update',
+          handoff_id: 'handoff-writing-1',
+          handoff_kind: 'writing',
+        }],
+        messages: [{ role: 'user', content: 'draft this section' }],
+        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null })) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn()
+          .mockResolvedValueOnce(toolUseResponse('tu_task_ref', 'do_thing', { task_id: 'task-task-ref' }))
+          .mockResolvedValueOnce(textResponse('done')),
+      });
+
+      const registry = new TeamExecutionStateManager(projectRoot).loadTaskRefRegistry('run-task-ref');
+      const assignmentId = result.team_state.delegate_assignments[0]!.assignment_id;
+      const checkpointId = result.team_state.checkpoints[0]!.checkpoint_id;
+      const sessionId = result.team_state.sessions[0]!.session_id;
+
+      expect(registry?.refs_by_task_id['task-task-ref']).toEqual(researchTaskRef);
+      expect(registry?.refs_by_assignment_id[assignmentId]).toEqual(researchTaskRef);
+      expect(registry?.refs_by_checkpoint_id[checkpointId]).toEqual(researchTaskRef);
+      expect(registry?.refs_by_session_id[sessionId]).toEqual(researchTaskRef);
+
+      expect(result.team_state.delegate_assignments[0]).not.toHaveProperty('research_task_ref');
+      expect(result.team_state.sessions[0]).not.toHaveProperty('research_task_ref');
+      expect(result.team_state.checkpoints[0]).not.toHaveProperty('research_task_ref');
+      expect(result.live_status.terminal_assignments[0]).not.toHaveProperty('research_task_ref');
+      expect(result.live_status.background_tasks[0]).not.toHaveProperty('research_task_ref');
+      expect(result.replay[0]).not.toHaveProperty('research_task_ref');
+      expect(result.assignment_results[0]).not.toHaveProperty('research_task_ref');
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

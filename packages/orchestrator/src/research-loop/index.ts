@@ -3,6 +3,7 @@ export * from './task-types.js';
 export * from './event-types.js';
 export * from './checkpoint-types.js';
 export * from './handoff-types.js';
+export * from './task-execution-ref.js';
 export * from './workspace-validation.js';
 export * from './packet-types.js';
 export * from './runtime.js';

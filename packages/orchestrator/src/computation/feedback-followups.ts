@@ -1,10 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { utcNowIso } from '../util.js';
+import type { ResearchHandoff } from '../research-loop/handoff-types.js';
+import type { ResearchLoopRuntime } from '../research-loop/runtime.js';
 import {
-  type ResearchHandoff,
-  type ResearchLoopRuntime,
-  type ResearchTask,
-} from '../research-loop/index.js';
+  buildResearchTaskExecutionRef,
+  isResearchTaskExecutionRef,
+  type ResearchTaskExecutionRef,
+} from '../research-loop/task-execution-ref.js';
+import {
+  createResearchTaskExecutionRefRegistry,
+  upsertResearchTaskExecutionRef,
+} from '../research-task-execution-ref.js';
+import type { ResearchTask } from '../research-loop/task-types.js';
+import { TeamExecutionStateManager } from '../team-execution-storage.js';
 import type { WritingFollowupWorkspaceSeed } from './followup-bridges.js';
 
 type DelegatedFollowupTask = Pick<ResearchTask, 'task_id' | 'kind' | 'metadata'>;
@@ -17,6 +25,7 @@ type DelegatedFollowupTeamExecutionMetadata = {
   delegate_role: 'delegate';
   delegate_id: 'delegate-1';
   coordination_policy: 'supervised_delegate';
+  research_task_ref: ResearchTaskExecutionRef;
   handoff_id: string;
   handoff_kind: DelegatedFollowupHandoffKind;
   checkpoint_id: null;
@@ -42,12 +51,18 @@ function isDelegatedFollowupTeamExecutionMetadata(
     && candidate.delegate_role === 'delegate'
     && candidate.delegate_id === 'delegate-1'
     && candidate.coordination_policy === 'supervised_delegate'
+    && isResearchTaskExecutionRef(candidate.research_task_ref)
     && typeof candidate.handoff_id === 'string'
     && (candidate.handoff_kind === 'writing' || candidate.handoff_kind === 'review')
     && candidate.checkpoint_id === null;
 }
 
 function attachTeamExecutionMetadata(task: ResearchTask, handoff: DelegatedFollowupHandoff): void {
+  const researchTaskRef = buildResearchTaskExecutionRef({
+    task,
+    workspace_id: handoff.workspace_id,
+    handoff,
+  });
   const metadata = task.metadata ?? {};
   task.metadata = {
     ...metadata,
@@ -57,6 +72,7 @@ function attachTeamExecutionMetadata(task: ResearchTask, handoff: DelegatedFollo
       delegate_role: 'delegate',
       delegate_id: 'delegate-1',
       coordination_policy: 'supervised_delegate',
+      research_task_ref: researchTaskRef,
       handoff_id: handoff.handoff_id,
       handoff_kind: handoff.handoff_kind,
       checkpoint_id: null,
@@ -76,11 +92,35 @@ export function buildTeamConfigForDelegatedFollowupTask(
   if (!isDelegatedFollowupTeamExecutionMetadata(teamExecution)) {
     throw new Error(`task ${task.task_id} is missing delegated team execution metadata`);
   }
+  const researchTaskRef: ResearchTaskExecutionRef = { ...teamExecution.research_task_ref };
   return {
-    ...teamExecution,
+    workspace_id: teamExecution.workspace_id,
+    owner_role: teamExecution.owner_role,
+    delegate_role: teamExecution.delegate_role,
+    delegate_id: teamExecution.delegate_id,
+    coordination_policy: teamExecution.coordination_policy,
+    research_task_ref: researchTaskRef,
+    handoff_id: teamExecution.handoff_id,
+    handoff_kind: teamExecution.handoff_kind,
+    checkpoint_id: teamExecution.checkpoint_id,
     task_id: task.task_id,
     task_kind: task.kind,
   };
+}
+
+export function primeDelegatedFollowupTeamState(params: {
+  projectRoot: string;
+  runId: string;
+  team: DelegatedFollowupTeamConfig;
+}): void {
+  const manager = new TeamExecutionStateManager(params.projectRoot);
+  const registry = manager.loadTaskRefRegistry(params.runId)
+    ?? createResearchTaskExecutionRefRegistry(params.runId);
+  upsertResearchTaskExecutionRef(
+    registry,
+    { ...params.team.research_task_ref },
+  );
+  manager.saveTaskRefRegistry(registry);
 }
 
 function runtimeHandoff(
