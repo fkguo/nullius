@@ -18,18 +18,9 @@
 3) `docs/VISION.zh.md`（愿景与边界）
 4) `docs/ARCHITECTURE.zh.md`（总体架构与接口）
 
-注意：这里是 `hep-autoresearch` 的**开发仓库**，不是你实际做研究时的项目根目录。generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。日常使用应在你自己的研究项目目录里执行 `autoresearch init`；它现在由 TS lifecycle 前门收口，但继续复用 `packages/project-contracts/` 中共享的中立 scaffold authority 来生成最小核心项目面：`project_charter.md`、`project_index.md`、`research_plan.md`、`research_notebook.md`、`research_contract.md`、provider-neutral `.mcp.json.example`、`.autoresearch/`、`docs/`、`specs/`。真实研究项目的中间产物也必须留在开发仓外。`hep-autoresearch`、`hepar` 与兼容别名 `hep-autopilot` 现在只作为过渡中的 Pipeline A legacy surface 保留；安装入口的 public shell 已不再暴露 public computation、`doctor`、`bridge` 与 `literature-gap`。它也不再暴露 direct root lifecycle/approval mutations（`start`、`checkpoint`、`request-approval`、`reject`）。computation 现在固定走 `autoresearch run --workflow-id computation`；安装态 `run` 现在只保留为兼容壳层命令，不再提供 public workflow id。当前 public shell 只保留 provider-local workflow/support commands，如 `approvals show`、`report render`、`run`（兼容提示层）、`logs`、`context`、`smoke-test`、`method-design`、`propose`、`skill-propose`、`run-card validate|render`、`branch list|add|switch` 与 `migrate`。`ingest`、`reproduce`、`revision`、`literature_survey_polish` 与 `shell_adapter_smoke` 现在都只保留在 internal full parser，供 maintainer/eval/regression 使用。内部 maintainer/eval 路径如需 lifecycle 兼容，也只允许薄代理回 canonical `autoresearch`，不再把 Python 当作第二套 root orchestrator。
-安装态 public shell 的精确命令清单是：`approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`。
-
-当前通过安装入口（`hep-autoresearch`/`hepar`/`hep-autopilot`）可见的 legacy CLI 公共命令面如下；这些命令用于兼容未完成退役的 Pipeline A 能力，不构成 generic authority：
-- `approvals show`
-- `report render`
-- `run`（安装态 public workflow id 已清空；请改用 `autoresearch run --workflow-id ...`）
-- `logs`、`context`、`smoke-test`
-- `method-design`、`propose`、`skill-propose`
-- `run-card validate|render`
-- `branch list|add|switch`
-- `migrate`
+注意：这里是 `hep-autoresearch` 的**开发仓库**，不是你实际做研究时的项目根目录。generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。日常使用应在你自己的研究项目目录里执行 `autoresearch init`；它现在由 TS lifecycle 前门收口，但继续复用 `packages/project-contracts/` 中共享的中立 scaffold authority 来生成最小核心项目面：`project_charter.md`、`project_index.md`、`research_plan.md`、`research_notebook.md`、`research_contract.md`、provider-neutral `.mcp.json.example`、`.autoresearch/`、`docs/`、`specs/`。真实研究项目的中间产物也必须留在开发仓外。`hep-autoresearch`、`hepar` 与兼容别名 `hep-autopilot` 现在只作为过渡中的 Pipeline A legacy surface 保留；安装入口的 public shell 现在只保留 `run` 这一个兼容提示层命令。public computation、`doctor`、`bridge`、`literature-gap`、direct root lifecycle/approval mutations（`start`、`checkpoint`、`request-approval`、`reject`），以及旧 public support commands（`approvals`、`report`、`logs`、`context`、`smoke-test`、`method-design`、`propose`、`skill-propose`、`run-card`、`branch`、`migrate`）现在都只保留在 internal full parser，供 maintainer/eval/regression 使用。computation 继续固定走 `autoresearch run --workflow-id computation`；安装态 `run` 只保留为兼容壳层命令，不再提供 public workflow id。`ingest`、`reproduce`、`revision`、`literature_survey_polish` 与 `shell_adapter_smoke` 也都只保留在 internal full parser。内部 maintainer/eval 路径如需 lifecycle 兼容，也只允许薄代理回 canonical `autoresearch`，不再把 Python 当作第二套 root orchestrator。
+安装态 public shell 的精确命令清单是：`run`。
+其余 legacy workflow/support commands 都只保留在 internal full parser，供 maintainer/eval/regression 使用。
 
 ## Package docs / compatibility quickstart（小白 5 分钟）
 

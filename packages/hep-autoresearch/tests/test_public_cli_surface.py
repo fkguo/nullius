@@ -84,6 +84,17 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertNotIn(" literature-gap ", out)
         self.assertNotIn(",doctor,", out)
         self.assertNotIn(",bridge,", out)
+        self.assertNotIn(" approvals ", out)
+        self.assertNotIn(" report ", out)
+        self.assertNotIn(" logs ", out)
+        self.assertNotIn(" context ", out)
+        self.assertNotIn(" smoke-test ", out)
+        self.assertNotIn(" method-design ", out)
+        self.assertNotIn(" propose ", out)
+        self.assertNotIn(" skill-propose ", out)
+        self.assertNotIn(" run-card ", out)
+        self.assertNotIn(" branch ", out)
+        self.assertNotIn(" migrate ", out)
         self.assertIn("run", out)
         self.assertEqual(self._extract_top_level_commands(out), list(cli_mod.PUBLIC_SHELL_COMMANDS))
 
@@ -118,7 +129,29 @@ class TestPublicCliSurface(unittest.TestCase):
         )
 
     def test_public_cli_rejects_retired_public_surfaces(self) -> None:
-        for command in ("start", "checkpoint", "init", "status", "request-approval", "reject", "export", "doctor", "bridge", "literature-gap"):
+        for command in (
+            "start",
+            "checkpoint",
+            "init",
+            "status",
+            "request-approval",
+            "reject",
+            "export",
+            "doctor",
+            "bridge",
+            "literature-gap",
+            "approvals",
+            "report",
+            "logs",
+            "context",
+            "smoke-test",
+            "method-design",
+            "propose",
+            "skill-propose",
+            "run-card",
+            "branch",
+            "migrate",
+        ):
             rc, _, err = self._run_public_cli(["hepar", command])
             self.assertEqual(rc, 2)
             self.assertIn("invalid choice", err)
@@ -190,6 +223,22 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertEqual(
             groups["internal_support_commands"],
             ["start", "checkpoint", "request-approval", "reject", "doctor", "bridge", "literature-gap"],
+        )
+        self.assertEqual(
+            groups["retired_public_support_commands"],
+            [
+                "approvals",
+                "report",
+                "logs",
+                "context",
+                "smoke-test",
+                "method-design",
+                "propose",
+                "skill-propose",
+                "run-card",
+                "branch",
+                "migrate",
+            ],
         )
         self.assertEqual(
             groups["internal_workflow_paths"],

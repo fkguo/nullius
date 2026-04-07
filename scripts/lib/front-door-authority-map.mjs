@@ -82,6 +82,23 @@ export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
     commands: freezeCommands(['start', 'checkpoint', 'request-approval', 'reject', 'doctor', 'bridge', 'literature-gap']),
   }),
   Object.freeze({
+    group: 'retired_public_support_commands',
+    owner: 'internal full parser only; formerly installable public support surface now retired from the public shell',
+    commands: freezeCommands([
+      'approvals',
+      'report',
+      'logs',
+      'context',
+      'smoke-test',
+      'method-design',
+      'propose',
+      'skill-propose',
+      'run-card',
+      'branch',
+      'migrate',
+    ]),
+  }),
+  Object.freeze({
     group: 'internal_workflow_paths',
     owner: 'internal full parser only; non-public workflow residue retained for maintainer/eval/regression coverage',
     commands: freezeCommands([

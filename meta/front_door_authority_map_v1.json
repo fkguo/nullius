@@ -50,18 +50,7 @@
       "run_workflow_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_RUN_WORKFLOW_IDS",
       "run_workflow_ids": [],
       "commands": [
-        "approvals",
-        "report",
-        "run",
-        "logs",
-        "context",
-        "smoke-test",
-        "method-design",
-        "propose",
-        "skill-propose",
-        "run-card",
-        "branch",
-        "migrate"
+        "run"
       ]
     },
     "hepar_internal_full_parser": {
@@ -91,6 +80,22 @@
             "doctor",
             "bridge",
             "literature-gap"
+          ]
+        },
+        {
+          "group": "retired_public_support_commands",
+          "commands": [
+            "approvals",
+            "report",
+            "logs",
+            "context",
+            "smoke-test",
+            "method-design",
+            "propose",
+            "skill-propose",
+            "run-card",
+            "branch",
+            "migrate"
           ]
         },
         {

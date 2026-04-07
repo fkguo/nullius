@@ -12,7 +12,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/README.md',
     snippets: [
       'Need the current mainline front-door truth first? Start with the repo-root [README](../../README.md), [docs/QUICKSTART.md](../../docs/QUICKSTART.md), and [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md). The package docs below are package-local legacy / maintainer-oriented docs around the residual Pipeline A surface, not the default product first touch.',
-      'The installable public legacy surface now excludes public computation plus `doctor`, `bridge`, and `literature-gap`',
+      'The installable public legacy surface now keeps only `run` as a compatibility pointer.',
       `Exact installable public command inventory: ${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}.`,
       'Transitional Pipeline A compatibility CLI (install aliases: `hep-autoresearch`, `hepar`, `hep-autopilot`) remains available, but it is not the generic front door.',
     ],
@@ -24,9 +24,9 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/README.zh.md',
     snippets: [
       '如果你先想确认当前 mainline 的 front-door 真相，请先看仓库根级的 [README](../../README.md)、[docs/QUICKSTART.md](../../docs/QUICKSTART.md) 与 [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md)。下面这些内容是 `packages/hep-autoresearch/` 的 package-local legacy / maintainer 文档链路，不是默认产品前门。',
-      '安装入口的 public shell 已不再暴露 public computation、`doctor`、`bridge` 与 `literature-gap`。',
+      '安装入口的 public shell 现在只保留 `run` 这一个兼容提示层命令。',
       `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
-      '当前通过安装入口（`hep-autoresearch`/`hepar`/`hep-autopilot`）可见的 legacy CLI 公共命令面如下；这些命令用于兼容未完成退役的 Pipeline A 能力，不构成 generic authority：',
+      '其余 legacy workflow/support commands 都只保留在 internal full parser，供 maintainer/eval/regression 使用。',
     ],
     forbiddenSnippets: [
       '## 你现在应该从哪里读起？\n',
@@ -37,7 +37,7 @@ export const FRONT_DOOR_SNIPPETS = [
     snippets: [
       'If you need the current mainline front-door truth, start with the repo-root `README.md`, `../../docs/QUICKSTART.md`, and `../../docs/TESTING_GUIDE.md`. This package index is for package-local legacy / maintainer docs around `hep-autoresearch` / `hepar`; it is not the default product front door.',
       '## Package-doc entry points (legacy / maintainer-oriented)',
-      'The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`; those retired command paths remain only on the internal full parser for maintainer/eval/regression coverage.',
+      'The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands remain only on the internal full parser for maintainer/eval/regression coverage.',
     ],
     forbiddenSnippets: [
       '## Entry points',
@@ -48,7 +48,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/BEGINNER_TUTORIAL.md',
     snippets: [
       'For the current generic front door, start with the repo-root `../../docs/QUICKSTART.md` and `../../docs/TESTING_GUIDE.md`. This package tutorial is a legacy-surface / maintainer-oriented compatibility walkthrough for readers who intentionally need the narrowed Pipeline A shell around an external research project.',
-      'The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`.',
+      'The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands are internal full-parser only.',
       'This is an optional compatibility smoke path, not the recommended first-touch path.',
       '- `computation`: `docs/COMPUTATION.md` via `autoresearch run --workflow-id computation` (native TS front door, not `hep-autoresearch run`)',
     ],
@@ -61,7 +61,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/BEGINNER_TUTORIAL.zh.md',
     snippets: [
       '如果你想先看当前 generic front door，请先读仓库根级 `../../docs/QUICKSTART.md` 与 `../../docs/TESTING_GUIDE.md`。本教程是一个 package-level 的 legacy / maintainer 兼容路径说明，只面向那些确实需要触碰收窄后 Pipeline A shell 的读者。',
-      '安装态 public shell 已不再暴露 public computation、`doctor`、`bridge` 与 `literature-gap`。',
+      '安装态 public shell 现在只保留 `run` 这一个兼容提示层命令；其余 legacy workflow/support commands 都只保留在 internal full parser。',
       '这是一条可选的兼容路径烟测，不是推荐的 first-touch 路径。',
       '- `computation`：`docs/COMPUTATION.md`，并通过 `autoresearch run --workflow-id computation` 进入（不是 `hep-autoresearch run`）',
     ],
@@ -72,7 +72,7 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'packages/hep-autoresearch/docs/WORKFLOWS.md',
     snippets: [
-      'The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`; those retired command paths remain only on the internal full parser for maintainer/eval/regression coverage.',
+      'The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands remain only on the internal full parser for maintainer/eval/regression coverage.',
       '### Internal full-parser compatibility only: `doctor` (maintainer/eval/regression)',
       'The installable public shell no longer exposes `hepar doctor`.',
     ],
@@ -84,7 +84,7 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.zh.md',
     snippets: [
-      'public computation、`doctor`、`bridge` 与 `literature-gap` 已从 installable shell 退役，仅保留在内部 full parser 供 maintainer/eval/regression 使用。',
+      '安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余 legacy workflow/support commands 都已退回内部 full parser。',
       `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
       'computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：',
       '# computation 现在走 native TS front door，而不是 installable `hepar run`',

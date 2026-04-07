@@ -6,7 +6,7 @@ English quickstart: `docs/BEGINNER_TUTORIAL.md`。本文件是中文详版。
 
 如果你想先看当前 generic front door，请先读仓库根级 `../../docs/QUICKSTART.md` 与 `../../docs/TESTING_GUIDE.md`。本教程是一个 package-level 的 legacy / maintainer 兼容路径说明，只面向那些确实需要触碰收窄后 Pipeline A shell 的读者。
 
-生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，但现在只承载 residual non-computation workflow/support commands。安装态 public shell 已不再暴露 public computation、`doctor`、`bridge` 与 `literature-gap`。它也不再暴露 direct root lifecycle/approval mutations（`start`、`checkpoint`、`request-approval`、`reject`）。因此本教程对 lifecycle verbs 使用 `autoresearch`，而任何 legacy shell 示例都只作为兼容路径说明。
+生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，但安装态 public shell 现在只保留 `run` 这一个兼容提示层命令；其余 legacy workflow/support commands 都只保留在 internal full parser。public computation、`doctor`、`bridge`、`literature-gap`、direct root lifecycle/approval mutations（`start`、`checkpoint`、`request-approval`、`reject`），以及旧 public support commands 现在都只保留在 internal full parser。因此本教程对 lifecycle verbs 使用 `autoresearch`，而任何 legacy shell 示例都只作为收窄后的兼容路径说明。
 
 ## 0）先建立 4 个概念
 
@@ -54,26 +54,21 @@ autoresearch status
 
 之后你可以在任意子目录运行 `autoresearch ...` 处理 lifecycle verbs；CLI 会自动向上寻找 `.autoresearch/`。
 安装态 `hep-autoresearch run` 现在只保留兼容壳层命令，不再公开 workflow id；workflow 文档里出现的语义名更多是工作流规范或 internal maintainer 路径，不再代表安装态 public shell 真相。
+安装态 public shell 现在只保留 `run` 这一个兼容提示层命令；其余 legacy workflow/support commands 都只保留在 internal full parser。
 如果你显式传 `HEP_DATA_DIR`，它也应留在开发仓外；public real-project flow 现在会对 repo 内 override 直接 fail-close。
 
 ## 3）先跑一个 legacy compatibility 烟测
 
 这是一条可选的兼容路径烟测，不是推荐的 first-touch 路径。
 
-先在新项目里生成 context pack：
+先确认安装态壳层已经收窄：
 
 ```bash
-hep-autoresearch context \
-  --run-id M0-context-r1 \
-  --workflow-id custom \
-  --note "bootstrap smoke test"
+hep-autoresearch --help
+hep-autoresearch run --help
 ```
 
-检查输出：
-- `artifacts/runs/M0-context-r1/context/context.md`
-- `artifacts/runs/M0-context-r1/context/context.json`
-
-这一步确认运行时确实能看到你项目本地的 charter / plan / notebook / gate contract，而不是只盯当前命令。
+这一步确认安装态壳层仍然存在，但对外只发布收窄后的 `run` 兼容入口。
 
 ## 4）先确认剩余 public `run` 入口
 

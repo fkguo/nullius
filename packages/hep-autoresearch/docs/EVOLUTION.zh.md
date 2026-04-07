@@ -16,8 +16,9 @@
 目标：把“失败/不稳/缺口”转成**可执行、可审计**的下一步（而不是只留在对话里）。
 
 入口：
-- `hep-autoresearch propose --tag <NEW_TAG> --source-run-tag <OLD_TAG>`
 - 或 `python3 scripts/run_evolution_proposal.py --tag <NEW_TAG> --source-run-tag <OLD_TAG>`
+
+说明：安装态 public shell 已不再公开 `propose`；如果你确实要碰这个 package-local legacy path，应把它当成 internal full-parser / maintainer 路径，而不是 generic front door。
 
 输出（JSON SSOT + 人类可读 Markdown）：
 - `artifacts/runs/<NEW_TAG>/evolution_proposal/{manifest,summary,analysis}.json`

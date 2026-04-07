@@ -4,7 +4,7 @@ This quickstart assumes you are using the current CLI surfaces in an **external 
 
 For the current generic front door, start with the repo-root `../../docs/QUICKSTART.md` and `../../docs/TESTING_GUIDE.md`. This package tutorial is a legacy-surface / maintainer-oriented compatibility walkthrough for readers who intentionally need the narrowed Pipeline A shell around an external research project.
 
-Lifecycle note: the canonical generic lifecycle entrypoint is now `autoresearch` for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python surface for residual non-computation workflow/support commands. The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`. It also no longer exposes direct root lifecycle/approval mutations (`start`, `checkpoint`, `request-approval`, `reject`). This tutorial therefore uses `autoresearch` for lifecycle verbs, while any legacy-shell examples stay on the residual compatibility surface only.
+Lifecycle note: the canonical generic lifecycle entrypoint is now `autoresearch` for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python surface. The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands are internal full-parser only. Public computation, `doctor`, `bridge`, `literature-gap`, direct root lifecycle/approval mutations (`start`, `checkpoint`, `request-approval`, `reject`), and the old public support commands are all internal full-parser only now. This tutorial therefore uses `autoresearch` for lifecycle verbs, while any legacy-shell examples stay on the narrowed compatibility surface only.
 
 ## 0) Core ideas
 
@@ -57,20 +57,14 @@ If you pass an explicit `HEP_DATA_DIR`, keep that directory outside the dev repo
 
 This is an optional compatibility smoke path, not the recommended first-touch path.
 
-Write a context pack in the new project:
+Inspect the narrowed installable shell:
 
 ```bash
-hep-autoresearch context \
-  --run-id M0-context-r1 \
-  --workflow-id custom \
-  --note "bootstrap smoke test"
+hep-autoresearch --help
+hep-autoresearch run --help
 ```
 
-Check the outputs:
-- `artifacts/runs/M0-context-r1/context/context.md`
-- `artifacts/runs/M0-context-r1/context/context.json`
-
-This confirms the project-local charter / plan / notebook / gate contracts are visible to the runtime.
+This confirms the installable shell still exists as a compatibility layer while publishing only the narrowed `run` surface.
 
 ## 4) Inspect the remaining public compatibility `run` surface
 

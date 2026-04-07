@@ -15,21 +15,21 @@ Chinese version (legacy / detailed notes): `docs/ORCHESTRATOR_INTERACTION.zh.md`
 Current front-door truth:
 - canonical root lifecycle is `autoresearch init|status|approve|pause|resume|export`
 - canonical bounded computation is `autoresearch run --workflow-id computation`
-- installable `hep-autoresearch` / `hepar` / `hep-autopilot` keep only provider-local workflow/support commands on the public shell
+- installable `hep-autoresearch` / `hepar` / `hep-autopilot` keep only `run` on the public shell, and that `run` is just a compatibility pointer
 - installable `hepar run` remains as a compatibility shell command, but public workflow ids are now empty
-- Exact installable public command inventory: `approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`.
+- Exact installable public command inventory: `run`.
 - direct public root lifecycle/approval mutations such as `start`, `checkpoint`, `request-approval`, and `reject` are retired from the installable shell; `reject` itself still remains an internal-only direct-mutation maintainer path pending canonical TS parity
+- legacy support commands such as `approvals`, `report`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, and `migrate` also remain internal full-parser only
 
 Suggested command families (conceptual; the concrete authority above is the current truth):
 - `init`: initialize your chosen project directory as a project root (scaffold missing docs/KB/specs; create `.autoresearch/` state + ledger)
 - `run`: bounded computation lives on `autoresearch run --workflow-id computation`; installable `hepar run` is now a compatibility prompt surface and does not expose public workflow ids
-- `branch`: record branching decisions in the Plan SSOT (list/add/switch; safe backtracking)
 - `status`: show current run state (steps, artifacts, pending approvals, budget usage)
 - `pause`: pause the run (write stop files or update state)
 - `resume`: continue
 - `approve <approval_id>`: approve a pending action (A1–A5)
-- `logs`: print recent logs and key failure points
 - `export`: export a run bundle (offline review/sharing)
+- internal-only maintainer utilities such as `branch`, `logs`, `context`, `run-card`, and `method-design` remain on the full parser only and are not installable public-shell truth
 
 ## 2) Approval packet requirements
 

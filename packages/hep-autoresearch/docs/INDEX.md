@@ -17,7 +17,7 @@ If you need the current mainline front-door truth, start with the repo-root `REA
 
 ## External project scaffold
 
-Use `autoresearch init` in your **research project directory**. `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`, while `hep-autoresearch` / `hepar` / `hep-autopilot` remain the transitional Pipeline A legacy surface for unrepointed workflow/support commands. The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`; those retired command paths remain only on the internal full parser for maintainer/eval/regression coverage. `autoresearch init` now enters through the TS lifecycle front door but still reuses the single shared neutral scaffold authority in `packages/project-contracts/` to scaffold the project-local files below:
+Use `autoresearch init` in your **research project directory**. `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`, while `hep-autoresearch` / `hepar` / `hep-autopilot` remain the transitional Pipeline A legacy surface. The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands remain only on the internal full parser for maintainer/eval/regression coverage. `autoresearch init` now enters through the TS lifecycle front door but still reuses the single shared neutral scaffold authority in `packages/project-contracts/` to scaffold the project-local files below:
 
 - Project charter: `project_charter.md`
 - Project index: `project_index.md`

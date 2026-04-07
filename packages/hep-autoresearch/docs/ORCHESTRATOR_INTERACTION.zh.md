@@ -14,22 +14,23 @@
 先给出当前 front-door 真相：
 - canonical root lifecycle 固定走 `autoresearch init|status|approve|pause|resume|export`
 - canonical bounded computation 固定走 `autoresearch run --workflow-id computation`
-- 安装态 `hep-autoresearch` / `hepar` / `hep-autopilot` public shell 只保留 provider-local workflow/support commands
+- 安装态 `hep-autoresearch` / `hepar` / `hep-autopilot` public shell 现在只保留 `run` 这一个兼容壳层命令
 - 安装态 `hepar run` 仅保留为兼容壳层命令，public workflow ids 现已清空
-- 安装态 public shell 的精确命令清单是：`approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`。
+- 安装态 public shell 的精确命令清单是：`run`。
 - `start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役
+- 安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余 legacy workflow/support commands 都已退回内部 full parser。
+- `approvals`、`report`、`logs`、`context`、`smoke-test`、`method-design`、`propose`、`skill-propose`、`run-card`、`branch` 与 `migrate` 这些旧 support commands 也已退回 internal full parser
 
 建议命令族（概念示意；上面的 concrete authority 才是当前真相）：
 
 - `init`：把你选定的项目目录初始化为 project root（补齐 docs/KB/specs 最小骨架；创建 `.autoresearch/` 状态 + ledger）
 - `run`：bounded computation 固定走 `autoresearch run --workflow-id computation`；安装态 `hepar run` 现在只作为兼容提示面，不再公开 workflow id
-- `branch`：把“分支决策/备选路径”记录进 Plan SSOT（list/add/switch；用于可控回溯）
 - `status`：显示当前 run 状态（步骤、产物、待同意点、预算消耗）
 - `pause`：暂停当前 run（写 stop file 或更新状态）
 - `resume`：继续执行
 - `approve <approval_id>`：同意某个待审批动作（A1–A5）
-- `logs`：输出最近日志与关键失败点
 - `export`：导出 run bundle（便于离线审阅/共享）
+- `branch`、`logs`、`context`、`run-card`、`method-design` 等 maintainer 工具仍在 internal full parser，但不再属于 installable public shell 真相
 
 ## 2) 默认“同意点”触发（approve gates）
 
@@ -110,20 +111,19 @@ Web 入口不改变契约，只改变 UI：
 
 ### 现阶段实现（v0）
 
-当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，但安装态 public shell 现在只保留 residual non-computation workflow/support commands，其中 public `run` 不再提供 workflow id。`start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役；其中 `reject` 仍暂时保留为内部 full parser 的 direct-mutation maintainer path，等待 canonical TS surface parity。public computation、`doctor`、`bridge` 与 `literature-gap` 已从 installable shell 退役，仅保留在内部 full parser 供 maintainer/eval/regression 使用。其余 legacy workflow ids（`ingest`、`reproduce`、`revision`、`literature_survey_polish`、`shell_adapter_smoke`）现在也只保留为 internal full-parser coverage，不再属于 installable public shell。computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：
+当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，但安装态 public shell 现在只保留 `run` 这一个兼容壳层命令，而且 public `run` 不再提供 workflow id。`start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役；其中 `reject` 仍暂时保留为内部 full parser 的 direct-mutation maintainer path，等待 canonical TS surface parity。public computation、`doctor`、`bridge`、`literature-gap`，以及 `approvals`、`report`、`logs`、`context`、`smoke-test`、`method-design`、`propose`、`skill-propose`、`run-card`、`branch`、`migrate` 这些旧 support commands 都已从 installable shell 退役，仅保留在内部 full parser 供 maintainer/eval/regression 使用。其余 legacy workflow ids（`ingest`、`reproduce`、`revision`、`literature_survey_polish`、`shell_adapter_smoke`）现在也只保留为 internal full-parser coverage，不再属于 installable public shell。computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：
 
 ```bash
 # 在你的研究项目根目录里执行（不是在 packages/hep-autoresearch/ 里）
 autoresearch init
-hepar context --run-id M0-context-r1 --workflow-id custom --note "bootstrap smoke test"
 autoresearch status
-hepar logs --tail 20
+hepar --help
+hepar run --help
 autoresearch pause
 autoresearch resume
 autoresearch export
 
-# installable `hepar run` 不再公开 workflow id（兼容壳层，仅做前门提示）
-hepar run --help
+# installable `hepar run` 是唯一残余 public shell 命令（兼容壳层，仅做前门提示）
 
 # computation 现在走 native TS front door，而不是 installable `hepar run`
 autoresearch run --run-id M0-computation-demo-r1 --workflow-id computation --manifest /path/to/external-project/M0-computation-demo-r1/computation/manifest.json --project-root /path/to/external-project

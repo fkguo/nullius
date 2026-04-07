@@ -156,6 +156,16 @@
 
 **Why**: A deeper source audit of mature agent implementations showed the same stable pattern repeatedly: one canonical front door, append-only or typed canonical state, separate projection layers, and strict containment of legacy/internal tooling. Encoding that split directly into Autoresearch is the safest way to keep generic-first authority from drifting back into legacy shells or maintainer-only surfaces.
 
+### [2026-04-07] Legacy public-shell invariant: installable Pipeline A shell may expose only a bounded compatibility pointer
+
+**Decision**:
+- The installable Pipeline A aliases (`hep-autoresearch`, `hepar`, `hep-autopilot`) must not retain a suite of public workflow/support commands after generic authority has moved to `autoresearch`.
+- The only remaining installable public-shell command may be a bounded compatibility pointer (`run`), and that pointer must not own any public workflow inventory or regain generic execution authority.
+- Legacy utilities such as `approvals`, `report`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, and `migrate` must either be internal full-parser only or be deleted; they are not public front-door truth.
+- Exact public-shell inventory must stay fail-closed across source, front-door authority fixtures, docs, and tests.
+
+**Why**: Leaving a public support-command bundle on the legacy shell recreates a second operator/public front door even when lifecycle and computation have already moved to the generic TS control plane.
+
 ### [2026-03-21] Pipeline A lifecycle invariant: `hep-autoresearch` and `hepar` move together
 
 **Decision**:
@@ -455,10 +465,11 @@
 
 **Decision**:
 - The installable public `hepar` / `hep-autoresearch` / `hep-autopilot` `run` surface now keeps the shell verb only as a compatibility pointer; it exposes no public workflow ids.
+- The installable public shell now exposes only that `run` compatibility pointer. Former public support/operator verbs (`approvals`, `report`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`) are internal full-parser coverage only and must not be documented or tested as installable public commands.
 - `paper_reviser`, `ingest`, `reproduce`, `revision`, `literature_survey_polish`, `shell_adapter_smoke`, and already-retired public `computation` are not public-shell authority anymore; if they still exist, they are internal full-parser coverage only for maintainer/eval/regression usage and must not be documented or tested as installable public entrypoints.
 - The exact survivor/boundary classification should live in a dedicated front-door authority map (`meta/front_door_authority_map_v1.json`) consumed by docs/tests, with separate surface ids for canonical `autoresearch`, installable `hepar` public shell, internal full parser residue, and exact MCP tool spec surfaces.
 
-**Why**: Once generic lifecycle and computation authority moved to `autoresearch`, even one installable `hepar run --workflow-id ...` survivor would keep the legacy Python shell half-alive as a second workflow front door. Clearing the public workflow inventory entirely, while locking any remaining parser residue behind explicit internal-only classification, prevents that drift and keeps the remaining cleanup/delete work honest.
+**Why**: Once generic lifecycle and computation authority moved to `autoresearch`, even one installable `hepar run --workflow-id ...` survivor would keep the legacy Python shell half-alive as a second workflow front door. The same drift applies to old support/operator verbs: leaving them public would preserve a second Python operator shell after the generic front door had already moved. Clearing the public workflow inventory and the remaining public support inventory, while locking any residual parser paths behind explicit internal-only classification, prevents that drift and keeps the remaining cleanup/delete work honest.
 
 ### [2026-04-07] Projection-only mutation guard invariant: delegated approval lists and fleet run lists must not become mutation authority
 

@@ -95,18 +95,7 @@ def _internal_only_run_workflow_ids() -> set[str]:
 
 
 PUBLIC_SHELL_COMMANDS: tuple[str, ...] = (
-    "approvals",
-    "report",
     "run",
-    "logs",
-    "context",
-    "smoke-test",
-    "method-design",
-    "propose",
-    "skill-propose",
-    "run-card",
-    "branch",
-    "migrate",
 )
 
 PUBLIC_SHELL_COMMANDS_MARKDOWN = ", ".join(f"`{command}`" for command in PUBLIC_SHELL_COMMANDS)
@@ -5681,24 +5670,25 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         p_app.add_argument("--note", help="Ledger note.")
         p_app.set_defaults(fn=cmd_approve)
 
-    p_approvals = sub.add_parser("approvals", help="Approval packet utilities (NEW-03).")
-    approvals_sub = p_approvals.add_subparsers(dest="approvals_cmd", required=True)
-    p_approvals_show = approvals_sub.add_parser("show", help="Show approval packets for a run.")
-    p_approvals_show.add_argument("--run-id", required=True, help="Run id.")
-    p_approvals_show.add_argument("--gate", help="Filter by gate prefix (e.g. A1, A3).")
-    p_approvals_show.add_argument(
-        "--format", choices=["short", "full", "json"], default="short",
-        help="Output format (default: short).",
-    )
-    p_approvals_show.set_defaults(fn=cmd_approvals_show)
+    if not public_surface:
+        p_approvals = sub.add_parser("approvals", help="Approval packet utilities (NEW-03).")
+        approvals_sub = p_approvals.add_subparsers(dest="approvals_cmd", required=True)
+        p_approvals_show = approvals_sub.add_parser("show", help="Show approval packets for a run.")
+        p_approvals_show.add_argument("--run-id", required=True, help="Run id.")
+        p_approvals_show.add_argument("--gate", help="Filter by gate prefix (e.g. A1, A3).")
+        p_approvals_show.add_argument(
+            "--format", choices=["short", "full", "json"], default="short",
+            help="Output format (default: short).",
+        )
+        p_approvals_show.set_defaults(fn=cmd_approvals_show)
 
-    p_report = sub.add_parser("report", help="Report utilities (NEW-04).")
-    report_sub = p_report.add_subparsers(dest="report_cmd", required=True)
-    p_report_render = report_sub.add_parser("render", help="Render a self-contained report from run results.")
-    p_report_render.add_argument("--run-ids", required=True, help="Comma-separated run ids.")
-    p_report_render.add_argument("--out", choices=["md", "tex"], default="md", help="Output format (default: md).")
-    p_report_render.add_argument("--output-path", help="Write to file instead of stdout.")
-    p_report_render.set_defaults(fn=cmd_report_render)
+        p_report = sub.add_parser("report", help="Report utilities (NEW-04).")
+        report_sub = p_report.add_subparsers(dest="report_cmd", required=True)
+        p_report_render = report_sub.add_parser("render", help="Render a self-contained report from run results.")
+        p_report_render.add_argument("--run-ids", required=True, help="Comma-separated run ids.")
+        p_report_render.add_argument("--out", choices=["md", "tex"], default="md", help="Output format (default: md).")
+        p_report_render.add_argument("--output-path", help="Write to file instead of stdout.")
+        p_report_render.set_defaults(fn=cmd_report_render)
 
     run_help = (
         "Public compatibility wrapper only; no installable public legacy run workflow ids remain. "
@@ -5902,17 +5892,18 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         )
     p_run.set_defaults(fn=cmd_run)
 
-    p_logs = sub.add_parser("logs", help="Show recent ledger events.")
-    p_logs.add_argument("--run-id", help="Filter by run id (default: current).")
-    p_logs.add_argument("--tail", type=int, default=25, help="Number of events to show.")
-    p_logs.set_defaults(fn=cmd_logs)
+    if not public_surface:
+        p_logs = sub.add_parser("logs", help="Show recent ledger events.")
+        p_logs.add_argument("--run-id", help="Filter by run id (default: current).")
+        p_logs.add_argument("--tail", type=int, default=25, help="Number of events to show.")
+        p_logs.set_defaults(fn=cmd_logs)
 
-    p_ctx = sub.add_parser("context", help="Write/update the per-run context pack (context.md + context.json).")
-    p_ctx.add_argument("--run-id", help="Run id to write context pack for (default: current).")
-    p_ctx.add_argument("--workflow-id", help="Workflow id (optional; improves intent section).")
-    p_ctx.add_argument("--refkey", help="Optional RefKey (for paper workflows).")
-    p_ctx.add_argument("--note", help="Optional note to include in the context pack.")
-    p_ctx.set_defaults(fn=cmd_context)
+        p_ctx = sub.add_parser("context", help="Write/update the per-run context pack (context.md + context.json).")
+        p_ctx.add_argument("--run-id", help="Run id to write context pack for (default: current).")
+        p_ctx.add_argument("--workflow-id", help="Workflow id (optional; improves intent section).")
+        p_ctx.add_argument("--refkey", help="Optional RefKey (for paper workflows).")
+        p_ctx.add_argument("--note", help="Optional note to include in the context pack.")
+        p_ctx.set_defaults(fn=cmd_context)
 
     if not public_surface:
         p_export = sub.add_parser("export", help="Export a run bundle (zip; canonical generic entrypoint is `autoresearch export`).")
@@ -5925,8 +5916,9 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         )
         p_export.set_defaults(fn=cmd_export)
 
-    p_smoke = sub.add_parser("smoke-test", help="Import MCP bridge modules (no MCP server required).")
-    p_smoke.set_defaults(fn=cmd_smoke_test)
+    if not public_surface:
+        p_smoke = sub.add_parser("smoke-test", help="Import MCP bridge modules (no MCP server required).")
+        p_smoke.set_defaults(fn=cmd_smoke_test)
 
     if not public_surface:
         p_doc = sub.add_parser("doctor", help="Check MCP server connectivity and required tool availability (Phase B6).")
@@ -6031,145 +6023,146 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         p_gap.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
         p_gap.set_defaults(fn=cmd_literature_gap)
 
-    p_md = sub.add_parser("method-design", help="Generate a runnable computation project scaffold (Phase C2).")
-    p_md.add_argument("--tag", required=True, help="Run tag for artifact output paths.")
-    p_md.add_argument(
-        "--template",
-        default="minimal_ok",
-        choices=["minimal_ok", "pdg_snapshot", "pdg_runtime", "spec_v1"],
-        help="Scaffold template (default: minimal_ok).",
-    )
-    p_md.add_argument(
-        "--project-id",
-        required=False,
-        help="Generated project_id (lowercase, underscores; used in project.json). Optional for template=spec_v1 (taken from spec unless overridden).",
-    )
-    p_md.add_argument("--spec", help="Path to method_spec v1 JSON (required for template=spec_v1).")
-    p_md.add_argument("--title", help="Optional title override for generated project/run-card.")
-    p_md.add_argument("--description", help="Optional description override for generated project.")
-    p_md.add_argument(
-        "--out-project-dir",
-        help="Write the generated project into this directory (default: artifacts/runs/<TAG>/method_design/project).",
-    )
-    p_md.add_argument("--overwrite", action="store_true", help="Allow overwriting existing generated files.")
+    if not public_surface:
+        p_md = sub.add_parser("method-design", help="Generate a runnable computation project scaffold (Phase C2).")
+        p_md.add_argument("--tag", required=True, help="Run tag for artifact output paths.")
+        p_md.add_argument(
+            "--template",
+            default="minimal_ok",
+            choices=["minimal_ok", "pdg_snapshot", "pdg_runtime", "spec_v1"],
+            help="Scaffold template (default: minimal_ok).",
+        )
+        p_md.add_argument(
+            "--project-id",
+            required=False,
+            help="Generated project_id (lowercase, underscores; used in project.json). Optional for template=spec_v1 (taken from spec unless overridden).",
+        )
+        p_md.add_argument("--spec", help="Path to method_spec v1 JSON (required for template=spec_v1).")
+        p_md.add_argument("--title", help="Optional title override for generated project/run-card.")
+        p_md.add_argument("--description", help="Optional description override for generated project.")
+        p_md.add_argument(
+            "--out-project-dir",
+            help="Write the generated project into this directory (default: artifacts/runs/<TAG>/method_design/project).",
+        )
+        p_md.add_argument("--overwrite", action="store_true", help="Allow overwriting existing generated files.")
 
-    # MCP options (used by templates that query PDG at design time).
-    p_md.add_argument("--mcp-config", help="Path to MCP config JSON (default: .mcp.json).")
-    p_md.add_argument("--mcp-server", default="hep-research", help="MCP server name in config (default: hep-research).")
-    p_md.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
+        # MCP options (used by templates that query PDG at design time).
+        p_md.add_argument("--mcp-config", help="Path to MCP config JSON (default: .mcp.json).")
+        p_md.add_argument("--mcp-server", default="hep-research", help="MCP server name in config (default: hep-research).")
+        p_md.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
 
-    # PDG knobs (template=pdg_snapshot or template=pdg_runtime).
-    p_md.add_argument("--pdg-particle-name", help="Particle name for PDG query (template=pdg_snapshot|pdg_runtime).")
-    p_md.add_argument(
-        "--pdg-property",
-        default="mass",
-        choices=["mass", "width", "lifetime"],
-        help="PDG property to snapshot (default: mass).",
-    )
-    p_md.add_argument("--pdg-no-derived", action="store_true", help="Disallow derived PDG values.")
-    p_md.set_defaults(fn=cmd_method_design)
+        # PDG knobs (template=pdg_snapshot or template=pdg_runtime).
+        p_md.add_argument("--pdg-particle-name", help="Particle name for PDG query (template=pdg_snapshot|pdg_runtime).")
+        p_md.add_argument(
+            "--pdg-property",
+            default="mass",
+            choices=["mass", "width", "lifetime"],
+            help="PDG property to snapshot (default: mass).",
+        )
+        p_md.add_argument("--pdg-no-derived", action="store_true", help="Disallow derived PDG values.")
+        p_md.set_defaults(fn=cmd_method_design)
 
-    p_prop = sub.add_parser("propose", help="Generate evolution proposals from a past run (evidence-first).")
-    p_prop.add_argument("--tag", required=True, help="Run tag for proposal artifacts output.")
-    p_prop.add_argument("--source-run-tag", required=True, help="Existing run tag to analyze.")
-    p_prop.add_argument("--max-proposals", type=int, default=20, help="Max proposals to emit (default: 20).")
-    p_prop.add_argument("--no-eval-failures", action="store_true", help="Do not include eval failures even if present.")
-    p_prop.add_argument("--no-kb-trace", action="store_true", help="Do not write a KB methodology trace file.")
-    p_prop.add_argument("--kb-trace-path", help="Override KB trace path (project-relative).")
-    p_prop.set_defaults(fn=cmd_propose)
+        p_prop = sub.add_parser("propose", help="Generate evolution proposals from a past run (evidence-first).")
+        p_prop.add_argument("--tag", required=True, help="Run tag for proposal artifacts output.")
+        p_prop.add_argument("--source-run-tag", required=True, help="Existing run tag to analyze.")
+        p_prop.add_argument("--max-proposals", type=int, default=20, help="Max proposals to emit (default: 20).")
+        p_prop.add_argument("--no-eval-failures", action="store_true", help="Do not include eval failures even if present.")
+        p_prop.add_argument("--no-kb-trace", action="store_true", help="Do not write a KB methodology trace file.")
+        p_prop.add_argument("--kb-trace-path", help="Override KB trace path (project-relative).")
+        p_prop.set_defaults(fn=cmd_propose)
 
-    p_skill = sub.add_parser("skill-propose", help="Generate deterministic skill proposal scaffolds from a past run (T38).")
-    p_skill.add_argument("--tag", required=True, help="Run tag for output artifacts.")
-    p_skill.add_argument("--source-run-tag", required=True, help="Existing run tag to analyze.")
-    p_skill.add_argument("--max-proposals", type=int, default=5, help="Max proposals to emit (default: 5).")
-    p_skill.set_defaults(fn=cmd_skill_propose)
+        p_skill = sub.add_parser("skill-propose", help="Generate deterministic skill proposal scaffolds from a past run (T38).")
+        p_skill.add_argument("--tag", required=True, help="Run tag for output artifacts.")
+        p_skill.add_argument("--source-run-tag", required=True, help="Existing run tag to analyze.")
+        p_skill.add_argument("--max-proposals", type=int, default=5, help="Max proposals to emit (default: 5).")
+        p_skill.set_defaults(fn=cmd_skill_propose)
 
-    p_rc = sub.add_parser("run-card", help="Run-card utilities (computation run_card v2).")
-    rc_sub = p_rc.add_subparsers(dest="run_card_cmd", required=True)
+        p_rc = sub.add_parser("run-card", help="Run-card utilities (computation run_card v2).")
+        rc_sub = p_rc.add_subparsers(dest="run_card_cmd", required=True)
 
-    p_rc_val = rc_sub.add_parser("validate", help="Validate a computation run-card v2 (strict).")
-    p_rc_val.add_argument("--run-card", required=True, help="Path to run-card v2 JSON (absolute or project-relative).")
-    p_rc_val.add_argument(
-        "--project-dir",
-        help="Project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
-    )
-    p_rc_val.add_argument("--run-id", help="Optional run-id override (like hepar run --run-id).")
-    p_rc_val.add_argument("--param", action="append", default=[], help="Parameter override (repeatable: key=value).")
-    p_rc_val.set_defaults(fn=cmd_run_card_validate)
+        p_rc_val = rc_sub.add_parser("validate", help="Validate a computation run-card v2 (strict).")
+        p_rc_val.add_argument("--run-card", required=True, help="Path to run-card v2 JSON (absolute or project-relative).")
+        p_rc_val.add_argument(
+            "--project-dir",
+            help="Project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
+        )
+        p_rc_val.add_argument("--run-id", help="Optional run-id override (like hepar run --run-id).")
+        p_rc_val.add_argument("--param", action="append", default=[], help="Parameter override (repeatable: key=value).")
+        p_rc_val.set_defaults(fn=cmd_run_card_validate)
 
-    p_rc_rend = rc_sub.add_parser("render", help="Render a computation run-card v2 phase DAG (mermaid/dot/text).")
-    p_rc_rend.add_argument("--run-card", required=True, help="Path to run-card v2 JSON (absolute or project-relative).")
-    p_rc_rend.add_argument(
-        "--project-dir",
-        help="Project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
-    )
-    p_rc_rend.add_argument("--run-id", help="Optional run-id override (like hepar run --run-id).")
-    p_rc_rend.add_argument("--param", action="append", default=[], help="Parameter override (repeatable: key=value).")
-    p_rc_rend.add_argument("--format", default="mermaid", choices=["mermaid", "dot", "text"], help="Render format.")
-    p_rc_rend.add_argument("--out", help="Write to this path (default: stdout).")
-    p_rc_rend.set_defaults(fn=cmd_run_card_render)
+        p_rc_rend = rc_sub.add_parser("render", help="Render a computation run-card v2 phase DAG (mermaid/dot/text).")
+        p_rc_rend.add_argument("--run-card", required=True, help="Path to run-card v2 JSON (absolute or project-relative).")
+        p_rc_rend.add_argument(
+            "--project-dir",
+            help="Project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
+        )
+        p_rc_rend.add_argument("--run-id", help="Optional run-id override (like hepar run --run-id).")
+        p_rc_rend.add_argument("--param", action="append", default=[], help="Parameter override (repeatable: key=value).")
+        p_rc_rend.add_argument("--format", default="mermaid", choices=["mermaid", "dot", "text"], help="Render format.")
+        p_rc_rend.add_argument("--out", help="Write to this path (default: stdout).")
+        p_rc_rend.set_defaults(fn=cmd_run_card_render)
 
-    p_branch = sub.add_parser("branch", help="Record branching decisions in Plan SSOT (T39).")
-    branch_sub = p_branch.add_subparsers(dest="branch_cmd", required=True)
+        p_branch = sub.add_parser("branch", help="Record branching decisions in Plan SSOT (T39).")
+        branch_sub = p_branch.add_subparsers(dest="branch_cmd", required=True)
 
-    p_branch_list = branch_sub.add_parser("list", help="Show recorded branch decisions and candidates.")
-    p_branch_list.set_defaults(fn=cmd_branch_list)
+        p_branch_list = branch_sub.add_parser("list", help="Show recorded branch decisions and candidates.")
+        p_branch_list.set_defaults(fn=cmd_branch_list)
 
-    p_branch_add = branch_sub.add_parser("add", help="Add a branch candidate under a decision (default: current step).")
-    p_branch_add.add_argument(
-        "--decision-id",
-        help="Decision id (default: current step_id). Must be a stable token (no whitespace).",
-    )
-    p_branch_add.add_argument(
-        "--decision-title",
-        help="Human title for the decision (only used when creating a new decision).",
-    )
-    p_branch_add.add_argument(
-        "--step-id",
-        help="Plan step id this decision is attached to (default: current step_id). Must be a stable token (no whitespace).",
-    )
-    p_branch_add.add_argument("--branch-id", help="Branch id (default: auto b1,b2,...) (no whitespace).")
-    p_branch_add.add_argument("--label", help="Short label for the branch (default: branch id).")
-    p_branch_add.add_argument("--description", help="Branch description (required).")
-    p_branch_add.add_argument(
-        "--cap-override",
-        type=int,
-        help="Explicitly raise per-decision branch cap (default cap=5). Required when adding beyond cap.",
-    )
-    p_branch_add.add_argument(
-        "--expected-approvals",
-        help="Comma-separated expected approvals for this branch (A1..A5).",
-    )
-    p_branch_add.add_argument(
-        "--expected-output",
-        action="append",
-        default=[],
-        help="Expected output path (repeatable).",
-    )
-    p_branch_add.add_argument("--recovery-notes", help="Recovery notes for this branch candidate.")
-    p_branch_add.add_argument("--activate", action="store_true", help="Also activate this branch immediately.")
-    p_branch_add.set_defaults(fn=cmd_branch_add)
+        p_branch_add = branch_sub.add_parser("add", help="Add a branch candidate under a decision (default: current step).")
+        p_branch_add.add_argument(
+            "--decision-id",
+            help="Decision id (default: current step_id). Must be a stable token (no whitespace).",
+        )
+        p_branch_add.add_argument(
+            "--decision-title",
+            help="Human title for the decision (only used when creating a new decision).",
+        )
+        p_branch_add.add_argument(
+            "--step-id",
+            help="Plan step id this decision is attached to (default: current step_id). Must be a stable token (no whitespace).",
+        )
+        p_branch_add.add_argument("--branch-id", help="Branch id (default: auto b1,b2,...) (no whitespace).")
+        p_branch_add.add_argument("--label", help="Short label for the branch (default: branch id).")
+        p_branch_add.add_argument("--description", help="Branch description (required).")
+        p_branch_add.add_argument(
+            "--cap-override",
+            type=int,
+            help="Explicitly raise per-decision branch cap (default cap=5). Required when adding beyond cap.",
+        )
+        p_branch_add.add_argument(
+            "--expected-approvals",
+            help="Comma-separated expected approvals for this branch (A1..A5).",
+        )
+        p_branch_add.add_argument(
+            "--expected-output",
+            action="append",
+            default=[],
+            help="Expected output path (repeatable).",
+        )
+        p_branch_add.add_argument("--recovery-notes", help="Recovery notes for this branch candidate.")
+        p_branch_add.add_argument("--activate", action="store_true", help="Also activate this branch immediately.")
+        p_branch_add.set_defaults(fn=cmd_branch_add)
 
-    p_branch_switch = branch_sub.add_parser("switch", help="Switch the active branch for a decision.")
-    p_branch_switch.add_argument(
-        "--decision-id",
-        help="Decision id (default: current step_id). Must be a stable token (no whitespace).",
-    )
-    p_branch_switch.add_argument("--branch-id", required=True, help="Target branch id (no whitespace).")
-    p_branch_switch.add_argument(
-        "--previous-status",
-        default="abandoned",
-        choices=["abandoned", "failed", "completed"],
-        help="Status to assign to the previous active branch (default: abandoned).",
-    )
-    p_branch_switch.add_argument("--note", help="Optional note for the ledger event.")
-    p_branch_switch.set_defaults(fn=cmd_branch_switch)
+        p_branch_switch = branch_sub.add_parser("switch", help="Switch the active branch for a decision.")
+        p_branch_switch.add_argument(
+            "--decision-id",
+            help="Decision id (default: current step_id). Must be a stable token (no whitespace).",
+        )
+        p_branch_switch.add_argument("--branch-id", required=True, help="Target branch id (no whitespace).")
+        p_branch_switch.add_argument(
+            "--previous-status",
+            default="abandoned",
+            choices=["abandoned", "failed", "completed"],
+            help="Status to assign to the previous active branch (default: abandoned).",
+        )
+        p_branch_switch.add_argument("--note", help="Optional note for the ledger event.")
+        p_branch_switch.set_defaults(fn=cmd_branch_switch)
 
-    # -- migrate -----------------------------------------------------------
-    p_migrate = sub.add_parser("migrate", help="Detect and upgrade old-version artifacts (M-20).")
-    p_migrate.add_argument("--registry", help="Path to migration_registry_v1.json (auto-detected if omitted).")
-    p_migrate.add_argument("--dry-run", action="store_true", help="Show what would be migrated without writing.")
-    p_migrate.set_defaults(fn=cmd_migrate_wrapper)
+        # -- migrate -----------------------------------------------------------
+        p_migrate = sub.add_parser("migrate", help="Detect and upgrade old-version artifacts (M-20).")
+        p_migrate.add_argument("--registry", help="Path to migration_registry_v1.json (auto-detected if omitted).")
+        p_migrate.add_argument("--dry-run", action="store_true", help="Show what would be migrated without writing.")
+        p_migrate.set_defaults(fn=cmd_migrate_wrapper)
 
     if public_surface:
         _assert_public_shell_inventory(sub)
