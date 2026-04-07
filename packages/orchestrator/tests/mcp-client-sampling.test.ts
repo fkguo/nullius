@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import { McpClient, loadSamplingRoutingConfig } from '../src/index.js';
 import { bindToolPermissionView } from '../src/mcp-client.js';
 import { handleMcpServerRequest } from '../src/mcp-server-request-handler.js';
+import { buildDirectRuntimePermissionProfile } from '../src/runtime-permission-profile.js';
 import { buildRuntimeToolPermissionView } from '../src/tool-execution-policy.js';
 
 function makeTmpDir(): string {
@@ -133,10 +134,9 @@ describe('McpClient sampling support', () => {
 
     const scoped = bindToolPermissionView(
       client,
-      buildRuntimeToolPermissionView({
+      buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({
         tools: [{ name: 'allowed_tool', input_schema: {} }],
-        allowedToolNames: ['allowed_tool'],
-      }),
+      })),
     );
 
     await expect(scoped.callTool('blocked_tool', {})).rejects.toMatchObject({
@@ -182,10 +182,9 @@ describe('McpClient sampling support', () => {
 
     const scoped = bindToolPermissionView(
       client,
-      buildRuntimeToolPermissionView({
+      buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({
         tools: [{ name: 'allowed_tool', input_schema: {} }],
-        allowedToolNames: ['allowed_tool'],
-      }),
+      })),
     );
 
     const result = await scoped.callTool('allowed_tool', {});

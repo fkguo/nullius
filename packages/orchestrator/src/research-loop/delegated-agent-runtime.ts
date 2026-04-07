@@ -3,12 +3,13 @@ import type { ApprovalGate } from '../approval-gate.js';
 import { AgentRunner, type AgentEvent, type MessageParam, type Tool } from '../agent-runner.js';
 import type { ChatBackendFactory } from '../backends/backend-factory.js';
 import type { MessagesCreateFn, ToolUseContent } from '../backends/chat-backend.js';
-import { bindToolPermissionView, type ToolCaller, type ToolPermissionView } from '../mcp-client.js';
+import { bindToolPermissionView, type ToolCaller } from '../mcp-client.js';
 import { RunManifestManager, type RunManifest } from '../run-manifest.js';
 import {
   buildRuntimeToolPermissionView,
   filterToolsForPermissionView,
 } from '../tool-execution-policy.js';
+import type { RuntimePermissionProfileV1 } from '../runtime-permission-profile.js';
 import {
   writeRuntimeDiagnosticsBridgeArtifact,
   type RuntimeDiagnosticsSummaryV1,
@@ -27,7 +28,7 @@ export interface ExecuteDelegatedAgentRuntimeInput {
   messages: MessageParam[];
   tools: Tool[];
   mcpClient: ToolCaller;
-  toolPermissionView?: ToolPermissionView;
+  permissionProfile: RuntimePermissionProfileV1;
   delegated_runtime_handle?: DelegatedRuntimeHandleV1;
   approvalGate: ApprovalGate;
   resumeFrom?: string;
@@ -87,11 +88,7 @@ export async function executeDelegatedAgentRuntime(
   const manifestManager = createManifestManager(input.projectRoot);
   const persistedManifest = manifestManager.loadManifest(input.runId);
   const runtimeManifest = buildResumeManifest(persistedManifest, input.resumeFrom);
-  const toolPermissionView = input.toolPermissionView ?? buildRuntimeToolPermissionView({
-    tools: input.tools,
-    scope: 'agent_session',
-    authority: 'runtime_tools',
-  });
+  const toolPermissionView = buildRuntimeToolPermissionView(input.permissionProfile);
   const skippedStepIds = runtimeManifest
     ? pendingToolUses(input.messages)
       .map(toolUse => toolUse.id)

@@ -16,7 +16,7 @@ import {
   delegatedExecutionManifestPath,
 } from './execution-identity.js';
 import { renderPendingRedirect } from './team-execution-intervention-payloads.js';
-import { buildDelegatedToolPermissionView } from './team-execution-permissions.js';
+import { compileDelegatedRuntimePermissionProfile } from './team-execution-permissions.js';
 import {
   isTerminalAssignmentStatus,
   markTimedOutAssignments,
@@ -38,7 +38,6 @@ import type {
   TeamAssignmentExecutionResult,
   TeamRuntimeAssignmentInput,
 } from './team-unified-runtime-types.js';
-import { filterToolsForPermissionView } from './tool-execution-policy.js';
 import { utcNowIso } from './util.js';
 
 export function hasPendingAssistantToolUse(messages: MessageParam[]): boolean {
@@ -167,7 +166,12 @@ export function buildRuntimeProtocol(
   assignment: TeamRuntimeAssignmentInput,
   assignmentId: string,
 ): TeamDelegationProtocol {
-  const toolPermissionView = buildDelegatedToolPermissionView(input.permissions, assignment, input.tools, state);
+  const permissionProfile = compileDelegatedRuntimePermissionProfile(
+    input.permissions,
+    assignment,
+    input.tools,
+    state,
+  );
   const baseProtocol = assignment.delegation_protocol ?? buildTeamDelegationProtocol({
     assignment_id: assignmentId,
     workspace_id: input.workspaceId,
@@ -181,7 +185,7 @@ export function buildRuntimeProtocol(
     handoff_id: assignment.handoff_id ?? null,
     handoff_kind: assignment.handoff_kind ?? null,
     checkpoint_id: assignment.checkpoint_id ?? null,
-    required_tools: toolPermissionView.allowed_tool_names,
+    required_tools: permissionProfile.tools.allowed_tool_names,
   });
 
   return {
@@ -196,7 +200,7 @@ export function buildRuntimeProtocol(
       delegate_id: assignment.delegate_id,
       stage: assignment.stage ?? 0,
     },
-    REQUIRED_TOOLS: { tool_names: [...toolPermissionView.allowed_tool_names] },
+    REQUIRED_TOOLS: { tool_names: [...permissionProfile.tools.allowed_tool_names] },
     CONTEXT: {
       ...baseProtocol.CONTEXT,
       workspace_id: input.workspaceId,
@@ -334,16 +338,21 @@ async function executeLaunch(
   launch: PendingLaunch,
 ): Promise<LaunchOutcome> {
   const assignment = state.delegate_assignments.find(item => item.assignment_id === launch.assignmentId)!;
-  const toolPermissionView = buildDelegatedToolPermissionView(input.permissions, assignment, input.tools, state);
+  const permissionProfile = compileDelegatedRuntimePermissionProfile(
+    input.permissions,
+    assignment,
+    input.tools,
+    state,
+  );
   try {
     const runtimeResult = await executeDelegatedAgentRuntime({
       projectRoot: input.projectRoot,
       runId: launch.handle.identity.runtime_run_id,
       model: input.model,
       messages: buildRuntimeMessages(input.messages, assignment.delegation_protocol, assignment.pending_redirect),
-      tools: filterToolsForPermissionView(input.tools, toolPermissionView),
+      tools: input.tools,
       mcpClient: input.mcpClient,
-      toolPermissionView,
+      permissionProfile,
       delegated_runtime_handle: launch.handle,
       approvalGate: input.approvalGate,
       resumeFrom: resolveAssignmentResumeFrom(input, assignment),

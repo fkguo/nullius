@@ -20,7 +20,8 @@
 - `start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役
 - 安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余仍存活的 legacy workflow/support commands 都在内部 full parser
 - 已删除的 support wrappers（`approvals`、`report`、`logs`、`context`、`smoke-test`、`propose`、`skill-propose`、`migrate`）不再存在于 parser；其 durable authority 在 lower-level toolkit/test surfaces
-- 当前仍保留在 internal full parser 的 support commands 是 `method-design`、`run-card`、`branch`
+- 当前 remaining internal support launcher residue 只剩 `literature-gap`
+- `method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers，仍保留在 internal full parser，但不再属于 live `internal_support_commands` 分组
 
 建议命令族（概念示意；上面的 concrete authority 才是当前真相）：
 
@@ -31,7 +32,7 @@
 - `resume`：继续执行
 - `approve <approval_id>`：同意某个待审批动作（A1–A5）
 - `export`：导出 run bundle（便于离线审阅/共享）
-- `branch`、`run-card`、`method-design` 等 maintainer 工具仍在 internal full parser，但不再属于 installable public shell 真相
+- remaining internal support launcher residue 是 `literature-gap`；`branch`、`run-card`、`method-design` 等 retired-public maintainer helpers 仍在 internal full parser，但不再属于 installable public shell 真相
 
 ## 2) 默认“同意点”触发（approve gates）
 

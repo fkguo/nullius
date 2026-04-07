@@ -4,6 +4,7 @@ import { ApprovalGate } from '../approval-gate.js';
 import type { LlmUsage, MessageContent, MessageParam, MessagesCreateFn } from '../backends/chat-backend.js';
 import type { McpToolResult, ToolCaller } from '../mcp-client.js';
 import { executeDelegatedAgentRuntime } from '../research-loop/delegated-agent-runtime.js';
+import { buildDirectRuntimePermissionProfile } from '../runtime-permission-profile.js';
 import { executeTeamRuntimeFromToolParams } from '../team-execution-bridge.js';
 import { OrchRunExecuteAgentSchema } from './schemas.js';
 
@@ -147,6 +148,7 @@ export async function handleOrchRunExecuteAgent(
     messages: params.messages,
     tools: params.tools,
     mcpClient: createLoopbackToolCaller(ctx.callTool),
+    permissionProfile: buildDirectRuntimePermissionProfile({ tools: params.tools }),
     approvalGate: new ApprovalGate({}),
     resumeFrom: params.resume_from,
     maxTurns: params.max_turns,

@@ -11,6 +11,7 @@ import {
 } from '../src/index.js';
 import { buildDelegatedRuntimeHandleV1 } from '../src/delegated-runtime-handle.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
+import { buildDirectRuntimePermissionProfile } from '../src/runtime-permission-profile.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'research-loop-agent-runtime-'));
@@ -45,6 +46,10 @@ function textResponse(
 
 const TOOLS: Tool[] = [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }];
 
+function directPermissionProfile(tools: Tool[] = TOOLS) {
+  return buildDirectRuntimePermissionProfile({ tools });
+}
+
 describe('executeDelegatedAgentRuntime', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -70,6 +75,7 @@ describe('executeDelegatedAgentRuntime', () => {
         messages: [{ role: 'user', content: 'go' }],
         tools: TOOLS,
         mcpClient: mcpClient.client,
+        permissionProfile: directPermissionProfile(),
         approvalGate: new ApprovalGate({}),
         _messagesCreate: createFn,
       });
@@ -130,6 +136,7 @@ describe('executeDelegatedAgentRuntime', () => {
           json: null,
           errorCode: null,
         }).client,
+        permissionProfile: directPermissionProfile(),
         approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn()
           .mockResolvedValueOnce(toolUseResponse('tu_resume', 'do_thing'))
@@ -155,6 +162,7 @@ describe('executeDelegatedAgentRuntime', () => {
         messages: resumedMessages,
         tools: TOOLS,
         mcpClient: resumedClient.client,
+        permissionProfile: directPermissionProfile(),
         approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('resumed')),
       });
@@ -231,6 +239,7 @@ describe('executeDelegatedAgentRuntime', () => {
           json: null,
           errorCode: null,
         }).client,
+        permissionProfile: directPermissionProfile(),
         delegated_runtime_handle: handle,
         approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('done')),
@@ -271,6 +280,7 @@ describe('executeDelegatedAgentRuntime', () => {
           json: null,
           errorCode: null,
         }).client,
+        permissionProfile: directPermissionProfile(),
         delegated_runtime_handle: handle,
         approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('done')),
@@ -296,6 +306,7 @@ describe('executeDelegatedAgentRuntime', () => {
           json: null,
           errorCode: null,
         }).client,
+        permissionProfile: directPermissionProfile(),
         approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn()
           .mockResolvedValueOnce(textResponse('partial', 'max_tokens', { input_tokens: 90, output_tokens: 60, total_tokens: 150 }))

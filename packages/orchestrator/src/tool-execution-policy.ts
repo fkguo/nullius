@@ -24,6 +24,7 @@ import {
 } from '@autoresearch/shared';
 
 import type { Tool } from './backends/chat-backend.js';
+import type { RuntimePermissionProfileV1 } from './runtime-permission-profile.js';
 
 export type ToolMutationClass = 'read_only' | 'stateful' | 'approval_required';
 export type ToolConcurrencyClass = 'serial_only' | 'batch_safe';
@@ -41,9 +42,10 @@ export interface ToolExecutionPolicy extends ToolExecutionPolicyDefinition {
 export type ToolExecutionPolicyTable = Readonly<Record<string, ToolExecutionPolicyDefinition>>;
 
 export interface ToolPermissionView {
-  scope: 'agent_session' | 'delegated_assignment';
+  scope: RuntimePermissionProfileV1['actor']['scope'];
   actor_id: string | null;
-  authority: 'runtime_tools' | 'team_permission_matrix';
+  authority: 'runtime_permission_profile';
+  authority_source: RuntimePermissionProfileV1['actor']['source'];
   allowed_tool_names: string[];
   execution_policies: Record<string, ToolExecutionPolicy>;
 }
@@ -100,14 +102,6 @@ export function safeFallbackToolExecutionPolicy(toolName: string): ToolExecution
   };
 }
 
-function uniqueToolNames(tools: ReadonlyArray<Pick<Tool, 'name'>>): string[] {
-  const names = new Set<string>();
-  for (const tool of tools) {
-    names.add(tool.name);
-  }
-  return [...names];
-}
-
 export function resolveToolExecutionPolicy(
   toolName: string,
   table: ToolExecutionPolicyTable = ORCHESTRATOR_TOOL_EXECUTION_POLICIES,
@@ -130,27 +124,16 @@ export function isParallelBatchSafeToolExecutionPolicy(
   return policy?.mutation_class === 'read_only' && policy.concurrency === 'batch_safe';
 }
 
-export function buildRuntimeToolPermissionView(params: {
-  tools: ReadonlyArray<Pick<Tool, 'name'>>;
-  allowedToolNames?: ReadonlyArray<string>;
-  scope?: ToolPermissionView['scope'];
-  actorId?: string | null;
-  authority?: ToolPermissionView['authority'];
-}): ToolPermissionView {
-  const runtimeToolNames = uniqueToolNames(params.tools);
-  const allowedSet = params.allowedToolNames ? new Set(params.allowedToolNames) : null;
-  const allowedToolNames = allowedSet
-    ? runtimeToolNames.filter(toolName => allowedSet.has(toolName))
-    : runtimeToolNames;
-
+export function buildRuntimeToolPermissionView(
+  permissionProfile: RuntimePermissionProfileV1,
+): ToolPermissionView {
   return {
-    scope: params.scope ?? 'agent_session',
-    actor_id: params.actorId ?? null,
-    authority: params.authority ?? 'runtime_tools',
-    allowed_tool_names: allowedToolNames,
-    execution_policies: Object.fromEntries(
-      allowedToolNames.map(toolName => [toolName, resolveToolExecutionPolicy(toolName)]),
-    ),
+    scope: permissionProfile.actor.scope,
+    actor_id: permissionProfile.actor.actor_id,
+    authority: 'runtime_permission_profile',
+    authority_source: permissionProfile.actor.source,
+    allowed_tool_names: [...permissionProfile.tools.allowed_tool_names],
+    execution_policies: { ...permissionProfile.tools.execution_policies },
   };
 }
 
@@ -176,6 +159,7 @@ export function assertToolCallAllowed(
         tool_name: toolName,
         actor_id: permissionView.actor_id,
         authority: permissionView.authority,
+        authority_source: permissionView.authority_source,
         allowed_tool_names: permissionView.allowed_tool_names,
       },
     );

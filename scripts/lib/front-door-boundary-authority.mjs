@@ -82,6 +82,13 @@ export const FRONT_DOOR_SNIPPETS = [
     ],
   },
   {
+    relPath: 'packages/hep-autoresearch/docs/WORKFLOWS.zh.md',
+    snippets: [
+      '当前 installable `hepar run` 只保留兼容壳层命令，不再公开 workflow id；`ingest`、`reproduce`、`revision`、`literature_survey_polish` 与 `shell_adapter_smoke` 现在都只保留在 internal full parser，供 maintainer/eval/regression 使用。',
+      '当前 remaining internal support launcher residue 只剩 `literature-gap`；`method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers。',
+    ],
+  },
+  {
     relPath: 'packages/hep-autoresearch/docs/COMPUTATION.md',
     snippets: [
       '`autoresearch run --workflow-id computation` is now the canonical bounded TS computation entrypoint for initialized external project roots with a prepared `computation/manifest.json`.',
@@ -130,10 +137,24 @@ export const FRONT_DOOR_SNIPPETS = [
     ],
   },
   {
+    relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.md',
+    snippets: [
+      'Exact installable public command inventory: `run`.',
+      'remaining internal support launcher residue is only `literature-gap`',
+      'retired-public support helpers `method-design`, `run-card`, and `branch` remain on the internal full parser only and are no longer the live `internal_support_commands` bucket',
+    ],
+    forbiddenSnippets: [
+      'remaining internal support commands are `method-design`, `run-card`, and `branch`',
+      'installable `hepar` / `hep-autoresearch` / `hep-autopilot` keep only `run` on the public shell, and that `run` is just a compatibility pointer',
+    ],
+  },
+  {
     relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.zh.md',
     snippets: [
       '安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余仍存活的 legacy workflow/support commands 都在内部 full parser',
       `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
+      '当前 remaining internal support launcher residue 只剩 `literature-gap`',
+      '`method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers，仍保留在 internal full parser，但不再属于 live `internal_support_commands` 分组',
       'computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：',
       '# computation 现在走 native TS front door，而不是 installable `hepar run`',
     ],
@@ -141,6 +162,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '用于尚未 repoint 的 workflow shell（例如 `run`、`logs`、`doctor`、`bridge`）',
       'public computation、`doctor`、`bridge`、`literature-gap`',
       'hepar run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir',
+      '当前仍保留在 internal full parser 的 support commands 是 `method-design`、`run-card`、`branch`',
     ],
   },
   {

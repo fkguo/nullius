@@ -20,7 +20,8 @@ Current front-door truth:
 - Exact installable public command inventory: `run`.
 - direct root lifecycle/approval mutations such as `start`, `checkpoint`, `request-approval`, and `reject` are retired from the installable shell and no longer belong to the current internal full-parser command inventory
 - deleted support wrappers `approvals`, `report`, `logs`, `context`, `smoke-test`, `propose`, `skill-propose`, and `migrate` no longer exist on the parser; their durable authority lives in lower-level toolkit/test surfaces
-- remaining internal support commands are `method-design`, `run-card`, and `branch`
+- remaining internal support launcher residue is only `literature-gap`
+- retired-public support helpers `method-design`, `run-card`, and `branch` remain on the internal full parser only and are no longer the live `internal_support_commands` bucket
 
 Suggested command families (conceptual; the concrete authority above is the current truth):
 - `init`: initialize your chosen project directory as a project root (scaffold missing docs/KB/specs; create `.autoresearch/` state + ledger)
@@ -30,7 +31,7 @@ Suggested command families (conceptual; the concrete authority above is the curr
 - `resume`: continue
 - `approve <approval_id>`: approve a pending action (A1–A5)
 - `export`: export a run bundle (offline review/sharing)
-- internal-only maintainer utilities such as `branch`, `run-card`, and `method-design` remain on the full parser only and are not installable public-shell truth
+- the remaining internal support launcher residue is `literature-gap`; retired-public maintainer helpers such as `branch`, `run-card`, and `method-design` remain on the full parser only and are not installable public-shell truth
 
 ## 2) Approval packet requirements
 

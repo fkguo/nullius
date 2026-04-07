@@ -1,6 +1,11 @@
 import type { Tool } from './backends/chat-backend.js';
+import {
+  buildRuntimePermissionProfileV1,
+  type RuntimePermissionProfileV1,
+} from './runtime-permission-profile.js';
 import type {
   TeamExecutionAssignmentInput,
+  TeamDelegateAssignment,
   TeamExecutionState,
   TeamInterventionCommand,
   TeamMcpToolInheritance,
@@ -39,32 +44,74 @@ export function assertDelegationAllowed(
 
 export function buildDelegatedToolPermissionView(
   permissions: TeamPermissionMatrix,
-  assignment: TeamExecutionAssignmentInput,
+  assignment: DelegatedRuntimePermissionCompileInput,
   tools: ReadonlyArray<Pick<Tool, 'name'>>,
   state?: Pick<TeamExecutionState, 'delegate_assignments'>,
 ): ToolPermissionView {
+  return buildRuntimeToolPermissionView(
+    compileDelegatedRuntimePermissionProfile(permissions, assignment, tools, state),
+  );
+}
+
+type DelegatedRuntimePermissionCompileInput = TeamExecutionAssignmentInput & Partial<Pick<
+  TeamDelegateAssignment,
+  'approval_id' | 'approval_packet_path' | 'approval_requested_at'
+>>;
+
+function runtimeToolNames(tools: ReadonlyArray<Pick<Tool, 'name'>>): string[] {
+  const names = new Set<string>();
+  for (const tool of tools) {
+    names.add(tool.name);
+  }
+  return [...names];
+}
+
+function filterAllowedToolNames(
+  tools: ReadonlyArray<Pick<Tool, 'name'>>,
+  allowedToolNames?: ReadonlyArray<string>,
+): string[] {
+  const runtimeNames = runtimeToolNames(tools);
+  const allowedSet = allowedToolNames ? new Set(allowedToolNames) : null;
+  return allowedSet ? runtimeNames.filter(toolName => allowedSet.has(toolName)) : runtimeNames;
+}
+
+export function compileDelegatedRuntimePermissionProfile(
+  permissions: TeamPermissionMatrix,
+  assignment: DelegatedRuntimePermissionCompileInput,
+  tools: ReadonlyArray<Pick<Tool, 'name'>>,
+  state?: Pick<TeamExecutionState, 'delegate_assignments'>,
+): RuntimePermissionProfileV1 {
   const match = findDelegationPermission(permissions, assignment);
   if (!match) {
     throw new Error(`delegation denied: ${assignment.owner_role} cannot delegate to ${assignment.delegate_role}`);
   }
-  const base = buildRuntimeToolPermissionView({
-    tools,
-    allowedToolNames: match.allowed_tool_names,
-    scope: 'delegated_assignment',
-    actorId: assignment.delegate_id,
-    authority: 'team_permission_matrix',
-  });
+  const matrixAllowedToolNames = filterAllowedToolNames(tools, match.allowed_tool_names);
 
   const inheritance: TeamMcpToolInheritance = assignment.mcp_tool_inheritance ?? { mode: 'team_permission_matrix' };
   if (inheritance.mode === 'team_permission_matrix' && inheritance.additive_tool_names === undefined) {
-    return base;
+    return buildRuntimePermissionProfileV1({
+      tools,
+      allowedToolNames: matrixAllowedToolNames,
+      actorScope: 'delegated_assignment',
+      actorId: assignment.delegate_id,
+      actorSource: 'team_permission_matrix',
+      inheritanceMode: 'team_permission_matrix',
+      approvals: {
+        mode: 'inherit_gate',
+        grant_scope: 'assignment',
+        reviewer: assignment.owner_role,
+        assignment_approval_id: assignment.approval_id ?? null,
+        assignment_approval_packet_path: assignment.approval_packet_path ?? null,
+        assignment_approval_requested_at: assignment.approval_requested_at ?? null,
+      },
+    });
   }
   if (inheritance.mode === 'inherit_from_assignment' && !state) {
     throw new Error('delegated MCP/tool inheritance requires TeamExecutionState context');
   }
 
-  const runtimeToolNameSet = new Set(tools.map(tool => tool.name));
-  const allowedByMatrix = new Set(base.allowed_tool_names);
+  const runtimeToolNameSet = new Set(runtimeToolNames(tools));
+  const allowedByMatrix = new Set(matrixAllowedToolNames);
 
   const normalizeToolNames = (toolNames: ReadonlyArray<string> | undefined): string[] => {
     if (!toolNames) return [];
@@ -72,6 +119,10 @@ export function buildDelegatedToolPermissionView(
   };
 
   const validateAdditiveOverride = (toolNames: string[]): void => {
+    // The top-level additive override must already be matrix-bounded for the
+    // child assignment before we recurse. The recursive loop below then repeats
+    // the same checks against each current assignment's matrix-bounded tool set
+    // so inherited parents cannot smuggle in out-of-matrix additive tools.
     for (const toolName of toolNames) {
       if (!runtimeToolNameSet.has(toolName)) {
         throw new Error(`delegated MCP/tool inheritance denied: additive tool '${toolName}' is not present in runtime tools`);
@@ -92,14 +143,7 @@ export function buildDelegatedToolPermissionView(
     if (!permissionMatch) {
       throw new Error(`delegation denied: ${current.owner_role} cannot delegate to ${current.delegate_role}`);
     }
-    const matrixView = buildRuntimeToolPermissionView({
-      tools,
-      allowedToolNames: permissionMatch.allowed_tool_names,
-      scope: 'delegated_assignment',
-      actorId: current.delegate_id,
-      authority: 'team_permission_matrix',
-    });
-    const matrixAllowed = matrixView.allowed_tool_names;
+    const matrixAllowed = filterAllowedToolNames(tools, permissionMatch.allowed_tool_names);
     const currentInheritance: TeamMcpToolInheritance = current.mcp_tool_inheritance ?? { mode: 'team_permission_matrix' };
     const additive = normalizeToolNames(currentInheritance.additive_tool_names);
     const additiveSet = new Set(additive);
@@ -141,12 +185,24 @@ export function buildDelegatedToolPermissionView(
     visited.add(assignment.assignment_id);
   }
   const allowedToolNames = resolveAllowedToolNames(assignment, visited);
-  return buildRuntimeToolPermissionView({
+  return buildRuntimePermissionProfileV1({
     tools,
     allowedToolNames,
-    scope: 'delegated_assignment',
+    actorScope: 'delegated_assignment',
     actorId: assignment.delegate_id,
-    authority: 'team_permission_matrix',
+    actorSource: 'team_permission_matrix',
+    inheritanceMode: inheritance.mode,
+    inheritFromAssignmentId: inheritance.mode === 'inherit_from_assignment'
+      ? inheritance.inherit_from_assignment_id
+      : undefined,
+    approvals: {
+      mode: 'inherit_gate',
+      grant_scope: 'assignment',
+      reviewer: assignment.owner_role,
+      assignment_approval_id: assignment.approval_id ?? null,
+      assignment_approval_packet_path: assignment.approval_packet_path ?? null,
+      assignment_approval_requested_at: assignment.approval_requested_at ?? null,
+    },
   });
 }
 
