@@ -26,7 +26,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '如果你先想确认当前 mainline 的 front-door 真相，请先看仓库根级的 [README](../../README.md)、[docs/QUICKSTART.md](../../docs/QUICKSTART.md) 与 [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md)。下面这些内容是 `packages/hep-autoresearch/` 的 package-local legacy / maintainer 文档链路，不是默认产品前门。',
       '安装入口的 public shell 现在只保留 `run` 这一个兼容提示层命令。',
       `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
-      '其余 legacy workflow/support commands 都只保留在 internal full parser，供 maintainer/eval/regression 使用。',
+      '其余仍存活的 legacy workflow/support commands 只保留在 internal full parser（`method-design` / `run-card` / `branch` 等）；已删除 wrappers 走 lower-level toolkit/test surfaces。',
     ],
     forbiddenSnippets: [
       '## 你现在应该从哪里读起？\n',
@@ -126,13 +126,13 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/EVOLUTION.zh.md',
     snippets: [
       '内部 maintainer/eval 路径（非 generic front door）：',
-      '安装态 public shell 已不再公开 `propose`；如果你确实要碰这个 package-local legacy path，应把它当成 internal full-parser / maintainer 路径，而不是默认 operator path 或 generic front door。',
+      '旧的 parser-level `propose` wrapper 已删除；如果你确实要继续使用这条 package-local 演进能力，应直接走脚本 / lower-level proposal authority，而不是把它当成默认 operator path 或 generic front door。',
     ],
   },
   {
     relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.zh.md',
     snippets: [
-      '安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余 legacy workflow/support commands 都已退回内部 full parser。',
+      '安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余仍存活的 legacy workflow/support commands 都在内部 full parser',
       `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
       'computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：',
       '# computation 现在走 native TS front door，而不是 installable `hepar run`',

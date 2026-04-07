@@ -18,8 +18,9 @@ Current front-door truth:
 - installable `hep-autoresearch` / `hepar` / `hep-autopilot` keep only `run` on the public shell, and that `run` is just a compatibility pointer
 - installable `hepar run` remains as a compatibility shell command, but public workflow ids are now empty
 - Exact installable public command inventory: `run`.
-- direct public root lifecycle/approval mutations such as `start`, `checkpoint`, `request-approval`, and `reject` are retired from the installable shell; `reject` itself still remains an internal-only direct-mutation maintainer path pending canonical TS parity
-- legacy support commands such as `approvals`, `report`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, and `migrate` also remain internal full-parser only
+- direct root lifecycle/approval mutations such as `start`, `checkpoint`, `request-approval`, and `reject` are retired from the installable shell and no longer belong to the current internal full-parser command inventory
+- deleted support wrappers `approvals`, `report`, `logs`, `context`, `smoke-test`, `propose`, `skill-propose`, and `migrate` no longer exist on the parser; their durable authority lives in lower-level toolkit/test surfaces
+- remaining internal support commands are `method-design`, `run-card`, and `branch`
 
 Suggested command families (conceptual; the concrete authority above is the current truth):
 - `init`: initialize your chosen project directory as a project root (scaffold missing docs/KB/specs; create `.autoresearch/` state + ledger)
@@ -29,7 +30,7 @@ Suggested command families (conceptual; the concrete authority above is the curr
 - `resume`: continue
 - `approve <approval_id>`: approve a pending action (A1–A5)
 - `export`: export a run bundle (offline review/sharing)
-- internal-only maintainer utilities such as `branch`, `logs`, `context`, `run-card`, and `method-design` remain on the full parser only and are not installable public-shell truth
+- internal-only maintainer utilities such as `branch`, `run-card`, and `method-design` remain on the full parser only and are not installable public-shell truth
 
 ## 2) Approval packet requirements
 

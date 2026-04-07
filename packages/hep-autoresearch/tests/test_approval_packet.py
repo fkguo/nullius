@@ -1,7 +1,6 @@
 """Tests for approval_packet trio renderer (NEW-02) + UX-07 gate context enrichment."""
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 
@@ -123,85 +122,6 @@ def test_write_trio_creates_three_files(
     )
     assert obj["schema_version"] == 1
     assert obj["approval_id"] == "A1-0001"
-
-
-def test_approvals_show_json_empty_array_no_dir(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """--format json must output '[]' when no approvals directory exists (R4 fix)."""
-    from hep_autoresearch.orchestrator_cli import cmd_approvals_show
-
-    args = argparse.Namespace(
-        project_root=str(tmp_path), run_id="nonexistent", gate=None, format="json"
-    )
-    ret = cmd_approvals_show(args)
-    assert ret == 0
-    out = capsys.readouterr().out.strip()
-    assert json.loads(out) == []
-
-
-def test_approvals_show_json_empty_array_no_match(
-    sample_data: ApprovalPacketData, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """--format json must output '[]' when gate filter matches nothing (R4 fix)."""
-    from hep_autoresearch.orchestrator_cli import cmd_approvals_show
-
-    # Create approvals dir with one entry
-    approval_dir = tmp_path / "artifacts" / "runs" / "r1" / "approvals" / "A1-0001"
-    write_trio(sample_data, approval_dir)
-
-    args = argparse.Namespace(
-        project_root=str(tmp_path), run_id="r1", gate="NONEXISTENT", format="json"
-    )
-    ret = cmd_approvals_show(args)
-    assert ret == 0
-    out = capsys.readouterr().out.strip()
-    assert json.loads(out) == []
-
-
-def test_approvals_show_json_malformed_packet(
-    sample_data: ApprovalPacketData, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """--format json must degrade gracefully when approval_packet_v1.json is malformed (R4 fix)."""
-    from hep_autoresearch.orchestrator_cli import cmd_approvals_show
-
-    # Create approvals dir with a valid trio, then corrupt the JSON file
-    approval_dir = tmp_path / "artifacts" / "runs" / "r1" / "approvals" / "A1-0001"
-    write_trio(sample_data, approval_dir)
-    (approval_dir / "approval_packet_v1.json").write_text("{bad json", encoding="utf-8")
-
-    args = argparse.Namespace(
-        project_root=str(tmp_path), run_id="r1", gate=None, format="json"
-    )
-    ret = cmd_approvals_show(args)
-    assert ret == 0
-    out = capsys.readouterr().out.strip()
-    result = json.loads(out)
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert "error" in result[0]
-    assert "malformed" in result[0]["error"].lower()
-
-
-def test_approvals_show_json_non_utf8_packet(
-    sample_data: ApprovalPacketData, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """--format json must not crash on non-UTF8 packet files (R5 fix)."""
-    from hep_autoresearch.orchestrator_cli import cmd_approvals_show
-
-    approval_dir = tmp_path / "artifacts" / "runs" / "r1" / "approvals" / "A1-0001"
-    write_trio(sample_data, approval_dir)
-    # Write raw bytes that are not valid UTF-8
-    (approval_dir / "approval_packet_v1.json").write_bytes(b"\xff\xfe{bad}")
-
-    args = argparse.Namespace(
-        project_root=str(tmp_path), run_id="r1", gate=None, format="json"
-    )
-    ret = cmd_approvals_show(args)
-    assert ret == 0
-    out = capsys.readouterr().out.strip()
-    result = json.loads(out)
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert "error" in result[0]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

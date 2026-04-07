@@ -10,7 +10,6 @@ import site
 import subprocess
 import sys
 import zipfile
-from collections import deque
 from pathlib import Path
 
 from .toolkit._time import utc_now_iso
@@ -31,9 +30,7 @@ from .toolkit.adapters.registry import (
     load_run_card,
     validate_adapter_registry,
 )
-from .toolkit.evolution_proposal import EvolutionProposalInputs, evolution_proposal_one
 from .toolkit.evolution_trigger import trigger_evolution_proposal
-from .toolkit.skill_proposal import SkillProposalInputs, skill_proposal_one
 from .toolkit.method_design import MethodDesignInputs, method_design_one
 from .toolkit.orchestrator_state import (
     APPROVAL_CATEGORY_TO_POLICY_KEY,
@@ -45,7 +42,6 @@ from .toolkit.orchestrator_state import (
     default_state,
     ensure_runtime_dirs,
     get_active_branch_id,
-    ledger_path,
     load_state,
     maybe_mark_needs_recovery,
     next_approval_id,
@@ -57,7 +53,6 @@ from .toolkit.orchestrator_state import (
     state_path,
 )
 from .toolkit.approval_packet import ApprovalPacketData, write_trio
-from .toolkit.report_renderer import collect_run_result, render_md, render_tex
 from .toolkit.workflow_context import workflow_context
 from .toolkit.ingest import IngestInputs, ingest_one
 from .toolkit.reproduce import ReproduceInputs, reproduce_one
@@ -171,6 +166,7 @@ def _run_workflow_id_help(*, public_surface: bool) -> str:
 
 
 def _assert_public_shell_inventory(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    # This parse-time check is the installable public-shell drift gate.
     actual = tuple(subparsers.choices.keys())
     if actual != PUBLIC_SHELL_COMMANDS:
         raise RuntimeError(
@@ -1642,108 +1638,6 @@ def cmd_request_approval(args: argparse.Namespace) -> int:
 
     print(f"[ok] requested approval: {approval_id}")
     print(f"[ok] packet: {packet_rel}")
-    return 0
-
-
-def cmd_approvals_show(args: argparse.Namespace) -> int:
-    """Show approval packets for a run (NEW-03)."""
-    repo_root = _repo_root_from_args(args)
-    run_id: str = args.run_id
-    gate_filter: str | None = getattr(args, "gate", None)
-    fmt: str = getattr(args, "format", "short") or "short"
-
-    approvals_dir = repo_root / "artifacts" / "runs" / run_id / "approvals"
-    if not approvals_dir.is_dir():
-        if fmt == "json":
-            print("[]")
-        else:
-            print(f"[info] no approvals found for run {run_id}")
-        return 0
-
-    dirs = sorted(approvals_dir.iterdir())
-    if gate_filter:
-        dirs = [d for d in dirs if d.name.startswith(gate_filter)]
-
-    if not dirs:
-        if fmt == "json":
-            print("[]")
-        else:
-            print(f"[info] no approvals matching gate={gate_filter or '*'} for run {run_id}")
-        return 0
-
-    json_packets: list[dict] = []  # collect for --format json
-
-    for approval_dir in dirs:
-        if not approval_dir.is_dir():
-            continue
-        if fmt == "json":
-            json_path = approval_dir / "approval_packet_v1.json"
-            if json_path.exists():
-                try:
-                    json_packets.append(json.loads(json_path.read_text(encoding="utf-8")))
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    json_packets.append({"error": f"malformed JSON in {approval_dir.name}/approval_packet_v1.json"})
-            else:
-                packet_path = approval_dir / "packet.md"
-                if packet_path.exists():
-                    json_packets.append({"error": f"no JSON packet, showing markdown path: {packet_path}"})
-                else:
-                    json_packets.append({"error": f"no packet found in {approval_dir.name}"})
-        elif fmt == "full":
-            full_path = approval_dir / "packet.md"
-            if full_path.exists():
-                print(full_path.read_text(encoding="utf-8"), end="")
-            else:
-                print(f"[warn] no packet.md in {approval_dir.name}")
-        else:
-            short_path = approval_dir / "packet_short.md"
-            if short_path.exists():
-                print(short_path.read_text(encoding="utf-8"), end="")
-            else:
-                full_path = approval_dir / "packet.md"
-                if full_path.exists():
-                    print(full_path.read_text(encoding="utf-8"), end="")
-                else:
-                    print(f"[warn] no packet found in {approval_dir.name}")
-
-    if fmt == "json":
-        print(json.dumps(json_packets, indent=2, ensure_ascii=False))
-
-    return 0
-
-
-def cmd_report_render(args: argparse.Namespace) -> int:
-    """Render a self-contained report from run results (NEW-04)."""
-    repo_root = _repo_root_from_args(args)
-    run_ids = [rid.strip() for rid in args.run_ids.split(",") if rid.strip()]
-    if not run_ids:
-        return _die("no run-ids provided")
-
-    out_fmt: str = getattr(args, "out", "md") or "md"
-    output_path: str | None = getattr(args, "output_path", None)
-
-    results = []
-    for rid in run_ids:
-        run_dir = repo_root / "artifacts" / "runs" / rid
-        if not run_dir.is_dir():
-            print(f"[warn] run directory not found: {rid}")
-            continue
-        results.append(collect_run_result(repo_root, rid))
-
-    if not results:
-        return _die("no valid runs found")
-
-    if out_fmt == "tex":
-        content = render_tex(results)
-    else:
-        content = render_md(results)
-
-    if output_path:
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(output_path).write_text(content, encoding="utf-8")
-        print(f"[ok] report written to {output_path}")
-    else:
-        print(content)
     return 0
 
 
@@ -3533,67 +3427,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_logs(args: argparse.Namespace) -> int:
-    repo_root = _repo_root_from_args(args)
-    st = _read_or_init_state(repo_root)
-
-    target_run_id = args.run_id or st.get("run_id")
-    ledger = ledger_path(repo_root)
-    if not ledger.exists():
-        return _die("ledger missing (run: init)")
-
-    buf: deque[dict] = deque(maxlen=int(args.tail))
-    with ledger.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except Exception:  # CONTRACT-EXEMPT: CODE-01.5 skip malformed JSON lines
-                continue
-            if target_run_id and event.get("run_id") != target_run_id:
-                continue
-            buf.append(event)
-
-    for ev in buf:
-        ts = ev.get("ts")
-        et = ev.get("event_type")
-        step = ev.get("step_id")
-        details = ev.get("details") or {}
-        suffix = f" step={step}" if step else ""
-        print(f"- {ts} {et}{suffix} {json.dumps(details, ensure_ascii=False)}")
-    return 0
-
-
-def cmd_context(args: argparse.Namespace) -> int:
-    repo_root = _repo_root_from_args(args)
-    st = _read_or_init_state(repo_root)
-    run_id = args.run_id or st.get("run_id")
-    if not run_id:
-        return _die("missing run_id (pass --run-id or start a run first)")
-    workflow_id = args.workflow_id or st.get("workflow_id")
-    try:
-        _ensure_context_pack(
-            repo_root=repo_root,
-            st=st,
-            run_id=str(run_id),
-            workflow_id=str(workflow_id) if workflow_id else None,
-            note=args.note,
-            refkey=args.refkey,
-        )
-    except Exception as e:
-        return _die(f"failed to build context pack: {e}")
-    ctx_md = (st.get("artifacts") or {}).get("context_md") if isinstance(st.get("artifacts"), dict) else None
-    ctx_json = (st.get("artifacts") or {}).get("context_json") if isinstance(st.get("artifacts"), dict) else None
-    print("[ok] context pack:")
-    if ctx_md:
-        print(f"- md: {ctx_md}")
-    if ctx_json:
-        print(f"- json: {ctx_json}")
-    return 0
-
-
 def cmd_export(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
     forwarded = ["export"]
@@ -3673,17 +3506,6 @@ def _mcp_env(
                 )
     overrides["HEP_DATA_DIR"] = os.fspath(hep_data_dir)
     return merged_env(overrides=overrides)
-
-
-def cmd_smoke_test(args: argparse.Namespace) -> int:
-    # No MCP server interaction; fail-fast check for a healthy Python install + imports.
-    try:
-        from .toolkit.mcp_config import McpServerConfig, load_mcp_server_config, merged_env  # noqa: F401
-        from .toolkit.mcp_stdio_client import McpStdioClient  # noqa: F401
-    except Exception as e:
-        return _die(f"smoke-test failed: {e}")
-    print("[ok] smoke-test: MCP modules importable")
-    return 0
 
 
 def _doctor_detect_shell() -> str:
@@ -5399,41 +5221,6 @@ def cmd_method_design(args: argparse.Namespace) -> int:
     return 0 if ok else 2
 
 
-def cmd_propose(args: argparse.Namespace) -> int:
-    repo_root = _repo_root_from_args(args)
-    res = evolution_proposal_one(
-        EvolutionProposalInputs(
-            tag=str(args.tag),
-            source_run_tag=str(args.source_run_tag),
-            max_proposals=int(args.max_proposals),
-            include_eval_failures=not bool(args.no_eval_failures),
-            write_kb_trace=not bool(args.no_kb_trace),
-            kb_trace_path=str(args.kb_trace_path) if args.kb_trace_path else None,
-        ),
-        repo_root=repo_root,
-    )
-    print("[ok] wrote evolution proposal artifacts:")
-    for k, v in sorted((res.get("artifact_paths") or {}).items()):
-        print(f"- {k}: {v}")
-    return 0
-
-
-def cmd_skill_propose(args: argparse.Namespace) -> int:
-    repo_root = _repo_root_from_args(args)
-    res = skill_proposal_one(
-        SkillProposalInputs(
-            tag=str(args.tag),
-            source_run_tag=str(args.source_run_tag),
-            max_proposals=int(args.max_proposals),
-        ),
-        repo_root=repo_root,
-    )
-    print("[ok] wrote skill proposal artifacts:")
-    for k, v in sorted((res.get("artifact_paths") or {}).items()):
-        print(f"- {k}: {v}")
-    return 0
-
-
 def cmd_run_card_validate(args: argparse.Namespace) -> int:
     """Validate a computation run_card v2 (strict schema + cycle check)."""
     repo_root = _repo_root_from_args(args)
@@ -5608,19 +5395,6 @@ def cmd_run_card_render(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_migrate_wrapper(args: argparse.Namespace) -> int:
-    """CLI wrapper for ``workspace migrate`` (M-20)."""
-    from .toolkit.migrate import cmd_migrate
-
-    repo_root = _repo_root_from_args(args)
-    registry_path = None
-    reg_arg = getattr(args, "registry", None)
-    if reg_arg:
-        registry_path = Path(str(reg_arg)).expanduser().resolve()
-    dry_run = getattr(args, "dry_run", False)
-    return cmd_migrate(repo_root, registry_path=registry_path, dry_run=dry_run)
-
-
 def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     description = (
         "Legacy Pipeline A CLI for residual provider-local workflow/support commands."
@@ -5669,26 +5443,6 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         p_app.add_argument("approval_id", help="Approval id, e.g. A1-0001")
         p_app.add_argument("--note", help="Ledger note.")
         p_app.set_defaults(fn=cmd_approve)
-
-    if not public_surface:
-        p_approvals = sub.add_parser("approvals", help="Approval packet utilities (NEW-03).")
-        approvals_sub = p_approvals.add_subparsers(dest="approvals_cmd", required=True)
-        p_approvals_show = approvals_sub.add_parser("show", help="Show approval packets for a run.")
-        p_approvals_show.add_argument("--run-id", required=True, help="Run id.")
-        p_approvals_show.add_argument("--gate", help="Filter by gate prefix (e.g. A1, A3).")
-        p_approvals_show.add_argument(
-            "--format", choices=["short", "full", "json"], default="short",
-            help="Output format (default: short).",
-        )
-        p_approvals_show.set_defaults(fn=cmd_approvals_show)
-
-        p_report = sub.add_parser("report", help="Report utilities (NEW-04).")
-        report_sub = p_report.add_subparsers(dest="report_cmd", required=True)
-        p_report_render = report_sub.add_parser("render", help="Render a self-contained report from run results.")
-        p_report_render.add_argument("--run-ids", required=True, help="Comma-separated run ids.")
-        p_report_render.add_argument("--out", choices=["md", "tex"], default="md", help="Output format (default: md).")
-        p_report_render.add_argument("--output-path", help="Write to file instead of stdout.")
-        p_report_render.set_defaults(fn=cmd_report_render)
 
     run_help = (
         "Public compatibility wrapper only; no installable public legacy run workflow ids remain. "
@@ -5893,19 +5647,6 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     p_run.set_defaults(fn=cmd_run)
 
     if not public_surface:
-        p_logs = sub.add_parser("logs", help="Show recent ledger events.")
-        p_logs.add_argument("--run-id", help="Filter by run id (default: current).")
-        p_logs.add_argument("--tail", type=int, default=25, help="Number of events to show.")
-        p_logs.set_defaults(fn=cmd_logs)
-
-        p_ctx = sub.add_parser("context", help="Write/update the per-run context pack (context.md + context.json).")
-        p_ctx.add_argument("--run-id", help="Run id to write context pack for (default: current).")
-        p_ctx.add_argument("--workflow-id", help="Workflow id (optional; improves intent section).")
-        p_ctx.add_argument("--refkey", help="Optional RefKey (for paper workflows).")
-        p_ctx.add_argument("--note", help="Optional note to include in the context pack.")
-        p_ctx.set_defaults(fn=cmd_context)
-
-    if not public_surface:
         p_export = sub.add_parser("export", help="Export a run bundle (zip; canonical generic entrypoint is `autoresearch export`).")
         p_export.add_argument("--run-id", help="Run id to export (default: current).")
         p_export.add_argument("--out", help="Output zip path (default: exports/<run_id>.zip).")
@@ -5915,10 +5656,6 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
             help="Also bundle the KB files referenced by artifacts/runs/<run-id>/kb_profile/kb_profile.json (allowlist: knowledge_base/ only).",
         )
         p_export.set_defaults(fn=cmd_export)
-
-    if not public_surface:
-        p_smoke = sub.add_parser("smoke-test", help="Import MCP bridge modules (no MCP server required).")
-        p_smoke.set_defaults(fn=cmd_smoke_test)
 
     if not public_surface:
         p_doc = sub.add_parser("doctor", help="Check MCP server connectivity and required tool availability (Phase B6).")
@@ -6062,21 +5799,6 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         p_md.add_argument("--pdg-no-derived", action="store_true", help="Disallow derived PDG values.")
         p_md.set_defaults(fn=cmd_method_design)
 
-        p_prop = sub.add_parser("propose", help="Generate evolution proposals from a past run (evidence-first).")
-        p_prop.add_argument("--tag", required=True, help="Run tag for proposal artifacts output.")
-        p_prop.add_argument("--source-run-tag", required=True, help="Existing run tag to analyze.")
-        p_prop.add_argument("--max-proposals", type=int, default=20, help="Max proposals to emit (default: 20).")
-        p_prop.add_argument("--no-eval-failures", action="store_true", help="Do not include eval failures even if present.")
-        p_prop.add_argument("--no-kb-trace", action="store_true", help="Do not write a KB methodology trace file.")
-        p_prop.add_argument("--kb-trace-path", help="Override KB trace path (project-relative).")
-        p_prop.set_defaults(fn=cmd_propose)
-
-        p_skill = sub.add_parser("skill-propose", help="Generate deterministic skill proposal scaffolds from a past run (T38).")
-        p_skill.add_argument("--tag", required=True, help="Run tag for output artifacts.")
-        p_skill.add_argument("--source-run-tag", required=True, help="Existing run tag to analyze.")
-        p_skill.add_argument("--max-proposals", type=int, default=5, help="Max proposals to emit (default: 5).")
-        p_skill.set_defaults(fn=cmd_skill_propose)
-
         p_rc = sub.add_parser("run-card", help="Run-card utilities (computation run_card v2).")
         rc_sub = p_rc.add_subparsers(dest="run_card_cmd", required=True)
 
@@ -6157,12 +5879,6 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         )
         p_branch_switch.add_argument("--note", help="Optional note for the ledger event.")
         p_branch_switch.set_defaults(fn=cmd_branch_switch)
-
-        # -- migrate -----------------------------------------------------------
-        p_migrate = sub.add_parser("migrate", help="Detect and upgrade old-version artifacts (M-20).")
-        p_migrate.add_argument("--registry", help="Path to migration_registry_v1.json (auto-detected if omitted).")
-        p_migrate.add_argument("--dry-run", action="store_true", help="Show what would be migrated without writing.")
-        p_migrate.set_defaults(fn=cmd_migrate_wrapper)
 
     if public_surface:
         _assert_public_shell_inventory(sub)

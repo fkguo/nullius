@@ -18,7 +18,8 @@
 内部 maintainer/eval 路径（非 generic front door）：
 - `python3 scripts/run_evolution_proposal.py --tag <NEW_TAG> --source-run-tag <OLD_TAG>`
 
-说明：安装态 public shell 已不再公开 `propose`；如果你确实要碰这个 package-local legacy path，应把它当成 internal full-parser / maintainer 路径，而不是默认 operator path 或 generic front door。
+说明：旧的 parser-level `propose` wrapper 已删除；如果你确实要继续使用这条 package-local 演进能力，应直接走脚本 / lower-level proposal authority，而不是把它当成默认 operator path 或 generic front door。
+同理，旧的 parser-level `skill-propose` wrapper 也已删除；相关能力若仍有 maintainer/eval 价值，也应直接走 lower-level toolkit / script authority，而不是重新回到 parser 前门。
 
 输出（JSON SSOT + 人类可读 Markdown）：
 - `artifacts/runs/<NEW_TAG>/evolution_proposal/{manifest,summary,analysis}.json`

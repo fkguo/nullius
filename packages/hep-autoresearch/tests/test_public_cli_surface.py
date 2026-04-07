@@ -82,8 +82,8 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertNotIn(" reject ", out)
         self.assertNotIn(" export ", out)
         self.assertNotIn(" literature-gap ", out)
-        self.assertNotIn(",doctor,", out)
-        self.assertNotIn(",bridge,", out)
+        self.assertNotIn(" doctor ", out)
+        self.assertNotIn(" bridge ", out)
         self.assertNotIn(" approvals ", out)
         self.assertNotIn(" report ", out)
         self.assertNotIn(" logs ", out)
@@ -222,22 +222,14 @@ class TestPublicCliSurface(unittest.TestCase):
         )
         self.assertEqual(
             groups["internal_support_commands"],
-            ["start", "checkpoint", "request-approval", "reject", "doctor", "bridge", "literature-gap"],
+            ["doctor", "bridge", "literature-gap"],
         )
         self.assertEqual(
             groups["retired_public_support_commands"],
             [
-                "approvals",
-                "report",
-                "logs",
-                "context",
-                "smoke-test",
                 "method-design",
-                "propose",
-                "skill-propose",
                 "run-card",
                 "branch",
-                "migrate",
             ],
         )
         self.assertEqual(

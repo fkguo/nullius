@@ -35,13 +35,6 @@ def _run_cli(repo_root: Path, args: list[str], *, env_overrides: dict[str, str] 
 
 
 class TestMcpDoctorAndBridgeCLI(unittest.TestCase):
-    def test_smoke_test(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            repo_root = Path(td)
-            rc, out, err = _run_cli(repo_root, ["smoke-test"])
-            self.assertEqual(rc, 0, msg=out + err)
-            self.assertIn("smoke-test", out)
-
     def test_doctor_missing_config(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)

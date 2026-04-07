@@ -73,10 +73,6 @@
         {
           "group": "internal_support_commands",
           "commands": [
-            "start",
-            "checkpoint",
-            "request-approval",
-            "reject",
             "doctor",
             "bridge",
             "literature-gap"
@@ -85,17 +81,9 @@
         {
           "group": "retired_public_support_commands",
           "commands": [
-            "approvals",
-            "report",
-            "logs",
-            "context",
-            "smoke-test",
             "method-design",
-            "propose",
-            "skill-propose",
             "run-card",
-            "branch",
-            "migrate"
+            "branch"
           ]
         },
         {
