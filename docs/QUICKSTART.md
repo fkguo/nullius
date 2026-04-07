@@ -19,7 +19,7 @@
 - 确认 lifecycle state、审批与后续 workflow-plan / computation 入口可见。
 
 3) `autoresearch workflow-plan --recipe literature_to_evidence`
-- 当你需要高层 literature launcher 时，再从这个 generic front door 进入；随后再按下方 HEP 路径进入当前最强的 domain-pack workflow family。
+- 如需高层 literature launcher，可先完成这一步；随后再按下方 HEP 路径进入当前最强的 domain-pack workflow family。
 
 ## Draft Path（最简路径）
 
