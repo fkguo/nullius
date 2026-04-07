@@ -73,8 +73,6 @@
         {
           "group": "internal_support_commands",
           "commands": [
-            "doctor",
-            "bridge",
             "literature-gap"
           ]
         },

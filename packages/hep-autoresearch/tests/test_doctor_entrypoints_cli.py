@@ -1,16 +1,14 @@
-import json
-import os
-import tempfile
 import unittest
-from pathlib import Path
 
 
-def _src_root() -> Path:
+def _src_root():
+    from pathlib import Path
+
     return Path(__file__).resolve().parents[1] / "src"
 
 
-class TestDoctorEntrypointDiscovery(unittest.TestCase):
-    def _run_cli(self, repo_root: Path, argv: list[str]) -> tuple[int, str, str]:
+class TestDoctorEntrypointSurfaceRetired(unittest.TestCase):
+    def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:
         import sys
         from contextlib import redirect_stderr, redirect_stdout
         from io import StringIO
@@ -28,7 +26,10 @@ class TestDoctorEntrypointDiscovery(unittest.TestCase):
             sys.argv = list(argv)
             buf_out, buf_err = StringIO(), StringIO()
             with redirect_stdout(buf_out), redirect_stderr(buf_err):
-                rc = int(cli_main())
+                try:
+                    rc = int(cli_main())
+                except SystemExit as exc:
+                    rc = int(exc.code)
             return rc, buf_out.getvalue(), buf_err.getvalue()
         finally:
             sys.argv = argv0
@@ -38,40 +39,20 @@ class TestDoctorEntrypointDiscovery(unittest.TestCase):
                 except ValueError:
                     pass
 
-    def test_entrypoint_discovery_warning_non_strict(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            repo_root = Path(td)
-            prev_path = os.environ.get("PATH", "")
-            os.environ["PATH"] = "/usr/bin:/bin"
-            try:
-                rc, out, err = self._run_cli(repo_root, ["hepar", "--project-root", str(repo_root), "doctor", "--json"])
-            finally:
-                os.environ["PATH"] = prev_path
-            self.assertEqual(rc, 0, msg=out + err)
-            data = json.loads(out)
-            self.assertIn("entrypoint_discovery", data)
-            self.assertIn("autoresearch", data["entrypoint_discovery"]["entrypoints"])
-            warnings = data.get("warnings") or []
-            self.assertTrue(any((isinstance(w, dict) and w.get("code") == "entrypoints_missing") for w in warnings))
-
-    def test_entrypoint_discovery_strict_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            repo_root = Path(td)
-            prev_path = os.environ.get("PATH", "")
-            os.environ["PATH"] = "/usr/bin:/bin"
-            try:
-                rc, out, err = self._run_cli(
-                    repo_root,
-                    ["hepar", "--project-root", str(repo_root), "doctor", "--json", "--strict-entrypoints"],
-                )
-            finally:
-                os.environ["PATH"] = prev_path
-            self.assertEqual(rc, 2, msg=out + err)
-            data = json.loads(out)
-            self.assertFalse(bool(data.get("ok")))
-            self.assertIn("autoresearch", data["entrypoint_discovery"]["entrypoints"])
-            warnings = data.get("warnings") or []
-            self.assertTrue(any((isinstance(w, dict) and w.get("code") == "entrypoints_missing") for w in warnings))
+    def test_doctor_entrypoint_flags_no_longer_reachable(self) -> None:
+        rc, out, err = self._run_cli(
+            [
+                "hepar",
+                "--project-root",
+                ".",
+                "doctor",
+                "--json",
+                "--strict-entrypoints",
+            ]
+        )
+        self.assertEqual(rc, 2, msg=out + err)
+        self.assertIn("invalid choice", out + err)
+        self.assertIn("doctor", out + err)
 
 
 if __name__ == "__main__":

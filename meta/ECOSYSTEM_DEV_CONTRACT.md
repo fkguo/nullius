@@ -206,26 +206,26 @@ grep -rn 'call_tool_json.*"[a-z_]*"' hep-autoresearch/src/ \
 
 ### SYNC-04: 运行时兼容性握手
 
-**规则**: hep-autoresearch 启动时必须执行 `initialize → hep_health → tools/list` 握手，验证 `tool_catalog_hash` 与本地期望值一致。
+**规则**: 已删除的 legacy shell wrapper（如 `hepar doctor`）不再是 live 握手 authority。当前运行时兼容性握手必须由 lower-level MCP contract / tool inventory 验证承担，至少覆盖 `initialize → hep_health / tool contracts → tools/list` 这一条链路。
 
 **CI 验证**:
 ```bash
-# 集成测试: 启动 MCP server → 运行 hepar doctor → 验证握手通过
-pytest autoresearch-meta/tests/integration/test_handshake.py
+# lower-level MCP contract + inventory verification
+pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
+pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 ```
 
 **违规行为**: **fail-open** (警告 + 降级运行) — hash 不匹配时警告但允许继续（避免升级死锁）
 
 ### SYNC-05: 跨组件冒烟矩阵
 
-**规则**: CI 必须在 `standard` 和 `full` 两种模式下运行跨组件冒烟测试。`standard` 模式执行完整 smoke（doctor + bridge + envelope golden tests）；`full` 模式执行 tool listing + schema 校验（不含 golden test，降低维护成本）。
+**规则**: CI 必须覆盖 `standard` 和 `full` 两种 MCP tool inventory truth，但不再依赖已经删除的 `doctor` / `bridge` parser shells。当前 smoke 必须走 package-local contract/tool-listing 验证，而不是复活 legacy compatibility wrapper。
 
 **CI 验证**:
 ```bash
-# standard 模式完整冒烟
-bash autoresearch-meta/tests/integration/test_smoke.sh --mode standard
-# full 模式 listing + schema 校验
-bash autoresearch-meta/tests/integration/test_smoke.sh --mode full --schema-only
+# standard/full tool inventory + contract verification
+pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
+pnpm --filter @autoresearch/hep-mcp test -- tests/tools.test.ts tests/toolContracts.test.ts
 ```
 
 **违规行为**: **fail-closed** — 冒烟测试失败阻断 CI
@@ -292,12 +292,12 @@ python autoresearch-meta/scripts/validate_env_whitelist.py
 
 ### CFG-04: 配置回显
 
-**规则**: `hepar doctor` 必须输出当前生效配置及来源（env/file/default），便于调试。
+**规则**: 已删除的 `hepar doctor` 不再承担配置回显 authority。当前配置可观测性必须由 lower-level diagnostics / contract tests 承担，至少保证与 `hep_health`、tool contracts、tool inventory 相关的关键配置不会退化成静默黑箱。
 
 **CI 验证**:
 ```bash
-# 冒烟测试: hepar doctor 输出包含所有注册表键
-hepar doctor 2>&1 | python -c "import sys; assert 'HEP_DATA_DIR' in sys.stdin.read()"
+# lower-level diagnostics / contract verification
+pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
 ```
 
 **违规行为**: **fail-open** (警告) — 缺少回显不阻断但降低可调试性

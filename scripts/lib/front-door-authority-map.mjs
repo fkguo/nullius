@@ -79,7 +79,7 @@ export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
   Object.freeze({
     group: 'internal_support_commands',
     owner: 'internal full parser only; maintainer/eval/regression compatibility surface',
-    commands: freezeCommands(['doctor', 'bridge', 'literature-gap']),
+    commands: freezeCommands(['literature-gap']),
   }),
   Object.freeze({
     group: 'retired_public_support_commands',

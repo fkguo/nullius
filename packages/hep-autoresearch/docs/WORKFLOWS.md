@@ -26,28 +26,11 @@ English workflow specs live under `workflows/`:
 
 ## Orchestrator operations (CLI)
 
-### Internal full-parser compatibility only: `doctor` (maintainer/eval/regression)
+### Internal parser cleanup note
 
-The installable public shell no longer exposes `hepar doctor`. The notes below describe the internal full-parser compatibility path only, for maintainer/eval/regression coverage while retirement continues.
-
-- Default behavior:
-  - runs `entrypoint_discovery` first (checks `autoresearch` on `PATH`)
-  - then runs MCP connectivity/tool checks (`.mcp.json` + `hep_health`)
-- Entrypoint check is shell-aware (`zsh` / `bash` / `fish` / `unknown`) and reports whether the current session appears to be in a virtual environment.
-- Entrypoint failures are warnings by default.
-
-Flags:
-
-- `--strict-entrypoints`: treat missing `autoresearch` entrypoint as error (non-zero exit).
-- `--json`: output JSON for `entrypoint_discovery` only (offline PATH diagnostics; skips MCP checks).
-- `--entrypoints-only`: text-mode entrypoint diagnostics only (skip MCP checks).
-- `--allow-missing-mcp-config`: if `.mcp.json` is missing, print warning + hints and return success.
-  - Useful for first-time local/offline setup.
-  - Redundant when `--entrypoints-only` is already set.
-
-Init scaffolds a starter template:
-- `.mcp.json.example` (valid JSON, tracked)
-- `.mcp.json` remains local/ignored by git.
+Legacy internal parser commands `doctor` and `bridge` are now deleted in this repository.
+This does not promote any replacement compatibility shell; it simply removes the legacy parser wrappers.
+Generic lifecycle/control-plane authority remains on `autoresearch`, while remaining internal parser residue is tracked separately.
 
 ### `autoresearch status` (revision display-layer reconcile)
 

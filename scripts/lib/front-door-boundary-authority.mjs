@@ -72,9 +72,9 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'packages/hep-autoresearch/docs/WORKFLOWS.md',
     snippets: [
-      'The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands remain only on the internal full parser for maintainer/eval/regression coverage.',
-      '### Internal full-parser compatibility only: `doctor` (maintainer/eval/regression)',
-      'The installable public shell no longer exposes `hepar doctor`.',
+      '### Internal parser cleanup note',
+      'Legacy internal parser commands `doctor` and `bridge` are now deleted in this repository.',
+      'Generic lifecycle/control-plane authority remains on `autoresearch`, while remaining internal parser residue is tracked separately.',
     ],
     forbiddenSnippets: [
       'unrepointed commands such as `run`, `doctor`, and `bridge`',
@@ -139,6 +139,7 @@ export const FRONT_DOOR_SNIPPETS = [
     ],
     forbiddenSnippets: [
       '用于尚未 repoint 的 workflow shell（例如 `run`、`logs`、`doctor`、`bridge`）',
+      'public computation、`doctor`、`bridge`、`literature-gap`',
       'hepar run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir',
     ],
   },

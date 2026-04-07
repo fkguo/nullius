@@ -222,7 +222,7 @@ class TestPublicCliSurface(unittest.TestCase):
         )
         self.assertEqual(
             groups["internal_support_commands"],
-            ["doctor", "bridge", "literature-gap"],
+            ["literature-gap"],
         )
         self.assertEqual(
             groups["retired_public_support_commands"],
