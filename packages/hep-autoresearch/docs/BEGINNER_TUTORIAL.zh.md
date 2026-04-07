@@ -6,7 +6,7 @@ English quickstart: `docs/BEGINNER_TUTORIAL.md`。本文件是中文详版。
 
 如果你想先看当前 generic front door，请先读仓库根级 `../../docs/QUICKSTART.md` 与 `../../docs/TESTING_GUIDE.md`。本教程是一个 package-level 的 legacy / maintainer 兼容路径说明，只面向那些确实需要触碰收窄后 Pipeline A shell 的读者。
 
-生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，但安装态 public shell 现在只保留 `run` 这一个兼容提示层命令；其余 legacy workflow/support commands 都只保留在 internal full parser。public computation、`literature-gap`、direct root lifecycle/approval mutations（`start`、`checkpoint`、`request-approval`、`reject`），以及旧 public support commands 现在都只保留在 internal full parser；legacy internal parser wrappers `doctor` 与 `bridge` 则已删除，不再作为兼容命令保留。因此本教程对 lifecycle verbs 使用 `autoresearch`，而任何 legacy shell 示例都只作为收窄后的兼容路径说明。
+生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，但安装态 public shell 现在只保留 `run` 这一个兼容提示层命令；其余 legacy workflow/support commands 要么只保留在 internal full parser，要么已经删除。public computation 仍只保留为 internal full-parser workflow path，供 maintainer/eval 覆盖使用。direct root lifecycle/approval mutations（`start`、`checkpoint`、`request-approval`、`reject`）已不再属于当前 parser inventory；已删除的 parser shells `doctor`、`bridge`、`literature-gap` 现在都不存在。因此本教程对 lifecycle verbs 使用 `autoresearch`，而任何 legacy shell 示例都只作为收窄后的兼容路径说明。
 
 ## 0）先建立 4 个概念
 

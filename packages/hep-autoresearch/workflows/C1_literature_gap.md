@@ -1,128 +1,94 @@
-# C1_literature_gap (Phase C1)
+# C1_literature_gap (Legacy Maintainer Fixture)
 
-Goal: produce an evidence-first, auditable literature-gap bundle via launcher-resolved workflow authority + bounded MCP atomic operators, split into two phases:
+This file documents the surviving artifact contract for the old Phase C1 literature-gap flow after the internal parser command was deleted.
 
-- **discover**: fetch a wide candidate set (no relevance decisions)
-- **analyze**: run deeper analysis on a *chosen* seed set
+- Public/front-door authority:
+  - `autoresearch workflow-plan --recipe literature_gap_analysis`
+  - checked-in recipe authority stays in `packages/literature-workflows` / `meta/recipes/literature_gap_analysis.json`
+- Lower-level checked-in consumers that now prove the flow:
+  - `packages/hep-autoresearch/src/hep_autoresearch/toolkit/literature_gap.py`
+  - `packages/hep-autoresearch/tests/test_literature_gap_runner.py`
+  - `packages/literature-workflows/tests/resolve.test.ts`
+  - `packages/orchestrator/tests/autoresearch-cli.test.ts`
+- Deleted surface:
+  - the internal parser `literature-gap` command in `hep_autoresearch.orchestrator_cli`
 
-Key principle: **relevance ranking / seed selection is external (human/LLM) and must be recorded** in `seed_selection.json`.
-This workflow intentionally provides **no deterministic relevance fallback**.
+## Preserved intent
+
+The surviving runner-level flow still splits into two phases:
+
+- `discover`: launcher-resolved seed search that writes a candidate bundle without deterministic relevance scoring
+- `analyze`: bounded topic / critical / network / connection analysis over an externally selected seed set
+
+Seed selection remains external and auditable through `seed_selection.json`. The runner intentionally keeps no deterministic relevance fallback.
 
 ## Inputs
 
-Common:
-- `--tag`: run tag used for artifact output paths (e.g. `M73-r1`)
-- MCP config:
-  - `.mcp.json` (ignored by git) with a server entry (default name: `hep-research`)
-  - Optional: `--mcp-config`, `--mcp-server`, `--hep-data-dir`
+Discover runner inputs:
 
-Phase: **discover** (default):
-- `--phase discover`
-- `--topic` (required)
-- Optional knobs:
-  - `--focus` (repeatable): focus keywords recorded in discover inputs
-  - `--seed-recid`: optional INSPIRE seed recid recorded in discover inputs (crawl hint only; *not* seed selection for analyze)
-  - `--iterations`, `--max-papers`, `--prefer-journal` (reserved discover knobs passed through to launcher-resolved consumers when applicable)
+- `tag`
+- `topic`
+- optional `focus[]`
+- optional `seed_recid`
+- optional MCP config overrides (`mcp_config`, `mcp_server`, `hep_data_dir`)
 
-Phase: **analyze**:
-- `--phase analyze`
-- `--seed-selection <PATH>` (required): the external seed selection manifest
-- Optional knobs:
-  - `--topic`: optional (will be inferred from `candidates.json#/inputs/topic` when omitted)
-  - `--candidates <PATH>`: optional override for `candidates.json`
-  - `--max-recids`: cap how many recids from `seed_selection.json` are used
-  - `--allow-external-seeds`: allow recids not present in `candidates.json` (default: refuse)
-  - `--allow-external-inputs`: allow seed/candidates paths outside the project root (default: refuse)
-  - `--topic-mode`, `--topic-limit`, `--topic-granularity`
-  - `--critical-mode`
-  - `--network-mode`, `--network-limit`, `--network-depth`, `--network-direction`
+Analyze runner inputs:
 
-Required MCP tools on the server:
-- discover: launcher-resolved `inspire_search`
-- analyze: launcher-resolved `inspire_topic_analysis`, `inspire_critical_analysis`, `inspire_network_analysis`, `inspire_find_connections`
-- workflow authority: checked-in `packages/literature-workflows` launcher resolving `literature_gap_analysis`
+- `tag`
+- `seed_selection`
+- optional `topic` (defaults from `candidates.json#/inputs/topic`)
+- optional `candidates`
+- optional `max_recids`
+- optional `allow_external_seeds`
+- optional `allow_external_inputs`
+- topic/network analysis knobs
 
-## Outputs (artifacts)
+## Artifact contract
 
-Writes to:
-- `artifacts/runs/<TAG>/literature_gap/discover/`
-- `artifacts/runs/<TAG>/literature_gap/analyze/`
+Discover writes:
 
-Both phases write the artifact triple:
-- `manifest.json` / `summary.json` / `analysis.json`
-- `gap_report.json` (structured SSOT summary + action log)
-- `report.md` (deterministic view derived from SSOT JSON)
+- `artifacts/runs/<TAG>/literature_gap/discover/manifest.json`
+- `artifacts/runs/<TAG>/literature_gap/discover/summary.json`
+- `artifacts/runs/<TAG>/literature_gap/discover/analysis.json`
+- `artifacts/runs/<TAG>/literature_gap/discover/gap_report.json`
+- `artifacts/runs/<TAG>/literature_gap/discover/workflow_plan.json`
+- `artifacts/runs/<TAG>/literature_gap/discover/seed_search.json`
+- `artifacts/runs/<TAG>/literature_gap/discover/candidates.json`
+- `artifacts/runs/<TAG>/literature_gap/discover/report.md`
 
-Phase: **discover** also writes:
-- `workflow_plan.json` (launcher-resolved plan)
-- `seed_search.json` (raw MCP tool output)
-- `candidates.json` (deduped candidate list; *no ranking implied*)
+Analyze writes:
 
-Phase: **analyze** also writes:
-- `workflow_plan.json` (launcher-resolved plan)
-- `seed_selection.json` (copied into the artifact dir; SHA256 recorded in `gap_report.json`)
-- `topic_analysis.json` / `critical_research.json` / `network_analysis.json` / `connection_scan.json` (raw MCP tool outputs)
+- `artifacts/runs/<TAG>/literature_gap/analyze/manifest.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/summary.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/analysis.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/gap_report.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/workflow_plan.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/topic_analysis.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/critical_analysis.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/network_analysis.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/connection_scan.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/seed_selection.json`
+- `artifacts/runs/<TAG>/literature_gap/analyze/report.md`
 
-## `seed_selection.json` contract (schema_version=1)
+## `seed_selection.json` contract
 
-Required:
-- `schema_version`: `1`
-- `selection_logic`: non-empty string (how the selector judged relevance)
-- `items`: non-empty list of:
-  - `recid`: non-empty string
-  - `reason_for_inclusion`: non-empty string
+- `schema_version = 1`
+- `selection_logic` must be a non-empty string
+- `items[]` must include:
+  - `recid`
+  - `reason_for_inclusion`
 
-Consistency gate (default):
-- Every `recid` must exist in `candidates.json` from `discover` (refuse to continue otherwise).
-- Override only with `--allow-external-seeds` (still logged as a warning).
+Default consistency gate:
 
-## Gates / acceptance
+- every selected `recid` must already exist in `candidates.json`
+- `allow_external_seeds` is the only override, and it is still recorded into the analysis outputs
 
-- Exit codes:
-  - `0`: completed without recorded errors
-  - `2`: completed but recorded errors (artifacts still written)
-  - nonzero (other): missing config / tool missing / fatal exception
-- Offline regression:
-  - `tests/mcp_stub_server.py` implements deterministic `inspire_*` tools
-  - `tests/test_literature_gap_cli.py` validates the CLI and artifact output contract
+## Executable proof
 
-## MVP scope (v1)
-
-- Deterministic MCP orchestration only (no internal LLM calls).
-- Candidate extraction is schema-flexible and best-effort.
-- **No deterministic relevance scoring** inside the tool.
-- Seed selection is external and must be auditable (`seed_selection.json`).
-
-## Extension roadmap
-
-- Optional *approval-gated* helper to generate `seed_selection.json` via LLM (still writing SSOT + hash, resumable).
-- Optional prompt-packet emitter for downstream LLM analysis (keeping SSOT JSON as the source of truth).
-- Add an eval case under `evals/` to validate artifact schema + required fields for literature-gap runs.
-
-## Example commands
-
-Discover candidates:
+Primary regression proof now lives in tests instead of the parser shell:
 
 ```bash
-PYTHONPATH=src python3 -m hep_autoresearch.orchestrator_cli --project-root . \
-  literature-gap \
-  --phase discover \
-  --tag M73-r1 \
-  --topic "lattice QCD dibaryons" \
-  --iterations 2 \
-  --max-papers 40
-```
-
-Create `seed_selection.json` (external: human/LLM), then analyze:
-
-```bash
-PYTHONPATH=src python3 -m hep_autoresearch.orchestrator_cli --project-root . \
-  literature-gap \
-  --phase analyze \
-  --tag M73-r1 \
-  --seed-selection seed_selection.json \
-  --max-recids 12 \
-  --topic-mode timeline \
-  --critical-mode analysis \
-  --network-mode citation
+PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m pytest -q packages/hep-autoresearch/tests/test_literature_gap_runner.py packages/hep-autoresearch/tests/test_public_cli_surface.py
+pnpm --filter @autoresearch/literature-workflows test -- tests/resolve.test.ts
+pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 ```

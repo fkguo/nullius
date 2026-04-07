@@ -48,7 +48,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/BEGINNER_TUTORIAL.md',
     snippets: [
       'For the current generic front door, start with the repo-root `../../docs/QUICKSTART.md` and `../../docs/TESTING_GUIDE.md`. This package tutorial is a legacy-surface / maintainer-oriented compatibility walkthrough for readers who intentionally need the narrowed Pipeline A shell around an external research project.',
-      'The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands are internal full-parser only.',
+      'The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands are either internal full-parser only or already deleted.',
       'This is an optional compatibility smoke path, not the recommended first-touch path.',
       '- `computation`: `docs/COMPUTATION.md` via `autoresearch run --workflow-id computation` (native TS front door, not `hep-autoresearch run`)',
     ],
@@ -61,7 +61,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/BEGINNER_TUTORIAL.zh.md',
     snippets: [
       '如果你想先看当前 generic front door，请先读仓库根级 `../../docs/QUICKSTART.md` 与 `../../docs/TESTING_GUIDE.md`。本教程是一个 package-level 的 legacy / maintainer 兼容路径说明，只面向那些确实需要触碰收窄后 Pipeline A shell 的读者。',
-      '安装态 public shell 现在只保留 `run` 这一个兼容提示层命令；其余 legacy workflow/support commands 都只保留在 internal full parser。',
+      '安装态 public shell 现在只保留 `run` 这一个兼容提示层命令；其余 legacy workflow/support commands 要么只保留在 internal full parser，要么已经删除。',
       '这是一条可选的兼容路径烟测，不是推荐的 first-touch 路径。',
       '- `computation`：`docs/COMPUTATION.md`，并通过 `autoresearch run --workflow-id computation` 进入（不是 `hep-autoresearch run`）',
     ],
@@ -73,8 +73,8 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/WORKFLOWS.md',
     snippets: [
       '### Internal parser cleanup note',
-      'Legacy internal parser commands `doctor` and `bridge` are now deleted in this repository.',
-      'Generic lifecycle/control-plane authority remains on `autoresearch`, while remaining internal parser residue is tracked separately.',
+      'Legacy internal parser commands `doctor`, `bridge`, and `literature-gap` are now deleted in this repository.',
+      'Generic lifecycle/control-plane authority remains on `autoresearch`, while the surviving internal parser residue is limited to maintainer-only authoring helpers and internal workflow coverage.',
     ],
     forbiddenSnippets: [
       'unrepointed commands such as `run`, `doctor`, and `bridge`',
@@ -85,7 +85,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/WORKFLOWS.zh.md',
     snippets: [
       '当前 installable `hepar run` 只保留兼容壳层命令，不再公开 workflow id；`ingest`、`reproduce`、`revision`、`literature_survey_polish` 与 `shell_adapter_smoke` 现在都只保留在 internal full parser，供 maintainer/eval/regression 使用。',
-      '当前 remaining internal support launcher residue 只剩 `literature-gap`；`method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers。',
+      '已删除的 parser shells `doctor`、`bridge`、`literature-gap` 现在都不存在；`method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers。',
     ],
   },
   {
@@ -140,8 +140,8 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.md',
     snippets: [
       'Exact installable public command inventory: `run`.',
-      'remaining internal support launcher residue is only `literature-gap`',
-      'retired-public support helpers `method-design`, `run-card`, and `branch` remain on the internal full parser only and are no longer the live `internal_support_commands` bucket',
+      'deleted parser shells `doctor`, `bridge`, and `literature-gap` no longer exist',
+      'the live `internal_support_commands` bucket is now empty; retired-public support helpers `method-design`, `run-card`, and `branch` remain on the internal full parser only',
     ],
     forbiddenSnippets: [
       'remaining internal support commands are `method-design`, `run-card`, and `branch`',
@@ -153,7 +153,7 @@ export const FRONT_DOOR_SNIPPETS = [
     snippets: [
       '安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余仍存活的 legacy workflow/support commands 都在内部 full parser',
       `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
-      '当前 remaining internal support launcher residue 只剩 `literature-gap`',
+      '当前 live `internal_support_commands` 分组已经为空',
       '`method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers，仍保留在 internal full parser，但不再属于 live `internal_support_commands` 分组',
       'computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：',
       '# computation 现在走 native TS front door，而不是 installable `hepar run`',
@@ -198,7 +198,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '- `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; approval handling stays on `autoresearch status/approve`.',
       'Legacy compatibility note: the installable `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only and is still headed toward retirement.',
       '| Workflow shells | `workflow-plan` | Checked-in generic workflow authority consumed directly by `autoresearch workflow-plan` and by the lower-level `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`; no installable `hepar literature-gap` front door remains |',
-      '- For launcher-backed literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`, and leaves the checked-in Python `workflow-plan` script as the lower-level parallel consumer. Do not treat any internal `literature-gap` compatibility path as a new front-door shell.',
+      '- For launcher-backed literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`, and leaves the checked-in Python `workflow-plan` script as the lower-level parallel consumer. Do not treat maintainer-only lower-level runner proof as a new front-door shell.',
       '- `autoresearch init/status/approve/pause/resume/export` for `.autoresearch/` project state outside the development repo.',
       'If you want the generic lifecycle/control-plane smoke path first:',
       '1. `autoresearch init --project-root /absolute/path/to/external-project`',
@@ -233,7 +233,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '- `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。',
       'Legacy compatibility 说明：安装态 `hepar` public shell 已不再暴露 `computation` 或 `literature-gap`；任何残余 public `run` 面都只剩 residual non-computation compatibility，并继续朝退役方向推进。',
       '| Workflow shells | `workflow-plan` | checked-in generic workflow authority，由 `autoresearch workflow-plan` 直接消费，也由较底层的 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 消费；不再保留 installable `hepar literature-gap` 前门 |',
-      '- 对 launcher-backed 文献工作流，先用 `autoresearch init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `autoresearch workflow-plan`。它会直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；checked-in 的 Python `workflow-plan` 脚本仍是较底层的并行 consumer；不要把任何 internal `literature-gap` compatibility path 当成新的前门 shell。',
+      '- 对 launcher-backed 文献工作流，先用 `autoresearch init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `autoresearch workflow-plan`。它会直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；checked-in 的 Python `workflow-plan` 脚本仍是较底层的并行 consumer；不要把 maintainer-only 的 lower-level runner proof 当成新的前门 shell。',
       '- `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。',
       '如果你想先走 generic lifecycle/control-plane 烟测路径：',
       '1. `autoresearch init --project-root /absolute/path/to/external-project`',
@@ -329,9 +329,12 @@ export const FRONT_DOOR_SNIPPETS = [
       '这部分不是 MCP 工具，而是当前真实存在的高层 workflow consumers：',
       '这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer。',
       'Maintainer / eval / regression only:',
-      '这条 internal full-parser compatibility path 只用于覆盖未删净的 maintainer/eval/regression 场景；安装态 `hepar` public shell 已不再暴露 `literature-gap`。',
+      '旧的 internal parser `literature-gap` command 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：',
+      '`PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m pytest -q packages/hep-autoresearch/tests/test_literature_gap_runner.py`',
+      '`pnpm --filter @autoresearch/literature-workflows test -- tests/resolve.test.ts`',
+      '`pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts`',
       '- `autoresearch workflow-plan` 仍是唯一 installable public high-level literature entrypoint',
-      '- internal full-parser compatibility path 仍能解析 workflow plan or bundle 以供 regression coverage',
+      '- lower-level checked-in runner / resolver / front-door coverage 仍能证明 `literature_gap_analysis` recipe、seed-search 解析、analyze-step wiring 与 live CLI truth',
     ],
     forbiddenSnippets: [
       'python -m hep_autoresearch.orchestrator_cli \\',
@@ -341,8 +344,8 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'meta/protocols/session_protocol_v1.md',
     snippets: [
-      '> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the checked-in `packages/literature-workflows` launcher plus checked-in consumers such as `research-team`, `autoresearch workflow-plan`, and the internal full-parser `literature-gap` compatibility path used for maintainer/eval coverage.',
-      '> The installable `hepar` public shell no longer exposes `literature-gap`; any remaining `literature-gap` consumer is internal full-parser compatibility only.',
+      '> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the checked-in `packages/literature-workflows` launcher plus checked-in consumers such as `research-team`, `autoresearch workflow-plan`, and the lower-level checked-in `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` consumer used for maintainer/eval coverage.',
+      '> The installable `hepar` public shell no longer exposes `literature-gap`, and the internal full-parser `literature-gap` path is now deleted rather than preserved as compatibility residue.',
     ],
     forbiddenSnippets: [
       '`research-team` and `hepar literature-gap`.',

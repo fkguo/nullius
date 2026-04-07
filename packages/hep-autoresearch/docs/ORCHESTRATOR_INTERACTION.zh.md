@@ -20,7 +20,8 @@
 - `start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役
 - 安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余仍存活的 legacy workflow/support commands 都在内部 full parser
 - 已删除的 support wrappers（`approvals`、`report`、`logs`、`context`、`smoke-test`、`propose`、`skill-propose`、`migrate`）不再存在于 parser；其 durable authority 在 lower-level toolkit/test surfaces
-- 当前 remaining internal support launcher residue 只剩 `literature-gap`
+- 已删除的 parser shells（`doctor`、`bridge`、`literature-gap`）现在都不存在
+- 当前 live `internal_support_commands` 分组已经为空
 - `method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers，仍保留在 internal full parser，但不再属于 live `internal_support_commands` 分组
 
 建议命令族（概念示意；上面的 concrete authority 才是当前真相）：
@@ -32,7 +33,7 @@
 - `resume`：继续执行
 - `approve <approval_id>`：同意某个待审批动作（A1–A5）
 - `export`：导出 run bundle（便于离线审阅/共享）
-- remaining internal support launcher residue 是 `literature-gap`；`branch`、`run-card`、`method-design` 等 retired-public maintainer helpers 仍在 internal full parser，但不再属于 installable public shell 真相
+- 已不存在 live internal support launcher residue；`branch`、`run-card`、`method-design` 等 retired-public maintainer helpers 仍在 internal full parser，但不再属于 installable public shell 真相
 
 ## 2) 默认“同意点”触发（approve gates）
 
@@ -113,7 +114,7 @@ Web 入口不改变契约，只改变 UI：
 
 ### 现阶段实现（v0）
 
-当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，但安装态 public shell 现在只保留 `run` 这一个兼容壳层命令，而且 public `run` 不再提供 workflow id。`start`、`checkpoint`、`request-approval`、`reject` 这类 direct root lifecycle/approval mutations 已从 installable shell 退役，也不再属于当前 internal full parser 的命令清单。public computation、`literature-gap` 与 `method-design`、`run-card`、`branch` 这些 support commands 都已从 installable shell 退役，仅保留在内部 full parser 供 maintainer/eval/regression 使用；legacy internal parser wrappers `doctor` 与 `bridge` 则已直接删除。`approvals`、`report`、`logs`、`context`、`smoke-test`、`propose`、`skill-propose`、`migrate` 这些 support wrappers 也已从 parser 删除，改由 lower-level toolkit/test surfaces 承接 authority。其余 legacy workflow ids（`ingest`、`reproduce`、`revision`、`literature_survey_polish`、`shell_adapter_smoke`）现在也只保留为 internal full-parser coverage，不再属于 installable public shell。computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：
+当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，但安装态 public shell 现在只保留 `run` 这一个兼容壳层命令，而且 public `run` 不再提供 workflow id。`start`、`checkpoint`、`request-approval`、`reject` 这类 direct root lifecycle/approval mutations 已从 installable shell 退役，也不再属于当前 internal full parser 的命令清单。public computation 与 `method-design`、`run-card`、`branch` 这些 support commands 都已从 installable shell 退役；其中 computation 仍只保留为 internal full-parser workflow coverage，`method-design`、`run-card`、`branch` 则作为 retired-public maintainer helpers 留在内部 full parser 供 maintainer/eval/regression 使用。legacy internal parser wrappers `doctor`、`bridge`、`literature-gap` 则已直接删除。`approvals`、`report`、`logs`、`context`、`smoke-test`、`propose`、`skill-propose`、`migrate` 这些 support wrappers 也已从 parser 删除，改由 lower-level toolkit/test surfaces 承接 authority。其余 legacy workflow ids（`ingest`、`reproduce`、`revision`、`literature_survey_polish`、`shell_adapter_smoke`）现在也只保留为 internal full-parser coverage，不再属于 installable public shell。computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：
 
 ```bash
 # 在你的研究项目根目录里执行（不是在 packages/hep-autoresearch/ 里）

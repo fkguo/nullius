@@ -37,6 +37,53 @@ describe('literature workflow resolver', () => {
     });
   });
 
+  it('resolves literature gap analyze through bounded inspire analysis operators', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'literature_gap_analysis',
+      phase: 'analyze',
+      inputs: { topic: 'nonlinear sigma model', recids: ['1001', '2001'], analysis_seed: '1001' },
+      available_tools: [
+        'inspire_topic_analysis',
+        'inspire_critical_analysis',
+        'inspire_network_analysis',
+        'inspire_find_connections',
+      ],
+    });
+
+    expect(plan.entry_tool).toBe('literature_workflows.resolve');
+    expect(plan.resolved_steps).toHaveLength(4);
+    expect(plan.resolved_steps).toMatchObject([
+      {
+        id: 'topic_scan',
+        action: 'analyze.topic_evolution',
+        provider: 'inspire',
+        tool: 'inspire_topic_analysis',
+        params: { mode: 'timeline', topic: 'nonlinear sigma model', limit: 20 },
+      },
+      {
+        id: 'critical_analysis',
+        action: 'analyze.paper_set_critical_review',
+        provider: 'inspire',
+        tool: 'inspire_critical_analysis',
+        params: { recid: '1001' },
+      },
+      {
+        id: 'citation_network',
+        action: 'analyze.citation_network',
+        provider: 'inspire',
+        tool: 'inspire_network_analysis',
+        params: { mode: 'citation', seed: '1001', limit: 25 },
+      },
+      {
+        id: 'connection_scan',
+        action: 'analyze.paper_connections',
+        provider: 'inspire',
+        tool: 'inspire_find_connections',
+        params: { recids: ['1001', '2001'], include_external: true, max_external_depth: 1 },
+      },
+    ]);
+  });
+
   it('fails closed when no allowed provider satisfies the workflow action', () => {
     expect(() => resolveWorkflowRecipe({
       recipe_id: 'literature_gap_analysis',

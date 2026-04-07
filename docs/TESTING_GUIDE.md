@@ -441,14 +441,18 @@ autoresearch workflow-plan \
 
 > Maintainer / eval / regression only:
 >
-> `python -m hep_autoresearch.orchestrator_cli --project-root /abs/path/to/project literature-gap --tag gap-smoke --topic "nucleon structure"`
+> 旧的 internal parser `literature-gap` command 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：
 >
-> 这条 internal full-parser compatibility path 只用于覆盖未删净的 maintainer/eval/regression 场景；安装态 `hepar` public shell 已不再暴露 `literature-gap`。
+> `PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m pytest -q packages/hep-autoresearch/tests/test_literature_gap_runner.py`
+>
+> `pnpm --filter @autoresearch/literature-workflows test -- tests/resolve.test.ts`
+>
+> `pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts`
 
 **预期**
 
 - `autoresearch workflow-plan` 仍是唯一 installable public high-level literature entrypoint
-- internal full-parser compatibility path 仍能解析 workflow plan or bundle 以供 regression coverage
+- lower-level checked-in runner / resolver / front-door coverage 仍能证明 `literature_gap_analysis` recipe、seed-search 解析、analyze-step wiring 与 live CLI truth
 
 ---
 

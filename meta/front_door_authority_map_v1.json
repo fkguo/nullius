@@ -72,9 +72,7 @@
         },
         {
           "group": "internal_support_commands",
-          "commands": [
-            "literature-gap"
-          ]
+          "commands": []
         },
         {
           "group": "retired_public_support_commands",

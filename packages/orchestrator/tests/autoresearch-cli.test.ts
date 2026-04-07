@@ -105,7 +105,7 @@ describe('autoresearch CLI', () => {
     expect(helpText).toContain('Canonical generic lifecycle and workflow-plan entrypoint');
     expect(helpText).toContain('autoresearch run --workflow-id computation [options]');
     expect(helpText).toContain('autoresearch workflow-plan --recipe <recipe_id> [options]');
-    expect(helpText).toContain('Pipeline A internal support launcher residue is now only `literature-gap`.');
+    expect(helpText).toContain('Pipeline A parser support commands `doctor`, `bridge`, and `literature-gap` are deleted.');
     expect(helpText).toContain('Retired-public maintainer helpers such as `method-design`, `run-card`, and `branch` remain internal full-parser only.');
     expect(helpText).not.toContain('Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface');
     expect(extractTopLevelCommands(helpText)).toEqual([...AUTORESEARCH_PUBLIC_COMMANDS]);
@@ -170,6 +170,64 @@ describe('autoresearch CLI', () => {
     const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
     expect(planMd).toContain('SSOT: `.autoresearch/state.json#/plan`');
     expect(planMd).toContain('seed_search');
+  });
+
+  it('persists literature gap analysis plans through the canonical autoresearch front door', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli([
+      'workflow-plan',
+      '--recipe', 'literature_gap_analysis',
+      '--phase', 'analyze',
+      '--run-id', 'M-LIT-GAP-1',
+      '--topic', 'bootstrap amplitudes',
+      '--analysis-seed', '1234',
+      '--recid', '1234',
+      '--recid', '5678',
+      '--available-tool', 'inspire_topic_analysis',
+      '--available-tool', 'inspire_critical_analysis',
+      '--available-tool', 'inspire_network_analysis',
+      '--available-tool', 'inspire_find_connections',
+    ], io);
+
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout.join('')) as {
+      recipe_id: string;
+      phase?: string;
+      entry_tool: string;
+      resolved_steps: Array<Record<string, unknown>>;
+    };
+    expect(payload).toMatchObject({
+      recipe_id: 'literature_gap_analysis',
+      phase: 'analyze',
+      entry_tool: 'literature_workflows.resolve',
+    });
+    expect(payload.resolved_steps).toHaveLength(4);
+    expect(payload.resolved_steps[0]).toMatchObject({
+      id: 'topic_scan',
+      provider: 'inspire',
+      tool: 'inspire_topic_analysis',
+    });
+    expect(payload.resolved_steps[3]).toMatchObject({
+      id: 'connection_scan',
+      provider: 'inspire',
+      tool: 'inspire_find_connections',
+    });
+    expect(manager.readState()).toMatchObject({
+      run_id: 'M-LIT-GAP-1',
+      workflow_id: 'literature_gap_analysis',
+      run_status: 'idle',
+      plan_md_path: '.autoresearch/plan.md',
+      plan: {
+        plan_id: 'M-LIT-GAP-1:literature_gap_analysis',
+      },
+    });
+    const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
+    expect(planMd).toContain('topic_scan');
+    expect(planMd).toContain('connection_scan');
   });
 
   it('fails closed when workflow-plan targets an uninitialized project root', async () => {

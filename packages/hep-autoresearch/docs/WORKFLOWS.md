@@ -2,7 +2,7 @@
 
 Chinese version: `docs/WORKFLOWS.zh.md`.
 
-Lifecycle note: `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python CLI surface. The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands remain only on the internal full parser for maintainer/eval/regression coverage. Installable `hepar run` itself now exposes no public workflow ids; `ingest`, `reproduce`, `revision`, `literature_survey_polish`, and `shell_adapter_smoke` remain internal full-parser paths only. This document therefore describes legacy workflow/support surfaces as internal compatibility coverage while describing lifecycle verbs with `autoresearch`.
+Lifecycle note: `autoresearch` is now the canonical generic lifecycle entrypoint for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python CLI surface. The installable public shell now exposes only `run` as a compatibility pointer; deleted parser shells such as `doctor`, `bridge`, and `literature-gap` no longer exist, while the remaining maintainer-only authoring helpers (`method-design`, `run-card`, `branch`) stay on the internal full parser. Installable `hepar run` itself now exposes no public workflow ids; `ingest`, `reproduce`, `revision`, `literature_survey_polish`, and `shell_adapter_smoke` remain internal full-parser paths only. This document therefore describes legacy workflow/support surfaces as maintainer-only compatibility residue while describing lifecycle verbs with `autoresearch`.
 
 English workflow specs live under `workflows/`:
 
@@ -28,9 +28,9 @@ English workflow specs live under `workflows/`:
 
 ### Internal parser cleanup note
 
-Legacy internal parser commands `doctor` and `bridge` are now deleted in this repository.
-This does not promote any replacement compatibility shell; it simply removes the legacy parser wrappers.
-Generic lifecycle/control-plane authority remains on `autoresearch`, while remaining internal parser residue is tracked separately.
+Legacy internal parser commands `doctor`, `bridge`, and `literature-gap` are now deleted in this repository.
+This does not promote any replacement compatibility shell; it simply removes legacy parser wrappers after their executable proof moved to lower-level toolkit/test surfaces.
+Generic lifecycle/control-plane authority remains on `autoresearch`, while the surviving internal parser residue is limited to maintainer-only authoring helpers and internal workflow coverage.
 
 ### `autoresearch status` (revision display-layer reconcile)
 
