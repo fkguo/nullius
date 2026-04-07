@@ -20,7 +20,7 @@ function readRepoFile(relPath) {
 }
 
 function checkFrontDoorFiles(errors) {
-  for (const { relPath, snippets, forbiddenSnippets = [] } of FRONT_DOOR_SNIPPETS) {
+  for (const { relPath, snippets, forbiddenSnippets = [], orderedSnippets = [] } of FRONT_DOOR_SNIPPETS) {
     const content = readRepoFile(relPath);
     for (const snippet of snippets) {
       if (!content.includes(snippet)) {
@@ -31,6 +31,18 @@ function checkFrontDoorFiles(errors) {
       if (content.includes(snippet)) {
         errors.push(`${relPath}: forbidden retired public-shell wording still present: ${JSON.stringify(snippet)}`);
       }
+    }
+    let lastIndex = -1;
+    for (const snippet of orderedSnippets) {
+      const nextIndex = content.indexOf(snippet);
+      if (nextIndex === -1) {
+        errors.push(`${relPath}: missing ordered boundary wording: ${JSON.stringify(snippet)}`);
+        continue;
+      }
+      if (nextIndex < lastIndex) {
+        errors.push(`${relPath}: front-door ordering drifted before required snippet: ${JSON.stringify(snippet)}`);
+      }
+      lastIndex = nextIndex;
     }
   }
 

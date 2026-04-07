@@ -128,6 +128,15 @@
 
 **Why**: The real drift problem was string-level identity reconstruction spread across multiple layers, not the absence of another durable object family. Centralizing the relation while keeping it non-authoritative preserves boundedness and gives later session/turn/read-model slices a stable identity substrate.
 
+### [2026-04-07] CP-OBJ delegated runtime projection invariant: compact turn/session sideband, not transcript promotion
+
+**Decision**:
+- `CP-OBJ-01C` should converge delegated runtime around a compact typed session/turn projection derived from existing execution evidence (`AgentEvent`, `RunManifest`) plus `TeamAssignmentSession` lineage, rather than promoting transcript/message history into durable control-plane authority.
+- Common-path turn lineage must be recorded while the runtime still knows real turn boundaries. If raw `AgentEvent[]` is insufficient to recover turns later, the fix is to add a bounded typed sideband or projection seam at source, not to infer turns from transcript blobs after the fact.
+- The existing `runtime_run_id` and delegated manifest/spans container remain the stable delegated runtime identity. Any session-specific projection artifact or persisted summary must hang under that container as derived sideband rather than replacing the current id contract or introducing a new generic `job` / `thread` authority.
+
+**Why**: The next drift seam is projection loss, not missing transcript storage. Recording a compact turn/session summary at source preserves generic-first boundedness, keeps diagnostics/read models on one seam, and avoids importing remote/UI-first conversation models into the control plane.
+
 ### [2026-03-21] Pipeline A lifecycle invariant: `hep-autoresearch` and `hepar` move together
 
 **Decision**:
@@ -360,3 +369,13 @@
 - `job` and durable `turn` are not yet first-class generic control-plane authorities. Future work may introduce typed seams or projections for them, but only by converging onto the existing run / delegated-execution / research-task families rather than creating a new parallel SSOT.
 
 **Why**: The current orchestrator no longer suffers from a missing runtime substrate; it suffers from overlapping object language. Explicitly preserving one authority family per layer keeps later identity/session/read-model work from hardening today's string-convention seams into long-term architectural drift.
+
+### [2026-04-07] Delegated runtime projection invariant: record compact turn/session projection at source, not by synthetic backfill
+
+**Decision**:
+- The next delegated runtime projection slice should create one internal-only compact session/turn projection while `AgentRunner` still owns real turn boundaries, instead of trying to reconstruct turns later from raw `AgentEvent[]`.
+- That projection may enrich `executeDelegatedAgentRuntime(...)`, `runtime-diagnostics-bridge.ts`, and a nullable `TeamAssignmentSession.runtime_projection` field, but it must not widen current public host/team-view payloads or replace raw `AgentEvent[]` as low-level evidence.
+- Synthetic/repaired sessions must keep `runtime_projection = null`; they are allowed to preserve lineage/lifecycle continuity, but they must not fabricate turn history that never existed on the live path.
+- Vocabulary unification and operator-facing exposure of that projection remain later `CP-OBJ-01D` work rather than being pulled into the projection slice itself.
+
+**Why**: Raw `AgentEvent[]` currently lack stable per-turn identity for tool-use turns, and the diagnostics bridge is forced to rescan ad hoc markers after the fact. The missing seam is source-recorded compact projection, not another durable authority object and not transcript promotion.

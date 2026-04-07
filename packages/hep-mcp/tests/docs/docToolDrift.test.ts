@@ -113,6 +113,23 @@ function assertContainsNone(params: { text: string; snippets: string[]; label: s
   expect(present, `${params.label}: forbidden retired public-shell wording still present: ${present.join(' | ')}`).toEqual([]);
 }
 
+function assertOrdered(params: { text: string; snippets: string[]; label: string }): void {
+  let lastIndex = -1;
+  const problems: string[] = [];
+  for (const snippet of params.snippets) {
+    const nextIndex = params.text.indexOf(snippet);
+    if (nextIndex === -1) {
+      problems.push(`missing ordered snippet: ${snippet}`);
+      continue;
+    }
+    if (nextIndex < lastIndex) {
+      problems.push(`out-of-order snippet: ${snippet}`);
+    }
+    lastIndex = nextIndex;
+  }
+  expect(problems, `${params.label}: generic-first ordering drifted: ${problems.join(' | ')}`).toEqual([]);
+}
+
 function mustMatch(md: string, re: RegExp, label: string): RegExpMatchArray {
   const m = md.match(re);
   expect(m, `${label}: expected to match ${String(re)}`).not.toBeNull();
@@ -261,10 +278,11 @@ describe('Docs tool drift guard', () => {
   });
 
   it('front-door docs keep generic lifecycle and shell-boundary framing', () => {
-    for (const { relPath, snippets, forbiddenSnippets = [] } of FRONT_DOOR_SNIPPETS) {
+    for (const { relPath, snippets, forbiddenSnippets = [], orderedSnippets = [] } of FRONT_DOOR_SNIPPETS) {
       const text = readText(root, relPath);
       assertContainsAll({ text, snippets, label: relPath });
       assertContainsNone({ text, snippets: forbiddenSnippets, label: relPath });
+      assertOrdered({ text, snippets: orderedSnippets, label: relPath });
     }
   });
 });

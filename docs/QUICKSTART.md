@@ -8,6 +8,19 @@
 
 > 参数名以当前 Zod schema 为准；请始终以 MCP tool `inputSchema` 为最终准据。
 
+## Generic First-Touch（先走 generic front door）
+
+如果你还没初始化外部 project root，先走这一条：
+
+1) `autoresearch init --project-root /absolute/path/to/external-project`
+- 建立 `.autoresearch/` lifecycle/control-plane 状态。
+
+2) `autoresearch status --project-root /absolute/path/to/external-project`
+- 确认 lifecycle state、审批与后续 workflow-plan / computation 入口可见。
+
+3) `autoresearch workflow-plan --recipe literature_to_evidence`
+- 当你需要高层 literature launcher 时，再从这个 generic front door 进入；随后再按下方 HEP 路径进入当前最强的 domain-pack workflow family。
+
 ## Draft Path（最简路径）
 
 1) `hep_project_create`

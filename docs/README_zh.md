@@ -6,32 +6,33 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 ## 1. 这个 Monorepo 今天能做什么
 
+- 通过 `@autoresearch/orchestrator` 与 `autoresearch` CLI 管理真实外部 project root 的通用 lifecycle state。
+- 通过 `autoresearch workflow-plan` 解析 checked-in workflow recipes，并把 plan state 持久化到 `.autoresearch/`。
 - 运行本地优先的 MCP providers，覆盖文献、数据、参考资料与证据工作流。
 - 创建可审计的 Project/Run 工作空间，把 artifacts 落盘，并通过 `hep://...` resources 暴露给客户端。
 - 从 LaTeX、Zotero 附件以及受限网络 provider 构建证据，再把这些证据用于写作、回放与评审。
 - 导出研究资产包与投稿脚手架，并把最终论文 bundle 回灌回 run artifacts。
-- 通过 `@autoresearch/orchestrator` 与 `autoresearch` CLI 管理真实外部 project root 的通用 lifecycle state。
 
 ## 2. 当前主要工作流是什么
 
-1. Project/Run 证据工作流
-   - `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> export/import。
-1. 文献与数据导航工作流
-   - 直接使用 `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 等 provider 工具。
+1. 通用 lifecycle 工作流
+   - `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。
 1. Launcher-backed 文献工作流家族
    - `autoresearch workflow-plan` 是推荐的 stateful launcher-backed 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in generic workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。checked-in 的 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 仍是同一 workflow authority 的较底层 consumer。安装态 legacy `hepar` public shell 已不再暴露 `computation` 或 `literature-gap`；任何残余的 public `run` 面都只剩 residual non-computation compatibility。
 1. 原生 TS computation 工作流
    - `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。
-1. 通用 lifecycle 工作流
-   - `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。
+1. Project/Run 证据工作流
+   - `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> export/import。
+1. 文献与数据导航工作流
+   - 直接使用 `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 等 provider 工具。
 
 ## 3. 当前主要入口是什么
 
 | Surface | 当前入口 | 用途 |
 | --- | --- | --- |
-| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的 HEP 领域 MCP server `(72 std / 101)` |
 | 通用 lifecycle + computation + workflow-plan front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful workflow-plan 持久化 |
 | 高层文献工作流入口 | `autoresearch workflow-plan` | 推荐的 stateful launcher-backed 前门，面向已初始化的外部 project root；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer，安装态 legacy `hepar` public shell 已不再暴露 `computation` 或 `literature-gap` |
+| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的 HEP 领域 MCP server `(72 std / 101)` |
 | 叶子 provider 包 | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 可组合进客户端工作流的 provider-specific capabilities |
 
 Legacy compatibility 说明：安装态 `hepar` public shell 已不再暴露 `computation` 或 `literature-gap`；任何残余 public `run` 面都只剩 residual non-computation compatibility，并继续朝退役方向推进。
@@ -176,7 +177,12 @@ pnpm -r build
 pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 ```
 
-把 MCP client 接到 `packages/hep-mcp/dist/index.js` 之后，最小 smoke path 是：
+如果你想先走 generic lifecycle/control-plane 烟测路径：
+
+1. `autoresearch init --project-root /absolute/path/to/external-project`
+1. `autoresearch status --project-root /absolute/path/to/external-project`
+
+如果你接着想走当前最强的 domain-pack 烟测路径，再把 MCP client 接到 `packages/hep-mcp/dist/index.js` 并执行：
 
 1. 调用 `hep_health`
 1. 调用 `hep_project_create`
