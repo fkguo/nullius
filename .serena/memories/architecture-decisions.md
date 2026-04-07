@@ -137,6 +137,16 @@
 
 **Why**: The drift seam was projection loss, not missing transcript storage. Landing one compact turn/session summary at source preserves generic-first boundedness, keeps diagnostics/read models on one seam, and avoids importing remote/UI-first conversation models into the control plane.
 
+### [2026-04-07] Control-plane layering invariant: single front door, canonical state, projection-only public surfaces, leaf-local legacy containment
+
+**Decision**:
+- Generic lifecycle / workflow / bounded computation authority must stay on one canonical front door (`autoresearch` + `packages/orchestrator`), rather than being replicated across legacy/provider-local CLIs.
+- Canonical run/task/session state stays in typed durable control-plane substrate; operator dashboards, team views, public payloads, analytics, and compatibility fields are read-time projections only and must not back-propagate authority.
+- Legacy/provider-local/maintainer tooling may remain only as leaf-local adapters, diagnostics, or support utilities; they must not keep an independent root mutation path for lifecycle, approval, or workflow authority.
+- When multiple entry sources still exist, source taxonomy should be explicit and typed, while public/read-model output may expose only a curated/coarse-grained projection of that source information.
+
+**Why**: A deeper source audit of mature agent implementations showed the same stable pattern repeatedly: one canonical front door, append-only or typed canonical state, separate projection layers, and strict containment of legacy/internal tooling. Encoding that split directly into Autoresearch is the safest way to keep generic-first authority from drifting back into legacy shells or maintainer-only surfaces.
+
 ### [2026-03-21] Pipeline A lifecycle invariant: `hep-autoresearch` and `hepar` move together
 
 **Decision**:
