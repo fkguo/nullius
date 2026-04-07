@@ -387,7 +387,12 @@ def _ensure_run_card(
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    repo_root = _repo_root_for_init(args)
+    # Keep the legacy wrapper fail-closed on repo-internal real-project roots
+    # before the TS passthrough attempts any filesystem work.
+    repo_root = assert_project_root_allowed(
+        _repo_root_for_init(args),
+        project_policy=PROJECT_POLICY_REAL_PROJECT,
+    )
     forwarded = ["init"]
     if bool(getattr(args, "force", False)):
         forwarded.append("--force")
