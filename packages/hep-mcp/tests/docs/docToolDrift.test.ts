@@ -35,6 +35,15 @@ function extractToolLikeTokensFromText(text: string): string[] {
   return out;
 }
 
+function extractOrchToolNamesFromText(text: string): string[] {
+  const out: string[] = [];
+  const re = /\borch_[a-z0-9]+(?:_[a-z0-9]+)*\b/g;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    out.push(String(m[0] ?? ''));
+  }
+  return Array.from(new Set(out));
+}
+
 function extractToolNamesFromToolCategories(markdown: string): string[] {
   const names: string[] = [];
   for (const line of markdown.split('\n')) {
@@ -211,6 +220,19 @@ describe('Docs tool drift guard', () => {
     const spans = extractInlineCodeSpans(md);
     const referenced = Array.from(new Set(spans.flatMap(span => extractToolLikeTokensFromText(span)).filter(t => t.startsWith('zotero_'))));
     assertAllExist({ referenced, allowed: full, label: 'packages/zotero-mcp/README.md' });
+  });
+
+  it('meta/docs/orchestrator-mcp-tools-spec.md publishes the exact live orch_* inventory', async () => {
+    const { getTools } = await import('../../src/tools/index.js');
+    const live = getTools('full')
+      .map(tool => tool.name)
+      .filter(name => name.startsWith('orch_'))
+      .sort((left, right) => left.localeCompare(right));
+
+    const md = readText(root, 'meta/docs/orchestrator-mcp-tools-spec.md');
+    const referenced = extractOrchToolNamesFromText(md).sort((left, right) => left.localeCompare(right));
+
+    expect(referenced).toEqual(live);
   });
 
   it('README tool counts match the built-in tool registry', async () => {

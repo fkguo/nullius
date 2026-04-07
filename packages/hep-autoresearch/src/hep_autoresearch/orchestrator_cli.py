@@ -85,6 +85,24 @@ def _public_run_workflow_ids() -> set[str]:
     } | adapter_workflow_ids()
 
 
+PUBLIC_SHELL_COMMANDS: tuple[str, ...] = (
+    "approvals",
+    "report",
+    "run",
+    "logs",
+    "context",
+    "smoke-test",
+    "method-design",
+    "propose",
+    "skill-propose",
+    "run-card",
+    "branch",
+    "migrate",
+)
+
+PUBLIC_SHELL_COMMANDS_MARKDOWN = ", ".join(f"`{command}`" for command in PUBLIC_SHELL_COMMANDS)
+
+
 def _all_run_workflow_ids() -> set[str]:
     return {"computation"} | _public_run_workflow_ids()
 
@@ -147,6 +165,15 @@ def _run_workflow_id_help(*, public_surface: bool) -> str:
             + "|".join(sorted(_public_run_workflow_ids()))
         )
     return "Workflow id, e.g. " + "|".join(sorted(_all_run_workflow_ids()))
+
+
+def _assert_public_shell_inventory(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    actual = tuple(subparsers.choices.keys())
+    if actual != PUBLIC_SHELL_COMMANDS:
+        raise RuntimeError(
+            "installable public shell inventory drifted: "
+            f"expected {PUBLIC_SHELL_COMMANDS!r}, got {actual!r}"
+        )
 
 
 def _maybe_auto_trigger_evolution_proposal(
@@ -6121,6 +6148,9 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     p_migrate.add_argument("--registry", help="Path to migration_registry_v1.json (auto-detected if omitted).")
     p_migrate.add_argument("--dry-run", action="store_true", help="Show what would be migrated without writing.")
     p_migrate.set_defaults(fn=cmd_migrate_wrapper)
+
+    if public_surface:
+        _assert_public_shell_inventory(sub)
 
     args = parser.parse_args(argv)
 

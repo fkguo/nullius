@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { AUTORESEARCH_PUBLIC_COMMANDS } from '../src/cli-command-inventory.js';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { runCli } from '../src/cli.js';
@@ -22,6 +23,13 @@ function makeIo(cwd: string) {
     stderr,
     stdout,
   };
+}
+
+function extractTopLevelCommands(helpText: string): string[] {
+  return helpText
+    .split('\n')
+    .map(line => line.match(/^\s+autoresearch\s+([a-z-]+)\b/)?.[1] ?? null)
+    .filter((value): value is string => value !== null);
 }
 
 function createComputationFixture(projectRoot: string, runId: string): { runDir: string; manifestPath: string } {
@@ -88,11 +96,13 @@ describe('autoresearch CLI', () => {
   it('renders top-level help with the canonical lifecycle scope', async () => {
     const { io, stdout } = makeIo(process.cwd());
     const code = await runCli(['--help'], io);
+    const helpText = stdout.join('');
     expect(code).toBe(0);
-    expect(stdout.join('')).toContain('Canonical generic lifecycle and workflow-plan entrypoint');
-    expect(stdout.join('')).toContain('autoresearch run --workflow-id computation [options]');
-    expect(stdout.join('')).toContain('autoresearch workflow-plan --recipe <recipe_id> [options]');
-    expect(stdout.join('')).toContain('Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface');
+    expect(helpText).toContain('Canonical generic lifecycle and workflow-plan entrypoint');
+    expect(helpText).toContain('autoresearch run --workflow-id computation [options]');
+    expect(helpText).toContain('autoresearch workflow-plan --recipe <recipe_id> [options]');
+    expect(helpText).toContain('Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface');
+    expect(extractTopLevelCommands(helpText)).toEqual([...AUTORESEARCH_PUBLIC_COMMANDS]);
   });
 
   it('resolves launcher-backed workflow plans through the canonical autoresearch front door', async () => {

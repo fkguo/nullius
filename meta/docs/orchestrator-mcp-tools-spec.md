@@ -1,8 +1,7 @@
 # Orchestrator MCP Tools Architecture Specification
 
-> **Status**: Phase 0 deliverable (NEW-R15-spec)
-> **Created**: 2026-02-24
-> **Scope**: Defines the MCP tool surface for `@autoresearch/orchestrator`, boundary rules between run-infrastructure and strategy orchestration, threat model, and approval gate design.
+> **Status**: live inventory sync for `main` on 2026-04-07
+> **Scope**: exact `orch_*` tool surface, run-infra vs strategy boundary, approval/fleet semantics, and URI ownership.
 
 ---
 
@@ -12,261 +11,205 @@
 
 | Namespace | Owner | Scope |
 |---|---|---|
-| `orch_run_*` | `@autoresearch/orchestrator` | Run lifecycle management (create, status, approve, reject, pause, resume, export) |
-| `hep_run_*` | `@autoresearch/hep-mcp` | Evidence-first research artifacts (build, query, write, render) |
-| `hep_project_*` | `@autoresearch/hep-mcp` | Project-level operations |
-| `inspire_*` | `@autoresearch/hep-mcp` | INSPIRE network queries |
+| `orch_run_*` | `@autoresearch/orchestrator` | Project-root run lifecycle, approvals, export, and bounded agent runtime execution |
+| `orch_policy_*` | `@autoresearch/orchestrator` | Read-only policy inspection for approval/operation gates |
+| `orch_fleet_*` | `@autoresearch/orchestrator` | Queue and worker coordination for the per-project fleet substrate |
+| `hep_run_*` | `@autoresearch/hep-mcp` | Evidence-first run artifacts and run-scoped research assets |
+| `hep_project_*` | `@autoresearch/hep-mcp` | Project-level evidence/query/export operations |
+| `inspire_*` / `hepdata_*` / `openalex_*` / `arxiv_*` | provider packages | Network/data retrieval and literature analysis |
 | `pdg_*` | `@autoresearch/pdg-mcp` | PDG offline lookups |
-| `zotero_*` | `@autoresearch/zotero-mcp` | Zotero Local API |
+| `zotero_*` | `@autoresearch/zotero-mcp` | Zotero Local API integration |
 
-**Rule**: `orch_run_*` tools manage run lifecycle state (state.json, ledger.jsonl, approvals). `hep_run_*` tools manage research artifacts within a run. An agent must use `orch_run_create` to obtain a `run_id` before calling any `hep_run_*` tool.
+**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy. Domain/runtime content remains outside that namespace. An agent may correlate `orch_*` with `hep_*`, but must not treat research artifacts as lifecycle authority or lifecycle tools as evidence authority.
 
-### 1.2 `orch_run_*` Tool Catalog
+### 1.2 Exact Live `orch_*` Catalog
 
-| Tool | Risk Level | Description |
+#### Run lifecycle / project-root authority
+
+| Tool | Risk | Live responsibility |
 |---|---|---|
-| `orch_run_create` | `write` | Create a new run under a project. Returns `run_id`. Writes `state.json` + `ledger.jsonl`. |
-| `orch_run_status` | `read` | Read-only snapshot of run state, phase, pending approvals, branch info. |
-| `orch_run_approve` | `destructive` | Approve a pending approval gate. Requires `_confirm: true` + `approval_id` + `approval_packet_sha256`. Subject to C-01 timeout/budget enforcement. |
-| `orch_run_reject` | `destructive` | Reject a pending approval. Requires `_confirm: true`; pauses the run irreversibly for the current approval attempt. |
-| `orch_run_pause` | `write` | Pause a running run. Preserves state for later resume. |
-| `orch_run_resume` | `write` | Resume a paused run. Validates state consistency before resuming. |
-| `orch_run_checkpoint` | `write` | Record a phase checkpoint. Enforces approval timeout/budget (C-01). |
-| `orch_run_export` | `destructive` | Export run artifacts to a portable bundle. Requires `_confirm: true`. |
-| `orch_run_request_approval` | `write` | Create a pending approval gate with timeout policy. |
-| `orch_run_logs` | `read` | Tail the run ledger (last N events). |
-| `orch_run_branch_list` | `read` | List branches in the current run. |
-| `orch_run_branch_add` | `write` | Add a new exploration branch. |
-| `orch_run_branch_switch` | `write` | Switch active branch. |
+| `orch_run_create` | `write` | Initialize or replay an orchestrator run in a project root |
+| `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json` |
+| `orch_run_list` | `read` | List recorded runs from the project ledger |
+| `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification |
+| `orch_run_reject` | `destructive` | Reject a pending gate and pause the run |
+| `orch_run_pause` | `write` | Pause the current run |
+| `orch_run_resume` | `write` | Resume a paused run |
+| `orch_run_approvals_list` | `read` | Inspect pending and historical approvals for a run |
+| `orch_run_export` | `destructive` | Export run summary/artifact listing |
+| `orch_run_execute_agent` | `destructive` | Execute an orchestrator agent runtime with persisted checkpoints |
 
-### 1.3 Tool Parameter Conventions
+#### Policy surface
 
-All `orch_run_*` tools share these common parameters:
+| Tool | Risk | Live responsibility |
+|---|---|---|
+| `orch_policy_query` | `read` | Read the current approval policy / precedent view for an operation |
+
+#### Fleet queue / worker coordination
+
+| Tool | Risk | Live responsibility |
+|---|---|---|
+| `orch_fleet_enqueue` | `write` | Enqueue a known run into the per-project fleet queue |
+| `orch_fleet_claim` | `write` | Claim the next queued run or a specific queued run |
+| `orch_fleet_adjudicate_stale_claim` | `write` | Manually settle a stale claimed queue item |
+| `orch_fleet_reassign_claim` | `write` | Reassign a currently claimed queue item to a different worker |
+| `orch_fleet_release` | `write` | Release or settle a claimed queue item |
+| `orch_fleet_status` | `read` | Aggregate read-only fleet visibility across project roots |
+| `orch_fleet_worker_poll` | `write` | Heartbeat a worker and claim the next queued run when capacity exists |
+| `orch_fleet_worker_heartbeat` | `write` | Refresh worker liveness/resource-slot metadata |
+| `orch_fleet_worker_set_claim_acceptance` | `write` | Toggle whether a worker may claim new queue items |
+| `orch_fleet_worker_unregister` | `write` | Remove a drained worker after explicit shutdown and zero claims |
+
+### 1.3 Parameter Conventions
+
+Current live `orch_*` tools are keyed by the orchestration workspace, not by a separate logical project id.
 
 ```typescript
-interface OrchRunToolParams {
-  run_id: string;       // Required for all except orch_run_create
-  project_id?: string;  // Required for orch_run_create
+interface OrchProjectScopedParams {
+  project_root: string; // absolute or tilde-prefixed path to the external project root
 }
 ```
 
-Approval-gated tools additionally require:
+Run-scoped tools then add `run_id` when they target a known run. Approval-resolution tools additionally require:
 
 ```typescript
-interface ApprovalParams {
+interface ApprovalResolutionParams {
   approval_id: string;
-  approval_packet_sha256: string;  // SHA-256 of the serialized approval packet
+  approval_packet_sha256: string;
 }
 ```
+
+Fleet tools operate on queue items and worker ids rather than on artifact ids or domain objects.
 
 ---
 
-## 2. Run-Infra vs Strategy Orchestration Boundary
+## 2. Run-Infra vs Strategy Boundary
 
 ### 2.1 Boundary Definition
 
-| Layer | Responsibility | Implemented By |
+| Layer | Responsibility | Implemented by |
 |---|---|---|
-| **Run-Infra** | State machine transitions, ledger writes, approval gates, timeout enforcement, branch management, artifact registry | `@autoresearch/orchestrator` (`orch_run_*`) |
-| **Strategy Orchestration** | Workflow sequencing (如 `ingest → reproduce → revision → computation` 等语义 DAG)、evidence retrieval、section writing、review loops、quality gates | Agent (Claude/Gemini) using `hep_run_*` tools |
+| **Run-infra / control plane** | State transitions, approval gates, checkpointed agent runtime, project-root queueing, worker liveness, export summaries | `@autoresearch/orchestrator` via `orch_*` |
+| **Strategy / domain execution** | Evidence retrieval, plan resolution, writing/export, literature analysis, domain packs, measurement extraction | `hep_*`, `inspire_*`, `openalex_*`, `pdg_*`, `zotero_*`, etc. |
 
-### 2.2 Invariant Rules
+### 2.2 Invariants
 
-1. **Run-infra never calls domain tools.** The orchestrator never invokes `inspire_search`, `hep_run_build_writing_evidence`, or any research-domain tool. It only manages lifecycle.
+1. `orch_*` is workflow-agnostic. It owns control-plane semantics, not domain DAG content.
+2. Domain tools must not mutate `.autoresearch/state.json`, ledger state, queue state, or approval packets directly.
+3. Approval resolution lives on `orch_run_status`, `orch_run_approvals_list`, `orch_run_approve`, and `orch_run_reject`; domain tools may trigger the need for a gate but do not own the gate state.
+4. Fleet semantics live on `orch_fleet_*`; they are not hidden behind domain packs or legacy Python shells.
+5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.
 
-2. **Strategy never bypasses run-infra.** An agent must not write to `state.json` or `ledger.jsonl` directly. All state transitions go through `orch_run_*` tools.
-
-3. **Approval gates are run-infra.** Even when an approval gate is triggered by a strategy decision (e.g., "outline ready for review"), the gate mechanism (timeout, budget, escalation) is managed by run-infra.
-
-4. **Evidence artifacts are strategy-scoped.** `hep_run_*` writes evidence catalogs, embeddings, section drafts — these are domain artifacts. Run-infra only tracks their existence in the artifact registry, never interprets their content.
-
-5. **Run-infra is workflow-agnostic.** The orchestrator does not encode any fixed `ingest → reproduce → revision → computation` sequence. It provides generic phases, branches, and checkpoints. The workflow DAG is defined in run cards and interpreted by the agent.
-
-### 2.3 Interaction Diagram
+### 2.3 Interaction Sketch
 
 ```
-Agent (Claude/Gemini)
+Agent / operator
   │
-  ├──► orch_run_create(project_id)         → run_id
-  ├──► orch_run_status(run_id)             → state snapshot
-  ├──► hep_run_build_writing_evidence(...)  → evidence artifacts
-  ├──► hep_run_writing_create_outline_*(...)→ outline artifacts
-  ├──► orch_run_checkpoint(run_id)          → checkpoint recorded
-  ├──► orch_run_request_approval(run_id, ...) → pending approval
-  │        (human reviews)
-  ├──► orch_run_approve(run_id, approval_id, sha256)
-  ├──► hep_run_writing_create_section_*(...)→ section artifacts
-  ├──► orch_run_export(run_id, _confirm)   → bundle
-  └──► orch_run_status(run_id)             → completed
+  ├──► orch_run_create(project_root, run_id)            → initialize / replay run
+  ├──► orch_run_status(project_root)                    → lifecycle snapshot
+  ├──► hep_run_* / hep_project_* / inspire_* ...        → strategy/domain work
+  ├──► orch_run_approvals_list(project_root, run_id)    → inspect pending gates
+  ├──► orch_run_approve(...) or orch_run_reject(...)    → resolve approval
+  ├──► orch_run_execute_agent(...)                      → bounded orchestrator runtime
+  ├──► orch_fleet_enqueue(...) / orch_fleet_worker_poll(...) → queue-backed orchestration
+  └──► orch_run_export(project_root)                    → portable summary/artifact listing
 ```
 
 ---
 
 ## 3. Threat Model
 
-### 3.1 Agent Self-Approval
+### 3.1 Agent self-approval
 
-**Threat**: An agent approves its own work without human review.
-
-**Mitigations**:
-- C-01 `budgets.max_approvals` budget limits total approvals per run.
-- C-01 `timeout_at` enforces time-bounded approval windows.
-- `on_timeout` policy defaults to `"block"` (fail-closed), not `"approve"`.
-- Ledger records all approval events for audit trail.
-- `approval_packet_sha256` (Stage 2): will tie approval to a specific content hash. *Not yet implemented in Python CLI; TS skeleton provides `approvalPacketSha256()` for forward compatibility.*
-
-**Residual risk**: An agent with MCP tool access can technically call `orch_run_approve`. Defense is defense-in-depth: budget limits, timeout enforcement, and ledger audit trail enable post-hoc detection.
-
-### 3.2 State Corruption
-
-**Threat**: Concurrent agents or processes corrupt `state.json`.
+**Threat**: an agent resolves its own pending gate without meaningful human review.
 
 **Mitigations**:
-- File-level locking (`fcntl.flock` in Python, `proper-lockfile` in TS — *Stage 2*) on state reads/writes.
-- Atomic write pattern: write to `.tmp` → `os.replace()` → cleanup on failure.
-- `schema_version` field for format evolution; `state_version` counter for stale-write detection (*Stage 2*).
-- `orch_run_status` reads are lock-free (snapshot isolation via atomic file reads).
+- `orch_run_approve` requires `_confirm: true`, `approval_id`, and `approval_packet_sha256`.
+- `orch_run_status` and `orch_run_approvals_list` keep the pending gate visible before resolution.
+- Approval budgets/timeouts remain policy-controlled and auditable in project-root state.
+- `orch_policy_query` lets operators inspect whether an operation should require approval before execution.
 
-**Residual risk**: Cross-platform lock semantics differ (NFS, networked drives). Mitigation: document that runs must reside on local filesystems.
+### 3.2 State corruption
 
-### 3.3 Namespace Collision
-
-**Threat**: `orch_run_*` and `hep_run_*` tools operate on the same `run_id` directory, potentially conflicting on file writes.
+**Threat**: concurrent runtimes or tools corrupt orchestration state.
 
 **Mitigations**:
-- **Directory partitioning**: Run-infra owns `.autoresearch/state.json`, `.autoresearch/ledger.jsonl`. Approval packets go in `artifacts/runs/<run_id>/approvals/<approval_id>/packet.md`. Research artifacts go in `artifacts/runs/<run_id>/`.
-- **Naming convention**: Run-infra state is under `.autoresearch/`. Research artifacts use prefixed names (`writing_outline_v2.json`, `latex_evidence_catalog.jsonl`).
-- **Manifest separation**: Run-infra state is in `.autoresearch/state.json`. Artifact registry is in `manifest.json` (owned by `hep_run_*`).
+- `orch_*` writes are constrained to the orchestration workspace rather than arbitrary domain artifact roots.
+- State and ledger writes remain under `.autoresearch/`.
+- `orch_run_status` is read-only and can be used to verify recovery state after interruptions.
+- `orch_run_execute_agent` persists run-scoped checkpoints instead of treating transient transcript state as the sole authority.
 
-### 3.4 Unauthorized Destructive Operations
+### 3.3 Queue misuse / stale claims
 
-**Threat**: Agent calls `orch_run_export` (destructive) without human consent.
-
-**Mitigations**:
-- H-11a risk level: `destructive` tools require `_confirm: true` parameter.
-- Without `_confirm`, the tool returns a confirmation prompt describing what will happen, not the result.
-- `orch_run_export` additionally checks that all pending approvals are resolved before export.
-
-### 3.5 Approval Timeout Bypass
-
-**Threat**: Agent ignores `timeout_at` and continues operating on a timed-out approval.
+**Threat**: a worker disappears while holding a queue item, or an operator silently steals ownership.
 
 **Mitigations**:
-- C-01 enforcement: `orch_run_checkpoint` and `orch_run_approve` check timeout before proceeding.
-- On timeout, state transitions to `blocked`/`rejected`/`needs_recovery` per `on_timeout` policy.
-- Once blocked, no `orch_run_*` write operations succeed until human intervention.
+- `orch_fleet_worker_heartbeat` and `orch_fleet_worker_poll` keep liveness explicit.
+- `orch_fleet_adjudicate_stale_claim` and `orch_fleet_reassign_claim` require expected claim/owner ids plus operator notes.
+- `orch_fleet_release` is the explicit settlement surface; the system does not assume silent takeover semantics.
+
+### 3.4 Unauthorized destructive operations
+
+**Threat**: an agent executes destructive control-plane actions without operator intent.
+
+**Mitigations**:
+- `orch_run_approve`, `orch_run_reject`, `orch_run_export`, and `orch_run_execute_agent` are destructive and require `_confirm: true`.
+- The destructive surface is intentionally smaller than the full `orch_*` family; read/write semantics are explicit in the registry/tests.
+- Fleet mutation surfaces are write-only rather than destructive, but still require explicit worker/queue identifiers and notes for sensitive transitions.
 
 ---
 
-## 4. Approval Gate Design (H-11a Integration)
+## 4. Approval and Fleet Semantics
 
-### 4.1 Approval Flow
+### 4.1 Approval flow
 
-```
-orch_run_request_approval(run_id, {
-  gate_id: "outline_review",
-  scope: "writing.phase_outline",
-  approval_packet: { ... },       // serialized content for review
-  timeout_minutes: 1440,          // 24 hours
-  on_timeout: "block",            // block | reject | escalate
-})
-  → pending_approval: {
-      approval_id: "apr_...",
-      approval_packet_sha256: "abc123...",
-      timeout_at: "2026-02-25T03:00:00Z",
-      on_timeout: "block",
-    }
+Current live approval flow is intentionally split into creation, inspection, and resolution:
 
-orch_run_approve(run_id, {
-  approval_id: "apr_...",
-  approval_packet_sha256: "abc123...",
-})
-  → state: "running"  (approval cleared)
-```
+1. A run-scoped orchestrator write path produces a pending approval packet under the project root.
+2. Operators inspect state via `orch_run_status` and `orch_run_approvals_list`.
+3. Resolution happens via `orch_run_approve` or `orch_run_reject`.
 
-### 4.2 Approval Packet Schema
+This keeps approval state on the control plane even when the underlying need for approval originated in computation, writing, or delegated runtime execution.
 
-```typescript
-interface ApprovalPacket {
-  gate_id: string;
-  scope: string;                    // phase/section identifier
-  content_summary: string;          // human-readable summary
-  artifact_refs: string[];          // URIs to artifacts for review
-  sha256: string;                   // SHA-256 of canonical JSON serialization
-}
-```
+### 4.2 Fleet flow
 
-### 4.3 Approval Budget (C-01)
+`orch_fleet_*` is the only live scheduler-facing surface:
 
-Configured in `approval_policy.schema.json` under `budgets`:
+1. enqueue a run with `orch_fleet_enqueue`
+2. heartbeat or poll workers with `orch_fleet_worker_heartbeat` / `orch_fleet_worker_poll`
+3. inspect aggregate truth with `orch_fleet_status`
+4. settle edge cases with `orch_fleet_release`, `orch_fleet_adjudicate_stale_claim`, or `orch_fleet_reassign_claim`
+5. drain workers with `orch_fleet_worker_set_claim_acceptance` + `orch_fleet_worker_unregister`
 
-```json
-{
-  "schema_version": 1,
-  "mode": "safe",
-  "budgets": {
-    "max_network_calls": 200,
-    "max_runtime_minutes": 60,
-    "max_approvals": 10
-  },
-  "timeouts": {
-    "mass_search": { "timeout_seconds": 86400, "on_timeout": "block" }
-  }
-}
-```
-
-- `budgets.max_approvals: 0` means unlimited (default).
-- Budget is counted per run, across all gates.
-- When budget is exhausted, run transitions to `blocked` with ledger event `approval_budget_exhausted`.
+No domain pack should grow a second queue authority around the same project-root runs.
 
 ---
 
-## 5. URI Scheme
+## 5. URI Ownership
 
-### 5.1 `orch://` Current Live Surface
+### 5.1 `orch://` live emitted surface
 
 ```
-orch://runs/<run_id>                      → run lifecycle/read-model root
-orch://runs/<run_id>/approvals/<id>       → approval record/read-model entry
-orch://runs/export                        → export summary
+orch://runs/<run_id>                → run lifecycle / read-model root
+orch://runs/<run_id>/approvals/<id> → approval record pointer
+orch://runs/export                  → export summary pointer
 ```
-
-**Note**: older design examples such as `orch://runs/<run_id>/state` and `orch://runs/<run_id>/ledger` describe underlying files, but they are not current live emitted URIs in `packages/orchestrator/src/orch-tools/*.ts`.
 
 ### 5.2 Relationship with `hep://`
 
 ```
-hep://projects/<project_id>               → project root (owned by hep-mcp)
-hep://runs/<run_id>/manifest              → run manifest/resource view (owned by hep-mcp)
-hep://runs/<run_id>/artifact/<name>       → run artifact resource (owned by hep-mcp)
-orch://runs/<run_id>                      → run lifecycle/read-model pointer (owned by orchestrator)
-orch://runs/<run_id>/approvals/<id>       → approval record pointer (owned by orchestrator)
+hep://projects/<project_id>         → project root / evidence-facing project identity
+hep://runs/<run_id>/manifest        → evidence/run manifest view
+hep://runs/<run_id>/artifact/<name> → evidence artifact view
+orch://runs/<run_id>                → lifecycle / control-plane view
 ```
 
-**Rule**: the `hep://` run-manifest/artifact views and the `orch://` lifecycle/read-model views are separate owned namespaces. `hep://` addresses research artifacts. `orch://` addresses lifecycle state. A higher-level workflow may correlate them explicitly, but the current codebase does not expose a shared resolver or alias between the two schemes.
-
-**Registry**: the centralized live scheme inventory now lives in [`../../docs/URI_REGISTRY.md`](../../docs/URI_REGISTRY.md).
-
-**Resolution**: `hep://` is resolved by `packages/hep-mcp/src/core/resources.ts` against the hep-mcp data root. `orch://` is emitted by `packages/orchestrator/src/orch-tools/*.ts` against an explicit `project_root` orchestration workspace. Cross-scheme correlation, when needed, must be carried by higher-level workflow metadata rather than implicit URI conversion.
+`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.
 
 ---
 
-## 6. Compatibility with Python Orchestrator
+## 6. Compatibility and Migration Notes
 
-During the migration period (NEW-05a Stages 1-2), both the Python `orchestrator_cli.py` and TS `@autoresearch/orchestrator` may operate on the same run directory.
-
-### 6.1 Compatibility Rules
-
-1. `state.json` format is shared. Both implementations read/write the same schema.
-2. `ledger.jsonl` format is shared. Both implementations append events in the same format.
-3. File locking must be cross-process compatible (`fcntl.flock` in Python, `proper-lockfile` in TS).
-4. The TS orchestrator must not introduce new state fields without updating the Python reader (or vice versa).
-5. During Stage 1, the TS orchestrator is read-only for state operations (can read state, write ledger events, but delegates state mutations to Python CLI).
-
-### 6.2 Migration Path
-
-| Stage | TS Orchestrator Capability | Python CLI Status |
-|---|---|---|
-| Stage 1 | Read state, write ledger, MCP client | Primary |
-| Stage 2 | Full state management, approval gates | Gradually deprecated |
-| Stage 3+ | Primary orchestrator | Retired |
+1. The old “TS orchestrator is read-only Stage 1” framing is no longer live truth. `@autoresearch/orchestrator` already owns the current `orch_*` surface.
+2. `packages/hep-autoresearch` / `hepar` is now a residual compatibility/provider-local surface. It may project onto canonical lifecycle behavior, but it must not reclaim `orch_*` or `autoresearch` authority.
+3. Public documentation or review packets that need the current orchestrator MCP truth should point at this file plus the live tool registry/tests (`packages/hep-mcp/tests/toolContracts.test.ts`, `packages/hep-mcp/tests/docs/docToolDrift.test.ts`) rather than older Stage 1/2 sketches.

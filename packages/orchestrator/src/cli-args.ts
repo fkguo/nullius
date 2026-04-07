@@ -1,3 +1,5 @@
+import { isAutoresearchPublicCommand } from './cli-command-inventory.js';
+
 export type ParsedCliArgs =
   | { command: 'help'; projectRoot: string | null; topic: string | null }
   | { command: 'init' | 'export'; projectRoot: string | null; passthrough: string[] }
@@ -26,8 +28,6 @@ export type ParsedCliArgs =
   };
 
 const HELP_FLAGS = new Set(['-h', '--help']);
-const COMMANDS = new Set(['init', 'run', 'status', 'approve', 'pause', 'resume', 'export', 'workflow-plan']);
-
 function isHelpFlag(value: string): boolean {
   return HELP_FLAGS.has(value);
 }
@@ -60,7 +60,7 @@ function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: stri
 }
 
 function ensureKnownCommand(command: string): void {
-  if (!COMMANDS.has(command)) {
+  if (!isAutoresearchPublicCommand(command)) {
     throw new Error(`unknown command: ${command}`);
   }
 }

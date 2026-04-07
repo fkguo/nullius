@@ -163,18 +163,12 @@ Current bounded computation note:
 - Gate handling stays on `autoresearch status/approve`.
 - `run-card validate/render` and residual non-computation Pipeline A `run` workflows remain on the legacy Python surface pending retirement.
 
-Current tool-surface path inside the package:
+Current tool-surface families inside the package:
 
-- `orch_run_create`
-- `orch_run_status`
-- `orch_run_list`
-- `orch_run_approve`
-- `orch_run_reject`
-- `orch_run_pause`
-- `orch_run_resume`
-- `orch_run_export`
-- `orch_run_approvals_list`
-- `orch_policy_query`
+- run lifecycle / approvals / bounded agent runtime: `orch_run_*`
+- policy inspection: `orch_policy_query`
+- fleet queue / worker coordination: `orch_fleet_*`
+- For the exact live `orch_*` inventory and semantics, read `meta/docs/orchestrator-mcp-tools-spec.md`.
 
 ## 5. State, artifacts, and resources
 

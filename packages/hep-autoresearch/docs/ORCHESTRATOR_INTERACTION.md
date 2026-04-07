@@ -16,6 +16,7 @@ Current front-door truth:
 - canonical root lifecycle is `autoresearch init|status|approve|pause|resume|export`
 - canonical bounded computation is `autoresearch run --workflow-id computation`
 - installable `hep-autoresearch` / `hepar` / `hep-autopilot` keep only provider-local workflow/support commands on the public shell
+- Exact installable public command inventory: `approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`.
 - direct public root lifecycle/approval mutations such as `start`, `checkpoint`, `request-approval`, and `reject` are retired from the installable shell; `reject` itself still remains an internal-only direct-mutation maintainer path pending canonical TS parity
 
 Suggested command families (conceptual; the concrete authority above is the current truth):

@@ -15,6 +15,7 @@
 - canonical root lifecycle 固定走 `autoresearch init|status|approve|pause|resume|export`
 - canonical bounded computation 固定走 `autoresearch run --workflow-id computation`
 - 安装态 `hep-autoresearch` / `hepar` / `hep-autopilot` public shell 只保留 provider-local workflow/support commands
+- 安装态 public shell 的精确命令清单是：`approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`。
 - `start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役
 
 建议命令族（概念示意；上面的 concrete authority 才是当前真相）：

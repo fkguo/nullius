@@ -430,3 +430,14 @@
 - Approval/permission semantics should remain typed and scoped at the control-plane boundary (for example per-turn/per-session or per-run/per-project), while bridge/projection layers only carry the derived “blocked on what” context outward.
 
 **Why**: Mature agent runtimes keep thread/session state, execution RPC, approval/permission decisions, and operator projections on separate seams. Preserving that separation in Autoresearch prevents `bridge`, `fleet`, diagnostics UIs, or legacy compatibility shells from hardening into a parallel control plane.
+
+### [2026-04-07] Command/spec authority invariant: keep one exact source per live surface, and let overview docs stay summary-only
+
+**Decision**:
+- Command and tool inventories should be single-sourced per live authority surface rather than forced into one cross-language pseudo-registry.
+- Top-level `autoresearch` public commands should live in the TS orchestrator source and directly drive parser/help behavior.
+- The installable legacy `hepar` public shell should keep its own exact public inventory with fail-closed assertions; internal full-parser residue must remain separately classified rather than being merged into the public table.
+- Exact `orch_*` MCP tool listings belong only in the live spec surface that reads from the registry. Broader docs such as architecture overviews should summarize by tool family and link to that exact spec instead of carrying their own exact subsets.
+- A future typed front-door authority map may generate docs/tests from a richer shared classification, but until that lands the invariant remains per-surface exact sources, not faux unification.
+
+**Why**: A single cross-TS/Python "master command table" would create false shared authority and stale-doc drift. Mature runtimes instead keep one exact source per live boundary and let overview docs remain summary-level projections.

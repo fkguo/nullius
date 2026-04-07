@@ -241,9 +241,9 @@ describe('Tool risk level contracts (H-11a)', () => {
     }
   });
 
-  it('orch_run_* and hep_run_* namespaces do not collide', () => {
+  it('orch_* and hep_run_* namespaces do not collide', () => {
     const names = getTools('full').map(tool => tool.name);
-    const orchNames = names.filter(name => name.startsWith('orch_run_'));
+    const orchNames = names.filter(name => name.startsWith('orch_'));
     const hepRunNames = new Set(names.filter(name => name.startsWith(T.HEP_RUN_PREFIX)));
     expect(orchNames.length).toBeGreaterThan(0);
     expect(orchNames.filter(name => hepRunNames.has(name))).toEqual([]);

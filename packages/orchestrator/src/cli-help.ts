@@ -1,16 +1,15 @@
+import { AUTORESEARCH_PUBLIC_COMMAND_INVENTORY } from './cli-command-inventory.js';
+
+const MAIN_COMMAND_USAGE = AUTORESEARCH_PUBLIC_COMMAND_INVENTORY
+  .map(entry => `  ${entry.usage}`)
+  .join('\n');
+
 const MAIN_HELP = `autoresearch
 
 Canonical generic lifecycle and workflow-plan entrypoint for the Autoresearch control plane.
 
 Commands:
-  autoresearch init [options]
-  autoresearch run --workflow-id computation [options]
-  autoresearch status [--json]
-  autoresearch approve <approval_id> [--note "..."]
-  autoresearch pause [--note "..."]
-  autoresearch resume [--note "..."] [--force]
-  autoresearch export [options]
-  autoresearch workflow-plan --recipe <recipe_id> [options]
+${MAIN_COMMAND_USAGE}
 
 Global options:
   --project-root <path>   Override the target external project root.
