@@ -82,6 +82,54 @@ export const FRONT_DOOR_SNIPPETS = [
     ],
   },
   {
+    relPath: 'packages/hep-autoresearch/docs/COMPUTATION.md',
+    snippets: [
+      '`autoresearch run --workflow-id computation` is now the canonical bounded TS computation entrypoint for initialized external project roots with a prepared `computation/manifest.json`.',
+      'Internal run-card authoring helpers remain maintainer-only legacy utilities pending deletion; do not treat them as the installable public shell or recommended first-touch path.',
+      'Current TS front-door execution:',
+      'Internal maintainer-only run-card authoring helpers (optional legacy residue):',
+    ],
+  },
+  {
+    relPath: 'packages/hep-autoresearch/docs/COMPUTATION.zh.md',
+    snippets: [
+      '`autoresearch run --workflow-id computation` 现在是面向已初始化外部 project root、且已准备好 `computation/manifest.json` 的 canonical bounded TS computation 入口。',
+      'internal run-card authoring helpers 现在只剩 maintainer-only 的 legacy utilities，后续仍会删除；不要把它们当成 installable public shell 或推荐的 first-touch path。',
+      '当前 TS 前门执行方式：',
+      'Internal maintainer-only 的 run-card authoring helpers（可选 legacy residue）：',
+    ],
+  },
+  {
+    relPath: 'packages/hep-autoresearch/docs/EXAMPLES.md',
+    snippets: [
+      'Mainline computation execution now goes through `autoresearch run --workflow-id computation` on an initialized external project root with a prepared `computation/manifest.json`.',
+      '`run-card validate` below is an internal maintainer-only authoring helper for checked-in example fixtures, not the generic/public front door.',
+      'Optional internal authoring check for checked-in example fixtures:',
+    ],
+  },
+  {
+    relPath: 'packages/hep-autoresearch/docs/EXAMPLES.zh.md',
+    snippets: [
+      'mainline 的 computation 执行现在走 `autoresearch run --workflow-id computation`，目标是已初始化的外部 project root，并要求 `computation/manifest.json` 已经准备好。',
+      '下方 `run-card validate` 只是一条 internal maintainer authoring helper，用于 checked-in example fixtures，不是 generic/public front door。',
+      '如需处理 checked-in example fixtures，可选地做一遍 internal authoring 校验：',
+    ],
+  },
+  {
+    relPath: 'packages/hep-autoresearch/workflows/C2_method_design.md',
+    snippets: [
+      '`method-design` is an internal full-parser maintainer authoring helper pending retirement; it is not part of the installable public shell or the generic `autoresearch` front door.',
+      '## Internal maintainer-only example commands',
+    ],
+  },
+  {
+    relPath: 'packages/hep-autoresearch/docs/EVOLUTION.zh.md',
+    snippets: [
+      '内部 maintainer/eval 路径（非 generic front door）：',
+      '安装态 public shell 已不再公开 `propose`；如果你确实要碰这个 package-local legacy path，应把它当成 internal full-parser / maintainer 路径，而不是默认 operator path 或 generic front door。',
+    ],
+  },
+  {
     relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.zh.md',
     snippets: [
       '安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余 legacy workflow/support commands 都已退回内部 full parser。',

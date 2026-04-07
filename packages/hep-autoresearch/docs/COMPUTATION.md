@@ -15,25 +15,9 @@ For the workflow-level overview, see: [workflows/computation.md](../workflows/co
 Front-door status:
 
 - `autoresearch run --workflow-id computation` is now the canonical bounded TS computation entrypoint for initialized external project roots with a prepared `computation/manifest.json`.
-- The `run-card validate/render` and `python3 scripts/orchestrator.py run --run-card ...` commands below remain legacy Pipeline A authoring/execution surfaces pending retirement; they are documented here so existing run-card-oriented examples stay interpretable.
+- Internal run-card authoring helpers remain maintainer-only legacy utilities pending deletion; do not treat them as the installable public shell or recommended first-touch path.
 
 ## Quickstart
-
-Validate the run-card:
-
-```bash
-python3 scripts/orchestrator.py run-card validate \
-  --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json
-```
-
-Render the phase DAG (optional):
-
-```bash
-python3 scripts/orchestrator.py run-card render \
-  --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json \
-  --format mermaid \
-  --out artifacts/runs/M0-computation-demo-r1/computation/dag.mmd
-```
 
 Current TS front-door execution:
 
@@ -65,6 +49,18 @@ autoresearch approve <approval_id> --project-root /abs/path/to/project
 ```
 
 Then rerun the same `autoresearch run --workflow-id computation ...` command.
+
+Internal maintainer-only run-card authoring helpers (optional legacy residue):
+
+```bash
+python3 scripts/orchestrator.py run-card validate \
+  --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json
+
+python3 scripts/orchestrator.py run-card render \
+  --run-card examples/schrodinger_ho/run_cards/ho_groundstate.json \
+  --format mermaid \
+  --out artifacts/runs/M0-computation-demo-r1/computation/dag.mmd
+```
 
 ## What is a run_card v2?
 

@@ -54,8 +54,9 @@ examples/<project_id>/
 
 - mainline 的 computation 执行现在走 `autoresearch run --workflow-id computation`，目标是已初始化的外部 project root，并要求 `computation/manifest.json` 已经准备好。
 - Python `hep-autoresearch` / `hepar run` 现在只保留给尚未 repoint 的非 computation / support workflows。
+- 下方 `run-card validate` 只是一条 internal maintainer authoring helper，用于 checked-in example fixtures，不是 generic/public front door。
 
-运行前先校验：
+如需处理 checked-in example fixtures，可选地做一遍 internal authoring 校验：
 
 ```bash
 python3 scripts/orchestrator.py run-card validate \

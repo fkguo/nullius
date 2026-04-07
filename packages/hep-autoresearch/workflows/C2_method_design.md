@@ -7,6 +7,11 @@ Goal: turn a (human-provided) method intent into a **runnable, auditable computa
 
 This is the "bridge" between *planning/method selection* and *executable compute DAGs*.
 
+Front-door status:
+
+- `method-design` is an internal full-parser maintainer authoring helper pending retirement; it is not part of the installable public shell or the generic `autoresearch` front door.
+- The examples below remain documented only so existing C2 scaffolds stay auditable; do not treat them as the default operator path.
+
 ## Inputs
 
 Required:
@@ -85,7 +90,7 @@ Files:
 - Integrate `hep-calc` as a first-class design-time step (symbolic derivation → script/run-card generation).
 - Add eval cases under `evals/` that run selected generated projects as regression.
 
-## Example commands
+## Internal maintainer-only example commands
 
 Minimal scaffold:
 

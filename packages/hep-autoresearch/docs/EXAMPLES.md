@@ -54,8 +54,9 @@ Current front-door note:
 
 - Mainline computation execution now goes through `autoresearch run --workflow-id computation` on an initialized external project root with a prepared `computation/manifest.json`.
 - Python `hep-autoresearch` / `hepar run` remains legacy-only for unrepointed non-computation/support workflows.
+- `run-card validate` below is an internal maintainer-only authoring helper for checked-in example fixtures, not the generic/public front door.
 
-Validate before running:
+Optional internal authoring check for checked-in example fixtures:
 
 ```bash
 python3 scripts/orchestrator.py run-card validate \
