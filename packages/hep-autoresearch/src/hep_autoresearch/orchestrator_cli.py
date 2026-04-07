@@ -26,7 +26,6 @@ from .toolkit.adapters.registry import (
     validate_adapter_registry,
 )
 from .toolkit.evolution_trigger import trigger_evolution_proposal
-from .toolkit.method_design import MethodDesignInputs, method_design_one
 from .toolkit.orchestrator_state import (
     APPROVAL_CATEGORY_TO_POLICY_KEY,
     append_ledger_event,
@@ -3433,43 +3432,6 @@ def cmd_export(args: argparse.Namespace) -> int:
     return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
-def cmd_method_design(args: argparse.Namespace) -> int:
-    """Phase C2: method design + runnable computation scaffold generation (MVP: deterministic templates)."""
-    repo_root = _repo_root_from_args(args)
-    try:
-        res = method_design_one(
-            MethodDesignInputs(
-                tag=str(args.tag),
-                template=str(args.template),
-                project_id=str(args.project_id or ""),
-                title=str(args.title) if getattr(args, "title", None) else None,
-                description=str(args.description) if getattr(args, "description", None) else None,
-                out_project_dir=str(args.out_project_dir) if getattr(args, "out_project_dir", None) else None,
-                overwrite=bool(getattr(args, "overwrite", False)),
-                spec_path=str(args.spec) if getattr(args, "spec", None) else None,
-                mcp_config=str(args.mcp_config) if getattr(args, "mcp_config", None) else None,
-                mcp_server=str(getattr(args, "mcp_server", "hep-research") or "hep-research"),
-                hep_data_dir=str(args.hep_data_dir) if getattr(args, "hep_data_dir", None) else None,
-                pdg_particle_name=str(args.pdg_particle_name) if getattr(args, "pdg_particle_name", None) else None,
-                pdg_property=str(getattr(args, "pdg_property", "mass") or "mass"),
-                pdg_allow_derived=not bool(getattr(args, "pdg_no_derived", False)),
-            ),
-            repo_root=repo_root,
-        )
-    except Exception as e:
-        return _die(f"method-design failed: {e}")
-
-    ok = bool(res.get("ok"))
-    paths = res.get("artifact_paths") if isinstance(res.get("artifact_paths"), dict) else {}
-    if ok:
-        print("[ok] method-design: wrote artifacts + project scaffold:")
-    else:
-        print("[warn] method-design: completed with errors (see analysis.json):")
-    for k, v in sorted(paths.items()):
-        print(f"- {k}: {v}")
-    return 0 if ok else 2
-
-
 def cmd_run_card_validate(args: argparse.Namespace) -> int:
     """Validate a computation run_card v2 (strict schema + cycle check)."""
     repo_root = _repo_root_from_args(args)
@@ -3907,44 +3869,6 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         p_export.set_defaults(fn=cmd_export)
 
     if not public_surface:
-        p_md = sub.add_parser("method-design", help="Generate a runnable computation project scaffold (Phase C2).")
-        p_md.add_argument("--tag", required=True, help="Run tag for artifact output paths.")
-        p_md.add_argument(
-            "--template",
-            default="minimal_ok",
-            choices=["minimal_ok", "pdg_snapshot", "pdg_runtime", "spec_v1"],
-            help="Scaffold template (default: minimal_ok).",
-        )
-        p_md.add_argument(
-            "--project-id",
-            required=False,
-            help="Generated project_id (lowercase, underscores; used in project.json). Optional for template=spec_v1 (taken from spec unless overridden).",
-        )
-        p_md.add_argument("--spec", help="Path to method_spec v1 JSON (required for template=spec_v1).")
-        p_md.add_argument("--title", help="Optional title override for generated project/run-card.")
-        p_md.add_argument("--description", help="Optional description override for generated project.")
-        p_md.add_argument(
-            "--out-project-dir",
-            help="Write the generated project into this directory (default: artifacts/runs/<TAG>/method_design/project).",
-        )
-        p_md.add_argument("--overwrite", action="store_true", help="Allow overwriting existing generated files.")
-
-        # MCP options (used by templates that query PDG at design time).
-        p_md.add_argument("--mcp-config", help="Path to MCP config JSON (default: .mcp.json).")
-        p_md.add_argument("--mcp-server", default="hep-research", help="MCP server name in config (default: hep-research).")
-        p_md.add_argument("--hep-data-dir", help="Override HEP_DATA_DIR for the MCP server process (default: project-local .hep-mcp).")
-
-        # PDG knobs (template=pdg_snapshot or template=pdg_runtime).
-        p_md.add_argument("--pdg-particle-name", help="Particle name for PDG query (template=pdg_snapshot|pdg_runtime).")
-        p_md.add_argument(
-            "--pdg-property",
-            default="mass",
-            choices=["mass", "width", "lifetime"],
-            help="PDG property to snapshot (default: mass).",
-        )
-        p_md.add_argument("--pdg-no-derived", action="store_true", help="Disallow derived PDG values.")
-        p_md.set_defaults(fn=cmd_method_design)
-
         p_rc = sub.add_parser("run-card", help="Run-card utilities (computation run_card v2).")
         rc_sub = p_rc.add_subparsers(dest="run_card_cmd", required=True)
 

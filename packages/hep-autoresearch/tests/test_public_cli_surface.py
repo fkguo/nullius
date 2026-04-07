@@ -227,7 +227,6 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertEqual(
             groups["retired_public_support_commands"],
             [
-                "method-design",
                 "run-card",
                 "branch",
             ],

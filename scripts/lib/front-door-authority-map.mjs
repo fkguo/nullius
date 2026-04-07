@@ -85,7 +85,6 @@ export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
     group: 'retired_public_support_commands',
     owner: 'internal full parser only; formerly installable public support surface now retired from the public shell',
     commands: freezeCommands([
-      'method-design',
       'run-card',
       'branch',
     ]),
