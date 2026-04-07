@@ -2,7 +2,7 @@
   "name": "@autoresearch/idea-mcp",
   "version": "0.0.1",
   "private": true,
-  "description": "MCP bridge for TS idea-engine with explicit idea-core-python compatibility backend",
+  "description": "MCP bridge for TS idea-engine",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

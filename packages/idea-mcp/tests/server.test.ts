@@ -1,20 +1,70 @@
-import { describe, expect, it } from 'vitest';
-import { resolveIdeaBackend, resolveIdeaDataDir } from '../src/server.js';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { assertNoLegacyIdeaEnv, createIdeaRpcClient, resolveIdeaDataDir } from '../src/server.js';
 
-describe('idea-mcp server backend selection', () => {
-  it('does not let IDEA_CORE_PATH alone restore Python-first default authority', () => {
-    expect(resolveIdeaBackend({ IDEA_CORE_PATH: '/tmp/idea-core' })).toBe('idea-engine');
+function initParams(campaignName: string) {
+  return {
+    budget: {
+      max_cost_usd: 100,
+      max_steps: 5,
+      max_tokens: 10_000,
+      max_wall_clock_s: 3600,
+    },
+    charter: {
+      approval_gate_ref: 'gate://idea.server',
+      campaign_name: campaignName,
+      domain: 'hep-ph',
+      scope: 'idea-mcp server wiring regression',
+    },
+    idempotency_key: `${campaignName}-init`,
+    seed_pack: {
+      seeds: [{ content: 'seed-a', seed_type: 'text' }],
+    },
+  };
+}
+
+describe('idea-mcp server configuration', () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
-  it('requires an explicit backend switch for the legacy idea-core compatibility path', () => {
-    expect(resolveIdeaBackend({ IDEA_MCP_BACKEND: 'idea-core-python' })).toBe('idea-core-python');
-    expect(resolveIdeaDataDir({}, 'idea-engine')).toContain('/packages/idea-engine/runs');
-    expect(resolveIdeaDataDir({}, 'idea-core-python')).toContain('/packages/idea-core/runs');
+  it('defaults its run root to idea-engine runs', () => {
+    expect(resolveIdeaDataDir({})).toContain('/packages/idea-engine/runs');
   });
 
-  it('fails closed on unknown backend values', () => {
-    expect(() => resolveIdeaBackend({ IDEA_MCP_BACKEND: 'legacy' })).toThrow(
-      'Unsupported IDEA_MCP_BACKEND: legacy',
+  it('resolves explicit data dir overrides', () => {
+    expect(resolveIdeaDataDir({ IDEA_MCP_DATA_DIR: '../tmp/idea-runs' })).toContain('/tmp/idea-runs');
+  });
+
+  it('fails closed when legacy backend envs are present', () => {
+    expect(() => assertNoLegacyIdeaEnv({ IDEA_MCP_BACKEND: 'idea-engine' })).toThrow(
+      'idea-mcp no longer supports legacy backend envs: IDEA_MCP_BACKEND; TS idea-engine is the only host authority',
     );
+    expect(() => assertNoLegacyIdeaEnv({ IDEA_CORE_PATH: '/tmp/idea-core' })).toThrow(
+      'idea-mcp no longer supports legacy backend envs: IDEA_CORE_PATH; TS idea-engine is the only host authority',
+    );
+    expect(() => createIdeaRpcClient({ IDEA_MCP_BACKEND: 'idea-engine' })).toThrow(
+      'idea-mcp no longer supports legacy backend envs: IDEA_MCP_BACKEND; TS idea-engine is the only host authority',
+    );
+  });
+
+  it('wires createIdeaRpcClient through the configured data dir', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-mcp-server-'));
+    tempDirs.push(rootDir);
+    const client = createIdeaRpcClient({ IDEA_MCP_DATA_DIR: rootDir });
+
+    try {
+      const initResult = await client.call('campaign.init', initParams('server-entrypoint')) as Record<string, unknown>;
+      expect(typeof initResult.campaign_id).toBe('string');
+      expect(initResult.status).toBe('running');
+    } finally {
+      client.close();
+    }
   });
 });

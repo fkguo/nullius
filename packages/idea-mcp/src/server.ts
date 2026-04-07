@@ -10,7 +10,6 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { McpError, invalidParams } from '@autoresearch/shared';
-import { DEFAULT_IDEA_RPC_BACKEND, type IdeaRpcBackend } from './backend.js';
 import { IdeaRpcClient } from './rpc-client.js';
 import { zodToMcpInputSchema } from './mcp-input-schema.js';
 import { IDEA_TOOLS } from './tool-registry.js';
@@ -19,28 +18,21 @@ import { IDEA_TOOLS } from './tool-registry.js';
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function resolveIdeaBackend(env: NodeJS.ProcessEnv = process.env): IdeaRpcBackend {
-  const envValue = env.IDEA_MCP_BACKEND?.trim();
-  if (!envValue) return DEFAULT_IDEA_RPC_BACKEND;
-  if (envValue === 'idea-engine' || envValue === 'idea-core-python') return envValue;
-  throw new Error(`Unsupported IDEA_MCP_BACKEND: ${envValue}`);
+export function assertNoLegacyIdeaEnv(env: NodeJS.ProcessEnv = process.env): void {
+  const legacyEnvNames = ['IDEA_MCP_BACKEND', 'IDEA_CORE_PATH'].filter((name) => {
+    const value = env[name];
+    return typeof value === 'string' && value.trim().length > 0;
+  });
+  if (legacyEnvNames.length === 0) return;
+  throw new Error(
+    `idea-mcp no longer supports legacy backend envs: ${legacyEnvNames.join(', ')}; TS idea-engine is the only host authority`,
+  );
 }
 
-export function resolveIdeaDataDir(
-  env: NodeJS.ProcessEnv = process.env,
-  backend: IdeaRpcBackend = resolveIdeaBackend(env),
-): string {
+export function resolveIdeaDataDir(env: NodeJS.ProcessEnv = process.env): string {
   const envPath = env.IDEA_MCP_DATA_DIR;
   if (envPath) return path.resolve(envPath);
-  const packageDir = backend === 'idea-core-python' ? '../../idea-core/runs' : '../../idea-engine/runs';
-  return path.resolve(import.meta.dirname, packageDir);
-}
-
-export function resolveIdeaCorePath(env: NodeJS.ProcessEnv = process.env): string {
-  // This resolver is only consumed on the explicit idea-core-python compatibility branch.
-  const envPath = env.IDEA_CORE_PATH;
-  if (envPath) return path.resolve(envPath);
-  return path.resolve(import.meta.dirname, '../../idea-core');
+  return path.resolve(import.meta.dirname, '../../idea-engine/runs');
 }
 
 function resolveIdeaContractDir(env: NodeJS.ProcessEnv = process.env): string | undefined {
@@ -49,20 +41,11 @@ function resolveIdeaContractDir(env: NodeJS.ProcessEnv = process.env): string | 
 }
 
 export function createIdeaRpcClient(env: NodeJS.ProcessEnv = process.env): IdeaRpcClient {
-  const backend = resolveIdeaBackend(env);
+  assertNoLegacyIdeaEnv(env);
   const contractDir = resolveIdeaContractDir(env);
-  if (backend === 'idea-core-python') {
-    return new IdeaRpcClient({
-      backend,
-      contractDir,
-      dataDir: resolveIdeaDataDir(env, backend),
-      ideaCorePath: resolveIdeaCorePath(env),
-    });
-  }
   return new IdeaRpcClient({
-    backend,
     contractDir,
-    rootDir: resolveIdeaDataDir(env, backend),
+    rootDir: resolveIdeaDataDir(env),
   });
 }
 
