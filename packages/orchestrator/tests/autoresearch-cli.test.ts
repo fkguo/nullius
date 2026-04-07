@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { AUTORESEARCH_PUBLIC_COMMANDS } from '../src/cli-command-inventory.js';
+import {
+  AUTORESEARCH_PUBLIC_COMMANDS,
+  AUTORESEARCH_PUBLIC_COMMAND_INVENTORY,
+} from '../src/cli-command-inventory.js';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { runCli } from '../src/cli.js';
+import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
 
 function makeTempProjectRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-cli-'));
@@ -103,6 +107,15 @@ describe('autoresearch CLI', () => {
     expect(helpText).toContain('autoresearch workflow-plan --recipe <recipe_id> [options]');
     expect(helpText).toContain('Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface');
     expect(extractTopLevelCommands(helpText)).toEqual([...AUTORESEARCH_PUBLIC_COMMANDS]);
+  });
+
+  it('front-door authority map keeps the canonical autoresearch inventory exact', () => {
+    const surface = getFrontDoorAuthoritySurface('autoresearch_cli');
+
+    expect(surface.classification).toBe('canonical_public');
+    expect(surface.surface_kind).toBe('cli_command_inventory');
+    expect(surface.exact_inventory_source).toBe('packages/orchestrator/src/cli-command-inventory.ts');
+    expect(surface.commands).toEqual([...AUTORESEARCH_PUBLIC_COMMAND_INVENTORY]);
   });
 
   it('resolves launcher-backed workflow plans through the canonical autoresearch front door', async () => {

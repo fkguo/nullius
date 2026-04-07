@@ -15,13 +15,14 @@
 - canonical root lifecycle 固定走 `autoresearch init|status|approve|pause|resume|export`
 - canonical bounded computation 固定走 `autoresearch run --workflow-id computation`
 - 安装态 `hep-autoresearch` / `hepar` / `hep-autopilot` public shell 只保留 provider-local workflow/support commands
+- 安装态 `hepar run --workflow-id ...` 只剩 `paper_reviser` 这一条 public compatibility workflow
 - 安装态 public shell 的精确命令清单是：`approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`。
 - `start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役
 
 建议命令族（概念示意；上面的 concrete authority 才是当前真相）：
 
 - `init`：把你选定的项目目录初始化为 project root（补齐 docs/KB/specs 最小骨架；创建 `.autoresearch/` 状态 + ledger）
-- `run`：启动一个 workflow（如 `ingest` / `reproduce` / `draft` / `revision` / `derivation_check` + adapter workflows；高风险 shell backend 可选 `--sandbox`）
+- `run`：bounded computation 固定走 `autoresearch run --workflow-id computation`；安装态 legacy public shell 只剩 `hepar run --workflow-id paper_reviser` 这一条兼容 workflow
 - `branch`：把“分支决策/备选路径”记录进 Plan SSOT（list/add/switch；用于可控回溯）
 - `status`：显示当前 run 状态（步骤、产物、待同意点、预算消耗）
 - `pause`：暂停当前 run（写 stop file 或更新状态）
@@ -109,36 +110,37 @@ Web 入口不改变契约，只改变 UI：
 
 ### 现阶段实现（v0）
 
-当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，但安装态 public shell 现在只保留 residual non-computation workflow/support commands（例如 `run` 的非 computation workflows、`logs`、`context`）。`start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役；其中 `reject` 仍暂时保留为内部 full parser 的 direct-mutation maintainer path，等待 canonical TS surface parity。public computation、`doctor`、`bridge` 与 `literature-gap` 已从 installable shell 退役，仅保留在内部 full parser 供 maintainer/eval/regression 使用。v0.4 当前仍可执行 `ingest`、`reproduce`（toy）、`revision`（v0）、`literature_survey_polish`、`shell_adapter_smoke`，而 computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：
+当前已提供最小 CLI。generic lifecycle 入口现为 `autoresearch`（当前覆盖 `init/status/approve/pause/resume/export`）；`hepar` / `hep-autoresearch` / `hep-autopilot` 仍是过渡中的 Pipeline A legacy surface，但安装态 public shell 现在只保留 residual non-computation workflow/support commands，其中 public `run` 只剩 `paper_reviser`。`start`、`checkpoint`、`request-approval`、`reject` 这类 direct public root lifecycle/approval mutations 已从 installable shell 退役；其中 `reject` 仍暂时保留为内部 full parser 的 direct-mutation maintainer path，等待 canonical TS surface parity。public computation、`doctor`、`bridge` 与 `literature-gap` 已从 installable shell 退役，仅保留在内部 full parser 供 maintainer/eval/regression 使用。其余 legacy workflow ids（`ingest`、`reproduce`、`revision`、`literature_survey_polish`、`shell_adapter_smoke`）现在也只保留为 internal full-parser coverage，不再属于 installable public shell。computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：
 
 ```bash
 # 在你的研究项目根目录里执行（不是在 packages/hep-autoresearch/ 里）
 autoresearch init
-hepar run --run-id M1-orch-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
+hepar context --run-id M0-context-r1 --workflow-id custom --note "bootstrap smoke test"
 autoresearch status
 hepar logs --tail 20
 autoresearch pause
 autoresearch resume
-autoresearch export --run-id M1-orch-r1
+autoresearch export
 
-# reproduce (toy) workflow
-hepar run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
-autoresearch status   # 查看 pending_approval（默认 A3）
+# remaining public compatibility workflow: paper_reviser
+hepar run --run-id M1-paper-reviser-r1 --workflow-id paper_reviser \
+  --paper-root /path/to/external-paper-project \
+  --tex-main main.tex \
+  --writer-backend claude --writer-model <MODEL> \
+  --auditor-backend gemini --auditor-model <MODEL> \
+  --manual-evidence
+autoresearch status   # 查看 pending_approval（如 Step C 触发 A1）
 autoresearch approve <approval_id>
-hepar run --run-id M2-orch-reproduce-toy-r1 --workflow-id reproduce --case toy --ns 0,1,2,5,10
+hepar run --run-id M1-paper-reviser-r1 --workflow-id paper_reviser ...
 
 # computation 现在走 native TS front door，而不是 installable `hepar run`
 autoresearch run --run-id M0-computation-demo-r1 --workflow-id computation --manifest /path/to/external-project/M0-computation-demo-r1/computation/manifest.json --project-root /path/to/external-project
 autoresearch status   # 查看 pending_approval（默认 A3）
 autoresearch approve <approval_id>
 autoresearch run --run-id M0-computation-demo-r1 --workflow-id computation --manifest /path/to/external-project/M0-computation-demo-r1/computation/manifest.json --project-root /path/to/external-project
-
-# revision v0 (compile gate + provenance table)
-hepar run --run-id M2-orch-revision-r1 --workflow-id revision
-autoresearch status   # 查看 pending_approval（默认 A4）
-autoresearch approve <approval_id>
-hepar run --run-id M2-orch-revision-r1 --workflow-id revision
 ```
+
+如果你在 maintainer/eval/regression 上仍需要 `ingest`、`reproduce`、`revision`、`literature_survey_polish` 或 `shell_adapter_smoke`，请把它们视为 internal full-parser coverage，而不是当前 installable public shell authority。
 
 安全注意（最小要求）：
 - handoff/resume 必须做权限校验（至少：本地用户/组白名单；后续可扩展到更严格的认证）

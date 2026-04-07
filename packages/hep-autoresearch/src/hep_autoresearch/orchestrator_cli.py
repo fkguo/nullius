@@ -75,14 +75,24 @@ def _die(msg: str, code: int = 2) -> int:
     return code
 
 
+PUBLIC_RUN_WORKFLOW_IDS: tuple[str, ...] = (
+    "paper_reviser",
+)
+
+INTERNAL_ONLY_RUN_WORKFLOW_IDS: tuple[str, ...] = (
+    "ingest",
+    "reproduce",
+    "revision",
+    "literature_survey_polish",
+)
+
+
 def _public_run_workflow_ids() -> set[str]:
-    return {
-        "ingest",
-        "reproduce",
-        "paper_reviser",
-        "revision",
-        "literature_survey_polish",
-    } | adapter_workflow_ids()
+    return set(PUBLIC_RUN_WORKFLOW_IDS)
+
+
+def _internal_only_run_workflow_ids() -> set[str]:
+    return set(INTERNAL_ONLY_RUN_WORKFLOW_IDS) | adapter_workflow_ids()
 
 
 PUBLIC_SHELL_COMMANDS: tuple[str, ...] = (
@@ -104,7 +114,7 @@ PUBLIC_SHELL_COMMANDS_MARKDOWN = ", ".join(f"`{command}`" for command in PUBLIC_
 
 
 def _all_run_workflow_ids() -> set[str]:
-    return {"computation"} | _public_run_workflow_ids()
+    return {"computation"} | _public_run_workflow_ids() | _internal_only_run_workflow_ids()
 
 
 def _repo_checkout_root_from_source() -> Path | None:
@@ -160,9 +170,8 @@ def _run_autoresearch_passthrough(*, repo_root: Path, argv: list[str]) -> int:
 
 def _run_workflow_id_help(*, public_surface: bool) -> str:
     if public_surface:
-        return (
-            "Workflow id for the remaining public non-computation legacy workflows, e.g. "
-            + "|".join(sorted(_public_run_workflow_ids()))
+        return "Workflow id for the remaining public compatibility workflow, e.g. " + "|".join(
+            sorted(_public_run_workflow_ids())
         )
     return "Workflow id, e.g. " + "|".join(sorted(_all_run_workflow_ids()))
 
@@ -5686,7 +5695,7 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     p_report_render.set_defaults(fn=cmd_report_render)
 
     run_help = (
-        "Run a residual legacy workflow (non-computation only; use `autoresearch run --workflow-id computation` for computation)."
+        "Run the remaining public legacy paper-reviser workflow (non-computation only; use `autoresearch run --workflow-id computation` for computation)."
         if public_surface
         else "Run a workflow (v0.4+: computation + ingest + reproduce(toy) + paper_reviser + revision + literature_survey_polish + shell_adapter_smoke)."
     )
@@ -5711,77 +5720,78 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     )
     p_run.add_argument("--force", action="store_true", help="Override state mismatch / rerun completed.")
     p_run.add_argument("--gate", choices=sorted(APPROVAL_CATEGORY_TO_POLICY_KEY.keys()), help="Force a gate (A1–A5) before running.")
+    if not public_surface:
+        p_run.add_argument(
+            "--run-card",
+            help="Workflow run-card path. For computation: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON).",
+        )
+        p_run.add_argument(
+            "--project-dir",
+            help="computation: project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
+        )
+        p_run.add_argument(
+            "--trust-project",
+            action="store_true",
+            help="computation: trust project to execute shell backends (non-interactive).",
+        )
+        p_run.add_argument(
+            "--resume",
+            action="store_true",
+            help="computation: resume from artifacts/runs/<run-id>/computation (requires matching run-card).",
+        )
+        p_run.add_argument(
+            "--param",
+            action="append",
+            default=[],
+            help="computation: parameter override (repeatable: key=value).",
+        )
+        p_run.add_argument(
+            "--sandbox",
+            default="none",
+            choices=["none", "auto", "local_copy", "docker"],
+            help="Adapter workflows: sandbox execution provider (v0: local_copy fallback; docker requires a running daemon).",
+        )
+        p_run.add_argument(
+            "--sandbox-network",
+            default="disabled",
+            choices=["disabled", "none", "host"],
+            help="Sandbox network policy (docker only; default: disabled).",
+        )
+        p_run.add_argument(
+            "--sandbox-docker-image",
+            help="Sandbox docker image (docker provider; default: python:3.11-slim).",
+        )
+        p_run.add_argument(
+            "--sandbox-repo-writable",
+            action="store_true",
+            help="Sandbox local_copy only: allow writes to the sandboxed repo copy (default: read-only; no effect for docker provider).",
+        )
+        w1 = p_run.add_mutually_exclusive_group(required=False)
+        w1.add_argument("--inspire-recid", help="INSPIRE literature recid, e.g. 1234567")
+        w1.add_argument("--arxiv-id", help="arXiv id, e.g. 2210.03629")
+        w1.add_argument("--doi", help="DOI, e.g. 10.1103/PhysRevLett.116.061102")
+        p_run.add_argument("--case", default="toy", help="reproduce case id (v0: toy).")
+        p_run.add_argument("--ns", default="0,1,2,5,10", help="reproduce toy case n values (comma-separated).")
+        p_run.add_argument("--epsabs", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsabs.")
+        p_run.add_argument("--epsrel", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsrel.")
+        p_run.add_argument("--mpmath-dps", type=int, default=80, help="reproduce toy: mpmath precision (decimal digits).")
+        p_run.add_argument("--refkey", help="Optional RefKey (defaults to a stable derived key)")
+        p_run.add_argument(
+            "--download",
+            default="auto",
+            choices=["none", "auto", "arxiv_source", "arxiv_pdf", "both"],
+            help="Download policy for arXiv assets (if available).",
+        )
     p_run.add_argument(
-        "--run-card",
-        help=(
-            "Optional adapter run-card path for adapter workflows."
-            if public_surface
-            else "Workflow run-card path. For computation: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON)."
-        ),
+        "--paper-root",
+        default="paper",
+        help="LaTeX project root (default: paper)." if public_surface else "revision: LaTeX project root (default: paper).",
     )
     p_run.add_argument(
-        "--project-dir",
-        help=argparse.SUPPRESS
-        if public_surface
-        else "computation: project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
+        "--tex-main",
+        default="main.tex",
+        help="Main TeX file within paper-root." if public_surface else "revision: main TeX file within paper-root.",
     )
-    p_run.add_argument(
-        "--trust-project",
-        action="store_true",
-        help=argparse.SUPPRESS if public_surface else "computation: trust project to execute shell backends (non-interactive).",
-    )
-    p_run.add_argument(
-        "--resume",
-        action="store_true",
-        help=argparse.SUPPRESS
-        if public_surface
-        else "computation: resume from artifacts/runs/<run-id>/computation (requires matching run-card).",
-    )
-    p_run.add_argument(
-        "--param",
-        action="append",
-        default=[],
-        help=argparse.SUPPRESS if public_surface else "computation: parameter override (repeatable: key=value).",
-    )
-    p_run.add_argument(
-        "--sandbox",
-        default="none",
-        choices=["none", "auto", "local_copy", "docker"],
-        help="Adapter workflows: sandbox execution provider (v0: local_copy fallback; docker requires a running daemon).",
-    )
-    p_run.add_argument(
-        "--sandbox-network",
-        default="disabled",
-        choices=["disabled", "none", "host"],
-        help="Sandbox network policy (docker only; default: disabled).",
-    )
-    p_run.add_argument(
-        "--sandbox-docker-image",
-        help="Sandbox docker image (docker provider; default: python:3.11-slim).",
-    )
-    p_run.add_argument(
-        "--sandbox-repo-writable",
-        action="store_true",
-        help="Sandbox local_copy only: allow writes to the sandboxed repo copy (default: read-only; no effect for docker provider).",
-    )
-    w1 = p_run.add_mutually_exclusive_group(required=False)
-    w1.add_argument("--inspire-recid", help="INSPIRE literature recid, e.g. 1234567")
-    w1.add_argument("--arxiv-id", help="arXiv id, e.g. 2210.03629")
-    w1.add_argument("--doi", help="DOI, e.g. 10.1103/PhysRevLett.116.061102")
-    p_run.add_argument("--case", default="toy", help="reproduce case id (v0: toy).")
-    p_run.add_argument("--ns", default="0,1,2,5,10", help="reproduce toy case n values (comma-separated).")
-    p_run.add_argument("--epsabs", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsabs.")
-    p_run.add_argument("--epsrel", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsrel.")
-    p_run.add_argument("--mpmath-dps", type=int, default=80, help="reproduce toy: mpmath precision (decimal digits).")
-    p_run.add_argument("--refkey", help="Optional RefKey (defaults to a stable derived key)")
-    p_run.add_argument(
-        "--download",
-        default="auto",
-        choices=["none", "auto", "arxiv_source", "arxiv_pdf", "both"],
-        help="Download policy for arXiv assets (if available).",
-    )
-    p_run.add_argument("--paper-root", default="paper", help="revision: LaTeX project root (default: paper).")
-    p_run.add_argument("--tex-main", default="main.tex", help="revision: main TeX file within paper-root.")
     p_run.add_argument("--draft-tex", help="paper_reviser: input draft .tex path (default: <paper-root>/<tex-main>).")
     p_run.add_argument(
         "--paper-reviser-mode",
@@ -5861,28 +5871,29 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         help="paper_reviser: apply final clean.tex back to the draft .tex (A4-gated if required by approval_policy).",
     )
     p_run.add_argument("--skills-dir", help="paper_reviser: override $CODEX_HOME/skills for tool discovery.")
-    p_run.add_argument("--survey-topic", help="literature_survey_polish: optional topic header for the T30 survey export.")
-    p_run.add_argument(
-        "--survey-refkeys",
-        help="literature_survey_polish: comma-separated RefKey list for the T30 survey export (default: curated KB profile literature notes).",
-    )
-    p_run.add_argument(
-        "--survey-no-compile",
-        action="store_true",
-        help="literature_survey_polish: do not attempt latexmk compile in research-writer consume (still runs hygiene).",
-    )
-    p_run.add_argument("--no-apply-provenance-table", action="store_true", help="revision: do not edit paper; compile only.")
-    p_run.add_argument("--no-compile-before", action="store_true", help="revision: skip compile before edits.")
-    p_run.add_argument("--no-compile-after", action="store_true", help="revision: skip compile after edits.")
-    p_run.add_argument("--latexmk-timeout-seconds", type=int, default=300, help="revision: timeout per latexmk invocation.")
-    p_run.add_argument("--overwrite-note", action="store_true", help="Overwrite existing knowledge_base note.")
-    p_run.add_argument("--no-query-log", action="store_true", help="Do not append to literature_queries.md")
-    p_run.add_argument("--allow-errors", action="store_true", help="Treat workflow errors list as non-fatal.")
-    p_run.add_argument(
-        "--strict-gate-resolution",
-        action="store_true",
-        help="Adapter workflows: treat unsafe approval-resolution combinations as hard errors (e.g. run_card_only + empty required_approvals).",
-    )
+    if not public_surface:
+        p_run.add_argument("--survey-topic", help="literature_survey_polish: optional topic header for the T30 survey export.")
+        p_run.add_argument(
+            "--survey-refkeys",
+            help="literature_survey_polish: comma-separated RefKey list for the T30 survey export (default: curated KB profile literature notes).",
+        )
+        p_run.add_argument(
+            "--survey-no-compile",
+            action="store_true",
+            help="literature_survey_polish: do not attempt latexmk compile in research-writer consume (still runs hygiene).",
+        )
+        p_run.add_argument("--no-apply-provenance-table", action="store_true", help="revision: do not edit paper; compile only.")
+        p_run.add_argument("--no-compile-before", action="store_true", help="revision: skip compile before edits.")
+        p_run.add_argument("--no-compile-after", action="store_true", help="revision: skip compile after edits.")
+        p_run.add_argument("--latexmk-timeout-seconds", type=int, default=300, help="revision: timeout per latexmk invocation.")
+        p_run.add_argument("--overwrite-note", action="store_true", help="Overwrite existing knowledge_base note.")
+        p_run.add_argument("--no-query-log", action="store_true", help="Do not append to literature_queries.md")
+        p_run.add_argument("--allow-errors", action="store_true", help="Treat workflow errors list as non-fatal.")
+        p_run.add_argument(
+            "--strict-gate-resolution",
+            action="store_true",
+            help="Adapter workflows: treat unsafe approval-resolution combinations as hard errors (e.g. run_card_only + empty required_approvals).",
+        )
     p_run.set_defaults(fn=cmd_run)
 
     p_logs = sub.add_parser("logs", help="Show recent ledger events.")

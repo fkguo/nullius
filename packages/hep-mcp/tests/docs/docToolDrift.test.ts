@@ -5,6 +5,10 @@ import { fileURLToPath } from 'url';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { FRONT_DOOR_SNIPPETS } from '../../../../scripts/lib/front-door-boundary-authority.mjs';
+import {
+  FRONT_DOOR_AUTHORITY_SURFACE_IDS,
+  getFrontDoorAuthoritySurface,
+} from '../../../../scripts/lib/front-door-authority-map.mjs';
 
 type ToolName = string;
 
@@ -233,6 +237,36 @@ describe('Docs tool drift guard', () => {
     const referenced = extractOrchToolNamesFromText(md).sort((left, right) => left.localeCompare(right));
 
     expect(referenced).toEqual(live);
+  });
+
+  it('front-door authority map classifies the live public surfaces', () => {
+    expect(FRONT_DOOR_AUTHORITY_SURFACE_IDS).toEqual([
+      'autoresearch_cli',
+      'hepar_public_shell',
+      'hepar_internal_full_parser',
+      'orchestrator_mcp_tools_spec',
+    ]);
+
+    expect(getFrontDoorAuthoritySurface('autoresearch_cli')).toMatchObject({
+      classification: 'canonical_public',
+      surface_kind: 'cli_command_inventory',
+      exact_inventory_source: 'packages/orchestrator/src/cli-command-inventory.ts',
+    });
+    expect(getFrontDoorAuthoritySurface('hepar_public_shell')).toMatchObject({
+      classification: 'compatibility_public',
+      surface_kind: 'cli_command_inventory',
+      exact_inventory_source: 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_SHELL_COMMANDS',
+    });
+    expect(getFrontDoorAuthoritySurface('hepar_internal_full_parser')).toMatchObject({
+      classification: 'internal_only',
+      surface_kind: 'compatibility_full_parser',
+      exact_inventory_source: 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main(public_surface=False)',
+    });
+    expect(getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec')).toMatchObject({
+      classification: 'canonical_public',
+      surface_kind: 'exact_doc_inventory',
+      exact_inventory_source: 'meta/docs/orchestrator-mcp-tools-spec.md',
+    });
   });
 
   it('README tool counts match the built-in tool registry', async () => {

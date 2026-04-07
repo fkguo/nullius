@@ -2,6 +2,7 @@
 
 > **Status**: live inventory sync for `main` on 2026-04-07
 > **Scope**: exact `orch_*` tool surface, run-infra vs strategy boundary, approval/fleet semantics, and URI ownership.
+> **Classification anchor**: this document is the `canonical_public` exact `orch_*` inventory surface referenced by `meta/front_door_authority_map_v1.json`; it does not own CLI command taxonomies.
 
 ---
 

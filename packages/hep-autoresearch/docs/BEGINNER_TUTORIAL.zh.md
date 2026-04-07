@@ -53,7 +53,7 @@ autoresearch status
 - `specs/`
 
 之后你可以在任意子目录运行 `autoresearch ...` 处理 lifecycle verbs；CLI 会自动向上寻找 `.autoresearch/`。
-本教程后面出现的 workflow 命令仍在过渡中的 Pipeline A legacy surface 上。
+过渡中的 Pipeline A legacy surface 目前只还公开保留 `paper_reviser` 这一条 `run` workflow；workflow 文档里出现的其他语义名更多是工作流规范或 internal maintainer 路径，不再代表安装态 public shell 真相。
 如果你显式传 `HEP_DATA_DIR`，它也应留在开发仓外；public real-project flow 现在会对 repo 内 override 直接 fail-close。
 
 ## 3）先跑一个 legacy compatibility 烟测
@@ -75,36 +75,36 @@ hep-autoresearch context \
 
 这一步确认运行时确实能看到你项目本地的 charter / plan / notebook / gate contract，而不是只盯当前命令。
 
-## 4）跑一个最小 legacy workflow 示例
-
-示例：先跑一个不依赖外部 LLM 的 ingest。
+## 4）先确认剩余 public `run` 入口
 
 ```bash
-hep-autoresearch run \
-  --run-id M1-ingest-r1 \
-  --workflow-id ingest \
-  --arxiv-id 2310.06770 \
-  --refkey arxiv-2310.06770-swe-bench \
-  --download none
-
-autoresearch status
-hep-autoresearch logs --tail 20
+hep-autoresearch run --help
 ```
 
-如果触发 gate：
+安装态 public shell 的 `run` 现在只剩 `paper_reviser`。如果你确实要跑它，可按下面的 skeleton：
 
 ```bash
+hep-autoresearch run --run-id <RUN_ID> --workflow-id paper_reviser \
+  --paper-root /path/to/external-paper-project \
+  --tex-main main.tex \
+  --writer-backend claude --writer-model <MODEL> \
+  --auditor-backend gemini --auditor-model <MODEL> \
+  --manual-evidence
+
 autoresearch status
 autoresearch approve <approval_id>
-hep-autoresearch run --run-id M1-ingest-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
+hep-autoresearch run --run-id <RUN_ID> --workflow-id paper_reviser ...
 ```
+
+更完整的 gate、artifact 与步骤说明请看 `workflows/paper_reviser.zh.md`。
 
 ## 5）其他 workflow 入口
 
 - `computation`：`docs/COMPUTATION.md`，并通过 `autoresearch run --workflow-id computation` 进入（不是 `hep-autoresearch run`）
-- `reproduce`：`workflows/reproduce.md`
+- `paper_reviser`：`workflows/paper_reviser.zh.md`，也是当前 installable public shell 剩余的唯一 `run` workflow
+- `reproduce`：`workflows/reproduce.md`（workflow 规范 / maintainer coverage，不再是当前 installable public shell）
 - `draft`：`workflows/draft.md`
-- `revision`：`workflows/revision.md`
+- `revision`：`workflows/revision.md`（workflow 规范 / maintainer coverage，不再是当前 installable public shell）
 - `derivation_check`：`workflows/derivation_check.md`
 
 其中 `revision` 的默认语义是：你自己的项目根目录里有一个 `paper/`（或你显式指定的 LaTeX 工程），编排器在 gate 之后对它做可审计修改。

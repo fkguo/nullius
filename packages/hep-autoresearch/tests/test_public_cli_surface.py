@@ -1,5 +1,6 @@
 import unittest
 import re
+import json
 
 
 def _src_root():
@@ -22,6 +23,9 @@ class TestPublicCliSurface(unittest.TestCase):
         from pathlib import Path
 
         return Path(__file__).resolve().parents[3].joinpath(rel_path).read_text(encoding="utf-8")
+
+    def _read_front_door_authority_map(self) -> dict:
+        return json.loads(self._read_repo_file("meta/front_door_authority_map_v1.json"))
 
     def _run_public_cli(self, argv: list[str]) -> tuple[int, str, str]:
         import sys
@@ -85,6 +89,7 @@ class TestPublicCliSurface(unittest.TestCase):
 
     def test_public_run_help_excludes_computation_surface(self) -> None:
         cli_mod = self._import_orchestrator_cli()
+        authority_map = self._read_front_door_authority_map()
 
         rc, out, err = self._run_public_cli(["hepar", "run", "--help"])
         self.assertEqual(rc, 0)
@@ -95,10 +100,19 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertNotIn("--resume", out)
         self.assertNotIn("--project-dir", out)
         self.assertNotIn("--param", out)
+        self.assertNotIn("ingest", out)
+        self.assertNotIn("reproduce", out)
+        self.assertNotIn("revision", out)
+        self.assertNotIn("literature_survey_polish", out)
+        self.assertNotIn("shell_adapter_smoke", out)
         self.assertIn("non-computation", out)
         self.assertIn("autoresearch run", out)
         self.assertIn("for computation", out)
         self.assertEqual(self._extract_run_workflow_ids(out), sorted(cli_mod._public_run_workflow_ids()))
+        self.assertEqual(
+            authority_map["surfaces"]["hepar_public_shell"]["run_workflow_ids"],
+            list(cli_mod.PUBLIC_RUN_WORKFLOW_IDS),
+        )
 
     def test_public_cli_rejects_retired_public_surfaces(self) -> None:
         for command in ("start", "checkpoint", "init", "status", "request-approval", "reject", "export", "doctor", "bridge", "literature-gap"):
@@ -113,6 +127,13 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertIn("invalid choice", err)
         self.assertIn("computation", err)
 
+    def test_public_run_rejects_internal_only_workflows(self) -> None:
+        for workflow_id in ("ingest", "reproduce", "revision", "literature_survey_polish", "shell_adapter_smoke"):
+            rc, _, err = self._run_public_cli(["hepar", "run", "--run-id", "M1-public", "--workflow-id", workflow_id])
+            self.assertEqual(rc, 2)
+            self.assertIn("invalid choice", err)
+            self.assertIn(workflow_id, err)
+
     def test_package_docs_publish_exact_public_command_inventory(self) -> None:
         cli_mod = self._import_orchestrator_cli()
 
@@ -123,6 +144,55 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertIn(zh_snippet, self._read_repo_file("packages/hep-autoresearch/README.zh.md"))
         self.assertIn(en_snippet, self._read_repo_file("packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.md"))
         self.assertIn(zh_snippet, self._read_repo_file("packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.zh.md"))
+
+    def test_authority_map_keeps_exact_public_shell_inventory(self) -> None:
+        cli_mod = self._import_orchestrator_cli()
+        authority_map = self._read_front_door_authority_map()
+        surface = authority_map["surfaces"]["hepar_public_shell"]
+
+        self.assertEqual(surface["classification"], "compatibility_public")
+        self.assertEqual(surface["surface_kind"], "cli_command_inventory")
+        self.assertEqual(
+            surface["exact_inventory_source"],
+            "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_SHELL_COMMANDS",
+        )
+        self.assertEqual(surface["commands"], list(cli_mod.PUBLIC_SHELL_COMMANDS))
+        self.assertEqual(
+            surface["run_workflow_inventory_source"],
+            "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_RUN_WORKFLOW_IDS",
+        )
+        self.assertEqual(surface["run_workflow_ids"], list(cli_mod.PUBLIC_RUN_WORKFLOW_IDS))
+
+    def test_authority_map_explicitly_classifies_internal_only_full_parser_residue(self) -> None:
+        authority_map = self._read_front_door_authority_map()
+        surface = authority_map["surfaces"]["hepar_internal_full_parser"]
+        groups = {entry["group"]: entry["commands"] for entry in surface["command_groups"]}
+
+        self.assertEqual(surface["classification"], "internal_only")
+        self.assertEqual(surface["surface_kind"], "compatibility_full_parser")
+        self.assertEqual(
+            surface["exact_inventory_source"],
+            "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main(public_surface=False)",
+        )
+        self.assertEqual(
+            groups["legacy_lifecycle_adapters"],
+            ["init", "status", "pause", "resume", "approve"],
+        )
+        self.assertEqual(
+            groups["internal_support_commands"],
+            ["start", "checkpoint", "request-approval", "reject", "doctor", "bridge", "literature-gap"],
+        )
+        self.assertEqual(
+            groups["internal_workflow_paths"],
+            [
+                "run --workflow-id computation",
+                "run --workflow-id ingest",
+                "run --workflow-id reproduce",
+                "run --workflow-id revision",
+                "run --workflow-id literature_survey_polish",
+            ],
+        )
+        self.assertEqual(groups["internal_adapter_workflow_paths"], ["run --workflow-id shell_adapter_smoke"])
 
 
 if __name__ == "__main__":

@@ -441,3 +441,12 @@
 - A future typed front-door authority map may generate docs/tests from a richer shared classification, but until that lands the invariant remains per-surface exact sources, not faux unification.
 
 **Why**: A single cross-TS/Python "master command table" would create false shared authority and stale-doc drift. Mature runtimes instead keep one exact source per live boundary and let overview docs remain summary-level projections.
+
+### [2026-04-07] Public `hepar run` compatibility boundary: only `paper_reviser` stays installable, and the survivor set must be explicitly classified
+
+**Decision**:
+- The installable public `hepar` / `hep-autoresearch` / `hep-autopilot` `run --workflow-id ...` surface is now narrowed to `paper_reviser` only.
+- `ingest`, `reproduce`, `revision`, `literature_survey_polish`, `shell_adapter_smoke`, and already-retired public `computation` are not public-shell authority anymore; they may remain temporarily on the internal full parser for maintainer/eval/regression coverage, but they must not be documented or tested as installable public entrypoints.
+- The exact survivor/boundary classification should live in a dedicated front-door authority map (`meta/front_door_authority_map_v1.json`) consumed by docs/tests, with separate surface ids for canonical `autoresearch`, installable `hepar` public shell, internal full parser residue, and exact MCP tool spec surfaces.
+
+**Why**: Once generic lifecycle and computation authority moved to `autoresearch`, leaving multiple public `hepar run` workflow ids installable would quietly re-elevate the legacy Python shell as a second workflow front door. Keeping only the single compatibility survivor, and locking the rest behind explicit internal-only classification, prevents that drift while leaving bounded maintainer coverage until full deletion.

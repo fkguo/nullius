@@ -162,6 +162,7 @@ Current bounded computation note:
 - It requires an initialized external project root plus a prepared `computation/manifest.json`.
 - Gate handling stays on `autoresearch status/approve`.
 - `run-card validate/render` and residual non-computation Pipeline A `run` workflows remain on the legacy Python surface pending retirement.
+- Front-door surface classification now lives in `meta/front_door_authority_map_v1.json`; exact inventories still remain owned by their source surfaces.
 
 Current tool-surface families inside the package:
 

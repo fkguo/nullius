@@ -1,3 +1,10 @@
+import {
+  getFrontDoorAuthoritySurface,
+  HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN,
+} from './front-door-authority-map.mjs';
+
+const ORCHESTRATOR_MCP_TOOLS_SPEC_PATH = getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').exact_inventory_source;
+
 // Keep these assertions line-stable: the root checker and doc drift tests use
 // exact substring matches so front-door wording drift fails closed.
 export const FRONT_DOOR_SNIPPETS = [
@@ -6,7 +13,7 @@ export const FRONT_DOOR_SNIPPETS = [
     snippets: [
       'Need the current mainline front-door truth first? Start with the repo-root [README](../../README.md), [docs/QUICKSTART.md](../../docs/QUICKSTART.md), and [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md). The package docs below are package-local legacy / maintainer-oriented docs around the residual Pipeline A surface, not the default product first touch.',
       'The installable public legacy surface now excludes public computation plus `doctor`, `bridge`, and `literature-gap`',
-      'Exact installable public command inventory: `approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`.',
+      `Exact installable public command inventory: ${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}.`,
       'Transitional Pipeline A compatibility CLI (install aliases: `hep-autoresearch`, `hepar`, `hep-autopilot`) remains available, but it is not the generic front door.',
     ],
     forbiddenSnippets: [
@@ -18,7 +25,7 @@ export const FRONT_DOOR_SNIPPETS = [
     snippets: [
       '如果你先想确认当前 mainline 的 front-door 真相，请先看仓库根级的 [README](../../README.md)、[docs/QUICKSTART.md](../../docs/QUICKSTART.md) 与 [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md)。下面这些内容是 `packages/hep-autoresearch/` 的 package-local legacy / maintainer 文档链路，不是默认产品前门。',
       '安装入口的 public shell 已不再暴露 public computation、`doctor`、`bridge` 与 `literature-gap`。',
-      '安装态 public shell 的精确命令清单是：`approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`。',
+      `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
       '当前通过安装入口（`hep-autoresearch`/`hepar`/`hep-autopilot`）可见的 legacy CLI 公共命令面如下；这些命令用于兼容未完成退役的 Pipeline A 能力，不构成 generic authority：',
     ],
     forbiddenSnippets: [
@@ -78,7 +85,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.zh.md',
     snippets: [
       'public computation、`doctor`、`bridge` 与 `literature-gap` 已从 installable shell 退役，仅保留在内部 full parser 供 maintainer/eval/regression 使用。',
-      '安装态 public shell 的精确命令清单是：`approvals`, `report`, `run`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`。',
+      `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
       'computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：',
       '# computation 现在走 native TS front door，而不是 installable `hepar run`',
     ],
@@ -218,7 +225,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '`autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`',
       '`autoresearch run --workflow-id computation` is the native TS computation entrypoint in this slice.',
       'The installable `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only and should keep moving toward retirement.',
-      'For the exact live `orch_*` inventory and semantics, read `meta/docs/orchestrator-mcp-tools-spec.md`.',
+      `For the exact live \`orch_*\` inventory and semantics, read \`${ORCHESTRATOR_MCP_TOOLS_SPEC_PATH}\`.`,
       'Users who need generic lifecycle state should invoke `autoresearch` directly rather than expecting the root MCP server to own that surface today.',
     ],
     forbiddenSnippets: [

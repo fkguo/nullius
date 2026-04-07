@@ -192,21 +192,23 @@ class TestPaperReviserWorkflow(unittest.TestCase):
         from io import StringIO
 
         sys.path.insert(0, str(_src_root()))
-        from hep_autoresearch.orchestrator_cli import main as cli_main
+        from hep_autoresearch.cli import main as public_cli_main
+        from hep_autoresearch.orchestrator_cli import main as internal_cli_main
 
-        def run_cli(argv: list[str]) -> int:
+        def run_cli(argv: list[str], *, public: bool) -> int:
             argv0 = list(sys.argv)
             try:
                 sys.argv = list(argv)
                 buf_out, buf_err = StringIO(), StringIO()
                 with redirect_stdout(buf_out), redirect_stderr(buf_err):
-                    return int(cli_main())
+                    entrypoint = public_cli_main if public else internal_cli_main
+                    return int(entrypoint())
             finally:
                 sys.argv = argv0
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
+            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"], public=False), 0)
 
             # Create an offline stub of the external paper-reviser skill.
             skills_root = repo_root / "skills"
@@ -312,7 +314,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             ]
 
             # First run should request A1 approval (Step C) before running retrieval tasks.
-            rc = run_cli(base)
+            rc = run_cli(base, public=True)
             self.assertEqual(rc, 3)
 
             # SSOT should already be written even when blocked by the approval gate.
@@ -342,10 +344,13 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             # Ensure tasks did not execute before approval.
             self.assertFalse((run_root / "verification" / "task_state" / "LF-001.json").exists())
 
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_id)]), 0)
+            self.assertEqual(
+                run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_id)], public=False),
+                0,
+            )
 
             # Second run should complete end-to-end (offline stub paths).
-            rc2 = run_cli(base)
+            rc2 = run_cli(base, public=True)
             self.assertEqual(rc2, 0)
 
             # SSOT structure.
@@ -395,7 +400,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             # Resume/skip: rerun should not re-execute task or evidence synthesis.
             log_sha_1 = hashlib.sha256(log_path.read_bytes()).hexdigest()
             vr_sha_1 = hashlib.sha256(vr_json.read_bytes()).hexdigest()
-            rc3 = run_cli(base)
+            rc3 = run_cli(base, public=True)
             self.assertEqual(rc3, 0)
             log_sha_2 = hashlib.sha256(log_path.read_bytes()).hexdigest()
             vr_sha_2 = hashlib.sha256(vr_json.read_bytes()).hexdigest()
@@ -408,21 +413,23 @@ class TestPaperReviserWorkflow(unittest.TestCase):
         from io import StringIO
 
         sys.path.insert(0, str(_src_root()))
-        from hep_autoresearch.orchestrator_cli import main as cli_main
+        from hep_autoresearch.cli import main as public_cli_main
+        from hep_autoresearch.orchestrator_cli import main as internal_cli_main
 
-        def run_cli(argv: list[str]) -> int:
+        def run_cli(argv: list[str], *, public: bool) -> int:
             argv0 = list(sys.argv)
             try:
                 sys.argv = list(argv)
                 buf_out, buf_err = StringIO(), StringIO()
                 with redirect_stdout(buf_out), redirect_stderr(buf_err):
-                    return int(cli_main())
+                    entrypoint = public_cli_main if public else internal_cli_main
+                    return int(entrypoint())
             finally:
                 sys.argv = argv0
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
+            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"], public=False), 0)
 
             skills_root = repo_root / "skills"
             _write_stub_paper_reviser_skill(skills_root)
@@ -510,15 +517,18 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             ]
 
             # First run should request A1 approval.
-            rc = run_cli(base)
+            rc = run_cli(base, public=True)
             self.assertEqual(rc, 3)
             state = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             approval_a1 = ((state.get("pending_approval") or {}).get("approval_id"))
             self.assertIsInstance(approval_a1, str)
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_a1)]), 0)
+            self.assertEqual(
+                run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_a1)], public=False),
+                0,
+            )
 
             # Second run should request A4 approval to apply edits back to the draft.
-            rc2 = run_cli(base)
+            rc2 = run_cli(base, public=True)
             self.assertEqual(rc2, 3)
             state2 = json.loads((repo_root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
             pending2 = state2.get("pending_approval") or {}
@@ -530,10 +540,13 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             draft_txt_2 = draft_path.read_text(encoding="utf-8", errors="replace")
             self.assertNotIn("% context applied", draft_txt_2)
 
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_a4)]), 0)
+            self.assertEqual(
+                run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_a4)], public=False),
+                0,
+            )
 
             # Third run should complete and apply.
-            rc3 = run_cli(base)
+            rc3 = run_cli(base, public=True)
             self.assertEqual(rc3, 0)
             draft_txt_3 = draft_path.read_text(encoding="utf-8", errors="replace")
             self.assertIn("% context applied", draft_txt_3)

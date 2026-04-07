@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "note": "Classification and docs/tests consumption layer only. Exact inventories remain owned by their source surfaces and must be kept in sync by fail-closed tests.",
+  "surfaces": {
+    "autoresearch_cli": {
+      "classification": "canonical_public",
+      "surface_kind": "cli_command_inventory",
+      "owner": "@autoresearch/orchestrator",
+      "exact_inventory_source": "packages/orchestrator/src/cli-command-inventory.ts",
+      "commands": [
+        {
+          "command": "init",
+          "usage": "autoresearch init [options]"
+        },
+        {
+          "command": "run",
+          "usage": "autoresearch run --workflow-id computation [options]"
+        },
+        {
+          "command": "status",
+          "usage": "autoresearch status [--json]"
+        },
+        {
+          "command": "approve",
+          "usage": "autoresearch approve <approval_id> [--note \"...\"]"
+        },
+        {
+          "command": "pause",
+          "usage": "autoresearch pause [--note \"...\"]"
+        },
+        {
+          "command": "resume",
+          "usage": "autoresearch resume [--note \"...\"] [--force]"
+        },
+        {
+          "command": "export",
+          "usage": "autoresearch export [options]"
+        },
+        {
+          "command": "workflow-plan",
+          "usage": "autoresearch workflow-plan --recipe <recipe_id> [options]"
+        }
+      ]
+    },
+    "hepar_public_shell": {
+      "classification": "compatibility_public",
+      "surface_kind": "cli_command_inventory",
+      "owner": "packages/hep-autoresearch",
+      "exact_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_SHELL_COMMANDS",
+      "run_workflow_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_RUN_WORKFLOW_IDS",
+      "run_workflow_ids": [
+        "paper_reviser"
+      ],
+      "commands": [
+        "approvals",
+        "report",
+        "run",
+        "logs",
+        "context",
+        "smoke-test",
+        "method-design",
+        "propose",
+        "skill-propose",
+        "run-card",
+        "branch",
+        "migrate"
+      ]
+    },
+    "hepar_internal_full_parser": {
+      "classification": "internal_only",
+      "surface_kind": "compatibility_full_parser",
+      "owner": "packages/hep-autoresearch",
+      "exact_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main(public_surface=False)",
+      "command_groups": [
+        {
+          "group": "legacy_lifecycle_adapters",
+          "commands": [
+            "init",
+            "status",
+            "pause",
+            "resume",
+            "approve"
+          ]
+        },
+        {
+          "group": "internal_support_commands",
+          "commands": [
+            "start",
+            "checkpoint",
+            "request-approval",
+            "reject",
+            "doctor",
+            "bridge",
+            "literature-gap"
+          ]
+        },
+        {
+          "group": "internal_workflow_paths",
+          "commands": [
+            "run --workflow-id computation",
+            "run --workflow-id ingest",
+            "run --workflow-id reproduce",
+            "run --workflow-id revision",
+            "run --workflow-id literature_survey_polish"
+          ]
+        },
+        {
+          "group": "internal_adapter_workflow_paths",
+          "commands": [
+            "run --workflow-id shell_adapter_smoke"
+          ]
+        }
+      ]
+    },
+    "orchestrator_mcp_tools_spec": {
+      "classification": "canonical_public",
+      "surface_kind": "exact_doc_inventory",
+      "owner": "@autoresearch/hep-mcp",
+      "exact_inventory_source": "meta/docs/orchestrator-mcp-tools-spec.md",
+      "live_registry_source": "packages/hep-mcp/src/tools/index.ts#getTools('full') filtered to orch_*",
+      "namespace_families": [
+        "orch_run_*",
+        "orch_policy_*",
+        "orch_fleet_*"
+      ]
+    }
+  }
+}

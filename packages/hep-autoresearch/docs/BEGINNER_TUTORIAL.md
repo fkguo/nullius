@@ -50,7 +50,7 @@ This creates a minimal project root with:
 - `docs/`, `specs/`
 
 After initialization, you can run `autoresearch ...` for lifecycle verbs from any subdirectory; the CLI searches upward for `.autoresearch/`.
-Workflow commands shown below remain on the transitional Pipeline A surface in this batch.
+The only public `run` workflow still exposed on the transitional Pipeline A surface in this batch is `paper_reviser`; other workflow names in the workflow docs are semantic specs or internal maintainer paths, not current installable-shell truth.
 If you pass an explicit `HEP_DATA_DIR`, keep that directory outside the dev repo as well; public real-project flows now fail closed on repo-internal overrides.
 
 ## 3) Legacy compatibility smoke test without external LLM calls
@@ -72,36 +72,36 @@ Check the outputs:
 
 This confirms the project-local charter / plan / notebook / gate contracts are visible to the runtime.
 
-## 4) Run a minimal legacy workflow example
-
-Example: deterministic ingest run with no external LLM dependency.
+## 4) Inspect the remaining public compatibility `run` surface
 
 ```bash
-hep-autoresearch run \
-  --run-id M1-ingest-r1 \
-  --workflow-id ingest \
-  --arxiv-id 2310.06770 \
-  --refkey arxiv-2310.06770-swe-bench \
-  --download none
-
-autoresearch status
-hep-autoresearch logs --tail 20
+hep-autoresearch run --help
 ```
 
-If a gate is raised:
+For an actual public `run` invocation, use the paper-reviser workflow contract:
 
 ```bash
+hep-autoresearch run --run-id <RUN_ID> --workflow-id paper_reviser \
+  --paper-root /path/to/external-paper-project \
+  --tex-main main.tex \
+  --writer-backend claude --writer-model <MODEL> \
+  --auditor-backend gemini --auditor-model <MODEL> \
+  --manual-evidence
+
 autoresearch status
 autoresearch approve <approval_id>
-hep-autoresearch run --run-id M1-ingest-r1 --workflow-id ingest --arxiv-id 2310.06770 --refkey arxiv-2310.06770-swe-bench --download none
+hep-autoresearch run --run-id <RUN_ID> --workflow-id paper_reviser ...
 ```
+
+Detailed gate behavior, artifacts, and resume semantics live in `workflows/paper_reviser.md`.
 
 ## 5) Other workflows
 
 - `computation`: `docs/COMPUTATION.md` via `autoresearch run --workflow-id computation` (native TS front door, not `hep-autoresearch run`)
-- `reproduce`: `workflows/reproduce.md`
+- `paper_reviser`: `workflows/paper_reviser.md` via the remaining public compatibility `hep-autoresearch run --workflow-id paper_reviser`
+- `reproduce`: `workflows/reproduce.md` (workflow spec / maintainer coverage, not current installable public shell)
 - `draft`: `workflows/draft.md`
-- `revision`: `workflows/revision.md`
+- `revision`: `workflows/revision.md` (workflow spec / maintainer coverage, not current installable public shell)
 - `derivation_check`: `workflows/derivation_check.md`
 
 For `revision`, the default expectation is a project-local LaTeX tree such as `paper/`, or a user-specified LaTeX repo.
