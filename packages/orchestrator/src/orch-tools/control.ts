@@ -8,7 +8,6 @@ import {
 import { z } from 'zod';
 import {
   createStateManager,
-  pauseFilePath,
   requireState,
 } from './common.js';
 import {
@@ -56,20 +55,13 @@ export async function handleOrchRunPause(
 ): Promise<unknown> {
   const { manager, projectRoot } = createStateManager(params.project_root);
   const state = requireState(projectRoot, manager);
-  state.run_status = 'paused';
-  state.notes = params.note ?? 'paused via orch_run_pause';
-  fs.writeFileSync(pauseFilePath(projectRoot), 'paused\n', 'utf-8');
-  manager.saveState(state);
-  manager.appendLedger('paused', {
-    run_id: state.run_id,
-    workflow_id: state.workflow_id,
-    details: { note: params.note ?? '' },
-  });
+  manager.pauseRun(state, params.note);
+  const updated = manager.readState();
   return {
     paused: true,
-    run_id: state.run_id,
-    run_status: 'paused',
-    uri: `orch://runs/${state.run_id}`,
+    run_id: updated.run_id,
+    run_status: updated.run_status,
+    uri: `orch://runs/${updated.run_id}`,
   };
 }
 
@@ -78,23 +70,13 @@ export async function handleOrchRunResume(
 ): Promise<unknown> {
   const { manager, projectRoot } = createStateManager(params.project_root);
   const state = requireState(projectRoot, manager);
-  const pausePath = pauseFilePath(projectRoot);
-  if (fs.existsSync(pausePath)) {
-    fs.unlinkSync(pausePath);
-  }
-  state.run_status = 'running';
-  state.notes = params.note ?? 'resumed via orch_run_resume';
-  manager.saveState(state);
-  manager.appendLedger('resumed', {
-    run_id: state.run_id,
-    workflow_id: state.workflow_id,
-    details: { note: params.note ?? '' },
-  });
+  manager.resumeRun(state, { note: params.note, force: params.force });
+  const updated = manager.readState();
   return {
     resumed: true,
-    run_id: state.run_id,
-    run_status: 'running',
-    uri: `orch://runs/${state.run_id}`,
+    run_id: updated.run_id,
+    run_status: updated.run_status,
+    uri: `orch://runs/${updated.run_id}`,
   };
 }
 

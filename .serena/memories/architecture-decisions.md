@@ -410,3 +410,23 @@
 - This bounded seam should remain the pattern for future control-plane convergence: persist canonical lineage in internal state first, then derive public/operator views separately if needed.
 
 **Why**: The real gap was not missing public fields; it was that live delegated execution dropped the typed relation back to canonical task authority once follow-ups entered team runtime. Preserving that relation internally matches mature thread/session systems that keep canonical ids in durable history while projecting smaller operator summaries outward, and it closes the lineage hole without reopening payload/UI scope.
+
+### [2026-04-07] Legacy Python lifecycle/workflow retirement invariant: generic authority stays on `autoresearch`, residue stays provider-local
+
+**Decision**:
+- Generic root lifecycle authority now lives only on the TS control plane: `autoresearch` / `packages/orchestrator` own `init`, `status`, `pause`, `resume`, `approve`, and `export`.
+- `hep-autoresearch` / `hepar` must not regain direct public root lifecycle or approval-mutation authority. Any retained internal Python lifecycle surface is allowed only as a thin passthrough to canonical `autoresearch`, while the web surface is limited to read-only diagnostics.
+- `research_workflow_v1` and `workflow-templates` are no longer live workflow authority. Recipe-based workflow authority now means `workflow_recipe_v1` + `packages/literature-workflows` + `meta/recipes`, and shared/generated exports must not imply a second graph-schema workflow substrate.
+- Remaining `M-22` work is therefore bounded to residual provider-local non-computation `run` workflows and adjacent support surfaces, not generic lifecycle or workflow authority.
+
+**Why**: This keeps the generic-first control plane from sliding back into dual authority through legacy Python shells or historical workflow graph residue. It also narrows future retirement work to the real remaining provider-local surface instead of reopening already-closed generic lifecycle/workflow questions.
+
+### [2026-04-07] Projection-only surface invariant: bridge/web/fleet/legacy shells must not become second lifecycle or session authorities
+
+**Decision**:
+- Operator- or compatibility-facing surfaces such as legacy shells, diagnostics web views, runtime bridges, and fleet/status projections may summarize or forward canonical state, but they must not silently acquire their own lifecycle/session authority.
+- When a legacy or provider-local command remains for maintainer/eval/regression coverage, it should be explicitly labeled as internal-only or compatibility-only in code and docs rather than implied to be part of the canonical public surface.
+- Future guardrails should prefer an explicit command/surface inventory that classifies each entrypoint as canonical public, compatibility public, or internal-only, instead of relying only on scattered wording locks.
+- Approval/permission semantics should remain typed and scoped at the control-plane boundary (for example per-turn/per-session or per-run/per-project), while bridge/projection layers only carry the derived “blocked on what” context outward.
+
+**Why**: Mature agent runtimes keep thread/session state, execution RPC, approval/permission decisions, and operator projections on separate seams. Preserving that separation in Autoresearch prevents `bridge`, `fleet`, diagnostics UIs, or legacy compatibility shells from hardening into a parallel control plane.

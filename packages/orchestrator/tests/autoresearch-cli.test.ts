@@ -244,6 +244,51 @@ describe('autoresearch CLI', () => {
     expect(state.approval_history).toHaveLength(1);
   });
 
+  it('preserves pause/resume state-manager semantics on the canonical lifecycle surface', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-PAUSE-1';
+    state.workflow_id = 'ingest';
+    state.run_status = 'completed';
+    manager.saveState(state);
+
+    const pausedIo = makeIo(projectRoot);
+    await expect(runCli(['pause', '--note', 'hold'], pausedIo.io)).resolves.toBe(0);
+    const paused = manager.readState();
+    expect(paused.run_status).toBe('paused');
+    expect(paused.paused_from_status).toBe('completed');
+    expect(fs.existsSync(path.join(projectRoot, '.pause'))).toBe(true);
+
+    const resumeIo = makeIo(projectRoot);
+    await expect(runCli(['resume', '--note', 'go'], resumeIo.io)).resolves.toBe(0);
+    const resumed = manager.readState();
+    expect(resumed.run_status).toBe('completed');
+    expect(resumed.paused_from_status).toBeUndefined();
+    expect(resumed.notes).toBe('go');
+    expect(fs.existsSync(path.join(projectRoot, '.pause'))).toBe(false);
+  });
+
+  it('supports resume --force on terminal states', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-RESUME-FORCE';
+    state.workflow_id = 'ingest';
+    state.run_status = 'completed';
+    manager.saveState(state);
+
+    const { io } = makeIo(projectRoot);
+    await expect(runCli(['resume'], io)).rejects.toThrow('cannot resume from status=completed');
+    await expect(runCli(['resume', '--force', '--note', 'force resume'], io)).resolves.toBe(0);
+
+    const resumed = manager.readState();
+    expect(resumed.run_status).toBe('running');
+    expect(resumed.notes).toBe('force resume');
+  });
+
   it('fails closed when run requests unsupported workflow ids', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);

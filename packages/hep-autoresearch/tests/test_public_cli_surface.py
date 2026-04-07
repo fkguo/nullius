@@ -40,11 +40,15 @@ class TestPublicCliSurface(unittest.TestCase):
         rc, out, err = self._run_public_cli(["hepar", "--help"])
         self.assertEqual(rc, 0)
         self.assertEqual(err, "")
+        self.assertNotIn(" start ", out)
+        self.assertNotIn(" checkpoint ", out)
         self.assertNotIn(" init ", out)
         self.assertNotIn(" status ", out)
         self.assertNotIn(" pause ", out)
         self.assertNotIn(" resume ", out)
         self.assertNotIn(" approve ", out)
+        self.assertNotIn(" request-approval ", out)
+        self.assertNotIn(" reject ", out)
         self.assertNotIn(" export ", out)
         self.assertNotIn(" literature-gap ", out)
         self.assertNotIn(",doctor,", out)
@@ -66,7 +70,7 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertIn("for computation", out)
 
     def test_public_cli_rejects_retired_public_surfaces(self) -> None:
-        for command in ("init", "status", "export", "doctor", "bridge", "literature-gap"):
+        for command in ("start", "checkpoint", "init", "status", "request-approval", "reject", "export", "doctor", "bridge", "literature-gap"):
             rc, _, err = self._run_public_cli(["hepar", command])
             self.assertEqual(rc, 2)
             self.assertIn("invalid choice", err)

@@ -4,7 +4,7 @@ This quickstart assumes you are using the current CLI surfaces in an **external 
 
 For the current generic front door, start with the repo-root `../../docs/QUICKSTART.md` and `../../docs/TESTING_GUIDE.md`. This package tutorial is a legacy-surface / maintainer-oriented compatibility walkthrough for readers who intentionally need the narrowed Pipeline A shell around an external research project.
 
-Lifecycle note: the canonical generic lifecycle entrypoint is now `autoresearch` for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python surface for residual non-computation workflow/support commands. The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`. This tutorial therefore uses `autoresearch` for lifecycle verbs, while any legacy-shell examples stay on the residual compatibility surface only.
+Lifecycle note: the canonical generic lifecycle entrypoint is now `autoresearch` for `init/status/approve/pause/resume/export`. `hep-autoresearch`, `hepar`, and `hep-autopilot` remain the transitional **Pipeline A** Python surface for residual non-computation workflow/support commands. The installable public shell no longer exposes public computation, `doctor`, `bridge`, or `literature-gap`. It also no longer exposes direct root lifecycle/approval mutations (`start`, `checkpoint`, `request-approval`, `reject`). This tutorial therefore uses `autoresearch` for lifecycle verbs, while any legacy-shell examples stay on the residual compatibility surface only.
 
 ## 0) Core ideas
 

@@ -89,6 +89,57 @@ def _all_run_workflow_ids() -> set[str]:
     return {"computation"} | _public_run_workflow_ids()
 
 
+def _repo_checkout_root_from_source() -> Path | None:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "packages" / "orchestrator").is_dir() and (parent / "package.json").is_file():
+            return parent
+    return None
+
+
+def _resolve_autoresearch_launcher() -> list[str] | None:
+    resolved = shutil.which("autoresearch")
+    if resolved:
+        return [resolved]
+
+    repo_root = _repo_checkout_root_from_source()
+    node = shutil.which("node")
+    if repo_root is not None and node:
+        dist_cli = repo_root / "packages" / "orchestrator" / "dist" / "cli.js"
+        if dist_cli.is_file():
+            return [node, os.fspath(dist_cli)]
+
+    pnpm = shutil.which("pnpm")
+    if repo_root is not None and pnpm:
+        src_cli = repo_root / "packages" / "orchestrator" / "src" / "cli.ts"
+        if src_cli.is_file():
+            return [pnpm, "--dir", os.fspath(repo_root), "exec", "tsx", os.fspath(src_cli)]
+    return None
+
+
+def _run_autoresearch_passthrough(*, repo_root: Path, argv: list[str]) -> int:
+    launcher = _resolve_autoresearch_launcher()
+    if launcher is None:
+        return _die(
+            "canonical `autoresearch` CLI is unavailable; install/build @autoresearch/orchestrator "
+            "or put `autoresearch` on PATH"
+        )
+
+    cmd = [*launcher, "--project-root", os.fspath(repo_root), *[str(arg) for arg in argv]]
+    cp = subprocess.run(
+        cmd,
+        cwd=os.fspath(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if cp.stdout:
+        sys.stdout.write(cp.stdout)
+    if cp.stderr:
+        sys.stderr.write(cp.stderr)
+    return int(cp.returncode)
+
+
 def _run_workflow_id_help(*, public_surface: bool) -> str:
     if public_surface:
         return (
@@ -310,68 +361,20 @@ def _ensure_run_card(
 
 def cmd_init(args: argparse.Namespace) -> int:
     repo_root = _repo_root_for_init(args)
-    if repo_root.name == ".autoresearch":
-        return _die("refusing init inside .autoresearch/ (run init at the project root, or use --project-root)")
-    parent_root = _find_nearest_project_root(repo_root.parent)
-    if parent_root and parent_root.resolve() == Path.home().resolve():
-        parent_root = None
-    if parent_root and parent_root.resolve() != repo_root.resolve() and not bool(getattr(args, "allow_nested", False)):
-        return _die(
-            "refusing init: a parent directory is already a project root "
-            f"({parent_root}); run init at the intended root, or pass --allow-nested"
-        )
-    scaffold_root = repo_root
-    if not bool(getattr(args, "runtime_only", False)):
-        scaffold_root = assert_project_root_allowed(repo_root, project_policy=PROJECT_POLICY_REAL_PROJECT)
-
-    with state_lock(repo_root):
-        ensure_runtime_dirs(repo_root)
-        scaffold = (
-            {"created": [], "skipped": []}
-            if bool(getattr(args, "runtime_only", False))
-            else ensure_project_scaffold(
-                repo_root=scaffold_root,
-                project_name=scaffold_root.name,
-                project_policy=PROJECT_POLICY_REAL_PROJECT,
-            )
-        )
-        st_path = state_path(repo_root)
-        if st_path.exists() and not args.force:
-            print(f"[ok] already initialized: {st_path}")
-        else:
-            st = default_state()
-            if args.checkpoint_interval_seconds is not None:
-                st["checkpoints"]["checkpoint_interval_seconds"] = int(args.checkpoint_interval_seconds)
-            save_state(repo_root, st)
-            append_ledger_event(repo_root, event_type="initialized", run_id=None, workflow_id=None, details={})
-            print(f"[ok] wrote: {st_path}")
-
-        policy_path = approval_policy_path(repo_root)
-        if not policy_path.exists():
-            policy = read_approval_policy(repo_root)
-            policy_path.parent.mkdir(parents=True, exist_ok=True)
-            policy_path.write_text(json.dumps(policy, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            print(f"[ok] wrote: {policy_path}")
-        else:
-            print(f"[ok] approval policy present: {policy_path}")
-
-        marker = autoresearch_dir(repo_root) / ".initialized"
-        if not marker.exists():
-            marker.write_text(utc_now_iso().replace("+00:00", "Z") + "\n", encoding="utf-8")
-        print(f"[ok] runtime dir: {autoresearch_dir(repo_root)}")
-        if bool(getattr(args, "runtime_only", False)):
-            print("[ok] project scaffold skipped (--runtime-only)")
-
-    created = scaffold.get("created") if isinstance(scaffold, dict) else None
-    if isinstance(created, list) and created:
-        print("[ok] scaffold created:")
-        for p in created[:50]:
-            print(f"- {p}")
-        if len(created) > 50:
-            print(f"- ... ({len(created) - 50} more)")
-    return 0
+    forwarded = ["init"]
+    if bool(getattr(args, "force", False)):
+        forwarded.append("--force")
+    if bool(getattr(args, "allow_nested", False)):
+        forwarded.append("--allow-nested")
+    if bool(getattr(args, "runtime_only", False)):
+        forwarded.append("--runtime-only")
+    if getattr(args, "checkpoint_interval_seconds", None) is not None:
+        forwarded.extend(["--checkpoint-interval-seconds", str(int(args.checkpoint_interval_seconds))])
+    return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
+# Internal-only maintainer surface: `start` is retired from the installable shell
+# and has not been repointed onto the canonical TS lifecycle front door.
 def cmd_start(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
     st = _read_or_init_state(repo_root)
@@ -798,59 +801,24 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_pause(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
-    st = _read_or_init_state(repo_root)
-
-    (repo_root / ".pause").write_text("paused\n", encoding="utf-8")
-    # Preserve the previous status so resume can restore e.g. completed/failed
-    # without accidentally flipping the run back to "running".
-    if st.get("run_status") != "paused":
-        st["paused_from_status"] = st.get("run_status")
-    st["run_status"] = "paused"
-    st["notes"] = args.note or "paused by user"
-    save_state(repo_root, st)
-    append_ledger_event(
-        repo_root,
-        event_type="paused",
-        run_id=st.get("run_id"),
-        workflow_id=st.get("workflow_id"),
-        step_id=(st.get("current_step") or {}).get("step_id") if isinstance(st.get("current_step"), dict) else None,
-        details={"note": args.note or ""},
-    )
-    print("[ok] paused (created .pause)")
-    return 0
+    forwarded = ["pause"]
+    if getattr(args, "note", None):
+        forwarded.extend(["--note", str(args.note)])
+    return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
 def cmd_resume(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
-    st = _read_or_init_state(repo_root)
-    pending = st.get("pending_approval")
-    if pending:
-        return _die(f"cannot resume while awaiting approval ({pending.get('approval_id')}); run approve/reject")
-
-    pause_file = repo_root / ".pause"
-    if pause_file.exists():
-        pause_file.unlink()
-
-    if st.get("run_status") in {"idle", "completed", "failed"} and not args.force:
-        return _die(f"cannot resume from status={st.get('run_status')} (use start or --force)")
-
-    restored = st.pop("paused_from_status", None)
-    st["run_status"] = restored or "running"
-    st["notes"] = args.note or "resumed by user"
-    st.setdefault("checkpoints", {})["last_checkpoint_at"] = utc_now_iso().replace("+00:00", "Z")
-    save_state(repo_root, st)
-    append_ledger_event(
-        repo_root,
-        event_type="resumed",
-        run_id=st.get("run_id"),
-        workflow_id=st.get("workflow_id"),
-        step_id=(st.get("current_step") or {}).get("step_id") if isinstance(st.get("current_step"), dict) else None,
-        details={"note": args.note or ""},
-    )
-    print("[ok] resumed")
-    return 0
+    forwarded = ["resume"]
+    if getattr(args, "note", None):
+        forwarded.extend(["--note", str(args.note)])
+    if bool(getattr(args, "force", False)):
+        forwarded.append("--force")
+    return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
+# Internal-only maintainer surface: `checkpoint` is retired from the installable
+# shell and still owns local mutation semantics pending TS parity.
 def cmd_checkpoint(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
     st = _read_or_init_state(repo_root)
@@ -1586,6 +1554,8 @@ def _request_approval(
     return approval_id, os.fspath(packet_path.relative_to(repo_root))
 
 
+# Internal-only maintainer surface: `request-approval` is retired from the
+# installable shell and still materializes packets locally pending TS parity.
 def cmd_request_approval(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
     st = _read_or_init_state(repo_root)
@@ -1753,49 +1723,14 @@ def _require_pending(st: dict, approval_id: str) -> dict | None:
 
 def cmd_approve(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
-    st = _read_or_init_state(repo_root)
-
-    # --- C-01: enforce timeout/budget before allowing approval ---
-    timeout_action = check_approval_timeout(repo_root, st)
-    if timeout_action:
-        return _die(f"approval timed out (policy_action={timeout_action})")
-    if check_approval_budget(repo_root, st):
-        return _die("BUDGET_EXHAUSTED: approval budget has been reached")
-    # --- end C-01 ---
-
-    pending = _require_pending(st, args.approval_id)
-    if not pending:
-        return _die(f"no matching pending approval: {args.approval_id}")
-
-    category = pending.get("category")
-    st["pending_approval"] = None
-    st["run_status"] = "running"
-    st["notes"] = args.note or f"approved {args.approval_id}"
-    if category:
-        st.setdefault("gate_satisfied", {})[str(category)] = args.approval_id
-    st.setdefault("approval_history", []).append(
-        {
-            "ts": utc_now_iso().replace("+00:00", "Z"),
-            "approval_id": args.approval_id,
-            "category": category,
-            "decision": "approved",
-            "note": args.note or "",
-        }
-    )
-    st.setdefault("checkpoints", {})["last_checkpoint_at"] = utc_now_iso().replace("+00:00", "Z")
-    save_state(repo_root, st)
-    append_ledger_event(
-        repo_root,
-        event_type="approval_approved",
-        run_id=st.get("run_id"),
-        workflow_id=st.get("workflow_id"),
-        step_id=(st.get("current_step") or {}).get("step_id") if isinstance(st.get("current_step"), dict) else None,
-        details={"approval_id": args.approval_id, "category": category, "note": args.note or ""},
-    )
-    print(f"[ok] approved: {args.approval_id}")
-    return 0
+    forwarded = ["approve", str(args.approval_id)]
+    if getattr(args, "note", None):
+        forwarded.extend(["--note", str(args.note)])
+    return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
+# Internal-only maintainer surface: `reject` is retired from the installable
+# shell and still performs a direct local state mutation pending TS parity.
 def cmd_reject(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
     st = _read_or_init_state(repo_root)
@@ -3625,109 +3560,14 @@ def cmd_context(args: argparse.Namespace) -> int:
 
 def cmd_export(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
-    st = _read_or_init_state(repo_root)
-    run_id = args.run_id or st.get("run_id")
-    if not run_id:
-        return _die("missing run_id (pass --run-id or start a run first)")
-
-    out_path = Path(args.out) if args.out else (repo_root / "exports" / f"{run_id}.zip")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    include_dirs = [
-        repo_root / "artifacts" / "runs" / run_id,
-        repo_root / "team" / "runs" / run_id,
-    ]
-
-    def rel(p: Path) -> str:
-        try:
-            return os.fspath(p.relative_to(repo_root)).replace(os.sep, "/")
-        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
-            return os.fspath(p)
-
-    def is_within(path: Path, root: Path) -> bool:
-        try:
-            path.relative_to(root)
-            return True
-        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 deny-by-default path containment
-            return False
-
-    def safe_kb_file(rel_path: str) -> Path:
-        s = str(rel_path).replace("\\", "/").strip()
-        if not s:
-            raise ValueError("empty path")
-        if s.startswith("/") or s.startswith("~") or ":" in Path(s).drive:
-            raise ValueError(f"absolute path is not allowed: {s}")
-        if s.startswith("./"):
-            s = s[2:]
-        if ".." in Path(s).parts:
-            raise ValueError(f"path traversal is not allowed: {s}")
-
-        full = (repo_root / s).resolve()
-        allowed_root = (repo_root / "knowledge_base").resolve()
-        if not is_within(full, allowed_root):
-            raise ValueError(f"path is outside knowledge_base/: {s}")
-        if not full.exists() or not full.is_file():
-            raise FileNotFoundError(f"missing file: {s}")
-        return full
-
-    files: list[Path] = []
-    for base in include_dirs:
-        if not base.exists():
-            continue
-        for p in sorted(base.rglob("*"), key=lambda x: rel(x)):
-            if p.is_file():
-                files.append(p)
-
-    if getattr(args, "include_kb_profile", False):
-        kb_profile_path = repo_root / "artifacts" / "runs" / str(run_id) / "kb_profile" / "kb_profile.json"
-        if not kb_profile_path.exists():
-            return _die(f"--include-kb-profile requires kb_profile.json: {rel(kb_profile_path)}")
-        try:
-            kb_profile = read_json(kb_profile_path)
-        except Exception as e:
-            return _die(f"failed to read kb_profile.json: {e}")
-        if not isinstance(kb_profile, dict):
-            return _die("kb_profile.json must be a JSON object")
-
-        candidates: list[str] = []
-        for k in ["kb_index_path", "source"]:
-            v = kb_profile.get(k)
-            if isinstance(v, str) and v.strip():
-                candidates.append(v)
-
-        selected = kb_profile.get("selected") if isinstance(kb_profile.get("selected"), list) else []
-        for e in selected:
-            if isinstance(e, dict) and isinstance(e.get("path"), str) and str(e.get("path")).strip():
-                candidates.append(str(e.get("path")))
-
-        kb_files: list[Path] = []
-        issues: list[str] = []
-        seen: set[str] = set()
-        for c in candidates:
-            s = str(c).replace("\\", "/").strip()
-            if not s or s in seen:
-                continue
-            seen.add(s)
-            try:
-                kb_files.append(safe_kb_file(s))
-            except Exception as e:
-                issues.append(f"{s}: {e}")
-        if issues:
-            preview = "\n".join(f"- {x}" for x in issues[:10])
-            return _die(f"kb-profile export safety check failed:\n{preview}")
-        files.extend(sorted(kb_files, key=lambda x: rel(x)))
-
-    seen: set[str] = set()
-    with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for p in files:
-            arc = rel(p)
-            if arc in seen:
-                continue
-            seen.add(arc)
-            zf.write(p, arcname=arc)
-
-    print(f"[ok] wrote: {out_path}")
-    return 0
+    forwarded = ["export"]
+    if getattr(args, "run_id", None):
+        forwarded.extend(["--run-id", str(args.run_id)])
+    if getattr(args, "out", None):
+        forwarded.extend(["--out", str(args.out)])
+    if bool(getattr(args, "include_kb_profile", False)):
+        forwarded.append("--include-kb-profile")
+    return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
 def _mcp_config_path(repo_root: Path, args: argparse.Namespace) -> Path:
@@ -5747,9 +5587,9 @@ def cmd_migrate_wrapper(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     description = (
-        "Legacy Pipeline A CLI for unrepointed workflow and maintainer commands."
+        "Legacy Pipeline A CLI for residual provider-local workflow/support commands."
         if public_surface
-        else "Orchestrator CLI v0.4 (run + status/pause/resume/approve)."
+        else "Orchestrator CLI v0.4 (provider-local workflows plus narrow lifecycle adapters)."
     )
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
@@ -5774,16 +5614,6 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         p_init.add_argument("--checkpoint-interval-seconds", type=int, help="Default checkpoint interval.")
         p_init.set_defaults(fn=cmd_init)
 
-    p_start = sub.add_parser("start", help="Start a run (sets run_id/workflow_id, status=running).")
-    p_start.add_argument("--run-id", required=True, help="Run tag, e.g. M1-r1")
-    p_start.add_argument("--workflow-id", required=True, help="Workflow id, e.g. ingest")
-    p_start.add_argument("--step-id", help="Optional initial step id.")
-    p_start.add_argument("--step-title", help="Optional initial step title.")
-    p_start.add_argument("--checkpoint-interval-seconds", type=int, help="Override checkpoint interval for this run.")
-    p_start.add_argument("--note", help="Ledger note.")
-    p_start.add_argument("--force", action="store_true", help="Override running/awaiting_approval.")
-    p_start.set_defaults(fn=cmd_start)
-
     if not public_surface:
         p_status = sub.add_parser("status", help="Show current state (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch status`).")
         p_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON output.")
@@ -5798,35 +5628,11 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
         p_resume.add_argument("--force", action="store_true", help="Allow resuming from idle/completed/failed.")
         p_resume.set_defaults(fn=cmd_resume)
 
-    p_ckpt = sub.add_parser("checkpoint", help="Update checkpoint timestamp (runner heartbeat).")
-    p_ckpt.add_argument("--step-id", help="Optional current step id.")
-    p_ckpt.add_argument("--step-title", help="Optional current step title.")
-    p_ckpt.add_argument("--note", help="Ledger note.")
-    p_ckpt.add_argument("--force", action="store_true", help="Allow checkpoint in any status.")
-    p_ckpt.set_defaults(fn=cmd_checkpoint)
-
-    p_req = sub.add_parser("request-approval", help="Enter awaiting_approval and write an approval packet.")
-    p_req.add_argument("--category", required=True, help="A1|A2|A3|A4|A5")
-    p_req.add_argument("--run-id", help="Override run_id for packet path.")
-    p_req.add_argument("--purpose", help="Purpose (1–3 sentences).")
-    p_req.add_argument("--plan", action="append", default=[], help="Plan step (repeatable).")
-    p_req.add_argument("--risk", action="append", default=[], help="Risk line (repeatable).")
-    p_req.add_argument("--output", action="append", default=[], help="Output path line (repeatable).")
-    p_req.add_argument("--rollback", help="Rollback plan.")
-    p_req.add_argument("--note", help="Ledger note.")
-    p_req.add_argument("--force", action="store_true", help="Overwrite existing pending approval.")
-    p_req.set_defaults(fn=cmd_request_approval)
-
     if not public_surface:
         p_app = sub.add_parser("approve", help="Approve a pending approval and resume running (canonical generic entrypoint is `autoresearch approve`).")
         p_app.add_argument("approval_id", help="Approval id, e.g. A1-0001")
         p_app.add_argument("--note", help="Ledger note.")
         p_app.set_defaults(fn=cmd_approve)
-
-    p_rej = sub.add_parser("reject", help="Reject a pending approval and pause.")
-    p_rej.add_argument("approval_id", help="Approval id, e.g. A1-0001")
-    p_rej.add_argument("--note", help="Ledger note.")
-    p_rej.set_defaults(fn=cmd_reject)
 
     p_approvals = sub.add_parser("approvals", help="Approval packet utilities (NEW-03).")
     approvals_sub = p_approvals.add_subparsers(dest="approvals_cmd", required=True)

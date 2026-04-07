@@ -33,7 +33,6 @@ from .research_loop_packet_v1 import *  # noqa: F401,F403
 from .research_outcome_v1 import *  # noqa: F401,F403
 from .research_signal_v1 import *  # noqa: F401,F403
 from .research_strategy_v1 import *  # noqa: F401,F403
-from .research_workflow_v1 import *  # noqa: F401,F403
 from .skill_proposal_v2 import *  # noqa: F401,F403
 from .strategy_state_v1 import *  # noqa: F401,F403
 from .verification_check_run_v1 import *  # noqa: F401,F403

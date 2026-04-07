@@ -8,7 +8,7 @@ Commands:
   autoresearch status [--json]
   autoresearch approve <approval_id> [--note "..."]
   autoresearch pause [--note "..."]
-  autoresearch resume [--note "..."]
+  autoresearch resume [--note "..."] [--force]
   autoresearch export [options]
   autoresearch workflow-plan --recipe <recipe_id> [options]
 
@@ -80,6 +80,7 @@ Resume the current paused run for the current project root.
 
 Options:
   --note "..."   Record a ledger note with the resume.
+  --force        Allow resume from terminal states (idle/completed/failed).
 `,
   export: `autoresearch export
 

@@ -1098,7 +1098,7 @@ describe('paused_from_status tracking (Stage 3b)', () => {
     expect(state.run_status).toBe('running');
   });
 
-  it('resumeRun rejects idle/completed/failed without force (Python parity)', () => {
+  it('resumeRun rejects idle/completed/failed without force', () => {
     const sm = new StateManager(tmpDir);
     for (const status of ['idle', 'completed', 'failed'] as const) {
       const state = baseState({ run_id: 'r1', run_status: status });
@@ -1106,7 +1106,7 @@ describe('paused_from_status tracking (Stage 3b)', () => {
     }
   });
 
-  it('resumeRun allows idle/completed/failed with force (Python parity)', () => {
+  it('resumeRun allows idle/completed/failed with force', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({ run_id: 'r1', run_status: 'completed' });
     sm.resumeRun(state, { force: true });

@@ -6,7 +6,7 @@ English quickstart: `docs/BEGINNER_TUTORIAL.md`。本文件是中文详版。
 
 如果你想先看当前 generic front door，请先读仓库根级 `../../docs/QUICKSTART.md` 与 `../../docs/TESTING_GUIDE.md`。本教程是一个 package-level 的 legacy / maintainer 兼容路径说明，只面向那些确实需要触碰收窄后 Pipeline A shell 的读者。
 
-生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，但现在只承载 residual non-computation workflow/support commands。安装态 public shell 已不再暴露 public computation、`doctor`、`bridge` 与 `literature-gap`。因此本教程对 lifecycle verbs 使用 `autoresearch`，而任何 legacy shell 示例都只作为兼容路径说明。
+生命周期说明：generic lifecycle 的 canonical 入口现在是 `autoresearch`，用于 `init/status/approve/pause/resume/export`。`hep-autoresearch`、`hepar` 与 `hep-autopilot` 仍是过渡中的 **Pipeline A** Python surface，但现在只承载 residual non-computation workflow/support commands。安装态 public shell 已不再暴露 public computation、`doctor`、`bridge` 与 `literature-gap`。它也不再暴露 direct root lifecycle/approval mutations（`start`、`checkpoint`、`request-approval`、`reject`）。因此本教程对 lifecycle verbs 使用 `autoresearch`，而任何 legacy shell 示例都只作为兼容路径说明。
 
 ## 0）先建立 4 个概念
 

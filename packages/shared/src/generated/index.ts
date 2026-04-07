@@ -73,7 +73,6 @@ export type {
 export type { ResearchOutcomeV1 } from "./research-outcome-v1.js";
 export * from "./research-signal-v1.js";
 export * from "./research-strategy-v1.js";
-export * from "./research-workflow-v1.js";
 export * from "./skill-proposal-v2.js";
 export * from "./strategy-state-v1.js";
 export type {

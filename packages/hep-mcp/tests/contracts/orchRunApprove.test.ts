@@ -477,7 +477,11 @@ describe('orch_run_reject', () => {
 describe('orch_run_pause / orch_run_resume', () => {
   it('pause creates .pause, resume removes it', async () => {
     const projectRoot = makeTmpDir();
-    setupProject(projectRoot, { runId: 'run-pause' });
+    await handleToolCall(
+      'orch_run_create',
+      { project_root: projectRoot, run_id: 'run-pause', workflow_id: 'ingest' },
+      'full',
+    );
 
     await handleToolCall('orch_run_pause', { project_root: projectRoot, note: 'manual pause' }, 'full');
     expect(fs.existsSync(path.join(projectRoot, '.pause'))).toBe(true);
@@ -490,6 +494,24 @@ describe('orch_run_pause / orch_run_resume', () => {
 
     statusRes = await handleToolCall('orch_run_status', { project_root: projectRoot }, 'full');
     expect(extractPayload(statusRes).is_paused).toBe(false);
+  });
+
+  it('refuses resume while awaiting approval and preserves the pause sentinel', async () => {
+    const projectRoot = makeTmpDir();
+    setupProject(projectRoot, { runId: 'run-pause-awaiting-approval' });
+
+    await handleToolCall('orch_run_pause', { project_root: projectRoot, note: 'manual pause' }, 'full');
+    expect(fs.existsSync(path.join(projectRoot, '.pause'))).toBe(true);
+
+    const resumeRes = await handleToolCall('orch_run_resume', { project_root: projectRoot, note: 'resuming' }, 'full');
+    expect((resumeRes as Record<string, unknown>).isError).toBe(true);
+    expect(JSON.stringify(extractErrorPayload(resumeRes))).toMatch(/pending_approval exists/);
+    expect(fs.existsSync(path.join(projectRoot, '.pause'))).toBe(true);
+
+    const statusRes = await handleToolCall('orch_run_status', { project_root: projectRoot }, 'full');
+    const payload = extractPayload(statusRes);
+    expect(payload.is_paused).toBe(true);
+    expect(payload.run_status).toBe('paused');
   });
 });
 

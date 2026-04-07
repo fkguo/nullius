@@ -1,4 +1,4 @@
-# Orchestrator interaction (CLI/Web: pause/resume/status/approve)
+# Orchestrator interaction (CLI/Web: canonical lifecycle + read-only diagnostics)
 
 Goal: upgrade an “agent = a pile of scripts” into an interactive automation assistant, with a UX close to Codex CLI:
 - always query status (`status`)
@@ -12,7 +12,13 @@ Chinese version (legacy / detailed notes): `docs/ORCHESTRATOR_INTERACTION.zh.md`
 
 ## 1) CLI commands (CLI-first)
 
-Suggested command set (names may evolve):
+Current front-door truth:
+- canonical root lifecycle is `autoresearch init|status|approve|pause|resume|export`
+- canonical bounded computation is `autoresearch run --workflow-id computation`
+- installable `hep-autoresearch` / `hepar` / `hep-autopilot` keep only provider-local workflow/support commands on the public shell
+- direct public root lifecycle/approval mutations such as `start`, `checkpoint`, `request-approval`, and `reject` are retired from the installable shell; `reject` itself still remains an internal-only direct-mutation maintainer path pending canonical TS parity
+
+Suggested command families (conceptual; the concrete authority above is the current truth):
 - `init`: initialize your chosen project directory as a project root (scaffold missing docs/KB/specs; create `.autoresearch/` state + ledger)
 - `run`: start a workflow (for example `ingest`, `reproduce`, `draft`, `revision`, `derivation_check`, plus adapter workflows; optional `--sandbox` for high-risk shell backends)
 - `branch`: record branching decisions in the Plan SSOT (list/add/switch; safe backtracking)
@@ -20,7 +26,6 @@ Suggested command set (names may evolve):
 - `pause`: pause the run (write stop files or update state)
 - `resume`: continue
 - `approve <approval_id>`: approve a pending action (A1–A5)
-- `reject <approval_id>`: reject and require replanning / rebudgeting
 - `logs`: print recent logs and key failure points
 - `export`: export a run bundle (offline review/sharing)
 
@@ -44,7 +49,7 @@ When a gate triggers, the Orchestrator must write a **reviewable approval packet
   - `state.json#/plan` (SSOT pointer)
   - plan step ID(s) the approval applies to
 
-No execution may continue until human `approve`/`reject`.
+No execution may continue until approval is explicitly resolved on the canonical lifecycle surface.
 
 ## 3) State persistence (must be resumable)
 
@@ -74,8 +79,10 @@ Support both:
 
 Web UI should not change the contract, only the presentation:
 - status dashboard (step/logs/artifacts)
-- approve/reject buttons
 - diff / compile log previews
+
+Current implementation note:
+- `src/hep_autoresearch/web/app.py` is now a read-only diagnostics panel (`status` + `logs`) and points operators back to `autoresearch` for lifecycle actions
 
 ## 6) Acceptance criteria (milestone-ready)
 

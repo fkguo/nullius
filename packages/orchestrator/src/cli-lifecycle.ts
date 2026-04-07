@@ -64,8 +64,12 @@ export async function runPauseCommand(projectRoot: string, note: string | null, 
   io.stdout(`paused: ${String(payload.run_id ?? '')}\n`);
 }
 
-export async function runResumeCommand(projectRoot: string, note: string | null, io: CliIo): Promise<void> {
-  const payload = await handleOrchRunResume({ project_root: projectRoot, ...(note ? { note } : {}) }) as Record<string, unknown>;
+export async function runResumeCommand(projectRoot: string, note: string | null, force: boolean, io: CliIo): Promise<void> {
+  const payload = await handleOrchRunResume({
+    project_root: projectRoot,
+    force,
+    ...(note ? { note } : {}),
+  }) as Record<string, unknown>;
   io.stdout(`resumed: ${String(payload.run_id ?? '')}\n`);
 }
 

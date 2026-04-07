@@ -56,7 +56,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     return 0;
   }
   if (parsed.command === 'resume') {
-    await runResumeCommand(projectRoot, parsed.note, io);
+    await runResumeCommand(projectRoot, parsed.note, parsed.force, io);
     return 0;
   }
   if (parsed.command === 'approve') {

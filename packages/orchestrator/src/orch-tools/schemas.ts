@@ -114,6 +114,11 @@ export const OrchRunPauseSchema = z.object({
 export const OrchRunResumeSchema = z.object({
   project_root: ProjectRootSchema,
   note: z.string().optional().describe('Note recorded in ledger when resuming.'),
+  force: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Allow resume from terminal states (idle/completed/failed). Intended for operator recovery, not a normal workflow path.'),
 });
 
 export const OrchRunApprovalsListSchema = z.object({

@@ -11,7 +11,8 @@ export type ParsedCliArgs =
     dryRun: boolean;
   }
   | { command: 'status'; projectRoot: string | null; json: boolean }
-  | { command: 'pause' | 'resume'; projectRoot: string | null; note: string | null }
+  | { command: 'pause'; projectRoot: string | null; note: string | null }
+  | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
   | { command: 'approve'; projectRoot: string | null; approvalId: string; note: string | null }
   | {
     command: 'workflow-plan';
@@ -88,6 +89,25 @@ function parseNoteArgs(command: 'pause' | 'resume', args: string[]): { note: str
     throw new Error(`unknown ${command} argument: ${arg}`);
   }
   return { note };
+}
+
+function parseResumeArgs(args: string[]): { note: string | null; force: boolean } {
+  let note: string | null = null;
+  let force = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--note') {
+      note = readOptionValue(args, index, '--note');
+      index += 1;
+      continue;
+    }
+    if (arg === '--force') {
+      force = true;
+      continue;
+    }
+    throw new Error(`unknown resume argument: ${arg}`);
+  }
+  return { note, force };
 }
 
 function parseApproveArgs(args: string[]): { approvalId: string; note: string | null } {
@@ -249,7 +269,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     case 'pause':
       return { command: 'pause', projectRoot, ...parseNoteArgs('pause', rest) };
     case 'resume':
-      return { command: 'resume', projectRoot, ...parseNoteArgs('resume', rest) };
+      return { command: 'resume', projectRoot, ...parseResumeArgs(rest) };
     case 'approve':
       return { command: 'approve', projectRoot, ...parseApproveArgs(rest) };
     case 'workflow-plan':
