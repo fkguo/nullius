@@ -25,6 +25,17 @@ clean and already merged:
 - `doctor-bridge-delete`
 - `run-card-lane`
 
+In a later non-`omx` detached-worktree cleanup pass, the following additional
+clean worktrees were removed:
+
+- `/private/tmp/autoresearch-lab-review-packet-b`
+- `/home/user/.codex/worktrees/0c7f/autoresearch-lab`
+- `/home/user/.codex/worktrees/1924/autoresearch-lab`
+- `/home/user/.codex/worktrees/4139/autoresearch-lab`
+- `/home/user/.codex/worktrees/995e/autoresearch-lab`
+- `/home/user/.codex/worktrees/a063/autoresearch-lab`
+- `/home/user/.codex/worktrees/a6c4/autoresearch-lab`
+
 ## Retained items
 
 The following items were intentionally retained:
@@ -32,8 +43,14 @@ The following items were intentionally retained:
 - `lane/runtime-permission-profile-v1`
   - Still merged into `main`, but its bound worktree remains dirty, so it was
     not deleted in this pass.
+- detached `.codex` worktrees with local modifications or active process usage
+  - These were retained because they were dirty or still live from local
+    sessions.
 - `lane/legacy-residue-audit`
 - `codex/omx-closure-experiment`
+- `omx` detached/planning/worker worktrees
+  - These were intentionally excluded from cleanup because they belong to a
+    separate active local implementation stream.
 - `codex/post-runtime-runtime-diagnostics-bridge-first`
 - `lane/runtime-handle-v1`
   - These were not deleted because they are unmerged or otherwise still active.
