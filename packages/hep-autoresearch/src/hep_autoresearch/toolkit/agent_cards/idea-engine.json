@@ -2,7 +2,7 @@
   "schema_version": 1,
   "agent_id": "idea-engine",
   "name": "Idea Engine",
-  "description": "Stable idea/campaign agent surface aligned to the future TS idea-engine contract.",
+  "description": "Stable idea/campaign agent surface aligned to the TS idea-engine contract.",
   "version": "0.0.1",
   "cost_tier": "medium",
   "capabilities": [

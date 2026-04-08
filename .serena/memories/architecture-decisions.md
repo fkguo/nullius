@@ -3,6 +3,15 @@
 > This tracked Serena memory stores only stable, cross-session architecture decisions.
 > Detailed closeout evidence, review rounds, exact validation commands, and item history live in checked-in closeout docs plus the current source/tests/front-door docs; do not rely on deleted tracker/plan paths as authority.
 
+### [2026-04-08] Idea public-authority invariant: `idea-engine` is the only public runtime host, `idea-generator` is contract/spec only
+
+**Decision**:
+- Public package indexes, compatibility manifests, discovery metadata, and host-facing wording must treat TS `idea-engine` as the only public runtime authority for idea/campaign RPC.
+- `idea-generator` is a contract/spec package: schemas, OpenRPC, and bounded design notes. It must not be described as a runtime or as the authority of a separate Python engine package.
+- `idea-core` may remain temporarily as internal code/test residue while retirement completes, but it must not continue to appear in public market/compatibility inventories as a recommended or current engine-pack.
+
+**Why**: The live host path already runs through `idea-engine` and `idea-mcp`. Leaving `idea-core` in public inventories or describing `idea-generator` as its SSOT preserves a fake split-brain authority and invites new users onto a surface we already intend to retire without backward-compatibility obligations.
+
 ### [2026-04-08] Regression harness external-root invariant: real-project semantics must be exercised on an external authority root, never by relaxing policy
 
 **Decision**:
