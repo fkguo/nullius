@@ -3,14 +3,14 @@
 > This tracked Serena memory stores only stable, cross-session architecture decisions.
 > Detailed closeout evidence, review rounds, exact validation commands, and item history live in checked-in closeout docs plus the current source/tests/front-door docs; do not rely on deleted tracker/plan paths as authority.
 
-### [2026-04-08] Idea public-authority invariant: `idea-engine` is the only public runtime host, `idea-generator` is contract/spec only
+### [2026-04-09] Idea public-authority invariant: `idea-engine` owns the live idea runtime and checked-in RPC contracts
 
 **Decision**:
 - Public package indexes, compatibility manifests, discovery metadata, and host-facing wording must treat TS `idea-engine` as the only public runtime authority for idea/campaign RPC.
-- `idea-generator` is a contract/spec package: schemas, OpenRPC, and bounded design notes. It must not be described as a runtime or as the authority of a separate Python engine package.
-- `idea-core` may remain temporarily as internal code/test residue while retirement completes, but it must not continue to appear in public market/compatibility inventories as a recommended or current engine-pack.
+- Retired `idea-generator` / `idea-core` package identities must not reappear in checked-in docs, market metadata, runtime asset paths, or contract naming.
+- The checked-in RPC contract snapshot now lives under `packages/idea-engine/contracts/idea-runtime-contracts/**` with `idea_runtime_rpc_v1` naming, not `idea-core` authority residue.
 
-**Why**: The live host path already runs through `idea-engine` and `idea-mcp`. Leaving `idea-core` in public inventories or describing `idea-generator` as its SSOT preserves a fake split-brain authority and invites new users onto a surface we already intend to retire without backward-compatibility obligations.
+**Why**: The live host path already runs through `idea-engine` and `idea-mcp`. Leaving `idea-core` in public inventories, keeping `idea-generator` alive as a quasi-authority, or preserving `idea-core`-named contract artifacts would keep a fake split-brain alive and invite new users onto surfaces we have already retired without backward-compatibility obligations.
 
 ### [2026-04-08] Regression harness external-root invariant: real-project semantics must be exercised on an external authority root, never by relaxing policy
 
@@ -522,7 +522,7 @@
 **Decision**:
 - The installable `idea-mcp` public host path is now the in-process TS `IdeaEngineRpcService`; legacy Python host selection/env knobs (`IDEA_MCP_BACKEND`, `IDEA_CORE_PATH`) are deleted from the public surface and must fail closed if provided.
 - The public `idea-mcp` tool inventory is now a bounded exact-match surface with direct tool-level contract coverage: `campaign.init`, `campaign.status`, `search.step`, and `eval.run`. Unsupported lifecycle methods must be removed from the public inventory rather than advertised against a default backend that cannot serve them.
-- This first cut does not claim `idea-core retire-all` or full TS asset/contract authority migration; Python-side contract snapshots and domain-pack assets may still exist as transitional inputs until a later explicit cleanup slice lands.
+- Public `idea-mcp` and `idea-engine` now own the live host plus checked-in contract snapshots; retired Python/runtime package identities must not be reintroduced through transitional docs, asset paths, or contract filenames.
 
 **Why**: The real drift was a split-brain host boundary: public `idea-mcp` still carried Python-side host semantics while TS `idea-engine` already owned the live active RPC path, and the public tool inventory still advertised methods the active host could not serve. Because this repo has no backward-compatibility requirement, preserving a public compatibility backend would only keep a second-rate authority path and ongoing maintenance burden alive. Deleting the fallback closes that boundary cleanly without over-claiming full retirement.
 
