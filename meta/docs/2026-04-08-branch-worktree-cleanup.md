@@ -35,6 +35,7 @@ clean worktrees were removed:
 - `/home/user/.codex/worktrees/995e/autoresearch-lab`
 - `/home/user/.codex/worktrees/a063/autoresearch-lab`
 - `/home/user/.codex/worktrees/a6c4/autoresearch-lab`
+- `/home/user/.codex/worktrees/b342/autoresearch-lab`
 
 ## Retained items
 
