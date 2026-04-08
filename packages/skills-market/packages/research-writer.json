@@ -46,14 +46,10 @@
       "**/__pycache__/**",
       "**/*.pyc",
       "**/.DS_Store",
-      "scripts/dev/*",
-      "scripts/dev/**/*",
       "team/*",
       "team/**/*",
       "process/*",
       "process/**/*",
-      "skilldev/*",
-      "skilldev/**/*",
       ".tmp*/*",
       ".tmp*/**/*"
     ]

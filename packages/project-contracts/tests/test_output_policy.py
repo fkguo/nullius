@@ -31,7 +31,7 @@ class TestOutputPolicy(unittest.TestCase):
 
     def test_maintainer_fixture_allows_repo_internal_output_path(self) -> None:
         repo_root = dev_repo_root()
-        output_path = repo_root / "skills" / "research-team" / "skilldev" / "regression" / "runs"
+        output_path = repo_root / "skills" / "research-team" / ".tmp" / "regression" / "runs"
         resolved = assert_path_allowed(output_path, project_policy="maintainer_fixture", label="team output path")
         self.assertEqual(resolved, output_path.resolve())
 

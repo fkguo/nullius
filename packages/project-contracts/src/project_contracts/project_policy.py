@@ -43,7 +43,6 @@ def _path_is_within(path: Path, base: Path) -> bool:
 def maintainer_fixture_roots(*, repo_root: Path | None = None) -> tuple[Path, ...]:
     root = (repo_root or dev_repo_root()).resolve()
     return (
-        root / "skills" / "research-team" / "skilldev",
         root / "skills" / "research-team" / ".tmp",
     )
 

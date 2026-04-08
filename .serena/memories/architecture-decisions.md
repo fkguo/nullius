@@ -142,7 +142,7 @@
 **Decision**:
 - Shared scaffold / contract authority now lives in the neutral Python package `packages/project-contracts/`; `research-team` public scaffold/contract-refresh entrypoints and `hep-autoresearch init` are consumers, not independent authorities.
 - Public `real_project` flows must fail closed when the project root or real-project intermediate outputs resolve anywhere under the autoresearch-lab development repo checkout.
-- Repo-internal workspaces are allowed only as explicit `maintainer_fixture` directories (for example `skills/research-team/skilldev` and `skills/research-team/.tmp/`) and must never become real-project authority or a hidden fallback mode.
+- Repo-internal workspaces are allowed only as explicit `maintainer_fixture` directories (currently `.tmp` under the dev repo); longer-lived maintainer-only materials should live in local non-public archives such as `~/.autoresearch-lab-dev/` and must never become real-project authority or a hidden fallback mode.
 - This slice is authority extraction plus isolation only; it does not repoint the generic control plane yet and does not preserve future `hepar` / `hep-autoresearch` aliases by default.
 
 **Why**: The shared scaffold contract cannot remain credible while public research flows can still create or route real work back into the development monorepo. The explicit real-project vs maintainer-fixture split closes that hole without expanding into a full Pipeline A repoint.

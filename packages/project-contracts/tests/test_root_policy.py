@@ -19,9 +19,9 @@ class TestRootPolicy(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "outside the autoresearch-lab dev repo"):
             assert_project_root_allowed(repo_root / "skills" / "research-team", project_policy="real_project")
 
-    def test_maintainer_fixture_allows_repo_internal_skilldev(self) -> None:
+    def test_maintainer_fixture_allows_repo_internal_tmp(self) -> None:
         repo_root = dev_repo_root()
-        root = repo_root / "skills" / "research-team" / "skilldev" / "fixture"
+        root = repo_root / "skills" / "research-team" / ".tmp" / "fixture"
         resolved = assert_project_root_allowed(root, project_policy="maintainer_fixture")
         self.assertEqual(resolved, root.resolve())
 

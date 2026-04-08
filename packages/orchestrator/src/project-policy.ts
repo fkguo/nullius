@@ -18,7 +18,6 @@ function isWithin(candidate: string, base: string): boolean {
 
 function maintainerFixtureRoots(repoRoot: string): string[] {
   return [
-    path.join(repoRoot, 'skills', 'research-team', 'skilldev'),
     path.join(repoRoot, 'skills', 'research-team', '.tmp'),
   ];
 }
