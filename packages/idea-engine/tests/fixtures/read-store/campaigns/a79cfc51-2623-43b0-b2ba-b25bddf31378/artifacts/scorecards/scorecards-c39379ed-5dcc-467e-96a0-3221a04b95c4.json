@@ -1,0 +1,26 @@
+{
+  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "generated_at": "2026-02-13T07:30:22Z",
+  "evaluator_config": {
+    "dimensions": [
+      "novelty",
+      "impact",
+      "grounding"
+    ],
+    "n_reviewers": 2
+  },
+  "scorecards": [
+    {
+      "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+      "scores": {
+        "novelty": 0.023,
+        "impact": 0.627,
+        "grounding": 0.1
+      },
+      "reviewer_count": 2,
+      "status": "complete",
+      "fix_suggestions": [],
+      "failure_modes": []
+    }
+  ]
+}

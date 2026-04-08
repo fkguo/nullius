@@ -1,0 +1,191 @@
+{
+  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "step_id": "9242bf25-5176-4201-acca-3929869ca080",
+  "new_node_ids": [
+    "1d96a82f-9246-436e-814c-50b94df7a578",
+    "21c5f523-86b9-415d-8fa8-6843d48e8844"
+  ],
+  "nodes": [
+    {
+      "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+      "idea_id": "a19e67a5-0092-46bf-a64d-2d9347e5ea13",
+      "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+      "revision": 1,
+      "parent_node_ids": [
+        "98ed3362-4975-4077-ae23-4bdf60c1be90"
+      ],
+      "island_id": "island-0",
+      "operator_id": "dummy.expand.bridge",
+      "operator_family": "DummyExpand",
+      "origin": {
+        "model": "dummy.backend.alpha",
+        "temperature": 0.0,
+        "prompt_hash": "sha256:d2c7b6feb951ea93703ef6bff98c7f3a298e1f23c31954bfe830fdfc0ce493d4",
+        "timestamp": "2026-02-13T07:30:22Z",
+        "role": "OperatorRunner"
+      },
+      "operator_trace": {
+        "inputs": {
+          "parent_node_id": "98ed3362-4975-4077-ae23-4bdf60c1be90",
+          "step_id": "9242bf25-5176-4201-acca-3929869ca080",
+          "tick": 1,
+          "style": "bridge"
+        },
+        "params": {
+          "deterministic_policy": "round_robin_v1",
+          "template_version": "bridge-v1",
+          "backend_id": "dummy.backend.alpha"
+        },
+        "evidence_uris_used": [
+          "https://example.org/dummy/bridge"
+        ]
+      },
+      "rationale_draft": {
+        "title": "Bridge expansion of Seed 1",
+        "rationale": "Bridge operator deterministically expands a parent rationale into a nearby variant for island island-0: Probe a bridge-style deformation around a toy hep formalism.",
+        "risks": [
+          "dummy_operator_unverified"
+        ],
+        "kill_criteria": [
+          "fails deterministic consistency check",
+          "fails eval.run grounding gate"
+        ]
+      },
+      "idea_card": {
+        "thesis_statement": "Use a bridge-style perturbation to extend the parent hypothesis while preserving formalism compatibility.",
+        "testable_hypotheses": [
+          "Bridge expansion tick-1 remains testable in hep/toy."
+        ],
+        "required_observables": [
+          "observable-1"
+        ],
+        "candidate_formalisms": [
+          "hep/toy"
+        ],
+        "minimal_compute_plan": [
+          {
+            "step": "run deterministic operator smoke check",
+            "method": "dummy.expand.bridge",
+            "estimated_difficulty": "moderate"
+          }
+        ],
+        "claims": [
+          {
+            "claim_text": "Bridge expansion predicts a measurable shift relative to the parent baseline under the same observable set.",
+            "support_type": "calculation",
+            "evidence_uris": [
+              "https://example.org/dummy/bridge"
+            ]
+          }
+        ]
+      },
+      "eval_info": null,
+      "grounding_audit": null,
+      "reduction_report": null,
+      "reduction_audit": null,
+      "created_at": "2026-02-13T07:30:22Z"
+    },
+    {
+      "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+      "idea_id": "c20ab8e0-9fd5-446b-b50e-7517241e6179",
+      "node_id": "21c5f523-86b9-415d-8fa8-6843d48e8844",
+      "revision": 1,
+      "parent_node_ids": [
+        "1d96a82f-9246-436e-814c-50b94df7a578"
+      ],
+      "island_id": "island-0",
+      "operator_id": "dummy.constraint.shift",
+      "operator_family": "DummyConstraint",
+      "origin": {
+        "model": "dummy.backend.beta",
+        "temperature": 0.0,
+        "prompt_hash": "sha256:be63d8e7cfdd138279141f80e190a287cceac4561e74d9cfb81ee8f0ba0565b4",
+        "timestamp": "2026-02-13T07:30:22Z",
+        "role": "OperatorRunner"
+      },
+      "operator_trace": {
+        "inputs": {
+          "parent_node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+          "step_id": "9242bf25-5176-4201-acca-3929869ca080",
+          "tick": 2,
+          "style": "constraint_shift"
+        },
+        "params": {
+          "deterministic_policy": "round_robin_v1",
+          "template_version": "constraint-v1",
+          "backend_id": "dummy.backend.beta"
+        },
+        "evidence_uris_used": [
+          "https://example.org/dummy/constraint-shift"
+        ]
+      },
+      "rationale_draft": {
+        "title": "Constraint shift from Bridge expansion of Seed 1",
+        "rationale": "Constraint-shift operator deterministically perturbs one assumption in island island-0 while retaining auditability: Bridge operator deterministically expands a parent rationale into a nearby variant for island island-0: Probe a bridge-style deformation around a toy hep formalism.",
+        "risks": [
+          "dummy_operator_unverified"
+        ],
+        "kill_criteria": [
+          "fails deterministic consistency check",
+          "fails eval.run grounding gate"
+        ]
+      },
+      "idea_card": {
+        "thesis_statement": "Shift one boundary condition to probe robustness and identify a sharper kill criterion.",
+        "testable_hypotheses": [
+          "Constraint shift tick-2 yields a separable outcome in hep/toy."
+        ],
+        "required_observables": [
+          "observable-1"
+        ],
+        "candidate_formalisms": [
+          "hep/toy"
+        ],
+        "minimal_compute_plan": [
+          {
+            "step": "run deterministic operator smoke check",
+            "method": "dummy.constraint.shift",
+            "estimated_difficulty": "moderate"
+          }
+        ],
+        "claims": [
+          {
+            "claim_text": "Constraint shift predicts a failure boundary that should appear before the bridge expansion regime.",
+            "support_type": "calculation",
+            "evidence_uris": [
+              "https://example.org/dummy/constraint-shift"
+            ]
+          }
+        ]
+      },
+      "eval_info": null,
+      "grounding_audit": null,
+      "reduction_report": null,
+      "reduction_audit": null,
+      "created_at": "2026-02-13T07:30:22Z"
+    }
+  ],
+  "operator_events": [
+    {
+      "tick": 1,
+      "island_id": "island-0",
+      "operator_id": "dummy.expand.bridge",
+      "operator_family": "DummyExpand",
+      "backend_id": "dummy.backend.alpha",
+      "parent_node_id": "98ed3362-4975-4077-ae23-4bdf60c1be90",
+      "new_node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+      "operator_trace_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/operator_traces/9242bf25-5176-4201-acca-3929869ca080-tick-001.json"
+    },
+    {
+      "tick": 2,
+      "island_id": "island-0",
+      "operator_id": "dummy.constraint.shift",
+      "operator_family": "DummyConstraint",
+      "backend_id": "dummy.backend.beta",
+      "parent_node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+      "new_node_id": "21c5f523-86b9-415d-8fa8-6843d48e8844",
+      "operator_trace_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/operator_traces/9242bf25-5176-4201-acca-3929869ca080-tick-002.json"
+    }
+  ],
+  "generated_at": "2026-02-13T07:30:22Z"
+}

@@ -1,0 +1,28 @@
+{
+  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "step_id": "9242bf25-5176-4201-acca-3929869ca080",
+  "tick": 1,
+  "island_id": "island-0",
+  "operator_id": "dummy.expand.bridge",
+  "operator_family": "DummyExpand",
+  "backend_id": "dummy.backend.alpha",
+  "parent_node_id": "98ed3362-4975-4077-ae23-4bdf60c1be90",
+  "new_node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+  "operator_trace": {
+    "inputs": {
+      "parent_node_id": "98ed3362-4975-4077-ae23-4bdf60c1be90",
+      "step_id": "9242bf25-5176-4201-acca-3929869ca080",
+      "tick": 1,
+      "style": "bridge"
+    },
+    "params": {
+      "deterministic_policy": "round_robin_v1",
+      "template_version": "bridge-v1",
+      "backend_id": "dummy.backend.alpha"
+    },
+    "evidence_uris_used": [
+      "https://example.org/dummy/bridge"
+    ]
+  },
+  "generated_at": "2026-02-13T07:30:22Z"
+}

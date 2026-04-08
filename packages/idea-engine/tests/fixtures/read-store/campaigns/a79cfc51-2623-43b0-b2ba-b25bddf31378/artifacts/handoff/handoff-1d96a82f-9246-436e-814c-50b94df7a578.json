@@ -1,0 +1,44 @@
+{
+  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+  "idea_id": "a19e67a5-0092-46bf-a64d-2d9347e5ea13",
+  "promoted_at": "2026-02-13T07:30:22Z",
+  "idea_card": {
+    "thesis_statement": "Use a bridge-style perturbation to extend the parent hypothesis while preserving formalism compatibility.",
+    "testable_hypotheses": [
+      "Bridge expansion tick-1 remains testable in hep/toy."
+    ],
+    "required_observables": [
+      "observable-1"
+    ],
+    "candidate_formalisms": [
+      "hep/toy"
+    ],
+    "minimal_compute_plan": [
+      {
+        "step": "run deterministic operator smoke check",
+        "method": "dummy.expand.bridge",
+        "estimated_difficulty": "moderate"
+      }
+    ],
+    "claims": [
+      {
+        "claim_text": "Bridge expansion predicts a measurable shift relative to the parent baseline under the same observable set.",
+        "support_type": "calculation",
+        "evidence_uris": [
+          "https://example.org/dummy/bridge"
+        ]
+      }
+    ]
+  },
+  "grounding_audit": {
+    "status": "pass",
+    "folklore_risk_score": 0.2,
+    "failures": [],
+    "timestamp": "2026-02-13T07:30:22Z"
+  },
+  "formalism_check": {
+    "status": "pass",
+    "missing_formalisms": []
+  }
+}

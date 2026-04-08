@@ -1,5 +1,5 @@
 {
-  "store_dir": "packages/idea-core/docs/demos/2026-02-13-m2.12-demo-v1/run-001/store",
+  "store_dir": "packages/idea-engine/tests/fixtures/read-store",
   "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
   "first_node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
   "cases": [

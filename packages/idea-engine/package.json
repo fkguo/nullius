@@ -9,6 +9,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
+    "fixtures:regen:check": "node tests/fixtures/regenerate-rpc-goldens.mjs --check",
+    "fixtures:regen:write": "node tests/fixtures/regenerate-rpc-goldens.mjs --write",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist"
   },

@@ -1,0 +1,18 @@
+{
+  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "method": "pareto",
+  "effective_dimensions": [
+    "novelty",
+    "impact"
+  ],
+  "scorecards_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/scorecards/scorecards-c39379ed-5dcc-467e-96a0-3221a04b95c4.json",
+  "ranked_nodes": [
+    {
+      "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+      "idea_id": "a19e67a5-0092-46bf-a64d-2d9347e5ea13",
+      "rank": 1,
+      "pareto_front": true
+    }
+  ],
+  "generated_at": "2026-02-13T07:30:22Z"
+}

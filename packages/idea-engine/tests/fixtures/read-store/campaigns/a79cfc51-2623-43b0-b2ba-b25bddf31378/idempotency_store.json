@@ -1,0 +1,172 @@
+{
+  "search.step:run-001:search.step:01": {
+    "payload_hash": "sha256:209828d10c206abb5198436816088e9b09a604f3b3195728ab1552e0ba7492c3",
+    "created_at": "2026-02-13T07:30:22Z",
+    "state": "committed",
+    "response": {
+      "kind": "result",
+      "payload": {
+        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "step_id": "9242bf25-5176-4201-acca-3929869ca080",
+        "n_steps_requested": 2,
+        "n_steps_executed": 2,
+        "new_node_ids": [
+          "1d96a82f-9246-436e-814c-50b94df7a578",
+          "21c5f523-86b9-415d-8fa8-6843d48e8844"
+        ],
+        "updated_node_ids": [],
+        "island_states": [
+          {
+            "island_id": "island-0",
+            "state": "EXPLORING",
+            "population_size": 4,
+            "stagnation_counter": 1,
+            "repopulation_count": 0,
+            "best_score": null
+          }
+        ],
+        "budget_snapshot": {
+          "tokens_used": 0,
+          "tokens_remaining": 100000,
+          "cost_usd_used": 0.0,
+          "cost_usd_remaining": 100.0,
+          "wall_clock_s_elapsed": 0.0,
+          "wall_clock_s_remaining": 100000.0,
+          "steps_used": 2,
+          "steps_remaining": 18,
+          "nodes_used": 4,
+          "nodes_remaining": 60
+        },
+        "idempotency": {
+          "idempotency_key": "run-001:search.step:01",
+          "is_replay": false,
+          "payload_hash": "sha256:209828d10c206abb5198436816088e9b09a604f3b3195728ab1552e0ba7492c3"
+        },
+        "new_nodes_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/search_steps/9242bf25-5176-4201-acca-3929869ca080-new-nodes.json"
+      }
+    }
+  },
+  "eval.run:run-001:eval.run:01": {
+    "payload_hash": "sha256:03ec823b000ade343968c765fabc9bd3ee11a2ce2bb83d1c1c4aa67de4f5dd45",
+    "created_at": "2026-02-13T07:30:22Z",
+    "state": "committed",
+    "response": {
+      "kind": "result",
+      "payload": {
+        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "node_ids": [
+          "1d96a82f-9246-436e-814c-50b94df7a578"
+        ],
+        "updated_node_ids": [
+          "1d96a82f-9246-436e-814c-50b94df7a578"
+        ],
+        "node_revisions": {
+          "1d96a82f-9246-436e-814c-50b94df7a578": 2
+        },
+        "scorecards_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/scorecards/scorecards-c39379ed-5dcc-467e-96a0-3221a04b95c4.json",
+        "budget_snapshot": {
+          "tokens_used": 0,
+          "tokens_remaining": 100000,
+          "cost_usd_used": 0.0,
+          "cost_usd_remaining": 100.0,
+          "wall_clock_s_elapsed": 0.0,
+          "wall_clock_s_remaining": 100000.0,
+          "steps_used": 3,
+          "steps_remaining": 17,
+          "nodes_used": 4,
+          "nodes_remaining": 60
+        },
+        "idempotency": {
+          "idempotency_key": "run-001:eval.run:01",
+          "is_replay": false,
+          "payload_hash": "sha256:03ec823b000ade343968c765fabc9bd3ee11a2ce2bb83d1c1c4aa67de4f5dd45"
+        }
+      }
+    }
+  },
+  "rank.compute:run-001:rank.compute:01": {
+    "payload_hash": "sha256:b04ea95de7ec4eda37801409c09d82102d88a87c34fdc7056cb6c07c61f09485",
+    "created_at": "2026-02-13T07:30:22Z",
+    "state": "committed",
+    "response": {
+      "kind": "result",
+      "payload": {
+        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "method": "pareto",
+        "effective_dimensions": [
+          "novelty",
+          "impact"
+        ],
+        "scorecards_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/scorecards/scorecards-c39379ed-5dcc-467e-96a0-3221a04b95c4.json",
+        "ranked_nodes": [
+          {
+            "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+            "idea_id": "a19e67a5-0092-46bf-a64d-2d9347e5ea13",
+            "rank": 1,
+            "pareto_front": true
+          }
+        ],
+        "budget_snapshot": {
+          "tokens_used": 0,
+          "tokens_remaining": 100000,
+          "cost_usd_used": 0.0,
+          "cost_usd_remaining": 100.0,
+          "wall_clock_s_elapsed": 0.0,
+          "wall_clock_s_remaining": 100000.0,
+          "steps_used": 4,
+          "steps_remaining": 16,
+          "nodes_used": 4,
+          "nodes_remaining": 60
+        },
+        "idempotency": {
+          "idempotency_key": "run-001:rank.compute:01",
+          "is_replay": false,
+          "payload_hash": "sha256:b04ea95de7ec4eda37801409c09d82102d88a87c34fdc7056cb6c07c61f09485"
+        },
+        "ranking_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/rankings/ranking-b932e589-5dc2-4743-8c72-4886e0f8b89a.json"
+      }
+    }
+  },
+  "node.promote:run-001:node.promote:01": {
+    "payload_hash": "sha256:00f62044db5d75d79bc6c999bb6074812f70638ae3b66978a89173dfeb07276d",
+    "created_at": "2026-02-13T07:30:22Z",
+    "state": "committed",
+    "response": {
+      "kind": "result",
+      "payload": {
+        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+        "idea_id": "a19e67a5-0092-46bf-a64d-2d9347e5ea13",
+        "handoff_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/handoff/handoff-1d96a82f-9246-436e-814c-50b94df7a578.json",
+        "formalism_check": {
+          "status": "pass",
+          "missing_formalisms": []
+        },
+        "grounding_audit_summary": {
+          "status": "pass",
+          "folklore_risk_score": 0.2,
+          "failures": []
+        },
+        "budget_snapshot": {
+          "tokens_used": 0,
+          "tokens_remaining": 100000,
+          "cost_usd_used": 0.0,
+          "cost_usd_remaining": 100.0,
+          "wall_clock_s_elapsed": 0.0,
+          "wall_clock_s_remaining": 100000.0,
+          "steps_used": 5,
+          "steps_remaining": 15,
+          "nodes_used": 4,
+          "nodes_remaining": 60
+        },
+        "idempotency": {
+          "idempotency_key": "run-001:node.promote:01",
+          "is_replay": false,
+          "payload_hash": "sha256:00f62044db5d75d79bc6c999bb6074812f70638ae3b66978a89173dfeb07276d"
+        },
+        "has_reduction_report": false,
+        "reduction_audit_summary": null
+      }
+    }
+  }
+}

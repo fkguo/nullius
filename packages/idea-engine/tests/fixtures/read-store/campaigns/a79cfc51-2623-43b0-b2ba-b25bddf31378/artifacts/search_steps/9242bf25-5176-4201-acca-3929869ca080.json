@@ -1,0 +1,83 @@
+{
+  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "step_id": "9242bf25-5176-4201-acca-3929869ca080",
+  "n_steps_requested": 2,
+  "n_steps_executed": 2,
+  "transition_events": [
+    {
+      "tick": 1,
+      "island_id": "island-0",
+      "from_state": "SEEDING",
+      "to_state": "EXPLORING",
+      "reason": "seeded_population_ready",
+      "score_improved": false,
+      "best_score": null,
+      "operator_id": "dummy.expand.bridge",
+      "new_node_id": "1d96a82f-9246-436e-814c-50b94df7a578"
+    },
+    {
+      "tick": 2,
+      "island_id": "island-0",
+      "from_state": "EXPLORING",
+      "to_state": "EXPLORING",
+      "reason": "stagnation_counter_incremented",
+      "score_improved": false,
+      "best_score": null,
+      "operator_id": "dummy.constraint.shift",
+      "new_node_id": "21c5f523-86b9-415d-8fa8-6843d48e8844"
+    }
+  ],
+  "operator_events": [
+    {
+      "tick": 1,
+      "island_id": "island-0",
+      "operator_id": "dummy.expand.bridge",
+      "operator_family": "DummyExpand",
+      "backend_id": "dummy.backend.alpha",
+      "parent_node_id": "98ed3362-4975-4077-ae23-4bdf60c1be90",
+      "new_node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+      "operator_trace_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/operator_traces/9242bf25-5176-4201-acca-3929869ca080-tick-001.json"
+    },
+    {
+      "tick": 2,
+      "island_id": "island-0",
+      "operator_id": "dummy.constraint.shift",
+      "operator_family": "DummyConstraint",
+      "backend_id": "dummy.backend.beta",
+      "parent_node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+      "new_node_id": "21c5f523-86b9-415d-8fa8-6843d48e8844",
+      "operator_trace_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/operator_traces/9242bf25-5176-4201-acca-3929869ca080-tick-002.json"
+    }
+  ],
+  "new_node_ids": [
+    "1d96a82f-9246-436e-814c-50b94df7a578",
+    "21c5f523-86b9-415d-8fa8-6843d48e8844"
+  ],
+  "new_nodes_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/search_steps/9242bf25-5176-4201-acca-3929869ca080-new-nodes.json",
+  "step_budget": null,
+  "budget_snapshot": {
+    "tokens_used": 0,
+    "tokens_remaining": 100000,
+    "cost_usd_used": 0.0,
+    "cost_usd_remaining": 100.0,
+    "wall_clock_s_elapsed": 0.0,
+    "wall_clock_s_remaining": 100000.0,
+    "steps_used": 2,
+    "steps_remaining": 18,
+    "nodes_used": 4,
+    "nodes_remaining": 60
+  },
+  "island_states": [
+    {
+      "island_id": "island-0",
+      "state": "EXPLORING",
+      "population_size": 4,
+      "stagnation_counter": 1,
+      "repopulation_count": 0,
+      "best_score": null
+    }
+  ],
+  "early_stopped": false,
+  "early_stop_reason": null,
+  "generated_at": "2026-02-13T07:30:22Z"
+}

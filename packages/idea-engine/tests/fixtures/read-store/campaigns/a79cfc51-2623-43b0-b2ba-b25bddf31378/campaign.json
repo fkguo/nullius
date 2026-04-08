@@ -1,0 +1,87 @@
+{
+  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "charter": {
+    "campaign_name": "m2.12-replay-demo",
+    "domain": "hep-ph",
+    "scope": "fixed-seed replayable campaign for M2.12",
+    "approval_gate_ref": "gate://a0.1"
+  },
+  "seed_pack": {
+    "seeds": [
+      {
+        "seed_type": "text",
+        "content": "Probe a bridge-style deformation around a toy hep formalism.",
+        "source_uris": [
+          "https://example.org/demo/m2.12/seed-bridge"
+        ]
+      },
+      {
+        "seed_type": "text",
+        "content": "Shift one boundary constraint and test the failure boundary.",
+        "source_uris": [
+          "https://example.org/demo/m2.12/seed-constraint"
+        ]
+      }
+    ]
+  },
+  "budget": {
+    "max_tokens": 100000,
+    "max_cost_usd": 100.0,
+    "max_wall_clock_s": 100000,
+    "max_steps": 20,
+    "max_nodes": 64
+  },
+  "status": "running",
+  "created_at": "2026-02-13T07:30:22Z",
+  "usage": {
+    "tokens_used": 0,
+    "cost_usd_used": 0.0,
+    "wall_clock_s_elapsed": 0.0,
+    "steps_used": 5,
+    "nodes_used": 4
+  },
+  "island_states": [
+    {
+      "island_id": "island-0",
+      "state": "EXPLORING",
+      "population_size": 4,
+      "stagnation_counter": 1,
+      "repopulation_count": 0,
+      "best_score": null
+    }
+  ],
+  "formalism_registry": {
+    "entries": [
+      {
+        "formalism_id": "hep/toy",
+        "c2_schema_ref": "https://example.org/schemas/toy-c2-v1.json",
+        "validator_id": "toy-validator",
+        "compiler_id": "toy-compiler",
+        "description": "Default bootstrap formalism"
+      }
+    ]
+  },
+  "abstract_problem_registry": {
+    "entries": [
+      {
+        "abstract_problem_type": "optimization",
+        "description": "Default optimization abstraction for bootstrap runs.",
+        "known_solution_families": [
+          "gradient-based"
+        ],
+        "prerequisite_checklist": [
+          "objective is defined"
+        ],
+        "reference_uris": [
+          "https://example.org/optimization"
+        ]
+      }
+    ]
+  },
+  "search_runtime": {
+    "next_island_index": 0,
+    "next_operator_index": 0
+  },
+  "last_step_id": "9242bf25-5176-4201-acca-3929869ca080",
+  "last_scorecards_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/scorecards/scorecards-c39379ed-5dcc-467e-96a0-3221a04b95c4.json"
+}
