@@ -25,7 +25,7 @@ def main() -> int:
         "--project-policy",
         choices=("real_project", "maintainer_fixture"),
         default="real_project",
-        help="Project root policy (public use should stay on real_project).",
+        help="Project root policy (`maintainer_fixture` is internal maintainer-only; public use should stay on `real_project`).",
     )
     args = ap.parse_args()
 

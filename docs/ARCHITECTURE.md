@@ -160,7 +160,7 @@ Current bounded computation note:
 - It requires an initialized external project root plus a prepared `computation/manifest.json`.
 - Gate handling stays on `autoresearch status/approve`.
 - Parser-level `run-card validate/render` wrappers are deleted; remaining run-card semantics live only in lower-level toolkit/computation paths.
-- Residual non-computation Pipeline A `run` workflows remain internal-only compatibility surface and must not reclaim the front door.
+- Residual non-computation Pipeline A `run` workflows remain internal-only parser residue and must not reclaim the front door or masquerade as installable public entrypoints.
 - Front-door surface classification now lives in `meta/front_door_authority_map_v1.json`; exact inventories still remain owned by their source surfaces.
 
 Current tool-surface families inside the package:

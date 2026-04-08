@@ -36,6 +36,8 @@ Use --full to add research-team host-local surfaces:
 Use --with-hep-provider to add provider-local HEP surfaces on top of either scaffold:
   - .hep/workspace.json
   - .hep/mappings.json
+
+`--project-policy maintainer_fixture` is an internal maintainer-only mode. Public users should keep the default `real_project` and use an external project root.
 EOF
 }
 

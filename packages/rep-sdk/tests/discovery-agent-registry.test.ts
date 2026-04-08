@@ -68,8 +68,8 @@ describe('agent registry', () => {
             {
               capability_id: 'mcp.list_tools',
               description: 'Shadow capability for ambiguity testing.',
-              input_contract_ids: ['idea_core_rpc_v1'],
-              output_contract_ids: ['idea_core_rpc_v1'],
+              input_contract_ids: ['idea_runtime_rpc_v1'],
+              output_contract_ids: ['idea_runtime_rpc_v1'],
             },
           ],
         },

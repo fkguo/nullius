@@ -9,42 +9,42 @@
     {
       "capability_id": "campaign.init",
       "description": "Initialize a campaign.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
+      "input_contract_ids": ["idea_runtime_rpc_v1"],
+      "output_contract_ids": ["idea_runtime_rpc_v1"]
     },
     {
       "capability_id": "campaign.status",
       "description": "Read campaign status.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
+      "input_contract_ids": ["idea_runtime_rpc_v1"],
+      "output_contract_ids": ["idea_runtime_rpc_v1"]
     },
     {
       "capability_id": "search.step",
       "description": "Advance campaign search by one or more steps.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
+      "input_contract_ids": ["idea_runtime_rpc_v1"],
+      "output_contract_ids": ["idea_runtime_rpc_v1"]
     },
     {
       "capability_id": "eval.run",
       "description": "Run evaluator passes on campaign nodes.",
-      "input_contract_ids": ["idea_core_rpc_v1"],
-      "output_contract_ids": ["idea_core_rpc_v1"]
+      "input_contract_ids": ["idea_runtime_rpc_v1"],
+      "output_contract_ids": ["idea_runtime_rpc_v1"]
     }
   ],
   "input_contracts": [
     {
-      "contract_id": "idea_core_rpc_v1",
+      "contract_id": "idea_runtime_rpc_v1",
       "format": "openrpc",
       "description": "TS-owned OpenRPC authority for the public idea-engine host surface.",
-      "source_path": "packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_core_rpc_v1.openrpc.json"
+      "source_path": "packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_runtime_rpc_v1.openrpc.json"
     }
   ],
   "output_contracts": [
     {
-      "contract_id": "idea_core_rpc_v1",
+      "contract_id": "idea_runtime_rpc_v1",
       "format": "openrpc",
       "description": "TS-owned OpenRPC authority for the public idea-engine host surface.",
-      "source_path": "packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_core_rpc_v1.openrpc.json"
+      "source_path": "packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_runtime_rpc_v1.openrpc.json"
     }
   ]
 }

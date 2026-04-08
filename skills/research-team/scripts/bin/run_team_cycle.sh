@@ -601,6 +601,7 @@ Options:
   --notes PATH                Optional. Primary notebook path. If provided and --packet is omitted, the script
                               auto-builds a team packet (and enforces all preflight gates).
   --project-policy POLICY     Optional. real_project|maintainer_fixture (default: real_project).
+                              `maintainer_fixture` is internal maintainer-only and should not be used as the public default.
   --member-a-system PATH      Required. Member A system prompt file.
   --member-b-system PATH      Required. Member B system prompt file.
   --member-b-runner-kind KIND Optional. gemini|claude|codex|auto (default: config member_b.runner_kind or gemini).

@@ -67,7 +67,7 @@ See:
 - `scripts/gates/`: deterministic gate scripts
 - `scripts/lib/`: shared helpers used by scripts
 - `scripts/scaffold/`: project scaffold helpers
-- `scripts/dev/`: local development utilities (not part of the public workflow contract)
+- local maintainer-only development utilities were moved out of the public repo; user-facing workflow authority stays on `scripts/bin/`, `scripts/gates/`, `scripts/lib/`, and `scripts/scaffold/`
 - `scripts/validation/`: deterministic full-contract harness
 - `assets/`: templates copied into projects
 - `references/`: supporting docs
