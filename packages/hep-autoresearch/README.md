@@ -19,5 +19,6 @@ For current user-facing guidance, start from:
 For package consumers, the only stable guidance here is:
 
 - use `autoresearch` as the front door
+- if you encounter the legacy shell at all, treat `hepar run` only as a shrinking transition pointer to `autoresearch run`
 - do not treat `hep-autoresearch` / `hepar` as the product identity
 - expect remaining legacy Python surfaces to continue shrinking rather than expanding
