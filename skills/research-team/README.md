@@ -63,21 +63,13 @@ See:
 - `references/history/research-team-roadmap-2026-01.md` and `references/history/research-team-plan-m2-m4-2026-01.md` for archived planning snapshots (non-SSOT).
 - `references/kb_index.md` for the KB index exporter (English).
 
-## Maintainers
-
-- Self-audit entrypoint (creates a local `skilldev/` workspace and runs preflight-only by default): `bash scripts/dev/run_skilldev_self_audit.sh`
-- Exploration debt dashboard (for projects that used `project_stage=exploration`): `python3 scripts/bin/exploration_debt_dashboard.py summary --team-dir team`
-- Realism regression (run preflight-only on registered real projects, snapshot-by-default): `bash scripts/dev/run_real_project_regression.sh`
-
-Maintainer note: repo-internal `skilldev/` and `.tmp/` directories are explicit maintainer fixtures only. They are valid for self-audit / regression snapshots, but they must not be treated as real project roots or as destinations for real-project outputs.
-
 ## Repository layout
 
 - `scripts/bin/`: entrypoints and orchestrators
 - `scripts/gates/`: deterministic gate scripts
 - `scripts/lib/`: shared helpers used by scripts
 - `scripts/scaffold/`: project scaffold helpers
-- `scripts/dev/`: smoke tests and developer utilities
+- `scripts/dev/`: local development utilities (not part of the public workflow contract)
 - `scripts/validation/`: deterministic full-contract harness
 - `assets/`: templates copied into projects
 - `references/`: supporting docs

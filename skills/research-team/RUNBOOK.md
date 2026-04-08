@@ -2,7 +2,7 @@
 
 This runbook is for diagnosing deterministic gate failures and rerunning the workflow cleanly.
 Agent-first note: paste a rerun command into your tool-using agent; run it manually only if you want local reproduction/debugging.
-All public real-project commands below assume the project root is outside the autoresearch-lab development repo, and real-project outputs such as `team/` stay outside the dev repo as well. Repo-internal `skilldev/` / `.tmp/` paths are maintainer fixtures only.
+All public real-project commands below assume the project root is outside the autoresearch-lab development repo, and real-project outputs such as `team/` stay outside the dev repo as well.
 
 Where to start:
 - Skill entry (trigger-loaded, lean): `SKILL.md`
@@ -442,29 +442,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Rerun:
   - Full cycle command with `--auto-tag` (do not reuse tags; trajectory is an upsert index).
 
-## Deterministic developer regressions (skill repo)
-
-- Smoke suite:
-
-```bash
-bash scripts/dev/run_all_smoke_tests.sh
-```
-
-- One-shot self-audit (creates/refreshes a local `skilldev/` workspace and runs preflight-only by default):
-  - This is the explicit maintainer-fixture carve-out; it is not a normal real-project path.
-
-```bash
-bash scripts/dev/run_skilldev_self_audit.sh
-```
-
-- Realism regression (preflight-only on registered real projects; snapshot-by-default):
-  - Registry entries must point at external real project roots; repo-internal snapshots under `skilldev/regression/runs/` remain maintainer fixtures only.
-
-```bash
-bash scripts/dev/run_real_project_regression.sh
-```
-
-- Full contract deterministic harness:
+## Deterministic validation
 
 ```bash
 bash scripts/validation/run_full_contract_validation.sh

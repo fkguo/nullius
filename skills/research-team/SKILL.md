@@ -62,7 +62,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
 
 Scaffold creates `prompts/_system_member_a.txt` and `prompts/_system_member_b.txt` (note the leading underscore; they are copied from the skill assets `system_member_a.txt` / `system_member_b.txt`).
 Use `--full` when you want those research-team host-local assets immediately; the default scaffold stays minimal.
-The public scaffold and contract-refresh entrypoints now run in `real_project` mode: use an external project root, and keep real-project run/intermediate outputs outside the autoresearch-lab development repo. Repo-internal `skilldev/` and `.tmp/` workspaces remain maintainer-only fixtures.
+The public scaffold and contract-refresh entrypoints now run in `real_project` mode: use an external project root, and keep real-project run/intermediate outputs outside the autoresearch-lab development repo.
 
 3) Run a team cycle from the project root:
 

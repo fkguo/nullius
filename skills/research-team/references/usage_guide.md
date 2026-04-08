@@ -85,7 +85,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 ```
 
 If a gate fails, fix the minimal root cause (docs/artifacts/config), then rerun with a new tag (e.g. `M0-r2`).
-Keep `--out-dir` on the real-project side as well; repo-internal `skilldev/` / `.tmp/` paths are reserved for explicit maintainer fixtures.
+Keep `--out-dir` on the real-project side as well; do not route real-project outputs back into the skill repo checkout.
 
 ## Review access modes (packet_only vs full_access)
 

@@ -30,7 +30,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --profile mixed
 ```
 
-真实研究请使用仓外 project root。现在 public `research-team` scaffold / contract-refresh / team-cycle 会对 project root 和真实运行中间产物做 fail-closed：如果它们回指到 autoresearch-lab 开发仓 checkout，命令会直接报错。repo 内 `skilldev/` 与 `.tmp/` 仅保留给显式 maintainer fixture。
+真实研究请使用仓外 project root。现在 public `research-team` scaffold / contract-refresh / team-cycle 会对 project root 和真实运行中间产物做 fail-closed：如果它们回指到 autoresearch-lab 开发仓 checkout，命令会直接报错。
 
 3) 跑一轮 team cycle：
 
