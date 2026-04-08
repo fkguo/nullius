@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "rpc_error_data_v1.schema.json",
   "title": "RPCErrorData v1",
-  "description": "Machine-readable JSON-RPC error.data contract for idea-core RPC. Engines MUST include error.data in all error responses (see OpenRPC x-error-data-contract).",
+  "description": "Machine-readable JSON-RPC error.data contract for the idea campaign RPC surface. Engines MUST include error.data in all error responses (see OpenRPC x-error-data-contract).",
   "type": "object",
   "required": ["reason"],
   "properties": {

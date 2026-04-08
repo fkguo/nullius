@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "milestone_gate_v1.schema.json",
   "title": "MilestoneGate v1",
-  "description": "Machine-checkable milestone completion gate for idea-core control-plane workflow.",
+  "description": "Machine-checkable milestone completion gate for the idea campaign control-plane workflow.",
   "type": "object",
   "required": [
     "milestone_id",
