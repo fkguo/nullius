@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "idea-core"
 version = "0.1.0"
-description = "Standalone idea-core engine (stdio JSON-RPC)"
+description = "Retiring internal Python reference engine for idea-engine parity"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

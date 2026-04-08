@@ -1,6 +1,11 @@
 # idea-core
 
-Standalone `idea-core` implementation repo (stdio JSON-RPC engine).
+Retiring internal Python reference engine for legacy contract parity and fixture generation.
+
+This package is no longer the public runtime front door. The active host authority is the TS
+`idea-engine`; new integrations should target that surface instead of wiring against `idea-core`.
+`idea-core` remains in-tree only while the remaining fixture-generation and parity workflows are
+being migrated off the Python implementation.
 
 ## Contract Source Strategy (M1.0)
 
@@ -10,7 +15,7 @@ Standalone `idea-core` implementation repo (stdio JSON-RPC engine).
 - `idea_core_rpc_v1.bundled.json` is a generated tooling artifact (non-SSOT); never hand-edit it.
 - Engine/tooling/tests must validate against vendored snapshot; snapshot files must not be hand-edited.
 
-## One-command workflow
+## Maintainer Workflow
 
 ```bash
 make bootstrap
@@ -25,4 +30,4 @@ make ci
 make run-server
 ```
 
-Server reads JSON-RPC 2.0 requests from stdin (one JSON object per line) and writes JSON-RPC responses to stdout.
+Maintainer-only stdio JSON-RPC entrypoint for parity checks and retirement-gap debugging.
