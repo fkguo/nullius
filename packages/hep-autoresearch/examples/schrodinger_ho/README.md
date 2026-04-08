@@ -8,6 +8,7 @@ Front-door note:
 
 - The current mainline computation entrypoint is `autoresearch run --workflow-id computation` on an initialized external project root with a prepared `computation/manifest.json`.
 - The commands below remain the legacy Pipeline A run-card example path for this checked-in fixture.
+- This fixture path is maintainer/eval/regression compatibility coverage only, not a default product entrypoint.
 
 ## Legacy run-card example
 

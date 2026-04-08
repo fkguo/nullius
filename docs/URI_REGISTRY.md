@@ -4,6 +4,8 @@ This document is the centralized registry for URI schemes that are live in the c
 
 ## Live Schemes
 
+Live scheme set for this monorepo is exactly `hep://`, `pdg://`, and `orch://`.
+
 | Scheme | Owner | Live authority | Surface type | Live patterns | Scope boundary |
 |---|---|---|---|---|---|
 | `hep://` | `@autoresearch/hep-mcp` | `packages/hep-mcp/src/core/resources.ts` | MCP `resources/list`, `resources/templates/list`, `resources/read` | `hep://projects`; `hep://runs`; `hep://projects/{project_id}`; `hep://projects/{project_id}/papers`; `hep://projects/{project_id}/artifact/{artifact_name}`; `hep://projects/{project_id}/papers/{paper_id}`; `hep://projects/{project_id}/papers/{paper_id}/evidence/catalog`; `hep://runs/{run_id}/manifest`; `hep://runs/{run_id}/artifact/{artifact_name}` | HEP project/run manifests and research artifacts only. It does not own orchestrator lifecycle/read-model state. |
@@ -16,6 +18,7 @@ This document is the centralized registry for URI schemes that are live in the c
    `hep://runs/{run_id}/manifest` and `hep://runs/{run_id}/artifact/{artifact_name}` are the research-artifact views owned by `@autoresearch/hep-mcp`.
    `orch://runs/{run_id}` and `orch://runs/{run_id}/approvals/{approval_dir}` are the lifecycle/read-model views owned by `@autoresearch/orchestrator`.
    The current codebase does not expose a shared cross-scheme resolver or alias between the two schemes.
+   There is no implicit `hep://` <-> `orch://` aliasing layer in live authority.
 2. `pdg://` is intentionally separate from `hep://`.
    It models PDG server metadata plus the local PDG artifact cache and should not be used as a project/run namespace.
 3. Scheme ownership stays package-local.

@@ -351,6 +351,50 @@ export const FRONT_DOOR_SNIPPETS = [
       '`research-team` and `hepar literature-gap`.',
     ],
   },
+  {
+    relPath: 'meta/docs/orchestrator-mcp-tools-spec.md',
+    snippets: [
+      '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
+      '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
+      '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
+      '2. `packages/hep-autoresearch` / `hepar` is now a residual compatibility/provider-local surface. It may project onto canonical lifecycle behavior, but it must not reclaim `orch_*` or `autoresearch` authority.',
+    ],
+  },
+  {
+    relPath: 'docs/URI_REGISTRY.md',
+    snippets: [
+      'Live scheme set for this monorepo is exactly `hep://`, `pdg://`, and `orch://`.',
+      '`hep://` and `orch://` are separate owned namespaces.',
+      'There is no implicit `hep://` <-> `orch://` aliasing layer in live authority.',
+      '| `orch://` | `@autoresearch/orchestrator` | `packages/orchestrator/src/orch-tools/{approval,control,create-status-list,run-read-model}.ts` | Tool-return lifecycle/read-model identifiers | `orch://runs/{run_id}`; `orch://runs/{run_id}/approvals/{approval_dir}`; `orch://runs/export` | Orchestrator lifecycle/read-model/export summaries only. This is not the current MCP `resources/list` authority and it does not own research artifact payloads. |',
+    ],
+    forbiddenSnippets: [
+      '`hep://corpora` | Live',
+      '| `orch://runs/{run_id}/state` | Live',
+      '| `orch://runs/{run_id}/ledger` | Live',
+    ],
+  },
+  {
+    relPath: 'packages/hep-autoresearch/examples/schrodinger_ho/README.md',
+    snippets: [
+      'The current mainline computation entrypoint is `autoresearch run --workflow-id computation` on an initialized external project root with a prepared `computation/manifest.json`.',
+      'This fixture path is maintainer/eval/regression compatibility coverage only, not a default product entrypoint.',
+      '## Legacy run-card example',
+    ],
+  },
+  {
+    relPath: 'packages/hep-autoresearch/workflows/C1_literature_gap.md',
+    snippets: [
+      '# C1_literature_gap (Legacy Maintainer Fixture)',
+      'It is a maintainer/eval fixture contract and not a default product front door.',
+      '- `autoresearch workflow-plan --recipe literature_gap_analysis`',
+      '- Legacy fixture usage in this file remains maintainer/eval/regression compatibility coverage only.',
+      '- the internal parser `literature-gap` command in `hep_autoresearch.orchestrator_cli`',
+    ],
+    forbiddenSnippets: [
+      '- `hepar literature-gap`',
+    ],
+  },
 ];
 
 export const REQUIRED_PACKAGE_DESCRIPTION_SNIPPETS = [

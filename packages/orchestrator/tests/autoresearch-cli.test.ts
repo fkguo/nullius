@@ -101,14 +101,34 @@ describe('autoresearch CLI', () => {
     const { io, stdout } = makeIo(process.cwd());
     const code = await runCli(['--help'], io);
     const helpText = stdout.join('');
+    const requiredSnippets = [
+      'Canonical generic lifecycle and workflow-plan entrypoint',
+      'autoresearch run --workflow-id computation [options]',
+      'autoresearch workflow-plan --recipe <recipe_id> [options]',
+      'Pipeline A parser support commands `doctor`, `bridge`, and `literature-gap` are deleted.',
+      'Retired-public maintainer helpers such as `method-design`, `run-card`, and `branch` remain internal full-parser only.',
+    ] as const;
+    const forbiddenSnippets = [
+      'Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface',
+      '`hepar literature-gap` remains',
+      'internal parser support commands remain the recommended entrypoint',
+    ] as const;
+
     expect(code).toBe(0);
-    expect(helpText).toContain('Canonical generic lifecycle and workflow-plan entrypoint');
-    expect(helpText).toContain('autoresearch run --workflow-id computation [options]');
-    expect(helpText).toContain('autoresearch workflow-plan --recipe <recipe_id> [options]');
-    expect(helpText).toContain('Pipeline A parser support commands `doctor`, `bridge`, and `literature-gap` are deleted.');
-    expect(helpText).toContain('Retired-public maintainer helpers such as `method-design`, `run-card`, and `branch` remain internal full-parser only.');
-    expect(helpText).not.toContain('Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface');
-    expect(extractTopLevelCommands(helpText)).toEqual([...AUTORESEARCH_PUBLIC_COMMANDS]);
+    for (const snippet of requiredSnippets) {
+      expect(helpText).toContain(snippet);
+    }
+    for (const snippet of forbiddenSnippets) {
+      expect(helpText).not.toContain(snippet);
+    }
+    const topLevelCommands = extractTopLevelCommands(helpText);
+    expect(topLevelCommands).toEqual([...AUTORESEARCH_PUBLIC_COMMANDS]);
+    expect(topLevelCommands).not.toContain('doctor');
+    expect(topLevelCommands).not.toContain('bridge');
+    expect(topLevelCommands).not.toContain('literature-gap');
+    expect(topLevelCommands).not.toContain('method-design');
+    expect(topLevelCommands).not.toContain('run-card');
+    expect(topLevelCommands).not.toContain('branch');
   });
 
   it('front-door authority map keeps the canonical autoresearch inventory exact', () => {

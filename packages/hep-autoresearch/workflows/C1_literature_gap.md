@@ -1,10 +1,12 @@
 # C1_literature_gap (Legacy Maintainer Fixture)
 
 This file documents the surviving artifact contract for the old Phase C1 literature-gap flow after the internal parser command was deleted.
+It is a maintainer/eval fixture contract and not a default product front door.
 
 - Public/front-door authority:
   - `autoresearch workflow-plan --recipe literature_gap_analysis`
   - checked-in recipe authority stays in `packages/literature-workflows` / `meta/recipes/literature_gap_analysis.json`
+- Legacy fixture usage in this file remains maintainer/eval/regression compatibility coverage only.
 - Lower-level checked-in consumers that now prove the flow:
   - `packages/hep-autoresearch/src/hep_autoresearch/toolkit/literature_gap.py`
   - `packages/hep-autoresearch/tests/test_literature_gap_runner.py`

@@ -241,6 +241,38 @@ describe('Docs tool drift guard', () => {
     expect(referenced).toEqual(live);
   });
 
+  it('meta/docs/orchestrator-mcp-tools-spec.md keeps control-plane narrative invariants', () => {
+    const md = readText(root, 'meta/docs/orchestrator-mcp-tools-spec.md');
+    assertContainsAll({
+      text: md,
+      snippets: [
+        '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
+        '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
+        '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
+        '2. `packages/hep-autoresearch` / `hepar` is now a residual compatibility/provider-local surface. It may project onto canonical lifecycle behavior, but it must not reclaim `orch_*` or `autoresearch` authority.',
+      ],
+      label: 'meta/docs/orchestrator-mcp-tools-spec.md',
+    });
+  });
+
+  it('docs/URI_REGISTRY.md keeps exact live schemes and no implicit cross-scheme aliasing', () => {
+    const md = readText(root, 'docs/URI_REGISTRY.md');
+    assertContainsAll({
+      text: md,
+      snippets: [
+        'Live scheme set for this monorepo is exactly `hep://`, `pdg://`, and `orch://`.',
+        '`hep://` and `orch://` are separate owned namespaces.',
+        'There is no implicit `hep://` <-> `orch://` aliasing layer in live authority.',
+      ],
+      label: 'docs/URI_REGISTRY.md',
+    });
+    assertContainsNone({
+      text: md,
+      snippets: ['| `hep://corpora` | Live |'],
+      label: 'docs/URI_REGISTRY.md',
+    });
+  });
+
   it('front-door authority map classifies the live public surfaces', () => {
     expect(FRONT_DOOR_AUTHORITY_SURFACE_IDS).toEqual([
       'autoresearch_cli',
