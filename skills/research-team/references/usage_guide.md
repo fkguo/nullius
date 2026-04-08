@@ -52,7 +52,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --profile mixed
 ```
 
-Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into `/home/user/Coding/Agents/autoresearch-lab`.
+Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into the autoresearch-lab development repo checkout.
 
 3) Run a team cycle:
 

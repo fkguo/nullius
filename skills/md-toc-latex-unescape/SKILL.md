@@ -25,13 +25,13 @@ This skill does **not** regenerate the TOC; it only cleans up LaTeX escaping **i
 Run the bundled script on one or more Markdown files:
 
 ```bash
-python3 /home/user/.codex/skills/md-toc-latex-unescape/scripts/fix_md_toc_latex_escapes.py Draft_Derivation_HM_SCET.md
+python3 "$CODEX_HOME/skills/md-toc-latex-unescape/scripts/fix_md_toc_latex_escapes.py" Draft_Derivation_HM_SCET.md
 ```
 
 Multiple files can be processed in one invocation:
 
 ```bash
-python3 /home/user/.codex/skills/md-toc-latex-unescape/scripts/fix_md_toc_latex_escapes.py file1.md file2.md
+python3 "$CODEX_HOME/skills/md-toc-latex-unescape/scripts/fix_md_toc_latex_escapes.py" file1.md file2.md
 ```
 
 ## Safety check (recommended)
@@ -39,7 +39,7 @@ python3 /home/user/.codex/skills/md-toc-latex-unescape/scripts/fix_md_toc_latex_
 To see whether changes are needed without modifying files:
 
 ```bash
-python3 /home/user/.codex/skills/md-toc-latex-unescape/scripts/fix_md_toc_latex_escapes.py --check Draft_Derivation_HM_SCET.md
+python3 "$CODEX_HOME/skills/md-toc-latex-unescape/scripts/fix_md_toc_latex_escapes.py" --check Draft_Derivation_HM_SCET.md
 ```
 
 Exit codes:

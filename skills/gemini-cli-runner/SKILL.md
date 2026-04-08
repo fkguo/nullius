@@ -15,7 +15,7 @@ Use this skill when you need to call Gemini from the command line (any task), in
 ## Recommended: runner script (file input + model fallback)
 
 ```bash
-bash /home/user/.codex/skills/gemini-cli-runner/scripts/run_gemini.sh \
+bash "$CODEX_HOME/skills/gemini-cli-runner/scripts/run_gemini.sh" \
   --model gemini-3.1-pro-preview \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \
@@ -25,7 +25,7 @@ bash /home/user/.codex/skills/gemini-cli-runner/scripts/run_gemini.sh \
 Dry-run (no `gemini` call):
 
 ```bash
-bash /home/user/.codex/skills/gemini-cli-runner/scripts/run_gemini.sh \
+bash "$CODEX_HOME/skills/gemini-cli-runner/scripts/run_gemini.sh" \
   --model gemini-3.1-pro-preview \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \

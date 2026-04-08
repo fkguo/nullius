@@ -5,7 +5,7 @@
 > **Branch**: `redesign/track-b`
 > **Dependencies**: EVO-12 (Skill Lifecycle), trace-jsonl (Full-chain tracing), EVO-19 (Gene Library), EVO-20 (Memory Graph)
 >
-> **2026-03-31 SOTA preflight note**: `arXiv:2603.25158v2` (`Trace2Skill: Distill Trajectory-Local Lessons into Transferable Agent Skills`) should be treated as direct SOTA input for this item, not for `EVO-13`. The repo-local absorption note is archived at `/home/user/.autoresearch-lab-dev/sota-preflight/2026-03-31/trace2skill-evo12a-absorption-map/preflight.md`. Current judgment: `NEW-LOOP-01`, `EVO-02`, `EVO-13`, and `EVO-18` already provide adjacent substrate, but the paper's closest landing zone is still trajectory-grounded skill synthesis under `EVO-12a`.
+> **2026-03-31 SOTA preflight note**: `arXiv:2603.25158v2` (`Trace2Skill: Distill Trajectory-Local Lessons into Transferable Agent Skills`) should be treated as direct SOTA input for this item, not for `EVO-13`. The repo-local absorption note is archived under `<local_sota_preflight_root>/2026-03-31/trace2skill-evo12a-absorption-map/preflight.md`. Current judgment: `NEW-LOOP-01`, `EVO-02`, `EVO-13`, and `EVO-18` already provide adjacent substrate, but the paper's closest landing zone is still trajectory-grounded skill synthesis under `EVO-12a`.
 
 ## 1. Overview
 

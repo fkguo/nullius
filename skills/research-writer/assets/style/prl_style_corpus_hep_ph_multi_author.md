@@ -33,7 +33,7 @@ Outputs:
 ```bash
 python3 scripts/bin/research_writer_learn_discussion_logic.py \
   --corpus-dir /tmp/prl_hep_ph_prl_corpus \
-  --out-dir "/home/user/Nutstore Files/Coding/research_writer_discussion_logic/prl_hep-ph_xdj_hxz_fy_jz_mpospelov" \
+  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_xdj_hxz_fy_jz_mpospelov" \
   --mode new \
   --n 10 \
   --resume \

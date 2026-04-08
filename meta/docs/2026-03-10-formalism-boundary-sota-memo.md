@@ -62,7 +62,7 @@
 公开实现：
 
 - https://github.com/SakanaAI/AI-Scientist-v2
-- 本地审阅 clone：`/home/user/Seafile/AI/hep-research-mcp/tmp/AI-Scientist-v2`，commit `96bd51617cfdbb494a9fc283af00fe090edfae48`
+- 本地审阅 clone：`<local_review_clone>/AI-Scientist-v2`，commit `96bd51617cfdbb494a9fc283af00fe090edfae48`
 
 观察：
 

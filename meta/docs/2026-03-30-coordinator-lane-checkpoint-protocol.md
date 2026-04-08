@@ -85,10 +85,10 @@ The current external profile for this repo is `~/.codex/lane-orchestration/profi
 
 Current default bindings are:
 
-- `repo_root = /home/user/Coding/Agents/autoresearch-lab`
+- `repo_root = <autoresearch-lab-repo-root>`
 - `heartbeat_relpath = .tmp/lane-status`
 - `checkpoint_relpath = .tmp/lane-checkpoints`
-- `worktree_root = /home/user/Coding/Agents`
+- `worktree_root = <worktree-parent-root>`
 
 If these bindings change, update the external profile first. Only update this overlay if the project-level meaning of the workflow changes.
 

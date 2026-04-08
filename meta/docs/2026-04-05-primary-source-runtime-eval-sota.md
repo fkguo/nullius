@@ -33,8 +33,8 @@ Current public authority comes from live code, tests, contracts, and front-door 
 
 The most important reads were performed from LaTeX/source-first local copies under:
 
-- `/home/user/.autoresearch-lab-dev/sota-probe/arxiv-2603.28407/`
-- `/home/user/.autoresearch-lab-dev/sota-probe/arxiv-2603.25158/`
+- `<local_sota_probe_root>/arxiv-2603.28407/`
+- `<local_sota_probe_root>/arxiv-2603.25158/`
 
 ### Codebases actually inspected from source
 

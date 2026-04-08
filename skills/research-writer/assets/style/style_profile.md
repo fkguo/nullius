@@ -79,46 +79,46 @@ For the distilled “how to discuss physics” guidance used during drafting, se
 
 ## 8) M0 corpus (inputs scanned; read-only)
 
-The following projects were used as the style corpus (no files modified):
+The following project names were used as the style corpus (local paths intentionally omitted; no files modified):
 
-- `/home/user/Dropbox/Apps/Overleaf/Jpsipi_JpsiK`
-- `/home/user/Dropbox/Apps/Overleaf/BaryonBaryonNc`
-- `/home/user/Dropbox/Apps/Overleaf/psip2Jpipi_dip`
-- `/home/user/Dropbox/Apps/Overleaf/Ds1DKgamma`
-- `/home/user/Dropbox/Apps/Overleaf/X(3872)fit`
-- `/home/user/Dropbox/Apps/Overleaf/ERE with lhc 2`
-- `/home/user/Dropbox/Apps/Overleaf/SigmaTerm`
-- `/home/user/Dropbox/Apps/Overleaf/JpsipiTFF`
-- `/home/user/Dropbox/Apps/Overleaf/GraviChPT_spinlessMatterField`
-- `/home/user/Dropbox/Apps/Overleaf/EntanglmentDecuplet`
-- `/home/user/Dropbox/Apps/Overleaf/JpsiNScatteringLength`
-- `/home/user/Dropbox/Apps/Overleaf/etap2etapipi`
-- `/home/user/Dropbox/Apps/Overleaf/ee2Jpsipp`
-- `/home/user/Dropbox/Apps/Overleaf/D0(2100)_EPJC`
-- `/home/user/Dropbox/Apps/Overleaf/Disc-Calculus`
-- `/home/user/Dropbox/Apps/Overleaf/ee2gammaCplusHM`
-- `/home/user/Dropbox/Apps/Overleaf/PRD Letter: piK_RoySteinerEq`
-- `/home/user/Dropbox/Apps/Overleaf/PRD: piK_RoySteinerEq`
-- `/home/user/Dropbox/Apps/Overleaf/Nature Commun.: GFFs of nucleon`
-- `/home/user/Dropbox/Apps/Overleaf/ERE_lhc`
-- `/home/user/Dropbox/Apps/Overleaf/OpenCharmTetraquarks`
-- `/home/user/Dropbox/Apps/Overleaf/EntanglementHeavyMesons`
-- `/home/user/Dropbox/Apps/Overleaf/Dispersive analyses of GFFs`
-- `/home/user/Dropbox/Apps/Overleaf/XfromLatticeQCD`
-- `/home/user/Dropbox/Apps/Overleaf/ZREFT-Letter`
-- `/home/user/Dropbox/Apps/Overleaf/Chiral representations of the nucleon mass at leading two-loop order`
-- `/home/user/Dropbox/Apps/Overleaf/Photoproduction_3872`
-- `/home/user/Dropbox/Apps/Overleaf/IsovectorX`
-- `/home/user/Dropbox/Apps/Overleaf/CompleteHHbarMultiplet`
-- `/home/user/Dropbox/Apps/Overleaf/0--engilish`
-- `/home/user/Dropbox/Apps/Overleaf/AnnHalo`
-- `/home/user/Dropbox/Apps/Overleaf/ProtonTFF_DalitzDecay`
-- `/home/user/Dropbox/Apps/Overleaf/cusps`
-- `/home/user/Dropbox/Apps/Overleaf/XAtom`
-- `/home/user/Dropbox/Apps/Overleaf/DN-scattering_length`
-- `/home/user/Dropbox/Apps/Overleaf/Nature: A new  paradigm for heavy-light meson spectroscopy`
-- `/home/user/Dropbox/Apps/Overleaf/axion-nucleon`
-- `/home/user/Dropbox/Apps/Overleaf/XEFT`
-- `/home/user/Dropbox/Apps/Overleaf/X3872dip`
-- `/home/user/Dropbox/Apps/Overleaf/Xmassprecise`
-- `/home/user/Dropbox/Apps/Overleaf/Neutron-halo scattering`
+- `Jpsipi_JpsiK`
+- `BaryonBaryonNc`
+- `psip2Jpipi_dip`
+- `Ds1DKgamma`
+- `X(3872)fit`
+- `ERE with lhc 2`
+- `SigmaTerm`
+- `JpsipiTFF`
+- `GraviChPT_spinlessMatterField`
+- `EntanglmentDecuplet`
+- `JpsiNScatteringLength`
+- `etap2etapipi`
+- `ee2Jpsipp`
+- `D0(2100)_EPJC`
+- `Disc-Calculus`
+- `ee2gammaCplusHM`
+- `PRD Letter: piK_RoySteinerEq`
+- `PRD: piK_RoySteinerEq`
+- `Nature Commun.: GFFs of nucleon`
+- `ERE_lhc`
+- `OpenCharmTetraquarks`
+- `EntanglementHeavyMesons`
+- `Dispersive analyses of GFFs`
+- `XfromLatticeQCD`
+- `ZREFT-Letter`
+- `Chiral representations of the nucleon mass at leading two-loop order`
+- `Photoproduction_3872`
+- `IsovectorX`
+- `CompleteHHbarMultiplet`
+- `0--engilish`
+- `AnnHalo`
+- `ProtonTFF_DalitzDecay`
+- `cusps`
+- `XAtom`
+- `DN-scattering_length`
+- `Nature: A new  paradigm for heavy-light meson spectroscopy`
+- `axion-nucleon`
+- `XEFT`
+- `X3872dip`
+- `Xmassprecise`
+- `Neutron-halo scattering`

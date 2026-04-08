@@ -136,7 +136,7 @@ python3 scripts/bin/research_writer_learn_discussion_logic.py \
   --fetch-n 50 \
   --n 10 \
   --resume \
-  --out-dir "/home/user/Nutstore Files/Coding/research_writer_discussion_logic" \
+  --out-dir "<discussion_logic_out_dir>" \
   --mask-math \
   --mask-cites \
   --run-models
@@ -155,8 +155,8 @@ If some packs exist but one model output is missing, rerun in repair mode:
 
 ```bash
 python3 scripts/bin/research_writer_learn_discussion_logic.py \
-  --corpus-dir "/home/user/Nutstore Files/Coding/research_writer_discussion_logic/corpus" \
-  --out-dir "/home/user/Nutstore Files/Coding/research_writer_discussion_logic" \
+  --corpus-dir "<discussion_logic_out_dir>/corpus" \
+  --out-dir "<discussion_logic_out_dir>" \
   --mode repair \
   --n 10 \
   --resume \
@@ -184,7 +184,7 @@ Once you have a run directory with dual-model outputs under `packs/*/{claude,gem
 
 ```bash
 python3 scripts/bin/distill_discussion_logic.py \
-  --out-dir "/home/user/Nutstore Files/Coding/research_writer_discussion_logic/prl_hep-ph_xdj_hxz_fy_jz_mpospelov"
+  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_xdj_hxz_fy_jz_mpospelov"
 ```
 
 Outputs are written under `<out-dir>/distill/`:

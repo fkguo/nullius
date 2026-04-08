@@ -392,7 +392,7 @@ Example (distill a completed run into auditable reports):
 
 ```bash
 python3 scripts/bin/distill_discussion_logic.py \
-  --out-dir "/home/user/Nutstore Files/Coding/research_writer_discussion_logic/prl_hep-ph_xdj_hxz_fy_jz_mpospelov"
+  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_xdj_hxz_fy_jz_mpospelov"
 ```
 
 ## Operational docs

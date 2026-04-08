@@ -2,11 +2,11 @@
 
 This is a minimal “audit trail” of representative `.tex` sources (sampled from the corpus listed in `assets/style/style_profile.md`) that were manually inspected to extract writing/voice conventions. It is not an exhaustive corpus dump.
 
-- `/home/user/Dropbox/Apps/Overleaf/Jpsipi_JpsiK/Jpsipi_v1.tex`
-- `/home/user/Dropbox/Apps/Overleaf/ZREFT-Letter/ZREFT.tex`
-- `/home/user/Dropbox/Apps/Overleaf/PRD Letter: piK_RoySteinerEq/main.tex`
-- `/home/user/Dropbox/Apps/Overleaf/Nature Commun.: GFFs of nucleon/main_arxiv.tex`
-- `/home/user/Dropbox/Apps/Overleaf/Disc-Calculus/main-JHEP.tex`
+- `<local_overleaf_root>/Jpsipi_JpsiK/Jpsipi_v1.tex`
+- `<local_overleaf_root>/ZREFT-Letter/ZREFT.tex`
+- `<local_overleaf_root>/PRD Letter: piK_RoySteinerEq/main.tex`
+- `<local_overleaf_root>/Nature Commun.: GFFs of nucleon/main_arxiv.tex`
+- `<local_overleaf_root>/Disc-Calculus/main-JHEP.tex`
 
 ## Exemplar PRL-style papers (arXiv sources opened)
 
@@ -36,7 +36,7 @@ Papers (arXiv sources; titles sanitized):
 ## N=50 exemplar set (auto packs + dual-model maps)
 
 Downloaded via the INSPIRE query in `assets/style/prl_style_corpus.md` and processed with dual-model extraction into:
-- `/home/user/Nutstore Files/Coding/research_writer_discussion_logic` (not stored in this repo)
+- `<discussion_logic_out_dir>` (not stored in this repo)
 
 Papers (arXiv sources; IDs sorted by recency):
 - `arXiv:2506.02597`
@@ -94,7 +94,7 @@ Papers (arXiv sources; IDs sorted by recency):
 
 Downloaded via INSPIRE (most recent PRL; hep-ph; ≤10 authors; authors: Xiang.Dong.Ji.1, H.X.Zhu.1, Feng.Yuan.1, Jian.Zhou.2, M.Pospelov.1) and processed with dual-model extraction into:
 
-- `/home/user/Nutstore Files/Coding/research_writer_discussion_logic/prl_hep-ph_xdj_hxz_fy_jz_mpospelov`
+- `<discussion_logic_out_dir>/prl_hep-ph_xdj_hxz_fy_jz_mpospelov`
 
 Progress + audit artifacts (written by the script, not stored in this repo):
 - `PROGRESS.md` (should read `Dual-model complete: 96/96`)
