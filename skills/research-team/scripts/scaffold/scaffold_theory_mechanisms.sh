@@ -17,7 +17,6 @@ Creates (if missing) minimal executable artifacts for theory-breakthrough mechan
   - mechanisms/00_pre_task_clarifier.md
   - mechanisms/01_analogy_mining.md
   - mechanisms/02_problem_framing_protocol.md
-  - mechanisms/examples/*.md
 
 These are templates/playbooks (NOT hard gates).
 
@@ -68,7 +67,7 @@ if [[ ! -d "${MECH_ASSETS}" ]]; then
   exit 2
 fi
 
-mkdir -p "${ROOT}/mechanisms/examples"
+mkdir -p "${ROOT}/mechanisms"
 
 escape_sed_repl() {
   local s="$1"
@@ -103,9 +102,5 @@ copy_template() {
 copy_template "${MECH_ASSETS}/clarifier_template.md" "${ROOT}/mechanisms/00_pre_task_clarifier.md"
 copy_template "${MECH_ASSETS}/analogy_mining_template.md" "${ROOT}/mechanisms/01_analogy_mining.md"
 copy_template "${MECH_ASSETS}/problem_framing_protocol_template.md" "${ROOT}/mechanisms/02_problem_framing_protocol.md"
-
-copy_template "${MECH_ASSETS}/examples/clarifier_example.md" "${ROOT}/mechanisms/examples/clarifier_example.md"
-copy_template "${MECH_ASSETS}/examples/analogy_mining_example.md" "${ROOT}/mechanisms/examples/analogy_mining_example.md"
-copy_template "${MECH_ASSETS}/examples/problem_framing_protocol_example.md" "${ROOT}/mechanisms/examples/problem_framing_protocol_example.md"
 
 echo "[done] theory mechanisms scaffolded under: ${ROOT}/mechanisms"

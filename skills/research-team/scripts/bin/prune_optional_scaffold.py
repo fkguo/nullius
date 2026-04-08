@@ -214,9 +214,6 @@ def _check_mechanisms_dir(project_root: Path, *, assets_dir: Path, project_name:
         "00_pre_task_clarifier.md": assets_dir / "mechanisms" / "clarifier_template.md",
         "01_analogy_mining.md": assets_dir / "mechanisms" / "analogy_mining_template.md",
         "02_problem_framing_protocol.md": assets_dir / "mechanisms" / "problem_framing_protocol_template.md",
-        "examples/clarifier_example.md": assets_dir / "mechanisms" / "examples" / "clarifier_example.md",
-        "examples/analogy_mining_example.md": assets_dir / "mechanisms" / "examples" / "analogy_mining_example.md",
-        "examples/problem_framing_protocol_example.md": assets_dir / "mechanisms" / "examples" / "problem_framing_protocol_example.md",
     }
 
     present = _dir_files_rel(mech)

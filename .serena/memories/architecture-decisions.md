@@ -112,7 +112,7 @@
 **Decision**:
 - User-facing project-root entry names should describe role directly; obviously wrong legacy scaffold names should be directly renamed during the current refactor.
 - `hepar init` and `research-team scaffold` are thin host entrypoints and must not own independent scaffold authority.
-- The canonical minimal project-root surface is `project_charter.md`, `project_index.md`, `research_plan.md`, `research_notebook.md`, `research_contract.md`, and `.mcp.json.example`.
+- The canonical minimal project-root surface is `project_charter.md`, `project_index.md`, `research_plan.md`, `research_notebook.md`, `research_contract.md`, and `.mcp.template.json`.
 - Shared scaffold authority is complete only when every user-readable output is backed by a checked-in template inventory with bidirectional anti-drift checks.
 - Host/provider extras remain optional, and provider bundles stay opt-in; generic scaffold examples must remain provider-neutral by default.
 

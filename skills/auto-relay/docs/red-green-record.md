@@ -48,7 +48,7 @@ Implemented:
 - Profile-driven orchestrator: `scripts/relay.py`
 - Prompt template: `templates/next_prompt.md.j2`
 - Profile schema: `schemas/profile.schema.json`
-- Example profile: `examples/profile.example.yaml`
+- Profile template: `templates/profile.template.yaml`
 - Skill docs: `SKILL.md`, `docs/auto-relay.md`
 - Hardening updates:
   - `stop_conditions` observability fields in `blocker_report.json`

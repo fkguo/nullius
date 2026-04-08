@@ -10,7 +10,7 @@ functions = ["hotpath1", "hotpath2"]
 
 [benchmark]
 # Path to a Julia file that defines benchmark workload(s).
-suite_file = "bench-suite-example.jl"
+suite_file = "bench-suite-template.jl"
 # Optional baseline artifact.
 baseline_file = ""
 # Gate run defaults.

@@ -32,7 +32,6 @@ req_files=(
   "${tmp_root}/proj/mechanisms/00_pre_task_clarifier.md"
   "${tmp_root}/proj/mechanisms/01_analogy_mining.md"
   "${tmp_root}/proj/mechanisms/02_problem_framing_protocol.md"
-  "${tmp_root}/proj/mechanisms/examples/clarifier_example.md"
 )
 
 for f in "${req_files[@]}"; do

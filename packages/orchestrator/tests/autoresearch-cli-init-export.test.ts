@@ -40,7 +40,7 @@ describe('autoresearch CLI init/export', () => {
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', '.initialized'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, 'research_contract.md'))).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, '.mcp.json.example'))).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, '.mcp.template.json'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, 'docs', 'APPROVAL_GATES.md'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, 'specs', 'plan.schema.json'))).toBe(true);
     expect(fs.readFileSync(path.join(projectRoot, 'research_contract.md'), 'utf-8')).toContain('Source notebook: [research_notebook.md](research_notebook.md)');

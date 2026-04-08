@@ -4,7 +4,7 @@ This file governs development inside `packages/hep-autoresearch/`.
 
 ## What this directory is
 
-- This directory is the **package/development repo** for the `hep-autoresearch` CLI, toolkit, docs, evals, examples, and maintainer regressions.
+- This directory is the **package/development repo** for the `hep-autoresearch` CLI, toolkit, docs, evals, templates, and maintainer regressions.
 - It is **not** a live research project root.
 - Real research-project roots should be created outside this package repo via `autoresearch init`.
 
@@ -13,11 +13,11 @@ This file governs development inside `packages/hep-autoresearch/`.
 - Do not treat package root as if it were a user project with a live charter, plan, notebook, manuscript, or team state.
 - Project-shaped assets belong in one of these places only:
   - user-created external project roots (`autoresearch init`);
-  - minimal generic examples under `examples/`;
+  - package-local templates under `templates/`;
   - deterministic regression fixtures under `evals/fixtures/`;
   - generated scaffold projects under `artifacts/runs/*/orchestrator_regression/project_init_project/`.
 - Do not re-introduce package-root residue such as `PROJECT_CHARTER.md`, `PROJECT_MAP.md`, `RESEARCH_PLAN.md`, `PREWORK.md`, `Draft_Derivation.md`, package-root `paper/`, member prompt files, or ad-hoc self-hosted project state.
-- Keep examples and fixtures generic, minimal, and reusable. Narrow historical project residue should stay out of this repo.
+- Keep templates and fixtures generic, minimal, and reusable. Narrow historical project residue should stay out of this repo.
 
 ## Safe cleanup protocol (hard requirement)
 

@@ -12,14 +12,14 @@ Expected key files:
 - `scripts/relay.py`
 - `templates/next_prompt.md.j2`
 - `schemas/profile.schema.json`
-- `examples/profile.example.yaml`
+- `templates/profile.template.yaml`
 - `tests/test_auto_relay.py`
 
 ## 2. Configure Profile
 
 Start from:
 
-- `examples/profile.example.yaml`
+- `templates/profile.template.yaml`
 
 Profile is the only place for project differences. Core orchestrator logic remains generic.
 

@@ -25,16 +25,16 @@ SCHEMA_FILES = [
 
 EXAMPLE_MAP = {
     "failed_approach_v1.schema.json": [
-        "failed_approach_v1.example.json",
+        "failed_approach_v1.fixture.json",
     ],
     "failure_library_query_v1.schema.json": [
-        "failure_library_query_v1.example.json",
+        "failure_library_query_v1.fixture.json",
     ],
     "failure_library_index_v1.schema.json": [
-        "failure_library_index_v1.example.json",
+        "failure_library_index_v1.fixture.json",
     ],
     "failure_library_hits_v1.schema.json": [
-        "failure_library_hits_v1.example.json",
+        "failure_library_hits_v1.fixture.json",
     ],
 }
 

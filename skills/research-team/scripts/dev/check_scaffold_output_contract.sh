@@ -83,7 +83,7 @@ require_paths=(
   "project_charter.md"
   "research_plan.md"
   "project_index.md"
-  ".mcp.json.example"
+  ".mcp.template.json"
 )
 
 for rel in "${require_paths[@]}"; do
@@ -153,9 +153,6 @@ if [[ "${VARIANT}" == "full" ]]; then
     "mechanisms/00_pre_task_clarifier.md"
     "mechanisms/01_analogy_mining.md"
     "mechanisms/02_problem_framing_protocol.md"
-    "mechanisms/examples/clarifier_example.md"
-    "mechanisms/examples/analogy_mining_example.md"
-    "mechanisms/examples/problem_framing_protocol_example.md"
   )
   full_dirs=(
     "team"
@@ -165,7 +162,6 @@ if [[ "${VARIANT}" == "full" ]]; then
     "knowledge_base/priors"
     "knowledge_graph"
     "mechanisms"
-    "mechanisms/examples"
   )
   for rel in "${full_paths[@]}"; do
     if [[ ! -f "${ROOT}/${rel}" ]]; then

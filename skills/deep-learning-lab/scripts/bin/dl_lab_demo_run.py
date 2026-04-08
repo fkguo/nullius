@@ -5,8 +5,8 @@ CPU-only toy training run that emits the deep-learning-lab artifact trio:
 - summary.json  (stable metrics + definitions + best checkpoint pointer)
 - analysis.json  (training curves + headline results)
 
-Acceptance (example):
-  python3 examples/toy_run.py --out-dir /tmp/dl_run --seed 0
+Acceptance:
+  python3 scripts/bin/dl_lab_demo_run.py --out-dir /tmp/dl_run --seed 0
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Optional
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from dl_lab.artifacts import (  # noqa: E402
@@ -325,7 +325,7 @@ def main() -> int:
                 "sha256": train_sha256,
                 "provenance": {
                     "kind": "generated",
-                    "generator": "examples/toy_run.py",
+                    "generator": "scripts/bin/dl_lab_demo_run.py",
                     "seed": seed,
                     "spec": {
                         "n": n_train,
@@ -341,7 +341,7 @@ def main() -> int:
                 "sha256": val_sha256,
                 "provenance": {
                     "kind": "generated",
-                    "generator": "examples/toy_run.py",
+                    "generator": "scripts/bin/dl_lab_demo_run.py",
                     "seed": seed,
                     "spec": {
                         "n": n_val,

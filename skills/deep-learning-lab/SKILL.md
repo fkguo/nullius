@@ -43,7 +43,7 @@ All quoted numbers in the paper must point to `analysis.json:results.<key>`.
 ## CPU smoke test (no GPU)
 
 ```bash
-python3 examples/toy_run.py --out-dir /tmp/dl_run --seed 0
+python3 scripts/bin/dl_lab_demo_run.py --out-dir /tmp/dl_run --seed 0
 test -f /tmp/dl_run/manifest.json
 test -f /tmp/dl_run/summary.json
 test -f /tmp/dl_run/analysis.json

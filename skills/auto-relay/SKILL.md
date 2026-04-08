@@ -26,7 +26,7 @@ description: Use when orchestrating multi-task work across sessions with auditab
 - `scripts/relay.py`: main orchestrator
 - `templates/next_prompt.md.j2`: handoff prompt template
 - `schemas/profile.schema.json`: profile schema
-- `examples/profile.example.yaml`: reusable sample profile
+- `templates/profile.template.yaml`: reusable profile template
 - `tests/test_auto_relay.py`: unit/integration tests
 
 ## Modes

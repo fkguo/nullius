@@ -19,7 +19,7 @@ Use it to find the human notebook, the machine contract, and the current plan wi
 - Human primary file: [research_notebook.md](research_notebook.md)
 - Machine contract: [research_contract.md](research_contract.md)
 - Artifact root: `artifacts/runs/<TAG>/`
-- Local MCP config example: [.mcp.json.example](.mcp.json.example)
+- Local MCP config template: [.mcp.template.json](.mcp.template.json)
 - Shared docs: [docs/APPROVAL_GATES.md](docs/APPROVAL_GATES.md), [docs/ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md), [docs/EVAL_GATE_CONTRACT.md](docs/EVAL_GATE_CONTRACT.md)
 
 ## Optional expansions

@@ -21,7 +21,7 @@ Default behavior creates the canonical minimal project scaffold:
   - research_plan.md
   - research_notebook.md
   - research_contract.md
-  - .mcp.json.example
+  - .mcp.template.json
 
 Use --full to add research-team host-local surfaces:
   - prompts/
@@ -127,7 +127,7 @@ fi
 mkdir -p "${ROOT}/prompts" "${ROOT}/team/runs" "${ROOT}/artifacts/runs"
 mkdir -p "${ROOT}/references/inspire" "${ROOT}/references/arxiv_src" "${ROOT}/references/github"
 mkdir -p "${ROOT}/knowledge_base/literature" "${ROOT}/knowledge_base/methodology_traces" "${ROOT}/knowledge_base/priors"
-mkdir -p "${ROOT}/knowledge_graph" "${ROOT}/mechanisms/examples"
+mkdir -p "${ROOT}/knowledge_graph" "${ROOT}/mechanisms"
 
 if [[ "${WITH_HEP_PROVIDER}" -eq 1 ]]; then
   copy_template "${ASSETS_DIR}/hep_workspace_template.json" "${ROOT}/.hep/workspace.json"
@@ -161,9 +161,6 @@ copy_template "${ASSETS_DIR}/knowledge_graph_readme_template.md" "${ROOT}/knowle
 copy_template "${ASSETS_DIR}/mechanisms/clarifier_template.md" "${ROOT}/mechanisms/00_pre_task_clarifier.md"
 copy_template "${ASSETS_DIR}/mechanisms/analogy_mining_template.md" "${ROOT}/mechanisms/01_analogy_mining.md"
 copy_template "${ASSETS_DIR}/mechanisms/problem_framing_protocol_template.md" "${ROOT}/mechanisms/02_problem_framing_protocol.md"
-copy_template "${ASSETS_DIR}/mechanisms/examples/clarifier_example.md" "${ROOT}/mechanisms/examples/clarifier_example.md"
-copy_template "${ASSETS_DIR}/mechanisms/examples/analogy_mining_example.md" "${ROOT}/mechanisms/examples/analogy_mining_example.md"
-copy_template "${ASSETS_DIR}/mechanisms/examples/problem_framing_protocol_example.md" "${ROOT}/mechanisms/examples/problem_framing_protocol_example.md"
 
 profile_lc="$(printf '%s' "${PROFILE}" | tr '[:upper:]' '[:lower:]')"
 if [[ "${profile_lc}" == "toolkit_extraction" ]]; then

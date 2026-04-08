@@ -132,7 +132,7 @@ def _ensure_project_map_exists(project_root: Path) -> Path:
     lines.append("- Human primary file: [research_notebook.md](research_notebook.md)")
     lines.append("- Machine contract: [research_contract.md](research_contract.md)")
     lines.append("- Artifact root: `artifacts/runs/<TAG>/`")
-    lines.append("- Local MCP config example: [.mcp.json.example](.mcp.json.example)")
+    lines.append("- Local MCP config template: [.mcp.template.json](.mcp.template.json)")
     lines.append("")
     lines.append("---")
     lines.append("")

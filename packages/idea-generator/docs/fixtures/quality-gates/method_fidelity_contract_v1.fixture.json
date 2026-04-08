@@ -10,7 +10,7 @@
     "toy_phase_model"
   ],
   "evidence_pointers": [
-    "docs/fixtures/quality-gates/method_fidelity_contract_v1.example.json"
+    "docs/fixtures/quality-gates/method_fidelity_contract_v1.fixture.json"
   ],
   "expected_limitation": true,
   "human_signoff": {

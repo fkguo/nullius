@@ -45,5 +45,5 @@ class TestScaffoldTemplateSync(unittest.TestCase):
         ):
             self.assertNotIn(token, main_surface)
         self.assertIn("[research_preflight.md](research_preflight.md)", optional_surface)
-        for token in ("project_charter.md", "research_plan.md", "research_notebook.md", "research_contract.md", "AGENTS.md", ".mcp.json.example"):
+        for token in ("project_charter.md", "research_plan.md", "research_notebook.md", "research_contract.md", "AGENTS.md", ".mcp.template.json"):
             self.assertIn(token, text)

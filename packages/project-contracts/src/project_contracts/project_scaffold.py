@@ -13,7 +13,7 @@ from .project_policy import (
 from .project_surface import (
     BOUNDARY_NAMING_AUDIT,
     FULL_TEMPLATE_FILES,
-    MCP_CONFIG_EXAMPLE,
+    MCP_CONFIG_TEMPLATE,
     MINIMAL_CONTEXT_FILES,
     MINIMAL_TEMPLATE_FILES,
     SCAFFOLD_TEMPLATE_MAP,
@@ -101,12 +101,12 @@ def ensure_project_scaffold(
             skipped=skipped,
             force=force,
         )
-    mcp_path = repo_root / MCP_CONFIG_EXAMPLE
+    mcp_path = repo_root / MCP_CONFIG_TEMPLATE
     if not mcp_path.exists() or force:
         mcp_path.write_text(
             json.dumps(
                 {
-                    "_comment": "Copy this file to .mcp.json and replace the placeholder entry with the provider-local MCP server(s) your project actually uses.",
+                    "_comment": "Rename this file to .mcp.json and replace the placeholder entry with the provider-local MCP server(s) your project actually uses.",
                     "mcpServers": {
                         "example-provider": {
                             "command": "node",

@@ -27,29 +27,29 @@ SCHEMA_FILES = [
 
 EXAMPLE_MAP = {
     "scope_classification_v1.schema.json": [
-        "scope_classification_v1.ecosystem_validation.example.json",
-        "scope_classification_v1.publication_ready.example.json",
+        "scope_classification_v1.ecosystem_validation.fixture.json",
+        "scope_classification_v1.publication_ready.fixture.json",
     ],
     "method_fidelity_contract_v1.schema.json": [
-        "method_fidelity_contract_v1.example.json",
+        "method_fidelity_contract_v1.fixture.json",
     ],
     "literature_search_evidence_v2.schema.json": [
-        "literature_search_evidence_v2.example.json",
+        "literature_search_evidence_v2.fixture.json",
     ],
     "numerics_method_selection_v1.schema.json": [
-        "numerics_method_selection_v1.example.json",
+        "numerics_method_selection_v1.fixture.json",
     ],
     "numerics_validation_report_v1.schema.json": [
-        "numerics_validation_report_v1.example.json",
+        "numerics_validation_report_v1.fixture.json",
     ],
     "portability_report_v1.schema.json": [
-        "portability_report_v1.example.json",
+        "portability_report_v1.fixture.json",
     ],
     "core_loop_execution_audit_v1.schema.json": [
-        "core_loop_execution_audit_v1.example.json",
+        "core_loop_execution_audit_v1.fixture.json",
     ],
     "milestone_gate_v1.schema.json": [
-        "milestone_gate_v1.example.json",
+        "milestone_gate_v1.fixture.json",
     ],
 }
 

@@ -63,7 +63,7 @@ The runner best-effort copies the run-card into `out_dir/inputs/run_card.<ext>` 
 This repo provides the lightest smoke runner (does not require Wolfram/Julia to successfully execute computation, but must produce full auditable wrappers):
 
 ```bash
-python3 scripts/run_example_min.py --out-dir /tmp/hep_calc_run
+python3 scripts/run_min_smoke.py --out-dir /tmp/hep_calc_run
 test -f /tmp/hep_calc_run/manifest.json
 test -f /tmp/hep_calc_run/summary.json
 test -f /tmp/hep_calc_run/analysis.json

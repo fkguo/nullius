@@ -27,9 +27,9 @@ test -f "${proj}/artifacts/runs/M0-demo/manifest.json"
 test -f "${proj}/artifacts/runs/M0-demo/summary.json"
 test -f "${proj}/artifacts/runs/M0-demo/checkpoints/best.json"
 
-echo "[smoke] toy_run: CPU example"
+echo "[smoke] demo run: CPU smoke"
 toy="${tmp_root}/toy_run"
-python3 examples/toy_run.py --out-dir "${toy}" --seed 0 >/dev/null
+python3 scripts/bin/dl_lab_demo_run.py --out-dir "${toy}" --seed 0 >/dev/null
 test -f "${toy}/manifest.json"
 test -f "${toy}/summary.json"
 test -f "${toy}/analysis.json"

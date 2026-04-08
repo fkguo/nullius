@@ -11,7 +11,7 @@ RESEARCH_CONTRACT = "research_contract.md"
 RESEARCH_PREFLIGHT = "research_preflight.md"
 PROJECT_BRIEF = "project_brief.md"
 IDEA_LOG = "idea_log.md"
-MCP_CONFIG_EXAMPLE = ".mcp.json.example"
+MCP_CONFIG_TEMPLATE = ".mcp.template.json"
 
 SCAFFOLD_SUPPORT_FILES = (
     "AGENTS.md",

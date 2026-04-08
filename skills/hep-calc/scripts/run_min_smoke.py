@@ -10,8 +10,8 @@ from pathlib import Path
 
 _MIN_JOB_YAML = """\
 schema_version: 1
-name: example-min-skeleton
-description: "Minimal hep-calc example: compute-only skeleton (no Mathematica entry, no auto_qft, no TeX targets)."
+name: min-smoke-skeleton
+description: "Minimal hep-calc smoke skeleton: compute-only (no Mathematica entry, no auto_qft, no TeX targets)."
 
 latex:
   targets: []
@@ -22,7 +22,7 @@ numeric:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Run the lightest hep-calc example job and write SSOT artifacts into out_dir.")
+    ap = argparse.ArgumentParser(description="Run the lightest hep-calc smoke job and write SSOT artifacts into out_dir.")
     ap.add_argument("--out-dir", required=True, help="Output directory to write (will be created/overwritten).")
     args = ap.parse_args()
 
@@ -54,4 +54,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

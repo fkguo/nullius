@@ -42,7 +42,7 @@ class TestScaffoldNamingContract(unittest.TestCase):
                 "research_plan.md",
                 "research_notebook.md",
                 "research_contract.md",
-                ".mcp.json.example",
+                ".mcp.template.json",
                 "docs/APPROVAL_GATES.md",
                 "docs/ARTIFACT_CONTRACT.md",
                 "docs/EVAL_GATE_CONTRACT.md",
