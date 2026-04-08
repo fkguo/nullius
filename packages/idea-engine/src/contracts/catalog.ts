@@ -61,7 +61,7 @@ export class IdeaEngineContractCatalog {
 
   constructor(contractDir = DEFAULT_CONTRACT_DIR) {
     this.contractDir = resolve(contractDir);
-    const openrpcPath = resolve(this.contractDir, 'idea_core_rpc_v1.openrpc.json');
+    const openrpcPath = resolve(this.contractDir, 'idea_runtime_rpc_v1.openrpc.json');
     this.openrpcUri = pathToFileURL(openrpcPath).href;
     const openrpc = JSON.parse(readFileSync(openrpcPath, 'utf8')) as OpenRpcDocument;
     this.contractVersion = String(openrpc.info?.version ?? 'unknown');

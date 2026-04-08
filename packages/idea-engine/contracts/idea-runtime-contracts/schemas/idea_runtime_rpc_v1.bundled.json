@@ -3026,7 +3026,7 @@
             }
           }
         ],
-        "description": "Machine-readable JSON-RPC error.data contract for idea-core RPC. Engines MUST include error.data in all error responses (see OpenRPC x-error-data-contract).",
+        "description": "Machine-readable JSON-RPC error.data contract for the idea runtime RPC. Engines MUST include error.data in all error responses (see OpenRPC x-error-data-contract).",
         "properties": {
           "campaign_id": {
             "description": "Optional campaign scope identifier for correlation (when applicable).",

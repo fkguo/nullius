@@ -276,7 +276,6 @@ describe('Docs tool drift guard', () => {
   it('front-door authority map classifies the live public surfaces', () => {
     expect(FRONT_DOOR_AUTHORITY_SURFACE_IDS).toEqual([
       'autoresearch_cli',
-      'hepar_public_shell',
       'hepar_internal_full_parser',
       'orchestrator_mcp_tools_spec',
     ]);
@@ -286,15 +285,10 @@ describe('Docs tool drift guard', () => {
       surface_kind: 'cli_command_inventory',
       exact_inventory_source: 'packages/orchestrator/src/cli-command-inventory.ts',
     });
-    expect(getFrontDoorAuthoritySurface('hepar_public_shell')).toMatchObject({
-      classification: 'compatibility_public',
-      surface_kind: 'cli_command_inventory',
-      exact_inventory_source: 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_SHELL_COMMANDS',
-    });
     expect(getFrontDoorAuthoritySurface('hepar_internal_full_parser')).toMatchObject({
       classification: 'internal_only',
       surface_kind: 'compatibility_full_parser',
-      exact_inventory_source: 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main(public_surface=False)',
+      exact_inventory_source: 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main',
     });
     expect(getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec')).toMatchObject({
       classification: 'canonical_public',
@@ -312,11 +306,11 @@ describe('Docs tool drift guard', () => {
       owner: getFrontDoorAuthoritySurface('autoresearch_cli').owner,
       relPath: getFrontDoorAuthoritySurface('autoresearch_cli').exact_inventory_source,
     });
-    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.hepar_public_shell).toMatchObject({
-      surface: 'hepar_public_shell',
-      classification: getFrontDoorAuthoritySurface('hepar_public_shell').classification,
-      owner: getFrontDoorAuthoritySurface('hepar_public_shell').owner,
-      relPath: getFrontDoorAuthoritySurface('hepar_public_shell').exact_inventory_source,
+    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.hepar_internal_full_parser).toMatchObject({
+      surface: 'hepar_internal_full_parser',
+      classification: getFrontDoorAuthoritySurface('hepar_internal_full_parser').classification,
+      owner: getFrontDoorAuthoritySurface('hepar_internal_full_parser').owner,
+      relPath: getFrontDoorAuthoritySurface('hepar_internal_full_parser').exact_inventory_source,
     });
     expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.orchestrator_mcp_tools_spec).toMatchObject({
       surface: 'orchestrator_mcp_tools_spec',

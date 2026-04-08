@@ -33,7 +33,7 @@ export const DEFAULT_CONTRACT_DIR = fileURLToPath(
   new URL('../../contracts/idea-runtime-contracts/schemas', import.meta.url),
 );
 
-export const OPENRPC_PATH = resolve(DEFAULT_CONTRACT_DIR, 'idea_core_rpc_v1.openrpc.json');
+export const OPENRPC_PATH = resolve(DEFAULT_CONTRACT_DIR, 'idea_runtime_rpc_v1.openrpc.json');
 
 export function loadOpenRpcDocument(): OpenRpcDocument {
   return JSON.parse(readFileSync(OPENRPC_PATH, 'utf8')) as OpenRpcDocument;
