@@ -62,9 +62,6 @@ def _die(msg: str, code: int = 2) -> int:
     print(f"[error] {msg}")
     return code
 
-
-PUBLIC_RUN_WORKFLOW_IDS: tuple[str, ...] = ()
-
 INTERNAL_ONLY_RUN_WORKFLOW_IDS: tuple[str, ...] = (
     "ingest",
     "paper_reviser",
@@ -73,24 +70,11 @@ INTERNAL_ONLY_RUN_WORKFLOW_IDS: tuple[str, ...] = (
     "literature_survey_polish",
 )
 
-
-def _public_run_workflow_ids() -> set[str]:
-    return set(PUBLIC_RUN_WORKFLOW_IDS)
-
-
 def _internal_only_run_workflow_ids() -> set[str]:
     return set(INTERNAL_ONLY_RUN_WORKFLOW_IDS) | adapter_workflow_ids()
 
-
-PUBLIC_SHELL_COMMANDS: tuple[str, ...] = (
-    "run",
-)
-
-PUBLIC_SHELL_COMMANDS_MARKDOWN = ", ".join(f"`{command}`" for command in PUBLIC_SHELL_COMMANDS)
-
-
 def _all_run_workflow_ids() -> set[str]:
-    return {"computation"} | _public_run_workflow_ids() | _internal_only_run_workflow_ids()
+    return {"computation"} | _internal_only_run_workflow_ids()
 
 
 def _repo_checkout_root_from_source() -> Path | None:
@@ -142,31 +126,6 @@ def _run_autoresearch_passthrough(*, repo_root: Path, argv: list[str]) -> int:
     if cp.stderr:
         sys.stderr.write(cp.stderr)
     return int(cp.returncode)
-
-
-def _run_workflow_id_help(*, public_surface: bool) -> str:
-    if public_surface:
-        public_workflow_ids = sorted(_public_run_workflow_ids())
-        if public_workflow_ids:
-            return "Workflow id for the remaining public compatibility workflow, e.g. " + "|".join(
-                public_workflow_ids
-            )
-        return (
-            "No installable public legacy run workflow ids remain. "
-            "Use `autoresearch run --workflow-id ...`."
-        )
-    return "Workflow id, e.g. " + "|".join(sorted(_all_run_workflow_ids()))
-
-
-def _assert_public_shell_inventory(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    # This parse-time check is the installable public-shell drift gate.
-    actual = tuple(subparsers.choices.keys())
-    if actual != PUBLIC_SHELL_COMMANDS:
-        raise RuntimeError(
-            "installable public shell inventory drifted: "
-            f"expected {PUBLIC_SHELL_COMMANDS!r}, got {actual!r}"
-        )
-
 
 def _maybe_auto_trigger_evolution_proposal(
     repo_root: Path,
@@ -397,7 +356,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
-# Internal-only maintainer surface: `start` is retired from the installable shell
+# Internal-only maintainer surface: `start` stays retired from the public front door
 # and has not been repointed onto the canonical TS lifecycle front door.
 def cmd_start(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
@@ -1579,7 +1538,7 @@ def _request_approval(
 
 
 # Internal-only maintainer surface: `request-approval` is retired from the
-# installable shell and still materializes packets locally pending TS parity.
+# public front door and still materializes packets locally pending TS parity.
 def cmd_request_approval(args: argparse.Namespace) -> int:
     repo_root = _repo_root_from_args(args)
     st = _read_or_init_state(repo_root)
@@ -3432,12 +3391,8 @@ def cmd_export(args: argparse.Namespace) -> int:
     return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
-def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
-    description = (
-        "Legacy Pipeline A CLI for residual provider-local workflow/support commands."
-        if public_surface
-        else "Orchestrator CLI v0.4 (provider-local workflows plus narrow lifecycle adapters)."
-    )
+def main(argv: list[str] | None = None) -> int:
+    description = "Orchestrator CLI v0.4 (provider-local workflows plus narrow lifecycle adapters)."
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "--project-root",
@@ -3445,314 +3400,300 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    if not public_surface:
-        p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch init`).")
-        p_init.add_argument("--force", action="store_true", help="Overwrite existing state.json.")
-        p_init.add_argument(
-            "--allow-nested",
-            action="store_true",
-            help="Allow init inside a subdirectory of an existing project root (not recommended).",
-        )
-        p_init.add_argument(
-            "--runtime-only",
-            action="store_true",
-            help="Initialize only .autoresearch runtime state/policy without scaffolding project-local docs/KB/specs. Intended for maintainer regressions and harness use.",
-        )
-        p_init.add_argument("--checkpoint-interval-seconds", type=int, help="Default checkpoint interval.")
-        p_init.set_defaults(fn=cmd_init)
-
-    if not public_surface:
-        p_status = sub.add_parser("status", help="Show current state (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch status`).")
-        p_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON output.")
-        p_status.set_defaults(fn=cmd_status)
-
-        p_pause = sub.add_parser("pause", help="Pause current run (writes .pause and updates state; canonical generic entrypoint is `autoresearch pause`).")
-        p_pause.add_argument("--note", help="Ledger note.")
-        p_pause.set_defaults(fn=cmd_pause)
-
-        p_resume = sub.add_parser("resume", help="Resume current run (removes .pause and updates state; canonical generic entrypoint is `autoresearch resume`).")
-        p_resume.add_argument("--note", help="Ledger note.")
-        p_resume.add_argument("--force", action="store_true", help="Allow resuming from idle/completed/failed.")
-        p_resume.set_defaults(fn=cmd_resume)
-
-    if not public_surface:
-        p_app = sub.add_parser("approve", help="Approve a pending approval and resume running (canonical generic entrypoint is `autoresearch approve`).")
-        p_app.add_argument("approval_id", help="Approval id, e.g. A1-0001")
-        p_app.add_argument("--note", help="Ledger note.")
-        p_app.set_defaults(fn=cmd_approve)
-
-    run_help = (
-        "Public compatibility wrapper only; no installable public legacy run workflow ids remain. "
-        "Use `autoresearch run --workflow-id ...` (for computation: `autoresearch run --workflow-id computation`)."
-        if public_surface
-        else "Run a workflow (v0.4+: computation + ingest + reproduce(toy) + paper_reviser + revision + literature_survey_polish + shell_adapter_smoke)."
+    p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch init`).")
+    p_init.add_argument("--force", action="store_true", help="Overwrite existing state.json.")
+    p_init.add_argument(
+        "--allow-nested",
+        action="store_true",
+        help="Allow init inside a subdirectory of an existing project root (not recommended).",
     )
+    p_init.add_argument(
+        "--runtime-only",
+        action="store_true",
+        help="Initialize only .autoresearch runtime state/policy without scaffolding project-local docs/KB/specs. Intended for maintainer regressions and harness use.",
+    )
+    p_init.add_argument("--checkpoint-interval-seconds", type=int, help="Default checkpoint interval.")
+    p_init.set_defaults(fn=cmd_init)
+
+    p_status = sub.add_parser("status", help="Show current state (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch status`).")
+    p_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON output.")
+    p_status.set_defaults(fn=cmd_status)
+
+    p_pause = sub.add_parser("pause", help="Pause current run (writes .pause and updates state; canonical generic entrypoint is `autoresearch pause`).")
+    p_pause.add_argument("--note", help="Ledger note.")
+    p_pause.set_defaults(fn=cmd_pause)
+
+    p_resume = sub.add_parser("resume", help="Resume current run (removes .pause and updates state; canonical generic entrypoint is `autoresearch resume`).")
+    p_resume.add_argument("--note", help="Ledger note.")
+    p_resume.add_argument("--force", action="store_true", help="Allow resuming from idle/completed/failed.")
+    p_resume.set_defaults(fn=cmd_resume)
+
+    p_app = sub.add_parser("approve", help="Approve a pending approval and resume running (canonical generic entrypoint is `autoresearch approve`).")
+    p_app.add_argument("approval_id", help="Approval id, e.g. A1-0001")
+    p_app.add_argument("--note", help="Ledger note.")
+    p_app.set_defaults(fn=cmd_approve)
+
+    run_help = "Run a workflow (v0.4+: computation + ingest + reproduce(toy) + paper_reviser + revision + literature_survey_polish + shell_adapter_smoke)."
     p_run = sub.add_parser("run", help=run_help, description=run_help)
     p_run.add_argument("--run-id", required=True, help="Run tag, e.g. M1-r1")
     p_run.add_argument(
         "--workflow-id",
         required=True,
-        choices=sorted(_public_run_workflow_ids() if public_surface else _all_run_workflow_ids()),
-        help=_run_workflow_id_help(public_surface=public_surface),
+        choices=sorted(_all_run_workflow_ids()),
+        help="Workflow id, e.g. " + "|".join(sorted(_all_run_workflow_ids())),
     )
     p_run.add_argument("--note", help="Ledger note.")
-    if not public_surface:
-        p_run.add_argument(
-            "--kb-profile",
-            default="minimal",
-            choices=["minimal", "curated", "user"],
-            help="KB profile selection for reviewer/LLM context (v0: writes artifacts/runs/<run-id>/kb_profile/...).",
-        )
-        p_run.add_argument(
-            "--kb-profile-user-path",
-            help="If --kb-profile=user, path to a kb_profile definition JSON (default: .autoresearch/kb_profile_user.json).",
-        )
-        p_run.add_argument("--force", action="store_true", help="Override state mismatch / rerun completed.")
-        p_run.add_argument("--gate", choices=sorted(APPROVAL_CATEGORY_TO_POLICY_KEY.keys()), help="Force a gate (A1–A5) before running.")
-        p_run.add_argument(
-            "--run-card",
-            help="Workflow run-card path. For computation: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON).",
-        )
-        p_run.add_argument(
-            "--project-dir",
-            help="computation: project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
-        )
-        p_run.add_argument(
-            "--trust-project",
-            action="store_true",
-            help="computation: trust project to execute shell backends (non-interactive).",
-        )
-        p_run.add_argument(
-            "--resume",
-            action="store_true",
-            help="computation: resume from artifacts/runs/<run-id>/computation (requires matching run-card).",
-        )
-        p_run.add_argument(
-            "--param",
-            action="append",
-            default=[],
-            help="computation: parameter override (repeatable: key=value).",
-        )
-        p_run.add_argument(
-            "--sandbox",
-            default="none",
-            choices=["none", "auto", "local_copy", "docker"],
-            help="Adapter workflows: sandbox execution provider (v0: local_copy fallback; docker requires a running daemon).",
-        )
-        p_run.add_argument(
-            "--sandbox-network",
-            default="disabled",
-            choices=["disabled", "none", "host"],
-            help="Sandbox network policy (docker only; default: disabled).",
-        )
-        p_run.add_argument(
-            "--sandbox-docker-image",
-            help="Sandbox docker image (docker provider; default: python:3.11-slim).",
-        )
-        p_run.add_argument(
-            "--sandbox-repo-writable",
-            action="store_true",
-            help="Sandbox local_copy only: allow writes to the sandboxed repo copy (default: read-only; no effect for docker provider).",
-        )
-        w1 = p_run.add_mutually_exclusive_group(required=False)
-        w1.add_argument("--inspire-recid", help="INSPIRE literature recid, e.g. 1234567")
-        w1.add_argument("--arxiv-id", help="arXiv id, e.g. 2210.03629")
-        w1.add_argument("--doi", help="DOI, e.g. 10.1103/PhysRevLett.116.061102")
-        p_run.add_argument("--case", default="toy", help="reproduce case id (v0: toy).")
-        p_run.add_argument("--ns", default="0,1,2,5,10", help="reproduce toy case n values (comma-separated).")
-        p_run.add_argument("--epsabs", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsabs.")
-        p_run.add_argument("--epsrel", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsrel.")
-        p_run.add_argument("--mpmath-dps", type=int, default=80, help="reproduce toy: mpmath precision (decimal digits).")
-        p_run.add_argument("--refkey", help="Optional RefKey (defaults to a stable derived key)")
-        p_run.add_argument(
-            "--download",
-            default="auto",
-            choices=["none", "auto", "arxiv_source", "arxiv_pdf", "both"],
-            help="Download policy for arXiv assets (if available).",
-        )
-        p_run.add_argument(
-            "--paper-root",
-            default="paper",
-            help="revision: LaTeX project root (default: paper).",
-        )
-        p_run.add_argument(
-            "--tex-main",
-            default="main.tex",
-            help="revision: main TeX file within paper-root.",
-        )
-        p_run.add_argument("--draft-tex", help="paper_reviser: input draft .tex path (default: <paper-root>/<tex-main>).")
-        p_run.add_argument(
-            "--paper-reviser-mode",
-            default="run-models",
-            choices=["run-models", "stub-models", "dry-run"],
-            help="paper_reviser: paper-reviser execution mode (default: run-models).",
-        )
-        p_run.add_argument("--writer-backend", choices=["claude", "gemini"], help="paper_reviser: writer backend (required).")
-        p_run.add_argument("--writer-model", help="paper_reviser: writer model/alias (required; non-empty).")
-        p_run.add_argument("--auditor-backend", choices=["claude", "gemini"], help="paper_reviser: auditor backend (required).")
-        p_run.add_argument("--auditor-model", help="paper_reviser: auditor model/alias (required; non-empty).")
-        p_run.add_argument(
-            "--paper-reviser-max-rounds-rev1",
-            type=int,
-            default=1,
-            help="paper_reviser: paper-reviser --max-rounds for round_01 (default: 1).",
-        )
-        p_run.add_argument(
-            "--paper-reviser-no-codex-verify",
-            action="store_true",
-            help="paper_reviser: pass --no-codex-verify to paper-reviser.",
-        )
-        p_run.add_argument(
-            "--paper-reviser-min-clean-size-ratio",
-            type=float,
-            help="paper_reviser: pass --min-clean-size-ratio to paper-reviser (must be in (0, 1]).",
-        )
-        p_run.add_argument(
-            "--paper-reviser-codex-model",
-            help="paper_reviser: pass --codex-model to paper-reviser.",
-        )
-        p_run.add_argument(
-            "--paper-reviser-codex-config",
-            action="append",
-            default=[],
-            help="paper_reviser: repeatable --codex-config key=value passthrough.",
-        )
-        p_run.add_argument(
-            "--paper-reviser-fallback-auditor",
-            choices=["off", "claude"],
-            help="paper_reviser: pass --fallback-auditor to paper-reviser.",
-        )
-        p_run.add_argument(
-            "--paper-reviser-fallback-auditor-model",
-            help="paper_reviser: pass --fallback-auditor-model to paper-reviser.",
-        )
-        p_run.add_argument(
-            "--paper-reviser-secondary-deep-verify-backend",
-            choices=["off", "claude", "gemini"],
-            help="paper_reviser: pass --secondary-deep-verify-backend to paper-reviser.",
-        )
-        p_run.add_argument(
-            "--paper-reviser-secondary-deep-verify-model",
-            help="paper_reviser: pass --secondary-deep-verify-model to paper-reviser.",
-        )
-        p_run.add_argument(
-            "--manual-evidence",
-            action="store_true",
-            help="paper_reviser: stop after retrieval; require manual evidence/<VR-ID>.md before round_02.",
-        )
-        p_run.add_argument(
-            "--evidence-synth-backend",
-            choices=["stub", "claude", "gemini"],
-            help="paper_reviser: evidence synthesis backend (required unless --manual-evidence).",
-        )
-        p_run.add_argument(
-            "--evidence-synth-model",
-            help="paper_reviser: evidence synthesis model/alias (required unless --manual-evidence).",
-        )
-        p_run.add_argument(
-            "--verification-plan",
-            help="paper_reviser: explicit verification_plan.json path (copied into SSOT under artifacts/runs/<run-id>/paper_reviser/verification/).",
-        )
-        p_run.add_argument(
-            "--apply-to-draft",
-            action="store_true",
-            help="paper_reviser: apply final clean.tex back to the draft .tex (A4-gated if required by approval_policy).",
-        )
-        p_run.add_argument("--skills-dir", help="paper_reviser: override $CODEX_HOME/skills for tool discovery.")
-        p_run.add_argument("--survey-topic", help="literature_survey_polish: optional topic header for the T30 survey export.")
-        p_run.add_argument(
-            "--survey-refkeys",
-            help="literature_survey_polish: comma-separated RefKey list for the T30 survey export (default: curated KB profile literature notes).",
-        )
-        p_run.add_argument(
-            "--survey-no-compile",
-            action="store_true",
-            help="literature_survey_polish: do not attempt latexmk compile in research-writer consume (still runs hygiene).",
-        )
-        p_run.add_argument("--no-apply-provenance-table", action="store_true", help="revision: do not edit paper; compile only.")
-        p_run.add_argument("--no-compile-before", action="store_true", help="revision: skip compile before edits.")
-        p_run.add_argument("--no-compile-after", action="store_true", help="revision: skip compile after edits.")
-        p_run.add_argument("--latexmk-timeout-seconds", type=int, default=300, help="revision: timeout per latexmk invocation.")
-        p_run.add_argument("--overwrite-note", action="store_true", help="Overwrite existing knowledge_base note.")
-        p_run.add_argument("--no-query-log", action="store_true", help="Do not append to literature_queries.md")
-        p_run.add_argument("--allow-errors", action="store_true", help="Treat workflow errors list as non-fatal.")
-        p_run.add_argument(
-            "--strict-gate-resolution",
-            action="store_true",
-            help="Adapter workflows: treat unsafe approval-resolution combinations as hard errors (e.g. run_card_only + empty required_approvals).",
-        )
+    p_run.add_argument(
+        "--kb-profile",
+        default="minimal",
+        choices=["minimal", "curated", "user"],
+        help="KB profile selection for reviewer/LLM context (v0: writes artifacts/runs/<run-id>/kb_profile/...).",
+    )
+    p_run.add_argument(
+        "--kb-profile-user-path",
+        help="If --kb-profile=user, path to a kb_profile definition JSON (default: .autoresearch/kb_profile_user.json).",
+    )
+    p_run.add_argument("--force", action="store_true", help="Override state mismatch / rerun completed.")
+    p_run.add_argument("--gate", choices=sorted(APPROVAL_CATEGORY_TO_POLICY_KEY.keys()), help="Force a gate (A1–A5) before running.")
+    p_run.add_argument(
+        "--run-card",
+        help="Workflow run-card path. For computation: required (run_card v2 JSON). For adapter workflows: optional (adapter run-card v1 JSON).",
+    )
+    p_run.add_argument(
+        "--project-dir",
+        help="computation: project directory (optional; inferred from <project_dir>/run_cards/<card>.json).",
+    )
+    p_run.add_argument(
+        "--trust-project",
+        action="store_true",
+        help="computation: trust project to execute shell backends (non-interactive).",
+    )
+    p_run.add_argument(
+        "--resume",
+        action="store_true",
+        help="computation: resume from artifacts/runs/<run-id>/computation (requires matching run-card).",
+    )
+    p_run.add_argument(
+        "--param",
+        action="append",
+        default=[],
+        help="computation: parameter override (repeatable: key=value).",
+    )
+    p_run.add_argument(
+        "--sandbox",
+        default="none",
+        choices=["none", "auto", "local_copy", "docker"],
+        help="Adapter workflows: sandbox execution provider (v0: local_copy fallback; docker requires a running daemon).",
+    )
+    p_run.add_argument(
+        "--sandbox-network",
+        default="disabled",
+        choices=["disabled", "none", "host"],
+        help="Sandbox network policy (docker only; default: disabled).",
+    )
+    p_run.add_argument(
+        "--sandbox-docker-image",
+        help="Sandbox docker image (docker provider; default: python:3.11-slim).",
+    )
+    p_run.add_argument(
+        "--sandbox-repo-writable",
+        action="store_true",
+        help="Sandbox local_copy only: allow writes to the sandboxed repo copy (default: read-only; no effect for docker provider).",
+    )
+    w1 = p_run.add_mutually_exclusive_group(required=False)
+    w1.add_argument("--inspire-recid", help="INSPIRE literature recid, e.g. 1234567")
+    w1.add_argument("--arxiv-id", help="arXiv id, e.g. 2210.03629")
+    w1.add_argument("--doi", help="DOI, e.g. 10.1103/PhysRevLett.116.061102")
+    p_run.add_argument("--case", default="toy", help="reproduce case id (v0: toy).")
+    p_run.add_argument("--ns", default="0,1,2,5,10", help="reproduce toy case n values (comma-separated).")
+    p_run.add_argument("--epsabs", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsabs.")
+    p_run.add_argument("--epsrel", type=float, default=1e-12, help="reproduce toy: scipy.integrate.quad epsrel.")
+    p_run.add_argument("--mpmath-dps", type=int, default=80, help="reproduce toy: mpmath precision (decimal digits).")
+    p_run.add_argument("--refkey", help="Optional RefKey (defaults to a stable derived key)")
+    p_run.add_argument(
+        "--download",
+        default="auto",
+        choices=["none", "auto", "arxiv_source", "arxiv_pdf", "both"],
+        help="Download policy for arXiv assets (if available).",
+    )
+    p_run.add_argument(
+        "--paper-root",
+        default="paper",
+        help="revision: LaTeX project root (default: paper).",
+    )
+    p_run.add_argument(
+        "--tex-main",
+        default="main.tex",
+        help="revision: main TeX file within paper-root.",
+    )
+    p_run.add_argument("--draft-tex", help="paper_reviser: input draft .tex path (default: <paper-root>/<tex-main>).")
+    p_run.add_argument(
+        "--paper-reviser-mode",
+        default="run-models",
+        choices=["run-models", "stub-models", "dry-run"],
+        help="paper_reviser: paper-reviser execution mode (default: run-models).",
+    )
+    p_run.add_argument("--writer-backend", choices=["claude", "gemini"], help="paper_reviser: writer backend (required).")
+    p_run.add_argument("--writer-model", help="paper_reviser: writer model/alias (required; non-empty).")
+    p_run.add_argument("--auditor-backend", choices=["claude", "gemini"], help="paper_reviser: auditor backend (required).")
+    p_run.add_argument("--auditor-model", help="paper_reviser: auditor model/alias (required; non-empty).")
+    p_run.add_argument(
+        "--paper-reviser-max-rounds-rev1",
+        type=int,
+        default=1,
+        help="paper_reviser: paper-reviser --max-rounds for round_01 (default: 1).",
+    )
+    p_run.add_argument(
+        "--paper-reviser-no-codex-verify",
+        action="store_true",
+        help="paper_reviser: pass --no-codex-verify to paper-reviser.",
+    )
+    p_run.add_argument(
+        "--paper-reviser-min-clean-size-ratio",
+        type=float,
+        help="paper_reviser: pass --min-clean-size-ratio to paper-reviser (must be in (0, 1]).",
+    )
+    p_run.add_argument(
+        "--paper-reviser-codex-model",
+        help="paper_reviser: pass --codex-model to paper-reviser.",
+    )
+    p_run.add_argument(
+        "--paper-reviser-codex-config",
+        action="append",
+        default=[],
+        help="paper_reviser: repeatable --codex-config key=value passthrough.",
+    )
+    p_run.add_argument(
+        "--paper-reviser-fallback-auditor",
+        choices=["off", "claude"],
+        help="paper_reviser: pass --fallback-auditor to paper-reviser.",
+    )
+    p_run.add_argument(
+        "--paper-reviser-fallback-auditor-model",
+        help="paper_reviser: pass --fallback-auditor-model to paper-reviser.",
+    )
+    p_run.add_argument(
+        "--paper-reviser-secondary-deep-verify-backend",
+        choices=["off", "claude", "gemini"],
+        help="paper_reviser: pass --secondary-deep-verify-backend to paper-reviser.",
+    )
+    p_run.add_argument(
+        "--paper-reviser-secondary-deep-verify-model",
+        help="paper_reviser: pass --secondary-deep-verify-model to paper-reviser.",
+    )
+    p_run.add_argument(
+        "--manual-evidence",
+        action="store_true",
+        help="paper_reviser: stop after retrieval; require manual evidence/<VR-ID>.md before round_02.",
+    )
+    p_run.add_argument(
+        "--evidence-synth-backend",
+        choices=["stub", "claude", "gemini"],
+        help="paper_reviser: evidence synthesis backend (required unless --manual-evidence).",
+    )
+    p_run.add_argument(
+        "--evidence-synth-model",
+        help="paper_reviser: evidence synthesis model/alias (required unless --manual-evidence).",
+    )
+    p_run.add_argument(
+        "--verification-plan",
+        help="paper_reviser: explicit verification_plan.json path (copied into SSOT under artifacts/runs/<run-id>/paper_reviser/verification/).",
+    )
+    p_run.add_argument(
+        "--apply-to-draft",
+        action="store_true",
+        help="paper_reviser: apply final clean.tex back to the draft .tex (A4-gated if required by approval_policy).",
+    )
+    p_run.add_argument("--skills-dir", help="paper_reviser: override $CODEX_HOME/skills for tool discovery.")
+    p_run.add_argument("--survey-topic", help="literature_survey_polish: optional topic header for the T30 survey export.")
+    p_run.add_argument(
+        "--survey-refkeys",
+        help="literature_survey_polish: comma-separated RefKey list for the T30 survey export (default: curated KB profile literature notes).",
+    )
+    p_run.add_argument(
+        "--survey-no-compile",
+        action="store_true",
+        help="literature_survey_polish: do not attempt latexmk compile in research-writer consume (still runs hygiene).",
+    )
+    p_run.add_argument("--no-apply-provenance-table", action="store_true", help="revision: do not edit paper; compile only.")
+    p_run.add_argument("--no-compile-before", action="store_true", help="revision: skip compile before edits.")
+    p_run.add_argument("--no-compile-after", action="store_true", help="revision: skip compile after edits.")
+    p_run.add_argument("--latexmk-timeout-seconds", type=int, default=300, help="revision: timeout per latexmk invocation.")
+    p_run.add_argument("--overwrite-note", action="store_true", help="Overwrite existing knowledge_base note.")
+    p_run.add_argument("--no-query-log", action="store_true", help="Do not append to literature_queries.md")
+    p_run.add_argument("--allow-errors", action="store_true", help="Treat workflow errors list as non-fatal.")
+    p_run.add_argument(
+        "--strict-gate-resolution",
+        action="store_true",
+        help="Adapter workflows: treat unsafe approval-resolution combinations as hard errors (e.g. run_card_only + empty required_approvals).",
+    )
     p_run.set_defaults(fn=cmd_run)
 
-    if not public_surface:
-        p_export = sub.add_parser("export", help="Export a run bundle (zip; canonical generic entrypoint is `autoresearch export`).")
-        p_export.add_argument("--run-id", help="Run id to export (default: current).")
-        p_export.add_argument("--out", help="Output zip path (default: exports/<run_id>.zip).")
-        p_export.add_argument(
-            "--include-kb-profile",
-            action="store_true",
-            help="Also bundle the KB files referenced by artifacts/runs/<run-id>/kb_profile/kb_profile.json (allowlist: knowledge_base/ only).",
-        )
-        p_export.set_defaults(fn=cmd_export)
+    p_export = sub.add_parser("export", help="Export a run bundle (zip; canonical generic entrypoint is `autoresearch export`).")
+    p_export.add_argument("--run-id", help="Run id to export (default: current).")
+    p_export.add_argument("--out", help="Output zip path (default: exports/<run_id>.zip).")
+    p_export.add_argument(
+        "--include-kb-profile",
+        action="store_true",
+        help="Also bundle the KB files referenced by artifacts/runs/<run-id>/kb_profile/kb_profile.json (allowlist: knowledge_base/ only).",
+    )
+    p_export.set_defaults(fn=cmd_export)
 
-    if not public_surface:
-        p_branch = sub.add_parser("branch", help="Record branching decisions in Plan SSOT (T39).")
-        branch_sub = p_branch.add_subparsers(dest="branch_cmd", required=True)
+    p_branch = sub.add_parser("branch", help="Record branching decisions in Plan SSOT (T39).")
+    branch_sub = p_branch.add_subparsers(dest="branch_cmd", required=True)
 
-        p_branch_list = branch_sub.add_parser("list", help="Show recorded branch decisions and candidates.")
-        p_branch_list.set_defaults(fn=cmd_branch_list)
+    p_branch_list = branch_sub.add_parser("list", help="Show recorded branch decisions and candidates.")
+    p_branch_list.set_defaults(fn=cmd_branch_list)
 
-        p_branch_add = branch_sub.add_parser("add", help="Add a branch candidate under a decision (default: current step).")
-        p_branch_add.add_argument(
-            "--decision-id",
-            help="Decision id (default: current step_id). Must be a stable token (no whitespace).",
-        )
-        p_branch_add.add_argument(
-            "--decision-title",
-            help="Human title for the decision (only used when creating a new decision).",
-        )
-        p_branch_add.add_argument(
-            "--step-id",
-            help="Plan step id this decision is attached to (default: current step_id). Must be a stable token (no whitespace).",
-        )
-        p_branch_add.add_argument("--branch-id", help="Branch id (default: auto b1,b2,...) (no whitespace).")
-        p_branch_add.add_argument("--label", help="Short label for the branch (default: branch id).")
-        p_branch_add.add_argument("--description", help="Branch description (required).")
-        p_branch_add.add_argument(
-            "--cap-override",
-            type=int,
-            help="Explicitly raise per-decision branch cap (default cap=5). Required when adding beyond cap.",
-        )
-        p_branch_add.add_argument(
-            "--expected-approvals",
-            help="Comma-separated expected approvals for this branch (A1..A5).",
-        )
-        p_branch_add.add_argument(
-            "--expected-output",
-            action="append",
-            default=[],
-            help="Expected output path (repeatable).",
-        )
-        p_branch_add.add_argument("--recovery-notes", help="Recovery notes for this branch candidate.")
-        p_branch_add.add_argument("--activate", action="store_true", help="Also activate this branch immediately.")
-        p_branch_add.set_defaults(fn=cmd_branch_add)
+    p_branch_add = branch_sub.add_parser("add", help="Add a branch candidate under a decision (default: current step).")
+    p_branch_add.add_argument(
+        "--decision-id",
+        help="Decision id (default: current step_id). Must be a stable token (no whitespace).",
+    )
+    p_branch_add.add_argument(
+        "--decision-title",
+        help="Human title for the decision (only used when creating a new decision).",
+    )
+    p_branch_add.add_argument(
+        "--step-id",
+        help="Plan step id this decision is attached to (default: current step_id). Must be a stable token (no whitespace).",
+    )
+    p_branch_add.add_argument("--branch-id", help="Branch id (default: auto b1,b2,...) (no whitespace).")
+    p_branch_add.add_argument("--label", help="Short label for the branch (default: branch id).")
+    p_branch_add.add_argument("--description", help="Branch description (required).")
+    p_branch_add.add_argument(
+        "--cap-override",
+        type=int,
+        help="Explicitly raise per-decision branch cap (default cap=5). Required when adding beyond cap.",
+    )
+    p_branch_add.add_argument(
+        "--expected-approvals",
+        help="Comma-separated expected approvals for this branch (A1..A5).",
+    )
+    p_branch_add.add_argument(
+        "--expected-output",
+        action="append",
+        default=[],
+        help="Expected output path (repeatable).",
+    )
+    p_branch_add.add_argument("--recovery-notes", help="Recovery notes for this branch candidate.")
+    p_branch_add.add_argument("--activate", action="store_true", help="Also activate this branch immediately.")
+    p_branch_add.set_defaults(fn=cmd_branch_add)
 
-        p_branch_switch = branch_sub.add_parser("switch", help="Switch the active branch for a decision.")
-        p_branch_switch.add_argument(
-            "--decision-id",
-            help="Decision id (default: current step_id). Must be a stable token (no whitespace).",
-        )
-        p_branch_switch.add_argument("--branch-id", required=True, help="Target branch id (no whitespace).")
-        p_branch_switch.add_argument(
-            "--previous-status",
-            default="abandoned",
-            choices=["abandoned", "failed", "completed"],
-            help="Status to assign to the previous active branch (default: abandoned).",
-        )
-        p_branch_switch.add_argument("--note", help="Optional note for the ledger event.")
-        p_branch_switch.set_defaults(fn=cmd_branch_switch)
-
-    if public_surface:
-        _assert_public_shell_inventory(sub)
+    p_branch_switch = branch_sub.add_parser("switch", help="Switch the active branch for a decision.")
+    p_branch_switch.add_argument(
+        "--decision-id",
+        help="Decision id (default: current step_id). Must be a stable token (no whitespace).",
+    )
+    p_branch_switch.add_argument("--branch-id", required=True, help="Target branch id (no whitespace).")
+    p_branch_switch.add_argument(
+        "--previous-status",
+        default="abandoned",
+        choices=["abandoned", "failed", "completed"],
+        help="Status to assign to the previous active branch (default: abandoned).",
+    )
+    p_branch_switch.add_argument("--note", help="Optional note for the ledger event.")
+    p_branch_switch.set_defaults(fn=cmd_branch_switch)
 
     args = parser.parse_args(argv)
 
@@ -3760,10 +3701,6 @@ def main(argv: list[str] | None = None, *, public_surface: bool = False) -> int:
     configure_logging("orchestrator")
 
     return int(args.fn(args))
-
-
-def public_main(argv: list[str] | None = None) -> int:
-    return main(argv, public_surface=True)
 
 
 if __name__ == "__main__":

@@ -42,22 +42,11 @@
         }
       ]
     },
-    "hepar_public_shell": {
-      "classification": "compatibility_public",
-      "surface_kind": "cli_command_inventory",
-      "owner": "packages/hep-autoresearch",
-      "exact_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_SHELL_COMMANDS",
-      "run_workflow_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#PUBLIC_RUN_WORKFLOW_IDS",
-      "run_workflow_ids": [],
-      "commands": [
-        "run"
-      ]
-    },
     "hepar_internal_full_parser": {
       "classification": "internal_only",
       "surface_kind": "compatibility_full_parser",
       "owner": "packages/hep-autoresearch",
-      "exact_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main(public_surface=False)",
+      "exact_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main",
       "command_groups": [
         {
           "group": "legacy_lifecycle_adapters",

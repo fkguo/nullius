@@ -47,33 +47,24 @@ function freezeCommands(commands) {
 
 export const FRONT_DOOR_AUTHORITY_CLASSIFICATIONS = Object.freeze([
   'canonical_public',
-  'compatibility_public',
   'internal_only',
 ]);
 
 export const AUTORESEARCH_FRONT_DOOR_REL_PATH = 'packages/orchestrator/src/cli-command-inventory.ts';
-export const HEPAR_PUBLIC_SHELL_REL_PATH = 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py';
+export const HEPAR_INTERNAL_PARSER_REL_PATH = 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py';
 export const ORCH_EXACT_SPEC_REL_PATH = 'meta/docs/orchestrator-mcp-tools-spec.md';
 export const FRONT_DOOR_AUTHORITY_JSON_REL_PATH = 'meta/front_door_authority_map_v1.json';
 
 export const AUTORESEARCH_FRONT_DOOR_COMMANDS = extractTsCommandInventory(AUTORESEARCH_FRONT_DOOR_REL_PATH);
-export const HEPAR_PUBLIC_SHELL_COMMANDS = extractPythonTupleStrings(
-  HEPAR_PUBLIC_SHELL_REL_PATH,
-  'PUBLIC_SHELL_COMMANDS',
-);
 
 export const AUTORESEARCH_FRONT_DOOR_COMMANDS_MARKDOWN = AUTORESEARCH_FRONT_DOOR_COMMANDS
-  .map(command => `\`${command}\``)
-  .join(', ');
-
-export const HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN = HEPAR_PUBLIC_SHELL_COMMANDS
   .map(command => `\`${command}\``)
   .join(', ');
 
 export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
   Object.freeze({
     group: 'legacy_lifecycle_adapters',
-    owner: 'installable Python shell keeps only thin passthroughs to canonical autoresearch lifecycle',
+    owner: 'internal Python parser keeps thin passthroughs to canonical autoresearch lifecycle',
     commands: freezeCommands(['init', 'status', 'pause', 'resume', 'approve', 'export']),
   }),
   Object.freeze({
@@ -83,7 +74,7 @@ export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
   }),
   Object.freeze({
     group: 'retired_public_support_commands',
-    owner: 'internal full parser only; formerly installable public support surface now retired from the public shell',
+    owner: 'internal full parser only; formerly public support surface now retired from the public front door',
     commands: freezeCommands([
       'method-design',
       'run-card',
@@ -119,18 +110,10 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
     commands: freezeCommands(AUTORESEARCH_FRONT_DOOR_COMMANDS),
   }),
   Object.freeze({
-    surface: 'hepar_public_shell',
-    classification: 'compatibility_public',
-    owner: 'packages/hep-autoresearch',
-    relPath: `${HEPAR_PUBLIC_SHELL_REL_PATH}#PUBLIC_SHELL_COMMANDS`,
-    exactInventoryKind: 'python_public_shell_tuple',
-    commands: freezeCommands(HEPAR_PUBLIC_SHELL_COMMANDS),
-  }),
-  Object.freeze({
     surface: 'hepar_internal_full_parser',
     classification: 'internal_only',
     owner: 'packages/hep-autoresearch',
-    relPath: `${HEPAR_PUBLIC_SHELL_REL_PATH}#main(public_surface=False)`,
+    relPath: `${HEPAR_INTERNAL_PARSER_REL_PATH}#main`,
     exactInventoryKind: 'group_classification_only',
     groups: INTERNAL_ONLY_FRONT_DOOR_GROUPS,
   }),

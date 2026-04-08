@@ -16,7 +16,7 @@
 
 - `autoresearch` = generic lifecycle + workflow-plan front door
 - `@autoresearch/hep-mcp` = 当前最成熟的 domain MCP front door
-- 安装态 legacy `hepar` public shell 不再是默认测试入口；任何残余 Python compatibility path 都必须明确标成 maintainer/eval/regression-only
+- legacy Python CLI 不再属于公开 front-door；如仍需覆盖，只作为 maintainer/eval/regression-only 内部路径测试
 
 ### 0.1 构建与计数检查
 

@@ -483,21 +483,21 @@
 **Decision**:
 - Command and tool inventories should be single-sourced per live authority surface rather than forced into one cross-language pseudo-registry.
 - Top-level `autoresearch` public commands should live in the TS orchestrator source and directly drive parser/help behavior.
-- The installable legacy `hepar` public shell should keep its own exact public inventory with fail-closed assertions; internal full-parser residue must remain separately classified rather than being merged into the public table.
+- The installable legacy `hepar` public shell is retired rather than preserved as a second public inventory. Any remaining Python parser residue must stay explicitly internal-only and separately classified from live public surfaces.
 - Exact `orch_*` MCP tool listings belong only in the live spec surface that reads from the registry. Broader docs such as architecture overviews should summarize by tool family and link to that exact spec instead of carrying their own exact subsets.
 - A future typed front-door authority map may generate docs/tests from a richer shared classification, but until that lands the invariant remains per-surface exact sources, not faux unification.
 
 **Why**: A single cross-TS/Python "master command table" would create false shared authority and stale-doc drift. Mature runtimes instead keep one exact source per live boundary and let overview docs remain summary-level projections.
 
-### [2026-04-07] Public `hepar run` compatibility boundary: installable shell keeps no public workflow ids, and residue stays explicitly internal-only
+### [2026-04-08] Public `hepar` shell retirement boundary: installable aliases are removed from public authority
 
 **Decision**:
-- The installable public `hepar` / `hep-autoresearch` / `hep-autopilot` `run` surface now keeps the shell verb only as a compatibility pointer; it exposes no public workflow ids.
-- The installable public shell now exposes only that `run` compatibility pointer. Former public support/operator verbs (`approvals`, `report`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, `migrate`) are internal full-parser coverage only and must not be documented or tested as installable public commands.
-- `paper_reviser`, `ingest`, `reproduce`, `revision`, `literature_survey_polish`, `shell_adapter_smoke`, and already-retired public `computation` are not public-shell authority anymore; if they still exist, they are internal full-parser coverage only for maintainer/eval/regression usage and must not be documented or tested as installable public entrypoints.
-- The exact survivor/boundary classification should live in a dedicated front-door authority map (`meta/front_door_authority_map_v1.json`) consumed by docs/tests, with separate surface ids for canonical `autoresearch`, installable `hepar` public shell, internal full parser residue, and exact MCP tool spec surfaces.
+- The installable public `hepar` / `hep-autoresearch` / `hep-autopilot` shell is retired outright; package metadata must no longer publish CLI aliases or npm bin wrappers for it.
+- `packages/hep-autoresearch/src/hep_autoresearch/cli.py` and `python -m hep_autoresearch` now fail closed with a retirement message that points users back to the root `autoresearch` CLI.
+- Former public support/operator verbs and workflow paths are internal full-parser coverage only for maintainer/eval/regression usage and must not be documented or tested as installable public entrypoints.
+- The front-door authority map should no longer carry a `hepar_public_shell` surface id. It should classify only canonical public `autoresearch`, internal Python parser residue, and exact MCP tool spec surfaces.
 
-**Why**: Once generic lifecycle and computation authority moved to `autoresearch`, even one installable `hepar run --workflow-id ...` survivor would keep the legacy Python shell half-alive as a second workflow front door. The same drift applies to old support/operator verbs: leaving them public would preserve a second Python operator shell after the generic front door had already moved. Clearing the public workflow inventory and the remaining public support inventory, while locking any residual parser paths behind explicit internal-only classification, prevents that drift and keeps the remaining cleanup/delete work honest.
+**Why**: Even a "compatibility pointer" keeps the retired Python shell alive as a second branded front door and forces docs/tests/packaging to keep explaining it. Since the repo is still pre-release and does not carry backward-compatibility obligations, deleting the installable shell surface entirely is lower-risk and lower-maintenance than preserving a ceremonial wrapper.
 
 ### [2026-04-07] Legacy parser residue contraction invariant: delete wrappers, not underlying authority by accident
 

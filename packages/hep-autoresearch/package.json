@@ -3,12 +3,5 @@
   "version": "0.0.1",
   "description": "npm wrapper for hep-autoresearch (calls the local Python CLI)",
   "license": "UNLICENSED",
-  "files": [
-    "bin/hep-autoresearch.js"
-  ],
-  "bin": {
-    "hep-autoresearch": "bin/hep-autoresearch.js",
-    "hep-autopilot": "bin/hep-autoresearch.js",
-    "hepar": "bin/hep-autoresearch.js"
-  }
+  "files": []
 }

@@ -15,11 +15,6 @@ dependencies = ["project-contracts"]
 dev = ["jsonschema>=4"]
 web = ["fastapi>=0.110", "uvicorn>=0.27"]
 
-[project.scripts]
-hep-autoresearch = "hep_autoresearch.cli:main"
-hep-autopilot = "hep_autoresearch.cli:main"
-hepar = "hep_autoresearch.cli:main"
-
 [tool.setuptools]
 package-dir = { "" = "src" }
 

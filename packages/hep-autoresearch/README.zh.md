@@ -19,6 +19,6 @@
 如果你只是作为使用者阅读这个包，记住三点即可：
 
 - 前门是 `autoresearch`
-- 如果你真的碰到 legacy shell，也只把 `hepar run` 当成正在收缩的过渡指针，最终仍以 `autoresearch run` 为准
 - 不要把 `hep-autoresearch` / `hepar` 当成产品主身份
-- 剩余 legacy Python surface 只会继续收缩，不会重新扩张
+- 不要期待安装态 `hepar` / `hep-autoresearch` public shell 继续存在
+- 剩余 legacy Python 内部实现只会继续收缩，不会重新扩张

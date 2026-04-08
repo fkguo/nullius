@@ -52,7 +52,7 @@ repo root
 ├── provider packages
 │   └── openalex-mcp / arxiv-mcp / hepdata-mcp / pdg-mcp / zotero-mcp
 └── checked-in workflow recipes + consumers
-    └── `literature_fetch.py workflow-plan` (lower-level consumer driven by `autoresearch workflow-plan`; no installable `hepar literature-gap` front door remains)
+    └── `literature_fetch.py workflow-plan` (lower-level consumer driven by `autoresearch workflow-plan`)
 ```
 
 ### 3.2 `@autoresearch/hep-mcp`
@@ -91,8 +91,6 @@ High-level literature workflows are meant to enter through the stateful launcher
 
 - `autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`
 - `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` → lower-level checked-in consumer of the same workflow authority
-
-The installable `hepar` public shell no longer exposes `computation` or `literature-gap`; any remaining public `run` surface is residual non-computation compatibility only and should keep moving toward retirement.
 
 These workflow-plan consumers are not the root identity of the repo; they are one layer above checked-in recipe authority.
 
