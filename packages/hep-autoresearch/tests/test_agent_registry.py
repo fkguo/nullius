@@ -55,11 +55,11 @@ class TestAgentRegistry(unittest.TestCase):
             if payload["agent_id"] == "idea-engine":
                 self.assertEqual(
                     payload["input_contracts"][0]["source_path"],
-                    "packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json",
+                    "packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_core_rpc_v1.openrpc.json",
                 )
                 self.assertEqual(
                     payload["output_contracts"][0]["source_path"],
-                    "packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json",
+                    "packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_core_rpc_v1.openrpc.json",
                 )
 
         self.assertEqual(discovered_ids, {"hep-mcp", "idea-engine"})

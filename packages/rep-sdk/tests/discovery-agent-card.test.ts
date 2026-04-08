@@ -96,13 +96,13 @@ describe('agent card discovery helpers', () => {
     expect(data.input_contracts).toContainEqual(
       expect.objectContaining({
         contract_id: 'idea_core_rpc_v1',
-        source_path: 'packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json',
+        source_path: 'packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_core_rpc_v1.openrpc.json',
       }),
     );
     expect(data.output_contracts).toContainEqual(
       expect.objectContaining({
         contract_id: 'idea_core_rpc_v1',
-        source_path: 'packages/idea-engine/contracts/idea-generator-snapshot/schemas/idea_core_rpc_v1.openrpc.json',
+        source_path: 'packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_core_rpc_v1.openrpc.json',
       }),
     );
   });

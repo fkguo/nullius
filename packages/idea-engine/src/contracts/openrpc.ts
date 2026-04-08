@@ -28,10 +28,9 @@ export interface OpenRpcDocument {
   };
 }
 
-// idea-engine now owns the runtime-default contract snapshot locally; do not
-// point default contract authority back into retired Python surfaces.
+// idea-engine owns the runtime-default contract snapshot locally.
 export const DEFAULT_CONTRACT_DIR = fileURLToPath(
-  new URL('../../contracts/idea-generator-snapshot/schemas', import.meta.url),
+  new URL('../../contracts/idea-runtime-contracts/schemas', import.meta.url),
 );
 
 export const OPENRPC_PATH = resolve(DEFAULT_CONTRACT_DIR, 'idea_core_rpc_v1.openrpc.json');

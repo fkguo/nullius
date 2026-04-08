@@ -2,7 +2,7 @@
 
 > **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01)
 > **日期**: 2026-04-08
-> **适用范围**: hep-research-mcp, hep-autoresearch, idea-generator, idea-engine, skills/, skills-market, autoresearch-meta
+> **适用范围**: hep-research-mcp, hep-autoresearch, idea-engine, skills/, skills-market, autoresearch-meta
 > **强制级别**: 所有新增/修改代码必须遵守；存量代码按当前 checked-in 架构/治理文档分阶段对齐
 > **违规默认行为**: **fail-closed**（除非规则明确标注 fail-open）
 
@@ -165,7 +165,7 @@ node autoresearch-meta/scripts/validate_artifact_refs.mjs
 
 ### SYNC-01: Schema 快照 SHA256 门禁
 
-**规则**: `idea-engine/contracts/idea-generator-snapshot/` 中的 package-local vendored schema 是当前 runtime-default authority，必须与 `idea-generator/schemas/` 的 SHA256 指纹一致。
+**规则**: `idea-engine/contracts/idea-runtime-contracts/` 中的 package-local schema snapshot 是当前 runtime-default authority。
 
 **CI 验证**:
 ```bash

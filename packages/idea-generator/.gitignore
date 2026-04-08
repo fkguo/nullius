@@ -1,7 +1,0 @@
-# Local agent settings
-.claude/
-
-# macOS
-.DS_Store
-
-docs/plans/auto-relay/.state/
