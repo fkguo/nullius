@@ -66,10 +66,11 @@ def _resolve_default_package_dir() -> Path:
     env_override = os.environ.get("HEP_MCP_PACKAGE_DIR")
     if env_override:
         return Path(env_override).expanduser().resolve()
+    repo_candidate = Path(__file__).resolve().parents[3] / "packages" / "hep-mcp"
 
     candidates = [
-        Path.home() / "Seafile/AI/hep-research-mcp-main/packages/hep-research-mcp",
-        Path.home() / "Seafile/AI/hep-research-mcp/packages/hep-research-mcp",
+        repo_candidate,
+        Path.home() / "Coding/Agents/autoresearch-lab/packages/hep-mcp",
     ]
     for cand in candidates:
         if (cand / "dist/index.js").exists():
@@ -78,13 +79,13 @@ def _resolve_default_package_dir() -> Path:
         if cand.exists():
             return cand.resolve()
     raise SystemExit(
-        "Cannot find hep-research-mcp package dir.\n"
+        "Cannot find hep-mcp package dir.\n"
         "Pass --hep-mcp-package-dir or set $HEP_MCP_PACKAGE_DIR."
     )
 
 
 def _repo_info(package_dir: Path) -> RepoInfo:
-    repo_root = package_dir.parent.parent  # packages/hep-research-mcp -> repo root
+    repo_root = package_dir.parent.parent  # packages/hep-mcp -> repo root
     version = _read_package_version(repo_root)
     commit, dirty = _try_git_info(repo_root)
     return RepoInfo(
@@ -170,7 +171,7 @@ def _write_markdown(out_path: Path, payload: dict[str, Any]) -> None:
         return "null" if v is None else str(v)
 
     lines: list[str] = []
-    lines.append("# hep-research-mcp tool inventory")
+    lines.append("# hep-mcp tool inventory")
     lines.append("")
     lines.append(f"- Generated at (UTC): {payload['generated_at']}")
     lines.append(f"- Repo root: `{src['repo_root']}`")
@@ -217,18 +218,18 @@ def _write_markdown(out_path: Path, payload: dict[str, Any]) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Extract hep-research-mcp MCP tool inventory via listTools (no build)."
+        description="Extract hep-mcp MCP tool inventory via listTools (no build)."
     )
     ap.add_argument(
         "--hep-mcp-package-dir",
         type=str,
         default=None,
-        help="Path to hep-research-mcp package dir (e.g., .../packages/hep-research-mcp).",
+        help="Path to hep-mcp package dir (e.g., .../packages/hep-mcp).",
     )
     ap.add_argument(
         "--out-dir",
         type=str,
-        default="references/hep-research-mcp",
+        default="references/hep-mcp",
         help="Output directory (relative to project root by default).",
     )
     ap.add_argument(

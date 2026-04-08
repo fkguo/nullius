@@ -13,7 +13,7 @@ describe('DiskCache', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = path.join(os.tmpdir(), `hep-research-mcp-test-${Date.now()}`);
+    testDir = path.join(os.tmpdir(), `hep-mcp-test-${Date.now()}`);
     cache = new DiskCache({ cacheDir: testDir, defaultTtlMs: 60000 });
   });
 

@@ -25,7 +25,7 @@ def main() -> int:
     ap.add_argument(
         "--hep-mcp-package-dir",
         default=None,
-        help="Path to hep-research-mcp package dir (defaults to $HEP_MCP_PACKAGE_DIR or common locations).",
+        help="Path to hep-mcp package dir (defaults to $HEP_MCP_PACKAGE_DIR or common locations).",
     )
     ap.add_argument(
         "--skills-root",
@@ -72,4 +72,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

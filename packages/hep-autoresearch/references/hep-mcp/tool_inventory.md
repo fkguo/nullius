@@ -1,4 +1,4 @@
-# hep-research-mcp tool inventory
+# hep-mcp tool inventory
 
 - Generated at (UTC): 2026-03-24T09:15:27.869797+00:00
 - Repo root: `<autoresearch-lab-repo-root>`

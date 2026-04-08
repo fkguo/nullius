@@ -6,7 +6,7 @@
  *
  * Usage:
  *   pnpm -r build
- *   node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id <run_id> [--data-dir <HEP_DATA_DIR>]
+ *   node packages/hep-mcp/scripts/test-hep-render-latex-real.mjs --run-id <run_id> [--data-dir <HEP_DATA_DIR>]
  */
 
 import * as fs from 'node:fs';
@@ -42,7 +42,7 @@ function usage() {
   return [
     'Usage:',
     '  pnpm -r build',
-    '  node packages/hep-research-mcp/scripts/test-hep-render-latex-real.mjs --run-id <run_id> [--data-dir <HEP_DATA_DIR>]',
+    '  node packages/hep-mcp/scripts/test-hep-render-latex-real.mjs --run-id <run_id> [--data-dir <HEP_DATA_DIR>]',
     '',
     'Notes:',
     '  - `--data-dir` must match the data dir used when the run was created (HEP_DATA_DIR).',

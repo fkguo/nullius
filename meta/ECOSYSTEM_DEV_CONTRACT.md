@@ -2,7 +2,7 @@
 
 > **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01)
 > **日期**: 2026-04-08
-> **适用范围**: hep-research-mcp, hep-autoresearch, idea-engine, skills/, skills-market, autoresearch-meta
+> **适用范围**: hep-mcp, hep-autoresearch, idea-engine, skills/, skills-market, meta/
 > **强制级别**: 所有新增/修改代码必须遵守；存量代码按当前 checked-in 架构/治理文档分阶段对齐
 > **违规默认行为**: **fail-closed**（除非规则明确标注 fail-open）
 
@@ -510,7 +510,7 @@ python autoresearch-meta/scripts/lint_artifact_versions.py
 **CI 验证**:
 ```bash
 # lint: 检查 writeFile/open('w') 调用是否使用 atomicWrite 封装
-grep -rn 'writeFile\|writeFileSync' hep-research-mcp/src/ \
+grep -rn 'writeFile\|writeFileSync' packages/hep-mcp/src/ \
   | grep -v 'atomicWriteFile\|node_modules\|test' && exit 1 || exit 0
 ```
 
@@ -537,7 +537,7 @@ pytest autoresearch-meta/tests/integration/test_payload_truncation.py
 **CI 验证**:
 ```bash
 # 契约测试: 篡改 artifact 内容 → 验证 submit 拒绝
-pytest hep-research-mcp/tests/test_artifact_integrity.py
+pnpm --filter @autoresearch/hep-mcp test -- tests/core/writingEvidence.test.ts
 ```
 
 **违规行为**: **fail-closed** — 完整性校验失败拒绝处理
@@ -563,7 +563,7 @@ pytest hep-autoresearch/tests/test_shell_sandbox.py
 
 **CI 验证**:
 ```bash
-pytest hep-research-mcp/tests/test_safe_extract.py
+pnpm --filter @autoresearch/hep-mcp test -- tests/core/sandbox.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未沙箱化的摄入路径阻断 CI

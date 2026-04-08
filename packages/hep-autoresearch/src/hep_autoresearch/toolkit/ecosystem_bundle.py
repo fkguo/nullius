@@ -303,9 +303,10 @@ def _resolve_default_hep_mcp_package_dir() -> Path:
     env_override = os.environ.get("HEP_MCP_PACKAGE_DIR", "").strip()
     if env_override:
         return Path(env_override).expanduser().resolve()
+    repo_candidate = Path(__file__).resolve().parents[5] / "packages" / "hep-mcp"
     candidates = [
-        Path.home() / "Seafile/AI/hep-research-mcp-main/packages/hep-research-mcp",
-        Path.home() / "Seafile/AI/hep-research-mcp/packages/hep-research-mcp",
+        repo_candidate,
+        Path.home() / "Coding/Agents/autoresearch-lab/packages/hep-mcp",
     ]
     for cand in candidates:
         if (cand / "dist/index.js").exists():
@@ -313,7 +314,7 @@ def _resolve_default_hep_mcp_package_dir() -> Path:
     for cand in candidates:
         if cand.exists():
             return cand.resolve()
-    raise FileNotFoundError("cannot find hep-research-mcp package dir (set $HEP_MCP_PACKAGE_DIR)")
+    raise FileNotFoundError("cannot find hep-mcp package dir (set $HEP_MCP_PACKAGE_DIR)")
 
 
 def _read_json_maybe(path: Path) -> dict[str, Any] | None:
@@ -345,7 +346,7 @@ def _bundle_readme_md(*, bundle_dir: str) -> str:
         "## Contents",
         "",
         "- `bundle_manifest.json`: pinned component list (human + machine readable).",
-        "- `components/`: bundled sources (hep-autoresearch, hep-research-mcp package, selected skills).",
+        "- `components/`: bundled sources (hep-autoresearch, hep-mcp package, selected skills).",
         "",
     ]
     return "\n".join(lines).rstrip() + "\n"
@@ -521,8 +522,8 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
     ]
     hepar_copied = _copy_tracked_files(repo_root=repo_root, pathspecs=hepar_allow, dst_root=hepar_dst)
 
-    # Copy hep-research-mcp (package snapshot + lockfiles).
-    hep_mcp_dst = components_root / "hep-research-mcp"
+    # Copy hep-mcp (package snapshot + lockfiles).
+    hep_mcp_dst = components_root / "hep-mcp"
     hep_mcp_dst.mkdir(parents=True, exist_ok=True)
     hep_mcp_prefix = str(hep_mcp_package_dir.relative_to(hep_mcp_repo_root)).replace("\\", "/")
     hep_mcp_paths = [
@@ -635,7 +636,7 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
                 "paths": hepar_allow,
                 "files_copied": len(hepar_copied),
             },
-            "hep-research-mcp": {
+            "hep-mcp": {
                 "commit": _git_commit(hep_mcp_repo_root),
                 "dirty": _git_is_dirty(hep_mcp_repo_root),
                 "remote_url": _git_remote_url(hep_mcp_repo_root),
@@ -769,7 +770,7 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
                     "remote_url": _git_remote_url(repo_root),
                     "commit": _git_commit(repo_root),
                 },
-                "hep-research-mcp": {
+                "hep-mcp": {
                     "files_copied": len(hep_mcp_copied),
                     "dist_files_copied": len(hep_mcp_dist_copied),
                     "remote_url": _git_remote_url(hep_mcp_repo_root),

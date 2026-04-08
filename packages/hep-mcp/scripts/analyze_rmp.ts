@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 const SOURCE_DIR = 'tmp/rmpsource';
-const OUTPUT_FILE = 'packages/hep-research-mcp/src/tools/writing/corpus/rmp_analysis_results.json';
+const OUTPUT_FILE = 'packages/hep-mcp/src/tools/writing/corpus/rmp_analysis_results.json';
 
 interface PaperStats {
   id: string;
