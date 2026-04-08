@@ -77,7 +77,6 @@
         {
           "group": "retired_public_support_commands",
           "commands": [
-            "run-card",
             "branch"
           ]
         },

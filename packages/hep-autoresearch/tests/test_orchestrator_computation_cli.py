@@ -9,82 +9,7 @@ def _src_root() -> Path:
 
 
 class TestOrchestratorWComputeCLI(unittest.TestCase):
-    def test_run_card_render_mermaid(self) -> None:
-        import sys
-        from contextlib import redirect_stderr, redirect_stdout
-        from io import StringIO
-
-        sys.path.insert(0, str(_src_root()))
-        from hep_autoresearch.orchestrator_cli import main as cli_main
-
-        def run_cli(argv: list[str]) -> int:
-            argv0 = list(sys.argv)
-            try:
-                sys.argv = list(argv)
-                buf_out, buf_err = StringIO(), StringIO()
-                with redirect_stdout(buf_out), redirect_stderr(buf_err):
-                    return int(cli_main())
-            finally:
-                sys.argv = argv0
-
-        with tempfile.TemporaryDirectory() as td:
-            repo_root = Path(td)
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
-
-            proj = repo_root / "proj"
-            (proj / "run_cards").mkdir(parents=True, exist_ok=True)
-            (proj / "scripts").mkdir(parents=True, exist_ok=True)
-            (proj / "results").mkdir(parents=True, exist_ok=True)
-
-            # The scripts are not executed by render; they exist to keep the run-card realistic.
-            (proj / "scripts" / "p1.py").write_text("print('p1')\n", encoding="utf-8")
-            (proj / "scripts" / "p2.py").write_text("print('p2')\n", encoding="utf-8")
-
-            run_card = {
-                "schema_version": 2,
-                "run_id": "IGNORED",
-                "workflow_id": "computation",
-                "title": "render",
-                "phases": [
-                    {
-                        "phase_id": "p1",
-                        "backend": {"kind": "shell", "argv": [sys.executable, "scripts/p1.py"], "cwd": "."},
-                        "outputs": ["results/p1.txt"],
-                    },
-                    {
-                        "phase_id": "p2",
-                        "depends_on": ["p1"],
-                        "backend": {"kind": "shell", "argv": [sys.executable, "scripts/p2.py"], "cwd": "."},
-                        "inputs": ["phases/p1/results/p1.txt"],
-                        "outputs": ["results/p2.txt"],
-                    },
-                ],
-            }
-            run_card_path = proj / "run_cards" / "render.json"
-            run_card_path.write_text(json.dumps(run_card, indent=2) + "\n", encoding="utf-8")
-
-            out_path = repo_root / "render.mmd"
-            rc = run_cli(
-                [
-                    "hepar",
-                    "--project-root",
-                    str(repo_root),
-                    "run-card",
-                    "render",
-                    "--run-card",
-                    str(run_card_path),
-                    "--format",
-                    "mermaid",
-                    "--out",
-                    str(out_path),
-                ]
-            )
-            self.assertEqual(rc, 0)
-            txt = out_path.read_text(encoding="utf-8")
-            self.assertIn("flowchart", txt)
-            self.assertIn("p1 --> p2", txt)
-
-    def test_run_card_validate_and_run_w_compute(self) -> None:
+    def test_run_w_compute(self) -> None:
         import sys
         from contextlib import redirect_stderr, redirect_stdout
         from io import StringIO
@@ -145,22 +70,6 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
             }
             run_card_path = proj / "run_cards" / "basic.json"
             run_card_path.write_text(json.dumps(run_card, indent=2) + "\n", encoding="utf-8")
-
-            # Validate run_card v2.
-            rc = run_cli(
-                [
-                    "hepar",
-                    "--project-root",
-                    str(repo_root),
-                    "run-card",
-                    "validate",
-                    "--run-card",
-                    str(run_card_path),
-                    "--run-id",
-                    "M1-test-computation-cli",
-                ]
-            )
-            self.assertEqual(rc, 0)
 
             # Run computation via hepar CLI.
             rc = run_cli(
@@ -276,3 +185,25 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
             packet_rel = (pending or {}).get("packet_path")
             self.assertIsInstance(packet_rel, str)
             self.assertTrue((repo_root / str(packet_rel)).exists())
+
+    def test_internal_parser_rejects_run_card_command(self) -> None:
+        import sys
+        from contextlib import redirect_stderr, redirect_stdout
+        from io import StringIO
+
+        sys.path.insert(0, str(_src_root()))
+        from hep_autoresearch.orchestrator_cli import main as cli_main
+
+        argv0 = list(sys.argv)
+        try:
+            sys.argv = ["hepar", "run-card", "validate"]
+            buf_out, buf_err = StringIO(), StringIO()
+            with redirect_stdout(buf_out), redirect_stderr(buf_err):
+                with self.assertRaises(SystemExit) as exc:
+                    cli_main()
+        finally:
+            sys.argv = argv0
+
+        self.assertEqual(int(exc.exception.code), 2)
+        self.assertIn("invalid choice", buf_err.getvalue())
+        self.assertIn("run-card", buf_err.getvalue())
