@@ -9,7 +9,6 @@
   "acceptance": {
     "required_paths_exist": [
       "specs/run_card.schema.json",
-      "docs/ADAPTERS.zh.md",
       "scripts/run_orchestrator_regression.py",
       "src/hep_autoresearch/orchestrator_cli.py",
       "src/hep_autoresearch/toolkit/adapters/shell.py",

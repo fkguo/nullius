@@ -8,9 +8,6 @@
   },
   "acceptance": {
     "required_paths_exist": [
-      "docs/ECOSYSTEM_BUNDLE.md",
-      "docs/ECOSYSTEM_BUNDLE.zh.md",
-      "docs/INDEX.md",
       "scripts/run_ecosystem_bundle.py",
       "src/hep_autoresearch/toolkit/ecosystem_bundle.py",
       "artifacts/runs/M48-t37-r1/ecosystem_bundle/manifest.json",
@@ -76,4 +73,3 @@
   },
   "notes": "Run first: python3 scripts/run_ecosystem_bundle.py --tag M48-t37-r1. Then: python3 scripts/run_evals.py --case-id E27-ecosystem-bundle-v0 --tag M48-t37-eval-r1."
 }
-

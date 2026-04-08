@@ -2,14 +2,14 @@
   "schema_version": 1,
   "case_id": "E3-orchestrator-cli-v0.1",
   "workflow": "custom",
-  "description": "Orchestrator CLI v0.1 is present (scripts + toolkit + docs).",
+  "description": "Orchestrator CLI v0.1 is present (scripts + toolkit + CLI surfaces).",
   "inputs": {},
   "acceptance": {
     "required_paths_exist": [
       "scripts/orchestrator.py",
       "src/hep_autoresearch/toolkit/orchestrator_state.py",
-      "docs/ORCHESTRATOR_INTERACTION.md",
-      "docs/ORCHESTRATOR_STATE.md"
+      "src/hep_autoresearch/orchestrator_cli.py",
+      "scripts/run_orchestrator_regression.py"
     ]
   },
   "notes": "This is a presence check only. Later: add command execution and state/ledger assertions."

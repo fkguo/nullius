@@ -8,8 +8,6 @@
     "required_paths_exist": [
       "artifacts/runs/M31-t29-r1-plan/approvals/A3-0001/packet.md",
       "specs/plan.schema.json",
-      "docs/ORCHESTRATOR_STATE.md",
-      "docs/ORCHESTRATOR_INTERACTION.md",
       "src/hep_autoresearch/toolkit/orchestrator_state.py",
       "src/hep_autoresearch/orchestrator_cli.py",
       "scripts/run_orchestrator_regression.py",

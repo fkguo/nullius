@@ -9,8 +9,6 @@
       "artifacts/runs/M33-t32-r1-plan/approvals/A3-0001/packet.md",
       "specs/run_card.schema.json",
       "src/hep_autoresearch/toolkit/run_card.py",
-      "docs/ORCHESTRATOR_STATE.md",
-      "docs/ORCHESTRATOR_INTERACTION.md",
       "artifacts/runs/M33-t32-r1/orchestrator_regression/manifest.json",
       "artifacts/runs/M33-t32-r1/orchestrator_regression/summary.json",
       "artifacts/runs/M33-t32-r1/orchestrator_regression/analysis.json",

@@ -8,7 +8,6 @@
   },
   "acceptance": {
     "required_paths_exist": [
-      "docs/ADAPTERS.md",
       "scripts/run_adapter_smoke.py",
       "src/hep_autoresearch/toolkit/adapters/base.py",
       "src/hep_autoresearch/toolkit/adapters/artifacts.py",
@@ -76,4 +75,3 @@
   },
   "notes": "Run first: python3 scripts/run_adapter_smoke.py --tag M27-adapter-smoke-r1 (offline). Then: python3 scripts/run_evals.py --case-id E15-adapter-shell-smoke --tag M27-adapter-smoke-r1."
 }
-

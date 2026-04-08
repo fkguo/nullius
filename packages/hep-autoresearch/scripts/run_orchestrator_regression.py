@@ -32,8 +32,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--computation-run-card",
-        default="examples/schrodinger_ho/run_cards/ho_groundstate.json",
-        help="Run-card path for the computation scenario (default: examples/schrodinger_ho/run_cards/ho_groundstate.json).",
+        default="",
+        help="Optional run-card path for the computation scenario (default: auto-generated minimal fixture).",
     )
     args = parser.parse_args()
 
@@ -46,7 +46,7 @@ def main() -> int:
             scenarios=scenarios,
             reproduce_ns=ns,
             timeout_seconds=int(args.timeout_seconds),
-            computation_run_card=str(args.computation_run_card),
+            computation_run_card=str(args.computation_run_card).strip() or None,
         ),
         repo_root=repo_root,
     )

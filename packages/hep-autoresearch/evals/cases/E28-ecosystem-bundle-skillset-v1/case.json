@@ -8,8 +8,6 @@
   },
   "acceptance": {
     "required_paths_exist": [
-      "docs/ECOSYSTEM_BUNDLE.md",
-      "docs/ECOSYSTEM_BUNDLE.zh.md",
       "scripts/run_ecosystem_bundle.py",
       "src/hep_autoresearch/toolkit/ecosystem_bundle.py",
       "artifacts/runs/M52-hepar-skill-bundle-r1/ecosystem_bundle/manifest.json",

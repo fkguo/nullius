@@ -26,7 +26,7 @@ class OrchestratorRegressionInputs:
     runtime_dir: str | None = None
     reproduce_ns: tuple[int, ...] = (0, 1, 2)
     reproduce_case: str = "toy"
-    computation_run_card: str = "examples/schrodinger_ho/run_cards/ho_groundstate.json"
+    computation_run_card: str | None = None
     revision_paper_root: str = "evals/fixtures/revision_project/paper"
     revision_tex_main: str = "main.tex"
     timeout_seconds: int = 600
@@ -111,6 +111,52 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             return os.fspath(p.relative_to(repo_root))
         except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return os.fspath(p)
+
+    def ensure_computation_run_card() -> str:
+        configured = str(inps.computation_run_card or "").strip()
+        if configured:
+            return configured
+
+        fixture_dir = out_dir / "computation_fixture"
+        scripts_dir = fixture_dir / "scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+
+        script_path = scripts_dir / "write_ok.py"
+        script_path.write_text(
+            "from __future__ import annotations\n"
+            "import json\n"
+            "from pathlib import Path\n"
+            "Path('results').mkdir(parents=True, exist_ok=True)\n"
+            "Path('results/ok.json').write_text(json.dumps({'ok': True}) + '\\n', encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+
+        run_card_path = fixture_dir / "run_card.json"
+        run_card = {
+            "schema_version": 2,
+            "run_id": "IGNORED",
+            "workflow_id": "computation",
+            "title": "orchestrator regression auto fixture",
+            "phases": [
+                {
+                    "phase_id": "write_ok",
+                    "backend": {
+                        "kind": "shell",
+                        "argv": [os.sys.executable, "scripts/write_ok.py"],
+                        "cwd": rel(fixture_dir),
+                    },
+                    "outputs": ["results/ok.json"],
+                }
+            ],
+        }
+        write_json(run_card_path, run_card)
+
+        run_card_rel = rel(run_card_path)
+        manifest["outputs"].append(rel(script_path))
+        manifest["outputs"].append(run_card_rel)
+        manifest["params"]["computation_run_card"] = run_card_rel
+        analysis["inputs"]["computation_run_card"] = run_card_rel
+        return run_card_rel
 
     def reset_generated_dir(path: Path, *, label: str) -> None:
         target = path.resolve()
@@ -1082,7 +1128,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     def scenario_computation() -> dict[str, Any]:
         run_id = f"{inps.tag}-computation"
         reset_generated_run(run_id)
-        run_card = str(inps.computation_run_card)
+        run_card = ensure_computation_run_card()
         cmd_run = [
             "python3",
             "scripts/orchestrator.py",

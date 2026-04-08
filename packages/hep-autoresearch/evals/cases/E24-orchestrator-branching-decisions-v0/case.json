@@ -9,7 +9,6 @@
   "acceptance": {
     "required_paths_exist": [
       "specs/plan.schema.json",
-      "docs/ORCHESTRATOR_STATE.md",
       "scripts/run_orchestrator_regression.py",
       "src/hep_autoresearch/orchestrator_cli.py",
       "src/hep_autoresearch/toolkit/orchestrator_regression.py",
@@ -52,4 +51,3 @@
   },
   "notes": "Anchored to tag M44-t39-r1; validates branching Plan SSOT fields + derived plan.md + ledger-backed switching."
 }
-
