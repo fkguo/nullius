@@ -7,12 +7,12 @@
 
 1. Read `AGENTS.md` first — it is the only root-level SSOT.
 2. Read this shim only for compatibility guidance.
-3. Then read any more specific `AGENTS.md` / `CLAUDE.md` files in scope (for example `packages/hep-mcp/CLAUDE.md`).
+3. Then read package `README.md`, `docs/*`, source, and tests as needed for scoped authority.
 
 ## Compatibility Notes
 
 - 根级治理规则只在 `AGENTS.md` 维护，不在本 shim 重复。
-- 旧 prompt 若要求“读取根 `CLAUDE.md`”，应解释为“先读 `AGENTS.md`，再读本 shim，再按作用域读更细的 package 级文件”。
+- 旧 prompt 若要求“读取根 `CLAUDE.md`”，应解释为“先读 `AGENTS.md`，再读本 shim，再按需要读 package README / docs / code / tests”。
 - maintainer-only 的 redesign plan、tracker、implementation prompt、formal review packet 与 lane queue 现在是本地材料，不属于公开仓 surface。
 - 跨 session 的长期架构结论以 `.serena/memories/architecture-decisions.md` 为准；不要在根 `CLAUDE.md` 维护第二套记忆协议。
 - 多模型 formal review 仍推荐遵循 `AGENTS.md` 中的 source-grounded 规则；若使用 `Gemini(auto)`，默认保持 `auto` 而不是静默切回旧 alias。

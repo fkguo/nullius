@@ -6,7 +6,7 @@
 
 1. 先读根级 `AGENTS.md`
 2. 再读根级 `CLAUDE.md` shim
-3. 最后按作用域读更具体的 `packages/*/AGENTS.md` / `packages/*/CLAUDE.md`
+3. 再按需要阅读对应 package 的 `README.md`、`docs/*`、源码与测试
 
 ## Stable Public Invariants
 
