@@ -20,7 +20,7 @@ Design principles:
 
 ### Optional
 
-- `PDG_DATA_DIR`: local data directory (default: `<HEP_DATA_DIR>/pdg` when `HEP_DATA_DIR` is set; otherwise `~/.hep-research-mcp/pdg`)
+- `PDG_DATA_DIR`: local data directory (default: `<HEP_DATA_DIR>/pdg` when `HEP_DATA_DIR` is set; otherwise `~/.hep-mcp/pdg`)
   - artifacts directory: `$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`: PDG artifact cache TTL in hours (`0/off` disables; cleaned on startup and periodically; default 24)
 - `PDG_ARTIFACT_DELETE_AFTER_READ`: if enabled, deletes an artifact file right after it is successfully read via `pdg://artifacts/<name>` (useful for “query cache” workflows)

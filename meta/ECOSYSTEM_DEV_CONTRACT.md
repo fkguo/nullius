@@ -243,18 +243,16 @@ make codegen-check  # 重新生成 → git diff --exit-code */generated/
 
 ### CFG-01: 配置键注册表
 
-**规则**: 所有环境变量/配置键必须在 `autoresearch-meta/docs/ecosystem_config_v1.md` 中注册，包含：键名、类型、默认值、优先级链、所属组件。
+**规则**: 所有环境变量/配置键必须在 `meta/docs/ecosystem_config_v1.md` 中注册，包含：键名、类型、默认值、优先级链、所属组件。
 
 | 键 | 类型 | 默认值 | 优先级 | 组件 |
 |---|---|---|---|---|
-| `HEP_DATA_DIR` | path | `.hep-research-mcp` (CWD 相对路径) | env > .env > default | hep-research-mcp |
-| `HEP_TOOL_MODE` | enum | `standard` | env > .env > default | hep-research-mcp |
-| `HEP_ENABLE_ZOTERO` | bool | `true` | env > .env > default | hep-research-mcp |
+| `HEP_DATA_DIR` | path | `~/.hep-mcp` | env > .env > default | hep-mcp |
+| `HEP_TOOL_MODE` | enum | `standard` | env > .env > default | hep-mcp |
+| `HEP_ENABLE_ZOTERO` | bool | `true` | env > .env > default | hep-mcp |
 | `PDG_DB_PATH` | path | (必需) | env > .env | pdg-mcp |
 | `PDG_ARTIFACT_TTL_HOURS` | int | `24` | env > .env > default | pdg-mcp |
 | `ZOTERO_BASE_URL` | URL | `http://127.0.0.1:23119` | env > .env > default | zotero-mcp |
-
-> **H-21 计划变更**: `HEP_DATA_DIR` 默认值将从项目本地 `.hep-research-mcp` (CWD 相对) 变更为全局 `~/.hep-research-mcp` (用户主目录)。变更在 H-21 实施时同步更新本表。
 
 **CI 验证**:
 ```bash

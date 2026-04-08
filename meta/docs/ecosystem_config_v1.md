@@ -1,6 +1,7 @@
 # Ecosystem Configuration Registry (v1)
 
-> Single source of truth for all environment-variable–based configuration across the autoresearch ecosystem.
+> Public registry for environment-variable configuration that still matters to checked-in, live surfaces.
+> Historical or maintainer-only knobs may continue to exist internally, but they should not be treated as public front-door configuration authority.
 
 ## Priority Chain
 
@@ -12,29 +13,30 @@ Environment variables follow a strict priority chain (highest → lowest):
 
 ## Configuration Keys
 
-### Core (hep-mcp)
+### Core (`hep-mcp`)
 
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|
-| `HEP_DATA_DIR` | path | `~/.hep-research-mcp` | Root data directory for all HEP artifacts, downloads, cache | hep-mcp, pdg-mcp, hep-autoresearch |
+| `HEP_DATA_DIR` | path | `~/.hep-mcp` | Root data directory for HEP artifacts, downloads, cache, and colocated provider state | hep-mcp, pdg-mcp |
 | `HEP_TOOL_MODE` | `standard` \| `full` | `standard` | Tool exposure level — `standard` shows core tools, `full` shows all | hep-mcp |
 | `HEP_DOWNLOAD_DIR` | path | `<HEP_DATA_DIR>/downloads` | Override directory for arXiv/paper downloads | hep-mcp |
 | `ARXIV_DOWNLOAD_DIR` | path | `<HEP_DATA_DIR>/downloads` | Alias for `HEP_DOWNLOAD_DIR` (fallback) | hep-mcp |
 | `WRITING_PROGRESS_DIR` | path | `<HEP_DATA_DIR>/writing_progress` | Directory for run progress artifacts | hep-mcp |
 | `HEP_ENABLE_ZOTERO` | boolean | `true` | Enable/disable Zotero Local API integration | hep-mcp |
+| `HEP_ENABLE_MULTIMODAL_RETRIEVAL` | boolean | `true` | Enable multimodal retrieval surfaces when supported by the current build | hep-mcp |
 | `HEP_DEBUG` | comma-separated | (none) | Enable debug logging for specific categories (e.g. `cache,evidence`) | hep-mcp |
-| `DEBUG` | any | (none) | Enable all debug logging if set | hep-mcp |
-| `HEP_ENABLE_TOOL_USAGE_TELEMETRY` | boolean | (unset) | Enable tool call telemetry | hep-mcp |
+| `HEP_ENABLE_TOOL_USAGE_TELEMETRY` | boolean | (unset) | Enable tool call telemetry artifacts and summaries | hep-mcp |
 
-### LLM / Sampling (hep-mcp)
+### Runtime / Sampling (`hep-mcp`)
 
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|
-| `CONCURRENCY_LIMIT` | int | derived | Max concurrent processing workers in deep research pipelines | hep-mcp |
+| `ZOTERO_BASE_URL` | URL | `http://127.0.0.1:23119` | Zotero Local API endpoint (strictly local-only) | zotero-mcp, hep-mcp |
+| `ZOTERO_DATA_DIR` | path | (none) | Zotero data directory for attachment/fulltext resolution | zotero-mcp, hep-mcp |
 
-Note: `inspire_critical_research(mode=theoretical, options.llm_mode='internal')` now uses MCP client sampling (`createMessage`) and no longer relies on provider-specific writing LLM environment variables.
+Note: host-side sampling and orchestration now own writing/model decisions. This registry only tracks the remaining environment variables that still shape checked-in runtime behavior.
 
-### PDG (pdg-mcp)
+### PDG (`pdg-mcp`)
 
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|
@@ -46,33 +48,26 @@ Note: `inspire_critical_research(mode=theoretical, options.llm_mode='internal')`
 | `PDG_SQLITE_CONCURRENCY` | int | `4` | Max concurrent sqlite3 operations | pdg-mcp |
 | `PDG_ARTIFACT_DELETE_AFTER_READ` | boolean | (unset) | Delete artifacts after reading | pdg-mcp |
 
-### Zotero (zotero-mcp)
-
-| Key | Type | Default | Description | Read by |
-|-----|------|---------|-------------|---------|
-| `ZOTERO_BASE_URL` | URL | `http://127.0.0.1:23119` | Zotero Local API endpoint (strict: only localhost:23119) | zotero-mcp, hep-mcp |
-| `ZOTERO_DATA_DIR` | path | (none) | Path to Zotero data directory (for PDF attachment resolution) | hep-mcp |
-
 ### TypeScript Orchestrator (`@autoresearch/orchestrator`)
 
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|
 | `AUTORESEARCH_CONTROL_DIR` | path | derived | Control-plane state directory for `.autoresearch` ledger/state/plan files | orchestrator, hep-mcp |
 
-### Legacy Python Orchestrator (hep-autoresearch)
+### Internal Python Residue (`hep-autoresearch`, maintainer/eval only)
 
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|
-| `HEP_AUTORESEARCH_DIR` | path | derived | Runtime state directory | hep-autoresearch |
-| `HEP_MCP_PACKAGE_DIR` | path | auto-detected | Path to hep-mcp package | hep-autoresearch |
-| `HEPAR_HTTP_MODE` | `live` \| `record` \| `replay` \| `fail_all` | `live` | HTTP handling mode for testing | hep-autoresearch |
-| `HEPAR_HTTP_FIXTURES_DIR` | path | (none) | HTTP fixture cache directory (record/replay) | hep-autoresearch |
-| `HEPAR_RECORD_ABS_PATHS` | boolean | `false` | Record absolute paths in artifacts | hep-autoresearch |
-| `CODEX_HOME` | path | (none) | Codex CLI home directory | hep-autoresearch |
+| `HEP_AUTORESEARCH_DIR` | path | derived | Internal runtime state directory override | hep-autoresearch |
+| `HEP_MCP_PACKAGE_DIR` | path | auto-detected | Internal override for locating the HEP MCP package checkout | hep-autoresearch |
+| `HEPAR_HTTP_MODE` | `live` \| `record` \| `replay` \| `fail_all` | `live` | Internal HTTP fixture/testing mode | hep-autoresearch |
+| `HEPAR_HTTP_FIXTURES_DIR` | path | (none) | Fixture cache directory required by `record` / `replay` modes | hep-autoresearch |
+| `HEPAR_RECORD_ABS_PATHS` | boolean | `false` | Internal artifact-path recording toggle | hep-autoresearch |
+| `CODEX_HOME` | path | (none) | Skill discovery root for internal Python wrappers that invoke Codex-managed tools | hep-autoresearch |
 
 ### MCP Subprocess Environment Allowlist
 
-The Python MCP client (`mcp_config.py`) uses a strict allowlist for environment variables forwarded to MCP subprocesses. Only these variables are propagated:
+The internal Python MCP client (`mcp_config.py`) uses a strict allowlist for environment variables forwarded to MCP subprocesses. Only these variables are propagated:
 
 ```
 PATH, NODE_PATH, NODE_OPTIONS, NVM_DIR, NVM_BIN,
@@ -86,4 +81,5 @@ HEP_TOOL_MODE, PDG_DB_PATH, PDG_ARTIFACT_TTL_HOURS
 
 - **Zotero** is restricted to localhost only — no Zotero Web API support.
 - **PDG database** path must be absolute and existing.
-- **`HEP_DATA_DIR`** supports `~` expansion for home directory.
+- **`HEP_DATA_DIR`** and **`PDG_DATA_DIR`** support `~` expansion for the home directory.
+- Public/default guidance should point users to `autoresearch` and the MCP package READMEs; internal Python residue variables are listed here only so CI/dev contract checks have one truthful registry.

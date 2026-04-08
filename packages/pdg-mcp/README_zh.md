@@ -20,7 +20,7 @@
 
 ### 可选
 
-- `PDG_DATA_DIR`：本地数据目录（默认：若设置了 `HEP_DATA_DIR` 则为 `<HEP_DATA_DIR>/pdg`；否则 `~/.hep-research-mcp/pdg`）
+- `PDG_DATA_DIR`：本地数据目录（默认：若设置了 `HEP_DATA_DIR` 则为 `<HEP_DATA_DIR>/pdg`；否则 `~/.hep-mcp/pdg`）
   - artifacts 目录为：`$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`：PDG artifacts 缓存 TTL（小时；`0/off` 禁用；启动时 + 周期性清理；默认 24）
 - `PDG_ARTIFACT_DELETE_AFTER_READ`：若启用，则在通过 `pdg://artifacts/<name>` 成功读取后立即删除该文件（适合“即时查询缓存”用法）
