@@ -1,4 +1,3 @@
-import argparse
 import os
 import subprocess
 import sys
@@ -17,7 +16,7 @@ def _repo_root() -> Path:
 
 sys.path.insert(0, str(_src_root()))
 
-from hep_autoresearch.orchestrator_cli import _mcp_env
+from hep_autoresearch.toolkit.literature_gap import _mcp_env
 
 
 class TestProjectRootIsolation(unittest.TestCase):
@@ -49,19 +48,29 @@ class TestProjectRootIsolation(unittest.TestCase):
     def test_mcp_env_rejects_cli_repo_internal_hep_data_dir(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            args = argparse.Namespace(hep_data_dir=str(_repo_root() / "skills"))
             with self.assertRaisesRegex(ValueError, "HEP_DATA_DIR"):
-                _mcp_env(repo_root, {}, args, create_data_dir=False, project_policy="real_project")
+                _mcp_env(
+                    repo_root,
+                    {},
+                    hep_data_dir_override=str(_repo_root() / "skills"),
+                    create_data_dir=False,
+                    project_policy="real_project",
+                )
 
     def test_mcp_env_rejects_env_repo_internal_hep_data_dir(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            args = argparse.Namespace(hep_data_dir=None)
             old = os.environ.get("HEP_DATA_DIR")
             os.environ["HEP_DATA_DIR"] = str(_repo_root() / "packages")
             try:
                 with self.assertRaisesRegex(ValueError, "HEP_DATA_DIR"):
-                    _mcp_env(repo_root, {}, args, create_data_dir=False, project_policy="real_project")
+                    _mcp_env(
+                        repo_root,
+                        {},
+                        hep_data_dir_override=None,
+                        create_data_dir=False,
+                        project_policy="real_project",
+                    )
             finally:
                 if old is None:
                     os.environ.pop("HEP_DATA_DIR", None)
