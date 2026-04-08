@@ -66,7 +66,7 @@ describe('emitJsonlLog', () => {
       toolName: 'hep_run_stage_content',
       toolArgs: {
         api_key: 'sk-abcdefghijklmnopqrstuvwxyz123456',
-        path: '/home/user/private/project.txt',
+        path: '/Users/example/private/project.txt',
       },
       durationMs: 7,
       resultStatus: 'success',
@@ -74,7 +74,7 @@ describe('emitJsonlLog', () => {
 
     const output = stderrSpy.mock.calls[0][0] as string;
     expect(output).not.toContain('sk-abcdefghijklmnopqrstuvwxyz123456');
-    expect(output).not.toContain('/home/user/');
+    expect(output).not.toContain('/Users/example/');
 
     const parsed = JSON.parse(output.trim());
     expect(parsed.data.params.api_key).toBe('sk-***');

@@ -1,8 +1,8 @@
 {
   "generated_at": "2026-03-24T09:15:27.869797+00:00",
   "source": {
-    "repo_root": "/home/user/Coding/Agents/autoresearch-lab",
-    "package_dir": "/home/user/Coding/Agents/autoresearch-lab/packages/hep-mcp",
+    "repo_root": "<autoresearch-lab-repo-root>",
+    "package_dir": "<autoresearch-lab-repo-root>/packages/hep-mcp",
     "entrypoint": "dist/index.js",
     "version": "0.1.0",
     "git_commit": "8715c2437129607f46e9f90e2c1485a927c699fe",

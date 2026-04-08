@@ -62,7 +62,7 @@ describe('memory-graph sqlite store', () => {
         weight: 1,
       });
 
-      const matches = await store.findSimilarCapsules(normalizeSignals(['Type error in /home/user/project/bar.ts:99']), 0.3);
+      const matches = await store.findSimilarCapsules(normalizeSignals(['Type error in /Users/example/project/bar.ts:99']), 0.3);
       expect(matches).toHaveLength(1);
       expect((matches[0]?.node.payload as { capsule_id?: string }).capsule_id).toBe('cap-1');
     });

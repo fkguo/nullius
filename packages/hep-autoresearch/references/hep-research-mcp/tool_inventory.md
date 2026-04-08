@@ -1,8 +1,8 @@
 # hep-research-mcp tool inventory
 
 - Generated at (UTC): 2026-03-24T09:15:27.869797+00:00
-- Repo root: `/home/user/Coding/Agents/autoresearch-lab`
-- Package dir: `/home/user/Coding/Agents/autoresearch-lab/packages/hep-mcp`
+- Repo root: `<autoresearch-lab-repo-root>`
+- Package dir: `<autoresearch-lab-repo-root>/packages/hep-mcp`
 - Entrypoint: `dist/index.js`
 - Version: `0.1.0`
 - Git commit: `8715c2437129607f46e9f90e2c1485a927c699fe`

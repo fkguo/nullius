@@ -12,7 +12,7 @@ describe('memory-graph core helpers', () => {
     ]);
     const second = computeSignalKey([
       'Missing import after 42 retries',
-      'Type error in /home/user/project/bar.ts:7',
+      'Type error in /Users/example/project/bar.ts:7',
     ]);
 
     expect(first).toBe(second);
@@ -29,7 +29,7 @@ describe('memory-graph core helpers', () => {
     const winningSignals = normalizeSignals(['Type error in /tmp/foo.ts:123']);
     const losingSignals = normalizeSignals(['Type error in /tmp/foo.ts:123', 'Missing import after 9 retries']);
     const advice = await getMemoryAdvice(
-      ['Type error in /home/user/project/bar.ts:7'],
+      ['Type error in /Users/example/project/bar.ts:7'],
       {
         async getCandidateEdgeStats() {
           return [

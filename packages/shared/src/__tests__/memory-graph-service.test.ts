@@ -21,7 +21,7 @@ describe('memory-graph service', () => {
       const sharedSignalKey = computeSignalKey([sharedSignal]);
 
       await graph.recordSignalSnapshot('run-a', [sharedSignal, 'Missing import after 9 retries']);
-      await graph.recordSignalSnapshot('run-b', ['Type error in /home/user/project/bar.ts:7']);
+      await graph.recordSignalSnapshot('run-b', ['Type error in /Users/example/project/bar.ts:7']);
       await graph.recordOutcome('run-a', 'gene-fix', { signal_key: sharedSignalKey, success: true, quality_score: 0.9 });
       await graph.recordOutcome('run-b', 'gene-fix', { signal_key: sharedSignalKey, success: true, quality_score: 0.8 });
       await graph.recordOutcome('run-c', 'gene-bad', { signal_key: sharedSignalKey, success: false, reason: 'validation_failed' });
@@ -31,7 +31,7 @@ describe('memory-graph service', () => {
       const topSignals = await graph.topSignals(30, 5);
       expect(topSignals[0]).toEqual({ signal: 'type error in <path>', count: 2 });
 
-      const advice = await graph.getMemoryAdvice(['Type error in /home/user/project/baz.ts:999']);
+      const advice = await graph.getMemoryAdvice(['Type error in /Users/example/project/baz.ts:999']);
       expect(advice.preferredGeneId).toBe('gene-fix');
       expect(advice.bannedGeneIds).toContain('gene-bad');
       expect(await graph.highFrequencySignals(2, 30)).toEqual(['type error in <path>']);
@@ -72,7 +72,7 @@ describe('memory-graph service', () => {
         weight: 1,
       });
 
-      const matches = await graph.findSimilarCapsules(normalizeSignals(['Type error in /home/user/project/bar.ts:5']), 0.3);
+      const matches = await graph.findSimilarCapsules(normalizeSignals(['Type error in /Users/example/project/bar.ts:5']), 0.3);
       expect(matches).toHaveLength(1);
 
       await graph.addNode({
