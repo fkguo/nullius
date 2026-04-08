@@ -3,7 +3,7 @@
 > **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01)
 > **日期**: 2026-02-21
 > **适用范围**: hep-research-mcp, hep-autoresearch, idea-generator, idea-core, skills/, skills-market, autoresearch-meta
-> **强制级别**: 所有新增/修改代码必须遵守；存量代码按 REDESIGN_PLAN.md 分阶段对齐
+> **强制级别**: 所有新增/修改代码必须遵守；存量代码按当前 checked-in 架构/治理文档分阶段对齐
 > **违规默认行为**: **fail-closed**（除非规则明确标注 fail-open）
 
 ## 总则
@@ -759,7 +759,7 @@ grep -rn 'except:\s*pass\|except\s.*:\s*pass' --include='*.py' \
 
 1. **源代码全英文**: 所有源代码、注释、变量名、commit message、PR description 使用英文
 2. **用户手册英文优先**: 英文版为 canonical source (`docs/en/`)；中文版为翻译产物 (`docs/zh/`)，功能完工后批量生成
-3. **架构文档**: `AGENTS.md`, `REDESIGN_PLAN.md`, `ECOSYSTEM_DEV_CONTRACT.md` 等内部架构文档保持当前语言 (中文)，不受本规则约束
+3. **架构文档**: `AGENTS.md`, `ECOSYSTEM_DEV_CONTRACT.md` 等内部架构文档保持当前语言 (中文)，不受本规则约束
 
 **CI 验证**:
 ```bash
@@ -859,7 +859,7 @@ if (internal.length) { console.error('PLUG-01:', internal); process.exit(1); }
 ## 生效与迁移
 
 1. **新代码**: 本规范发布后，所有新增/修改代码必须遵守全部规则
-2. **存量代码**: 按 `REDESIGN_PLAN.md` 分阶段对齐，fail-open 规则允许渐进迁移
+2. **存量代码**: 按当前 checked-in 架构/治理文档分阶段对齐，fail-open 规则允许渐进迁移
 3. **豁免**: 特殊情况可通过在代码中添加 `# CONTRACT-EXEMPT: {规则ID} {原因}` 注释豁免，但必须在 PR review 中说明。CODE-01.1 文件级豁免需额外包含 `sunset:YYYY-MM-DD` (待 AMEND-01 批准后生效)
 4. **版本演进**: 规则变更需经 autoresearch-meta 治理流程审批
 5. **待批准修订**: 标记为 `AMEND-{NN}` 的提案在治理审批前不具有强制力，仅供参考实施

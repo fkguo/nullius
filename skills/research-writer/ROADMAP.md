@@ -85,7 +85,7 @@ Status: done.
 
 ## M8+ (forward)
 
-See `PLAN.md` for the forward plan with explicit **Skill vs Agent** responsibilities and a progress checklist.
+Forward planning remains summarized in this roadmap. Any detailed maintainer review packets or local milestone trackers stay outside the public repository surface.
 
 M8 status: done.
 
