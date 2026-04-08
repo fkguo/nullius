@@ -14,9 +14,6 @@ _TARGET_FILES = (
     Path("packages/hep-autoresearch/src/hep_autoresearch/toolkit/evals.py"),
     Path("packages/hep-autoresearch/src/hep_autoresearch/toolkit/retry.py"),
     Path("packages/hep-autoresearch/src/hep_autoresearch/toolkit/run_card.py"),
-    Path("packages/idea-core/src/idea_core/rpc/server.py"),
-    Path("packages/idea-core/src/idea_core/hepar/retry_ops.py"),
-    Path("packages/idea-core/src/idea_core/hepar/orchestrator.py"),
 )
 # This gate intentionally matches the standard broad-catch forms used in this repo:
 # `except Exception:` and `except Exception as exc:`.

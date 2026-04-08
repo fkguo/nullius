@@ -2,7 +2,7 @@
 
 > **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01)
 > **日期**: 2026-04-08
-> **适用范围**: hep-research-mcp, hep-autoresearch, idea-generator, idea-engine, skills/, skills-market, autoresearch-meta；`idea-core` 仅作为退役中的内部 parity / fixture residue 在需要处提及
+> **适用范围**: hep-research-mcp, hep-autoresearch, idea-generator, idea-engine, skills/, skills-market, autoresearch-meta
 > **强制级别**: 所有新增/修改代码必须遵守；存量代码按当前 checked-in 架构/治理文档分阶段对齐
 > **违规默认行为**: **fail-closed**（除非规则明确标注 fail-open）
 
@@ -165,16 +165,12 @@ node autoresearch-meta/scripts/validate_artifact_refs.mjs
 
 ### SYNC-01: Schema 快照 SHA256 门禁
 
-**规则**: `idea-engine/contracts/idea-generator-snapshot/` 中的 package-local vendored schema 是当前 runtime-default authority，必须与 `idea-generator/schemas/` 的 SHA256 指纹一致。退役中的 `idea-core/contracts/idea-generator-snapshot/` 若仍保留，只能作为内部 parity residue，且不得与同一 fingerprint 漂移。
+**规则**: `idea-engine/contracts/idea-generator-snapshot/` 中的 package-local vendored schema 是当前 runtime-default authority，必须与 `idea-generator/schemas/` 的 SHA256 指纹一致。
 
 **CI 验证**:
 ```bash
 # runtime-default authority must stay package-local to idea-engine
 pnpm --filter @autoresearch/idea-engine test -- tests/runtime-asset-authority.test.ts
-# retirement residue still must not drift while idea-core remains in-tree
-cd idea-core && make check-drift
-# 内部逻辑: sha256sum idea-generator/schemas/*.schema.json | sort | sha256sum
-#           比对 CONTRACT_SOURCE.json / package-local snapshot fingerprint
 ```
 
 **违规行为**: **fail-closed** — 指纹不匹配阻断 CI 和 commit

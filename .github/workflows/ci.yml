@@ -77,18 +77,3 @@ jobs:
           else
             echo "No Python package found, skipping"
           fi
-
-      - name: Python tests (idea-core)
-        run: |
-          cd packages/idea-core
-          if [ -f pyproject.toml ] || [ -f setup.py ]; then
-            pip install -e ".[dev]" 2>/dev/null || pip install -e .
-            pip install pytest
-            if [ -d tests ] && find tests -name 'test_*.py' | head -1 | grep -q .; then
-              python -m pytest tests/ -q
-            else
-              echo "No test files found, skipping"
-            fi
-          else
-            echo "No Python package found, skipping"
-          fi

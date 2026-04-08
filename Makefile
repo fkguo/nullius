@@ -10,7 +10,6 @@ test:
 	pnpm -r test
 	@echo "--- Python tests ---"
 	cd packages/hep-autoresearch && python -m pytest tests/ -q 2>/dev/null || echo "(no pytest tests yet)"
-	cd packages/idea-core && python -m pytest tests/ -q 2>/dev/null || echo "(no pytest tests yet)"
 
 lint:
 	pnpm -r lint

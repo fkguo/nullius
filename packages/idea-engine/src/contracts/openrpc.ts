@@ -29,7 +29,7 @@ export interface OpenRpcDocument {
 }
 
 // idea-engine now owns the runtime-default contract snapshot locally; do not
-// point default contract authority back into packages/idea-core.
+// point default contract authority back into retired Python surfaces.
 export const DEFAULT_CONTRACT_DIR = fileURLToPath(
   new URL('../../contracts/idea-generator-snapshot/schemas', import.meta.url),
 );
