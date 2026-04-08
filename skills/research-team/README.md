@@ -59,8 +59,6 @@ See:
 - `references/usage_guide.zh.md` for the Chinese usage manual (human-oriented).
 - `RUNBOOK.md` for gate failure diagnosis + rerun commands.
 - `FULL_VALIDATION_CONTRACT.md` for the validation definition and acceptance criteria.
-- `ROADMAP.md` for the historical planning notice and archive links.
-- `references/history/research-team-roadmap-2026-01.md` and `references/history/research-team-plan-m2-m4-2026-01.md` for archived planning snapshots (non-SSOT).
 - `references/kb_index.md` for the KB index exporter (English).
 
 ## Repository layout

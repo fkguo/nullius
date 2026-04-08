@@ -117,5 +117,5 @@ Keep `--out-dir` on a real-project path as well; do not point real-project team 
 - Chinese manual (human-oriented): `references/usage_guide.zh.md`
 - KB index exporter (English): `references/kb_index.md`
 - Troubleshooting / rerun recipes: `RUNBOOK.md`
-- Gate contract notes: `FULL_VALIDATION_CONTRACT.md`, `P1_GATE_DOC_ALIGNMENT.md`
+- Gate contract notes: `FULL_VALIDATION_CONTRACT.md`
 - Artifact contract: `references/artifact_contract.md`
