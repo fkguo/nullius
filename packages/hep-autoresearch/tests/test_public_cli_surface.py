@@ -177,15 +177,10 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertIn("paper_reviser", err)
 
     def test_package_docs_publish_exact_public_command_inventory(self) -> None:
-        cli_mod = self._import_orchestrator_cli()
-
-        en_snippet = f"Exact installable public command inventory: {cli_mod.PUBLIC_SHELL_COMMANDS_MARKDOWN}."
-        zh_snippet = f"安装态 public shell 的精确命令清单是：{cli_mod.PUBLIC_SHELL_COMMANDS_MARKDOWN}。"
-
-        self.assertIn(en_snippet, self._read_repo_file("packages/hep-autoresearch/README.md"))
-        self.assertIn(zh_snippet, self._read_repo_file("packages/hep-autoresearch/README.zh.md"))
-        self.assertIn(en_snippet, self._read_repo_file("packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.md"))
-        self.assertIn(zh_snippet, self._read_repo_file("packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.zh.md"))
+        self.assertIn("use `autoresearch` as the front door", self._read_repo_file("packages/hep-autoresearch/README.md"))
+        self.assertIn("前门是 `autoresearch`", self._read_repo_file("packages/hep-autoresearch/README.zh.md"))
+        self.assertNotIn("Exact installable public command inventory:", self._read_repo_file("packages/hep-autoresearch/README.md"))
+        self.assertNotIn("安装态 public shell 的精确命令清单是：", self._read_repo_file("packages/hep-autoresearch/README.zh.md"))
 
     def test_authority_map_keeps_exact_public_shell_inventory(self) -> None:
         cli_mod = self._import_orchestrator_cli()
@@ -227,6 +222,8 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertEqual(
             groups["retired_public_support_commands"],
             [
+                "method-design",
+                "run-card",
                 "branch",
             ],
         )

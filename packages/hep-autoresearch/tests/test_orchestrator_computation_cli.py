@@ -207,3 +207,4 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
         self.assertEqual(int(exc.exception.code), 2)
         self.assertIn("invalid choice", buf_err.getvalue())
         self.assertIn("run-card", buf_err.getvalue())
+        self.assertEqual(buf_out.getvalue(), "")

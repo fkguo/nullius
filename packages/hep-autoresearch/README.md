@@ -1,49 +1,23 @@
 # HEP Autoresearch
 
-Evidence-first, reproducible workflow automation for High-Energy Physics (HEP): literature → derivations/code → numerics/reproduction → review/revision → writing/publishing.
+HEP-oriented provider package and legacy-transition surface inside the Autoresearch Lab monorepo.
 
-This repository is the **orchestrator + reliability layer** that connects and standardizes an ecosystem:
-- `hep-research-mcp`: INSPIRE/PDG/Zotero/paper source access/evidence indexing/writing export tools (MCP).
-- `research-team`: milestone workflow + independent dual review + convergence gates.
-- `hep-calc`: auditable symbolic/numeric computation orchestration (manifest/summary/analysis).
-- `research-writer`: paper scaffold + citation/LaTeX hygiene + evidence gates.
-- `review-swarm`: clean-room dual-model convergence checks (Opus + Gemini).
+This package is no longer the generic product front door. Public entrypoints live at the repo root:
 
-Language: English is the release default. Chinese docs are kept for bilingual publishing: see `README.zh.md`.
+- generic lifecycle and bounded computation: `autoresearch`
+- high-level literature planning: `autoresearch workflow-plan`
+- current mature HEP MCP surface: `@autoresearch/hep-mcp`
 
-> Note: this repo was previously named `hep-research-autopilot`. The CLI keeps a compatibility alias (`hep-autopilot`). If you have local scripts that `cd hep-research-autopilot`, create a symlink next to the repo (e.g. `ln -s hep-autoresearch hep-research-autopilot`).
+This directory remains in the public monorepo because it still contains implementation, tests, and package metadata, but maintainer-only legacy docs, workflow notes, and examples are kept local rather than published as part of the public GitHub surface.
 
-## Start here (package docs, not the generic front door)
+For current user-facing guidance, start from:
 
-Need the current mainline front-door truth first? Start with the repo-root [README](../../README.md), [docs/QUICKSTART.md](../../docs/QUICKSTART.md), and [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md). The package docs below are package-local legacy / maintainer-oriented docs around the residual Pipeline A surface, not the default product first touch.
+- [root README](../../README.md)
+- [Quickstart](../../docs/QUICKSTART.md)
+- [Testing Guide](../../docs/TESTING_GUIDE.md)
 
-1) `docs/INDEX.md` (documentation index)
-2) `docs/BEGINNER_TUTORIAL.md` (first external-project walkthrough)
-3) `docs/VISION.md` (vision & scope)
-4) `docs/ARCHITECTURE.md` (architecture & interfaces)
+For package consumers, the only stable guidance here is:
 
-Important: this package repo is the **development home** of `hep-autoresearch`, not the research-project root you operate on day to day. The canonical generic front door is now `autoresearch` for lifecycle state plus the bounded computation entrypoint `autoresearch run --workflow-id computation`. Run `autoresearch init` inside your own external research project directory to scaffold the minimal core surface: `project_charter.md`, `project_index.md`, `research_plan.md`, `research_notebook.md`, `research_contract.md`, a provider-neutral `.mcp.json.example`, `.autoresearch/`, `docs/`, and `specs/`. Real-project intermediate outputs must also stay outside this dev repo. Research-team-only surfaces such as `prompts/`, `research_team_config.json`, `knowledge_base/`, `references/`, and `team/` are now optional full-scaffold additions rather than canonical defaults; provider-local HEP surfaces such as `.hep/` are opt-in rather than part of the shared scaffold baseline.
-
-Lifecycle note: `hep-autoresearch`, its installable alias `hepar`, and the older compatibility alias `hep-autopilot` remain the transitional **Pipeline A** Python CLI surface. They are no longer the canonical generic lifecycle or computation entrypoint, and `meta/REDESIGN_PLAN.md` treats them as a legacy surface that should keep moving together. Unless a later design decision explicitly repoints one of these names, retirement semantics apply to all three names together. The installable public legacy surface now keeps only `run` as a compatibility pointer. Public computation remains available only as an internal full-parser workflow path for maintainer/eval/regression coverage. Direct root lifecycle/approval mutations (`start`, `checkpoint`, `request-approval`, `reject`) are retired from the installable shell and no longer belong to the current internal full-parser command inventory. Deleted parser shells `doctor`, `bridge`, and `literature-gap` no longer exist. The old support wrappers (`approvals`, `report`, `logs`, `context`, `smoke-test`, `propose`, `skill-propose`, `migrate`) are now removed from the parser; their durable authority remains in lower-level toolkit/test surfaces. Remaining support commands (`method-design`, `run-card`, `branch`) stay internal full-parser only. Computation stays on `autoresearch run --workflow-id computation`, while installable `run` remains only as a compatibility shell command with no public workflow ids. `ingest`, `reproduce`, `revision`, `literature_survey_polish`, and `shell_adapter_smoke` likewise remain internal full-parser paths only. Internal maintainer/eval coverage may still use thin lifecycle adapters onto canonical `autoresearch`, but not a second root orchestrator.
-Exact installable public command inventory: `run`.
-
-## Package docs / compatibility quickstart
-
-- Documentation index (English): `docs/INDEX.md`
-- Beginner tutorial: `docs/BEGINNER_TUTORIAL.md` (English) / `docs/BEGINNER_TUTORIAL.zh.md` (Chinese)
-- Canonical lifecycle entrypoint: `autoresearch init|status|approve|pause|resume|export`
-- Canonical bounded computation entrypoint: `autoresearch run --workflow-id computation`
-- Transitional Pipeline A compatibility CLI (install aliases: `hep-autoresearch`, `hepar`, `hep-autopilot`) remains available, but it is not the generic front door. Current public command surface is:
-  - `run` (no installable public workflow ids; points to `autoresearch run --workflow-id ...`)
-  - remaining legacy workflow/support commands (`method-design`, `run-card`, `branch`, plus internal workflow ids) are internal full-parser only; deleted support wrappers are toolkit/test-surface only
-
-## Status
-
-2026-02-03: v0 executable loop is working, with reliability mechanisms gated by artifacts + evals:
-- Installable CLI: `hep-autoresearch` (aliases: `hep-autopilot`, `hepar`) for the current transitional Pipeline A surface; canonical generic lifecycle entrypoint is `autoresearch`
-- Web entry v0: FastAPI read-only diagnostics panel (`src/hep_autoresearch/web/app.py`)
-- Internal full-parser workflow coverage v0: ingest, reproduce, computation, revision, literature survey polish, paper_reviser, and orchestrator/eval regressions
-- Eval suite: `python3 scripts/run_evals.py --tag <TAG>`
-- Default approval gates: compute-heavy runs (A3) and manuscript edits (A4) are enforced in the orchestrator
-
-Maintainer artifact entry point for latest checked-in runs: `artifacts/LATEST.md`
+- use `autoresearch` as the front door
+- do not treat `hep-autoresearch` / `hepar` as the product identity
+- expect remaining legacy Python surfaces to continue shrinking rather than expanding

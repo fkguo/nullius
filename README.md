@@ -166,8 +166,9 @@ autoresearch status --project-root /absolute/path/to/external-project
 - [URI Registry](./docs/URI_REGISTRY.md)
 - [Chinese README](./docs/README_zh.md)
 - [Repo Governance](./AGENTS.md)
-- [Redesign Plan](./meta/REDESIGN_PLAN.md)
 - [Development Contract](./meta/ECOSYSTEM_DEV_CONTRACT.md)
+
+Maintainer-only redesign plans, remediation trackers, execution prompts, and local legacy workflow notes are intentionally kept out of the public repository surface.
 
 ## Quick Start
 

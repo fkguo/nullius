@@ -77,6 +77,8 @@
         {
           "group": "retired_public_support_commands",
           "commands": [
+            "method-design",
+            "run-card",
             "branch"
           ]
         },

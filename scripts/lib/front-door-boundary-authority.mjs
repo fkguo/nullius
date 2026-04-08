@@ -1,6 +1,5 @@
 import {
   getFrontDoorAuthoritySurface,
-  HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN,
 } from './front-door-authority-map.mjs';
 
 const ORCHESTRATOR_MCP_TOOLS_SPEC_PATH = getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').exact_inventory_source;
@@ -11,158 +10,30 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'packages/hep-autoresearch/README.md',
     snippets: [
-      'Need the current mainline front-door truth first? Start with the repo-root [README](../../README.md), [docs/QUICKSTART.md](../../docs/QUICKSTART.md), and [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md). The package docs below are package-local legacy / maintainer-oriented docs around the residual Pipeline A surface, not the default product first touch.',
-      'The installable public legacy surface now keeps only `run` as a compatibility pointer.',
-      `Exact installable public command inventory: ${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}.`,
-      'Transitional Pipeline A compatibility CLI (install aliases: `hep-autoresearch`, `hepar`, `hep-autopilot`) remains available, but it is not the generic front door.',
+      'HEP-oriented provider package and legacy-transition surface inside the Autoresearch Lab monorepo.',
+      '- generic lifecycle and bounded computation: `autoresearch`',
+      '- high-level literature planning: `autoresearch workflow-plan`',
+      '- current mature HEP MCP surface: `@autoresearch/hep-mcp`',
+      'maintainer-only legacy docs, workflow notes, and examples are kept local rather than published as part of the public GitHub surface.',
     ],
     forbiddenSnippets: [
-      '## Start here\n',
+      'docs/INDEX.md',
+      'docs/BEGINNER_TUTORIAL.md',
+      'Exact installable public command inventory:',
     ],
   },
   {
     relPath: 'packages/hep-autoresearch/README.zh.md',
     snippets: [
-      '如果你先想确认当前 mainline 的 front-door 真相，请先看仓库根级的 [README](../../README.md)、[docs/QUICKSTART.md](../../docs/QUICKSTART.md) 与 [docs/TESTING_GUIDE.md](../../docs/TESTING_GUIDE.md)。下面这些内容是 `packages/hep-autoresearch/` 的 package-local legacy / maintainer 文档链路，不是默认产品前门。',
-      '安装入口的 public shell 现在只保留 `run` 这一个兼容提示层命令。',
-      `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
-      '其余仍存活的 legacy workflow/support commands 只保留在 internal full parser（`method-design` / `run-card` / `branch` 等）；已删除 wrappers 走 lower-level toolkit/test surfaces。',
+      '这是 Autoresearch Lab monorepo 中偏 HEP 的 provider 包，以及仍在收缩中的 legacy 过渡实现面。',
+      '- generic lifecycle 与 bounded computation：`autoresearch`',
+      '- 高层 literature planning：`autoresearch workflow-plan`',
+      '- 当前成熟的 HEP MCP 面：`@autoresearch/hep-mcp`',
+      'maintainer-only 的 legacy 文档、workflow 说明和 examples 现在只保留在本地，不再作为 GitHub 公开内容发布。',
     ],
     forbiddenSnippets: [
-      '## 你现在应该从哪里读起？\n',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/INDEX.md',
-    snippets: [
-      'If you need the current mainline front-door truth, start with the repo-root `README.md`, `../../docs/QUICKSTART.md`, and `../../docs/TESTING_GUIDE.md`. This package index is for package-local legacy / maintainer docs around `hep-autoresearch` / `hepar`; it is not the default product front door.',
-      '## Package-doc entry points (legacy / maintainer-oriented)',
-      'The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands remain only on the internal full parser for maintainer/eval/regression coverage.',
-    ],
-    forbiddenSnippets: [
-      '## Entry points',
-      'unrepointed commands such as `run`, `doctor`, and `bridge`',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/BEGINNER_TUTORIAL.md',
-    snippets: [
-      'For the current generic front door, start with the repo-root `../../docs/QUICKSTART.md` and `../../docs/TESTING_GUIDE.md`. This package tutorial is a legacy-surface / maintainer-oriented compatibility walkthrough for readers who intentionally need the narrowed Pipeline A shell around an external research project.',
-      'The installable public shell now exposes only `run` as a compatibility pointer; all other legacy workflow/support commands are either internal full-parser only or already deleted.',
-      'This is an optional compatibility smoke path, not the recommended first-touch path.',
-      '- `computation`: `docs/COMPUTATION.md` via `autoresearch run --workflow-id computation` (native TS front door, not `hep-autoresearch run`)',
-    ],
-    forbiddenSnippets: [
-      '# Beginner tutorial (English)',
-      '- `computation`: `workflows/computation.md`',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/BEGINNER_TUTORIAL.zh.md',
-    snippets: [
-      '如果你想先看当前 generic front door，请先读仓库根级 `../../docs/QUICKSTART.md` 与 `../../docs/TESTING_GUIDE.md`。本教程是一个 package-level 的 legacy / maintainer 兼容路径说明，只面向那些确实需要触碰收窄后 Pipeline A shell 的读者。',
-      '安装态 public shell 现在只保留 `run` 这一个兼容提示层命令；其余 legacy workflow/support commands 要么只保留在 internal full parser，要么已经删除。',
-      '这是一条可选的兼容路径烟测，不是推荐的 first-touch 路径。',
-      '- `computation`：`docs/COMPUTATION.md`，并通过 `autoresearch run --workflow-id computation` 进入（不是 `hep-autoresearch run`）',
-    ],
-    forbiddenSnippets: [
-      '- `computation`：`workflows/computation.md`',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/WORKFLOWS.md',
-    snippets: [
-      '### Internal parser cleanup note',
-      'Legacy internal parser commands `doctor`, `bridge`, and `literature-gap` are now deleted in this repository.',
-      'Generic lifecycle/control-plane authority remains on `autoresearch`, while the surviving internal parser residue is limited to maintainer-only authoring helpers and internal workflow coverage.',
-    ],
-    forbiddenSnippets: [
-      'unrepointed commands such as `run`, `doctor`, and `bridge`',
-      '### `hepar doctor` (entrypoints + MCP)',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/WORKFLOWS.zh.md',
-    snippets: [
-      '当前 installable `hepar run` 只保留兼容壳层命令，不再公开 workflow id；`ingest`、`reproduce`、`revision`、`literature_survey_polish` 与 `shell_adapter_smoke` 现在都只保留在 internal full parser，供 maintainer/eval/regression 使用。',
-      '已删除的 parser shells `doctor`、`bridge`、`literature-gap` 现在都不存在；`method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers。',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/COMPUTATION.md',
-    snippets: [
-      '`autoresearch run --workflow-id computation` is now the canonical bounded TS computation entrypoint for initialized external project roots with a prepared `computation/manifest.json`.',
-      'Internal run-card authoring helpers remain maintainer-only legacy utilities pending deletion; do not treat them as the installable public shell or recommended first-touch path.',
-      'Current TS front-door execution:',
-      'Internal maintainer-only run-card authoring helpers (optional legacy residue):',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/COMPUTATION.zh.md',
-    snippets: [
-      '`autoresearch run --workflow-id computation` 现在是面向已初始化外部 project root、且已准备好 `computation/manifest.json` 的 canonical bounded TS computation 入口。',
-      'internal run-card authoring helpers 现在只剩 maintainer-only 的 legacy utilities，后续仍会删除；不要把它们当成 installable public shell 或推荐的 first-touch path。',
-      '当前 TS 前门执行方式：',
-      'Internal maintainer-only 的 run-card authoring helpers（可选 legacy residue）：',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/EXAMPLES.md',
-    snippets: [
-      'Mainline computation execution now goes through `autoresearch run --workflow-id computation` on an initialized external project root with a prepared `computation/manifest.json`.',
-      '`run-card validate` below is an internal maintainer-only authoring helper for checked-in example fixtures, not the generic/public front door.',
-      'Optional internal authoring check for checked-in example fixtures:',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/EXAMPLES.zh.md',
-    snippets: [
-      'mainline 的 computation 执行现在走 `autoresearch run --workflow-id computation`，目标是已初始化的外部 project root，并要求 `computation/manifest.json` 已经准备好。',
-      '下方 `run-card validate` 只是一条 internal maintainer authoring helper，用于 checked-in example fixtures，不是 generic/public front door。',
-      '如需处理 checked-in example fixtures，可选地做一遍 internal authoring 校验：',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/workflows/C2_method_design.md',
-    snippets: [
-      '`method-design` is an internal full-parser maintainer authoring helper pending retirement; it is not part of the installable public shell or the generic `autoresearch` front door.',
-      '## Internal maintainer-only example commands',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/EVOLUTION.zh.md',
-    snippets: [
-      '内部 maintainer/eval 路径（非 generic front door）：',
-      '旧的 parser-level `propose` wrapper 已删除；如果你确实要继续使用这条 package-local 演进能力，应直接走脚本 / lower-level proposal authority，而不是把它当成默认 operator path 或 generic front door。',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.md',
-    snippets: [
-      'Exact installable public command inventory: `run`.',
-      'deleted parser shells `doctor`, `bridge`, and `literature-gap` no longer exist',
-      'the live `internal_support_commands` bucket is now empty; retired-public support helpers `method-design`, `run-card`, and `branch` remain on the internal full parser only',
-    ],
-    forbiddenSnippets: [
-      'remaining internal support commands are `method-design`, `run-card`, and `branch`',
-      'installable `hepar` / `hep-autoresearch` / `hep-autopilot` keep only `run` on the public shell, and that `run` is just a compatibility pointer',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/docs/ORCHESTRATOR_INTERACTION.zh.md',
-    snippets: [
-      '安装态 public shell 现在只保留 `run` 这一个兼容壳层命令；其余仍存活的 legacy workflow/support commands 都在内部 full parser',
-      `安装态 public shell 的精确命令清单是：${HEPAR_PUBLIC_SHELL_COMMANDS_MARKDOWN}。`,
-      '当前 live `internal_support_commands` 分组已经为空',
-      '`method-design`、`run-card`、`branch` 已降格为 retired-public maintainer helpers，仍保留在 internal full parser，但不再属于 live `internal_support_commands` 分组',
-      'computation 应走 `autoresearch run --workflow-id computation`；同意点仍按 `approval_policy.json` 自动触发：',
-      '# computation 现在走 native TS front door，而不是 installable `hepar run`',
-    ],
-    forbiddenSnippets: [
-      '用于尚未 repoint 的 workflow shell（例如 `run`、`logs`、`doctor`、`bridge`）',
-      'public computation、`doctor`、`bridge`、`literature-gap`',
-      'hepar run --run-id M0-computation-demo-r1 --workflow-id computation --project-dir',
-      '当前仍保留在 internal full parser 的 support commands 是 `method-design`、`run-card`、`branch`',
+      'docs/INDEX.md',
+      '安装态 public shell 的精确命令清单是：',
     ],
   },
   {
@@ -372,27 +243,6 @@ export const FRONT_DOOR_SNIPPETS = [
       '`hep://corpora` | Live',
       '| `orch://runs/{run_id}/state` | Live',
       '| `orch://runs/{run_id}/ledger` | Live',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/examples/schrodinger_ho/README.md',
-    snippets: [
-      'The current mainline computation entrypoint is `autoresearch run --workflow-id computation` on an initialized external project root with a prepared `computation/manifest.json`.',
-      'This fixture path is maintainer/eval/regression compatibility coverage only, not a default product entrypoint.',
-      '## Legacy run-card example',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/workflows/C1_literature_gap.md',
-    snippets: [
-      '# C1_literature_gap (Legacy Maintainer Fixture)',
-      'It is a maintainer/eval fixture contract and not a default product front door.',
-      '- `autoresearch workflow-plan --recipe literature_gap_analysis`',
-      '- Legacy fixture usage in this file remains maintainer/eval/regression compatibility coverage only.',
-      '- the internal parser `literature-gap` command in `hep_autoresearch.orchestrator_cli`',
-    ],
-    forbiddenSnippets: [
-      '- `hepar literature-gap`',
     ],
   },
 ];

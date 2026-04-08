@@ -9,25 +9,14 @@
 2. Read this shim only for compatibility guidance.
 3. Then read any more specific `AGENTS.md` / `CLAUDE.md` files in scope (for example `packages/hep-mcp/CLAUDE.md`).
 
-## 全局约束
+## Compatibility Notes
 
-根级人类编写规则不在本文件重复维护。若旧 prompt 要求“读取根 `CLAUDE.md`”，应解释为“先读取 `AGENTS.md`，再看本 shim；若存在 GitNexus generated appendix，则将其视为辅助上下文而非第二套根级规则”。
-
-## 工作区路径映射
-
-以当前工作区实际路径、`packages/` 目录结构和 `AGENTS.md` 的根级入口规则为准；不要依赖旧 repo 名、拆仓时期目录名或过时组件表。
-
-## 跨 Session 知识保留
-
-以 `AGENTS.md` 中的治理规则和 `.serena/memories/architecture-decisions.md` 为准；不要在根 `CLAUDE.md` 中维护第二套记忆协议。
-
-## 多模型收敛检查
-
-以 `AGENTS.md` 的正式三模型审核流程和 `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md` 为准。
-
-## GitNexus
-
-以 `AGENTS.md` 中的 GitNexus 使用规则为准。若本文件包含自动更新的 GitNexus marker / stats，应将其视为可提交的 generated appendix：它提供辅助导航上下文，但不改变 `AGENTS.md` 作为根级治理 SSOT 的地位。
+- 根级治理规则只在 `AGENTS.md` 维护，不在本 shim 重复。
+- 旧 prompt 若要求“读取根 `CLAUDE.md`”，应解释为“先读 `AGENTS.md`，再读本 shim，再按作用域读更细的 package 级文件”。
+- maintainer-only 的 redesign plan、tracker、implementation prompt、formal review packet 与 lane queue 现在是本地材料，不属于公开仓 surface。
+- 跨 session 的长期架构结论以 `.serena/memories/architecture-decisions.md` 为准；不要在根 `CLAUDE.md` 维护第二套记忆协议。
+- 多模型 formal review 仍推荐遵循 `AGENTS.md` 中的 source-grounded 规则；若使用 `Gemini(auto)`，默认保持 `auto` 而不是静默切回旧 alias。
+- 若本文件包含自动更新的 GitNexus marker / stats，应将其视为可提交的 generated appendix：它提供辅助导航上下文，但不改变 `AGENTS.md` 作为根级治理 SSOT 的地位。
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

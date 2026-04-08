@@ -1,342 +1,74 @@
 # Autoresearch Ecosystem — Agent Context
 
-> 本文件为 AI agent 提供跨会话持久上下文。修改本文件需经 `meta/` 治理流程。
-
-## 根级入口与本地工具文件
-
-- `AGENTS.md` 是仓库级 agent 规则的唯一 SSOT；这里的人类编写治理规则仍是根级唯一权威来源。
-- 根目录 `CLAUDE.md` 仍是兼容旧 prompt / 旧工具发现逻辑的稳定 shim；根级不在其中维护第二套人类编写规则。
-- GitNexus generated appendix 允许进入根 `AGENTS.md` 与根 `CLAUDE.md` 的提交面；该 appendix 属于工具生成上下文而非根级治理 SSOT，可随 `npx gitnexus analyze` 漂移并与业务改动一同提交。
-- `.serena/project.yml` 是单机 / 单 worktree 的本地 Serena 配置，故意不纳入 Git 跟踪；仓库模板固定为 `.serena/project.example.yml`。
-- `.serena/memories/architecture-decisions.md` 是仓库内唯一允许纳入 Git 跟踪的 Serena memory；其余 `.serena/memories/**` 默认视为本地工作笔记，不得作为治理 SSOT。
-- 需要跨会话/跨 worktree 保留的 Serena 结论，必须先提炼并写入 `.serena/memories/architecture-decisions.md`（或其他已跟踪 SSOT）后，才可依赖；未提炼的本地 memory 只可作为临时参考。
-- 若本轮会使用 Serena MCP 工具进行符号导航、memory 读写、或 project-aware 代码理解，必须先在当前 `worktree` 执行 `activate_project`，随后执行 `check_onboarding_performed`；若尚未 onboarding，则先完成 onboarding。未激活前不得把 Serena 输出当 authority。
-- 若旧文档要求“读取根 `CLAUDE.md`”，应解释为：先读 `AGENTS.md`，再读根 `CLAUDE.md` shim，最后按作用域读更具体的 `packages/*/CLAUDE.md` / `AGENTS.md`。
-
-## 根工作区附加规则
-
-- **无向后兼容负担**：生态圈尚未正式发布、无外部用户；默认允许直接 breaking change，不需要为旧 API / 旧 schema / 旧数据保留 shim、迁移脚本或兼容矩阵。
-- **禁止临时性/阶段性命名**：不要引入 `vNext`、`v2`、`new_`、`legacy_`、`old_` 等过渡性命名；直接使用面向功能的永久命名。
-- **禁止不透明历史前缀命名进入新抽象**：`W1/W2/W3/W4/W_*` 这类依赖历史上下文才能理解的阶段号/工作流前缀，不应继续进入新的 root governance、shared contracts、user-facing workflow ids 或长期保留的核心抽象；新命名应直接表达语义（如 `ingest`、`reproduce`、`revision`、`computation`）。
-- **Commit 消息不加 AI co-author**：若未来得到人类授权执行 `git commit`，不要在提交消息中写 `Co-Authored-By: Claude ...` 或类似 AI 标注。
-- **SOTA 原则**：凡涉及架构选择、LLM 能力判断、retrieval/reranking/evidence 策略或“某功能是否仍有价值”的判断，应优先基于最新论文、benchmark、最佳实践和竞品动态，而不是仅凭过期记忆。
-- **真实研究项目必须使用开发仓外部 project root**：面向真实研究工作的 public scaffold/init surface，必须 fail-closed 到仓外绝对路径；`/home/user/Coding/Agents/autoresearch-lab` 及其子目录不得再作为 real-project authority。
-- **真实研究中间产物不得回流开发仓**：real-project 的 team runs、planning/intermediate outputs、显式/env provider data dirs 等运行期输出，默认必须落在开发仓外；repo 内 gitignored 目录只能作为显式 maintainer fixture，不得被 public flow 静默复用成 real-project 输出面。
-- **repo 内 maintainer fixture 仅限显式 gitignored 工作区**：如 `skills/research-team/skilldev`、`skills/research-team/.tmp/` 这类 maintainer workspaces 只用于自演进/回归/快照，不得注册、文档化或包装成真实研究项目入口。
-
-## 理论研究通用内核约束
-
-- **Core 必须 domain-neutral**：`autoresearch` 的目标是面向理论研究的通用 substrate / control plane，而非任何单一学科、单一子领域或单一工具链的专用自动化器。当前以高能物理（尤其 hep-th）为首个高优先级落地方向，但这不是 scope 上限；后续应可扩展到其他理论物理方向及数学等理论研究方向。
-- **HEP-first 不等于 HEP-locked**：HEP 特定的 prompts、heuristics、package/tool mappings、工作流偏好与数据源假设，必须下沉到对应 domain pack / provider；禁止把这些假设固化进 root governance、shared contracts、orchestrator 内核或跨领域共享抽象。
-- **领域分类必须准确**：shared/generic 层可使用真实 domain/category 标签（如 `hep-th`、`cond-mat`、`mathematics`）作为示例或 pack 标识，但不得误写其学科归属，也不得把任何单一 domain 表述为 core 的默认推荐值。
-- **Compute 按 task/capability-first 建模**：计算/推导/验证运行时应优先表达研究任务类型、能力需求、artifact/evidence/provenance 契约与审批边界；package 名称、后端名称与现有工具链只可作为开放示例或 provider 实现，不得成为封闭枚举、唯一执行路径或 scope 边界。
-- **项目定边界，LLM 填内容**：仓库负责 typed contracts、approval/policy、artifact/evidence/provenance 语义、审计与可复现边界；具体问题的 decomposition、方法选择、backend 组合、参数化与 fallback 默认由 runtime LLM / agent 在这些治理边界内决定。
-- **只把稳定不变量写入 SSOT**：根级治理文本、长期 schema 与 tracker note 只应固定长期稳定的架构不变量；会随具体课题变化的 planning heuristics、prompt tactics、临时工具清单或局部最优策略，不应上升为根级治理规则。
-
-## 生态圈概览
-
-Autoresearch 是一个 evidence-first 的理论研究 substrate / control plane。根目录承担 ecosystem workbench / governance 入口；运行时、provider、shared contracts 与 domain-pack 相关实现主要位于 `packages/`，checked-in 治理与 closeout 文档主要位于 `meta/`。
-
-## 组件清单
-
-- `packages/orchestrator/` 是长期 control-plane / runtime 收束方向；其 canonical generic lifecycle + bounded computation + workflow-plan entrypoint 现为 `autoresearch`。`packages/hep-autoresearch/`（含 `hepar` / `hep-autoresearch` CLI）是仍可用但计划退役的 Pipeline A Python CLI surface，只承载尚未 repoint 的 legacy commands / workflows。除非后续有明确 repoint 决策，否则 `hep-autoresearch` 与 `hepar` 的 retirement semantics 一起移动，不应一个被视为现役、另一个被视为已退役。
-- `packages/orchestrator/` 是 workspace 源码目录，而 `@autoresearch/orchestrator` 是同一包的 workspace package surface；下游 host 必须消费该包导出而不是复制 generic orchestrator authority，本仓对这条边界的主要反漂移手段是 `build + host-path contract`，而不是维持两套实现。
-- `packages/shared/`：provider-neutral contracts、types、shared helpers。
-- `packages/*-mcp/`、`packages/agent-arxiv/`、`packages/idea-*`：provider、adapter、idea、runtime 相关实现；HEP 是当前优先 domain pack，但不是 core scope 边界。
-- `skills/`、`packages/skills-market/`：checked-in skill workflows 与分发面。
-- `meta/`：contract、redesign plan、tracker、prompt/docs、review-support artifacts。
-- 根级路径以当前工作区实际目录为准；不要把拆仓时期的旧 repo 名、旧目录名或旧 LOC 统计继续当作治理 authority。
-
-## 关键架构决策
-
-- 根级只保留稳定不变量与硬门禁；跨会话可复用的架构结论集中在 `.serena/memories/architecture-decisions.md`。
-- 当前仍有效的根级方向是：TS-first control plane 收束、evidence-first I/O、contract-first shared types、fail-closed approval gates、provider-owned concrete authority 下沉到 leaf packages。
-- `meta/schemas/` 是 checked-in shared schema authority；具体迁移阶段、item closeout、历史决策脉络以 `meta/remediation_tracker_v1.json`、`meta/REDESIGN_PLAN.md` 与相关 checked-in prompts/docs 为准，不在本文件重述长历史。
-
-## 治理文档 (`meta/`)
-
-- `meta/ECOSYSTEM_DEV_CONTRACT.md`：normative contract / fail-closed 规则 SSOT。
-- `meta/REDESIGN_PLAN.md`：phase ordering、batch intent、acceptance checklist source。
-- `meta/remediation_tracker_v1.json`：machine-readable item status、closeout evidence、review disposition。
-- `meta/docs/**`：checked-in design memos、implementation prompts、closeout support docs。
-- `.serena/memories/architecture-decisions.md`：稳定的跨会话架构决策；不承载执行流水和逐轮历史。
-
-## 长期愿景
-
-长期方向仍是面向理论研究的多 agent / 多项目基础设施，但根级治理只固定 sequencing-relevant invariants，不在此处维护长篇愿景叙事。
-
-- `single-user` 指单一治理人类 owner，不等于 `single-agent`。
-- `NEW-LOOP-01` 单项目 substrate 必须先于 `EVO-13` 多 agent runtime 稳定；`P5A` 先于 `P5B`。
-- 详细愿景与设计 memo 以 `packages/hep-autoresearch/docs/VISION.zh.md`、`meta/docs/2026-03-07-evo13-single-project-multi-agent-runtime-memo.md`、`meta/docs/2026-03-08-evo13-runtime-governance-control-plane-amendment.md` 为准。
-
-## Phase 结构
-
-- Phase 定义、item inventory、batch 依赖与执行顺序以 `meta/REDESIGN_PLAN.md` 和 tracker 为准；AGENTS 不镜像 item 总数、条目清单或逐 phase 叙事。
-- 这里仅保留稳定读取规则：早期 phase gate 后期 phase；`NEW-LOOP-01` 先于 `EVO-13`；`P5A` 先于 `P5B`。
-- 当前完成度只在 `当前进度` 做摘要，其余 item-level truth 以 `meta/remediation_tracker_v1.json` 为准。
-
-## Contract 规则域
-
-`ERR`、`ID`、`SYNC`、`CFG`、`GATE`、`LOG`、`ART`、`SEC`、`NET`、`RES`、`MIG`、`REL`、`CODE`、`LANG`、`PLUG` 这些 rule-family 简写仍可能出现在 prompt、tests 与 review artifacts 中。
-
-规则正文、fail-open / fail-closed 语义与条目计数只以 `meta/ECOSYSTEM_DEV_CONTRACT.md` 为准；根级 AGENTS 不重复维护第二套 contract 文本。
-
-## 三模型审核流程
-
-自 2026-03-31 起，所有重大文档变更与实现 closeout 默认采用三模型独立审核：`Opus` + `Gemini(auto)` + `OpenCode(zhipuai-coding-plan/glm-5.1)`。其中 `Gemini(auto)` 是 reviewer seat / 显示名；实际 `gemini` CLI 调用时，默认模型选择器固定写作 `auto`，除非人类明确要求 pin 到具体 alias。历史审核产物中若仍出现 `Gemini-3.1-Pro-Preview`，应视为旧 reviewer seat / model 记录，而非新的默认 authority。若其中任一模型本地不可用，必须记录失败原因并由人类明确确认 fallback reviewer；禁止静默降级。审核产物存放在 `meta/.review/`（已 gitignore）。
-
-### 触发条件
-
-- 跨组件架构变更（影响 ≥2 个组件的接口/契约）
-- Contract 规则新增或修改
-- REDESIGN_PLAN Phase 级别变更（项移动、新增、删除）
-- 不可逆操作方案（monorepo 迁移、schema 破坏性变更）
-
-单组件内部修改、bug fix、文档 typo 等**不需要**正式三模型审核。
-
-### 收敛判定规则
-
-1. 三个模型独立审核，输出 strict JSON（含 `verdict`, `blocking_issues`, `amendments`）
-2. **CONVERGED**: 三个模型均 0 blocking issues → 方案通过
-3. **CONVERGED_WITH_AMENDMENTS**: 0 blocking + 非阻塞修正建议 → 方案通过；凡当前 batch 直接相关、高价值、低风险、可独立验证且不依赖后续 phase / lane 的 amendments，默认必须本轮吸收。仅当 amendment 属于 lane 外工作、依赖后续 phase / lane（或当前 batch 之外的后续工作）、属于 pre-existing unrelated debt、需要人类架构裁决、或修复风险明显大于收益时，才允许 deferred；仅仍有后续价值的 deferred 项必须同步到持久 SSOT（至少 `meta/remediation_tracker_v1.json` 条目或 checked-in 的后续 prompt 文件），临时 chat prompt、review/self-review 输出与 scratch notes 不算 SSOT，禁止只留在这些临时产物中。低价值或已判定不值得跟进的 non-blocking amendments 应记录为 declined/closed，而非 deferred。
-   前提：reviewer / self-review 已显式复核该项为何不推翻 packet 前提、shared entrypoint closeout 或 authority completeness judgment；否则不得按 unrelated debt deferred。
-4. **NOT_CONVERGED**: 任一模型有 blocking issue → 必须修正后重新提交下一轮 (R+1)
-5. **最大轮次**: 5 轮。超过 5 轮未收敛 → 人类介入决策
-6. 每轮 prompt 必须包含：上一轮三模型的完整输出 + 已采纳/未采纳修正及理由
-7. **正式 blocking judgment 必须源码级**：正式 reviewer 与 `self-review` 的 blocking / 0-blocking 结论，必须基于实际源码、真实调用链、tests / acceptance 证据与 scope boundary；`diff-only`、packet-only、或只看摘要的审查只能作为补充意见，不能单独充当 closeout gate。
-
-### 审核输出 JSON schema
-
-```json
-{
-  "verdict": "CONVERGED | CONVERGED_WITH_AMENDMENTS | NOT_CONVERGED",
-  "blocking_issues": ["..."],
-  "amendments": [{"target": "...", "section": "...", "change": "..."}],
-  "positive_findings": ["..."],
-  "summary": "..."
-}
-```
-
-### 执行方式
-
-使用 `claude-cli-runner`、`gemini-cli-runner` 与 `opencode-cli-runner` skills 并行执行。默认 reviewer 固定为 `Opus`、`Gemini(auto)` 与 `OpenCode(zhipuai-coding-plan/glm-5.1)`；其中 `Gemini(auto)` 仍只是 reviewer seat 名称，`gemini` CLI 默认模型选择器固定为 `auto`。prompt 文件存放在 `meta/.review/` 目录。
-
-- reviewer 可以调用其 provider / CLI 内部可用的 agents、sub-agents、search / code-navigation / tool-use 能力来完成审查，但**最终 verdict 仍归属于顶层 reviewer**；不得把“内部 agent 的结论”当作无需复核的黑箱 authority。
-- 若 reviewer backend 无法读取本地源码或无法形成 source-grounded judgment，则该 reviewer 只能作为 supplemental reviewer；除非人类明确批准 fallback，否则不得用其单独承担 blocking / 0-blocking gate。
-- review packet 只负责提供范围、文件列表、验收命令、GitNexus 证据、必要的前轮结论与待验证假设；不得把 packet 本身当成权威来源，也不得因为 packet 精简就退化为 `git diff` 摘要审查。
-- **formal review packet 默认必须 source-first / anti-leading**：packet 的首要职责是暴露 reviewer 形成独立 judgment 所需的源码入口、相邻 authority surface、front-door docs / locks、acceptance evidence、open questions 与 competing hypotheses，而不是复述 proposer 的 preferred solution。若必须提供 proposal、closeout claim、scope judgment 或 packet assumptions，必须与 `independent review targets` 明确分栏，并把这些内容表述为待核对假设，而非 reviewer 默认前提。
-- **正式源码审查默认按受影响包组包**：reviewer 默认至少应看到 `affected package(s)` 的源码，以及形成 source-grounded judgment 所需的相邻 shared / adapter / entrypoint / acceptance-test surface；禁止把输入缩到 only changed files / `git diff`，也不要求默认暴露整个 monorepo。只有当 blast radius 已跨越多数 package，或 reviewer 明确说明需要更大范围源码才能完成 blocking judgment 时，才扩大到更广仓级上下文。
-- **触及 public/package/CLI/workflow surface 时，formal review 默认还要带上 front-door surface**：若本轮实现会改变 public tool surface、workflow authority、package/CLI lifecycle、或用户/操作者默认入口，review packet 除受影响包组外，还必须纳入仍在描述该 surface 的 front-door docs / locks（按实际影响面选择，例如根 `README.md`、`docs/README_zh.md`、`docs/TOOL_CATEGORIES.md`、`docs/QUICKSTART.md`、`docs/ARCHITECTURE.md`、`docs/TESTING_GUIDE.md`、`docs/PROJECT_STATUS.md`、相关 package README、catalog/tool-surface tests）；若未纳入，packet 中必须显式写明已检查且为何不适用。若遗漏这些仍然存活且会影响 reviewer judgment 的前门文档/测试，默认视为 `packet assumption breach`，不是“文档噪音”或 lane 外 debt。
-- **触及 public/front-door surface 的 packet 必须带 Front-door Surface Audit**：formal review packet 若涉及 public tools、catalog、workflow/package/CLI authority、默认入口或 lifecycle truth，必须显式列出一个 `Front-door Surface Audit`：至少包含（1）通过搜索/枚举发现的仍在陈述该 truth 的 live docs / locks；（2）本轮纳入 review scope 的项；（3）未纳入项为何“已检查且不适用”。没有 audit 不等于“没有 front-door surface”，而是 packet 不完整。
-- **reviewer 运行噪音不等于 reviewer failure**：MCP/discovery/runner/SSE 噪音本身不算 reviewer failure；只要该 reviewer 最终仍产出可用、source-grounded、可形成 blocking / 0-blocking judgment 的 verdict，就按成功 reviewer 处理。只有“无可用 verdict”“输出不具 source-grounded judgment”“或 reviewer backend 无法完成源码级判断”才记为 reviewer failure。失败后的默认补救是 same-model rerun；若 live file-read path 不稳定，可改用更宽的 embedded-source packet，但不得退化回 diff-only 审查，也不应主动终止仍在正常运行中的 reviewer 进程。对 `Gemini(auto)`，若 agentic/live file-read 路径挂起、只吐 MCP/discovery 噪音、或最终没有可归档 verdict，默认先做 same-model embedded-source rerun，并继续使用 `auto` 而不是静默 pin 回具体旧 alias，再判断是否真是 reviewer failure。
-- **OpenCode formal review 采用 discovery/gate 分层，而非一刀切替换**：`OpenCode workspace` 的价值主要在 packet-challenge / hidden-surface discovery，不应因输出前有探索性文本或缺少干净 verdict 就被当作“低质量审查”；只要它给出源码级、与当前 worktree 相关的实质发现，就应纳入审查证据。与此同时，`workspace` 输出若未形成可归档的最终 verdict，则仍不足以单独承担 blocking / 0-blocking gate；scope 已收敛或需要正式 closeout artifact 时，应优先用 same-model embedded-source pass 做 verdict normalization。不要因为追求 gate 稳定性而默认放弃 `workspace` discovery，也不要把 embedded-source pass 当作高不确定性任务中 packet-challenge 的替代物。
-- 审核健康度定义与红线统一见 `meta/docs/review-health-metrics.md`；根级 AGENTS 不重复维护第二套指标说明，但 formal closeout 的持久 SSOT 应按该文档记录最小 review-health telemetry。
-
-## Superpowers 使用约定
-
-- **默认不使用 `superpowers` 通用 skills 作为执行依据**。本仓库的权威执行依据始终是：`AGENTS.md`、batch prompt、`meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`、GitNexus 证据、`review-swarm` 与 `self-review` 门禁。
-- **默认直接在主仓 `main` worktree 工作**；只有当存在并行 lane、需要隔离未收敛实现、或人类明确要求保留独立工作区时，才创建与主仓平行的本地 `worktree`（例如 `/home/user/Coding/Agents/autoresearch-lab-<branch-or-batch>`）；除非人类明确要求，否则不默认使用 `~/.config/superpowers/worktrees/...`。
-- **主协调线程与 lane `branch/worktree` 必须分离**：主协调线程默认固定在根仓 `/home/user/Coding/Agents/autoresearch-lab` 的 `main` worktree；允许通过 shell 创建、删除或维护 lane `worktree` / `branch`，但这些 lane 仅是独立执行面，不得改变主协调线程的 `branch/worktree` 关联。
-- **sub-agent lane 默认先有经主协调审核批准的计划，再启动执行**：若 lane 将由主协调线程直接驱动的 sub-agent / worker 承担，必须先在主协调线程形成可审核的 substantive plan，再由人类批准后启动；未经批准，不得直接让 sub-agent 进入实现、验收或 formal review。
-- **主协调线程默认输出最佳完整、可直接转发的 lane instruction package**：当根 `main` 线程 coordinator 向 lane 下发指令时，默认输出必须是最佳、完整、可直接转发的单包材料；同一处必须同时包含 `branch`、`worktree`、`starting_point`、显式 `plan_mode: required | not_required`、`required_setup`、`task`、`acceptance`、`review` 与内嵌 `report_back` 模板。不得要求人类手工拼接任务正文、验收/审核要求与单独的汇报模板。
-- **除非人类明确要求，否则主协调线程不主动提供次优/缩略指令变体**：不得主动输出 shortened / partial / non-best 版本，也不得主动询问用户是否还要“更短版”或把 `report_back` 拆出去；默认只给最佳完整 forwardable package。
-- **sub-agent lane 的 approved plan 默认应有可复核落点**：凡属真正的 implementation lane，且会触及多包边界、治理/流程边界、public/front-door surface、或后续需要复核/复用的 scope，默认应先把 approved plan 落成 checked-in `meta/docs/prompts/prompt-*.md`；仅 planning-only 的并行排期/队列编排可落在 `meta/docs/plans/*.md`；只有极小、一次性、无治理外溢的 bounded hotfix 才可只用主协调线程中的 plan packet 而不先写 checked-in plan doc。
-- **lane 默认先回 substantive `plan_packet`，获批后再自动执行到下一个必要检查点**：主协调线程对 lane 的人工审核重点应放在真正有内容的实施方案、authority / framework / process boundary 与 out-of-scope 判断上；lane 在方案获批后，默认应自行完成实现、验收、formal review、self-review、plan/tracker 同步、状态归一与常规 rerun / rebase 判断，而不是为 routine bookkeeping 频繁回到主协调线程。
-- **lane 仅应在少数必要检查点回到主协调线程**：默认只允许 `plan approval needed`、`blocker decision needed`、`version control authorization needed`、`merge decision needed` 这四类检查点打断主协调线程；`meta/docs/2026-03-30-coordinator-lane-checkpoint-protocol.md` 现在只保留本项目 overlay，通用 thread/turn automation contract 以外部 skill `~/.codex/skills/codex-lane-orchestration/` 为准。
-- **通用 skill 不得覆盖项目级硬门禁**：不得覆盖实现 prompt、GitNexus freshness / post-change evidence、正式 `review-swarm`、正式 `self-review`、tracker / memory / `AGENTS.md` 同步、以及版本控制门禁。
-- 若某个通用 skill 与本仓库规则冲突，**一律以本仓库规则为准**；必要时直接忽略该 skill 的默认建议。
-
-## Agent 执行纪律
-
-### 全盘思考要求
-
-执行任何修复项前，agent 必须：
-
-1. **读取 AGENTS.md + tracker JSON** — 了解全局进度和依赖关系
-2. **读取目标项在 REDESIGN_PLAN.md 中的完整描述** — 包括修改文件、验收检查点、依赖项
-3. **检查 ECOSYSTEM_DEV_CONTRACT.md 中相关规则** — 确保修改不违反 fail-closed 规则
-4. **检查是否有下游依赖项会受影响** — 在 tracker 中查看 blocked-by 关系
-
-禁止"只看当前文件就动手改"的行为。
-
-### 深度验证要求
-
-- 每次修改后必须运行该项的验收检查点命令（PLAN 中列出的 pytest/lint/CI 命令）
-- 如果验收命令不存在（尚未创建），必须先创建再验证
-- 禁止仅凭"看起来对了"就标记完成
-- 网络搜索：如果 WebFetch 失败，使用 `curl --proxy` 或直接 `curl` 重试
-
-### 语义/领域清理硬要求
-
-- 删除、降级或上提 `domain heuristics`、`taxonomy`、`classifier`、`lexicon`、`validator` 前，必须先追踪其完整调用链到 registry / schema / public output / tests / eval fixtures / baseline / docs 与 plan 叙事；禁止仅凭命名、局部 grep 或少量代码片段判断其应删/应留。
-- 必须区分 `provider-local fail-open prior` 与 `active authority`：前者只能是带 provenance 的 fallback / diagnostic，后者一旦仍在决定 public output、grouping、scoring、gating 或默认 worldview，就必须按 authority 泄漏处理。
-- 真正的问题不是出现 HEP/domain 术语本身，而是让不完整的闭合枚举或 keyword buckets 充当 authority；禁止把这类实现仅做改名后继续留在 generic/shared/core，也禁止把它们只改称 `diagnostic` / `fallback` 却仍保留同一 authority call-path。
-- 凡涉及质量/架构取舍，必须做 SOTA preflight 并记录 primary-source 依据；禁止因为历史包袱保留已知会限制质量的 heuristic authority。
-
-### Implementation Prompt 硬门禁
-
-> 适用于 `meta/docs/prompts/prompt-*-impl-*.md` 以及任何要求"按之前惯例执行"的实现任务。通用 checklist 见 `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`。
-
-- **GitNexus 开工前对齐是硬要求**：实现前必须先读 `gitnexus://repo/{name}/context`；若 index stale，先运行 `npx gitnexus analyze`，再继续。若当前 `worktree` 含未提交改动（尤其新增文件 / 新符号 / helper callsites），默认必须改用 `npx gitnexus analyze --force` 刷新当前工作树覆盖，而不能把普通 `analyze` 的 `up to date` 视为当前源码已入图的证据。禁止带 stale index 开工。
-- **本仓 GitNexus generated appendix 约束**：当前 GitNexus 版本会无条件向根 `AGENTS.md` / `CLAUDE.md` upsert 动态 marker；本仓接受这些 generated appendix 进入提交面，但应将其视为非 SSOT 的工具生成上下文，不在 marker block 内手写根级治理规则。
-- **GitNexus 审核前再对齐是条件性硬要求**：若实现新增/重命名符号、改变关键调用链、或当前 index 已不反映工作树，必须在正式审核前再次刷新；dirty `worktree` 默认使用 `npx gitnexus analyze --force`。刷新后再用 `detect_changes` / `impact` / `context` 形成 post-change 证据。
-- **正式 `review-swarm` 为实现收尾必经步骤**：实现 prompt 默认必须在验收命令通过后执行正式三审（`Opus` + `Gemini(auto)` + `OpenCode(zhipuai-coding-plan/glm-5.1)`）；审核必须深入代码、调用链、测试、eval fixture、baseline、scope boundary，禁止只看 diff 摘要做表面判断。
-- **正式审核必须源码级且可借助内部 agents**：允许 reviewer 调用其内部 agents / sub-agents / tool-use 来读源码、追踪调用链和检查 acceptance，但最终 blocking judgment 必须由顶层 reviewer 基于真实源码与证据作出；若某 reviewer 只能看 packet / diff / 摘要，则其结论只能作为补充，不得单独放行。
-- **正式 review packet / snapshot 默认按 affected package scope 准备，且优先给 reviewer 独立判断素材**：除非 blast radius 已跨越多数 package 或 reviewer 明确要求更广上下文，正式审核输入默认至少覆盖修改所在 package、其直接受影响的相邻 package surface，以及相关 shared contract / schema / entrypoint / acceptance tests；不得退化为 changed-files-only，也不要无差别整仓投喂造成高噪音审查。默认先给 reviewer 看 source surfaces、tests、front-door locks、GitNexus evidence 与 open questions，再给 proposal / preferred answer / closeout framing。
-- **触及 public/front-door surface 时必须 widen 到相应文档与锁定面**：若变更会影响 public tools、catalog、workflow/package/CLI authority 或默认入口，正式 review packet 还必须覆盖仍在陈述该 truth 的前门文档与 public-surface locks；至少检查仍把该 surface 当作当前真相的 README / quickstart / architecture / testing / category / status / package docs 与相关 catalog/tool-surface tests。若这些 live surfaces 未被纳入或未显式判定不适用，则后续发现的矛盾默认视为 packet assumption breach。
-- **正式审核必须反审 packet 前提**：review packet / review system 只是审查输入，不是权威来源。reviewer 必须显式检查 packet 中关于“已收口 / 已锁定 / pre-existing unrelated debt / out of scope”的分类是否成立；shared entrypoint 或 canonical acceptance failure 默认先视为 packet assumption breach，而不是自动降级为 lane 外 debt，除非 reviewer 给出基于源码与验收证据的反证。
-- **reviewer failure 判定与 rerun 策略必须保守且一致**：startup/discovery/runner 噪音若未阻止 reviewer 形成可用源码级 verdict，则不得记为 reviewer failure；只有无 verdict、无 source grounding、或无法完成源码级判断才记 failure。处理 failure 时，先等仍在正常运行的 reviewer 自然完成；确认失败后优先 same-model rerun，必要时改用 embedded-source widened packet，而不是直接换 reviewer 或缩回 diff-only packet。对 `Gemini(auto)`，若问题集中在 agentic file-read path，本仓默认优先 same-model embedded-source rerun，并继续使用 `auto`，而不是改 reviewer seat 或静默切成别的 Gemini 具体别名。
-- **OpenCode rerun 策略按任务阶段选择，而不是只按输出整洁度选择**：当 blast radius、front-door drift 或 hidden callsites 尚不清楚时，优先保留一次 `OpenCode workspace` discovery pass；若该 pass 已提供源码级实质发现但仍缺 formal verdict，则在吸收这些发现后，再做 same-model embedded-source rerun 用于 formal gate。只有当 packet 已经足够覆盖判断范围、或 workspace path 已证明不稳定到无法继续提供 discovery 价值时，才直接把 OpenCode 放到 embedded-source gate 角色。
-- **authority migration 必须审完整性，不只审命名**：凡任务涉及 shared/canonical authority 迁移、template sync、contract authority 上提/下沉，review 与 self-review 都必须至少核对 `authority map -> concrete artifact/template`、`artifact/template -> authority map`、`no inline duplicate authority left`、`shared entrypoint acceptance still passes` 四项；禁止只因为常量、命名、局部 tests 已更新就判定 closeout。
-- **正式自审 (`self-review`) 也是实现收尾硬门禁**：外部三审收敛后，当前执行 agent 仍必须基于实际代码、调用链 / GitNexus 证据、tests / eval / holdout / baseline、scope boundary 再做一轮自审；blocking issue 必须先修复。自审结论与 adopted / deferred / declined/closed dispositions 必须记录，并明确哪些 amendment 因满足“当前 batch 直接相关 + 高价值 + 低风险 + 可独立验证 + 不依赖后续 phase / lane”而被本轮默认吸收；deferred 项必须给出合法理由，并把仍有后续价值的项同步到持久 SSOT；低价值或已判定不值得跟进的项应标记为 declined/closed，而非 deferred。
-- **历史遗留隐患不得潜伏**：若在实现、验收、review-swarm、self-review 或 host-path acceptance 中识别到会影响 shared entrypoint、package surface、build artifact、generated output、authority completeness、anti-drift 可信度或其他可复现验收可信度的历史遗留隐患，必须在本轮二选一处理：要么作为当前 batch 直接相关且低风险/可独立验证的修复顺手解决；要么在 closeout 前把它登记为明确命名的下一批/后续 cleanup slice，并同步到持久 SSOT（至少 tracker 条目或 checked-in prompt）。禁止只在聊天、临时 review 产物或口头总结里提及后继续让其潜伏。
-- **完成态门禁**：只有当验收命令通过、`review-swarm` 收敛且三审 `blocking_issues = 0`、`self-review` 通过、tracker / memory / `AGENTS.md` 已同步，并且已显式完成 `meta/remediation_tracker_v1.json` + `meta/REDESIGN_PLAN.md` + 当前代码/测试事实的三方对齐检查后，实施项才可标记 `done`。若任一已有 item / batch / lane 的状态、完成态标题、batch 表、当前现状、验收勾选、closeout 叙事或统计与当前实现/测试事实不一致，必须先修正文档与 tracker，才允许标 `done`。
-- **tracker + `REDESIGN_PLAN.md` 对齐代码事实是显式硬门禁**：每次实现收尾都必须把 `meta/remediation_tracker_v1.json` 与 `meta/REDESIGN_PLAN.md` 一并对齐到当前代码/测试/acceptance 事实，而不是只做“文档同步动作”。只要本轮 closeout 会让 tracker 条目状态/notes，或 `meta/REDESIGN_PLAN.md` 中任一已有 item / batch / lane 的进度复选框、batch 分层表、完成态标题、当前现状描述、验收勾选、closeout 叙事或统计变得过时，就必须在同轮修正；不得以“phase 边界没变”“tracker / prompt 已记录”或“代码已经合了”作为跳过理由。只有在已逐段检查相关 tracker/plan 区域并确认其与当前代码事实一致时，才允许写明“已检查，无需更新”。
-- **版本控制门禁**：`git commit` / `git push` 仍需人类在当前任务中明确授权；若已授权，也只能在上述完成态门禁满足后执行，并在 push 前确认工作树只包含本批应交付内容。若同批次的 canonical implementation prompt 文件（即应被 checked in 的 prompt）已在当前 `worktree` 存在但尚未入库，默认视为本批交付内容，必须与实现同次 commit 提交，除非人类明确排除或该文件并非本批 canonical prompt（详见 `meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md` §6）。`meta/.review/` 审核产物保持 gitignored，不进入提交。
-- **主协调线程禁止发 lane-scoped Git UI directives**：主协调线程内不得对 lane `worktree` / `branch` 发出 `::git-create-branch`、`::git-stage`、`::git-commit`、`::git-push`、`::git-create-pr` 等 lane-scoped Git UI actions；这些 Git UI directives 不能用于改变主协调线程的 `main worktree` 或 `branch/worktree` 关联。
-- **收敛后的 merge / worktree cleanup 也是条件化门禁**：若人类在当前任务中明确授权把已收敛 batch 合入 `main` 并清理该 batch `worktree`，默认应在同轮完成，但只有在 completion + commit 门禁满足、目标分支状态已复核、且先完成既有 Serena memory / SOTA preflight 迁移门禁后才允许执行；若 merge conflict、目标分支出现非预期脏改动、或任一清理前门禁未满足，必须停止并记录原因，禁止半清理状态。
-- **worktree 清理前 Serena memory 迁移是硬门禁**：删除任何非主 `worktree`（含 `git worktree remove` 或等价目录清理）前，必须先盘点该 `worktree` 下的 `.serena/memories/`；可复用的长期结论迁入并提交 `.serena/memories/architecture-decisions.md`，仅本地保留但对后续开发仍有帮助的记忆复制到保留的目标 `worktree` 的 `.serena/memories/`，只有临时 scratch / cache / 不可复用思路才允许随 `worktree` 删除。未完成迁移前不得清理 `worktree`。
-- **worktree 清理前 SOTA preflight 迁档也是硬门禁**：删除任何非主 `worktree` 前，必须盘点该 `worktree` 下本轮实现产出的 SOTA 调查材料（至少包括 `.tmp/*sota-preflight*`、`.tmp/**/*sota-preflight*` 与 prompt 明示要求的 preflight 文件）。有复用价值的原始调查必须迁入稳定本地 archive（默认 `~/.autoresearch-lab-dev/sota-preflight/<YYYY-MM-DD>/<item-id>/`），而不是随 `worktree` 一起删除；archive 至少应包含 `preflight.md`、`summary.md`、`manifest.json`（或等价元数据），记录 prompt 路径、来源 URL / 文献、批次 / item、以及已提炼到哪些 checked-in SSOT。该本地 archive 不是治理 SSOT；真正影响后续实现约束的稳定结论仍必须提炼并写入 `.serena/memories/architecture-decisions.md` 或其他已跟踪 SSOT。未完成迁档前不得清理 `worktree`。
-
-### Tracker 更新协议
-
-- 开始工作前：`status: "in_progress"`, `assignee: "opus-4.6"` (或实际模型)
-- 完成并验证后：`status: "done"`, 附 commit hash
-- 遇到阻塞：`status: "blocked"`, 附原因
-- 每次更新 tracker 后，不仅要同步更新 AGENTS.md 当前进度摘要，还必须基于当前源码 / tests / acceptance 证据复核 tracker 本身是否准确反映实现事实；若 tracker 状态、note、closeout 证据或依赖叙事落后于代码，必须同轮修正。
-- 若该条目或其 batch / lane 已在 `meta/REDESIGN_PLAN.md` 中出现进度复选框、batch 表、完成态标题、当前现状、验收勾选或统计，则同轮必须继续核对并更新 `meta/REDESIGN_PLAN.md`，确保其与 tracker 和当前代码事实一致；若无变更，也必须在 closeout 说明里显式写明“已检查，tracker / REDESIGN_PLAN 与代码事实一致，无需进一步更新”。
-
-## 代码质量强制规则
-
-### 模块化强制 (Modular Code Enforcement)
-
-1. **200 LOC 硬限制**: 单文件不得超过 200 行有效代码（不含空行和注释）。超过时必须拆分。
-2. **单一职责 (SRP)**: 一个文件 = 一个职责。禁止在同一文件中混合不相关逻辑。
-3. **禁止万能文件名**: 以下文件名禁止作为业务逻辑容器：`utils.ts`, `helpers.ts`, `common.ts`, `service.ts`, `misc.ts`, `utils.py`, `helpers.py`, `common.py`。如需工具函数，按功能域命名（如 `string-utils.ts`, `path-helpers.ts`）。
-4. **入口文件仅做 re-export**: `index.ts` / `__init__.py` 仅用于 re-export，禁止包含业务逻辑。
-5. **新增文件前先检查**: 创建新文件前必须确认没有已存在的文件可以承载该功能。
-
-### 任务管理纪律 (Task Management Discipline)
-
-- 多步骤任务（≥3 步）必须先创建 task list，逐项标记进度
-- 禁止"一口气做完再汇报"——每完成一个子步骤立即更新状态
-- 遇到阻塞时立即记录原因，不得静默跳过
-- **对话切换提醒义务**：若下一步明显更适合在新对话执行（如切换到新的 implementation batch / prompt、需要新的 archive-first SOTA preflight、formal review packet、或当前对话已积累大量与下一步无关的调试/审查上下文），agent 必须主动提醒人类“建议新开对话”，并提供一段可直接复制的启动指令；若继续当前对话不会明显损害质量，则可继续，无需机械切换。
-
-### 规划先行 (Planning-Before-Implementation)
-
-- 非平凡修改（影响 ≥2 文件或 ≥50 行变更）必须先输出修改计划，再动手
-- 计划必须包含：影响文件列表、变更摘要、验收条件
-- 禁止"边想边改"——计划确认后方可执行
-
-### 硬性禁止 (Hard Blocks)
-
-以下行为绝对禁止，无豁免：
-
-- **类型安全逃逸**: `as any`, `@ts-ignore`, `@ts-expect-error`, `# type: ignore` — 禁止
-- **未读即改**: 对未读取的代码进行推测性修改 — 禁止
-- **静默吞错**: 空 catch 块 `catch(e) {}` / `except: pass` — 禁止
-- **删测试过关**: 删除失败测试以"通过"CI — 禁止
-- **破窗离场**: 修改后留下编译错误或测试失败 — 禁止
-- **未经请求提交**: 未经人类明确要求执行 `git commit` — 禁止
-
-### Fallback / Authority Discipline
-
-- 默认只保留一条主实现路径；禁止因“也许以后会失败”而预先堆第二条 fallback 路径。
-- 只有在以下任一成立时，才允许新增 fallback：现有 checked-in contract / public surface 明确要求兼容；已有可复现失败模式（tests、fixtures、历史 artifacts、provider / host boundary）证明主路径单独不足；或外部边界天然不稳定，且 fallback 只是边界适配而非新的业务 authority。
-- 当已存在明确质量最优的主路径，且不存在可复现 blocker、现有 contract 要求或用户明确要求时，禁止在规划、建议、closeout 或执行引导中主动提供次优 fallback / 备用路径；“给用户留余地”不是默认理由。
-- fallback 不得成为第二套 authority：shared/core/canonical path 只能有一个决定性语义来源；fallback 只能是带 provenance 的边界降级、diagnostic 或 fail-closed 保护。
-- 每个新增 fallback 都必须有对应失败模式的测试/fixture，且行为可观测（error code、log、diagnostic）；禁止静默吞掉错误后猜测性继续执行。
-- 若说不清“它防的具体失败是什么、哪条测试覆盖它、为什么不能直接收紧主路径”，就不要加入这条 fallback。
-
-### 反模式检测 (Anti-Patterns)
-
-Agent 在代码审查和自检时必须检测以下反模式：
-
-- **过度工程**: 为假设性未来需求添加抽象层、配置项、feature flag
-- **范围蔓延**: 修 bug 时顺手重构周边代码、添加不相关功能
-- **兜底蔓延**: 针对未复现失败模式预埋 fallback、兼容分支或第二实现路径；无真实 contract / fixture / 边界依据时，优先收紧主路径而不是追加保底代码
-- **元工作蔓延**: 主动新增治理层、模板层、流程层或额外 SSOT，除非其满足至少一项：直接 unblock 当前 batch；现有 SSOT 已被证明不足；已出现重复执行漂移且该补充能以最小成本稳定消除漂移。否则默认沿用现有 SSOT，不新增元工作
-- **历史债务不可口头漂移**: 一旦当前实现实际暴露出具体的历史遗留风险，禁止把它只留在“以后再说”的口头结论中；若不当场修复，就必须落到可追踪的 cleanup slice / tracker / checked-in prompt。
-- **AI 注释泛滥**: 添加 `// This function does X` 等显而易见的注释
-- **不必要的依赖**: 为可用 3 行代码解决的问题引入新库
-
-### 意图分类 (Intent Classification)
-
-| 意图类型 | 特征 | 策略 |
-|---|---|---|
-| 平凡 | 单文件, <10 行, 明显修复 | 快速确认→直接执行，不需规划 |
-| 简单 | 1-2 文件, 明确范围 | 轻量问询→提出方案→执行 |
-| 重构 | 改变结构但保持行为 | 安全优先：先映射引用→确认测试覆盖→逐步修改 |
-| 新建 | 新功能/模块 | 发现优先：先探索现有模式→匹配约定→再动手 |
-| 架构 | 跨组件设计决策 | 战略优先：全局影响评估→三模型审核→方可执行 |
-
-### 代码质量标准
-
-- 严格遵循现有代码库的模式和风格
-- 错误处理不需要被要求就应正确实现
-- 不产生 "AI slop"（过度工程、不必要抽象、范围蔓延）
-- 注释仅在逻辑不自明时添加
-
-## 模型选择规则
-
-- 模型选择由人类手动切换（`/model` 或 settings.json）；agent 可建议切换，但不自动切换。
-- 高风险跨组件实现、架构决策、正式 `review-swarm` 与深度 self-review，优先使用最强可用推理模型，并保持跨厂商 reviewer 组合。
-- 单组件日常开发、局部文档修订、边界明确的低风险任务，可优先使用更快/更低成本模型。
-- 超长上下文分析优先最长上下文模型；代码审查或结构化 diff 审查优先代码专精模型；但都不得覆盖正式 reviewer lineup 规则。
-- 默认正式 reviewer trio 为 `Opus` + `Gemini(auto)` + `OpenCode(zhipuai-coding-plan/glm-5.1)`；其中 Gemini reviewer seat 的 `gemini` CLI 默认模型选择器固定为 `auto`。若任一不可用，必须记录失败原因并获得人类明确确认 fallback。
-- Benchmark 分数、价格、上下文窗口、厂商成熟度等时效性信息属于 SOTA/preflight 或 review packet 证据，不是 AGENTS-level SSOT。
-
-## 当前进度
-
-> **SSOT**: `meta/remediation_tracker_v1.json`（机器可读 closeout / evidence / review disposition）
-> **Stable memory**: `.serena/memories/architecture-decisions.md`（仅记录跨会话、可复用的稳定架构决策）
-
-- 本节只保留 tracker 对齐的摘要；item 级 closeout 叙事、review 轮次、精确验收命令、commit/PR 号、以及工具故障流水一律回到 tracker note 与相关 checked-in prompt/docs。
-- 本节唯一允许的状态信息是 phase 级完成度数字与全局 blocker 摘要；禁止新增或保留任何 item-specific bullet、item id、reopened/done/blocked/follow-up 叙事、review/self-review/validation/tool-failure 信息。
-- Phase 0: 14/14 完成
-- Phase 1: 22/23 完成
-- Phase 2: 46/51 完成
-- Phase 3: 40/53 完成
-- Phase 4: 4/8 完成，blocked by earlier phases
-- Phase 5: 17/24 完成，blocked by earlier phases
-- 当前已锁定的高层边界与长期决策，应分别查看：
-  - 根治理 / 硬门禁：本文件其余章节
-  - 稳定架构决策：`.serena/memories/architecture-decisions.md`
-  - 详细 closeout / evidence / review history：`meta/remediation_tracker_v1.json` 与关联 `meta/docs/prompts/*` / `meta/docs/*`
-
-## 开发约定
-
-- **审核过程文件 (`meta/.review/`) 为临时产物，禁止 git push**。包括三模型审核的 prompt、输出、中间稿等。已在 `.gitignore` 中排除。
-- 新代码必须遵守 ECOSYSTEM_DEV_CONTRACT.md 全部规则
-- 存量代码按 REDESIGN_PLAN.md 分阶段对齐
-- 豁免: `# CONTRACT-EXEMPT: {规则ID} {原因}`
-- 配置键必须在 CFG-01 注册表中注册
-- 错误必须使用 AutoresearchError 工厂，禁止裸 throw/raise
-- Artifact 命名: `^[a-z]+_[a-z_]+(_\d{3})?_v\d+\.(json|tex|jsonl|md)$`（人类可读产物允许 `.md`）
-- 所有 artifact 写入必须原子操作 (write .tmp → fsync → rename)，tmp 文件必须与目标在同一文件系统
-
-## CLI 命令参考
-
-- 根级 AGENTS 不维护第二套 CLI 速查表；这里只固定入口与 authority 边界。
-- canonical generic lifecycle + bounded computation + workflow-plan entrypoint 现为 `autoresearch`（`@autoresearch/orchestrator` bin），当前覆盖 `init/status/approve/pause/resume/export/run/workflow-plan`；其中 `run` 当前仅指 bounded native TS `run --workflow-id computation`，`workflow-plan` 是面向已初始化外部 project root 的 stateful literature-plan front door。
-- `hepar` / `hep-autoresearch` 仍是过渡中的 Pipeline A Python surface，但不再是默认 generic authority；当前仅承载尚未 repoint 的 legacy commands / workflows（如 `run`、`doctor`、`bridge`）。具体当前命令面以 `--help`、`packages/hep-autoresearch/README.md`、`packages/hep-autoresearch/docs/BEGINNER_TUTORIAL.md` 与 `packages/hep-autoresearch/docs/WORKFLOWS.md` 为准；长期 retirement / repoint 语义以 `meta/REDESIGN_PLAN.md` 和 tracker 为准。
-
-## 运行时产出目录结构
-
-- 本节只固定稳定语义与边界，不在 AGENTS 镜像完整目录树、脚手架文件清单或引用契约细节。
-- 全局 home 与项目本地 SoR 的分层长期保留：`~/.autoresearch/` 继续承载 XDG 语义上的 `data/`、`cache/`、`state/`，项目目录继续承载人类可读产物与执行记录。
-- 项目本地的稳定可见语义保持为：`paper/` 源码与构建产物分离，`runs/` 是原始执行记录，`evidence/` 是策展证据层，`.autoresearch/tmp/` 负责同文件系统原子写入前提。
-- exact root/project surface 由 checked-in scaffold templates 与相关测试锁定；AGENTS 只保留边界语义，不重复维护 snapshot。
-- 跨项目引用、ArtifactRef 与其他 machine contract 以 `meta/schemas/` 和对应实现/测试为准，不在根级 AGENTS 维护第二套资料性说明。
-
-## GitNexus MCP
-
-- 本节只保留 GitNexus 的根级硬门禁；自动更新的 marker / stats / quick reference 留在下方 generated appendix。
-- 任何涉及代码理解、调试、影响分析或重构的任务，先读 `gitnexus://repo/{name}/context`；若 freshness 告警则先运行 `npx gitnexus analyze`，dirty worktree 默认用 `npx gitnexus analyze --force`。
-- 再按任务读取对应 skill：架构理解看 `.claude/skills/gitnexus/exploring/SKILL.md`，blast radius 看 `.claude/skills/gitnexus/impact-analysis/SKILL.md`，debug 看 `.claude/skills/gitnexus/debugging/SKILL.md`，rename/extract/split/refactor 看 `.claude/skills/gitnexus/refactoring/SKILL.md`。
-- 若实现新增/重命名符号或改变关键调用链，正式审核前必须再次刷新 index，并用 `detect_changes` / `impact` / `context` 形成 post-change 证据。
-- 将下方 generated appendix 视为导航辅助上下文，而不是根级治理 SSOT。
+> 本文件是公开仓库中的根级 agent 规则 SSOT。更细的 maintainer 运营手册、tracker、review packet、执行 prompt 与并行排期材料仅保留在本地，不作为 GitHub 公开面的一部分。
+
+## Read Order
+
+1. 先读根级 `AGENTS.md`
+2. 再读根级 `CLAUDE.md` shim
+3. 最后按作用域读更具体的 `packages/*/AGENTS.md` / `packages/*/CLAUDE.md`
+
+## Stable Public Invariants
+
+- `autoresearch` 是 generic front door 与长期 control plane；HEP 是当前最成熟的 domain pack，不是根产品身份。
+- 不考虑向后兼容负担。项目尚未正式发布，默认允许直接 breaking change；不要为了旧 shell、旧 schema、旧数据或旧 prompt 保留 fallback、shim、compatibility backend。
+- `packages/hep-autoresearch` / `hepar` 是持续收缩中的 legacy Python provider surface，不得重新获得 generic authority。
+- 真实研究项目必须使用开发仓外部的绝对 `project root`；开发仓本身不是 real-project authority。
+- 真实研究运行产物不得回流开发仓；repo 内 gitignored 工作区只能作为显式 maintainer fixture，不得伪装成 public 默认路径。
+- Core 必须保持 domain-neutral。HEP 特定 prompts、heuristics、workflow 偏好、taxonomy、tool mapping 必须下沉到 domain/provider 层。
+- 计算与验证能力按 task/capability-first 建模，不要把某个历史 backend、包名或工具链硬编码成唯一 authority。
+- 禁止引入依赖历史上下文才能理解的长期命名，例如 `v2`、`new_*`、`legacy_*`、`W1/W2/...`。新抽象直接表达语义。
+- 若获得人类授权执行 `git commit`，提交信息不要添加 AI co-author 标记。
+
+## Public Repo Boundaries
+
+- 公开仓只保留用户可消费的 front-door truth、稳定 contract、源码、测试和必要架构说明。
+- maintainer-only 的 redesign plan、remediation tracker、implementation prompts、formal review packets、lane queue、local workflow notes，不应作为公开仓 surface。
+- 当前公开根级文档以 `README.md`、`docs/README_zh.md`、`docs/QUICKSTART.md`、`docs/TESTING_GUIDE.md`、`docs/PROJECT_STATUS.md`、`docs/ARCHITECTURE.md`、`docs/URI_REGISTRY.md`、`meta/ECOSYSTEM_DEV_CONTRACT.md` 为主。
+- `.serena/memories/architecture-decisions.md` 是仓库内允许跟踪的长期架构结论；其余 Serena memory 默认视为本地临时笔记。
+- GitNexus generated appendix 可以进入 `AGENTS.md` / `CLAUDE.md` 提交面，但它只是工具生成的导航上下文，不是治理 SSOT。
+
+## Working Norms
+
+- 若本轮使用 Serena MCP，先在当前 worktree `activate_project`，随后 `check_onboarding_performed`；未激活前不要把 Serena 输出当 authority。
+- 架构、LLM 能力、retrieval/reranking/evidence 策略或“某功能是否仍值得保留”的判断，应优先基于最新论文、benchmark、最佳实践和竞品实现，而不是旧记忆。
+- 若需要参考外部 agent/assistant 的真实实现，可审查相邻本地仓，如 `../codex`、`../claude-code-sourcemap`，但只吸收与当前架构判断直接相关的源码级结论。
+- 对 public/front-door surface 的改动，必须同步检查根 README、中文 README、Quickstart、Testing Guide、Architecture、Project Status、URI registry、相关 package README，以及对应 drift/CLI tests。
+- review 必须 source-grounded。可以使用多模型/多 reviewer，但 verdict 必须基于真实源码、调用链与验收证据，而不是 packet 摘要或 diff-only 判断。
+
+## Minimum Acceptance Expectations
+
+- 任何会影响 public/front-door truth、package authority 或 shared contracts 的改动，至少应补齐对应测试与 anti-drift 锁。
+- 常用验收包括：
+  - `git diff --check`
+  - `node scripts/check-shell-boundary-anti-drift.mjs`
+  - 受影响包的 targeted `pytest` / `vitest`
+  - `pnpm -r build`
+- 若改动触及 public CLI/help/docs truth，默认还要检查：
+  - `packages/hep-autoresearch/tests/test_public_cli_surface.py`
+  - `packages/orchestrator/tests/autoresearch-cli.test.ts`
+  - `packages/hep-mcp/tests/docs/docToolDrift.test.ts`
+
+## Key Checked-in Authority
+
+- `packages/orchestrator/`: generic lifecycle、bounded computation、workflow-plan front door
+- `packages/shared/`: provider-neutral contracts / types / helpers
+- `packages/*-mcp/`: domain/provider MCP surfaces
+- `packages/idea-*`: idea-engine / idea-side runtime surfaces
+- `meta/ECOSYSTEM_DEV_CONTRACT.md`: checked-in development contract SSOT
+- `.serena/memories/architecture-decisions.md`: checked-in long-lived architecture decisions
+
+## Review Guidance
+
+- 高风险 cross-package 或不可逆 public-surface 变更，推荐使用 `Opus`、`Gemini(auto)`、`OpenCode(zhipuai-coding-plan/glm-5.1)` 做独立 formal review；若某 reviewer 失败，先做 same-model rerun，再判断是否需要 fallback。
+- `Gemini(auto)` 是 reviewer seat 名称；默认模型选择器保持 `auto`，不要静默换成旧 alias。
+- `OpenCode workspace` 适合做 discovery；若需要可归档 gate verdict，可在 discovery 之后补 same-model embedded-source rerun。
+- formal review packet 若触及 public/package/CLI/workflow/default-entry surface，必须带 front-door surface audit，并覆盖仍在陈述该 truth 的 live docs / locks / acceptance tests。
+
+## Local-only Maintainer Materials
+
+- 本仓的本地 maintainer 材料可以存在于 gitignored 目录或仓外备份，但不要把它们重新纳入公开 Git 跟踪。
+- 若某项工作需要更细粒度的 lane plan、formal review packet、closeout tracker 或 branch/worktree queue，请在本地维护，不要把这些材料重新当作 public product docs。
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

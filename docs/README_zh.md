@@ -166,8 +166,9 @@ autoresearch status --project-root /absolute/path/to/external-project
 - [URI 注册表](./URI_REGISTRY.md)
 - [英文 README](../README.md)
 - [仓库治理规则](../AGENTS.md)
-- [重构计划](../meta/REDESIGN_PLAN.md)
 - [开发契约](../meta/ECOSYSTEM_DEV_CONTRACT.md)
+
+面向维护者的重构计划、remediation tracker、执行 prompt，以及本地 legacy workflow 说明不再作为公开仓库内容发布。
 
 ## Quick Start
 

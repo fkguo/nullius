@@ -1,7 +1,0 @@
-# Local-only outputs under the example project dir (computation copies outputs into repo-level artifacts/).
-artifacts/
-out/
-results/
-__pycache__/
-*.pyc
-
