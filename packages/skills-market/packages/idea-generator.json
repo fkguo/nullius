@@ -3,7 +3,7 @@
   "package_type": "contract-pack",
   "repo": "autoresearch-lab/idea-generator",
   "channel": "beta",
-  "version": "schemas-v1.9.7",
+  "version": "schemas-v1.9.9",
   "summary": "Contract/spec SSOT for idea-engine and idea-side runtime surfaces (schemas/OpenRPC/design).",
   "openrpc": "schemas/idea_core_rpc_v1.openrpc.json",
   "platforms": ["claude_code", "codex", "opencode"],

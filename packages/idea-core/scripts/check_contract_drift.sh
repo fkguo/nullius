@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # C-04: Check if the idea-generator → idea-core contract snapshot has drifted.
 #
-# Computes SHA-256 of all idea-generator/schemas/ files and compares against
-# the snapshot in idea-core/contracts/idea-generator-snapshot/schemas/.
+# Computes SHA-256 of the SSOT schema/OpenRPC files in idea-generator/schemas/
+# and compares against the snapshot in
+# idea-core/contracts/idea-generator-snapshot/schemas/.
+#
+# Non-SSOT generated artifacts such as *.bundled.json are intentionally
+# excluded so the drift gate only tracks source-of-truth contract files.
 #
 # Exit 0 if in sync, exit 1 if drifted.
 
@@ -25,11 +29,28 @@ if [ ! -d "$SNAPSHOT_DIR" ]; then
     exit 1
 fi
 
-# Compute checksums of source schemas (sorted for determinism).
-SOURCE_HASH=$(find "$SOURCE_DIR" -type f -name '*.json' -o -name '*.schema.json' | sort | xargs shasum -a 256 | shasum -a 256 | cut -d' ' -f1)
+compute_contract_hash() {
+    local root_dir="$1"
+    local tmp_file
+    tmp_file="$(mktemp)"
 
-# Compute checksums of snapshot schemas.
-SNAPSHOT_HASH=$(find "$SNAPSHOT_DIR" -type f -name '*.json' -o -name '*.schema.json' | sort | xargs shasum -a 256 | shasum -a 256 | cut -d' ' -f1)
+    find "$root_dir" -type f \( -name '*.schema.json' -o -name '*.openrpc.json' \) -print0 \
+        | sort -z \
+        | while IFS= read -r -d '' file; do
+            local rel hash
+            rel="${file#$root_dir/}"
+            hash="$(shasum -a 256 "$file" | cut -d' ' -f1)"
+            printf '%s  %s\n' "$hash" "$rel"
+        done > "$tmp_file"
+
+    shasum -a 256 "$tmp_file" | cut -d' ' -f1
+    rm -f "$tmp_file"
+}
+
+# Compute checksums of source/snapshot contract files using content + relative
+# path only, so different root directories do not create false drift.
+SOURCE_HASH="$(compute_contract_hash "$SOURCE_DIR")"
+SNAPSHOT_HASH="$(compute_contract_hash "$SNAPSHOT_DIR")"
 
 if [ "$SOURCE_HASH" = "$SNAPSHOT_HASH" ]; then
     echo "[ok] contract snapshot is in sync (hash: ${SOURCE_HASH:0:12})"

@@ -23,7 +23,7 @@
       "repo": "autoresearch-lab/idea-generator",
       "type": "contract-pack",
       "channel": "beta",
-      "version": "schemas-v1.9.7",
+      "version": "schemas-v1.9.9",
       "openrpc": "schemas/idea_core_rpc_v1.openrpc.json"
     },
     "skills-market": {
