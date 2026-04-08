@@ -1,10 +1,10 @@
 {
-  "package_id": "hep-research-mcp",
+  "package_id": "hep-mcp",
   "package_type": "tool-pack",
-  "repo": "autoresearch-lab/hep-research-mcp",
+  "repo": "autoresearch-lab/autoresearch-lab",
   "channel": "beta",
   "version": "0.3.0",
-  "summary": "HEP MCP server stack (INSPIRE/PDG/Zotero).",
+  "summary": "HEP MCP server stack for research, evidence, and export workflows.",
   "platforms": ["claude_code", "codex", "opencode"],
   "install": {
     "claude_code": "Configure MCP server command/env in client config.",

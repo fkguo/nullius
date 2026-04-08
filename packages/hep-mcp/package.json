@@ -21,7 +21,7 @@
     }
   },
   "bin": {
-    "hep-research-mcp": "./dist/index.js"
+    "hep-mcp": "./dist/index.js"
   },
   "scripts": {
     "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/orchestrator @autoresearch/arxiv-mcp @autoresearch/hepdata-mcp @autoresearch/openalex-mcp @autoresearch/pdg-mcp @autoresearch/zotero-mcp",

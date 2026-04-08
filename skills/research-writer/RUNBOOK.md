@@ -10,7 +10,7 @@ bash scripts/bin/research_writer_scaffold.sh --project-root /path/to/project --t
 
 ### 1b) Consume an MCP-exported `paper/` scaffold (deterministic publisher)
 
-If a separate agent / `hep-research-mcp` already exported a `paper/` directory, `research-writer` can validate + apply deterministic hygiene + (optionally) compile it using a single entrypoint:
+If a separate agent / `hep-mcp` / `@autoresearch/hep-mcp` already exported a `paper/` directory, `research-writer` can validate + apply deterministic hygiene + (optionally) compile it using a single entrypoint:
 
 - Manifest entrypoint: `paper/paper_manifest.json`
 - Audit log: `paper/build_trace.jsonl`

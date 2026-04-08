@@ -159,7 +159,7 @@ python3 "$RESEARCH_TEAM/scripts/bin/literature_fetch.py" \
 2) 快速阅读下载到本地的源文件（或 PDF），把核验结论写成一个 `evidence.md`（支持/不支持、为何、推荐措辞边界）。
 3) 重新运行 `paper-reviser` 并带上 `--context-file evidence.md`，让写手在正文中落实这些核验结论。
 
-如果你所在的代理环境里也提供了 `hep-research-mcp`，同样可以用它的 INSPIRE/arXiv 检索与源码下载能力来做查证；建议把“检索/下载”和“文本修改”分开，以便审计与复现。
+如果你所在的代理环境里也提供了 `hep-mcp` / `@autoresearch/hep-mcp`，同样可以用它的 INSPIRE/arXiv 检索与源码下载能力来做查证；建议把“检索/下载”和“文本修改”分开，以便审计与复现。
 
 ## 范围与安全说明
 

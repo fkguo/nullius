@@ -165,7 +165,7 @@ python3 "$RESEARCH_TEAM/scripts/bin/literature_fetch.py" \
 2) Skim the downloaded source (TeX/PDF) and write a short `evidence.md` explaining what is supported/unsupported.
 3) Re-run `paper-reviser` with `--context-file evidence.md` so the writer can tighten or correct the statements.
 
-If you are already running inside an agent environment with `hep-research-mcp`, you can also use its INSPIRE/arXiv retrieval tools (search + source download) and then feed the results into `--context-file`. (Keep the editing step separate from the retrieval step for auditability.)
+If you are already running inside an agent environment with `hep-mcp` / `@autoresearch/hep-mcp`, you can also use its INSPIRE/arXiv retrieval tools (search + source download) and then feed the results into `--context-file`. (Keep the editing step separate from the retrieval step for auditability.)
 
 ## Safety/Scope Notes
 

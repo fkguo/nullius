@@ -84,14 +84,14 @@ const ToolSchema = z.object({
 A smoke test ensures no tool has top-level union constructs:
 
 ```bash
-cd /path/to/hep-research-mcp-main/packages/hep-research-mcp
+cd /path/to/autoresearch-lab/packages/hep-mcp
 npx vitest run tests/smoke-no-toplevel-union.test.ts
 ```
 
 ### Affected MCP Projects
 
 The following MCP projects had top-level-union schema fixes (2026-01-28):
-- `hep-research-mcp` / current `@autoresearch/hep-mcp`: `inspire_literature` and related retained INSPIRE surfaces
+- `hep-mcp` / `@autoresearch/hep-mcp`: `inspire_literature` and related retained INSPIRE surfaces
 - `zotero-mcp`: `zotero_local`
 
 Historical workflow-like tool names may since have been pruned. Use the current tool catalog for live tool names rather than this historical note.

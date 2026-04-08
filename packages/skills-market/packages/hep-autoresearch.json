@@ -7,11 +7,11 @@
   "summary": "Control plane CLI orchestrator (hepar).",
   "platforms": ["claude_code", "codex", "opencode"],
   "depends_on": {
-    "hep-research-mcp": ">=0.3.0 <0.4.0"
+    "hep-mcp": ">=0.3.0 <0.4.0"
   },
   "install": {
     "claude_code": "See ecosystem-meta compatibility matrix and local toolchain bootstrap.",
-    "codex": "Install CLI and ensure hepar on PATH.",
-    "opencode": "Install CLI and ensure hepar on PATH."
+    "codex": "Install internal CLI only for maintainer/eval workflows; do not treat it as the public front door.",
+    "opencode": "Install internal CLI only for maintainer/eval workflows; do not treat it as the public front door."
   }
 }

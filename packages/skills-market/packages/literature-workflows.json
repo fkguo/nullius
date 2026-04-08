@@ -11,7 +11,7 @@
     "opencode"
   ],
   "depends_on": {
-    "hep-research-mcp": ">=0.3.0 <0.4.0"
+    "hep-mcp": ">=0.3.0 <0.4.0"
   },
   "source": {
     "repo": "autoresearch-lab/autoresearch-meta",

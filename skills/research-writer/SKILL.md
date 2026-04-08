@@ -248,7 +248,7 @@ The evidence-grounded workflow complements the existing scaffold and draft-secti
 
 ## Consume an MCP-exported paper scaffold (deterministic publisher)
 
-If `hep-research-mcp` (or another agent pipeline) already produced a `paper/` directory, this skill can validate + apply deterministic hygiene + (optionally) compile it using `paper/paper_manifest.json` as the only entrypoint.
+If `hep-mcp` / `@autoresearch/hep-mcp` (or another agent pipeline) already produced a `paper/` directory, this skill can validate + apply deterministic hygiene + (optionally) compile it using `paper/paper_manifest.json` as the only entrypoint.
 
 From the project root (default manifest path `paper/paper_manifest.json`):
 

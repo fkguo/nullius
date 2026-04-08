@@ -163,7 +163,7 @@
 输出要点：
 
 - `references[]`：`id/document_id/publication_name/publication_year/doi/inspire_id/title`
-- `references[].inspire_lookup_by_id`：可直接喂给 `hep-research-mcp` 的 `inspire_literature`（mode=`lookup_by_id`）
+- `references[].inspire_lookup_by_id`：可直接喂给 `@autoresearch/hep-mcp` 的 `inspire_literature`（mode=`lookup_by_id`）
   - 若 `doi` 以 `10.` 开头 → 追加 DOI
   - 若 `inspire_id` 为纯数字 → 追加 INSPIRE recid
 
@@ -266,9 +266,9 @@
 - `summary.ok/errors/skipped` + `preview`
 - artifact 里保存完整调用结果（含每个 call 的 `duration_ms`、错误结构等），方便审计与复现实验
 
-## 与 `hep-research-mcp` 的衔接（Reference Bridge）
+## 与 `hep-mcp` 的衔接（Reference Bridge）
 
-当 `pdg-mcp` 被聚合进 `hep-research-mcp`（单一 MCP server）时：
+当 `pdg-mcp` 被聚合进 `@autoresearch/hep-mcp`（单一 MCP server）时：
 
 - 所有 `pdg_*` tools 在同一 server 中可用
 - `pdg_find_reference` / `pdg_get_reference` / `pdg_get_measurements` 输出的 `references[].inspire_lookup_by_id` 可直接喂给 `inspire_literature`（mode=`lookup_by_id`）

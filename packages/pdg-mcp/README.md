@@ -164,7 +164,7 @@ Common parameters:
 Key outputs:
 
 - `references[]`: `id/document_id/publication_name/publication_year/doi/inspire_id/title`
-- `references[].inspire_lookup_by_id`: identifiers directly usable by `hep-research-mcp`’s `inspire_literature` (mode=`lookup_by_id`)
+- `references[].inspire_lookup_by_id`: identifiers directly usable by `@autoresearch/hep-mcp`’s `inspire_literature` (mode=`lookup_by_id`)
   - include DOI if it starts with `10.`
   - include INSPIRE recid if `inspire_id` is all digits
 
@@ -267,9 +267,9 @@ Key outputs:
 - `summary.ok/errors/skipped` + `preview`
 - artifact stores the full call log (`duration_ms`, per-call errors/results) for audit and reproducibility
 
-## Bridge to `hep-research-mcp` (Reference workflow)
+## Bridge to `hep-mcp` (Reference workflow)
 
-When `pdg-mcp` is aggregated into `hep-research-mcp` (single MCP server):
+When `pdg-mcp` is aggregated into `@autoresearch/hep-mcp` (single MCP server):
 
 - all `pdg_*` tools are available on the same server
 - `inspire_literature` (mode=`lookup_by_id`) can directly consume `references[].inspire_lookup_by_id` produced by:

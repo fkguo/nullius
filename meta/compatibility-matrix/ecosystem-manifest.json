@@ -10,11 +10,11 @@
       "channel": "beta",
       "version": "0.0.1",
       "depends_on": {
-        "hep-research-mcp": ">=0.3.0 <0.4.0"
+        "hep-mcp": ">=0.3.0 <0.4.0"
       }
     },
-    "hep-research-mcp": {
-      "repo": "autoresearch-lab/hep-research-mcp",
+    "hep-mcp": {
+      "repo": "autoresearch-lab/autoresearch-lab",
       "type": "tool-pack",
       "channel": "beta",
       "version": "0.3.0"
@@ -40,7 +40,7 @@
       "source_path": "~/.codex/skills/hepar/SKILL.md",
       "depends_on": {
         "hep-autoresearch": ">=0.0.1 <0.1.0",
-        "hep-research-mcp": ">=0.3.0 <0.4.0"
+        "hep-mcp": ">=0.3.0 <0.4.0"
       }
     },
     "paper-reviser": {
@@ -57,7 +57,7 @@
       "version": "0.1.0",
       "source_path": "~/.codex/skills/pdg-lookup/SKILL.md",
       "depends_on": {
-        "hep-research-mcp": ">=0.3.0 <0.4.0"
+        "hep-mcp": ">=0.3.0 <0.4.0"
       }
     },
     "julia-perf": {
@@ -73,7 +73,7 @@
       "channel": "dev",
       "version": "0.1.0",
       "depends_on": {
-        "hep-research-mcp": ">=0.3.0 <0.4.0"
+        "hep-mcp": ">=0.3.0 <0.4.0"
       }
     },
     "research-team": {
@@ -103,7 +103,7 @@
       "version": "0.1.0",
       "source_path": "~/.codex/skills/zotero-import/SKILL.md",
       "depends_on": {
-        "hep-research-mcp": ">=0.3.0 <0.4.0"
+        "hep-mcp": ">=0.3.0 <0.4.0"
       }
     },
     "referee-review": {
