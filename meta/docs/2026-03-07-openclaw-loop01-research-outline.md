@@ -148,9 +148,9 @@
 
 必须对读：
 
-1. `meta/docs/2026-02-19-opencode-openclaw-design-adoption.md`
+1. 2026-02 OpenCode/OpenClaw adoption note（local archive）
 2. `meta/docs/2026-03-07-openclaw-sota-delta.md`
-3. `meta/docs/sota-monorepo-architecture-2026-03-06.md`
+3. 2026-03 monorepo architecture SOTA note（local archive）
 4. `docs/ARCHITECTURE.md` 与 `docs/PROJECT_STATUS.md` 中当前 front-door / runtime 边界
 5. `meta/front_door_authority_map_v1.json` 与 `meta/ECOSYSTEM_DEV_CONTRACT.md` 中现行 authority 映射
 6. `packages/orchestrator/src/agent-runner.ts`
@@ -373,7 +373,7 @@
 
 ### 15.2 开工前硬门禁
 
-- 完整读取：`AGENTS.md`、`docs/ARCHITECTURE.md`、`docs/PROJECT_STATUS.md`、`meta/front_door_authority_map_v1.json`、`meta/docs/sota-monorepo-architecture-2026-03-06.md`、`.serena/memories/architecture-decisions.md`、本专项调研文档、相关代码与测试。
+- 完整读取：`AGENTS.md`、`docs/ARCHITECTURE.md`、`docs/PROJECT_STATUS.md`、`meta/front_door_authority_map_v1.json`、`.serena/memories/architecture-decisions.md`、本专项调研文档、相关代码与测试。
 - GitNexus：先读 `gitnexus://repo/autoresearch-lab/context`；stale 则先 `npx gitnexus analyze`。
 - 状态追踪：通过当前仍在仓的状态文档与源码测试事实同步，不依赖已删除 tracker 路径。
 - 范围边界：不得并入 `NEW-DISC-01` D4/D5、`NEW-SEM-06b/d/e`、`RT-07` 返工、`EVO-13` 提前实现。

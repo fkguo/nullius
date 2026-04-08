@@ -89,7 +89,7 @@ Mastra is the only TS-native option. It's YC W25, very young, API unstable. Lang
 
 ### SDK usage strategy: "SDK manages model interaction, self-built manages domain state"
 
-> Updated 2026-02-25 after scope audit (`meta/docs/scope-audit-phase1-2.md`)
+> Updated 2026-02-25 after scope audit.
 
 | Layer | Responsibility | Implementation |
 |-------|---------------|----------------|
@@ -109,7 +109,7 @@ PydanticAI's durable execution + A2A support makes it the strongest candidate if
 
 ## 5. Historical Plan Impact
 
-> Updated 2026-02-25 after scope audit. See `meta/docs/scope-audit-phase1-2.md` for full analysis.
+> Updated 2026-02-25 after scope audit. Full raw analysis is now kept in local archive.
 
 | Phase | Item | Description |
 |-------|------|-------------|

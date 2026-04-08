@@ -1,7 +1,7 @@
 # OpenClaw 2026-03 SOTA Delta for Autoresearch
 
 > **日期**: 2026-03-07
-> **目的**: 在 `meta/docs/2026-02-19-opencode-openclaw-design-adoption.md` 的基础上，补充 2026-03 官方 OpenClaw repo/docs 中对当前 Phase 3 与后续 `NEW-LOOP-01` / `EVO-13` 最有价值的差分结论。本文聚焦 **现在可直接影响 prompt / architecture sequencing 的内容**，不重复 2 月调研已经覆盖的基础概念。
+> **目的**: 在 2026-02 OpenCode/OpenClaw 采纳调研的基础上，补充 2026-03 官方 OpenClaw repo/docs 中对当前 Phase 3 与后续 `NEW-LOOP-01` / `EVO-13` 最有价值的差分结论。本文聚焦 **现在可直接影响 prompt / architecture sequencing 的内容**，不重复 2 月调研已经覆盖的基础概念。
 
 ## 1. 为什么需要这份 delta
 

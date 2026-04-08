@@ -710,7 +710,7 @@ grep -rn 'except:\s*pass\|except\s.*:\s*pass' --include='*.py' \
 #### AMEND-01: CODE-01.1 文件级豁免 + 日落强制 (待批准)
 
 > **状态**: 提案 (pending governance approval)
-> **来源**: `docs/2026-02-20-deep-refactoring-analysis.md` §1, Codex R16/R23 审查反馈
+> **来源**: 2026-02 深度重构分析（现仅保留在本地 archive）, Codex R16/R23 审查反馈
 > **依赖**: NEW-R02a (CI 脚本实际存在 + 金丝雀测试)
 > **提出日期**: 2026-02-21
 
