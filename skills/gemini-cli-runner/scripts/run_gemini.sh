@@ -119,6 +119,7 @@ load_proxy_env_from_interactive_shell() {
 
   while IFS= read -r line; do
     [[ -n "${line}" ]] || continue
+    [[ "${line}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || continue
     export "${line}"
   done <<EOF
 ${proxy_lines}
