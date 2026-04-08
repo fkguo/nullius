@@ -4,6 +4,7 @@ import os
 import platform
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -96,7 +97,8 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     # Keep this process's path resolution consistent with the subprocesses by
     # temporarily applying the same HEP_AUTORESEARCH_DIR override used in env.
     prev_autoresearch_dir = os.environ.get("HEP_AUTORESEARCH_DIR")
-    os.environ["HEP_AUTORESEARCH_DIR"] = runtime_rel
+    runtime_dir_env = os.fspath(runtime_dir)
+    os.environ["HEP_AUTORESEARCH_DIR"] = runtime_dir_env
     try:
         state_path = _state_path(repo_root)
         plan_md_path = _plan_md_path(repo_root)
@@ -111,6 +113,71 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             return os.fspath(p.relative_to(repo_root))
         except Exception:  # CONTRACT-EXEMPT: CODE-01.5 diagnostic fallthrough
             return os.fspath(p)
+
+    def _create_external_project_session_root(*, label: str) -> Path:
+        session_root = Path(tempfile.mkdtemp(prefix=f"hep-autoresearch-{label}-{inps.tag[:24]}-")).resolve()
+        try:
+            session_root.relative_to(repo_root.resolve())
+        except Exception:
+            return session_root
+        try:
+            shutil.rmtree(session_root)
+        except Exception:
+            pass
+        raise ValueError(f"regression harness external project root drifted inside repo_root: {session_root}")
+
+    def _project_anchor_path(*, external_root: Path, snapshot_root: Path, target: Path) -> Path:
+        resolved = target.resolve()
+        try:
+            suffix = resolved.relative_to(external_root.resolve())
+        except Exception:
+            return resolved
+        return snapshot_root / suffix
+
+    def _project_anchor_rel(*, external_root: Path, snapshot_root: Path, target: Path) -> str:
+        return rel(_project_anchor_path(external_root=external_root, snapshot_root=snapshot_root, target=target))
+
+    def _redact_external_project_text(text: str, *, external_root: Path) -> str:
+        root_text = os.fspath(external_root.resolve())
+        return str(text).replace(root_text, "<EXTERNAL_PROJECT_ROOT>")
+
+    src_root = os.fspath((repo_root / "src").resolve())
+    cli_snip = "from hep_autoresearch.orchestrator_cli import main; raise SystemExit(main())"
+
+    def _external_cli_env(*, base_env: dict[str, str], runtime_root: Path | None) -> dict[str, str]:
+        external_env = dict(base_env)
+        prev_pp = external_env.get("PYTHONPATH")
+        external_env["PYTHONPATH"] = src_root if not prev_pp else (src_root + os.pathsep + str(prev_pp))
+        if runtime_root is None:
+            external_env.pop("HEP_AUTORESEARCH_DIR", None)
+        else:
+            external_env["HEP_AUTORESEARCH_DIR"] = os.fspath(runtime_root.resolve())
+        return external_env
+
+    def _external_cli_cmd(*argv: str) -> list[str]:
+        return ["python3", "-c", cli_snip, *argv]
+
+    def _orchestrator_cmd(*argv: str, project_root: Path | None = None) -> list[str]:
+        cmd = ["python3", "scripts/orchestrator.py"]
+        if project_root is not None:
+            cmd.extend(["--project-root", os.fspath(project_root)])
+        cmd.extend(argv)
+        return cmd
+
+    def _sync_external_run_artifacts(*, external_root: Path, run_id: str) -> None:
+        src = external_root / "artifacts" / "runs" / str(run_id)
+        dst = repo_root / "artifacts" / "runs" / str(run_id)
+        reset_generated_dir(dst, label=f"mirrored run artifacts for {run_id}")
+        if src.exists():
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+
+    def _materialize_external_project_specs(*, external_root: Path) -> None:
+        src = (repo_root / "specs").resolve()
+        dst = external_root / "specs"
+        if not src.exists():
+            errors.append(f"missing repo specs authority: {src}")
+            return
+        shutil.copytree(src, dst, dirs_exist_ok=True)
 
     def ensure_computation_run_card() -> str:
         configured = str(inps.computation_run_card or "").strip()
@@ -143,7 +210,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                     "backend": {
                         "kind": "shell",
                         "argv": [os.sys.executable, "scripts/write_ok.py"],
-                        "cwd": rel(fixture_dir),
+                        "cwd": ".",
                     },
                     "outputs": ["results/ok.json"],
                 }
@@ -187,7 +254,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
 
     errors: list[str] = []
     env = dict(os.environ)
-    env["HEP_AUTORESEARCH_DIR"] = runtime_rel
+    env["HEP_AUTORESEARCH_DIR"] = runtime_dir_env
 
     versions: dict[str, Any] = {"python": os.sys.version.split()[0], "os": platform.platform()}
 
@@ -248,10 +315,23 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     ledger_path = runtime_dir / "ledger.jsonl"
     manifest["outputs"].append(rel(ledger_path))
 
-    # init (isolated runtime dir)
-    init_cmd = ["python3", "scripts/orchestrator.py", "init", "--force", "--runtime-only"]
-    rc_init, out_init = _run(init_cmd, cwd=repo_root, env=env, timeout_seconds=min(120, int(inps.timeout_seconds)))
-    (logs_dir / "init.txt").write_text(out_init, encoding="utf-8")
+    shared_session_root = _create_external_project_session_root(label="shared")
+    shared_project_root = shared_session_root / "project_root"
+    shared_project_root.mkdir(parents=True, exist_ok=True)
+    _materialize_external_project_specs(external_root=shared_project_root)
+
+    # init (isolated runtime dir + external project authority root)
+    init_cmd = _external_cli_cmd("init", "--force", "--runtime-only")
+    rc_init, out_init = _run(
+        init_cmd,
+        cwd=shared_project_root,
+        env=_external_cli_env(base_env=env, runtime_root=runtime_dir),
+        timeout_seconds=min(120, int(inps.timeout_seconds)),
+    )
+    (logs_dir / "init.txt").write_text(
+        _redact_external_project_text(out_init, external_root=shared_project_root),
+        encoding="utf-8",
+    )
     manifest["outputs"].append(os.fspath((logs_dir / "init.txt").relative_to(repo_root)))
     if rc_init != 0:
         errors.append(f"orchestrator init failed (exit_code={rc_init})")
@@ -268,9 +348,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     def scenario_reproduce() -> dict[str, Any]:
         run_id = f"{inps.tag}-reproduce"
         reset_generated_run(run_id)
-        cmd_run = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_run = _orchestrator_cmd(
             "run",
             "--run-id",
             run_id,
@@ -280,9 +358,13 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             str(inps.reproduce_case),
             "--ns",
             ",".join(str(x) for x in inps.reproduce_ns),
-        ]
+            project_root=shared_project_root,
+        )
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "reproduce_gate.txt").write_text(out_gate, encoding="utf-8")
+        (logs_dir / "reproduce_gate.txt").write_text(
+            _redact_external_project_text(out_gate, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "reproduce_gate.txt").relative_to(repo_root)))
 
         pending = _read_pending_approval(state_path)
@@ -294,17 +376,24 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         out_approve = ""
         if isinstance(approval_id, str) and approval_id.strip():
             rc_approve, out_approve = _run(
-                ["python3", "scripts/orchestrator.py", "approve", approval_id],
+                _orchestrator_cmd("approve", approval_id, project_root=shared_project_root),
                 cwd=repo_root,
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / "reproduce_approve.txt").write_text(out_approve, encoding="utf-8")
+            (logs_dir / "reproduce_approve.txt").write_text(
+                _redact_external_project_text(out_approve, external_root=shared_project_root),
+                encoding="utf-8",
+            )
             manifest["outputs"].append(os.fspath((logs_dir / "reproduce_approve.txt").relative_to(repo_root)))
 
         rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "reproduce_final.txt").write_text(out_final, encoding="utf-8")
+        (logs_dir / "reproduce_final.txt").write_text(
+            _redact_external_project_text(out_final, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "reproduce_final.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         return {
             "run_id": run_id,
@@ -324,169 +413,263 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
 
     def scenario_project_init() -> dict[str, Any]:
         """Init/scaffold in a fresh project dir and verify root discovery works from a subdir."""
-        project_root = out_dir / "project_init_project"
-        reset_generated_dir(project_root, label="project_init_project")
+        project_snapshot_root = out_dir / "project_init_project"
+        reset_generated_dir(project_snapshot_root, label="project_init_project")
+        session_root = _create_external_project_session_root(label="project-init")
+        project_root = session_root / "project_init_project"
         project_root.mkdir(parents=True, exist_ok=True)
 
-        env_proj = dict(env)
-        env_proj.pop("HEP_AUTORESEARCH_DIR", None)
-        src_root = os.fspath((repo_root / "src").resolve())
-        prev_pp = env_proj.get("PYTHONPATH")
-        env_proj["PYTHONPATH"] = src_root if not prev_pp else (src_root + os.pathsep + str(prev_pp))
+        env_proj = _external_cli_env(base_env=env, runtime_root=None)
+        try:
+            cmd_init = _external_cli_cmd("init", "--force", "--allow-nested")
+            rc_init, out_init = _run(cmd_init, cwd=project_root, env=env_proj, timeout_seconds=60)
+            (logs_dir / "project_init_init.txt").write_text(
+                _redact_external_project_text(out_init, external_root=project_root),
+                encoding="utf-8",
+            )
+            manifest["outputs"].append(os.fspath((logs_dir / "project_init_init.txt").relative_to(repo_root)))
 
-        cli_snip = "from hep_autoresearch.orchestrator_cli import main; raise SystemExit(main())"
-
-        cmd_init = ["python3", "-c", cli_snip, "init", "--force", "--allow-nested"]
-        rc_init, out_init = _run(cmd_init, cwd=project_root, env=env_proj, timeout_seconds=60)
-        (logs_dir / "project_init_init.txt").write_text(out_init, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "project_init_init.txt").relative_to(repo_root)))
-
-        expected_outputs: dict[str, str] = {
-            "project_root": rel(project_root),
-            "state_json": rel(project_root / ".autoresearch" / "state.json"),
-            "approval_policy_json": rel(project_root / ".autoresearch" / "approval_policy.json"),
-            "ledger_jsonl": rel(project_root / ".autoresearch" / "ledger.jsonl"),
-            "kb_index_json": rel(project_root / "knowledge_base" / "_index" / "kb_index.json"),
-            "kb_profile_minimal": rel(project_root / "knowledge_base" / "_index" / "kb_profiles" / "minimal.json"),
-            "kb_profile_curated": rel(project_root / "knowledge_base" / "_index" / "kb_profiles" / "curated.json"),
-            "docs_approval_gates": rel(project_root / "docs" / "APPROVAL_GATES.md"),
-            "docs_artifact_contract": rel(project_root / "docs" / "ARTIFACT_CONTRACT.md"),
-            "docs_eval_gate_contract": rel(project_root / "docs" / "EVAL_GATE_CONTRACT.md"),
-        }
-        for v in expected_outputs.values():
-            manifest["outputs"].append(str(v))
-
-        # Root discovery should work from a subdir.
-        subdir = project_root / "knowledge_base"
-        cmd_status = ["python3", "-c", cli_snip, "status"]
-        rc_status, out_status = _run(cmd_status, cwd=subdir, env=env_proj, timeout_seconds=30)
-        (logs_dir / "project_init_status_subdir.txt").write_text(out_status, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "project_init_status_subdir.txt").relative_to(repo_root)))
-
-        expected_state = (project_root / ".autoresearch" / "state.json").resolve()
-        reported_state: Path | None = None
-        for line in out_status.splitlines():
-            if line.strip().startswith("state_path:"):
-                raw = line.split(":", 1)[1].strip()
-                if raw:
-                    try:
-                        reported_state = Path(raw).resolve()
-                    except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
-                        reported_state = None
-                break
-        state_path_ok = bool(reported_state and reported_state == expected_state)
-
-        # Nested init guard: by default refuse to create nested project roots, but allow explicitly.
-        nested_root = project_root / "nested_project"
-        nested_root.mkdir(parents=True, exist_ok=True)
-        cmd_nested_init = ["python3", "-c", cli_snip, "init", "--force"]
-        rc_nested_init, out_nested_init = _run(cmd_nested_init, cwd=nested_root, env=env_proj, timeout_seconds=60)
-        (logs_dir / "project_init_nested_init_refused.txt").write_text(out_nested_init, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "project_init_nested_init_refused.txt").relative_to(repo_root)))
-
-        cmd_nested_allow = ["python3", "-c", cli_snip, "init", "--force", "--allow-nested"]
-        rc_nested_allow, out_nested_allow = _run(cmd_nested_allow, cwd=nested_root, env=env_proj, timeout_seconds=60)
-        (logs_dir / "project_init_nested_init_allowed.txt").write_text(out_nested_allow, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "project_init_nested_init_allowed.txt").relative_to(repo_root)))
-
-        nested_state = nested_root / ".autoresearch" / "state.json"
-        nested_state_exists = nested_state.exists()
-
-        # Ensure the run path can build context pack + kb_profile and reach the A3 gate.
-        run_id = f"{inps.tag}-proj-reproduce"
-        cmd_run = [
-            "python3",
-            "-c",
-            cli_snip,
-            "run",
-            "--run-id",
-            run_id,
-            "--workflow-id",
-            "reproduce",
-            "--case",
-            str(inps.reproduce_case),
-            "--ns",
-            ",".join(str(x) for x in inps.reproduce_ns),
-        ]
-        rc_gate, out_gate = _run(cmd_run, cwd=project_root, env=env_proj, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "project_init_reproduce_gate.txt").write_text(out_gate, encoding="utf-8")
-        manifest["outputs"].append(os.fspath((logs_dir / "project_init_reproduce_gate.txt").relative_to(repo_root)))
-
-        pending_category: str | None = None
-        approval_id: str | None = None
-        approval_packet: str | None = None
-        packet_abs: Path | None = None
-        st_path = project_root / ".autoresearch" / "state.json"
-        if st_path.exists():
-            st_proj = read_json(st_path)
-            pending = st_proj.get("pending_approval") if isinstance(st_proj, dict) else None
-            if isinstance(pending, dict):
-                pending_category = pending.get("category")
-                approval_id = pending.get("approval_id")
-                approval_packet = pending.get("packet_path")
-                if isinstance(approval_packet, str) and approval_packet.strip():
-                    packet_abs = project_root / approval_packet
-
-        kb_profile_json = project_root / "artifacts" / "runs" / run_id / "kb_profile" / "kb_profile.json"
-        context_md = project_root / "artifacts" / "runs" / run_id / "context" / "context.md"
-        context_json = project_root / "artifacts" / "runs" / run_id / "context" / "context.json"
-        plan_md = project_root / ".autoresearch" / "plan.md"
-        expected_packet_abs = project_root / "artifacts" / "runs" / run_id / "approvals" / "A3-0001" / "packet.md"
-        expected_outputs.update(
-            {
-                "plan_md": rel(plan_md),
-                "kb_profile_json": rel(kb_profile_json),
-                "context_md": rel(context_md),
-                "context_json": rel(context_json),
-                "approval_packet": rel(expected_packet_abs),
+            expected_outputs: dict[str, str] = {
+                "project_root": rel(project_snapshot_root),
+                "state_json": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / ".autoresearch" / "state.json",
+                ),
+                "approval_policy_json": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / ".autoresearch" / "approval_policy.json",
+                ),
+                "ledger_jsonl": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / ".autoresearch" / "ledger.jsonl",
+                ),
+                "project_charter": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "project_charter.md",
+                ),
+                "project_index": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "project_index.md",
+                ),
+                "research_contract": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "research_contract.md",
+                ),
+                "research_notebook": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "research_notebook.md",
+                ),
+                "research_plan": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "research_plan.md",
+                ),
+                "docs_approval_gates": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "docs" / "APPROVAL_GATES.md",
+                ),
+                "docs_artifact_contract": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "docs" / "ARTIFACT_CONTRACT.md",
+                ),
+                "docs_eval_gate_contract": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "docs" / "EVAL_GATE_CONTRACT.md",
+                ),
+                "specs_plan_schema": _project_anchor_rel(
+                    external_root=project_root,
+                    snapshot_root=project_snapshot_root,
+                    target=project_root / "specs" / "plan.schema.json",
+                ),
             }
-        )
-        manifest["outputs"].append(rel(expected_packet_abs))
-        if plan_md.exists():
-            manifest["outputs"].append(rel(plan_md))
-        if kb_profile_json.exists():
-            manifest["outputs"].append(rel(kb_profile_json))
-        if context_md.exists():
-            manifest["outputs"].append(rel(context_md))
-        if context_json.exists():
-            manifest["outputs"].append(rel(context_json))
-        if packet_abs and packet_abs.exists():
-            manifest["outputs"].append(rel(packet_abs))
+            for v in expected_outputs.values():
+                manifest["outputs"].append(str(v))
 
-        return {
-            "project_root": rel(project_root),
-            "init_exit_code": int(rc_init),
-            "status_subdir_exit_code": int(rc_status),
-            "status_subdir_state_path_ok": bool(state_path_ok),
-            "nested_init_exit_code": int(rc_nested_init),
-            "nested_init_allow_exit_code": int(rc_nested_allow),
-            "nested_state_json_exists": bool(nested_state_exists),
-            "run_id": run_id,
-            "gate_exit_code": int(rc_gate),
-            "pending_category": pending_category,
-            "approval_id": approval_id,
-            "approval_packet_rel": approval_packet,
-            "expected_outputs": expected_outputs,
-        }
+            # Root discovery should work from a subdir.
+            subdir = project_root / "docs"
+            cmd_status = _external_cli_cmd("status")
+            rc_status, out_status = _run(cmd_status, cwd=subdir, env=env_proj, timeout_seconds=30)
+            (logs_dir / "project_init_status_subdir.txt").write_text(
+                _redact_external_project_text(out_status, external_root=project_root),
+                encoding="utf-8",
+            )
+            manifest["outputs"].append(os.fspath((logs_dir / "project_init_status_subdir.txt").relative_to(repo_root)))
+
+            expected_state = (project_root / ".autoresearch" / "state.json").resolve()
+            reported_state: Path | None = None
+            for line in out_status.splitlines():
+                if line.strip().startswith("state_path:"):
+                    raw = line.split(":", 1)[1].strip()
+                    if raw:
+                        try:
+                            reported_state = Path(raw).resolve()
+                        except Exception:  # CONTRACT-EXEMPT: CODE-01.5 best-effort optional read
+                            reported_state = None
+                    break
+            state_path_ok = bool(reported_state and reported_state == expected_state)
+
+            # Nested init is intentionally allowed by default; --allow-nested remains an explicit success path.
+            nested_root = project_root / "nested_project"
+            nested_root.mkdir(parents=True, exist_ok=True)
+            cmd_nested_init = _external_cli_cmd("init", "--force")
+            rc_nested_init, out_nested_init = _run(cmd_nested_init, cwd=nested_root, env=env_proj, timeout_seconds=60)
+            (logs_dir / "project_init_nested_init_default.txt").write_text(
+                _redact_external_project_text(out_nested_init, external_root=project_root),
+                encoding="utf-8",
+            )
+            manifest["outputs"].append(os.fspath((logs_dir / "project_init_nested_init_default.txt").relative_to(repo_root)))
+
+            cmd_nested_allow = _external_cli_cmd("init", "--force", "--allow-nested")
+            rc_nested_allow, out_nested_allow = _run(cmd_nested_allow, cwd=nested_root, env=env_proj, timeout_seconds=60)
+            (logs_dir / "project_init_nested_init_allow.txt").write_text(
+                _redact_external_project_text(out_nested_allow, external_root=project_root),
+                encoding="utf-8",
+            )
+            manifest["outputs"].append(os.fspath((logs_dir / "project_init_nested_init_allow.txt").relative_to(repo_root)))
+
+            nested_state = nested_root / ".autoresearch" / "state.json"
+            nested_state_exists = nested_state.exists()
+
+            # Ensure the run path can build context pack + kb_profile and reach the A3 gate.
+            run_id = f"{inps.tag}-proj-reproduce"
+            cmd_run = [
+                *_external_cli_cmd(),
+                "run",
+                "--run-id",
+                run_id,
+                "--workflow-id",
+                "reproduce",
+                "--case",
+                str(inps.reproduce_case),
+                "--ns",
+                ",".join(str(x) for x in inps.reproduce_ns),
+            ]
+            rc_gate, out_gate = _run(cmd_run, cwd=project_root, env=env_proj, timeout_seconds=int(inps.timeout_seconds))
+            (logs_dir / "project_init_reproduce_gate.txt").write_text(
+                _redact_external_project_text(out_gate, external_root=project_root),
+                encoding="utf-8",
+            )
+            manifest["outputs"].append(os.fspath((logs_dir / "project_init_reproduce_gate.txt").relative_to(repo_root)))
+
+            pending_category: str | None = None
+            approval_id: str | None = None
+            approval_packet: str | None = None
+            packet_abs: Path | None = None
+            st_path = project_root / ".autoresearch" / "state.json"
+            if st_path.exists():
+                st_proj = read_json(st_path)
+                pending = st_proj.get("pending_approval") if isinstance(st_proj, dict) else None
+                if isinstance(pending, dict):
+                    pending_category = pending.get("category")
+                    approval_id = pending.get("approval_id")
+                    approval_packet = pending.get("packet_path")
+                    if isinstance(approval_packet, str) and approval_packet.strip():
+                        packet_abs = project_root / approval_packet
+
+            kb_profile_json = project_root / "artifacts" / "runs" / run_id / "kb_profile" / "kb_profile.json"
+            context_md = project_root / "artifacts" / "runs" / run_id / "context" / "context.md"
+            context_json = project_root / "artifacts" / "runs" / run_id / "context" / "context.json"
+            plan_md = project_root / ".autoresearch" / "plan.md"
+            expected_packet_abs = project_root / "artifacts" / "runs" / run_id / "approvals" / "A3-0001" / "packet.md"
+            expected_outputs.update(
+                {
+                    "plan_md": _project_anchor_rel(
+                        external_root=project_root,
+                        snapshot_root=project_snapshot_root,
+                        target=plan_md,
+                    ),
+                    "kb_profile_json": _project_anchor_rel(
+                        external_root=project_root,
+                        snapshot_root=project_snapshot_root,
+                        target=kb_profile_json,
+                    ),
+                    "context_md": _project_anchor_rel(
+                        external_root=project_root,
+                        snapshot_root=project_snapshot_root,
+                        target=context_md,
+                    ),
+                    "context_json": _project_anchor_rel(
+                        external_root=project_root,
+                        snapshot_root=project_snapshot_root,
+                        target=context_json,
+                    ),
+                    "approval_packet": _project_anchor_rel(
+                        external_root=project_root,
+                        snapshot_root=project_snapshot_root,
+                        target=expected_packet_abs,
+                    ),
+                }
+            )
+
+            shutil.copytree(project_root, project_snapshot_root, dirs_exist_ok=True)
+
+            manifest["outputs"].append(expected_outputs["approval_packet"])
+            if plan_md.exists():
+                manifest["outputs"].append(expected_outputs["plan_md"])
+            if kb_profile_json.exists():
+                manifest["outputs"].append(expected_outputs["kb_profile_json"])
+            if context_md.exists():
+                manifest["outputs"].append(expected_outputs["context_md"])
+            if context_json.exists():
+                manifest["outputs"].append(expected_outputs["context_json"])
+            if packet_abs and packet_abs.exists():
+                manifest["outputs"].append(
+                    _project_anchor_rel(
+                        external_root=project_root,
+                        snapshot_root=project_snapshot_root,
+                        target=packet_abs,
+                    )
+                )
+
+            return {
+                "project_root": rel(project_snapshot_root),
+                "init_exit_code": int(rc_init),
+                "status_subdir_exit_code": int(rc_status),
+                "status_subdir_state_path_ok": bool(state_path_ok),
+                "nested_init_default_exit_code": int(rc_nested_init),
+                "nested_init_allow_exit_code": int(rc_nested_allow),
+                "nested_state_json_exists": bool(nested_state_exists),
+                "run_id": run_id,
+                "gate_exit_code": int(rc_gate),
+                "pending_category": pending_category,
+                "approval_id": approval_id,
+                "approval_packet_rel": approval_packet,
+                "expected_outputs": expected_outputs,
+            }
+        finally:
+            shutil.rmtree(session_root, ignore_errors=True)
 
     def scenario_plan() -> dict[str, Any]:
         """Plan protocol: create plan, pause/resume, ensure approval packets reference plan steps."""
         run_id = f"{inps.tag}-plan"
         reset_generated_run(run_id)
 
-        cmd_start = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_start = _orchestrator_cmd(
             "start",
             "--run-id",
             run_id,
             "--workflow-id",
             "reproduce",
             "--force",
-        ]
+            project_root=shared_project_root,
+        )
         rc_start, out_start = _run(cmd_start, cwd=repo_root, env=env, timeout_seconds=60)
-        (logs_dir / "plan_start.txt").write_text(out_start, encoding="utf-8")
+        (logs_dir / "plan_start.txt").write_text(
+            _redact_external_project_text(out_start, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "plan_start.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         def _read_state() -> dict[str, Any]:
             if not state_path.exists():
@@ -511,18 +694,32 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         if isinstance(md_rel, str) and md_rel.strip():
             md_exists = (repo_root / md_rel).exists()
 
-        rc_pause, out_pause = _run(["python3", "scripts/orchestrator.py", "pause"], cwd=repo_root, env=env, timeout_seconds=30)
-        (logs_dir / "plan_pause.txt").write_text(out_pause, encoding="utf-8")
+        rc_pause, out_pause = _run(
+            _orchestrator_cmd("pause", project_root=shared_project_root),
+            cwd=repo_root,
+            env=env,
+            timeout_seconds=30,
+        )
+        (logs_dir / "plan_pause.txt").write_text(
+            _redact_external_project_text(out_pause, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "plan_pause.txt").relative_to(repo_root)))
 
-        rc_resume, out_resume = _run(["python3", "scripts/orchestrator.py", "resume", "--force"], cwd=repo_root, env=env, timeout_seconds=30)
-        (logs_dir / "plan_resume.txt").write_text(out_resume, encoding="utf-8")
+        rc_resume, out_resume = _run(
+            _orchestrator_cmd("resume", "--force", project_root=shared_project_root),
+            cwd=repo_root,
+            env=env,
+            timeout_seconds=30,
+        )
+        (logs_dir / "plan_resume.txt").write_text(
+            _redact_external_project_text(out_resume, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "plan_resume.txt").relative_to(repo_root)))
 
         # Trigger A3 gate to generate an approval packet.
-        cmd_run = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_run = _orchestrator_cmd(
             "run",
             "--run-id",
             run_id,
@@ -532,10 +729,15 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             str(inps.reproduce_case),
             "--ns",
             ",".join(str(x) for x in inps.reproduce_ns),
-        ]
+            project_root=shared_project_root,
+        )
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "plan_gate.txt").write_text(out_gate, encoding="utf-8")
+        (logs_dir / "plan_gate.txt").write_text(
+            _redact_external_project_text(out_gate, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "plan_gate.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         pending = _read_pending_approval(state_path)
         approval_id = (pending or {}).get("approval_id")
@@ -558,17 +760,24 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         out_approve = ""
         if isinstance(approval_id, str) and approval_id.strip():
             rc_approve, out_approve = _run(
-                ["python3", "scripts/orchestrator.py", "approve", approval_id],
+                _orchestrator_cmd("approve", approval_id, project_root=shared_project_root),
                 cwd=repo_root,
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / "plan_approve.txt").write_text(out_approve, encoding="utf-8")
+            (logs_dir / "plan_approve.txt").write_text(
+                _redact_external_project_text(out_approve, external_root=shared_project_root),
+                encoding="utf-8",
+            )
             manifest["outputs"].append(os.fspath((logs_dir / "plan_approve.txt").relative_to(repo_root)))
 
         rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "plan_final.txt").write_text(out_final, encoding="utf-8")
+        (logs_dir / "plan_final.txt").write_text(
+            _redact_external_project_text(out_final, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "plan_final.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         st2 = _read_state()
         cur2 = st2.get("current_step") if isinstance(st2.get("current_step"), dict) else {}
@@ -633,18 +842,20 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         run_id = f"{inps.tag}-branching"
         reset_generated_run(run_id)
 
-        cmd_start = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_start = _orchestrator_cmd(
             "start",
             "--run-id",
             run_id,
             "--workflow-id",
             "reproduce",
             "--force",
-        ]
+            project_root=shared_project_root,
+        )
         rc_start, out_start = _run(cmd_start, cwd=repo_root, env=env, timeout_seconds=60)
-        (logs_dir / "branching_start.txt").write_text(out_start, encoding="utf-8")
+        (logs_dir / "branching_start.txt").write_text(
+            _redact_external_project_text(out_start, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "branching_start.txt").relative_to(repo_root)))
 
         def _read_state() -> dict[str, Any]:
@@ -656,16 +867,15 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         add_exit_codes: list[int] = []
         add_outs: list[str] = []
         for i in range(1, 6):
-            cmd_add = [
-                "python3",
-                "scripts/orchestrator.py",
+            cmd_add = _orchestrator_cmd(
                 "branch",
                 "add",
                 "--decision-id",
                 "reproduce.main",
                 "--description",
                 f"candidate {i}",
-            ]
+                project_root=shared_project_root,
+            )
             rc_add, out_add = _run(cmd_add, cwd=repo_root, env=env, timeout_seconds=30)
             add_exit_codes.append(int(rc_add))
             add_outs.append(out_add)
@@ -673,24 +883,21 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         manifest["outputs"].append(os.fspath((logs_dir / "branching_add.txt").relative_to(repo_root)))
 
         # Attempt to exceed cap without override (expected failure).
-        cmd_over = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_over = _orchestrator_cmd(
             "branch",
             "add",
             "--decision-id",
             "reproduce.main",
             "--description",
             "candidate 6",
-        ]
+            project_root=shared_project_root,
+        )
         rc_over, out_over = _run(cmd_over, cwd=repo_root, env=env, timeout_seconds=30)
         (logs_dir / "branching_over_cap.txt").write_text(out_over, encoding="utf-8")
         manifest["outputs"].append(os.fspath((logs_dir / "branching_over_cap.txt").relative_to(repo_root)))
 
         # Add with explicit cap override.
-        cmd_add6 = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_add6 = _orchestrator_cmd(
             "branch",
             "add",
             "--decision-id",
@@ -699,15 +906,14 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "candidate 6",
             "--cap-override",
             "6",
-        ]
+            project_root=shared_project_root,
+        )
         rc_add6, out_add6 = _run(cmd_add6, cwd=repo_root, env=env, timeout_seconds=30)
         (logs_dir / "branching_add6.txt").write_text(out_add6, encoding="utf-8")
         manifest["outputs"].append(os.fspath((logs_dir / "branching_add6.txt").relative_to(repo_root)))
 
         # Switch to b3 (deterministic for auto branch ids).
-        cmd_switch = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_switch = _orchestrator_cmd(
             "branch",
             "switch",
             "--decision-id",
@@ -718,10 +924,15 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "failed",
             "--note",
             "regression switch",
-        ]
+            project_root=shared_project_root,
+        )
         rc_switch, out_switch = _run(cmd_switch, cwd=repo_root, env=env, timeout_seconds=30)
-        (logs_dir / "branching_switch.txt").write_text(out_switch, encoding="utf-8")
+        (logs_dir / "branching_switch.txt").write_text(
+            _redact_external_project_text(out_switch, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "branching_switch.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         st = _read_state()
         plan = st.get("plan") if isinstance(st.get("plan"), dict) else {}
@@ -844,9 +1055,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         run_card_path.write_text(_json.dumps(run_card, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
         manifest["outputs"].append(os.fspath(run_card_path.relative_to(repo_root)))
 
-        cmd_run = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_run = _orchestrator_cmd(
             "run",
             "--run-id",
             run_id,
@@ -854,14 +1063,18 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "shell_adapter_smoke",
             "--force",
             "--run-card",
-            os.fspath(run_card_path.relative_to(repo_root)),
+            os.fspath(run_card_path),
             "--sandbox",
             "local_copy",
             "--sandbox-network",
             "disabled",
-        ]
+            project_root=shared_project_root,
+        )
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=60)
-        (logs_dir / "sandbox_gate.txt").write_text(out_gate, encoding="utf-8")
+        (logs_dir / "sandbox_gate.txt").write_text(
+            _redact_external_project_text(out_gate, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "sandbox_gate.txt").relative_to(repo_root)))
 
         pending = _read_pending_approval(state_path)
@@ -873,17 +1086,24 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         out_approve = ""
         if isinstance(approval_id, str) and approval_id.strip():
             rc_approve, out_approve = _run(
-                ["python3", "scripts/orchestrator.py", "approve", approval_id],
+                _orchestrator_cmd("approve", approval_id, project_root=shared_project_root),
                 cwd=repo_root,
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / "sandbox_approve.txt").write_text(out_approve, encoding="utf-8")
+            (logs_dir / "sandbox_approve.txt").write_text(
+                _redact_external_project_text(out_approve, external_root=shared_project_root),
+                encoding="utf-8",
+            )
             manifest["outputs"].append(os.fspath((logs_dir / "sandbox_approve.txt").relative_to(repo_root)))
 
         rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=120)
-        (logs_dir / "sandbox_final.txt").write_text(out_final, encoding="utf-8")
+        (logs_dir / "sandbox_final.txt").write_text(
+            _redact_external_project_text(out_final, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "sandbox_final.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         sandbox_ok_path = repo_root / "artifacts" / "runs" / run_id / step_dir / "sandbox_ok.txt"
         sandbox_ok_exists = sandbox_ok_path.exists()
@@ -938,9 +1158,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     def scenario_revision() -> dict[str, Any]:
         run_id = f"{inps.tag}-revision"
         reset_generated_run(run_id)
-        cmd_run = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_run = _orchestrator_cmd(
             "run",
             "--run-id",
             run_id,
@@ -950,9 +1168,13 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             str(inps.revision_paper_root),
             "--tex-main",
             str(inps.revision_tex_main),
-        ]
+            project_root=shared_project_root,
+        )
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "revision_gate.txt").write_text(out_gate, encoding="utf-8")
+        (logs_dir / "revision_gate.txt").write_text(
+            _redact_external_project_text(out_gate, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "revision_gate.txt").relative_to(repo_root)))
 
         pending = _read_pending_approval(state_path)
@@ -964,17 +1186,24 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         out_approve = ""
         if isinstance(approval_id, str) and approval_id.strip():
             rc_approve, out_approve = _run(
-                ["python3", "scripts/orchestrator.py", "approve", approval_id],
+                _orchestrator_cmd("approve", approval_id, project_root=shared_project_root),
                 cwd=repo_root,
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / "revision_approve.txt").write_text(out_approve, encoding="utf-8")
+            (logs_dir / "revision_approve.txt").write_text(
+                _redact_external_project_text(out_approve, external_root=shared_project_root),
+                encoding="utf-8",
+            )
             manifest["outputs"].append(os.fspath((logs_dir / "revision_approve.txt").relative_to(repo_root)))
 
         rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "revision_final.txt").write_text(out_final, encoding="utf-8")
+        (logs_dir / "revision_final.txt").write_text(
+            _redact_external_project_text(out_final, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "revision_final.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         return {
             "run_id": run_id,
@@ -995,9 +1224,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     def scenario_survey_polish() -> dict[str, Any]:
         run_id = f"{inps.tag}-survey-polish"
         reset_generated_run(run_id)
-        cmd_run = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_run = _orchestrator_cmd(
             "run",
             "--run-id",
             run_id,
@@ -1005,9 +1232,13 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "literature_survey_polish",
             "--survey-refkeys",
             "arxiv-2310.06770-swe-bench,arxiv-2405.15793-swe-agent",
-        ]
+            project_root=shared_project_root,
+        )
         rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "survey_polish_gate.txt").write_text(out_gate, encoding="utf-8")
+        (logs_dir / "survey_polish_gate.txt").write_text(
+            _redact_external_project_text(out_gate, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "survey_polish_gate.txt").relative_to(repo_root)))
 
         pending = _read_pending_approval(state_path)
@@ -1019,17 +1250,24 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         out_approve = ""
         if isinstance(approval_id, str) and approval_id.strip():
             rc_approve, out_approve = _run(
-                ["python3", "scripts/orchestrator.py", "approve", approval_id],
+                _orchestrator_cmd("approve", approval_id, project_root=shared_project_root),
                 cwd=repo_root,
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / "survey_polish_approve.txt").write_text(out_approve, encoding="utf-8")
+            (logs_dir / "survey_polish_approve.txt").write_text(
+                _redact_external_project_text(out_approve, external_root=shared_project_root),
+                encoding="utf-8",
+            )
             manifest["outputs"].append(os.fspath((logs_dir / "survey_polish_approve.txt").relative_to(repo_root)))
 
         rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "survey_polish_final.txt").write_text(out_final, encoding="utf-8")
+        (logs_dir / "survey_polish_final.txt").write_text(
+            _redact_external_project_text(out_final, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "survey_polish_final.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         return {
             "run_id": run_id,
@@ -1056,12 +1294,23 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         """Attempt to bypass approvals by pre-populating gate_satisfied without approval_history."""
         def start_run(run_id: str, workflow_id: str) -> None:
             rc, out = _run(
-                ["python3", "scripts/orchestrator.py", "start", "--run-id", run_id, "--workflow-id", workflow_id, "--force"],
+                _orchestrator_cmd(
+                    "start",
+                    "--run-id",
+                    run_id,
+                    "--workflow-id",
+                    workflow_id,
+                    "--force",
+                    project_root=shared_project_root,
+                ),
                 cwd=repo_root,
                 env=env,
                 timeout_seconds=60,
             )
-            (logs_dir / f"bypass_start_{_safe_slug(run_id)}.txt").write_text(out, encoding="utf-8")
+            (logs_dir / f"bypass_start_{_safe_slug(run_id)}.txt").write_text(
+                _redact_external_project_text(out, external_root=shared_project_root),
+                encoding="utf-8",
+            )
             manifest["outputs"].append(os.fspath((logs_dir / f"bypass_start_{_safe_slug(run_id)}.txt").relative_to(repo_root)))
             if rc != 0:
                 errors.append(f"bypass start failed for {run_id} (exit_code={rc})")
@@ -1071,9 +1320,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         reset_generated_run(run_id_a3)
         start_run(run_id_a3, "reproduce")
         inject_fake_gate_satisfied(category="A3", approval_id="A3-FAKE")
-        cmd_run_a3 = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_run_a3 = _orchestrator_cmd(
             "run",
             "--run-id",
             run_id_a3,
@@ -1083,9 +1330,13 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             str(inps.reproduce_case),
             "--ns",
             ",".join(str(x) for x in inps.reproduce_ns),
-        ]
+            project_root=shared_project_root,
+        )
         rc_a3, out_a3 = _run(cmd_run_a3, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "bypass_a3_run.txt").write_text(out_a3, encoding="utf-8")
+        (logs_dir / "bypass_a3_run.txt").write_text(
+            _redact_external_project_text(out_a3, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "bypass_a3_run.txt").relative_to(repo_root)))
         pending_a3 = _read_pending_approval(state_path)
 
@@ -1094,9 +1345,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         reset_generated_run(run_id_a4)
         start_run(run_id_a4, "revision")
         inject_fake_gate_satisfied(category="A4", approval_id="A4-FAKE")
-        cmd_run_a4 = [
-            "python3",
-            "scripts/orchestrator.py",
+        cmd_run_a4 = _orchestrator_cmd(
             "run",
             "--run-id",
             run_id_a4,
@@ -1106,9 +1355,13 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             str(inps.revision_paper_root),
             "--tex-main",
             str(inps.revision_tex_main),
-        ]
+            project_root=shared_project_root,
+        )
         rc_a4, out_a4 = _run(cmd_run_a4, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "bypass_a4_run.txt").write_text(out_a4, encoding="utf-8")
+        (logs_dir / "bypass_a4_run.txt").write_text(
+            _redact_external_project_text(out_a4, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "bypass_a4_run.txt").relative_to(repo_root)))
         pending_a4 = _read_pending_approval(state_path)
 
@@ -1129,23 +1382,43 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         run_id = f"{inps.tag}-computation"
         reset_generated_run(run_id)
         run_card = ensure_computation_run_card()
-        cmd_run = [
-            "python3",
-            "scripts/orchestrator.py",
+        computation_project_dir = out_dir / "computation_fixture"
+        scenario_env = _external_cli_env(base_env=env, runtime_root=None)
+        external_state_path = shared_project_root / ".autoresearch" / "state.json"
+
+        rc_init_external, out_init_external = _run(
+            _orchestrator_cmd("init", "--force", "--runtime-only", project_root=shared_project_root),
+            cwd=repo_root,
+            env=scenario_env,
+            timeout_seconds=min(120, int(inps.timeout_seconds)),
+        )
+        (logs_dir / "computation_init.txt").write_text(
+            _redact_external_project_text(out_init_external, external_root=shared_project_root),
+            encoding="utf-8",
+        )
+        manifest["outputs"].append(os.fspath((logs_dir / "computation_init.txt").relative_to(repo_root)))
+
+        cmd_run = _orchestrator_cmd(
             "run",
             "--run-id",
             run_id,
             "--workflow-id",
             "computation",
             "--run-card",
-            run_card,
+            os.fspath((repo_root / run_card).resolve()),
+            "--project-dir",
+            os.fspath(computation_project_dir.resolve()),
             "--trust-project",
-        ]
-        rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "computation_gate.txt").write_text(out_gate, encoding="utf-8")
+            project_root=shared_project_root,
+        )
+        rc_gate, out_gate = _run(cmd_run, cwd=repo_root, env=scenario_env, timeout_seconds=int(inps.timeout_seconds))
+        (logs_dir / "computation_gate.txt").write_text(
+            _redact_external_project_text(out_gate, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "computation_gate.txt").relative_to(repo_root)))
 
-        pending = _read_pending_approval(state_path)
+        pending = _read_pending_approval(external_state_path)
         approval_id = (pending or {}).get("approval_id")
         category = (pending or {}).get("category")
         packet_rel = (pending or {}).get("packet_path")
@@ -1154,17 +1427,24 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         out_approve = ""
         if isinstance(approval_id, str) and approval_id.strip():
             rc_approve, out_approve = _run(
-                ["python3", "scripts/orchestrator.py", "approve", approval_id],
+                _orchestrator_cmd("approve", approval_id, project_root=shared_project_root),
                 cwd=repo_root,
-                env=env,
+                env=scenario_env,
                 timeout_seconds=60,
             )
-            (logs_dir / "computation_approve.txt").write_text(out_approve, encoding="utf-8")
+            (logs_dir / "computation_approve.txt").write_text(
+                _redact_external_project_text(out_approve, external_root=shared_project_root),
+                encoding="utf-8",
+            )
             manifest["outputs"].append(os.fspath((logs_dir / "computation_approve.txt").relative_to(repo_root)))
 
-        rc_final, out_final = _run(cmd_run, cwd=repo_root, env=env, timeout_seconds=int(inps.timeout_seconds))
-        (logs_dir / "computation_final.txt").write_text(out_final, encoding="utf-8")
+        rc_final, out_final = _run(cmd_run, cwd=repo_root, env=scenario_env, timeout_seconds=int(inps.timeout_seconds))
+        (logs_dir / "computation_final.txt").write_text(
+            _redact_external_project_text(out_final, external_root=shared_project_root),
+            encoding="utf-8",
+        )
         manifest["outputs"].append(os.fspath((logs_dir / "computation_final.txt").relative_to(repo_root)))
+        _sync_external_run_artifacts(external_root=shared_project_root, run_id=run_id)
 
         return {
             "run_id": run_id,
@@ -1172,6 +1452,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "pending_category": category,
             "approval_id": approval_id,
             "approval_packet": packet_rel,
+            "init_exit_code": int(rc_init_external),
             "approve_exit_code": int(rc_approve) if rc_approve is not None else None,
             "final_exit_code": int(rc_final),
             "expected_outputs": {
@@ -1243,9 +1524,10 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             )
         if not bool(project_init.get("status_subdir_state_path_ok")):
             errors.append("project_init expected status_subdir_state_path_ok=true")
-        if project_init.get("nested_init_exit_code") != 2:
+        if project_init.get("nested_init_default_exit_code") != 0:
             errors.append(
-                f"project_init expected nested init refusal exit code 2, got {project_init.get('nested_init_exit_code')}"
+                "project_init expected nested init default exit code 0, "
+                f"got {project_init.get('nested_init_default_exit_code')}"
             )
         if project_init.get("nested_init_allow_exit_code") != 0:
             errors.append(
@@ -1264,12 +1546,15 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "state_json",
             "approval_policy_json",
             "ledger_jsonl",
-            "kb_index_json",
-            "kb_profile_minimal",
-            "kb_profile_curated",
+            "project_charter",
+            "project_index",
+            "research_contract",
+            "research_notebook",
+            "research_plan",
             "docs_approval_gates",
             "docs_artifact_contract",
             "docs_eval_gate_contract",
+            "specs_plan_schema",
             "plan_md",
             "kb_profile_json",
             "approval_packet",
@@ -1460,6 +1745,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     }
 
     artifact_paths = _write_artifacts(repo_root=repo_root, out_dir=out_dir, manifest=manifest, summary=summary, analysis=analysis)
+    shutil.rmtree(shared_session_root, ignore_errors=True)
     return {
         "errors": errors,
         "artifact_paths": artifact_paths,

@@ -15,7 +15,7 @@ This file governs development inside `packages/hep-autoresearch/`.
   - user-created external project roots (`autoresearch init`);
   - package-local templates under `templates/`;
   - deterministic regression fixtures under `evals/fixtures/`;
-  - generated scaffold projects under `artifacts/runs/*/orchestrator_regression/project_init_project/`.
+  - repo-local snapshot anchors under `artifacts/runs/*/orchestrator_regression/project_init_project/` for regression inspection only; they are not real project authorities.
 - Do not re-introduce package-root residue such as `PROJECT_CHARTER.md`, `PROJECT_MAP.md`, `RESEARCH_PLAN.md`, `PREWORK.md`, `Draft_Derivation.md`, package-root `paper/`, member prompt files, or ad-hoc self-hosted project state.
 - Keep templates and fixtures generic, minimal, and reusable. Narrow historical project residue should stay out of this repo.
 
