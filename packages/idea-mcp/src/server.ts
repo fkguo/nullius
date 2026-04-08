@@ -26,7 +26,7 @@ function isWithinRepoRoot(targetPath: string, repoRoot: string = IDEA_MCP_REPO_R
 }
 
 export function assertNoLegacyIdeaEnv(env: NodeJS.ProcessEnv = process.env): void {
-  const legacyEnvNames = ['IDEA_MCP_BACKEND', 'IDEA_CORE_PATH'].filter((name) => {
+  const legacyEnvNames = ['IDEA_MCP_BACKEND'].filter((name) => {
     const value = env[name];
     return typeof value === 'string' && value.trim().length > 0;
   });

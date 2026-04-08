@@ -57,9 +57,6 @@ describe('idea-mcp server configuration', () => {
     expect(() => assertNoLegacyIdeaEnv({ IDEA_MCP_BACKEND: 'idea-engine' })).toThrow(
       'idea-mcp no longer supports legacy backend envs: IDEA_MCP_BACKEND; TS idea-engine is the only host authority',
     );
-    expect(() => assertNoLegacyIdeaEnv({ IDEA_CORE_PATH: '/tmp/idea-core' })).toThrow(
-      'idea-mcp no longer supports legacy backend envs: IDEA_CORE_PATH; TS idea-engine is the only host authority',
-    );
     expect(() => createIdeaRpcClient({ IDEA_MCP_BACKEND: 'idea-engine' })).toThrow(
       'idea-mcp no longer supports legacy backend envs: IDEA_MCP_BACKEND; TS idea-engine is the only host authority',
     );

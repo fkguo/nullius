@@ -104,11 +104,6 @@ describe('mapLegacyToRunState', () => {
     expect(mapLegacyToRunState('FAILED')).toBe('failed');
   });
 
-  it('should map idea-core legacy', () => {
-    expect(mapLegacyToRunState('exhausted')).toBe('failed');
-    expect(mapLegacyToRunState('early_stopped')).toBe('done');
-  });
-
   it('should map plan step legacy', () => {
     expect(mapLegacyToRunState('in_progress')).toBe('running');
     expect(mapLegacyToRunState('blocked')).toBe('awaiting_approval');

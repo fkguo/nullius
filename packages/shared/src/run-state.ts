@@ -14,8 +14,6 @@
  *   orchestrator: idle → pending, running → running, completed → done
  *   adapter:      NOT_STARTED → pending, RUNNING → running, DONE → done, FAILED → failed
  *   hep-mcp:      created → pending, running → running, done → done, failed → failed
- *   idea-core:    running → running, paused → paused, exhausted → failed,
- *                 early_stopped → done, completed → done
  */
 export const RUN_STATES = {
   pending: 'pending',
@@ -90,9 +88,6 @@ const LEGACY_TO_RUN_STATE: Record<string, RunState> = {
   FAILED: 'failed',
   // orchestrator extended
   rejected: 'failed',
-  // idea-core legacy
-  exhausted: 'failed',
-  early_stopped: 'done',
   // plan step legacy
   in_progress: 'running',
   blocked: 'awaiting_approval',
