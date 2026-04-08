@@ -69,6 +69,7 @@
 
 - 本仓的本地 maintainer 材料可以存在于 gitignored 目录或仓外备份，但不要把它们重新纳入公开 Git 跟踪。
 - 若某项工作需要更细粒度的 lane plan、formal review packet、closeout tracker 或 branch/worktree queue，请在本地维护，不要把这些材料重新当作 public product docs。
+- 从 public repo 移除的开发过程文件，默认迁到 `~/.autoresearch-lab-dev/`，优先按 `trackers/`、`plans/`、`reviews/`、`prompts/`、`closeouts/`、`archives/` 分区维护。
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

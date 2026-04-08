@@ -13,7 +13,7 @@
 
 - 根级治理规则只在 `AGENTS.md` 维护，不在本 shim 重复。
 - 旧 prompt 若要求“读取根 `CLAUDE.md`”，应解释为“先读 `AGENTS.md`，再读本 shim，再按需要读 package README / docs / code / tests”。
-- maintainer-only 的 redesign plan、tracker、implementation prompt、formal review packet 与 lane queue 现在是本地材料，不属于公开仓 surface。
+- maintainer-only 的 redesign plan、tracker、implementation prompt、formal review packet 与 lane queue 现在是本地材料，不属于公开仓 surface；默认本地落点是 `~/.autoresearch-lab-dev/`。
 - 跨 session 的长期架构结论以 `.serena/memories/architecture-decisions.md` 为准；不要在根 `CLAUDE.md` 维护第二套记忆协议。
 - 多模型 formal review 仍推荐遵循 `AGENTS.md` 中的 source-grounded 规则；若使用 `Gemini(auto)`，默认保持 `auto` 而不是静默切回旧 alias。
 - 若本文件包含自动更新的 GitNexus marker / stats，应将其视为可提交的 generated appendix：它提供辅助导航上下文，但不改变 `AGENTS.md` 作为根级治理 SSOT 的地位。
