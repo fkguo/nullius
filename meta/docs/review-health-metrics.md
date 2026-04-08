@@ -33,8 +33,8 @@
 
 优先记录位置：
 
-1. `meta/remediation_tracker_v1.json` 对应条目的 `note`
-2. 若本次没有单独 tracker item，则至少写入 checked-in closeout 文档，并在相关 tracker 条目中引用
+1. 对应的 checked-in closeout 文档（例如 `meta/docs/*` 或受影响 package 的 closeout 文档）
+2. 若存在 run-level approval artifacts，则同步写入对应 `packet.md` / `packet_short.md`，并在 closeout 文档中给出引用锚点
 
 临时 `meta/.review/` 产物可以承载原始 reviewer 输出，但**不能**作为唯一持久记录位置。
 
@@ -47,8 +47,8 @@ Review health telemetry:
 
 要求：
 
-- 可以作为 tracker `note` 中的一段紧凑 JSON 出现
-- 不要求它成为 tracker 顶层 schema 字段
+- 可以作为 closeout 文档中的一段紧凑 JSON 出现
+- 不要求它成为额外顶层 schema 字段
 - 但字段名与语义必须与本文件保持一致
 
 ## 4. Required Per-Batch Fields

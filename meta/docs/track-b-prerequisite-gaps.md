@@ -2,6 +2,7 @@
 
 > **Date**: 2026-02-21
 > **Branch**: `redesign/track-b`
+> **2026-04 public-surface note**: `REDESIGN_PLAN` / tracker references in this memo are historical planning context only, not current public authority.
 
 ## Gap Analysis
 
@@ -15,7 +16,7 @@ required event types for downstream consumers.
 `tool_call`, and `skill_invoked` event types with structured `data` fields.
 Without these, pattern detection cannot operate.
 
-**Recommended action**: Add note to trace-jsonl item in REDESIGN_PLAN specifying
+**Recommended action**: Add note to the historical trace-jsonl planning item specifying
 that the event schema must define these event types as part of the trace-jsonl
 deliverable. This is a specification refinement, not a new item.
 

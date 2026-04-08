@@ -3,7 +3,7 @@
 > **Date**: 2026-02-25
 > **Context**: Phase 1 Batch 1 完成 (NEW-01, H-16a, H-11a); Batch 2 准备执行 (H-15a, H-18, H-03, H-04)
 > **Trigger**: Agent Framework Landscape 调研后的反思 — 发现系统同时存在过度工程化和欠工程化
-> **Constraint**: 不修改 REDESIGN_PLAN.md，仅产出修订建议
+> **Constraint**: 不直接修改历史 redesign baseline 文档，仅产出修订建议；当前 truth 以 live source/tests/front-door docs 为准
 
 ---
 

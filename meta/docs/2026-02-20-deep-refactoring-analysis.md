@@ -3,11 +3,11 @@
 > **Date**: 2026-02-20
 > **Analyst**: Opus 4.6
 > **Status**: Draft — pending dual-model review (GPT-5.3-Codex + Gemini-3-Pro-Preview)
-> **Scope**: Actionable refactoring items NOT already covered by REDESIGN_PLAN.md v1.3.0
+> **Scope**: Actionable refactoring items NOT already covered by the then-current redesign baseline (historical context only; current truth follows live source/tests/front-door docs)
 
 ## Methodology
 
-Full codebase scan of all 7 components + skills ecosystem. Metrics: file LOC, `as any` count, bare exceptions, test coverage ratio, code duplication, naming violations. Cross-referenced against REDESIGN_PLAN.md 85 items to identify overlap and propose plan edits where needed.
+Full codebase scan of all 7 components + skills ecosystem. Metrics: file LOC, `as any` count, bare exceptions, test coverage ratio, code duplication, naming violations. Cross-referenced against the then-current redesign baseline (historical context only) to identify overlap and propose plan edits where needed.
 
 **Pinned commits**: hep-autoresearch `c149965`, hep-research-mcp `d33b869`, idea-core `e27d526`.
 
@@ -424,7 +424,7 @@ Already partially covered by H-16a (tool consolidation), but the file splitting 
 
 ## 9. Relationship to Existing Plan Items
 
-> **Note**: Items below that overlap existing REDESIGN_PLAN.md work are framed as **plan edits** (amendments to existing items) rather than independent new items. This avoids scope duplication.
+> **Note**: Items below that overlap the then-existing redesign baseline are framed as **plan edits** (amendments to existing items) rather than independent new items. This avoids scope duplication.
 
 | New Item | Overlaps With | Relationship | Action |
 |---|---|---|---|
@@ -668,7 +668,7 @@ User → Any agent shell → MCP tools (hep-research)
 >
 > **Codex review trajectory**: R16 (4 blocking) → R17 (3) → R18 (2) → R19 (3) → R20 (2) → R21 (4) → R22 (2) → R23 (0 blocking, **READY**). Total: 8 rounds in this analysis, ~20 blocking issues resolved.
 >
-> **Next step**: Update REDESIGN_PLAN.md and remediation_tracker_v1.json with NEW-R01~R15 + NEW-R02a items. Draft governance proposal for ECOSYSTEM_DEV_CONTRACT.md CONTRACT-EXEMPT amendment.
+> **Next step**: Map NEW-R01~R15 + NEW-R02a into current live authority surfaces (source/tests/front-door docs) rather than deleted plan/tracker paths, and draft governance proposal for `meta/ECOSYSTEM_DEV_CONTRACT.md` CONTRACT-EXEMPT amendment.
 
 ## Appendix A: Metric Methodology
 

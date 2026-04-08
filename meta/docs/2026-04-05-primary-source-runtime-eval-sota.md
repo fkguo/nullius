@@ -14,6 +14,11 @@ This memo is intentionally narrow:
 
 It does **not** ratify new remediation item ids by itself.
 
+## Public-surface note
+
+References below to `REDESIGN_PLAN`, tracker items, or next-batch candidates are preserved as historical planning context only.
+Current public authority comes from live code, tests, contracts, and front-door docs rather than deleted maintainer-only planning files.
+
 ## Evidence scope
 
 ### Paper corpus actually read from source / full text
@@ -222,9 +227,10 @@ The current code structure therefore supports a narrow follow-up sequence:
 
 ## SSOT disposition
 
-- `REDESIGN_PLAN`: **update required**
-  - add a short runtime/eval SOTA ratification note and memo reference
-- `remediation_tracker_v1.json`: **no update required**
-  - this audit does not change item completion state, dependencies, or truthful execution status
-- new tracker items: **not ratified in this memo**
-  - candidate next-batch work should be proposed explicitly in a later planning pass rather than smuggled into machine-readable status today
+- Historical plan/tracker naming in older materials is context only; it is not current authority.
+- Current live disposition: **front-door docs update may be required**
+  - add a short runtime/eval SOTA ratification note and memo reference in active status/architecture docs when adopted
+- Current live disposition: **no machine-readable completion-state update required**
+  - this audit does not change truthful execution status in live source/tests/contracts
+- Candidate next-batch work: **not ratified in this memo**
+  - propose explicitly in a later planning pass rather than smuggling into status surfaces

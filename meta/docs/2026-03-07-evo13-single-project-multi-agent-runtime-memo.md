@@ -218,7 +218,7 @@
 
 未来 `prompt-phase5-impl-evo13.md` 至少应包含：
 
-1. 必读材料（包含本 memo、`meta/docs/2026-03-08-evo13-runtime-governance-control-plane-amendment.md`、`meta/docs/prompts/prompt-phase5-impl-evo13-skeleton.md` 与 `NEW-LOOP-01` closeout 结果）
+1. 必读材料（包含本 memo、`meta/docs/2026-03-08-evo13-runtime-governance-control-plane-amendment.md`、当前 live 的 `EVO-13` 实施骨架文档（如有）与 `NEW-LOOP-01` closeout 结果）
 2. 范围边界：单项目团队 runtime，不碰社区层
 3. 先补 tests / checkpoint fixtures / recovery smoke
 4. 子任务拆分：

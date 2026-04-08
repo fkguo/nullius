@@ -1,7 +1,17 @@
 ## Cross-Component Architecture Decisions
 
 > This tracked Serena memory stores only stable, cross-session architecture decisions.
-> Detailed closeout evidence, review rounds, exact validation commands, and item history live in `meta/remediation_tracker_v1.json` and the linked checked-in prompt/docs.
+> Detailed closeout evidence, review rounds, exact validation commands, and item history live in checked-in closeout docs plus the current source/tests/front-door docs; do not rely on deleted tracker/plan paths as authority.
+
+### [2026-04-08] Regression harness external-root invariant: real-project semantics must be exercised on an external authority root, never by relaxing policy
+
+**Decision**:
+- Maintainer regression harnesses that exercise real-project flows must materialize a real external project root outside the dev repo and keep fail-closed `project_root` policy intact.
+- If the harness needs repo-owned schemas or fixtures, it must explicitly mirror the bounded authority surface it depends on (for example `specs/`) into that external project root, rather than re-legitimizing repo-internal roots.
+- For flows that cross the canonical TS front door, runtime state must live where the front door actually expects it; do not rely on Python-only runtime overrides to simulate approval/computation success.
+- Repo-local copies under `artifacts/runs/*/orchestrator_regression/**` are snapshot anchors for audit/debug only, not project authorities.
+
+**Why**: This keeps regression coverage aligned with the real generic front door and prevents maintainer harnesses from silently testing a looser world than the product actually permits.
 
 ### [2026-03-02] RT-05: semi-permeable clean room with information membrane
 

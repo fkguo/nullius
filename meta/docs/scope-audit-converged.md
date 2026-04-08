@@ -4,7 +4,7 @@
 > **Models**: Claude Opus 4.6 (1M) + GPT-5.2 (xhigh) + Gemini 3.1 Pro Preview
 > **Method**: 三模型独立调研 → 对比分析 → 收敛综合
 > **Input**: `meta/docs/scope-audit-phase1-2.md` (Claude 原始审计) + 独立 web research (Codex, Gemini)
-> **Constraint**: 不修改 REDESIGN_PLAN.md，仅产出收敛后的修订建议
+> **Constraint**: 不直接修改历史 redesign baseline 文档，仅产出收敛后的修订建议；当前 truth 以 live source/tests/front-door docs 为准
 > **续篇**: `meta/docs/scope-audit-dual-mode-converged.md` — CLI-First Dual-Mode + Research Workflow Architecture 收敛报告
 
 ---

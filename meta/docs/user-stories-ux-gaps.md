@@ -1,14 +1,14 @@
 # User Stories & UX Gap Analysis
 
 > 版本: 0.1.0-draft (2026-02-22)
-> 状态: 讨论草稿，待审阅后纳入 REDESIGN_PLAN
-> 背景: 基于 REDESIGN_PLAN v1.4.1-draft (107 项) 的使用体验分析
+> 状态: 历史讨论草稿；未自动升格为当前公开 authority
+> 背景: 基于当时 REDESIGN_PLAN 草案的使用体验分析；其中对 plan item / 计数的引用现在只按历史上下文理解
 
 ---
 
 ## 目的
 
-REDESIGN_PLAN 的 107 项规划从实现角度定义了"建什么"，但缺少从用户/agent
+当时 REDESIGN_PLAN 草案中的 107 项规划从实现角度定义了"建什么"，但缺少从用户/agent
 视角出发的端到端使用叙事。本文档通过 user story 检验规划的完整性，
 识别使用体验层面的缺口，并提出补充建议。
 

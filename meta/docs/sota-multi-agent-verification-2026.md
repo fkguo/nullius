@@ -431,7 +431,7 @@ Phase 5: Divergence Resolution（分歧解决，原"有限 A2A"扩展）
 
 上述 SOTA 文献（[1][2]）的"单 agent vs 多 agent"对比假设的是**同质 provider 内**的 agent 编排（如 OpenAI 内部多 agent）。
 
-本项目的 research-team 是**跨 provider 异构 ensemble**（通过 RT-03 runner 层配置，见 `meta/REDESIGN_PLAN.md` §RT-03）：
+本项目的 research-team 是**跨 provider 异构 ensemble**（通过 RT-03 runner 层配置，见 `docs/ARCHITECTURE.md` 与 `docs/PROJECT_STATUS.md` 的当前 front-door/runtime 描述）：
 - team leader：主推导 provider（通过 `--member-a-runner` + `--member-a-api-base-url` 配置）
 - team members：独立验证 provider（通过 `--member-b-runner` 配置，可接不同 provider）
 

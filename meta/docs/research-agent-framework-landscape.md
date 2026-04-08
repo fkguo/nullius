@@ -3,6 +3,7 @@
 > **Date**: 2026-02-25
 > **Context**: Phase 1 implementation ongoing; assess whether to adopt external agent framework or continue self-built approach
 > **Conclusion**: Continue self-built; align with 3 open standards (MCP, A2A, OpenTelemetry); track PydanticAI for Phase 5
+> **2026-04 public-surface note**: Phase numbering and `REDESIGN_PLAN` references below are historical planning context only; they do not point to a live public tracker file.
 
 ---
 
@@ -106,7 +107,7 @@ Mastra is the only TS-native option. It's YC W25, very young, API unstable. Lang
 
 PydanticAI's durable execution + A2A support makes it the strongest candidate if Python-side components remain active (e.g., if idea-engine TS migration is delayed). Time-boxed evaluation: spike 1 writing run on PydanticAI.
 
-## 5. Impact on REDESIGN_PLAN
+## 5. Historical Plan Impact
 
 > Updated 2026-02-25 after scope audit. See `meta/docs/scope-audit-phase1-2.md` for full analysis.
 

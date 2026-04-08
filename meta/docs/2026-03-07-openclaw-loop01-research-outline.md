@@ -3,7 +3,9 @@
 > **日期**: 2026-03-07
 > **目标项**: `NEW-LOOP-01` — Single-User Research Loop Runtime
 > **定位**: Phase 3 前置运行时专项调研，不是实现 prompt，也不是实现代码
-> **用途**: 为后续 `meta/docs/prompts/prompt-phase3-impl-new-loop01.md` 提供边界、证据面、设计映射、验收骨架
+> **用途**: 为后续 `NEW-LOOP-01` 实施准备提供边界、证据面、设计映射、验收骨架
+>
+> **公开面清理说明（2026-04）**: 文中凡涉及已删除的 `meta/REDESIGN_PLAN.md`、`meta/remediation_tracker_v1.json`、`meta/docs/prompts/*` 路径，均应按“历史上下文”理解，不再作为当前公开仓 authority。
 
 ## 1. 结论先行
 
@@ -149,8 +151,8 @@
 1. `meta/docs/2026-02-19-opencode-openclaw-design-adoption.md`
 2. `meta/docs/2026-03-07-openclaw-sota-delta.md`
 3. `meta/docs/sota-monorepo-architecture-2026-03-06.md`
-4. `meta/REDESIGN_PLAN.md` 中 `NEW-LOOP-01` / `EVO-13`
-5. `meta/remediation_tracker_v1.json` 中 `NEW-LOOP-01` / 下游依赖
+4. `docs/ARCHITECTURE.md` 与 `docs/PROJECT_STATUS.md` 中当前 front-door / runtime 边界
+5. `meta/front_door_authority_map_v1.json` 与 `meta/ECOSYSTEM_DEV_CONTRACT.md` 中现行 authority 映射
 6. `packages/orchestrator/src/agent-runner.ts`
 7. `packages/orchestrator/tests/agent-runner.test.ts`
 8. 若后续已存在：`packages/orchestrator/src/research-loop*.ts`
@@ -360,20 +362,20 @@
 
 ---
 
-## 15. formal prompt skeleton 草稿（future `prompt-phase3-impl-new-loop01.md`）
+## 15. future implementation skeleton 草稿（`NEW-LOOP-01`）
 
 > 这是结构草稿，不代表现在就进入实现。
 
 ### 15.1 标题与使命
 
-- 标题：`prompt-phase3-impl-new-loop01.md`
+- 标题：`NEW-LOOP-01 implementation skeleton`
 - 使命：在 Phase 3 落地单用户 research loop 的最小 runtime substrate，使研究执行从线性阶段机转为 event/task graph，并为 `EVO-01/02/03` 提供统一 handoff surface。
 
 ### 15.2 开工前硬门禁
 
-- 完整读取：`AGENTS.md`、`meta/remediation_tracker_v1.json`、`meta/REDESIGN_PLAN.md`、`meta/docs/sota-monorepo-architecture-2026-03-06.md`、`.serena/memories/architecture-decisions.md`、`meta/docs/prompts/IMPLEMENTATION_PROMPT_CHECKLIST.md`、本专项调研文档、相关代码与测试。
+- 完整读取：`AGENTS.md`、`docs/ARCHITECTURE.md`、`docs/PROJECT_STATUS.md`、`meta/front_door_authority_map_v1.json`、`meta/docs/sota-monorepo-architecture-2026-03-06.md`、`.serena/memories/architecture-decisions.md`、本专项调研文档、相关代码与测试。
 - GitNexus：先读 `gitnexus://repo/autoresearch-lab/context`；stale 则先 `npx gitnexus analyze`。
-- tracker：开工前把 `NEW-LOOP-01` 标记为 `in_progress`。
+- 状态追踪：通过当前仍在仓的状态文档与源码测试事实同步，不依赖已删除 tracker 路径。
 - 范围边界：不得并入 `NEW-DISC-01` D4/D5、`NEW-SEM-06b/d/e`、`RT-07` 返工、`EVO-13` 提前实现。
 
 ### 15.3 目标与非目标
@@ -460,7 +462,7 @@
 
 完成前必须同步：
 
-- `meta/remediation_tracker_v1.json`
+- 受影响的公开 front-door 文档（如 `docs/PROJECT_STATUS.md` / `docs/ARCHITECTURE.md`，若本轮触及）
 - `.serena/memories/architecture-decisions.md`
 - `AGENTS.md`
 - adopted / deferred amendments 及原因

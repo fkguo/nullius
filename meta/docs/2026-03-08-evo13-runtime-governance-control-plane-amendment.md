@@ -152,15 +152,15 @@ future `EVO-13` implementation prompt 除了既有 memo 中的 checkpoint / dele
 
 1. 本草案作为 checked-in 文档保留在 `meta/docs/`
 2. 基础 memo `meta/docs/2026-03-07-evo13-single-project-multi-agent-runtime-memo.md` 反向链接本草案
-3. `meta/docs/prompts/prompt-phase5-impl-evo13-skeleton.md` 作为 checked-in future formal prompt scaffold 保留
+3. future `EVO-13` 实施骨架应保留在当前可发现的 checked-in public docs 中，不依赖已删除 prompt 路径
 4. `AGENTS.md` 的 `EVO-13` 设计追踪段追加本草案路径
 5. `.serena/memories/architecture-decisions.md` 提炼稳定结论
-6. `meta/REDESIGN_PLAN.md` 在 `EVO-13` 段落追加本草案链接与 team-local / fleet-level 边界澄清
-- 升格流程以 `meta/docs/prompts/prompt-phase5-impl-evo13-skeleton.md` §8 为准。
+6. `docs/ARCHITECTURE.md` / `docs/PROJECT_STATUS.md` 在相关 `EVO-13` 边界描述处追加本草案链接与 team-local / fleet-level 边界澄清
+- 升格流程以当前 live 的公开 front-door 文档与源码测试事实为准。
 7. future `EVO-13` formal prompt 的“必读文件”必须同时列出：
    - 基础 memo
    - 本 amendment
-   - `meta/docs/prompts/prompt-phase5-impl-evo13-skeleton.md`
+   - 当前 live 的 `EVO-13` 实施骨架文档（如有）
    - `NEW-LOOP-01` closeout 结果
 8. future `EVO-13` formal prompt 的 review-swarm 与 self-review 检查项必须与本文件 §5 的检查清单逐条对应，并在 review packet 中显式勾选
 

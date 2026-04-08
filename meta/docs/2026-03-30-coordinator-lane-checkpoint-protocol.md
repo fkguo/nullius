@@ -1,7 +1,7 @@
 # Autoresearch-Lab Coordinator-Lane Overlay
 
 > **Date**: 2026-03-30
-> **Status**: Active project overlay
+> **Status**: Historical overlay reference (non-authoritative for current public front door)
 > **Role**: `autoresearch-lab`-specific constraints layered on top of the external Codex lane orchestration skill
 
 ## Canonical Split
@@ -13,7 +13,7 @@ The reusable lane/coordinator automation is no longer canonical inside this repo
 - Canonical runtime state root: `~/.codex/lane-orchestration/`
 - Current project profile: `~/.codex/lane-orchestration/profiles/autoresearch-lab.yaml`
 
-This repo keeps only the project-specific overlay: human review boundaries, prompt placement rules, and `autoresearch-lab` workflow expectations.
+This repo keeps only the project-specific overlay: human review boundaries and `autoresearch-lab` workflow expectations. Maintainer-local prompt/plan artifacts are intentionally outside the public authority surface.
 
 ## Boundary For This Repo
 
@@ -29,17 +29,18 @@ This repo keeps only the project-specific overlay: human review boundaries, prom
 
 - root governance and hard rules in `AGENTS.md`
 - `meta/ECOSYSTEM_DEV_CONTRACT.md`
-- `meta/REDESIGN_PLAN.md`
-- `meta/remediation_tracker_v1.json`
+- `docs/ARCHITECTURE.md`
+- `docs/PROJECT_STATUS.md`
+- `meta/front_door_authority_map_v1.json`
 - project code, tests, schemas, contracts, and closeout truth
 
-### Repo-internal implementation authority still owns
+### Repo-internal implementation truth still owns
 
-- canonical implementation prompts under `meta/docs/prompts/`
-- concrete remediation/item prompts
-- project planning and sequencing docs under `meta/docs/plans/`
+- checked-in source/tests/schemas under `packages/*`, `meta/schemas/*`, and related acceptance tests
+- public front-door docs (`README.md`, `docs/README_zh.md`, `docs/QUICKSTART.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_STATUS.md`, `docs/URI_REGISTRY.md`)
+- checked-in long-lived architecture conclusions in `.serena/memories/architecture-decisions.md`
 
-Those items are not skill content and must stay in repo.
+Those items are not external skill-runtime state and must stay in repo.
 
 ## Required Checkpoints For Autoresearch-Lab
 
@@ -56,7 +57,7 @@ The external skill may automate packet ingestion and coordinator turn startup, b
 
 ### `plan_approval_needed`
 
-For `autoresearch-lab`, this remains the substantive first checkpoint for any real implementation lane. The lane should point to a checked-in canonical prompt under `meta/docs/prompts/` whenever the scope is durable, cross-package, governance-touching, or likely to be reread later.
+For `autoresearch-lab`, this remains the substantive first checkpoint for any real implementation lane. The lane should point to checked-in public authority (source/tests/schemas/front-door docs) whenever the scope is durable, cross-package, governance-touching, or likely to be reread later.
 
 ### `blocker_decision_needed`
 
@@ -70,13 +71,13 @@ For this repo, this means the lane has already completed implementation, accepta
 
 For this repo, this is valid only after the merge candidate is already committed, the worktree is clean, and the applicable review/rebase checks for that committed head are satisfied.
 
-## Project-Specific Prompt Placement
+## Project-Specific Artifact Placement
 
-- Durable implementation authority stays in `meta/docs/prompts/`
-- Planning/queueing/parallelization notes stay in `meta/docs/plans/`
+- Durable implementation authority stays in checked-in source/tests/schemas/front-door docs
+- Maintainer-local planning/queueing/parallelization notes are not public authority
 - Runtime heartbeat/checkpoint JSON, daemon logs, and lane intermediate state must stay outside the repo under `~/.codex/lane-orchestration/`
 
-Do not move canonical remediation prompts, tracker truth, or project schemas into the skill.
+Do not move canonical project truth (code/tests/schemas/public docs) into external skill runtime state.
 
 ## Current Profile Defaults
 
