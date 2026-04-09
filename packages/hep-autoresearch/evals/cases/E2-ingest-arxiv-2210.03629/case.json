@@ -18,6 +18,5 @@
       "Links:"
     ]
   },
-  "notes": "This case asserts that the arXiv fallback ingestion writes a minimal metadata snapshot under references/arxiv/."
+  "notes": "This case asserts that the arXiv-only metadata ingestion path writes a minimal metadata snapshot under references/arxiv/."
 }
-

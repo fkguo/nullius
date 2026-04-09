@@ -10,7 +10,7 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'packages/hep-autoresearch/README.md',
     snippets: [
-      'HEP-oriented provider package and legacy-transition surface inside the Autoresearch Lab monorepo.',
+      'HEP-oriented provider package and provider-local internal parser/toolkit residue inside the Autoresearch Lab monorepo.',
       '- generic lifecycle and bounded computation: `autoresearch`',
       '- high-level literature planning: `autoresearch workflow-plan`',
       '- current mature HEP MCP surface: `@autoresearch/hep-mcp`',
@@ -25,7 +25,7 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'packages/hep-autoresearch/README.zh.md',
     snippets: [
-      '这是 Autoresearch Lab monorepo 中偏 HEP 的 provider 包，以及仍在收缩中的 legacy 过渡实现面。',
+      '这是 Autoresearch Lab monorepo 中偏 HEP 的 provider 包，以及 provider-local 的 internal parser/toolkit 残余实现面。',
       '- generic lifecycle 与 bounded computation：`autoresearch`',
       '- 高层 literature planning：`autoresearch workflow-plan`',
       '- 当前成熟的 HEP MCP 面：`@autoresearch/hep-mcp`',

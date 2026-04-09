@@ -1,6 +1,6 @@
 # HEP Autoresearch（中文说明）
 
-这是 Autoresearch Lab monorepo 中偏 HEP 的 provider 包，以及仍在收缩中的 legacy 过渡实现面。
+这是 Autoresearch Lab monorepo 中偏 HEP 的 provider 包，以及 provider-local 的 internal parser/toolkit 残余实现面。
 
 它已经不是 generic 产品前门。当前公开用户应使用：
 

@@ -1,6 +1,6 @@
 # HEP Autoresearch
 
-HEP-oriented provider package and legacy-transition surface inside the Autoresearch Lab monorepo.
+HEP-oriented provider package and provider-local internal parser/toolkit residue inside the Autoresearch Lab monorepo.
 
 This package is no longer the generic product front door. Public entrypoints live at the repo root:
 
