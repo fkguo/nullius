@@ -123,7 +123,7 @@ class TestOrchestratorStatusRevisionReconcile(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            rc, out, _ = self._run_cli(repo_root, ["hepar", "--project-root", str(repo_root), "status", "--json"])
+            rc, out, _ = self._run_cli(repo_root, ["hep-autoresearch-internal", "--project-root", str(repo_root), "status", "--json"])
             self.assertEqual(rc, 0)
             data = json.loads(out)
             self.assertEqual(data.get("run_status"), "completed")
@@ -156,7 +156,7 @@ class TestOrchestratorStatusRevisionReconcile(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            rc, out, _ = self._run_cli(repo_root, ["hepar", "--project-root", str(repo_root), "status", "--json"])
+            rc, out, _ = self._run_cli(repo_root, ["hep-autoresearch-internal", "--project-root", str(repo_root), "status", "--json"])
             self.assertEqual(rc, 0)
             data = json.loads(out)
             self.assertEqual(data.get("run_status"), "in_progress")
@@ -171,7 +171,7 @@ class TestOrchestratorStatusRevisionReconcile(unittest.TestCase):
             run_id = "R-REVISION-C"
             self._write_state(repo_root, run_id=run_id)
 
-            rc, out, _ = self._run_cli(repo_root, ["hepar", "--project-root", str(repo_root), "status", "--json"])
+            rc, out, _ = self._run_cli(repo_root, ["hep-autoresearch-internal", "--project-root", str(repo_root), "status", "--json"])
             self.assertEqual(rc, 0)
             data = json.loads(out)
             self.assertEqual(((data.get("revision_substeps") or {}).get("source")), "state")
@@ -187,7 +187,7 @@ class TestOrchestratorStatusRevisionReconcile(unittest.TestCase):
             mp.parent.mkdir(parents=True, exist_ok=True)
             mp.write_text(json.dumps({"schema_version": 1, "steps": {"A": {"status": "completed"}}}) + "\n", encoding="utf-8")
 
-            rc, out, _ = self._run_cli(repo_root, ["hepar", "--project-root", str(repo_root), "status", "--json"])
+            rc, out, _ = self._run_cli(repo_root, ["hep-autoresearch-internal", "--project-root", str(repo_root), "status", "--json"])
             self.assertEqual(rc, 0)
             data = json.loads(out)
             self.assertEqual(((data.get("revision_substeps") or {}).get("source")), "state")
@@ -204,7 +204,7 @@ class TestOrchestratorStatusRevisionReconcile(unittest.TestCase):
             before = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual(before.get("run_status"), "running")
 
-            rc, out, _ = self._run_cli(repo_root, ["hepar", "--project-root", str(repo_root), "status", "--json"])
+            rc, out, _ = self._run_cli(repo_root, ["hep-autoresearch-internal", "--project-root", str(repo_root), "status", "--json"])
             self.assertEqual(rc, 0)
             data = json.loads(out)
             self.assertEqual(data.get("run_status"), "needs_recovery")

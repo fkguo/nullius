@@ -209,7 +209,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"], public=False), 0)
+            self.assertEqual(run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"], public=False), 0)
 
             # Create an offline stub of the external paper-reviser skill.
             skills_root = repo_root / "skills"
@@ -270,7 +270,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             plan_src.write_text(json.dumps(plan_obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
             base = [
-                "hepar",
+                "hep-autoresearch-internal",
                 "--project-root",
                 str(repo_root),
                 "run",
@@ -346,7 +346,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             self.assertFalse((run_root / "verification" / "task_state" / "LF-001.json").exists())
 
             self.assertEqual(
-                run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_id)], public=False),
+                run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "approve", str(approval_id)], public=False),
                 0,
             )
 
@@ -430,7 +430,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"], public=False), 0)
+            self.assertEqual(run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"], public=False), 0)
 
             skills_root = repo_root / "skills"
             _write_stub_paper_reviser_skill(skills_root)
@@ -488,7 +488,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             plan_src.write_text(json.dumps(plan_obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
             base = [
-                "hepar",
+                "hep-autoresearch-internal",
                 "--project-root",
                 str(repo_root),
                 "run",
@@ -524,7 +524,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             approval_a1 = ((state.get("pending_approval") or {}).get("approval_id"))
             self.assertIsInstance(approval_a1, str)
             self.assertEqual(
-                run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_a1)], public=False),
+                run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "approve", str(approval_a1)], public=False),
                 0,
             )
 
@@ -542,7 +542,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
             self.assertNotIn("% context applied", draft_txt_2)
 
             self.assertEqual(
-                run_cli(["hepar", "--project-root", str(repo_root), "approve", str(approval_a4)], public=False),
+                run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "approve", str(approval_a4)], public=False),
                 0,
             )
 
@@ -577,7 +577,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            rc_init, _, _ = run_cli(["hepar", "--project-root", str(repo_root), "init"], public=False)
+            rc_init, _, _ = run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"], public=False)
             self.assertEqual(rc_init, 0)
 
             paper_dir = repo_root / "paper"
@@ -619,7 +619,7 @@ class TestPaperReviserWorkflow(unittest.TestCase):
                 }
 
             argv = [
-                "hepar",
+                "hep-autoresearch-internal",
                 "--project-root",
                 str(repo_root),
                 "run",

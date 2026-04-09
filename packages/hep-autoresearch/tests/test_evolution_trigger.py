@@ -123,7 +123,7 @@ class TestEvolutionTrigger(unittest.TestCase):
     def test_cmd_run_completed_triggers_bounded_follow_up(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            self.assertEqual(_run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
+            self.assertEqual(_run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"]), 0)
             _disable_compute_approval(repo_root)
 
             run_card_path = _write_run_card(
@@ -138,7 +138,7 @@ class TestEvolutionTrigger(unittest.TestCase):
 
             rc = _run_cli(
                 [
-                    "hepar",
+                    "hep-autoresearch-internal",
                     "--project-root",
                     str(repo_root),
                     "run",
@@ -165,7 +165,7 @@ class TestEvolutionTrigger(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            self.assertEqual(_run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
+            self.assertEqual(_run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"]), 0)
             _disable_compute_approval(repo_root)
 
             run_card_path = _write_run_card(
@@ -184,7 +184,7 @@ class TestEvolutionTrigger(unittest.TestCase):
             ):
                 rc, _, stderr = _run_cli_capture(
                     [
-                        "hepar",
+                        "hep-autoresearch-internal",
                         "--project-root",
                         str(repo_root),
                         "run",
@@ -206,7 +206,7 @@ class TestEvolutionTrigger(unittest.TestCase):
     def test_cmd_run_failed_triggers_without_overwriting_failed_state(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
-            self.assertEqual(_run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
+            self.assertEqual(_run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"]), 0)
             _disable_compute_approval(repo_root)
 
             run_card_path = _write_run_card(
@@ -217,7 +217,7 @@ class TestEvolutionTrigger(unittest.TestCase):
 
             rc = _run_cli(
                 [
-                    "hepar",
+                    "hep-autoresearch-internal",
                     "--project-root",
                     str(repo_root),
                     "run",

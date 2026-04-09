@@ -42,7 +42,7 @@ class TestDoctorEntrypointSurfaceRetired(unittest.TestCase):
     def test_doctor_entrypoint_flags_no_longer_reachable(self) -> None:
         rc, out, err = self._run_cli(
             [
-                "hepar",
+                "hep-autoresearch-internal",
                 "--project-root",
                 ".",
                 "doctor",

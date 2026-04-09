@@ -38,7 +38,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
                     pass
 
     def _init_and_policy(self, repo_root: Path) -> None:
-        rc, out, err = self._run_cli(["hepar", "--project-root", str(repo_root), "init"])
+        rc, out, err = self._run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"])
         self.assertEqual(rc, 0, msg=out + err)
         policy_path = repo_root / ".autoresearch" / "approval_policy.json"
         policy = json.loads(policy_path.read_text(encoding="utf-8"))
@@ -91,7 +91,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
 
             rc, out, err = self._run_cli(
                 [
-                    "hepar",
+                    "hep-autoresearch-internal",
                     "--project-root",
                     str(repo_root),
                     "run",
@@ -128,7 +128,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
 
             rc, out, err = self._run_cli(
                 [
-                    "hepar",
+                    "hep-autoresearch-internal",
                     "--project-root",
                     str(repo_root),
                     "run",
@@ -158,7 +158,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
 
             rc, out, err = self._run_cli(
                 [
-                    "hepar",
+                    "hep-autoresearch-internal",
                     "--project-root",
                     str(repo_root),
                     "run",
@@ -189,7 +189,7 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
 
             rc, out, err = self._run_cli(
                 [
-                    "hepar",
+                    "hep-autoresearch-internal",
                     "--project-root",
                     str(repo_root),
                     "run",

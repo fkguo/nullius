@@ -31,7 +31,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
             repo_root = Path(td)
 
             # Init creates the minimal scaffold required by the context pack and run state.
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
+            self.assertEqual(run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"]), 0)
 
             # Disable A3 compute approval for this integration-style test.
             policy_path = repo_root / ".autoresearch" / "approval_policy.json"
@@ -74,7 +74,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
             # Run computation via the internal parser CLI.
             rc = run_cli(
                 [
-                    "hepar",
+                    "hep-autoresearch-internal",
                     "--project-root",
                     str(repo_root),
                     "run",
@@ -115,7 +115,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo_root = Path(td)
 
-            self.assertEqual(run_cli(["hepar", "--project-root", str(repo_root), "init"]), 0)
+            self.assertEqual(run_cli(["hep-autoresearch-internal", "--project-root", str(repo_root), "init"]), 0)
 
             # Disable the *default* compute gate (A3) so we can exercise phase-level gates inside computation.
             policy_path = repo_root / ".autoresearch" / "approval_policy.json"
@@ -157,7 +157,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
 
             rc = run_cli(
                 [
-                    "hepar",
+                    "hep-autoresearch-internal",
                     "--project-root",
                     str(repo_root),
                     "run",
@@ -196,7 +196,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
 
         argv0 = list(sys.argv)
         try:
-            sys.argv = ["hepar", "run-card", "validate"]
+            sys.argv = ["hep-autoresearch-internal", "run-card", "validate"]
             buf_out, buf_err = StringIO(), StringIO()
             with redirect_stdout(buf_out), redirect_stderr(buf_err):
                 with self.assertRaises(SystemExit) as exc:
