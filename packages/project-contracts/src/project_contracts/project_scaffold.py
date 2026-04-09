@@ -51,17 +51,14 @@ def _render_template(name: str, *, project_name: str, project_root: Path, profil
 
 
 def _load_plan_schema_template() -> dict[str, Any]:
-    candidates: list[Path] = []
     pkg_root = Path(__file__).resolve().parent
-    candidates.append(pkg_root / "specs" / "plan.schema.json")
-    for parent in list(Path(__file__).resolve().parents)[:8]:
-        candidates.append(parent / "specs" / "plan.schema.json")
-    for candidate in candidates:
-        if candidate.is_file():
-            raw = json.loads(candidate.read_text(encoding="utf-8"))
-            if isinstance(raw, dict) and raw:
-                return raw
-    raise FileNotFoundError("plan schema template not found (expected specs/plan.schema.json in install tree)")
+    candidate = pkg_root / "specs" / "plan.schema.json"
+    if not candidate.is_file():
+        raise FileNotFoundError(f"project-contracts plan schema template missing: {candidate}")
+    raw = json.loads(candidate.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or not raw:
+        raise ValueError(f"project-contracts plan schema template must be a non-empty JSON object: {candidate}")
+    return raw
 
 
 def ensure_project_scaffold(
