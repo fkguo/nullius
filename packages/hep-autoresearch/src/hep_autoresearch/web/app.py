@@ -39,7 +39,7 @@ def ui() -> str:
 </head>
 <body>
   <h1>hep-autoresearch</h1>
-  <p class="muted">Read-only local diagnostics for the transitional Pipeline A surface. Canonical lifecycle authority lives on <code>autoresearch</code>.</p>
+  <p class="muted">Read-only local diagnostics for the provider-local internal parser/toolkit residue. Canonical lifecycle authority lives on <code>autoresearch</code>.</p>
 
   <div class="row">
     <button onclick="refresh()">refresh</button>

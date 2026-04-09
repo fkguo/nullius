@@ -21,4 +21,4 @@
 - 前门是 `autoresearch`
 - 不要把 `hep-autoresearch` / `hepar` 当成产品主身份
 - 不要期待安装态 `hepar` / `hep-autoresearch` public shell 继续存在
-- 剩余 legacy Python 内部实现只会继续收缩，不会重新扩张
+- 剩余已退役的 provider-local Python 内部实现只会继续收缩，不会重新扩张

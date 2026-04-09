@@ -21,4 +21,4 @@ For package consumers, the only stable guidance here is:
 - use `autoresearch` as the front door
 - do not treat `hep-autoresearch` / `hepar` as the product identity
 - do not expect an installable `hepar` / `hep-autoresearch` public shell
-- expect remaining legacy Python internals to continue shrinking rather than expanding
+- expect the remaining retired provider-local Python internals to continue shrinking rather than expanding
