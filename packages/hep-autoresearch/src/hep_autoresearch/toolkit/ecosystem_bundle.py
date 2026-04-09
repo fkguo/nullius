@@ -489,9 +489,9 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
     components_root.mkdir(parents=True, exist_ok=True)
 
     # Copy hep-autoresearch (this repo) — allowlist tracked paths only.
-    hepar_dst = components_root / "hep-autoresearch"
-    hepar_dst.mkdir(parents=True, exist_ok=True)
-    hepar_allow = [
+    hep_autoresearch_dst = components_root / "hep-autoresearch"
+    hep_autoresearch_dst.mkdir(parents=True, exist_ok=True)
+    hep_autoresearch_allow = [
         "src",
         "docs",
         "scripts",
@@ -518,7 +518,11 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
         "research_team_config.json",
         "scan_dependency_rules.json",
     ]
-    hepar_copied = _copy_tracked_files(repo_root=repo_root, pathspecs=hepar_allow, dst_root=hepar_dst)
+    hep_autoresearch_copied = _copy_tracked_files(
+        repo_root=repo_root,
+        pathspecs=hep_autoresearch_allow,
+        dst_root=hep_autoresearch_dst,
+    )
 
     # Copy hep-mcp (package snapshot + lockfiles).
     hep_mcp_dst = components_root / "hep-mcp"
@@ -631,8 +635,8 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
                 "commit": _git_commit(repo_root),
                 "dirty": _git_is_dirty(repo_root),
                 "remote_url": _git_remote_url(repo_root),
-                "paths": hepar_allow,
-                "files_copied": len(hepar_copied),
+                "paths": hep_autoresearch_allow,
+                "files_copied": len(hep_autoresearch_copied),
             },
             "hep-mcp": {
                 "commit": _git_commit(hep_mcp_repo_root),
@@ -681,7 +685,7 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
     # Smoke checks: run bootstrap on extracted bundle + show that secret file triggers failure.
     bootstrap_smoke: dict[str, Any] | None = None
     if inps.run_smoke_checks:
-        with tempfile.TemporaryDirectory(prefix="hepar_bundle_smoke_") as td:
+        with tempfile.TemporaryDirectory(prefix="hep_autoresearch_bundle_smoke_") as td:
             td_path = Path(td)
             with zipfile.ZipFile(bundle_zip_path, "r") as zf:
                 zf.extractall(td_path)
@@ -764,7 +768,7 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
             },
             "components": {
                 "hep-autoresearch": {
-                    "files_copied": len(hepar_copied),
+                    "files_copied": len(hep_autoresearch_copied),
                     "remote_url": _git_remote_url(repo_root),
                     "commit": _git_commit(repo_root),
                 },
