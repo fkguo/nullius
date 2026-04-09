@@ -99,7 +99,7 @@ Current boundary:
 - this is an experimental runtime surface for generic idea search/eval loops
 - it is not yet a root front door or a replacement for `autoresearch` lifecycle/control-plane authority
 
-### 3.4 Launcher-backed workflow consumers
+### 3.4 Stateful workflow consumers
 
 High-level literature workflows are meant to enter through the public stateful `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:
 
@@ -107,6 +107,12 @@ High-level literature workflows are meant to enter through the public stateful `
 - other checked-in consumers remain internal-only validation seams and do not define public workflow authority
 
 These workflow-plan consumers are not the root identity of the repo; they are one layer above checked-in recipe authority.
+
+Current execution boundary:
+
+- `workflow-plan` is currently a public stateful planning front door with stable typed `plan.execution` metadata persisted in `.autoresearch/state.json#/plan`.
+- Execution/consumption of persisted `plan.execution` remains manual or downstream in this slice; there is not yet a canonical closed-loop literature execution runtime.
+- The next slice should pivot to execution/consumption only after docs and drift locks agree on this boundary, and acceptance covers both plan persistence and the documented consumer boundary.
 
 ## 4. Current workflow families
 

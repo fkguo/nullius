@@ -18,7 +18,7 @@
 | 获取单篇论文元数据/引用/被引 | `inspire_literature` | 原子化访问 |
 | 深度分析论文集 | `inspire_critical_analysis` / `inspire_classify_reviews` | 高层 workflow 先经 stateful front-door consumer；这里保留的是 bounded atomic operators |
 | 文献综述 | `autoresearch workflow-plan --recipe literature_to_evidence` | 推荐的公开 stateful front door，需先 `autoresearch init`；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。可再配合 `hep_run_build_writing_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` |
-| 发现奠基性/相关论文 | `autoresearch workflow-plan --recipe literature_landscape` | launcher 解析后再下沉到 `inspire_search` / provenance / network operators |
+| 发现奠基性/相关论文 | `autoresearch workflow-plan --recipe literature_landscape` | 由公开的 stateful front door 解析后，再下沉到 `inspire_search` / provenance / network operators |
 | 物理学家式文献调研 | `autoresearch workflow-plan --recipe literature_gap_analysis` | 不再通过 provider-specific high-level MCP facade |
 | 主题时间线/趋势/新兴方向 | `inspire_topic_analysis` | 模式: `timeline/evolution/emerging/all` |
 | 引用/合作网络分析 | `inspire_network_analysis` | 模式: `citation/collaboration` |

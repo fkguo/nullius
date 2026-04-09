@@ -29,13 +29,19 @@
 ## Current truthful workflows
 
 - **Generic lifecycle workflow**: `autoresearch init/status/approve/pause/resume/export`
-- **Launcher-backed literature workflow**: `autoresearch workflow-plan` resolves literature recipes directly via `@autoresearch/literature-workflows` into bounded executable steps for an initialized external project root, persists the plan substrate into `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`
+- **Public stateful literature planning workflow**: `autoresearch workflow-plan` resolves literature recipes directly via `@autoresearch/literature-workflows` into bounded executable steps for an initialized external project root, persists the plan substrate into `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`
 - **Native TS computation workflow**: `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; gate handling stays on `autoresearch status/approve`
 - **Experimental idea campaign workflow**: `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` on `idea-mcp`
 - **Project/Run evidence workflow**: `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> `hep_export_project`
 - **Writing/export workflow**: citation mapping, evidence build, verifier-enforced rendering, research pack export, paper scaffold export/import
 - **Literature/data workflow**: direct provider search, retrieval, export, and bounded analysis operators
 - **Local reference workflow**: Zotero Local API and offline PDG lookups
+
+## Workflow-plan boundary
+
+- `workflow-plan` 现在是公开的 stateful planning front door，且已把稳定的 typed `plan.execution` metadata 写入 `.autoresearch/state.json#/plan`。
+- 当前 slice 仍未提供 canonical closed-loop literature execution runtime；对持久化 `plan.execution` 的执行/消费仍属于 manual 或 downstream consumer 边界。
+- 当文档与 drift locks 对该边界完全一致、并且 acceptance 同时覆盖 plan persistence 与 consumer boundary 后，下一工程切片应转向 `plan.execution` 的 canonical execution/consumption。
 
 ## State and resource truth
 

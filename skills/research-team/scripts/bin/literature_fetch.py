@@ -18,10 +18,10 @@ Scope / safety:
 Why this exists:
 - Provide a reproducible way to populate `knowledge_base/` with metadata-rich notes.
 - Generate a ready-to-paste `research_contract.md` reference entry line that satisfies the references gate.
-- Act as a source-adapter / prework helper only; generic literature workflow sequencing authority lives in the checked-in `literature-workflows` recipes, session protocol, and launcher-backed consumers, not in this script.
+- Act as a source-adapter / prework helper only; generic literature workflow sequencing authority lives in the checked-in `literature-workflows` recipes, session protocol, and lower-level/internal consumers, not in this script.
 
 Examples:
-  # Resolve a checked-in literature workflow plan through the launcher authority
+  # Resolve a checked-in literature workflow plan through the public stateful front door authority
   python3 literature_fetch.py workflow-plan --recipe literature_landscape --phase prework --query "three-body force" --topic "three-body force"
 
   # INSPIRE search + fetch a record + write KB note
@@ -1308,7 +1308,7 @@ def main() -> int:
     p.add_argument("--kb-notes", default="")
     p.add_argument("--trace-path", default=DEFAULT_TRACE_PATH)
 
-    p = sub.add_parser("workflow-plan", help="Resolve checked-in literature workflow authority into an executable plan.")
+    p = sub.add_parser("workflow-plan", help="Resolve checked-in literature workflow authority through a lower-level consumer into an executable plan.")
     p.add_argument("--recipe", required=True, choices=["literature_gap_analysis", "literature_landscape", "literature_to_evidence"])
     p.add_argument("--phase", required=True)
     p.add_argument("--query", default="")
@@ -1325,7 +1325,7 @@ def main() -> int:
 
     if args.cmd == "workflow-plan":
         if _resolve_workflow_plan is None:
-            raise RuntimeError("literature workflow launcher helper is unavailable")
+            raise RuntimeError("literature workflow lower-level consumer helper is unavailable")
         inputs = {
             "query": str(getattr(args, "query", "") or ""),
             "topic": str(getattr(args, "topic", "") or ""),

@@ -17,6 +17,7 @@ Global options:
 
 Notes:
   - workflow-plan resolves checked-in generic literature workflow recipes into bounded steps.
+  - workflow-plan currently persists executable planning metadata; execution/consumption of persisted plan steps remains downstream.
   - \`run\` is now the native TS computation entrypoint.
   - Pipeline A parser support commands \`doctor\`, \`bridge\`, and \`literature-gap\` are deleted.
   - Retired-public maintainer helpers \`method-design\` and \`run-card\` are deleted; only \`branch\` remains on the provider-local internal parser.
@@ -113,6 +114,7 @@ Behavior:
   Requires an initialized external project root (\`autoresearch init\`).
   Persists the resolved plan into \`.autoresearch/state.json#/plan\`.
   Derives \`.autoresearch/plan.md\` from the persisted plan.
+  Execution/consumption of persisted plan steps remains manual or downstream in this slice.
 
 Output:
   JSON workflow plan is still written to stdout.

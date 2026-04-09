@@ -140,7 +140,7 @@ describe('autoresearch CLI', () => {
     expect(surface.commands).toEqual([...AUTORESEARCH_PUBLIC_COMMAND_INVENTORY]);
   });
 
-  it('resolves launcher-backed workflow plans through the canonical autoresearch front door', async () => {
+  it('resolves public stateful workflow plans through the canonical autoresearch front door', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
