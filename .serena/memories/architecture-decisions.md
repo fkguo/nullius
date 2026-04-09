@@ -175,15 +175,15 @@
 
 **Why**: A deeper source audit of mature agent implementations showed the same stable pattern repeatedly: one canonical front door, append-only or typed canonical state, separate projection layers, and strict containment of legacy/internal tooling. Encoding that split directly into Autoresearch is the safest way to keep generic-first authority from drifting back into legacy shells or maintainer-only surfaces.
 
-### [2026-04-07] Legacy public-shell invariant: installable Pipeline A shell may expose only a bounded compatibility pointer
+### [2026-04-07] Legacy public-shell invariant (superseded on 2026-04-08): temporary bounded-pointer framing before full public-shell retirement
 
 **Decision**:
 - The installable Pipeline A aliases (`hep-autoresearch`, `hepar`, `hep-autopilot`) must not retain a suite of public workflow/support commands after generic authority has moved to `autoresearch`.
-- The only remaining installable public-shell command may be a bounded compatibility pointer (`run`), and that pointer must not own any public workflow inventory or regain generic execution authority.
+- This entry recorded the intermediate contraction stance before the later 2026-04-08 decision deleted the installable public shell entirely; it is kept only as historical sequencing, not as current authority.
 - Legacy utilities such as `approvals`, `report`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, and `migrate` must either be internal full-parser only or be deleted; they are not public front-door truth.
 - Exact public-shell inventory must stay fail-closed across source, front-door authority fixtures, docs, and tests.
 
-**Why**: Leaving a public support-command bundle on the legacy shell recreates a second operator/public front door even when lifecycle and computation have already moved to the generic TS control plane.
+**Why**: Leaving a public support-command bundle on the legacy shell recreates a second operator/public front door even when lifecycle and computation have already moved to the generic TS control plane. The next-day 2026-04-08 decision closed the remaining pointer entirely.
 
 ### [2026-04-07] Idea-engine discovery/runtime authority invariant: TS public host must not point back to legacy package paths
 
@@ -198,10 +198,10 @@
 
 **Decision**:
 - `hep-autoresearch` and its installable alias `hepar` are the same Pipeline A Python control-plane surface; they must not be governed as if one were retired while the other remained the default long-term authority.
-- Current docs may still describe `hep-autoresearch` / `hepar` as usable transitional entrypoints, but long-term retirement semantics are shared unless a later design decision explicitly repoints one of those names onto the TS orchestrator surface.
-- When a batch changes lifecycle status for a package / CLI / pipeline surface (`current`, `transitional`, `retired`, `repointed`), the checked-in governance/docs set must distinguish present usability from target architecture so user docs do not silently contradict `REDESIGN_PLAN`.
+- This historical invariant matters because later retirement applies to both names together; it should no longer be read as permission to keep either name alive as a public transitional entrypoint.
+- When a batch changes lifecycle status for a package / CLI / pipeline surface (`current`, `transitional`, `retired`, `repointed`), the checked-in governance/docs set must distinguish then-current status from later retirement decisions so historical notes do not silently contradict live front-door truth.
 
-**Why**: The repository now has both a still-usable Python Pipeline A and a target TS control plane. Without an explicit invariant tying `hep-autoresearch` and `hepar` together and forcing current-vs-target wording, docs drift into contradictory states where one source says “retired” and another still presents the same surface as the default authority.
+**Why**: The repository then had both a Python Pipeline A and a target TS control plane. Without an explicit invariant tying `hep-autoresearch` and `hepar` together, docs drifted into contradictory states where one source said “retired” and another still presented the same surface as the default authority. The later 2026-04-08 retirement decision resolves that ambiguity in favor of full public-shell retirement.
 
 ### [2026-03-21] Orchestrator package boundary invariant: workspace source is singular, host adapters consume the package surface
 
@@ -311,7 +311,7 @@
 
 **Decision**:
 - Checked-in executable literature workflow authority lives in the leaf workspace package `packages/literature-workflows/`, which is the only recipe reader / validator / resolver for literature workflow recipes.
-- `packages/hep-autoresearch` (`hepar literature-gap`) and `skills/research-team` (`literature_fetch.py workflow-plan`) are consumers of that launcher authority; they must not re-own recipe semantics.
+- `packages/hep-autoresearch` internal parser residue and `skills/research-team` (`literature_fetch.py workflow-plan`) are consumers of that launcher authority; they must not re-own recipe semantics.
 - Provider-specific MCP tools remain bounded atomic operators underneath the workflow layer. Generic workflow authority must not move back into `packages/hep-mcp/` or `packages/shared/`.
 - Workflow-like public literature MCP tools are pruned directly from both `standard` and `full`; they do not get a transitional `full` holding area. The retained public literature surface is bounded atomic analysis/operator tools only.
 
@@ -474,6 +474,7 @@
 - Operator- or compatibility-facing surfaces such as legacy shells, diagnostics web views, runtime bridges, and fleet/status projections may summarize or forward canonical state, but they must not silently acquire their own lifecycle/session authority.
 - When a legacy or provider-local command remains for maintainer/eval/regression coverage, it should be explicitly labeled as internal-only or compatibility-only in code and docs rather than implied to be part of the canonical public surface.
 - Future guardrails should prefer an explicit command/surface inventory that classifies each entrypoint as canonical public, compatibility public, or internal-only, instead of relying only on scattered wording locks.
+- After the 2026-04-08 shell retirement decision, this should be read operationally as canonical public vs internal-only for current live surfaces; any compatibility-public category is historical only unless a later checked-in decision explicitly reintroduces one.
 - Approval/permission semantics should remain typed and scoped at the control-plane boundary (for example per-turn/per-session or per-run/per-project), while bridge/projection layers only carry the derived “blocked on what” context outward.
 
 **Why**: Mature agent runtimes keep thread/session state, execution RPC, approval/permission decisions, and operator projections on separate seams. Preserving that separation in Autoresearch prevents `bridge`, `fleet`, diagnostics UIs, or legacy compatibility shells from hardening into a parallel control plane.
