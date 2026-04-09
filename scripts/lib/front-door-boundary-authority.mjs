@@ -88,9 +88,9 @@ export const FRONT_DOOR_SNIPPETS = [
       'If you want the current strongest domain-pack smoke path next, connect your MCP client to `packages/hep-mcp/dist/index.js` and run:',
     ],
     forbiddenSnippets: [
-      '`hepar literature-gap` is still live only as a legacy compatibility shell pending retirement.',
-      'Legacy compatibility note: `hepar literature-gap` still exists in the legacy Pipeline A CLI surface, but it is no longer a recommended mainline entrypoint and is headed toward retirement.',
-      '| Workflow shells | `workflow-plan` | Checked-in generic workflow authority consumed directly by `autoresearch workflow-plan` and by the lower-level `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan`; `hepar literature-gap` remains only as a legacy compatibility wrapper pending retirement |',
+      '`hepar literature-gap` is still live only as a legacy compatibility shell',
+      '`hepar literature-gap` still exists in the legacy Pipeline A CLI surface',
+      '`hepar literature-gap` remains only as a legacy compatibility wrapper',
     ],
   },
   {
@@ -121,9 +121,9 @@ export const FRONT_DOOR_SNIPPETS = [
       '如果你接着想走当前最强的 domain-pack 烟测路径，再把 MCP client 接到 `packages/hep-mcp/dist/index.js` 并执行：',
     ],
     forbiddenSnippets: [
-      '`hepar literature-gap` 仍然存在，但只作为待退役的 legacy compatibility shell。',
-      'Legacy compatibility 说明：`hepar literature-gap` 仍在旧的 Pipeline A CLI 面上存活，但已不再是推荐的新入口，并且处于退役方向上。',
-      '| Workflow shells | `workflow-plan` | checked-in generic workflow authority，由 `autoresearch workflow-plan` 直接消费，也由较底层的 `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 消费；`hepar literature-gap` 仅剩 legacy compatibility wrapper，等待退役 |',
+      '`hepar literature-gap` 仍然存在，但只作为 legacy compatibility shell',
+      '`hepar literature-gap` 仍在旧的 Pipeline A CLI 面上存活',
+      '`hepar literature-gap` 仅剩 legacy compatibility wrapper',
     ],
   },
   {
@@ -149,8 +149,8 @@ export const FRONT_DOOR_SNIPPETS = [
       '- **Project/Run evidence workflow**: `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> `hep_export_project`',
     ],
     forbiddenSnippets: [
-      'the checked-in Python `workflow-plan` script remains a lower-level parallel consumer, and `hepar literature-gap` remains legacy compatibility-only)',
-      'Legacy compatibility note: `hepar literature-gap` is still live on the legacy Pipeline A CLI surface, but it is no longer a recommended mainline entrypoint.',
+      '`hepar literature-gap` remains legacy compatibility-only',
+      '`hepar literature-gap` is still live on the legacy Pipeline A CLI surface',
     ],
   },
   {
@@ -167,7 +167,7 @@ export const FRONT_DOOR_SNIPPETS = [
       'Users who need generic lifecycle state should invoke `autoresearch` directly rather than expecting the root MCP server to own that surface today.',
     ],
     forbiddenSnippets: [
-      '`hepar literature-gap` still exists on the legacy Pipeline A CLI surface as a compatibility wrapper, but it is not the recommended mainline entrypoint and should keep moving toward retirement.',
+      '`hepar literature-gap` still exists on the legacy Pipeline A CLI surface as a compatibility wrapper',
     ],
   },
   {
@@ -178,9 +178,9 @@ export const FRONT_DOOR_SNIPPETS = [
       '高层 literature workflow 现由 stateful launcher-backed `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；checked-in 的 Python `workflow-plan` 脚本是同一 authority 的较底层 consumer。',
     ],
     forbiddenSnippets: [
-      'launcher 解析后再下沉到 `inspire_search` / provenance / network operators；`hepar literature-gap` 仅剩 legacy compatibility shell',
-      '不再通过 provider-specific high-level MCP facade；`hepar literature-gap` 不再作为推荐主入口',
-      '；`hepar literature-gap` 仍是 legacy compatibility shell，但不再是推荐的新入口。',
+      '`hepar literature-gap` 仅剩 legacy compatibility shell',
+      '`hepar literature-gap` 不再作为推荐主入口',
+      '`hepar literature-gap` 仍是 legacy compatibility shell',
     ],
   },
   {
@@ -205,7 +205,7 @@ export const FRONT_DOOR_SNIPPETS = [
     ],
     forbiddenSnippets: [
       'python -m hep_autoresearch.orchestrator_cli \\',
-      '`hepar literature-gap` 仅剩 legacy compatibility shell pending retirement。',
+      '`hepar literature-gap` 仅剩 legacy compatibility shell',
     ],
   },
   {
