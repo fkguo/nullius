@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "project-contracts"
 version = "0.0.1"
-description = "Neutral scaffold and contract authority for autoresearch project roots"
+description = "Generic scaffold/contracts package for autoresearch project roots"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "fkg" }]
