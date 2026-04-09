@@ -43,7 +43,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 20
               },
@@ -60,10 +60,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 20,
                 "nodes_used": 2,
@@ -124,10 +124,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 2,
                 "steps_remaining": 18,
                 "nodes_used": 4,
@@ -138,7 +138,7 @@
                 "is_replay": false,
                 "payload_hash": "sha256:84d0b4af47308e0142a5a725e8442f5c6acdead82b8cd8d29cda0bb698067110"
               },
-              "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json"
+              "new_nodes_artifact_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json"
             }
           }
         },
@@ -179,10 +179,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 2,
                 "steps_remaining": 18,
                 "nodes_used": 4,
@@ -193,7 +193,7 @@
                 "is_replay": true,
                 "payload_hash": "sha256:84d0b4af47308e0142a5a725e8442f5c6acdead82b8cd8d29cda0bb698067110"
               },
-              "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json"
+              "new_nodes_artifact_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json"
             }
           }
         }
@@ -370,13 +370,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
+              "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
           "generated_at": "2026-03-14T13:00:00Z"
         },
         "campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-002.json": {
@@ -416,13 +416,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
+              "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
           "generated_at": "2026-03-14T13:00:00Z"
         },
         "campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json": {
@@ -446,7 +446,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:73e381badc23379e78423d4026cb2016d1bb50af74311a385e36494c210c5b16",
                 "timestamp": "2026-03-14T13:00:00Z",
                 "role": "OperatorRunner"
@@ -478,10 +478,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
+                  "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -515,10 +515,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
+                      "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -542,7 +542,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:5f846ff588efb6a78498425bbefd2021e08216f896ae44a261f2ddf86638135e",
                 "timestamp": "2026-03-14T13:00:00Z",
                 "role": "OperatorRunner"
@@ -574,10 +574,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
+                  "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -611,10 +611,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
+                      "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -635,8 +635,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "22222222-2222-4222-8222-222222222222",
               "new_node_id": "88888888-8888-4888-8888-888888888888",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json"
             },
             {
               "tick": 2,
@@ -646,8 +646,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "22222222-2222-4222-8222-222222222222",
               "new_node_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-002.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-002.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json"
             }
           ],
           "generated_at": "2026-03-14T13:00:00Z"
@@ -690,8 +690,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "22222222-2222-4222-8222-222222222222",
               "new_node_id": "88888888-8888-4888-8888-888888888888",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json"
             },
             {
               "tick": 2,
@@ -701,23 +701,23 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "22222222-2222-4222-8222-222222222222",
               "new_node_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-002.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/operator_traces/66666666-6666-4666-8666-666666666666-tick-002.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json"
             }
           ],
           "new_node_ids": [
             "88888888-8888-4888-8888-888888888888",
             "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01"
           ],
-          "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json",
+          "new_nodes_artifact_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json",
           "step_budget": null,
           "budget_snapshot": {
             "tokens_used": 0,
             "tokens_remaining": 100000,
-            "cost_usd_used": 0.0,
-            "cost_usd_remaining": 100.0,
-            "wall_clock_s_elapsed": 0.0,
-            "wall_clock_s_remaining": 100000.0,
+            "cost_usd_used": 0,
+            "cost_usd_remaining": 100,
+            "wall_clock_s_elapsed": 0,
+            "wall_clock_s_remaining": 100000,
             "steps_used": 2,
             "steps_remaining": 18,
             "nodes_used": 4,
@@ -759,7 +759,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 20
           },
@@ -767,8 +767,8 @@
           "created_at": "2026-03-14T13:00:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 2,
             "nodes_used": 4
           },
@@ -840,10 +840,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 2,
                   "steps_remaining": 18,
                   "nodes_used": 4,
@@ -854,7 +854,7 @@
                   "is_replay": false,
                   "payload_hash": "sha256:84d0b4af47308e0142a5a725e8442f5c6acdead82b8cd8d29cda0bb698067110"
                 },
-                "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json"
+                "new_nodes_artifact_ref": "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/search_steps/66666666-6666-4666-8666-666666666666-new-nodes.json"
               }
             }
           }
@@ -1035,7 +1035,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:73e381badc23379e78423d4026cb2016d1bb50af74311a385e36494c210c5b16",
               "timestamp": "2026-03-14T13:00:00Z",
               "role": "OperatorRunner"
@@ -1067,10 +1067,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
+                "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -1104,10 +1104,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
+                    "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -1131,7 +1131,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:5f846ff588efb6a78498425bbefd2021e08216f896ae44a261f2ddf86638135e",
               "timestamp": "2026-03-14T13:00:00Z",
               "role": "OperatorRunner"
@@ -1163,10 +1163,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
+                "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -1200,10 +1200,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
+                    "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -1405,7 +1405,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:73e381badc23379e78423d4026cb2016d1bb50af74311a385e36494c210c5b16",
                 "timestamp": "2026-03-14T13:00:00Z",
                 "role": "OperatorRunner"
@@ -1437,10 +1437,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
+                  "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -1474,10 +1474,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
+                      "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -1506,7 +1506,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:5f846ff588efb6a78498425bbefd2021e08216f896ae44a261f2ddf86638135e",
                 "timestamp": "2026-03-14T13:00:00Z",
                 "role": "OperatorRunner"
@@ -1538,10 +1538,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
+                  "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -1575,10 +1575,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-6nxi7zh4/store/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
+                      "file://$STORE/campaigns/11111111-1111-4111-8111-111111111111/artifacts/evidence_packets/66666666-6666-4666-8666-666666666666-tick-002-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -1605,10 +1605,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 20,
                   "nodes_used": 2,
@@ -1676,7 +1676,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 20
               },
@@ -1693,10 +1693,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 20,
                 "nodes_used": 2,
@@ -1756,10 +1756,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 1,
                 "steps_remaining": 19,
                 "nodes_used": 3,
@@ -1770,7 +1770,7 @@
                 "is_replay": false,
                 "payload_hash": "sha256:374b5b1270390c77ec2508dea0c988ddf2cb492b4d728b3511d7e99a64bc9c02"
               },
-              "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/search_steps/ffffffff-ffff-4fff-8fff-ffffffffffff-new-nodes.json"
+              "new_nodes_artifact_ref": "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/search_steps/ffffffff-ffff-4fff-8fff-ffffffffffff-new-nodes.json"
             }
           }
         },
@@ -1909,13 +1909,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
+              "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
           "generated_at": "2026-03-14T13:05:00Z"
         },
         "campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/search_steps/ffffffff-ffff-4fff-8fff-ffffffffffff-new-nodes.json": {
@@ -1938,7 +1938,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:41735866085af2c626e5c94e563d02c0e2e579c6ec3e6c193227b99d80f085e9",
                 "timestamp": "2026-03-14T13:05:00Z",
                 "role": "OperatorRunner"
@@ -1970,10 +1970,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
+                  "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -2007,10 +2007,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
+                      "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -2031,8 +2031,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
               "new_node_id": "11111111-aaaa-4aaa-8aaa-111111111111",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/operator_traces/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/operator_traces/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json"
             }
           ],
           "generated_at": "2026-03-14T13:05:00Z"
@@ -2064,22 +2064,22 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
               "new_node_id": "11111111-aaaa-4aaa-8aaa-111111111111",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/operator_traces/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/operator_traces/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json"
             }
           ],
           "new_node_ids": [
             "11111111-aaaa-4aaa-8aaa-111111111111"
           ],
-          "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/search_steps/ffffffff-ffff-4fff-8fff-ffffffffffff-new-nodes.json",
+          "new_nodes_artifact_ref": "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/search_steps/ffffffff-ffff-4fff-8fff-ffffffffffff-new-nodes.json",
           "step_budget": null,
           "budget_snapshot": {
             "tokens_used": 0,
             "tokens_remaining": 100000,
-            "cost_usd_used": 0.0,
-            "cost_usd_remaining": 100.0,
-            "wall_clock_s_elapsed": 0.0,
-            "wall_clock_s_remaining": 100000.0,
+            "cost_usd_used": 0,
+            "cost_usd_remaining": 100,
+            "wall_clock_s_elapsed": 0,
+            "wall_clock_s_remaining": 100000,
             "steps_used": 1,
             "steps_remaining": 19,
             "nodes_used": 3,
@@ -2121,7 +2121,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 20
           },
@@ -2129,8 +2129,8 @@
           "created_at": "2026-03-14T13:05:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 1,
             "nodes_used": 3
           },
@@ -2201,10 +2201,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 1,
                   "steps_remaining": 19,
                   "nodes_used": 3,
@@ -2215,7 +2215,7 @@
                   "is_replay": false,
                   "payload_hash": "sha256:374b5b1270390c77ec2508dea0c988ddf2cb492b4d728b3511d7e99a64bc9c02"
                 },
-                "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/search_steps/ffffffff-ffff-4fff-8fff-ffffffffffff-new-nodes.json"
+                "new_nodes_artifact_ref": "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/search_steps/ffffffff-ffff-4fff-8fff-ffffffffffff-new-nodes.json"
               }
             }
           }
@@ -2396,7 +2396,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:41735866085af2c626e5c94e563d02c0e2e579c6ec3e6c193227b99d80f085e9",
               "timestamp": "2026-03-14T13:05:00Z",
               "role": "OperatorRunner"
@@ -2428,10 +2428,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
+                "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -2465,10 +2465,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
+                    "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -2670,7 +2670,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:41735866085af2c626e5c94e563d02c0e2e579c6ec3e6c193227b99d80f085e9",
                 "timestamp": "2026-03-14T13:05:00Z",
                 "role": "OperatorRunner"
@@ -2702,10 +2702,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
+                  "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -2739,10 +2739,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-x5ho039f/store/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
+                      "file://$STORE/campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/evidence_packets/ffffffff-ffff-4fff-8fff-ffffffffffff-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -2769,10 +2769,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 20,
                   "nodes_used": 2,
@@ -2842,7 +2842,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 20
               },
@@ -2859,10 +2859,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 20,
                 "nodes_used": 2,
@@ -2926,10 +2926,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 2,
                 "steps_remaining": 18,
                 "nodes_used": 4,
@@ -2940,7 +2940,7 @@
                 "is_replay": false,
                 "payload_hash": "sha256:6a2accb38593915b35cc48b7a2cf9b4c15495ccd4f6af66f3b0d0fc50d2d868c"
               },
-              "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/search_steps/17171717-1717-4717-8717-171717171717-new-nodes.json",
+              "new_nodes_artifact_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/search_steps/17171717-1717-4717-8717-171717171717-new-nodes.json",
               "early_stopped": true,
               "early_stop_reason": "step_budget_exhausted"
             }
@@ -3119,13 +3119,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
+              "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
           "generated_at": "2026-03-14T13:10:00Z"
         },
         "campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-002.json": {
@@ -3165,13 +3165,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
+              "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
           "generated_at": "2026-03-14T13:10:00Z"
         },
         "campaigns/12121212-1212-4212-8212-121212121212/artifacts/search_steps/17171717-1717-4717-8717-171717171717-new-nodes.json": {
@@ -3195,7 +3195,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:669c8c850be52fcbf48fab9232c725975646d24180df4c2c4592f70ff9c910d9",
                 "timestamp": "2026-03-14T13:10:00Z",
                 "role": "OperatorRunner"
@@ -3227,10 +3227,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
+                  "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -3264,10 +3264,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
+                      "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -3291,7 +3291,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:00ab9122be4c8b1a6cc57ab3ac010ceed657c56db29de733e6ee357c3278ee1a",
                 "timestamp": "2026-03-14T13:10:00Z",
                 "role": "OperatorRunner"
@@ -3323,10 +3323,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
+                  "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -3360,10 +3360,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
+                      "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -3384,8 +3384,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "13131313-1313-4313-8313-131313131313",
               "new_node_id": "19191919-1919-4919-8919-191919191919",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json"
             },
             {
               "tick": 2,
@@ -3395,8 +3395,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "13131313-1313-4313-8313-131313131313",
               "new_node_id": "21202020-2020-4020-8020-202020202020",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-002.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-002.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json"
             }
           ],
           "generated_at": "2026-03-14T13:10:00Z"
@@ -3439,8 +3439,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "13131313-1313-4313-8313-131313131313",
               "new_node_id": "19191919-1919-4919-8919-191919191919",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json"
             },
             {
               "tick": 2,
@@ -3450,25 +3450,25 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "13131313-1313-4313-8313-131313131313",
               "new_node_id": "21202020-2020-4020-8020-202020202020",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-002.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/operator_traces/17171717-1717-4717-8717-171717171717-tick-002.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json"
             }
           ],
           "new_node_ids": [
             "19191919-1919-4919-8919-191919191919",
             "21202020-2020-4020-8020-202020202020"
           ],
-          "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/search_steps/17171717-1717-4717-8717-171717171717-new-nodes.json",
+          "new_nodes_artifact_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/search_steps/17171717-1717-4717-8717-171717171717-new-nodes.json",
           "step_budget": {
             "max_steps": 2
           },
           "budget_snapshot": {
             "tokens_used": 0,
             "tokens_remaining": 100000,
-            "cost_usd_used": 0.0,
-            "cost_usd_remaining": 100.0,
-            "wall_clock_s_elapsed": 0.0,
-            "wall_clock_s_remaining": 100000.0,
+            "cost_usd_used": 0,
+            "cost_usd_remaining": 100,
+            "wall_clock_s_elapsed": 0,
+            "wall_clock_s_remaining": 100000,
             "steps_used": 2,
             "steps_remaining": 18,
             "nodes_used": 4,
@@ -3510,7 +3510,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 20
           },
@@ -3518,8 +3518,8 @@
           "created_at": "2026-03-14T13:10:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 2,
             "nodes_used": 4
           },
@@ -3591,10 +3591,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 2,
                   "steps_remaining": 18,
                   "nodes_used": 4,
@@ -3605,7 +3605,7 @@
                   "is_replay": false,
                   "payload_hash": "sha256:6a2accb38593915b35cc48b7a2cf9b4c15495ccd4f6af66f3b0d0fc50d2d868c"
                 },
-                "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/search_steps/17171717-1717-4717-8717-171717171717-new-nodes.json",
+                "new_nodes_artifact_ref": "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/search_steps/17171717-1717-4717-8717-171717171717-new-nodes.json",
                 "early_stopped": true,
                 "early_stop_reason": "step_budget_exhausted"
               }
@@ -3788,7 +3788,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:669c8c850be52fcbf48fab9232c725975646d24180df4c2c4592f70ff9c910d9",
               "timestamp": "2026-03-14T13:10:00Z",
               "role": "OperatorRunner"
@@ -3820,10 +3820,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
+                "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -3857,10 +3857,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
+                    "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -3884,7 +3884,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:00ab9122be4c8b1a6cc57ab3ac010ceed657c56db29de733e6ee357c3278ee1a",
               "timestamp": "2026-03-14T13:10:00Z",
               "role": "OperatorRunner"
@@ -3916,10 +3916,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
+                "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -3953,10 +3953,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
+                    "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -4158,7 +4158,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:669c8c850be52fcbf48fab9232c725975646d24180df4c2c4592f70ff9c910d9",
                 "timestamp": "2026-03-14T13:10:00Z",
                 "role": "OperatorRunner"
@@ -4190,10 +4190,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
+                  "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -4227,10 +4227,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
+                      "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -4259,7 +4259,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:00ab9122be4c8b1a6cc57ab3ac010ceed657c56db29de733e6ee357c3278ee1a",
                 "timestamp": "2026-03-14T13:10:00Z",
                 "role": "OperatorRunner"
@@ -4291,10 +4291,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
+                  "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -4328,10 +4328,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-u21j_3sn/store/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
+                      "file://$STORE/campaigns/12121212-1212-4212-8212-121212121212/artifacts/evidence_packets/17171717-1717-4717-8717-171717171717-tick-002-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -4358,10 +4358,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 20,
                   "nodes_used": 2,
@@ -4437,7 +4437,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 20
               },
@@ -4454,10 +4454,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 20,
                 "nodes_used": 2,
@@ -4519,10 +4519,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 3,
                 "steps_remaining": 17,
                 "nodes_used": 5,
@@ -4533,7 +4533,7 @@
                 "is_replay": false,
                 "payload_hash": "sha256:c5bb3b10c0b8766a2a324c3b898817fe1cfb74ab597c891e27bd59229331f87e"
               },
-              "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/27272727-2727-4272-8272-272727272727-new-nodes.json"
+              "new_nodes_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/27272727-2727-4272-8272-272727272727-new-nodes.json"
             }
           }
         },
@@ -4573,10 +4573,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 4,
                 "steps_remaining": 16,
                 "nodes_used": 6,
@@ -4587,7 +4587,7 @@
                 "is_replay": false,
                 "payload_hash": "sha256:e457379f717c8d0ffcd1dfa3d698768578f48bb006261e56b463303cca431e63"
               },
-              "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/36363636-3636-4363-8363-363636363636-new-nodes.json"
+              "new_nodes_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/36363636-3636-4363-8363-363636363636-new-nodes.json"
             }
           }
         }
@@ -4898,13 +4898,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
+              "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
           "generated_at": "2026-03-14T13:15:00Z"
         },
         "campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-002.json": {
@@ -4944,13 +4944,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
+              "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
           "generated_at": "2026-03-14T13:15:00Z"
         },
         "campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-003.json": {
@@ -4990,13 +4990,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
+              "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
           "generated_at": "2026-03-14T13:15:00Z"
         },
         "campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/36363636-3636-4363-8363-363636363636-tick-001.json": {
@@ -5036,13 +5036,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
+              "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
           "generated_at": "2026-03-14T13:15:00Z"
         },
         "campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/27272727-2727-4272-8272-272727272727-new-nodes.json": {
@@ -5067,7 +5067,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:537747b8242cc1bd88e6974ecb0aefcb4b64a38787043a458b9c5ffba3faae30",
                 "timestamp": "2026-03-14T13:15:00Z",
                 "role": "OperatorRunner"
@@ -5099,10 +5099,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
+                  "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -5136,10 +5136,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
+                      "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -5163,7 +5163,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:a71a39bea6b32f534da9ef6c8dc48d8b816e0512fcedc619db756ccbebb49dc9",
                 "timestamp": "2026-03-14T13:15:00Z",
                 "role": "OperatorRunner"
@@ -5195,10 +5195,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
+                  "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -5232,10 +5232,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
+                      "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -5259,7 +5259,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:ae588e7da174a6be512bd70a0a74a457951b8924cf4dd969abb941271da4767a",
                 "timestamp": "2026-03-14T13:15:00Z",
                 "role": "OperatorRunner"
@@ -5291,10 +5291,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
+                  "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -5328,10 +5328,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
+                      "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -5352,8 +5352,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "23232323-2323-4232-8232-232323232323",
               "new_node_id": "29292929-2929-4292-8292-292929292929",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json"
             },
             {
               "tick": 2,
@@ -5363,8 +5363,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "23232323-2323-4232-8232-232323232323",
               "new_node_id": "32323232-3232-4323-8323-323232323232",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-002.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-002.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json"
             },
             {
               "tick": 3,
@@ -5374,8 +5374,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "23232323-2323-4232-8232-232323232323",
               "new_node_id": "35353535-3535-4353-8353-353535353535",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-003.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-003.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json"
             }
           ],
           "generated_at": "2026-03-14T13:15:00Z"
@@ -5429,8 +5429,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "23232323-2323-4232-8232-232323232323",
               "new_node_id": "29292929-2929-4292-8292-292929292929",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json"
             },
             {
               "tick": 2,
@@ -5440,8 +5440,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "23232323-2323-4232-8232-232323232323",
               "new_node_id": "32323232-3232-4323-8323-323232323232",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-002.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-002.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json"
             },
             {
               "tick": 3,
@@ -5451,8 +5451,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "23232323-2323-4232-8232-232323232323",
               "new_node_id": "35353535-3535-4353-8353-353535353535",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-003.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/27272727-2727-4272-8272-272727272727-tick-003.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json"
             }
           ],
           "new_node_ids": [
@@ -5460,15 +5460,15 @@
             "32323232-3232-4323-8323-323232323232",
             "35353535-3535-4353-8353-353535353535"
           ],
-          "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/27272727-2727-4272-8272-272727272727-new-nodes.json",
+          "new_nodes_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/27272727-2727-4272-8272-272727272727-new-nodes.json",
           "step_budget": null,
           "budget_snapshot": {
             "tokens_used": 0,
             "tokens_remaining": 100000,
-            "cost_usd_used": 0.0,
-            "cost_usd_remaining": 100.0,
-            "wall_clock_s_elapsed": 0.0,
-            "wall_clock_s_remaining": 100000.0,
+            "cost_usd_used": 0,
+            "cost_usd_remaining": 100,
+            "wall_clock_s_elapsed": 0,
+            "wall_clock_s_remaining": 100000,
             "steps_used": 3,
             "steps_remaining": 17,
             "nodes_used": 5,
@@ -5508,7 +5508,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:537747b8242cc1bd88e6974ecb0aefcb4b64a38787043a458b9c5ffba3faae30",
                 "timestamp": "2026-03-14T13:15:00Z",
                 "role": "OperatorRunner"
@@ -5540,10 +5540,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
+                  "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -5577,10 +5577,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
+                      "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -5601,8 +5601,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "23232323-2323-4232-8232-232323232323",
               "new_node_id": "38383838-3838-4383-8383-383838383838",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/36363636-3636-4363-8363-363636363636-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/36363636-3636-4363-8363-363636363636-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json"
             }
           ],
           "generated_at": "2026-03-14T13:15:00Z"
@@ -5634,22 +5634,22 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "23232323-2323-4232-8232-232323232323",
               "new_node_id": "38383838-3838-4383-8383-383838383838",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/36363636-3636-4363-8363-363636363636-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/operator_traces/36363636-3636-4363-8363-363636363636-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json"
             }
           ],
           "new_node_ids": [
             "38383838-3838-4383-8383-383838383838"
           ],
-          "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/36363636-3636-4363-8363-363636363636-new-nodes.json",
+          "new_nodes_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/36363636-3636-4363-8363-363636363636-new-nodes.json",
           "step_budget": null,
           "budget_snapshot": {
             "tokens_used": 0,
             "tokens_remaining": 100000,
-            "cost_usd_used": 0.0,
-            "cost_usd_remaining": 100.0,
-            "wall_clock_s_elapsed": 0.0,
-            "wall_clock_s_remaining": 100000.0,
+            "cost_usd_used": 0,
+            "cost_usd_remaining": 100,
+            "wall_clock_s_elapsed": 0,
+            "wall_clock_s_remaining": 100000,
             "steps_used": 4,
             "steps_remaining": 16,
             "nodes_used": 6,
@@ -5691,7 +5691,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 20
           },
@@ -5699,8 +5699,8 @@
           "created_at": "2026-03-14T13:15:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 4,
             "nodes_used": 6
           },
@@ -5773,10 +5773,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 3,
                   "steps_remaining": 17,
                   "nodes_used": 5,
@@ -5787,7 +5787,7 @@
                   "is_replay": false,
                   "payload_hash": "sha256:c5bb3b10c0b8766a2a324c3b898817fe1cfb74ab597c891e27bd59229331f87e"
                 },
-                "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/27272727-2727-4272-8272-272727272727-new-nodes.json"
+                "new_nodes_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/27272727-2727-4272-8272-272727272727-new-nodes.json"
               }
             }
           },
@@ -5819,10 +5819,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 4,
                   "steps_remaining": 16,
                   "nodes_used": 6,
@@ -5833,7 +5833,7 @@
                   "is_replay": false,
                   "payload_hash": "sha256:e457379f717c8d0ffcd1dfa3d698768578f48bb006261e56b463303cca431e63"
                 },
-                "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/36363636-3636-4363-8363-363636363636-new-nodes.json"
+                "new_nodes_artifact_ref": "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/search_steps/36363636-3636-4363-8363-363636363636-new-nodes.json"
               }
             }
           }
@@ -6014,7 +6014,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:537747b8242cc1bd88e6974ecb0aefcb4b64a38787043a458b9c5ffba3faae30",
               "timestamp": "2026-03-14T13:15:00Z",
               "role": "OperatorRunner"
@@ -6046,10 +6046,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
+                "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -6083,10 +6083,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
+                    "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -6110,7 +6110,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:a71a39bea6b32f534da9ef6c8dc48d8b816e0512fcedc619db756ccbebb49dc9",
               "timestamp": "2026-03-14T13:15:00Z",
               "role": "OperatorRunner"
@@ -6142,10 +6142,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
+                "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -6179,10 +6179,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
+                    "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -6206,7 +6206,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:ae588e7da174a6be512bd70a0a74a457951b8924cf4dd969abb941271da4767a",
               "timestamp": "2026-03-14T13:15:00Z",
               "role": "OperatorRunner"
@@ -6238,10 +6238,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
+                "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -6275,10 +6275,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
+                    "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -6302,7 +6302,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:537747b8242cc1bd88e6974ecb0aefcb4b64a38787043a458b9c5ffba3faae30",
               "timestamp": "2026-03-14T13:15:00Z",
               "role": "OperatorRunner"
@@ -6334,10 +6334,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
+                "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -6371,10 +6371,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
+                    "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -6576,7 +6576,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:537747b8242cc1bd88e6974ecb0aefcb4b64a38787043a458b9c5ffba3faae30",
                 "timestamp": "2026-03-14T13:15:00Z",
                 "role": "OperatorRunner"
@@ -6608,10 +6608,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
+                  "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -6645,10 +6645,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
+                      "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -6677,7 +6677,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:a71a39bea6b32f534da9ef6c8dc48d8b816e0512fcedc619db756ccbebb49dc9",
                 "timestamp": "2026-03-14T13:15:00Z",
                 "role": "OperatorRunner"
@@ -6709,10 +6709,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
+                  "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -6746,10 +6746,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
+                      "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-002-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -6778,7 +6778,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:ae588e7da174a6be512bd70a0a74a457951b8924cf4dd969abb941271da4767a",
                 "timestamp": "2026-03-14T13:15:00Z",
                 "role": "OperatorRunner"
@@ -6810,10 +6810,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
+                  "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -6847,10 +6847,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
+                      "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/27272727-2727-4272-8272-272727272727-tick-003-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -6879,7 +6879,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:537747b8242cc1bd88e6974ecb0aefcb4b64a38787043a458b9c5ffba3faae30",
                 "timestamp": "2026-03-14T13:15:00Z",
                 "role": "OperatorRunner"
@@ -6911,10 +6911,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
+                  "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -6948,10 +6948,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-9uj5esi_/store/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
+                      "file://$STORE/campaigns/21212121-2121-4212-8212-212121212121/artifacts/evidence_packets/36363636-3636-4363-8363-363636363636-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -6978,10 +6978,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 20,
                   "nodes_used": 2,
@@ -7051,7 +7051,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 2
               },
@@ -7068,10 +7068,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 2,
                 "nodes_used": 2,
@@ -7132,10 +7132,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 2,
                 "steps_remaining": 0,
                 "nodes_used": 4,
@@ -7146,7 +7146,7 @@
                 "is_replay": false,
                 "payload_hash": "sha256:c00133ed7cf5a7344660d2e0b4e24609f22414f810abb624d73de4c856eb43da"
               },
-              "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/search_steps/56565656-5656-4565-8565-565656565656-new-nodes.json",
+              "new_nodes_artifact_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/search_steps/56565656-5656-4565-8565-565656565656-new-nodes.json",
               "early_stopped": true,
               "early_stop_reason": "budget_exhausted"
             }
@@ -7354,13 +7354,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
+              "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
           "generated_at": "2026-03-14T13:20:00Z"
         },
         "campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-002.json": {
@@ -7400,13 +7400,13 @@
               }
             },
             "evidence_uris_used": [
-              "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
+              "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
               "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
               "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-              "urn:hepar:operator-template:anomaly-abduction-v1"
+              "urn:idea-engine:operator-template:anomaly-abduction-v1"
             ]
           },
-          "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
+          "evidence_packet_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
           "generated_at": "2026-03-14T13:20:00Z"
         },
         "campaigns/31313131-3131-4313-8313-313131313131/artifacts/search_steps/56565656-5656-4565-8565-565656565656-new-nodes.json": {
@@ -7430,7 +7430,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:ac6c9052c0a736886f538869d88c6771d44fdf8848d6651ce2022a6cf4ca1980",
                 "timestamp": "2026-03-14T13:20:00Z",
                 "role": "OperatorRunner"
@@ -7462,10 +7462,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
+                  "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -7499,10 +7499,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
+                      "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -7526,7 +7526,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:fb12e2d14c70ad4c6f8f4b36ea6bc51a97adcc93dd345d9e4de115f7642c0504",
                 "timestamp": "2026-03-14T13:20:00Z",
                 "role": "OperatorRunner"
@@ -7558,10 +7558,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
+                  "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -7595,10 +7595,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
+                      "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -7619,8 +7619,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "51515151-5151-4515-8515-515151515151",
               "new_node_id": "58585858-5858-4585-8585-585858585858",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json"
             },
             {
               "tick": 2,
@@ -7630,8 +7630,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "51515151-5151-4515-8515-515151515151",
               "new_node_id": "60606060-6060-4060-8060-606060606060",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-002.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-002.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json"
             }
           ],
           "generated_at": "2026-03-14T13:20:00Z"
@@ -7674,8 +7674,8 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "51515151-5151-4515-8515-515151515151",
               "new_node_id": "58585858-5858-4585-8585-585858585858",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-001.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-001.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json"
             },
             {
               "tick": 2,
@@ -7685,23 +7685,23 @@
               "backend_id": "hep.operator.backend.anomaly",
               "parent_node_id": "51515151-5151-4515-8515-515151515151",
               "new_node_id": "60606060-6060-4060-8060-606060606060",
-              "operator_trace_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-002.json",
-              "evidence_packet_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json"
+              "operator_trace_artifact_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/operator_traces/56565656-5656-4565-8565-565656565656-tick-002.json",
+              "evidence_packet_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json"
             }
           ],
           "new_node_ids": [
             "58585858-5858-4585-8585-585858585858",
             "60606060-6060-4060-8060-606060606060"
           ],
-          "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/search_steps/56565656-5656-4565-8565-565656565656-new-nodes.json",
+          "new_nodes_artifact_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/search_steps/56565656-5656-4565-8565-565656565656-new-nodes.json",
           "step_budget": null,
           "budget_snapshot": {
             "tokens_used": 0,
             "tokens_remaining": 100000,
-            "cost_usd_used": 0.0,
-            "cost_usd_remaining": 100.0,
-            "wall_clock_s_elapsed": 0.0,
-            "wall_clock_s_remaining": 100000.0,
+            "cost_usd_used": 0,
+            "cost_usd_remaining": 100,
+            "wall_clock_s_elapsed": 0,
+            "wall_clock_s_remaining": 100000,
             "steps_used": 2,
             "steps_remaining": 0,
             "nodes_used": 4,
@@ -7743,7 +7743,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 2
           },
@@ -7751,8 +7751,8 @@
           "created_at": "2026-03-14T13:20:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 2,
             "nodes_used": 4
           },
@@ -7824,10 +7824,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 2,
                   "steps_remaining": 0,
                   "nodes_used": 4,
@@ -7838,7 +7838,7 @@
                   "is_replay": false,
                   "payload_hash": "sha256:c00133ed7cf5a7344660d2e0b4e24609f22414f810abb624d73de4c856eb43da"
                 },
-                "new_nodes_artifact_ref": "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/search_steps/56565656-5656-4565-8565-565656565656-new-nodes.json",
+                "new_nodes_artifact_ref": "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/search_steps/56565656-5656-4565-8565-565656565656-new-nodes.json",
                 "early_stopped": true,
                 "early_stop_reason": "budget_exhausted"
               }
@@ -8021,7 +8021,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:ac6c9052c0a736886f538869d88c6771d44fdf8848d6651ce2022a6cf4ca1980",
               "timestamp": "2026-03-14T13:20:00Z",
               "role": "OperatorRunner"
@@ -8053,10 +8053,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
+                "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -8090,10 +8090,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
+                    "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -8117,7 +8117,7 @@
             "operator_family": "AnomalyAbduction",
             "origin": {
               "model": "hep.operator.backend.anomaly",
-              "temperature": 0.0,
+              "temperature": 0,
               "prompt_hash": "sha256:fb12e2d14c70ad4c6f8f4b36ea6bc51a97adcc93dd345d9e4de115f7642c0504",
               "timestamp": "2026-03-14T13:20:00Z",
               "role": "OperatorRunner"
@@ -8149,10 +8149,10 @@
                 }
               },
               "evidence_uris_used": [
-                "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
+                "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
                 "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                 "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                "urn:hepar:operator-template:anomaly-abduction-v1"
+                "urn:idea-engine:operator-template:anomaly-abduction-v1"
               ]
             },
             "rationale_draft": {
@@ -8186,10 +8186,10 @@
                   "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                   "support_type": "calculation",
                   "evidence_uris": [
-                    "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
+                    "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
                     "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                     "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                    "urn:hepar:operator-template:anomaly-abduction-v1"
+                    "urn:idea-engine:operator-template:anomaly-abduction-v1"
                   ]
                 }
               ]
@@ -8391,7 +8391,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:ac6c9052c0a736886f538869d88c6771d44fdf8848d6651ce2022a6cf4ca1980",
                 "timestamp": "2026-03-14T13:20:00Z",
                 "role": "OperatorRunner"
@@ -8423,10 +8423,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
+                  "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -8460,10 +8460,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
+                      "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-001-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -8492,7 +8492,7 @@
               "operator_family": "AnomalyAbduction",
               "origin": {
                 "model": "hep.operator.backend.anomaly",
-                "temperature": 0.0,
+                "temperature": 0,
                 "prompt_hash": "sha256:fb12e2d14c70ad4c6f8f4b36ea6bc51a97adcc93dd345d9e4de115f7642c0504",
                 "timestamp": "2026-03-14T13:20:00Z",
                 "role": "OperatorRunner"
@@ -8524,10 +8524,10 @@
                   }
                 },
                 "evidence_uris_used": [
-                  "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
+                  "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
                   "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                   "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                  "urn:hepar:operator-template:anomaly-abduction-v1"
+                  "urn:idea-engine:operator-template:anomaly-abduction-v1"
                 ]
               },
               "rationale_draft": {
@@ -8561,10 +8561,10 @@
                     "claim_text": "A minimal explanatory mechanism should predict at least one correlated observable that was not used to motivate the anomaly.",
                     "support_type": "calculation",
                     "evidence_uris": [
-                      "file:///private/var/folders/8q/y82gg9g93mxff1x7gx7w4pl40000gn/T/idea-engine-search-fixture-y7lxp5qd/store/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
+                      "file://$STORE/campaigns/31313131-3131-4313-8313-313131313131/artifacts/evidence_packets/56565656-5656-4565-8565-565656565656-tick-002-librarian.json",
                       "https://inspirehep.net/literature?sort=mostrecent&q=primarch%3Ahep-ph+AND+fulltext%3A%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+AND+fulltext%3A%22anomaly%22",
                       "https://pdg.lbl.gov/search?query=%22A+minimal+explanatory+mechanism+should+predict+at+least+one+correlated+observable+that+was+not+used+to+motivate+the+anomaly.%22+anomaly+constraints",
-                      "urn:hepar:operator-template:anomaly-abduction-v1"
+                      "urn:idea-engine:operator-template:anomaly-abduction-v1"
                     ]
                   }
                 ]
@@ -8591,10 +8591,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 2,
                   "nodes_used": 2,
@@ -8648,7 +8648,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 20
           },
@@ -8656,8 +8656,8 @@
           "created_at": "2026-03-14T13:30:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 0,
             "nodes_used": 2
           },
@@ -9047,10 +9047,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 20,
                   "nodes_used": 2,
@@ -9125,7 +9125,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 20
           },
@@ -9133,8 +9133,8 @@
           "created_at": "2026-03-14T13:30:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 0,
             "nodes_used": 2
           },
@@ -9524,10 +9524,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 20,
                   "nodes_used": 2,

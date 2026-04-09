@@ -84,7 +84,7 @@ function renderOperatorOutput(
       backend_id: spec.backendId,
       ...(context.selection ? { policy_id: context.selection.policyId } : {}),
     },
-    evidenceUrisUsed: [`urn:hepar:operator-template:${spec.traceTemplateVersion}`],
+    evidenceUrisUsed: [`urn:idea-engine:operator-template:${spec.traceTemplateVersion}`],
   };
 }
 

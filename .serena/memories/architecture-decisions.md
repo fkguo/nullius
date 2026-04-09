@@ -577,3 +577,12 @@
 - Cross-package host tests (for example `hep-mcp` contract coverage) must assert the same fail-closed behavior instead of preserving compatibility wording.
 
 **Why**: The repository is still pre-release and explicitly carries no backward-compatibility burden. Keeping tiny aliases like `approval_required`, `A0`, or `complete` alive only creates more hidden support surface, more ambiguous docs/tests, and more future cleanup cost. Canonical operator/control-plane inputs should stay exact so drift is obvious and deletions are real.
+
+### [2026-04-09] Internal runtime identity invariant: retired `hepar` branding must not survive as hidden runtime asset or A2A identity
+
+**Decision**:
+- `idea-engine` HEP search runtime records operator-template evidence URIs under `urn:idea-engine:operator-template:<version>`, not `urn:hepar:...`.
+- Checked-in RPC golden fixtures for `idea-engine` must be regenerated against the live runtime after that rename so the fixture stays an anti-drift asset rather than a stale history packet.
+- `hep-autoresearch` internal A2A / bound-agent error envelopes and MCP stdio client initialization use package-local `hep-autoresearch` identity strings, not `hepar` branding.
+
+**Why**: Leaving `hepar` embedded in hidden runtime assets or internal transport envelopes would keep a second obsolete naming authority alive even after the public shell and docs were retired. Generic-first cleanup only really closes when active runtime artifacts, fixture goldens, and internal transport identities all stop reintroducing the old brand.

@@ -7,6 +7,8 @@ from typing import Any
 
 from .agent_contracts import build_error_envelope
 
+_A2A_ERROR_DOMAIN = "hep-autoresearch"
+
 
 def validated_trace_id(candidate: Any) -> str | None:
     if not isinstance(candidate, str) or not candidate.strip():
@@ -40,7 +42,7 @@ def build_rpc_error(
             "code": rpc_code,
             "message": rpc_message,
             "data": build_error_envelope(
-                domain="hepar",
+                domain=_A2A_ERROR_DOMAIN,
                 code=envelope_code,
                 message=rpc_message,
                 run_id=run_id,

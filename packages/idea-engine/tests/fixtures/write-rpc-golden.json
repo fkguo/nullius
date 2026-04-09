@@ -41,7 +41,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 50,
                 "max_nodes": 10
@@ -59,10 +59,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 50,
                 "nodes_used": 2,
@@ -123,7 +123,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 50,
                 "max_nodes": 10
@@ -141,10 +141,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 50,
                 "nodes_used": 2,
@@ -203,7 +203,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 50,
             "max_nodes": 10
@@ -212,8 +212,8 @@
           "created_at": "2026-03-14T12:00:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 0,
             "nodes_used": 2
           },
@@ -611,10 +611,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 50,
                   "nodes_used": 2,
@@ -681,7 +681,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 50,
                 "max_nodes": 10
@@ -699,10 +699,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 50,
                 "nodes_used": 1,
@@ -748,7 +748,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 50,
                 "max_nodes": 10
@@ -793,7 +793,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 50,
             "max_nodes": 10
@@ -802,8 +802,8 @@
           "created_at": "2026-03-14T12:05:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 0,
             "nodes_used": 1
           },
@@ -1026,10 +1026,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 50,
                   "nodes_used": 1,
@@ -1079,10 +1079,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 50,
                   "nodes_used": 1,
@@ -1131,7 +1131,7 @@
               },
               "budget": {
                 "max_tokens": 100000,
-                "max_cost_usd": 100.0,
+                "max_cost_usd": 100,
                 "max_wall_clock_s": 100000,
                 "max_steps": 50,
                 "max_nodes": 10
@@ -1149,10 +1149,10 @@
               "budget_snapshot": {
                 "tokens_used": 0,
                 "tokens_remaining": 100000,
-                "cost_usd_used": 0.0,
-                "cost_usd_remaining": 100.0,
-                "wall_clock_s_elapsed": 0.0,
-                "wall_clock_s_remaining": 100000.0,
+                "cost_usd_used": 0,
+                "cost_usd_remaining": 100,
+                "wall_clock_s_elapsed": 0,
+                "wall_clock_s_remaining": 100000,
                 "steps_used": 0,
                 "steps_remaining": 50,
                 "nodes_used": 1,
@@ -1196,7 +1196,7 @@
           },
           "budget": {
             "max_tokens": 100000,
-            "max_cost_usd": 100.0,
+            "max_cost_usd": 100,
             "max_wall_clock_s": 100000,
             "max_steps": 50,
             "max_nodes": 10
@@ -1205,8 +1205,8 @@
           "created_at": "2026-03-14T12:10:00Z",
           "usage": {
             "tokens_used": 0,
-            "cost_usd_used": 0.0,
-            "wall_clock_s_elapsed": 0.0,
+            "cost_usd_used": 0,
+            "wall_clock_s_elapsed": 0,
             "steps_used": 0,
             "nodes_used": 1
           },
@@ -1429,10 +1429,10 @@
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,
-                  "cost_usd_used": 0.0,
-                  "cost_usd_remaining": 100.0,
-                  "wall_clock_s_elapsed": 0.0,
-                  "wall_clock_s_remaining": 100000.0,
+                  "cost_usd_used": 0,
+                  "cost_usd_remaining": 100,
+                  "wall_clock_s_elapsed": 0,
+                  "wall_clock_s_remaining": 100000,
                   "steps_used": 0,
                   "steps_remaining": 50,
                   "nodes_used": 1,

@@ -91,8 +91,6 @@ export interface ApprovalPolicy {
   schema_version?: number;
   mode?: string;
   require_approval_for?: Record<string, boolean>;
-  /** Compatibility alias used by newer TS-only callers. */
-  approval_required?: Record<string, boolean>;
   budgets?: ApprovalPolicyBudgets;
   timeouts?: Record<string, ApprovalPolicyTimeoutEntry>;
   notes?: string;

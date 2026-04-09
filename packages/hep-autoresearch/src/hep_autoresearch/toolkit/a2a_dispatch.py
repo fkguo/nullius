@@ -6,6 +6,8 @@ from .agent_bindings import AgentDispatchContext, call_bound_agent
 from .agent_contracts import build_error_envelope, validate_agent_message
 from .agent_registry import AgentRegistry
 
+_A2A_ERROR_DOMAIN = "hep-autoresearch"
+
 
 def dispatch_agent_message(
     *,
@@ -23,7 +25,7 @@ def dispatch_agent_message(
         return _reply_error(
             request_message,
             build_error_envelope(
-                domain="hepar",
+                domain=_A2A_ERROR_DOMAIN,
                 code="NOT_FOUND",
                 message=str(exc),
                 run_id=run_id,
@@ -35,7 +37,7 @@ def dispatch_agent_message(
         return _reply_error(
             request_message,
             build_error_envelope(
-                domain="hepar",
+                domain=_A2A_ERROR_DOMAIN,
                 code="UPSTREAM_ERROR",
                 message=f"agent is discovery-only: {target_agent_id}",
                 run_id=run_id,

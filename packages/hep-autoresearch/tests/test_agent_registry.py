@@ -145,7 +145,7 @@ class TestAgentRegistry(unittest.TestCase):
             "requested_capability": "mcp.call_tool",
             "payload": {},
             "error": {
-                "domain": "hepar",
+                "domain": "hep-autoresearch",
                 "code": "INVALID_PARAMS",
                 "message": "boom",
                 "retryable": False,

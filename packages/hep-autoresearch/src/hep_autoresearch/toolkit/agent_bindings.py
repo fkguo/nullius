@@ -9,6 +9,9 @@ from .agent_contracts import build_error_envelope
 from .mcp_config import default_hep_data_dir, load_mcp_server_config, merged_env
 from .mcp_stdio_client import McpStdioClient
 
+_AGENT_BINDING_DOMAIN = "hep-autoresearch"
+_A2A_CLIENT_NAME = "hep-autoresearch-a2a"
+
 
 @dataclass(frozen=True)
 class AgentDispatchContext:
@@ -33,7 +36,7 @@ def call_bound_agent(
 ) -> tuple[bool, dict[str, Any]]:
     if str(agent_id).strip() != "hep-mcp":
         return False, build_error_envelope(
-            domain="hepar",
+            domain=_AGENT_BINDING_DOMAIN,
             code="UPSTREAM_ERROR",
             message=f"dispatch binding not enabled for agent: {agent_id}",
             run_id=run_id,
@@ -53,7 +56,7 @@ def _call_hep_mcp(
 ) -> tuple[bool, dict[str, Any]]:
     if capability not in {"mcp.list_tools", "mcp.call_tool"}:
         return False, build_error_envelope(
-            domain="hepar",
+            domain=_AGENT_BINDING_DOMAIN,
             code="INVALID_PARAMS",
             message=f"unsupported capability for hep-mcp: {capability}",
             run_id=run_id,
@@ -71,7 +74,7 @@ def _call_hep_mcp(
             },
         )
         with McpStdioClient(cfg=cfg, cwd=context.repo_root, env=env) as client:
-            client.initialize(client_name="hepar-a2a", client_version="0.0.1")
+            client.initialize(client_name=_A2A_CLIENT_NAME, client_version="0.0.1")
             if capability == "mcp.list_tools":
                 tools = client.list_tools()
                 return True, {
@@ -83,7 +86,7 @@ def _call_hep_mcp(
             tool_name = payload.get("tool_name")
             if not isinstance(tool_name, str) or not tool_name.strip():
                 return False, build_error_envelope(
-                    domain="hepar",
+                    domain=_AGENT_BINDING_DOMAIN,
                     code="INVALID_PARAMS",
                     message="mcp.call_tool requires payload.tool_name",
                     run_id=run_id,
@@ -95,7 +98,7 @@ def _call_hep_mcp(
                 arguments = {}
             if not isinstance(arguments, dict):
                 return False, build_error_envelope(
-                    domain="hepar",
+                    domain=_AGENT_BINDING_DOMAIN,
                     code="INVALID_PARAMS",
                     message="mcp.call_tool payload.arguments must be an object",
                     run_id=run_id,
@@ -122,7 +125,7 @@ def _call_hep_mcp(
             }
     except FileNotFoundError as exc:
         return False, build_error_envelope(
-            domain="hepar",
+            domain=_AGENT_BINDING_DOMAIN,
             code="NOT_FOUND",
             message=f"MCP config or executable not found for agent binding: {exc}",
             run_id=run_id,
@@ -131,7 +134,7 @@ def _call_hep_mcp(
         )
     except KeyError as exc:
         return False, build_error_envelope(
-            domain="hepar",
+            domain=_AGENT_BINDING_DOMAIN,
             code="NOT_FOUND",
             message=str(exc),
             run_id=run_id,
@@ -140,7 +143,7 @@ def _call_hep_mcp(
         )
     except Exception as exc:
         return False, build_error_envelope(
-            domain="hepar",
+            domain=_AGENT_BINDING_DOMAIN,
             code="UPSTREAM_ERROR",
             message=f"agent binding failed: {exc}",
             run_id=run_id,
