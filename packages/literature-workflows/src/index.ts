@@ -8,6 +8,7 @@ export {
   WorkflowRecipeSchema,
   type ResolveWorkflowRequest,
   type ResolvedWorkflowPlan,
+  type ResolvedWorkflowStep,
   type WorkflowActionId,
   type WorkflowCapabilityId,
   type WorkflowProviderId,

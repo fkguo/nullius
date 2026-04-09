@@ -101,7 +101,7 @@ Current boundary:
 
 ### 3.4 Launcher-backed workflow consumers
 
-High-level literature workflows are meant to enter through the stateful launcher-backed `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:
+High-level literature workflows are meant to enter through the public stateful `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:
 
 - `autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`
 - other checked-in consumers remain internal-only validation seams and do not define public workflow authority

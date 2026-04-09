@@ -2,7 +2,7 @@
   "name": "@autoresearch/agent-arxiv",
   "version": "0.0.1",
   "private": true,
-  "description": "Agent-arXiv multi-agent research community service (EVO-15)",
+  "description": "Reserved placeholder package for a future arXiv-oriented agent/community surface",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

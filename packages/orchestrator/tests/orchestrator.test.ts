@@ -1684,6 +1684,33 @@ describe('Stage 3c: validatePlan', () => {
     expect(() => sm.validatePlan(planWithBranching())).not.toThrow();
   });
 
+  it('accepts a valid plan with typed workflow execution metadata', () => {
+    const plan = basePlan({
+      steps: [
+        {
+          step_id: 'seed_search',
+          description: 'Seed search',
+          status: 'pending',
+          expected_approvals: [],
+          expected_outputs: ['artifacts/seed_search.json'],
+          recovery_notes: '',
+          execution: {
+            action: 'discover.seed_search',
+            tool: 'openalex_search',
+            provider: 'openalex',
+            depends_on: [],
+            params: { query: 'bootstrap amplitudes', size: 25 },
+            required_capabilities: ['supports_keyword_search'],
+            degrade_mode: 'fail_closed',
+            consumer_hints: { artifact: 'artifacts/seed_search.json', project_required: true },
+          },
+        },
+      ],
+    });
+
+    expect(() => sm.validatePlan(plan)).not.toThrow();
+  });
+
   it('rejects plan with invalid schema_version', () => {
     expect(() => sm.validatePlan(basePlan({ schema_version: 0 }))).toThrow(/schema_version/);
     expect(() => sm.validatePlan(basePlan({ schema_version: 'x' }))).toThrow(/schema_version/);
@@ -2093,6 +2120,37 @@ describe('Stage 3c: renderPlanMd', () => {
     expect(md).toContain('     - output1.json');
     expect(md).toContain('   - recovery_notes: retry');
     expect(md).not.toContain('## Branching');
+  });
+
+  it('renders typed workflow execution metadata when present', () => {
+    const md = sm.renderPlanMd(basePlan({
+      steps: [
+        {
+          step_id: 'seed_search',
+          description: 'Seed search',
+          status: 'pending',
+          expected_approvals: [],
+          expected_outputs: ['artifacts/seed_search.json'],
+          recovery_notes: '',
+          execution: {
+            action: 'discover.seed_search',
+            tool: 'openalex_search',
+            provider: 'openalex',
+            depends_on: [],
+            params: { query: 'bootstrap amplitudes' },
+            required_capabilities: ['supports_keyword_search'],
+            degrade_mode: 'fail_closed',
+            consumer_hints: { artifact: 'artifacts/seed_search.json' },
+          },
+        },
+      ],
+    }));
+
+    expect(md).toContain('execution_action: discover.seed_search');
+    expect(md).toContain('execution_tool: openalex_search');
+    expect(md).toContain('execution_provider: openalex');
+    expect(md).toContain('required_capabilities: supports_keyword_search');
+    expect(md).toContain('degrade_mode: fail_closed');
   });
 
   it('renders plan with branching', () => {

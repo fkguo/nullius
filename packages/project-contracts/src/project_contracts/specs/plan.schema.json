@@ -142,11 +142,49 @@
         },
         "expected_outputs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "recovery_notes": { "type": "string" },
+        "execution": {
+          "oneOf": [{ "$ref": "#/$defs/workflow_step_execution" }, { "type": "null" }]
+        },
         "started_at": {
           "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
         },
         "completed_at": {
           "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+        }
+      },
+      "additionalProperties": false
+    },
+    "workflow_step_execution": {
+      "type": "object",
+      "required": ["tool", "depends_on", "params", "required_capabilities"],
+      "properties": {
+        "action": {
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "tool": { "type": "string", "minLength": 1 },
+        "provider": {
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "depends_on": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "params": { "type": "object" },
+        "required_capabilities": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "degrade_mode": {
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "consumer_hints": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "phases": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                "artifact": { "type": "string", "minLength": 1 },
+                "project_required": { "type": "boolean" },
+                "run_required": { "type": "boolean" }
+              },
+              "additionalProperties": false
+            },
+            { "type": "null" }
+          ]
         }
       },
       "additionalProperties": false

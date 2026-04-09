@@ -16,8 +16,8 @@
 |----------|---------|------|
 | 快速搜索论文 | `inspire_search` | 分页；用 `inspire_search_next` 翻页 |
 | 获取单篇论文元数据/引用/被引 | `inspire_literature` | 原子化访问 |
-| 深度分析论文集 | `inspire_critical_analysis` / `inspire_classify_reviews` | 高层 workflow 先经 launcher-backed consumer；这里保留的是 bounded atomic operators |
-| 文献综述 | `autoresearch workflow-plan --recipe literature_to_evidence` | 推荐的 stateful launcher-backed front door，需先 `autoresearch init`；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。可再配合 `hep_run_build_writing_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` |
+| 深度分析论文集 | `inspire_critical_analysis` / `inspire_classify_reviews` | 高层 workflow 先经 stateful front-door consumer；这里保留的是 bounded atomic operators |
+| 文献综述 | `autoresearch workflow-plan --recipe literature_to_evidence` | 推荐的公开 stateful front door，需先 `autoresearch init`；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。可再配合 `hep_run_build_writing_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` |
 | 发现奠基性/相关论文 | `autoresearch workflow-plan --recipe literature_landscape` | launcher 解析后再下沉到 `inspire_search` / provenance / network operators |
 | 物理学家式文献调研 | `autoresearch workflow-plan --recipe literature_gap_analysis` | 不再通过 provider-specific high-level MCP facade |
 | 主题时间线/趋势/新兴方向 | `inspire_topic_analysis` | 模式: `timeline/evolution/emerging/all` |
@@ -116,7 +116,7 @@
 
 ## G) INSPIRE（网络原子工具：检索/分析）
 
-> 备注：高层 literature workflow 现由 stateful launcher-backed `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。这里列的是仍可直接调用的 INSPIRE 原子工具；Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
+> 备注：高层 literature workflow 现由公开的 stateful `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。这里列的是仍可直接调用的 INSPIRE 原子工具；Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
 
 - `inspire_search`
 - `inspire_search_next`

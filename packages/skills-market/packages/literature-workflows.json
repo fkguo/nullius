@@ -4,7 +4,7 @@
   "repo": "autoresearch-lab/autoresearch-meta",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Checked-in executable literature workflow pack: package-local recipes + session protocol + launcher-backed front door plus internal coverage consumers.",
+  "summary": "Checked-in literature workflow pack: package-local recipes + session protocol resolved through `autoresearch workflow-plan` plus internal coverage consumers.",
   "platforms": [
     "claude_code",
     "codex",
@@ -25,8 +25,8 @@
     ]
   },
   "install": {
-    "claude_code": "Consume the checked-in package-local recipes and session protocol through the checked-in `packages/literature-workflows` launcher; do not recreate generic workflow authority inside provider-specific MCP facades.",
-    "codex": "Consume the checked-in package-local recipes and session protocol through the checked-in `packages/literature-workflows` launcher; keep workflow authority above atomic MCP tools.",
-    "opencode": "Consume the checked-in package-local recipes and session protocol through the checked-in `packages/literature-workflows` launcher; keep workflow authority in the workflow-pack layer."
+    "claude_code": "Consume the checked-in package-local recipes and session protocol through `autoresearch workflow-plan` or direct package-level resolver imports; do not recreate generic workflow authority inside provider-specific MCP facades.",
+    "codex": "Consume the checked-in package-local recipes and session protocol through `autoresearch workflow-plan` or direct package-level resolver imports; keep workflow authority above atomic MCP tools.",
+    "opencode": "Consume the checked-in package-local recipes and session protocol through `autoresearch workflow-plan` or direct package-level resolver imports; keep workflow authority in the workflow-pack layer."
   }
 }

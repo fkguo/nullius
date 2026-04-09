@@ -3,6 +3,15 @@
 > This tracked Serena memory stores only stable, cross-session architecture decisions.
 > Detailed closeout evidence, review rounds, exact validation commands, and item history live in checked-in closeout docs plus the current source/tests/front-door docs; do not rely on deleted tracker/plan paths as authority.
 
+### [2026-04-09] Workflow-front-door invariant: `autoresearch workflow-plan` is the only installable high-level literature entrypoint
+
+**Decision**:
+- Checked-in literature workflow authority lives package-locally under `packages/literature-workflows/recipes/**` and is consumed through `autoresearch workflow-plan`; public docs, skills, and metadata must not present a second installable high-level literature shell.
+- `@autoresearch/literature-workflows` is workflow authority and resolver substrate, not an independent public front door that competes with `autoresearch`.
+- Checked-in public/operator wording must treat `workflow-plan` as part of the generic control plane rather than a Python legacy path or provider-owned facade.
+
+**Why**: The current truthful user path is a generic control-plane launcher that resolves checked-in workflow authority into external project-root plan state. Leaving stale lifecycle-only skills or a second high-level workflow shell in package metadata would recreate split-brain authority precisely where we are trying to make the generic front door legible.
+
 ### [2026-04-09] Idea public-authority invariant: `idea-engine` owns the live idea runtime and checked-in RPC contracts
 
 **Decision**:
@@ -11,6 +20,33 @@
 - The checked-in RPC contract snapshot now lives under `packages/idea-engine/contracts/idea-runtime-contracts/**` with `idea_runtime_rpc_v1` naming, not `idea-core` authority residue.
 
 **Why**: The live host path already runs through `idea-engine` and `idea-mcp`. Leaving `idea-core` in public inventories, keeping `idea-generator` alive as a quasi-authority, or preserving `idea-core`-named contract artifacts would keep a fake split-brain alive and invite new users onto surfaces we have already retired without backward-compatibility obligations.
+
+### [2026-04-09] Idea lifecycle mutation closure invariant: public campaign control now uses live TS runtime methods
+
+**Decision**:
+- `campaign.topup`, `campaign.pause`, `campaign.resume`, and `campaign.complete` are now live `idea-engine` TS runtime methods rather than schema-only placeholders or future-facing discovery promises.
+- The exact public `idea-mcp` tool inventory must now track the live TS runtime set: `idea_campaign_init`, `idea_campaign_status`, `idea_campaign_topup`, `idea_campaign_pause`, `idea_campaign_resume`, `idea_campaign_complete`, `idea_search_step`, and `idea_eval_run`.
+- Front-door authority maps, tool-registry tests, and checked-in architecture memory must describe that live lifecycle set directly instead of preserving the earlier reduced inventory as pseudo-compatibility truth.
+
+**Why**: After the lifecycle mutation executor landed, continuing to describe `idea-mcp` as a four-method surface would turn checked-in architecture memory into stale guidance. The generic-first cleanup only holds if the public inventory, runtime implementation, and anti-drift artifacts all describe the same live TS authority.
+
+### [2026-04-09] Workflow-recipe public-entry invariant: package-local recipe authority is allowed, but the only installable public high-level launcher stays on `autoresearch workflow-plan`
+
+**Decision**:
+- Checked-in high-level literature workflow authority may live in the package-local `@autoresearch/literature-workflows` recipe layer, but that package must be treated as recipe/resolver authority rather than a second public shell identity.
+- The installable public high-level entry for those workflows stays on `autoresearch workflow-plan`; standalone package-local launchers must not compete with or dilute that front-door authority.
+- Internal or eval-only consumers may continue to read the same checked-in recipe authority, but they must be documented and tested as internal validation seams rather than as parallel public entrypoints.
+
+**Why**: The repo already converged on one generic control-plane front door. Leaving a separately installable `literature-workflows` launcher alive as a quasi-public entrypoint would recreate split-brain workflow authority exactly where the generic substrate is supposed to be consolidating.
+
+### [2026-04-09] Workflow-plan execution-seam invariant: persisted plan state is a real control-plane substrate, but not yet the generic executor
+
+**Decision**:
+- `autoresearch workflow-plan` already owns a real stateful control-plane seam by resolving checked-in workflow recipes into `.autoresearch/state.json#/plan` plus `.autoresearch/plan.md` on an initialized external project root.
+- That persisted plan substrate should be treated as the precursor to generic workflow execution, not as a terminal summary artifact and not as permission to keep provider-local high-level launchers alive.
+- Future closure should promote this seam by introducing typed executable workflow-step fields that the generic control plane can consume directly, instead of continuing to hide tool/provider/dependency semantics inside free-form strings such as `recovery_notes`.
+
+**Why**: Today the system has a real plan substrate but not a full generic launcher/executor closure. Encoding that status explicitly keeps docs honest, prevents accidental regression back to provider-local shells, and points the next batch toward typed execution closure rather than more naming cleanup.
 
 ### [2026-04-08] Regression harness external-root invariant: real-project semantics must be exercised on an external authority root, never by relaxing policy
 
@@ -463,7 +499,7 @@
 **Decision**:
 - Generic root lifecycle authority now lives only on the TS control plane: `autoresearch` / `packages/orchestrator` own `init`, `status`, `pause`, `resume`, `approve`, and `export`.
 - `hep-autoresearch` / `hepar` must not regain direct public root lifecycle or approval-mutation authority. Any retained internal Python lifecycle surface is allowed only as a thin passthrough to canonical `autoresearch`, while the web surface is limited to read-only diagnostics.
-- `research_workflow_v1` and `workflow-templates` are no longer live workflow authority. Recipe-based workflow authority now means `workflow_recipe_v1` + `packages/literature-workflows` + `meta/recipes`, and shared/generated exports must not imply a second graph-schema workflow substrate.
+- `research_workflow_v1` and `workflow-templates` are no longer live workflow authority. Recipe-based workflow authority now means `workflow_recipe_v1` plus the package-local `packages/literature-workflows/recipes/**` resolver layer; shared/generated exports must not imply a second graph-schema workflow substrate.
 - Remaining `M-22` work is therefore bounded to residual provider-local non-computation `run` workflows and adjacent support surfaces, not generic lifecycle or workflow authority.
 
 **Why**: This keeps the generic-first control plane from sliding back into dual authority through legacy Python shells or historical workflow graph residue. It also narrows future retirement work to the real remaining provider-local surface instead of reopening already-closed generic lifecycle/workflow questions.
@@ -522,7 +558,7 @@
 
 **Decision**:
 - The installable `idea-mcp` public host path is now the in-process TS `IdeaEngineRpcService`; legacy Python host selection/env knobs (`IDEA_MCP_BACKEND`, `IDEA_CORE_PATH`) are deleted from the public surface and must fail closed if provided.
-- The public `idea-mcp` tool inventory is now a bounded exact-match surface with direct tool-level contract coverage: `campaign.init`, `campaign.status`, `search.step`, and `eval.run`. Unsupported lifecycle methods must be removed from the public inventory rather than advertised against a default backend that cannot serve them.
+- The public `idea-mcp` tool inventory must remain an exact-match surface backed by live TS runtime capabilities. The earlier reduced subset (`campaign.init`, `campaign.status`, `search.step`, `eval.run`) was only an intermediate contraction point; current checked-in truth must instead reflect the live lifecycle inventory once runtime support lands.
 - Public `idea-mcp` and `idea-engine` now own the live host plus checked-in contract snapshots; retired Python/runtime package identities must not be reintroduced through transitional docs, asset paths, or contract filenames.
 
 **Why**: The real drift was a split-brain host boundary: public `idea-mcp` still carried Python-side host semantics while TS `idea-engine` already owned the live active RPC path, and the public tool inventory still advertised methods the active host could not serve. Because this repo has no backward-compatibility requirement, preserving a public compatibility backend would only keep a second-rate authority path and ongoing maintenance burden alive. Deleting the fallback closes that boundary cleanly without over-claiming full retirement.

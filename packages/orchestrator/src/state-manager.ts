@@ -103,8 +103,38 @@ const PLAN_SCHEMA: Record<string, unknown> = {
         expected_approvals: { type: 'array', items: { $ref: '#/$defs/approval_category' } },
         expected_outputs: { type: 'array', items: { type: 'string', minLength: 1 } },
         recovery_notes: { type: 'string' },
+        execution: { oneOf: [{ $ref: '#/$defs/workflow_step_execution' }, { type: 'null' }] },
         started_at: { oneOf: [{ type: 'string' }, { type: 'null' }] },
         completed_at: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      },
+      additionalProperties: false,
+    },
+    workflow_step_execution: {
+      type: 'object',
+      required: ['tool', 'depends_on', 'params', 'required_capabilities'],
+      properties: {
+        action: { oneOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] },
+        tool: { type: 'string', minLength: 1 },
+        provider: { oneOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] },
+        depends_on: { type: 'array', items: { type: 'string', minLength: 1 } },
+        params: { type: 'object' },
+        required_capabilities: { type: 'array', items: { type: 'string', minLength: 1 } },
+        degrade_mode: { oneOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] },
+        consumer_hints: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                phases: { type: 'array', items: { type: 'string', minLength: 1 } },
+                artifact: { type: 'string', minLength: 1 },
+                project_required: { type: 'boolean' },
+                run_required: { type: 'boolean' },
+              },
+              additionalProperties: false,
+            },
+            { type: 'null' },
+          ],
+        },
       },
       additionalProperties: false,
     },
@@ -1173,6 +1203,25 @@ export class StateManager {
       const rec = String(step.recovery_notes || '').trim();
       if (rec) {
         lines.push(`   - recovery_notes: ${rec}`);
+      }
+      const execution = isDict(step.execution) ? step.execution : null;
+      if (execution) {
+        const action = String(execution.action || '').trim();
+        const tool = String(execution.tool || '').trim();
+        const provider = String(execution.provider || '').trim();
+        const degradeMode = String(execution.degrade_mode || '').trim();
+        if (action) lines.push(`   - execution_action: ${action}`);
+        if (tool) lines.push(`   - execution_tool: ${tool}`);
+        if (provider) lines.push(`   - execution_provider: ${provider}`);
+        const capabilities = execution.required_capabilities;
+        if (Array.isArray(capabilities) && capabilities.length > 0) {
+          lines.push(`   - required_capabilities: ${(capabilities as unknown[]).map(item => String(item)).join(', ')}`);
+        }
+        const dependsOn = execution.depends_on;
+        if (Array.isArray(dependsOn) && dependsOn.length > 0) {
+          lines.push(`   - depends_on: ${(dependsOn as unknown[]).map(item => String(item)).join(', ')}`);
+        }
+        if (degradeMode) lines.push(`   - degrade_mode: ${degradeMode}`);
       }
     }
 

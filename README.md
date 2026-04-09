@@ -2,7 +2,7 @@
 
 English | [中文](./docs/README_zh.md)
 
-Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it combines a generic lifecycle/control-plane package, local MCP provider packages, and checked-in workflow recipes that can be consumed by agent clients or shell entrypoints. HEP is the current most mature provider family and the strongest end-to-end workflow example in the repo, but it is not the root product identity.
+Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it combines a generic lifecycle/control-plane package, local MCP provider packages, and checked-in workflow recipes that can be consumed through `autoresearch workflow-plan` or internal agent clients. HEP is the current most mature provider family and the strongest end-to-end workflow example in the repo, but it is not the root product identity.
 
 ## 1. What This Monorepo Can Do Today
 
@@ -18,12 +18,12 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 
 1. Generic lifecycle workflow
    - `autoresearch init/status/approve/pause/resume/export` for `.autoresearch/` project state outside the development repo.
-1. Launcher-backed literature workflow family
-   - `autoresearch workflow-plan` is the recommended stateful launcher-backed front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`.
+1. Stateful literature workflow family
+   - `autoresearch workflow-plan` is the recommended public stateful front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`.
 1. Native TS computation workflow
    - `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; approval handling stays on `autoresearch status/approve`.
 1. Experimental idea campaign workflow
-   - `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` exposed through `idea-mcp`. This remains an experimental TS-hosted runtime surface, not a root front door.
+   - `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` exposed through `idea-mcp`. This remains an experimental TS-hosted runtime surface, not a root front door. The current MCP surface is intentionally narrower than the full `idea-engine` runtime contract; do not assume every runtime RPC is exposed as an MCP tool.
 1. Project/Run evidence workflow
    - `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> export/import.
 1. Literature and data navigation workflow
@@ -34,7 +34,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 | Surface | Current entrypoint | What it is for |
 | --- | --- | --- |
 | Generic lifecycle + computation + workflow-plan front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful workflow-plan persistence |
-| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended stateful launcher-backed entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md` |
+| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended public stateful entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md` |
 | Experimental idea campaign MCP surface | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | TS-hosted idea campaign runtime bridge for `idea_campaign_init/status/topup/pause/resume/complete`, `idea_search_step`, and `idea_eval_run` on explicit external data roots |
 | Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research/navigation/evidence/export workflows `(72 std / 101)` |
 | Leaf provider packages | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Provider-specific capabilities that can be composed into client workflows |
@@ -56,6 +56,11 @@ Current package map, grouped by capability rather than identity:
 | Literature and data providers | `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*` | Mix of direct search, download, export, and bounded analysis |
 | Local reference providers | `zotero_*`, `pdg_*` | Optional local-only inputs and lookups |
 | Workflow shells | `workflow-plan` | Checked-in generic workflow authority consumed directly by `autoresearch workflow-plan` |
+
+Skill source and distribution are separate surfaces:
+
+- `skills/` holds checked-in skill source and manuals.
+- `packages/skills-market` is the installer/distribution control plane; it does not mean those skills are preinstalled in a client runtime.
 
 ## 4. Where Do Artifacts, Resources, and State Live
 
@@ -158,7 +163,7 @@ autoresearch init --project-root /absolute/path/to/external-project
 autoresearch status --project-root /absolute/path/to/external-project
 ```
 
-- For launcher-backed literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. Any checked-in Python workflow consumers remain maintainer/eval proof only and are not a second front-door shell.
+- For stateful literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. Any checked-in Python workflow consumers remain maintainer/eval proof only and are not a second front-door shell.
 
 ## 6. Where Are Deeper Architecture / Governance Docs
 

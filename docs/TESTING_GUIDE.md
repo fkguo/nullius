@@ -426,7 +426,7 @@ EOF
 
 - 返回 timeline / evolution 相关摘要
 
-### 5.4 launcher-backed literature workflow consumers
+### 5.4 stateful literature workflow consumers
 
 这部分不是 MCP 工具，而是当前真实存在的高层 workflow consumers：
 
@@ -437,7 +437,7 @@ autoresearch workflow-plan \
   --query "bootstrap amplitudes" \
   --topic "bootstrap amplitudes"
 ```
-先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。
+先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的公开 stateful front door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。
 
 > Maintainer / eval / regression only:
 >

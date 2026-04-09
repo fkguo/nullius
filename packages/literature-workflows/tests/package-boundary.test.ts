@@ -11,9 +11,12 @@ describe('literature-workflows package boundary', () => {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
     };
+    const standaloneCliPath = path.join(repoRoot, 'packages', 'literature-workflows', 'src', 'cli.ts');
 
     expect(packageJson.dependencies?.['@autoresearch/hep-mcp']).toBeUndefined();
     expect(packageJson.devDependencies?.['@autoresearch/hep-mcp']).toBeUndefined();
+    expect(packageJson).not.toHaveProperty('bin');
+    expect(fs.existsSync(standaloneCliPath)).toBe(false);
   });
 
   it('does not import hep-mcp sources to resolve generic workflow plans', () => {

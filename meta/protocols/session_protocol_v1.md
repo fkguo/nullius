@@ -1,11 +1,11 @@
 # Session Protocol v1 — Research Session Entry Convention
 
 > UX-06: Agent behavior protocol for guiding users through a research-session pipeline.
-> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through checked-in workflow recipes packaged as `literature-workflows`, with `autoresearch workflow-plan` as the recommended stateful front door. Other checked-in consumers remain internal-only validation seams of the same authority, not competing entrypoints.
+> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the package-local workflow recipes in `@autoresearch/literature-workflows`, with `autoresearch workflow-plan` as the installable public stateful front door. Other checked-in consumers remain internal-only validation seams of the same authority, not competing entrypoints.
 
 > The old `hepar literature-gap` shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `autoresearch workflow-plan`.
 
-> High-level literature workflow authority for Stage 1-2 lives in the checked-in package-local workflow recipes under `packages/literature-workflows/recipes/`, packaged as `literature-workflows`. Provider-specific MCP tools remain the bounded atomic building blocks underneath those recipes; they are not the canonical high-level workflow truth or the public front door.
+> High-level literature workflow authority for Stage 1-2 lives in the checked-in package-local workflow recipes under `packages/literature-workflows/recipes/`. Provider-specific MCP tools remain the bounded atomic building blocks underneath those recipes; they are not the canonical high-level workflow truth or the public front door.
 
 ## Stage Enumeration
 

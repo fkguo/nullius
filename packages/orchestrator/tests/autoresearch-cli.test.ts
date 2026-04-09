@@ -178,7 +178,8 @@ describe('autoresearch CLI', () => {
       provider: 'openalex',
       tool: 'openalex_search',
     });
-    expect(manager.readState()).toMatchObject({
+    const persistedState = manager.readState();
+    expect(persistedState).toMatchObject({
       run_id: 'M-LIT-1',
       workflow_id: 'literature_landscape',
       run_status: 'idle',
@@ -187,9 +188,23 @@ describe('autoresearch CLI', () => {
         plan_id: 'M-LIT-1:literature_landscape',
       },
     });
+    const persistedSteps = ((persistedState.plan as Record<string, unknown>).steps ?? []) as Record<string, unknown>[];
+    expect(persistedSteps[0]).toMatchObject({
+      step_id: 'seed_search',
+      recovery_notes: '',
+      execution: {
+        action: 'discover.seed_search',
+        tool: 'openalex_search',
+        provider: 'openalex',
+        depends_on: [],
+        required_capabilities: ['supports_keyword_search'],
+        degrade_mode: 'fail_closed',
+      },
+    });
     const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
     expect(planMd).toContain('SSOT: `.autoresearch/state.json#/plan`');
     expect(planMd).toContain('seed_search');
+    expect(planMd).toContain('execution_tool: openalex_search');
   });
 
   it('persists literature gap analysis plans through the canonical autoresearch front door', async () => {
@@ -236,7 +251,8 @@ describe('autoresearch CLI', () => {
       provider: 'inspire',
       tool: 'inspire_find_connections',
     });
-    expect(manager.readState()).toMatchObject({
+    const persistedState = manager.readState();
+    expect(persistedState).toMatchObject({
       run_id: 'M-LIT-GAP-1',
       workflow_id: 'literature_gap_analysis',
       run_status: 'idle',
@@ -245,9 +261,19 @@ describe('autoresearch CLI', () => {
         plan_id: 'M-LIT-GAP-1:literature_gap_analysis',
       },
     });
+    const persistedSteps = ((persistedState.plan as Record<string, unknown>).steps ?? []) as Record<string, unknown>[];
+    expect(persistedSteps[0]).toMatchObject({
+      step_id: 'topic_scan',
+      execution: {
+        action: 'analyze.topic_evolution',
+        tool: 'inspire_topic_analysis',
+        provider: 'inspire',
+      },
+    });
     const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
     expect(planMd).toContain('topic_scan');
     expect(planMd).toContain('connection_scan');
+    expect(planMd).toContain('execution_tool: inspire_topic_analysis');
   });
 
   it('fails closed when workflow-plan targets an uninitialized project root', async () => {

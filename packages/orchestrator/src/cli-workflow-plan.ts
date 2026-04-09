@@ -3,6 +3,7 @@ import {
   resolveWorkflowRecipe,
   type ResolveWorkflowRequest,
   type ResolvedWorkflowPlan,
+  type ResolvedWorkflowStep,
 } from '@autoresearch/literature-workflows';
 import type { CliIo } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
@@ -25,22 +26,30 @@ function derivedRunId(input: WorkflowPlanCommandInput): string {
   return [input.recipeId, input.phase ?? 'plan'].join('-');
 }
 
+function buildWorkflowExecution(step: ResolvedWorkflowStep): Record<string, unknown> {
+  return {
+    action: step.action ?? null,
+    tool: step.tool,
+    provider: step.provider ?? null,
+    depends_on: [...step.depends_on],
+    params: step.params,
+    required_capabilities: [...step.required_capabilities],
+    degrade_mode: step.degrade_mode ?? null,
+    consumer_hints: step.consumer_hints ?? null,
+  };
+}
+
 function buildPersistedPlan(input: WorkflowPlanCommandInput, resolvedPlan: ResolvedWorkflowPlan, runId: string): Record<string, unknown> {
   const now = utcNowIso();
   const steps = resolvedPlan.resolved_steps.map(step => {
-    const recoveryNotes = [
-      `tool=${step.tool}`,
-      ...(step.provider ? [`provider=${step.provider}`] : []),
-      ...(step.degrade_mode ? [`degrade_mode=${step.degrade_mode}`] : []),
-      ...(step.depends_on.length > 0 ? [`depends_on=${step.depends_on.join(',')}`] : []),
-    ].join('; ');
     return {
       step_id: step.id,
       description: step.purpose,
       status: 'pending',
       expected_approvals: [],
       expected_outputs: step.consumer_hints?.artifact ? [step.consumer_hints.artifact] : [],
-      recovery_notes: recoveryNotes,
+      recovery_notes: '',
+      execution: buildWorkflowExecution(step),
     };
   });
   return {
