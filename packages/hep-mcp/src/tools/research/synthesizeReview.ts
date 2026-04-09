@@ -36,7 +36,7 @@ import {
 } from './synthesis/markdown.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types (re-exported for backward compatibility)
+// Types re-exported for the local research-tool module surface.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type { NarrativeStructure, ReviewStyle, PaperGroup, SynthesizedReview };
