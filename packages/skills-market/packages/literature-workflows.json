@@ -4,7 +4,7 @@
   "repo": "autoresearch-lab/autoresearch-meta",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Checked-in executable literature workflow authority: recipes + session protocol + launcher-backed consumers.",
+  "summary": "Checked-in executable literature workflow pack: recipes + session protocol + launcher-backed front door plus internal coverage consumers.",
   "platforms": [
     "claude_code",
     "codex",
