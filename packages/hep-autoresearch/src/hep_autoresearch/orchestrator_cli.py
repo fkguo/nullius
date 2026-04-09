@@ -3400,7 +3400,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch init`).")
+    p_init = sub.add_parser("init", help="Initialize .autoresearch/ state and approval policy (provider-local internal parser surface; canonical generic entrypoint is `autoresearch init`).")
     p_init.add_argument("--force", action="store_true", help="Overwrite existing state.json.")
     p_init.add_argument(
         "--allow-nested",
@@ -3415,7 +3415,7 @@ def main(argv: list[str] | None = None) -> int:
     p_init.add_argument("--checkpoint-interval-seconds", type=int, help="Default checkpoint interval.")
     p_init.set_defaults(fn=cmd_init)
 
-    p_status = sub.add_parser("status", help="Show current state (legacy Pipeline A surface; canonical generic entrypoint is `autoresearch status`).")
+    p_status = sub.add_parser("status", help="Show current state (provider-local internal parser surface; canonical generic entrypoint is `autoresearch status`).")
     p_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON output.")
     p_status.set_defaults(fn=cmd_status)
 
