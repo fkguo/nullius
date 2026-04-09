@@ -506,7 +506,6 @@ const OPENALEX_PREFIX_ENDPOINT: Record<string, string> = {
   T: 'topics',
   P: 'publishers',
   F: 'funders',
-  C: 'concepts',
 };
 
 function openalexEndpoint(normalizedId: string): string {

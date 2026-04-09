@@ -48,10 +48,8 @@ describe('detectIdentifier', () => {
       expect(r?.entity).toBe('funders');
     });
 
-    it('detects C-prefixed concept ID', () => {
-      const r = detectIdentifier('C71924100');
-      expect(r?.type).toBe('openalex');
-      expect(r?.entity).toBe('concepts');
+    it('rejects retired C-prefixed concept ID', () => {
+      expect(detectIdentifier('C71924100')).toBeNull();
     });
   });
 

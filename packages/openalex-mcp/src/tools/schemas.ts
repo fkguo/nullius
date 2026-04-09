@@ -4,7 +4,7 @@ import { optionalBudgetInt, optionalBudgetNumber } from '@autoresearch/shared';
 // ── Entity enum (shared across tools) ────────────────────────────────────────
 
 export const EntityEnum = z.enum([
-  'works', 'authors', 'sources', 'institutions', 'topics', 'publishers', 'funders', 'concepts',
+  'works', 'authors', 'sources', 'institutions', 'topics', 'publishers', 'funders',
 ]);
 
 // ── openalex_search ──────────────────────────────────────────────────────────
@@ -69,8 +69,7 @@ export const OpenAlexGetSchema = z.object({
     ),
   entity: EntityEnum.optional()
     .describe(
-      'Entity type override (auto-detected from ID format if omitted). ' +
-      'concepts included for legacy compatibility.',
+      'Entity type override (auto-detected from ID format if omitted).',
     ),
   select: z.string().trim().min(1).optional()
     .describe('Comma-separated fields to return'),

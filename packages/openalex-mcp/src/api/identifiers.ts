@@ -12,8 +12,7 @@ export type OpenAlexEntity =
   | 'institutions'
   | 'topics'
   | 'publishers'
-  | 'funders'
-  | 'concepts';
+  | 'funders';
 
 export interface IdentifierResult {
   type: 'openalex' | 'doi' | 'orcid' | 'ror' | 'issn' | 'pmid' | 'openalex_url';
@@ -30,12 +29,11 @@ const PREFIX_TO_ENTITY: Record<string, OpenAlexEntity> = {
   T: 'topics',
   P: 'publishers',
   F: 'funders',
-  C: 'concepts',
 };
 
 // Regex patterns
-const OPENALEX_ID_RE = /^([WAISITPFC])(\d+)$/i;
-const OPENALEX_URL_RE = /^https?:\/\/openalex\.org\/([WAISITPFC]\d+)(?:\/.*)?$/i;
+const OPENALEX_ID_RE = /^([WAISITPF])(\d+)$/i;
+const OPENALEX_URL_RE = /^https?:\/\/openalex\.org\/([WAISITPF]\d+)(?:\/.*)?$/i;
 const DOI_RE = /^(?:https?:\/\/(?:dx\.)?doi\.org\/)?(?:doi:)?(10\.\d{4,}\/\S+)$/i;
 const ORCID_URL_RE = /^https?:\/\/orcid\.org\/([\dX]{4}-[\dX]{4}-[\dX]{4}-[\dX]{4})$/i;
 const ORCID_BARE_RE = /^(?:orcid:)?([\dX]{4}-[\dX]{4}-[\dX]{4}-[\dX]{4})$/i;
