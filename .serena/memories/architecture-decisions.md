@@ -188,7 +188,7 @@
 ### [2026-04-07] Idea-engine discovery/runtime authority invariant: TS public host must not point back to legacy package paths
 
 **Decision**:
-- Once installable `idea-mcp` is TS-host-only, checked-in `idea-engine` discovery cards must point to TS-owned contract snapshots under `packages/idea-engine/**`, not `packages/idea-core/**`.
+- Installable `idea-mcp` is TS-host-only, and checked-in `idea-engine` discovery cards must point to TS-owned contract snapshots under `packages/idea-engine/**`, not `packages/idea-core/**`.
 - `idea-mcp` and `IdeaRpcClient` must require an explicit data root and must fail closed rather than defaulting to repo-local `packages/idea-engine/runs`.
 - Default runtime contract and builtin pack assets consumed by the live TS `idea-engine` path must live under package-local TS-owned paths, not legacy Python package paths.
 
@@ -320,7 +320,7 @@
 ### [2026-03-25] EVO-11 distributor boundary invariant: TS live seam stays family-neutral, slice-1 policy stays fixed
 
 **Decision**:
-- Live distributor authority remains on the TS `packages/idea-engine/` `campaign.init` + `search.step` path; do not reopen Python `idea-core` as bandit runtime authority.
+- Live distributor authority remains on the TS `packages/idea-engine/` `campaign.init` + `search.step` path; do not reopen any legacy Python runtime as bandit runtime authority.
 - EVO-11 slice-1 fixes the live runtime-configured public policy surface to `policy_id = ts.discounted_ucb_v1`, factorized action space, immutable campaign-scoped config/state/event artifacts, and checked-in hyperparameters rather than user-configurable policy tuning.
 - The internal distributor seam remains family-neutral: operator descriptors, action-space enumeration, config/state/event contracts, and deterministic replay surfaces must not assume `discounted_ucb_v` is the only long-term family, so stronger future policies such as `Replicator MW-KL` or EVO-21-style adaptive strategies can attach without reworking the live TS authority boundary.
 
