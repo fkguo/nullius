@@ -24,7 +24,7 @@
 
 ```json
 {
-  "domain": "string (组件名: hep-mcp | idea-engine | hepar | skill)",
+  "domain": "string (组件名: hep-mcp | idea-engine | orchestrator | skill)",
   "code": "string (错误码)",
   "message": "string (人类可读)",
   "retryable": "boolean",
@@ -61,8 +61,9 @@ grep -rn 'throw new Error\|raise Exception' --include='*.ts' --include='*.py' \
 
 **CI 验证**:
 ```bash
-# 检查错误码注册表完整性
-python autoresearch-meta/scripts/validate_error_registry.py
+# 当前没有独立的 repo-local 错误码注册表 checker。
+# 先由 package-local contract tests 覆盖错误码 / retryability truth。
+pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未注册的错误码阻断 CI
@@ -73,8 +74,8 @@ python autoresearch-meta/scripts/validate_error_registry.py
 
 **CI 验证**:
 ```bash
-# 契约测试: 模拟 MCP RATE_LIMIT 响应 → 验证 result.error_code == "RATE_LIMIT"
-pytest hep-autoresearch/tests/test_mcp_error_propagation.py -k "test_error_code_preserved"
+# 契约测试: 模拟 MCP 错误响应 → 验证 result.error_code 被保留
+python3 -m pytest packages/hep-autoresearch/tests/test_mcp_error_code.py -q
 ```
 
 **违规行为**: **fail-closed** — 错误码丢失导致调用方无法区分可重试/不可重试错误
@@ -85,8 +86,9 @@ pytest hep-autoresearch/tests/test_mcp_error_propagation.py -k "test_error_code_
 
 **CI 验证**:
 ```bash
-# 集成测试: 在 run 上下文中触发错误 → 验证 run_id 非 null
-pytest autoresearch-meta/tests/integration/ -k "test_error_run_id_not_null"
+# 当前没有独立的 repo-local run_id 错误信封 checker。
+# 至少保持 orchestrator package 的 run-state / CLI tests 通过。
+pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 ```
 
 **违规行为**: **fail-open** (警告) — 存量代码渐进修复，新代码强制
@@ -109,8 +111,8 @@ pytest autoresearch-meta/tests/integration/ -k "test_error_run_id_not_null"
 
 **CI 验证**:
 ```bash
-# lint: 检查新代码中的 ID 生成是否使用 prefixed 格式
-python autoresearch-meta/scripts/lint_id_format.py --check-new-only
+# 当前没有独立的 repo-local prefixed-id lint。
+# 先由 owning package tests + review fail-closed 保持该约束。
 ```
 
 **违规行为**: **fail-open** (警告) — 旧 ID 通过映射表互操作，新 ID 强制前缀
@@ -121,7 +123,7 @@ python autoresearch-meta/scripts/lint_id_format.py --check-new-only
 
 ```json
 {
-  "component": "hep-mcp | hepar | idea-engine",
+  "component": "hep-mcp | idea-engine | orchestrator",
   "kind": "project | run | campaign | node | artifact",
   "id": "prefixed_uuid"
 }
@@ -129,8 +131,8 @@ python autoresearch-meta/scripts/lint_id_format.py --check-new-only
 
 **CI 验证**:
 ```bash
-# 契约测试: 跨组件 API 调用参数中的 ID 字段必须为结构化引用或 prefixed string
-python autoresearch-meta/scripts/validate_cross_refs.py
+# 当前没有独立的 repo-local cross-reference validator。
+# 先由跨组件 contract tests 和 schema consumers 覆盖该约束。
 ```
 
 **违规行为**: **fail-open** (警告) — 渐进迁移
@@ -153,8 +155,9 @@ python autoresearch-meta/scripts/validate_cross_refs.py
 
 **CI 验证**:
 ```bash
-# 检查所有返回 artifact URI 的工具是否同时返回 ArtifactRefV1
-node autoresearch-meta/scripts/validate_artifact_refs.mjs
+# 当前没有独立的 repo-local ArtifactRef validator。
+# 至少保持 artifact / URI authority 相关 contract tests 通过。
+pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/runArtifactUriAuthority.test.ts
 ```
 
 **违规行为**: **fail-closed** — 缺少完整性字段的 artifact 引用阻断 CI
@@ -181,8 +184,9 @@ pnpm --filter @autoresearch/idea-engine test -- tests/runtime-asset-authority.te
 
 **CI 验证**:
 ```bash
-# CI: 重新生成 catalog → normalize 易变字段 → diff → 不一致则失败
-pnpm catalog && python autoresearch-meta/scripts/normalize_catalog.py tool_catalog.*.json && git diff --exit-code tool_catalog.*.json
+# package-local tool catalog 必须可重生成且与 checked-in JSON 一致
+pnpm --filter @autoresearch/hep-mcp catalog
+git diff --exit-code packages/hep-mcp/tool_catalog.standard.json packages/hep-mcp/tool_catalog.full.json
 ```
 
 **违规行为**: **fail-closed** — catalog 与运行时 `listTools()` 不一致阻断 CI
@@ -194,7 +198,7 @@ pnpm catalog && python autoresearch-meta/scripts/normalize_catalog.py tool_catal
 **CI 验证**:
 ```bash
 # lint: 检查 call_tool_json() 调用是否使用常量
-grep -rn 'call_tool_json.*"[a-z_]*"' hep-autoresearch/src/ \
+grep -rn 'call_tool_json.*"[a-z_]*"' packages/hep-autoresearch/src/ \
   | grep -v 'mcp_tools\.' && exit 1 || exit 0
 ```
 
@@ -204,7 +208,7 @@ grep -rn 'call_tool_json.*"[a-z_]*"' hep-autoresearch/src/ \
 
 ### SYNC-04: 运行时兼容性握手
 
-**规则**: 已删除的 legacy shell wrapper（如 `hepar doctor`）不再是 live 握手 authority。当前运行时兼容性握手必须由 lower-level MCP contract / tool inventory 验证承担，至少覆盖 `initialize → hep_health / tool contracts → tools/list` 这一条链路。
+**规则**: 已删除的 legacy shell wrapper（如已退役的 Python doctor surface）不再是 live 握手 authority。当前运行时兼容性握手必须由 lower-level MCP contract / tool inventory 验证承担，至少覆盖 `initialize → hep_health / tool contracts → tools/list` 这一条链路。
 
 **CI 验证**:
 ```bash
@@ -256,8 +260,9 @@ make codegen-check  # 重新生成 → git diff --exit-code */generated/
 
 **CI 验证**:
 ```bash
-# 检查代码中引用的 env var 是否全部在注册表中
-python autoresearch-meta/scripts/lint_config_keys.py
+# 当前没有独立的 repo-local config-key linter。
+# 先由 checked-in config docs + package-local config tests 保持该约束。
+pnpm --filter @autoresearch/hep-mcp test -- tests/research/config.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未注册的配置键阻断 CI
@@ -268,8 +273,9 @@ python autoresearch-meta/scripts/lint_config_keys.py
 
 **CI 验证**:
 ```bash
-# 集成测试: .env 中设置 HEP_TOOL_MODE=full → 验证 MCP server 暴露 83 工具
-pytest autoresearch-meta/tests/integration/test_env_loading.py
+# 当前没有独立的 repo-local .env integration test。
+# 至少保持 package-local tool inventory truth 通过。
+pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 ```
 
 **违规行为**: **fail-closed** — 配置不一致导致"shell 中正常，编排器中失败"
@@ -280,15 +286,16 @@ pytest autoresearch-meta/tests/integration/test_env_loading.py
 
 **CI 验证**:
 ```bash
-# 交叉验证: 注册表键 ⊆ McpStdioClient 白名单
-python autoresearch-meta/scripts/validate_env_whitelist.py
+# 当前没有独立的 repo-local env-whitelist validator。
+# 先由边界/配置 tests 覆盖该约束。
+python3 -m pytest packages/hep-autoresearch/tests/test_mcp_stdio_client_boundary.py -q
 ```
 
 **违规行为**: **fail-closed** — 配置键未传播阻断 CI
 
 ### CFG-04: 配置回显
 
-**规则**: 已删除的 `hepar doctor` 不再承担配置回显 authority。当前配置可观测性必须由 lower-level diagnostics / contract tests 承担，至少保证与 `hep_health`、tool contracts、tool inventory 相关的关键配置不会退化成静默黑箱。
+**规则**: 已删除的 Python doctor wrapper 不再承担配置回显 authority。当前配置可观测性必须由 lower-level diagnostics / contract tests 承担，至少保证与 `hep_health`、tool contracts、tool inventory 相关的关键配置不会退化成静默黑箱。
 
 **CI 验证**:
 ```bash
@@ -318,8 +325,9 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
 
 **CI 验证**:
 ```bash
-# 静态校验: run_card 中的 gate 必须在注册表中
-python autoresearch-meta/scripts/validate_gates.py --check-run-cards
+# 当前没有独立的 repo-local gate-registry linter。
+# 至少保持 orchestrator / hep-mcp gate contract tests 通过。
+pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/executeManifestApprovalContract.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未注册 gate 在编译期（run_card 验证）即报错，不等到运行期
@@ -341,8 +349,8 @@ python autoresearch-meta/scripts/validate_gates.py --check-run-cards
 
 **CI 验证**:
 ```bash
-# schema 验证: gate_spec_v1.schema.json 通过 Draft 2020-12
-python autoresearch-meta/scripts/validate_schemas.py schemas/gate_spec_v1.schema.json
+# schema codegen / generated artifacts must stay in sync with checked-in schemas
+make codegen-check
 ```
 
 **违规行为**: **fail-closed** — 不符合 GateSpec 的 gate 定义阻断 CI
@@ -354,7 +362,7 @@ python autoresearch-meta/scripts/validate_schemas.py schemas/gate_spec_v1.schema
 **CI 验证**:
 ```bash
 # 单元测试: 设置过期 timeout_at → 验证 watchdog 触发
-pytest hep-autoresearch/tests/test_approval_watchdog.py
+python3 -m pytest packages/hep-autoresearch/tests/test_approval_watchdog.py -q
 ```
 
 **违规行为**: **fail-closed** — 超时未执行策略视为治理绕过
@@ -365,8 +373,8 @@ pytest hep-autoresearch/tests/test_approval_watchdog.py
 
 **CI 验证**:
 ```bash
-# 集成测试: 预算耗尽后尝试 approve → 验证被拒绝
-pytest hep-autoresearch/tests/test_approval_budget.py
+# 当前审批预算 coverage 保持在 package-local approval packet tests 内。
+python3 -m pytest packages/hep-autoresearch/tests/test_approval_packet.py -q
 ```
 
 **违规行为**: **fail-closed** — 预算绕过视为治理失效
@@ -377,8 +385,8 @@ pytest hep-autoresearch/tests/test_approval_budget.py
 
 **CI 验证**:
 ```bash
-# 集成测试: 触发审批 → 验证三份产物均存在且 JSON 通过 schema 验证
-pytest hep-autoresearch/tests/test_approval_packet_triple.py
+# 集成测试: 触发审批 → 验证审批产物存在且结构通过 package-local checks
+python3 -m pytest packages/hep-autoresearch/tests/test_approval_packet.py -q
 ```
 
 **违规行为**: **fail-closed** — 不完整的审批产物阻断审批流程
@@ -411,8 +419,9 @@ autoresearch run --workflow-id computation --dry-run 2>&1 | grep '^{' | jq -e '.
 
 **CI 验证**:
 ```bash
-# 集成测试: 发起 MCP 调用 → 验证 ledger 事件含相同 trace_id
-pytest autoresearch-meta/tests/integration/test_trace_propagation.py
+# 跨组件 trace_id 透传至少要由 package-local logging/boundary tests 覆盖。
+python3 -m pytest packages/hep-autoresearch/tests/test_logging_config.py -q
+python3 -m pytest packages/hep-autoresearch/tests/test_mcp_stdio_client_boundary.py -q
 ```
 
 **违规行为**: **fail-open** (警告) — 缺少 trace_id 不阻断但降低可观测性
@@ -429,8 +438,9 @@ state_transition, error, checkpoint
 
 **CI 验证**:
 ```bash
-# lint: 检查 append_ledger 调用的 event_type 是否在枚举中
-python autoresearch-meta/scripts/lint_ledger_events.py
+# 当前没有独立的 repo-local ledger-event linter。
+# 先由 orchestrator state/ledger tests 覆盖该约束。
+pnpm --filter @autoresearch/orchestrator test -- tests/orchestrator.test.ts
 ```
 
 **违规行为**: **fail-closed** — 非枚举 event_type 写入时抛出 ValueError
@@ -448,8 +458,8 @@ Bearer:      Bearer [a-zA-Z0-9._-]+
 
 **CI 验证**:
 ```bash
-# 集成测试: 设置含 API key 的环境 → 运行 → grep 日志无泄露
-pytest autoresearch-meta/tests/test_log_redaction.py
+# 契约测试: JSONL 日志输出必须脱敏敏感参数
+pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/jsonlStderrLogging.test.ts
 ```
 
 **违规行为**: **fail-closed** — 日志含 secrets 模式阻断 CI
@@ -479,7 +489,7 @@ pytest autoresearch-meta/tests/test_log_redaction.py
 
 **CI 验证**:
 ```bash
-python autoresearch-meta/scripts/lint_artifact_names.py \
+python3 meta/scripts/lint_artifact_names.py \
   --pattern '^[a-z]+_[a-z_]+(_\d{3})?_v\d+\.(json|tex|jsonl)$'
 ```
 
@@ -497,8 +507,9 @@ python autoresearch-meta/scripts/lint_artifact_names.py \
 
 **CI 验证**:
 ```bash
-# 检查文件名版本与内部 schema_version 一致
-python autoresearch-meta/scripts/lint_artifact_versions.py
+# 当前没有独立的 repo-local artifact-version linter。
+# 先由 codegen / artifact contract tests 保持该约束。
+make codegen-check
 ```
 
 **违规行为**: **fail-closed** — 版本不一致阻断 CI
@@ -524,8 +535,8 @@ grep -rn 'writeFile\|writeFileSync' packages/hep-mcp/src/ \
 
 **CI 验证**:
 ```bash
-# 集成测试: 返回 200KB 的工具 → 验证自动截断
-pytest autoresearch-meta/tests/integration/test_payload_truncation.py
+# 契约测试: 超限 payload 必须转成 artifact/backpressure path
+pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/payloadBackpressure.test.ts
 ```
 
 **违规行为**: **fail-closed** — 超限未截断的 tool result 阻断（运行时拦截）
@@ -552,7 +563,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/core/writingEvidence.test.ts
 
 **CI 验证**:
 ```bash
-pytest hep-autoresearch/tests/test_shell_sandbox.py
+python3 -m pytest packages/hep-autoresearch/tests/test_shell_isolation.py -q
 ```
 
 **违规行为**: **fail-closed** — 未隔离的执行适配器阻断 CI
@@ -574,8 +585,8 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/core/sandbox.test.ts
 
 **CI 验证**:
 ```bash
-# 检查所有 ToolSpec 是否声明 risk_level
-node autoresearch-meta/scripts/validate_tool_risk_levels.mjs
+# 至少保持 tool risk / sampling surface tests 通过
+pnpm --filter @autoresearch/orchestrator test -- tests/mcp-client-sampling.test.ts
 ```
 
 **违规行为**: **staged fail-closed** (R3 升级) — 新增工具必须声明 `risk_level`，否则 CI 阻断；存量未标注工具 fail-open（警告），按 REDESIGN_PLAN H-11a 分阶段补齐。`_confirm` 机制待 H-11b 组合策略统一设计后全面启用。
@@ -592,7 +603,8 @@ node autoresearch-meta/scripts/validate_tool_risk_levels.mjs
 
 **CI 验证**:
 ```bash
-python autoresearch-meta/scripts/lint_network_allowlist.py
+# 当前没有独立的 repo-local network-allowlist linter。
+# 先由 provider tests 与 fail-closed review 保持该约束。
 ```
 
 **违规行为**: **fail-closed** — 非白名单域名请求被拒绝
@@ -607,7 +619,7 @@ python autoresearch-meta/scripts/lint_network_allowlist.py
 
 **CI 验证**:
 ```bash
-pytest hep-autoresearch/tests/test_retry_policy.py
+python3 -m pytest packages/hep-autoresearch/tests/test_retry.py -q
 ```
 
 **违规行为**: **fail-closed** — 无界重试或缺少退避的重试逻辑阻断 CI
@@ -622,7 +634,9 @@ pytest hep-autoresearch/tests/test_retry_policy.py
 
 **CI 验证**:
 ```bash
-python autoresearch-meta/scripts/lint_migration_registry.py
+# 当前没有独立的 repo-local migration-registry linter。
+# 至少保持 schema/codegen 同步门禁通过。
+make codegen-check
 ```
 
 **违规行为**: **fail-closed** — 缺少迁移条目的 schema 版本升级阻断 CI
@@ -638,14 +652,14 @@ python autoresearch-meta/scripts/lint_migration_registry.py
 **CI 验证**:
 ```bash
 # release gate: 重新生成 + hash 比对
-make release-check  # 内部: pnpm catalog → generate mcp_tools.py → diff hash
+make release  # 内部: build + codegen + version sync
 ```
 
 **违规行为**: **fail-closed** — hash 不匹配阻断 tag 创建
 
 ### REL-02: 生成产物确定性 (R3 新增)
 
-**规则**: 所有 CI 生成的契约产物（tool catalog、codegen 输出、Python bindings）必须确定性可复现。易变字段（时间戳、生成器版本）必须在 diff 前 normalize 或固定。codegen 工具版本必须在 `autoresearch-meta/package.json` / `pyproject.toml` 中锁定。
+**规则**: 所有 CI 生成的契约产物（tool catalog、codegen 输出、Python bindings）必须确定性可复现。易变字段（时间戳、生成器版本）必须在 diff 前 normalize 或固定。codegen 工具版本必须在当前 monorepo 的 checked-in package / Python toolchain config 中锁定。
 
 **CI 验证**:
 ```bash
@@ -671,7 +685,7 @@ make codegen && cp -r */generated/ /tmp/gen1 && make codegen && diff -r */genera
 **CI 验证**:
 ```bash
 # LOC 检查 (TS + Python, diff-scoped 模式)
-# 正式实现: autoresearch-meta/scripts/check_loc.py (计算非空非注释行，含缩进行)
+# 正式实现: meta/scripts/check_loc.py (计算非空非注释行，含缩进行)
 # 已知局限 (Phase 3 升级为 AST-based lint 后消除):
 #   - Python 多行 docstring ("""...""") 内容行被误计为代码
 #   - TS 多行注释 (/* ... */) 中不以 * 开头的行被误计
@@ -689,7 +703,7 @@ grep -rn 'as any\|@ts-ignore\|@ts-expect-error\|# type: ignore' \
   | grep -v 'node_modules\|__pycache__\|generated\|CONTRACT-EXEMPT' && exit 1 || exit 0
 # 入口文件业务逻辑检查 (CODE-01.3, heuristic)
 # 检查 index.ts/__init__.py 是否包含非 import/export/空行/注释 的代码
-python autoresearch-meta/scripts/check_entry_files.py
+python3 meta/scripts/check_entry_files.py
 # 静默吞错检查 (CODE-01.5, heuristic)
 grep -Pzn 'catch\s*\([^)]*\)\s*\{\s*\}' --include='*.ts' -r . \
   | grep -v 'node_modules\|generated\|CONTRACT-EXEMPT' && exit 1 || exit 0
@@ -730,7 +744,7 @@ grep -rn 'except:\s*pass\|except\s.*:\s*pass' --include='*.py' \
    - 超过日落日期: CI **fail-closed** — 豁免过期，必须拆分文件或延期 (需新 PR 更新日期)
 
 3. **LOC 棘轮 (ratchet) 机制** (互补，不依赖本提案):
-   - 维护 `autoresearch-meta/baselines/loc_ratchet.json`: 记录每个超标文件的当前 LOC 上限
+   - 维护本仓 checked-in 的 LOC ratchet baseline（若启用）: 记录每个超标文件的当前 LOC 上限
    - CI 检查: 文件 LOC 只允许 ≤ 记录值，不允许增长
    - 文件拆分后从棘轮清单移除
    - 此机制**不需要契约修订** — 作为 NEW-R02a CI 脚本的实现细节
@@ -738,7 +752,7 @@ grep -rn 'except:\s*pass\|except\s.*:\s*pass' --include='*.py' \
 4. **CI 验证脚本变更**:
    ```bash
    # check_loc.py 增强: 文件级豁免 + 日落检查
-   python autoresearch-meta/scripts/check_loc.py --mode diff-scoped --sunset-warn 30
+   python3 meta/scripts/check_loc.py --mode diff-scoped --sunset-warn 30
    ```
 
 **影响范围**: 仅 CODE-01.1 (LOC 限制)。CODE-01.2~01.6 的现有行内豁免机制不变。
@@ -857,5 +871,5 @@ if (internal.length) { console.error('PLUG-01:', internal); process.exit(1); }
 1. **新代码**: 本规范发布后，所有新增/修改代码必须遵守全部规则
 2. **存量代码**: 按当前 checked-in 架构/治理文档分阶段对齐，fail-open 规则允许渐进迁移
 3. **豁免**: 特殊情况可通过在代码中添加 `# CONTRACT-EXEMPT: {规则ID} {原因}` 注释豁免，但必须在 PR review 中说明。CODE-01.1 文件级豁免需额外包含 `sunset:YYYY-MM-DD` (待 AMEND-01 批准后生效)
-4. **版本演进**: 规则变更需经 autoresearch-meta 治理流程审批
+4. **版本演进**: 规则变更需经当前 monorepo 的 checked-in 治理流程审批
 5. **待批准修订**: 标记为 `AMEND-{NN}` 的提案在治理审批前不具有强制力，仅供参考实施
