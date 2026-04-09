@@ -20,6 +20,19 @@ from hep_autoresearch.toolkit.orchestrator_regression import OrchestratorRegress
 
 
 class TestOrchestratorRegression(unittest.TestCase):
+    def test_rejects_unknown_scenarios_including_retired_branch_alias(self) -> None:
+        repo_root = _package_root().resolve()
+
+        with self.assertRaisesRegex(ValueError, "unknown orchestrator regression scenarios: branch"):
+            run_orchestrator_regression(
+                OrchestratorRegressionInputs(
+                    tag="T-orchestrator-regression-invalid-scenario",
+                    scenarios=("branch",),
+                    timeout_seconds=30,
+                ),
+                repo_root=repo_root,
+            )
+
     def test_computation_regression_uses_external_project_root(self) -> None:
         repo_root = _package_root().resolve()
         tag = "T-orchestrator-regression-computation"

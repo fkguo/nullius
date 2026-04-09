@@ -18,6 +18,10 @@ from .orchestrator_state import plan_md_path as _plan_md_path
 from .orchestrator_state import state_path as _state_path
 from .run_quality_metrics import build_run_quality_metrics
 
+VALID_ORCHESTRATOR_REGRESSION_SCENARIOS = frozenset(
+    {"project_init", "plan", "branching", "sandbox", "reproduce", "computation", "revision", "survey_polish", "bypass"}
+)
+
 
 @dataclass(frozen=True)
 class OrchestratorRegressionInputs:
@@ -85,6 +89,16 @@ def _write_artifacts(
 def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: Path) -> dict[str, Any]:
     if not inps.tag or not str(inps.tag).strip():
         raise ValueError("tag is required")
+
+    scenarios = {str(s).strip().lower() for s in inps.scenarios if str(s).strip()}
+    unknown_scenarios = sorted(scenarios - VALID_ORCHESTRATOR_REGRESSION_SCENARIOS)
+    if unknown_scenarios:
+        raise ValueError(
+            "unknown orchestrator regression scenarios: "
+            + ", ".join(unknown_scenarios)
+            + "; allowed: "
+            + ", ".join(sorted(VALID_ORCHESTRATOR_REGRESSION_SCENARIOS))
+        )
 
     created_at = utc_now_iso()
     out_dir = repo_root / "artifacts" / "runs" / str(inps.tag) / "orchestrator_regression"
@@ -1473,12 +1487,11 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     plan: dict[str, Any] = {}
     branching: dict[str, Any] = {}
     project_init: dict[str, Any] = {}
-    scenarios = set(str(s).strip().lower() for s in inps.scenarios if str(s).strip())
     if not errors and "project_init" in scenarios:
         project_init = scenario_project_init()
     if not errors and "plan" in scenarios:
         plan = scenario_plan()
-    if not errors and ("branching" in scenarios or "branch" in scenarios):
+    if not errors and "branching" in scenarios:
         branching = scenario_branching()
     if not errors and "sandbox" in scenarios:
         sandbox = scenario_sandbox()

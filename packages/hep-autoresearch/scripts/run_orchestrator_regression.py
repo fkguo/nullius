@@ -28,7 +28,7 @@ def main() -> int:
     parser.add_argument(
         "--scenarios",
         default="reproduce,computation,revision",
-        help="Comma-separated scenarios to run: project_init,plan,branching,sandbox,reproduce,computation,revision,survey_polish,bypass (default: reproduce,computation,revision). ('branch' is an alias for 'branching')",
+        help="Comma-separated scenarios to run: project_init,plan,branching,sandbox,reproduce,computation,revision,survey_polish,bypass (default: reproduce,computation,revision). Unknown scenarios fail closed.",
     )
     parser.add_argument(
         "--computation-run-card",
