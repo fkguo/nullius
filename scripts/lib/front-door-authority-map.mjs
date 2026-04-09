@@ -53,6 +53,7 @@ export const FRONT_DOOR_AUTHORITY_CLASSIFICATIONS = Object.freeze([
 export const AUTORESEARCH_FRONT_DOOR_REL_PATH = 'packages/orchestrator/src/cli-command-inventory.ts';
 export const HEP_AUTORESEARCH_INTERNAL_PARSER_REL_PATH = 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py';
 export const ORCH_EXACT_SPEC_REL_PATH = 'meta/docs/orchestrator-mcp-tools-spec.md';
+export const IDEA_MCP_TOOL_REGISTRY_REL_PATH = 'packages/idea-mcp/src/tool-registry.ts';
 export const FRONT_DOOR_AUTHORITY_JSON_REL_PATH = 'meta/front_door_authority_map_v1.json';
 
 export const AUTORESEARCH_FRONT_DOOR_COMMANDS = extractTsCommandInventory(AUTORESEARCH_FRONT_DOOR_REL_PATH);
@@ -123,6 +124,13 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
     relPath: ORCH_EXACT_SPEC_REL_PATH,
     exactInventoryKind: 'exact_spec_doc',
     toolPrefix: 'orch_',
+  }),
+  Object.freeze({
+    surface: 'idea_mcp',
+    classification: 'canonical_public',
+    owner: '@autoresearch/idea-mcp',
+    relPath: IDEA_MCP_TOOL_REGISTRY_REL_PATH,
+    exactInventoryKind: 'mcp_tool_inventory',
   }),
 ]);
 

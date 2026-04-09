@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { zodToMcpInputSchema } from '../src/mcp-input-schema.js';
 import { IDEA_TOOLS } from '../src/tool-registry.js';
+import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
 
 function getTool(name: string) {
   const tool = IDEA_TOOLS.find(candidate => candidate.name === name);
@@ -30,6 +31,18 @@ describe('idea-mcp tool registry', () => {
       'search.step',
       'eval.run',
     ]);
+  });
+
+  it('locks the public authority map to the exact idea-mcp tool inventory', () => {
+    expect(getFrontDoorAuthoritySurface('idea_mcp')).toMatchObject({
+      classification: 'canonical_public',
+      surface_kind: 'mcp_tool_inventory',
+      exact_inventory_source: 'packages/idea-mcp/src/tool-registry.ts',
+      tools: IDEA_TOOLS.map(tool => ({
+        name: tool.name,
+        rpc_method: tool.rpcMethod,
+      })),
+    });
   });
 
   it('exposes live-contract required fields for campaign.init', () => {

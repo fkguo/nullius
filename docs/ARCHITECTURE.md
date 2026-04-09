@@ -9,6 +9,7 @@ This document explains the current front-door architecture of the monorepo. It i
 Autoresearch Lab currently combines:
 
 - a generic lifecycle/control-plane package (`@autoresearch/orchestrator`)
+- an experimental TS idea campaign runtime plus MCP bridge (`@autoresearch/idea-engine`, `@autoresearch/idea-mcp`)
 - a current most mature domain MCP front door with the strongest end-to-end workflow family today (`@autoresearch/hep-mcp`)
 - additional provider packages (`openalex-mcp`, `arxiv-mcp`, `hepdata-mcp`, `pdg-mcp`, `zotero-mcp`)
 - checked-in workflow recipes that can be consumed by generic workflow-plan consumers or agent clients
@@ -85,12 +86,25 @@ Current responsibilities:
 
 The current user-facing generic lifecycle + computation + workflow-plan entrypoint is the `autoresearch` CLI, not the root MCP server. The same control plane also exposes a canonical public `orch_*` MCP/operator surface; what does not exist yet is a separate monolithic root MCP server binary that would replace the current CLI-first entrypoint.
 
+### 3.3b `@autoresearch/idea-engine` / `@autoresearch/idea-mcp`
+
+Current responsibilities:
+
+- TS-hosted idea campaign runtime for campaign state, bounded search/eval loops, and package-local contract validation
+- MCP bridge exposing `idea_campaign_init/status/topup/pause/resume/complete`, `idea_search_step`, and `idea_eval_run`
+- explicit external data-root enforcement via `IDEA_MCP_DATA_DIR`; repo-local default data roots are forbidden
+
+Current boundary:
+
+- this is an experimental runtime surface for generic idea search/eval loops
+- it is not yet a root front door or a replacement for `autoresearch` lifecycle/control-plane authority
+
 ### 3.4 Launcher-backed workflow consumers
 
 High-level literature workflows are meant to enter through the stateful launcher-backed `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:
 
 - `autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`
-- `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` → lower-level internal / maintainer coverage consumer of the same workflow authority
+- other checked-in consumers remain internal-only validation seams and do not define public workflow authority
 
 These workflow-plan consumers are not the root identity of the repo; they are one layer above checked-in recipe authority.
 

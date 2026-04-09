@@ -8,6 +8,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 
 - Manage generic lifecycle state for real external project roots through `@autoresearch/orchestrator` and the `autoresearch` CLI.
 - Resolve checked-in workflow recipes through `autoresearch workflow-plan` and persist plan state under `.autoresearch/`.
+- Run an experimental TS-hosted idea campaign runtime through `@autoresearch/idea-engine` and the `idea-mcp` bridge for search/eval loops with explicit external data roots.
 - Run local-first MCP providers for literature, data, reference, and evidence workflows.
 - Create audited Project/Run workspaces, persist artifacts on disk, and expose them through `hep://...` resources.
 - Build evidence from LaTeX, PDFs, Zotero attachments, and bounded network providers, then query that evidence for writing and review.
@@ -21,6 +22,8 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
    - `autoresearch workflow-plan` is the recommended stateful launcher-backed front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. Internal checked-in Python consumers remain implementation/regression proof only, not separate public entrypoints.
 1. Native TS computation workflow
    - `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; approval handling stays on `autoresearch status/approve`.
+1. Experimental idea campaign workflow
+   - `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` exposed through `idea-mcp`. This remains an experimental TS-hosted runtime surface, not a root front door.
 1. Project/Run evidence workflow
    - `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> export/import.
 1. Literature and data navigation workflow
@@ -31,7 +34,8 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 | Surface | Current entrypoint | What it is for |
 | --- | --- | --- |
 | Generic lifecycle + computation + workflow-plan front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful workflow-plan persistence |
-| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended stateful launcher-backed entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, derives `.autoresearch/plan.md`; internal checked-in Python consumers remain regression-only proof, not public front-door variants |
+| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended stateful launcher-backed entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md` |
+| Experimental idea campaign MCP surface | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | TS-hosted idea campaign runtime bridge for `idea_campaign_init/status/topup/pause/resume/complete`, `idea_search_step`, and `idea_eval_run` on explicit external data roots |
 | Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research/navigation/evidence/export workflows `(72 std / 101)` |
 | Leaf provider packages | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Provider-specific capabilities that can be composed into client workflows |
 
@@ -47,10 +51,11 @@ Current package map, grouped by capability rather than identity:
 | Capability family | Current surface | Notes |
 | --- | --- | --- |
 | Generic lifecycle, computation, and approvals | `@autoresearch/orchestrator`, `autoresearch` | Lifecycle state, approvals, and the bounded native TS computation run slice at the current front door |
+| Experimental idea campaign runtime | `@autoresearch/idea-engine`, `@autoresearch/idea-mcp` | TS-hosted campaign runtime and MCP bridge for iterative idea search/eval loops; requires explicit external `IDEA_MCP_DATA_DIR` and is not a root front door |
 | Evidence-first Project/Run workflows | `@autoresearch/hep-mcp`, `hep_*`, `hep://...` | Current strongest end-to-end workflow family |
 | Literature and data providers | `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*` | Mix of direct search, download, export, and bounded analysis |
 | Local reference providers | `zotero_*`, `pdg_*` | Optional local-only inputs and lookups |
-| Workflow shells | `workflow-plan` | Checked-in generic workflow authority consumed directly by `autoresearch workflow-plan`; any remaining Python consumers are internal regression-only proof |
+| Workflow shells | `workflow-plan` | Checked-in generic workflow authority consumed directly by `autoresearch workflow-plan` |
 
 ## 4. Where Do Artifacts, Resources, and State Live
 

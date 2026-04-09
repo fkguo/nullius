@@ -8,6 +8,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 - 通过 `@autoresearch/orchestrator` 与 `autoresearch` CLI 管理真实外部 project root 的通用 lifecycle state。
 - 通过 `autoresearch workflow-plan` 解析 checked-in workflow recipes，并把 plan state 持久化到 `.autoresearch/`。
+- 通过 `@autoresearch/idea-engine` 与 `idea-mcp` bridge 运行实验性的 TS hosted idea campaign runtime，用于 search/eval loops，并要求显式的外部数据根。
 - 运行本地优先的 MCP providers，覆盖文献、数据、参考资料与证据工作流。
 - 创建可审计的 Project/Run 工作空间，把 artifacts 落盘，并通过 `hep://...` resources 暴露给客户端。
 - 从 LaTeX、Zotero 附件以及受限网络 provider 构建证据，再把这些证据用于写作、回放与评审。
@@ -21,6 +22,8 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
    - `autoresearch workflow-plan` 是推荐的 stateful launcher-backed 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in generic workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。仓内保留的 Python consumer 只作为实现/回归验证证明，不是独立 public 入口。
 1. 原生 TS computation 工作流
    - `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。
+1. 实验性 idea campaign 工作流
+   - 通过 `idea-mcp` 暴露 `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`，并支持 `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete`。这仍是实验性的 TS hosted runtime surface，不是 root front door。
 1. Project/Run 证据工作流
    - `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> export/import。
 1. 文献与数据导航工作流
@@ -32,6 +35,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | --- | --- | --- |
 | 通用 lifecycle + computation + workflow-plan front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful workflow-plan 持久化 |
 | 高层文献工作流入口 | `autoresearch workflow-plan` | 推荐的 stateful launcher-backed 前门，面向已初始化的外部 project root；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；仓内保留的 Python consumer 仅用于内部回归验证，不是第二前门 |
+| 实验性 idea campaign MCP surface | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted idea campaign runtime bridge，覆盖 `idea_campaign_init/status/topup/pause/resume/complete`、`idea_search_step`、`idea_eval_run` |
 | 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的 HEP 领域 MCP server `(72 std / 101)` |
 | 叶子 provider 包 | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 可组合进客户端工作流的 provider-specific capabilities |
 
@@ -47,6 +51,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | 能力家族 | 当前 surface | 备注 |
 | --- | --- | --- |
 | 通用 lifecycle、computation 与 approvals | `@autoresearch/orchestrator`、`autoresearch` | 当前 front door 上覆盖 lifecycle state、审批，以及受限原生 TS computation run slice |
+| 实验性 idea campaign runtime | `@autoresearch/idea-engine`、`@autoresearch/idea-mcp` | 用于迭代式 idea search/eval loops 的 TS hosted runtime 与 MCP bridge；要求显式外部 `IDEA_MCP_DATA_DIR`，不是 root front door |
 | Evidence-first Project/Run 工作流 | `@autoresearch/hep-mcp`、`hep_*`、`hep://...` | 当前最强的端到端 workflow family |
 | 文献与数据 providers | `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*` | 直接搜索、下载、导出、受限分析的组合面 |
 | 本地参考 providers | `zotero_*`、`pdg_*` | 可选的本地输入与查验工具 |

@@ -278,6 +278,7 @@ describe('Docs tool drift guard', () => {
       'autoresearch_cli',
       'hep_autoresearch_internal_parser',
       'orchestrator_mcp_tools_spec',
+      'idea_mcp',
     ]);
 
     expect(getFrontDoorAuthoritySurface('autoresearch_cli')).toMatchObject({
@@ -294,6 +295,11 @@ describe('Docs tool drift guard', () => {
       classification: 'canonical_public',
       surface_kind: 'exact_doc_inventory',
       exact_inventory_source: 'meta/docs/orchestrator-mcp-tools-spec.md',
+    });
+    expect(getFrontDoorAuthoritySurface('idea_mcp')).toMatchObject({
+      classification: 'canonical_public',
+      surface_kind: 'mcp_tool_inventory',
+      exact_inventory_source: 'packages/idea-mcp/src/tool-registry.ts',
     });
   });
 
@@ -317,6 +323,12 @@ describe('Docs tool drift guard', () => {
       classification: getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').classification,
       owner: getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').owner,
       relPath: getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').exact_inventory_source,
+    });
+    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.idea_mcp).toMatchObject({
+      surface: 'idea_mcp',
+      classification: getFrontDoorAuthoritySurface('idea_mcp').classification,
+      owner: getFrontDoorAuthoritySurface('idea_mcp').owner,
+      relPath: getFrontDoorAuthoritySurface('idea_mcp').exact_inventory_source,
     });
 
     const normalizedInternalGroups = INTERNAL_ONLY_FRONT_DOOR_GROUPS.map(entry => ({

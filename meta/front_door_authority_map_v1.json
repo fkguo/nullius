@@ -102,6 +102,46 @@
         "orch_policy_*",
         "orch_fleet_*"
       ]
+    },
+    "idea_mcp": {
+      "classification": "canonical_public",
+      "surface_kind": "mcp_tool_inventory",
+      "owner": "@autoresearch/idea-mcp",
+      "exact_inventory_source": "packages/idea-mcp/src/tool-registry.ts",
+      "tools": [
+        {
+          "name": "idea_campaign_init",
+          "rpc_method": "campaign.init"
+        },
+        {
+          "name": "idea_campaign_status",
+          "rpc_method": "campaign.status"
+        },
+        {
+          "name": "idea_campaign_topup",
+          "rpc_method": "campaign.topup"
+        },
+        {
+          "name": "idea_campaign_pause",
+          "rpc_method": "campaign.pause"
+        },
+        {
+          "name": "idea_campaign_resume",
+          "rpc_method": "campaign.resume"
+        },
+        {
+          "name": "idea_campaign_complete",
+          "rpc_method": "campaign.complete"
+        },
+        {
+          "name": "idea_search_step",
+          "rpc_method": "search.step"
+        },
+        {
+          "name": "idea_eval_run",
+          "rpc_method": "eval.run"
+        }
+      ]
     }
   }
 }
