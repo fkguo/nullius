@@ -9,11 +9,6 @@
 
 /**
  * Canonical run lifecycle states.
- *
- * Mapping from legacy values:
- *   orchestrator: idle → pending, running → running, completed → done
- *   adapter:      NOT_STARTED → pending, RUNNING → running, DONE → done, FAILED → failed
- *   hep-mcp:      created → pending, running → running, done → done, failed → failed
  */
 export const RUN_STATES = {
   pending: 'pending',
@@ -56,44 +51,3 @@ export type RunStepState = (typeof RUN_STEP_STATES)[keyof typeof RUN_STEP_STATES
 export function isTerminalStepState(state: RunStepState): boolean {
   return state === 'done' || state === 'failed';
 }
-
-// ── Legacy Mapping ───────────────────────────────────────────────────────────
-
-/**
- * Map legacy status strings (from various components) to canonical RunState.
- * Returns undefined if the legacy value is not recognized.
- */
-export function mapLegacyToRunState(legacy: string): RunState | undefined {
-  return LEGACY_TO_RUN_STATE[legacy];
-}
-
-const LEGACY_TO_RUN_STATE: Record<string, RunState> = {
-  // Canonical (identity)
-  pending: 'pending',
-  running: 'running',
-  paused: 'paused',
-  awaiting_approval: 'awaiting_approval',
-  done: 'done',
-  failed: 'failed',
-  needs_recovery: 'needs_recovery',
-  // hep-mcp legacy
-  created: 'pending',
-  // orchestrator legacy
-  idle: 'pending',
-  completed: 'done',
-  // adapter legacy
-  NOT_STARTED: 'pending',
-  RUNNING: 'running',
-  DONE: 'done',
-  FAILED: 'failed',
-  // orchestrator extended
-  rejected: 'failed',
-  // plan step legacy
-  in_progress: 'running',
-  blocked: 'awaiting_approval',
-  skipped: 'done',
-  // branch legacy
-  candidate: 'pending',
-  active: 'running',
-  abandoned: 'done',
-};

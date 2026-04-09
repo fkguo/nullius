@@ -6,8 +6,6 @@ import {
   isTerminalRunState,
   isActiveRunState,
   isTerminalStepState,
-  mapLegacyToRunState,
-  type RunState,
 } from '../run-state.js';
 
 describe('RUN_STATES', () => {
@@ -76,42 +74,5 @@ describe('isTerminalStepState', () => {
   it('should not flag non-terminal step states', () => {
     expect(isTerminalStepState('pending')).toBe(false);
     expect(isTerminalStepState('in_progress')).toBe(false);
-  });
-});
-
-describe('mapLegacyToRunState', () => {
-  it('should map canonical values to themselves', () => {
-    const canonical: RunState[] = ['pending', 'running', 'paused', 'awaiting_approval', 'done', 'failed', 'needs_recovery'];
-    for (const state of canonical) {
-      expect(mapLegacyToRunState(state)).toBe(state);
-    }
-  });
-
-  it('should map hep-mcp legacy "created" → "pending"', () => {
-    expect(mapLegacyToRunState('created')).toBe('pending');
-  });
-
-  it('should map orchestrator legacy', () => {
-    expect(mapLegacyToRunState('idle')).toBe('pending');
-    expect(mapLegacyToRunState('completed')).toBe('done');
-    expect(mapLegacyToRunState('rejected')).toBe('failed');
-  });
-
-  it('should map adapter legacy', () => {
-    expect(mapLegacyToRunState('NOT_STARTED')).toBe('pending');
-    expect(mapLegacyToRunState('RUNNING')).toBe('running');
-    expect(mapLegacyToRunState('DONE')).toBe('done');
-    expect(mapLegacyToRunState('FAILED')).toBe('failed');
-  });
-
-  it('should map plan step legacy', () => {
-    expect(mapLegacyToRunState('in_progress')).toBe('running');
-    expect(mapLegacyToRunState('blocked')).toBe('awaiting_approval');
-    expect(mapLegacyToRunState('skipped')).toBe('done');
-  });
-
-  it('should return undefined for unknown values', () => {
-    expect(mapLegacyToRunState('unknown')).toBeUndefined();
-    expect(mapLegacyToRunState('')).toBeUndefined();
   });
 });
