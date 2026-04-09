@@ -27,7 +27,7 @@ function isDict(v: unknown): v is Record<string, unknown> {
 
 // ─── Embedded plan schema + recursive validator (matching Python _schema_validate) ───
 
-/** Embedded plan.schema.json (current checked-in source: packages/hep-autoresearch/specs/plan.schema.json).
+/** Embedded plan.schema.json (current checked-in source: packages/project-contracts/src/project_contracts/specs/plan.schema.json).
  *  Embedded to avoid cross-package file dependency. Must be kept in sync. */
 const PLAN_SCHEMA: Record<string, unknown> = {
   type: 'object',

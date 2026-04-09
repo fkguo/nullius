@@ -546,3 +546,12 @@
 - `knowledge_base/`, `references/`, and `specs/` must be audited separately from `templates/`: unlike the retired template pack, they still participate in package-local runtime/eval/schema authority and must not be deleted by association.
 
 **Why**: Leaving the old template directory in place created a false impression that `hep-autoresearch` still owned a human-facing prompt/template surface, even though scaffold authority had already moved to the generic contracts package and the remaining JSON/prompt files had no live consumers. Removing the dead template pack reduces public drift without accidentally deleting still-live lower-level provider-local contracts.
+
+### [2026-04-09] Plan schema checked-in source invariant: generic scaffold authority is rooted in `project-contracts`
+
+**Decision**:
+- The checked-in source for `plan.schema.json` is `packages/project-contracts/src/project_contracts/specs/plan.schema.json`.
+- `packages/orchestrator/src/state-manager.ts` may keep an embedded copy for dependency isolation, but its provenance must point to `project-contracts`, not to `hep-autoresearch`.
+- The duplicate `packages/hep-autoresearch/specs/plan.schema.json` is no longer the canonical generic scaffold source; any future retirement or consolidation work must treat it as provider-local residue or mirrored copy, not as front-door authority.
+
+**Why**: `project-contracts` already owns new-project scaffold materialization and ships the plan schema in its install tree. Leaving generic comments or provenance notes pointed at `hep-autoresearch` would keep a false shared-authority story alive even after scaffold ownership moved to the generic contracts package.
