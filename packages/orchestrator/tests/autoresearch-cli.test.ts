@@ -106,7 +106,7 @@ describe('autoresearch CLI', () => {
       'autoresearch run --workflow-id computation [options]',
       'autoresearch workflow-plan --recipe <recipe_id> [options]',
       'Pipeline A parser support commands `doctor`, `bridge`, and `literature-gap` are deleted.',
-      'Retired-public maintainer helpers such as `method-design`, `run-card`, and `branch` remain internal full-parser only.',
+      'Retired-public maintainer helpers `method-design` and `run-card` are deleted; only `branch` remains on the provider-local internal parser.',
     ] as const;
     const forbiddenSnippets = [
       'Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface',

@@ -19,7 +19,7 @@ Notes:
   - workflow-plan resolves checked-in generic literature workflow recipes into bounded steps.
   - \`run\` is now the native TS computation entrypoint.
   - Pipeline A parser support commands \`doctor\`, \`bridge\`, and \`literature-gap\` are deleted.
-  - Retired-public maintainer helpers such as \`method-design\`, \`run-card\`, and \`branch\` remain internal full-parser only.
+  - Retired-public maintainer helpers \`method-design\` and \`run-card\` are deleted; only \`branch\` remains on the provider-local internal parser.
 `;
 
 const COMMAND_HELP: Record<string, string> = {

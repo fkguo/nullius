@@ -90,8 +90,8 @@ class TestPublicCliSurface(unittest.TestCase):
             groups["legacy_lifecycle_adapters"],
             ["init", "status", "pause", "resume", "approve", "export"],
         )
-        self.assertEqual(groups["internal_support_commands"], [])
-        self.assertEqual(groups["retired_public_support_commands"], ["method-design", "run-card", "branch"])
+        self.assertEqual(groups["internal_support_commands"], ["branch"])
+        self.assertEqual(groups["retired_public_support_commands"], ["method-design", "run-card"])
         self.assertEqual(
             groups["internal_workflow_paths"],
             [

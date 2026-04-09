@@ -61,14 +61,15 @@
         },
         {
           "group": "internal_support_commands",
-          "commands": []
+          "commands": [
+            "branch"
+          ]
         },
         {
           "group": "retired_public_support_commands",
           "commands": [
             "method-design",
-            "run-card",
-            "branch"
+            "run-card"
           ]
         },
         {
