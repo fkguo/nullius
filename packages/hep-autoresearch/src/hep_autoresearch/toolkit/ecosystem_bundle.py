@@ -497,7 +497,6 @@ def ecosystem_bundle_one(inps: EcosystemBundleInputs, repo_root: Path) -> dict[s
         "scripts",
         "specs",
         "workflows",
-        "templates",
         "evals",
         "tests",
         "bin",

@@ -536,3 +536,13 @@
 - `DelegatedRuntimeTransport` should own delivery, liveness, interrupt/reconnect behavior only. It may carry handles and permission profiles, but it must not become canonical runtime/session state, fleet lease truth, or remote/UI session authority.
 
 **Why**: Current orchestrator code still reconstructs delegated runtime identity across `execution-identity.ts`, `team-execution-scoping.ts`, `team-unified-runtime-support.ts`, and `delegated-agent-runtime.ts`, while permission semantics remain split across `team-execution-permissions.ts`, `tool-execution-policy.ts`, and host runtime inputs. Source audits of Codex and Claude Code converged on the same stable pattern: canonical state/lineage separate from transport, and typed permission surfaces separate from operator/UI rule stores.
+
+### [2026-04-09] `hep-autoresearch/templates` retirement invariant: checked-in scaffold authority lives in `project-contracts`, not legacy provider-local prompt/template packs
+
+**Decision**:
+- `packages/hep-autoresearch/templates/` is retired from the checked-in public repo surface. The old human/agent prompt templates there are no longer live authority and should not be kept as dormant compatibility material.
+- Scaffold markdown/template authority already lives in `packages/project-contracts/src/project_contracts/scaffold_templates/` and remains the only checked-in scaffold source consumed through the bridge loaders.
+- Default approval-policy bootstrap for the Python orchestrator should stay embedded in code and the repo-local `.autoresearch/approval_policy.json` state path, rather than depending on a second checked-in template file under the legacy provider package.
+- `knowledge_base/`, `references/`, and `specs/` must be audited separately from `templates/`: unlike the retired template pack, they still participate in package-local runtime/eval/schema authority and must not be deleted by association.
+
+**Why**: Leaving the old template directory in place created a false impression that `hep-autoresearch` still owned a human-facing prompt/template surface, even though scaffold authority had already moved to the generic contracts package and the remaining JSON/prompt files had no live consumers. Removing the dead template pack reduces public drift without accidentally deleting still-live lower-level provider-local contracts.

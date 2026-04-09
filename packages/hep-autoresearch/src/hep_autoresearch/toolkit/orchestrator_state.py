@@ -611,10 +611,6 @@ def read_approval_policy(repo_root: Path) -> dict[str, Any]:
     p = approval_policy_path(repo_root)
     if p.exists():
         return read_json(p)
-    template = repo_root / "templates" / "approval_policy.safe.template.json"
-    if template.exists():
-        return read_json(template)
-    # Fallback for new/empty directories (no templates/ yet).
     return {
         "schema_version": 1,
         "mode": "safe",
