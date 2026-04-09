@@ -1029,18 +1029,16 @@ _CONFIG_SIMPLE_KEYS: dict[str, str] = {
 def _find_project_config(start: Path | None = None) -> Path | None:
     """Find review-swarm.json by walking up from *start* (default: CWD)
     to find the git root, then checking:
-      1. meta/review-swarm.json  (development context — autoresearch-lab itself)
-      2. .autoresearch/review-swarm.json  (research project managed by autoresearch-lab)
+      1. .autoresearch/review-swarm.json  (research project managed by autoresearch-lab)
     Disabled when REVIEW_SWARM_NO_AUTO_CONFIG=1 (e.g. in tests)."""
     if os.environ.get("REVIEW_SWARM_NO_AUTO_CONFIG"):
         return None
     cur = (start or Path.cwd()).resolve()
     while True:
         if (cur / ".git").exists():
-            for subdir in ("meta", ".autoresearch"):
-                candidate = cur / subdir / _CONFIG_FILENAME
-                if candidate.is_file():
-                    return candidate
+            candidate = cur / ".autoresearch" / _CONFIG_FILENAME
+            if candidate.is_file():
+                return candidate
             return None
         parent = cur.parent
         if parent == cur:
@@ -1119,7 +1117,7 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Path to project config JSON file. "
-            "If omitted, auto-discovers meta/review-swarm.json from git root."
+            "If omitted, auto-discovers .autoresearch/review-swarm.json from git root."
         ),
     )
     ap.add_argument(

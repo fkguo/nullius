@@ -944,7 +944,7 @@ TXT
 
 
 class ProjectConfigTests(unittest.TestCase):
-    """Tests for meta/review-swarm.json project config support."""
+    """Tests for review-swarm project config support."""
 
     @classmethod
     def setUpClass(cls):
@@ -1125,24 +1125,27 @@ class ProjectConfigTests(unittest.TestCase):
             self.assertIsNotNone(result)
             self.assertEqual(result.resolve(), cfg.resolve())
 
-    def test_auto_discovery_prefers_meta_over_autoresearch(self):
-        """When both meta/ and .autoresearch/ have config, meta/ wins."""
+    def test_auto_discovery_ignores_retired_meta_config(self):
+        """Auto-discovery ignores retired meta/ config and uses .autoresearch/."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
             (td_path / ".git").mkdir()
-            for subdir in ("meta", ".autoresearch"):
-                d = td_path / subdir
-                d.mkdir()
-                (d / "review-swarm.json").write_text(
-                    json.dumps({"models": f"from-{subdir}"}), encoding="utf-8"
-                )
+            meta_dir = td_path / "meta"
+            meta_dir.mkdir()
+            (meta_dir / "review-swarm.json").write_text(
+                json.dumps({"models": "from-meta"}), encoding="utf-8"
+            )
+            autoresearch_dir = td_path / ".autoresearch"
+            autoresearch_dir.mkdir()
+            cfg = autoresearch_dir / "review-swarm.json"
+            cfg.write_text(json.dumps({"models": "from-autoresearch"}), encoding="utf-8")
 
             with _temp_env(REVIEW_SWARM_NO_AUTO_CONFIG=""):
                 os.environ.pop("REVIEW_SWARM_NO_AUTO_CONFIG", None)
                 result = self.mod._find_project_config(start=td_path)
 
             self.assertIsNotNone(result)
-            self.assertIn("meta", str(result))
+            self.assertEqual(result.resolve(), cfg.resolve())
 
     def test_auto_discovery_disabled_by_env(self):
         """REVIEW_SWARM_NO_AUTO_CONFIG=1 disables auto-discovery."""
