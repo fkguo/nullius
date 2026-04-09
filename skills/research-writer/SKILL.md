@@ -399,4 +399,3 @@ python3 scripts/bin/distill_discussion_logic.py \
 
 - Quickstart: `README.md`
 - Workflows/debugging: `RUNBOOK.md`
-- Milestones/acceptance criteria: `ROADMAP.md`
