@@ -41,7 +41,7 @@ describe('IdeaRpcClient integration', () => {
     }
   });
 
-  it('round-trips the TS idea-engine host for campaign.init, campaign.status, search.step, and eval.run', async () => {
+  it('round-trips the TS idea-engine host for campaign lifecycle, search.step, and eval.run', async () => {
     dataDir = await mkdtemp(path.join(tmpdir(), 'idea-mcp-engine-'));
     client = new IdeaRpcClient({
       rootDir: dataDir,
@@ -74,15 +74,16 @@ describe('IdeaRpcClient integration', () => {
     }) as Record<string, unknown>;
     expect(typeof evalResult.scorecards_artifact_ref).toBe('string');
 
-    await expect(client.call('campaign.pause', {
+    const pauseResult = await client.call('campaign.pause', {
       campaign_id: campaignId,
       idempotency_key: 'pause-roundtrip',
-    })).rejects.toMatchObject({
-      code: 'INTERNAL_ERROR',
-      data: {
-        reason: 'method_not_found',
-        rpc: { code: -32601, message: 'method_not_found' },
-      },
-    });
+    }) as Record<string, unknown>;
+    expect((pauseResult.campaign_status as Record<string, unknown>).status).toBe('paused');
+
+    const resumeResult = await client.call('campaign.resume', {
+      campaign_id: campaignId,
+      idempotency_key: 'resume-roundtrip',
+    }) as Record<string, unknown>;
+    expect((resumeResult.campaign_status as Record<string, unknown>).status).toBe('running');
   }, 120_000);
 });

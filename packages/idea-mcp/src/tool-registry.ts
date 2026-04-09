@@ -55,6 +55,17 @@ const BudgetEnvelopeSchema = z.object({
   extensions: LooseObject.optional(),
 }).strict();
 
+const BudgetTopupSchema = z.object({
+  add_tokens: z.number().int().min(1).optional(),
+  add_cost_usd: z.number().positive().optional(),
+  add_wall_clock_s: z.number().positive().optional(),
+  add_steps: z.number().int().min(1).optional(),
+  add_nodes: z.number().int().min(1).optional(),
+}).strict().refine(
+  value => Object.keys(value).length > 0,
+  'At least one topup dimension is required',
+);
+
 const AbstractProblemRegistrySchema = z.object({
   entries: z.array(z.object({
     abstract_problem_type: NonEmptyString,
@@ -116,6 +127,43 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
     description: 'Get the current status of an idea campaign.',
     schema: z.object({ campaign_id: UuidString }).strict(),
     rpcMethod: 'campaign.status',
+  },
+  {
+    name: 'idea_campaign_topup',
+    description: 'Add budget to an existing campaign without creating a new runtime authority path.',
+    schema: z.object({
+      campaign_id: UuidString,
+      topup: BudgetTopupSchema,
+      idempotency_key: NonEmptyString,
+    }).strict(),
+    rpcMethod: 'campaign.topup',
+  },
+  {
+    name: 'idea_campaign_pause',
+    description: 'Pause an active or budget-exhausted campaign.',
+    schema: z.object({
+      campaign_id: UuidString,
+      idempotency_key: NonEmptyString,
+    }).strict(),
+    rpcMethod: 'campaign.pause',
+  },
+  {
+    name: 'idea_campaign_resume',
+    description: 'Resume a paused or early-stopped campaign when budget remains.',
+    schema: z.object({
+      campaign_id: UuidString,
+      idempotency_key: NonEmptyString,
+    }).strict(),
+    rpcMethod: 'campaign.resume',
+  },
+  {
+    name: 'idea_campaign_complete',
+    description: 'Mark a campaign complete and close further search mutation.',
+    schema: z.object({
+      campaign_id: UuidString,
+      idempotency_key: NonEmptyString,
+    }).strict(),
+    rpcMethod: 'campaign.complete',
   },
   {
     name: 'idea_search_step',

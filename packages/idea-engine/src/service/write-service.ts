@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import { executeCampaignInit } from './campaign-init-executor.js';
+import { executeCampaignMutation } from './campaign-mutation-executor.js';
 import { hashWithoutIdempotency } from '../hash/payload-hash.js';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { RpcError } from './errors.js';
@@ -20,7 +21,13 @@ export class IdeaEngineWriteService {
   }
 
   handle(method: string, params: unknown): Record<string, unknown> {
-    if (method !== 'campaign.init') {
+    if (![
+      'campaign.init',
+      'campaign.topup',
+      'campaign.pause',
+      'campaign.resume',
+      'campaign.complete',
+    ].includes(method)) {
       throw new RpcError(-32601, 'method_not_found', {
         reason: 'method_not_found',
         details: { method },
@@ -35,12 +42,22 @@ export class IdeaEngineWriteService {
 
     try {
       const typedParams = params as Record<string, unknown>;
-      return executeCampaignInit({
+      if (method === 'campaign.init') {
+        return executeCampaignInit({
+          contracts: this.contracts,
+          createId: this.createId,
+          now: this.now,
+          params: typedParams,
+          payloadHash: hashWithoutIdempotency('campaign.init', typedParams),
+          store: this.store,
+        });
+      }
+      return executeCampaignMutation({
         contracts: this.contracts,
-        createId: this.createId,
+        method: method as 'campaign.topup' | 'campaign.pause' | 'campaign.resume' | 'campaign.complete',
         now: this.now,
         params: typedParams,
-        payloadHash: hashWithoutIdempotency('campaign.init', typedParams),
+        payloadHash: hashWithoutIdempotency(method, typedParams),
         store: this.store,
       });
     } catch (error) {

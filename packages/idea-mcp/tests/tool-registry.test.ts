@@ -13,12 +13,20 @@ describe('idea-mcp tool registry', () => {
     expect(IDEA_TOOLS.map(tool => tool.name)).toEqual([
       'idea_campaign_init',
       'idea_campaign_status',
+      'idea_campaign_topup',
+      'idea_campaign_pause',
+      'idea_campaign_resume',
+      'idea_campaign_complete',
       'idea_search_step',
       'idea_eval_run',
     ]);
     expect(IDEA_TOOLS.map(tool => tool.rpcMethod)).toEqual([
       'campaign.init',
       'campaign.status',
+      'campaign.topup',
+      'campaign.pause',
+      'campaign.resume',
+      'campaign.complete',
       'search.step',
       'eval.run',
     ]);
@@ -35,6 +43,22 @@ describe('idea-mcp tool registry', () => {
   });
 
   it('exposes live-contract required fields for search.step and eval.run', () => {
+    expect(zodToMcpInputSchema(getTool('idea_campaign_topup').schema)).toMatchObject({
+      type: 'object',
+      required: ['campaign_id', 'topup', 'idempotency_key'],
+    });
+    expect(zodToMcpInputSchema(getTool('idea_campaign_pause').schema)).toMatchObject({
+      type: 'object',
+      required: ['campaign_id', 'idempotency_key'],
+    });
+    expect(zodToMcpInputSchema(getTool('idea_campaign_resume').schema)).toMatchObject({
+      type: 'object',
+      required: ['campaign_id', 'idempotency_key'],
+    });
+    expect(zodToMcpInputSchema(getTool('idea_campaign_complete').schema)).toMatchObject({
+      type: 'object',
+      required: ['campaign_id', 'idempotency_key'],
+    });
     expect(zodToMcpInputSchema(getTool('idea_search_step').schema)).toMatchObject({
       type: 'object',
       required: ['campaign_id', 'n_steps', 'idempotency_key'],
@@ -54,6 +78,12 @@ describe('idea-mcp tool registry', () => {
     expect(() => getTool('idea_search_step').schema.parse({
       campaign_id: 'not-a-uuid',
       query: 'override',
+    })).toThrow();
+
+    expect(() => getTool('idea_campaign_topup').schema.parse({
+      campaign_id: '11111111-1111-4111-8111-111111111111',
+      topup: {},
+      idempotency_key: 'empty-topup',
     })).toThrow();
   });
 });

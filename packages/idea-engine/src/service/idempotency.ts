@@ -1,5 +1,6 @@
 import { existsSync } from 'fs';
 import { IdeaEngineStore } from '../store/engine-store.js';
+import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 
 interface IdempotencyResponse {
@@ -61,6 +62,31 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   if (method === 'campaign.init') {
     const campaignId = record.response.payload.campaign_id;
     return typeof campaignId === 'string' && existsSync(store.campaignManifestPath(campaignId));
+  }
+  if (
+    method === 'campaign.topup'
+    || method === 'campaign.pause'
+    || method === 'campaign.resume'
+    || method === 'campaign.complete'
+  ) {
+    const campaignStatus = record.response.payload.campaign_status;
+    if (!campaignStatus || typeof campaignStatus !== 'object') {
+      return false;
+    }
+    const expected = campaignStatus as Record<string, unknown>;
+    const campaignId = expected.campaign_id;
+    if (typeof campaignId !== 'string') {
+      return false;
+    }
+    const campaign = store.loadCampaign<Record<string, unknown>>(campaignId);
+    if (!campaign || campaign.campaign_id !== campaignId) {
+      return false;
+    }
+    if (campaign.status !== expected.status) {
+      return false;
+    }
+    return JSON.stringify(budgetSnapshot(campaign as { budget: Record<string, number | null>; usage: Record<string, number> }))
+      === JSON.stringify(expected.budget_snapshot);
   }
   if (method === 'eval.run') {
     const scorecardsRef = record.response.payload.scorecards_artifact_ref;

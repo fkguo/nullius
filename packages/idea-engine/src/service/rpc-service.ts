@@ -17,7 +17,13 @@ export class IdeaEngineRpcService {
   }
 
   handle(method: string, params: unknown): Record<string, unknown> {
-    if (method === 'campaign.init') {
+    if (
+      method === 'campaign.init'
+      || method === 'campaign.topup'
+      || method === 'campaign.pause'
+      || method === 'campaign.resume'
+      || method === 'campaign.complete'
+    ) {
       return this.write.handle(method, params);
     }
     if (method === 'search.step') {

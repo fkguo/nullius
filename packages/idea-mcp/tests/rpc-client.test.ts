@@ -65,7 +65,7 @@ describe('IdeaRpcClient', () => {
     }
   });
 
-  it('maps unsupported lifecycle methods to INTERNAL_ERROR with JSON-RPC context', async () => {
+  it('supports campaign pause/resume/complete through the TS host', async () => {
     const { client, rootDir } = createClient('idea-mcp-ts-method-');
     tempDirs.push(rootDir);
 
@@ -75,17 +75,23 @@ describe('IdeaRpcClient', () => {
         initParams('ts-method-not-found'),
       ) as Record<string, unknown>;
 
-      await expect(client.call('campaign.pause', {
+      const paused = await client.call('campaign.pause', {
         campaign_id: initResult.campaign_id,
         idempotency_key: 'pause-1',
-      })).rejects.toMatchObject({
-        code: 'INTERNAL_ERROR',
-        retryable: false,
-        data: {
-          reason: 'method_not_found',
-          rpc: { code: -32601, message: 'method_not_found' },
-        },
-      });
+      }) as Record<string, unknown>;
+      expect((paused.campaign_status as Record<string, unknown>).status).toBe('paused');
+
+      const resumed = await client.call('campaign.resume', {
+        campaign_id: initResult.campaign_id,
+        idempotency_key: 'resume-1',
+      }) as Record<string, unknown>;
+      expect((resumed.campaign_status as Record<string, unknown>).status).toBe('running');
+
+      const completed = await client.call('campaign.complete', {
+        campaign_id: initResult.campaign_id,
+        idempotency_key: 'complete-1',
+      }) as Record<string, unknown>;
+      expect((completed.campaign_status as Record<string, unknown>).status).toBe('completed');
     } finally {
       client.close();
     }
@@ -119,6 +125,14 @@ describe('IdeaRpcClient', () => {
           rpc: { code: -32001, message: 'budget_exhausted' },
         },
       });
+
+      const topup = await client.call('campaign.topup', {
+        campaign_id: initResult.campaign_id,
+        idempotency_key: 'topup-budget',
+        topup: { add_steps: 2 },
+      }) as Record<string, unknown>;
+      expect((topup.transition as Record<string, unknown>).changed).toBe(true);
+      expect((topup.campaign_status as Record<string, unknown>).status).toBe('running');
     } finally {
       client.close();
     }
