@@ -118,7 +118,7 @@ The orchestrator read model also surfaces approval packet URIs such as `orch://r
 
 ## 5. How Does a User Connect from MCP Clients / Agent Clients
 
-The current MCP connection story is local stdio only. There is not yet a single generic root MCP server; today the most mature domain MCP entrypoint is `hep-mcp`, while the generic `autoresearch` surface remains CLI-first for lifecycle/control-plane work, native TS computation via `autoresearch run --workflow-id computation`, and stateful `workflow-plan`.
+The current MCP connection story is local stdio only. There is not yet a single monolithic generic root MCP server binary; today the most mature domain MCP entrypoint is `hep-mcp`, while the generic control plane is split across the `autoresearch` CLI and the canonical public `orch_*` MCP/operator surface described in [`meta/docs/orchestrator-mcp-tools-spec.md`](./meta/docs/orchestrator-mcp-tools-spec.md). In other words, generic lifecycle/control-plane work is no longer CLI-only even though it does not ship as a separate root MCP server process.
 
 Universal MCP config pattern:
 

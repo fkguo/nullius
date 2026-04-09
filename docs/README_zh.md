@@ -118,7 +118,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 ## 5. 用户如何从 MCP clients / agent clients 接入
 
-当前的 MCP 接入模型是本地 stdio only。仓库目前还没有单一的 generic root MCP server；今天最成熟的领域 MCP 入口是 `hep-mcp`，而通用 `autoresearch` surface 现在主要承担 lifecycle/control-plane CLI、原生 TS computation `run`，以及 stateful `workflow-plan`。
+当前的 MCP 接入模型是本地 stdio only。仓库目前还没有“单体的” generic root MCP server 可执行入口；今天最成熟的领域 MCP 入口仍是 `hep-mcp`，而 generic control plane 已经由 `autoresearch` CLI 与公开的 `orch_*` MCP/operator surface 共同构成，后者的 live truth 记录在 [`meta/docs/orchestrator-mcp-tools-spec.md`](../meta/docs/orchestrator-mcp-tools-spec.md)。换句话说，generic lifecycle/control-plane 已经不再是“只有 CLI”，只是还没有独立打包成一个 root MCP server 进程。
 
 通用 MCP 配置模式：
 

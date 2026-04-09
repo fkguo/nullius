@@ -83,7 +83,7 @@ Current responsibilities:
 - status / pause / resume / export CLI flows
 - full-surface orchestrator tool specs (`orch_*`) for host integrations
 
-The current user-facing generic lifecycle + computation + workflow-plan entrypoint is the `autoresearch` CLI, not the root MCP server.
+The current user-facing generic lifecycle + computation + workflow-plan entrypoint is the `autoresearch` CLI, not the root MCP server. The same control plane also exposes a canonical public `orch_*` MCP/operator surface; what does not exist yet is a separate monolithic root MCP server binary that would replace the current CLI-first entrypoint.
 
 ### 3.4 Launcher-backed workflow consumers
 
