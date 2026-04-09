@@ -22,6 +22,7 @@ class TestAdapterRegistry(unittest.TestCase):
                 adapter_for_workflow,
                 adapter_workflow_ids,
                 default_run_card_for_workflow,
+                load_run_card,
                 validate_adapter_registry,
             )
 
@@ -35,6 +36,7 @@ class TestAdapterRegistry(unittest.TestCase):
                 "adapter_for_workflow": adapter_for_workflow,
                 "adapter_workflow_ids": adapter_workflow_ids,
                 "default_run_card_for_workflow": default_run_card_for_workflow,
+                "load_run_card": load_run_card,
                 "validate_adapter_registry": validate_adapter_registry,
             }
         finally:
@@ -164,6 +166,32 @@ class TestAdapterRegistry(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "mismatched adapter_id"):
             loaded["validate_adapter_registry"](extra_plugins=[plugin])
+
+    def test_load_run_card_rejects_retired_approval_field_aliases(self) -> None:
+        import json
+        import tempfile
+
+        loaded = self._load_registry()
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "run_card.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "run_id": "RUN-1",
+                        "workflow_id": "shell_adapter_smoke",
+                        "adapter_id": "shell",
+                        "required_gates": ["A3"],
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "run-card uses retired approval fields: required_gates"):
+                loaded["load_run_card"](path)
 
 
 if __name__ == "__main__":

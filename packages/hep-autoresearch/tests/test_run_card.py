@@ -58,6 +58,23 @@ class TestRunCard(unittest.TestCase):
             self.assertEqual(rel1, rel2)
             self.assertEqual(sha1, sha2)
 
+    def test_validate_run_card_rejects_retired_approval_fields(self) -> None:
+        import sys
+
+        sys.path.insert(0, str(_src_root()))
+        from hep_autoresearch.toolkit.run_card import validate_run_card
+
+        with self.assertRaisesRegex(ValueError, "run-card uses retired approval fields: required_gates"):
+            validate_run_card(
+                {
+                    "schema_version": 1,
+                    "run_id": "M1-test",
+                    "workflow_id": "ingest",
+                    "backend": {"kind": "python"},
+                    "required_gates": ["A3"],
+                }
+            )
+
     def test_ensure_run_card_overwrite_updates_payload(self) -> None:
         import sys
 

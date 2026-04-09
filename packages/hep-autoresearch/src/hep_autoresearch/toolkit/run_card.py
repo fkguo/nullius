@@ -15,10 +15,8 @@ from ._time import utc_now_iso
 
 
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_APPROVAL_RUN_CARD_FIELD_ALIASES: tuple[tuple[str, str], ...] = (
-    ("required_approvals", "required_gates"),
-    ("approval_resolution_mode", "gate_resolution_mode"),
-    ("approval_resolution_trace", "gate_resolution_trace"),
+_RETIRED_APPROVAL_RUN_CARD_FIELDS: frozenset[str] = frozenset(
+    {"required_gates", "gate_resolution_mode", "gate_resolution_trace"}
 )
 
 
@@ -26,16 +24,13 @@ def normalize_approval_run_card_fields(payload: dict[str, Any]) -> dict[str, Any
     if not isinstance(payload, dict):
         raise TypeError("run-card payload must be a JSON object")
     normalized = dict(payload)
-    for canonical_key, legacy_key in _APPROVAL_RUN_CARD_FIELD_ALIASES:
-        has_canonical = canonical_key in normalized
-        has_legacy = legacy_key in normalized
-        if has_canonical and has_legacy and normalized[canonical_key] != normalized[legacy_key]:
-            raise ValueError(
-                f"run-card defines both {canonical_key} and legacy {legacy_key} with different values"
-            )
-        if not has_canonical and has_legacy:
-            normalized[canonical_key] = normalized[legacy_key]
-        normalized.pop(legacy_key, None)
+    retired = sorted(field for field in _RETIRED_APPROVAL_RUN_CARD_FIELDS if field in normalized)
+    if retired:
+        raise ValueError(
+            "run-card uses retired approval fields: "
+            + ", ".join(retired)
+            + "; use required_approvals / approval_resolution_mode / approval_resolution_trace"
+        )
     return normalized
 
 

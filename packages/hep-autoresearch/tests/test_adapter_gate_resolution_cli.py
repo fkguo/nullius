@@ -207,6 +207,35 @@ class TestAdapterGateResolutionMode(unittest.TestCase):
             self.assertEqual(state.get("run_status"), "failed")
             self.assertIn("run_card_only", str(state.get("notes") or ""))
 
+    def test_cli_rejects_retired_run_card_approval_field_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo_root = Path(td)
+            self._init_and_policy(repo_root)
+            card = self._card(mode="union", gates=[])
+            card.pop("required_approvals", None)
+            card["required_gates"] = ["A3"]
+            card_path = repo_root / "card_retired_alias.json"
+            card_path.write_text(json.dumps(card, indent=2) + "\n", encoding="utf-8")
+
+            rc, out, err = self._run_cli(
+                [
+                    "hep-autoresearch-internal",
+                    "--project-root",
+                    str(repo_root),
+                    "run",
+                    "--run-id",
+                    "R-LEGACY-CARD",
+                    "--workflow-id",
+                    "shell_adapter_smoke",
+                    "--run-card",
+                    str(card_path),
+                ]
+            )
+            self.assertEqual(rc, 2, msg=out + err)
+            self.assertFalse(
+                (repo_root / "artifacts" / "runs" / "R-LEGACY-CARD" / "shell_adapter_smoke" / "manifest.json").exists()
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
