@@ -229,13 +229,13 @@ def main() -> None:
     ap.add_argument(
         "--out-dir",
         type=str,
-        default="references/hep-mcp",
-        help="Output directory (relative to project root by default).",
+        default=".tmp/hep-mcp/tool_inventory",
+        help="Output directory (relative to project root by default; keep generated inventory out of tracked references/).",
     )
     ap.add_argument(
         "--hep-data-dir",
         type=str,
-        default="references/_tmp_hep_data/tool_inventory",
+        default=".tmp/hep-mcp/tool_inventory_data",
         help="HEP_DATA_DIR for the spawned server (kept inside this repo by default).",
     )
     ap.add_argument(
