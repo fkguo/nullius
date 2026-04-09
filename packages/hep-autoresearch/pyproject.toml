@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hep-autoresearch"
 version = "0.0.1"
-description = "Evidence-first HEP research workflow automation (orchestrator + deterministic toolkit)"
+description = "HEP-oriented provider package with shrinking internal parser/toolkit residue"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "fkg" }]

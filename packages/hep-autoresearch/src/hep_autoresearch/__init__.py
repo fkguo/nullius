@@ -1,7 +1,7 @@
-"""hep-autoresearch: Evidence-first HEP research workflow automation.
+"""hep-autoresearch: provider-local internal parser/toolkit residue package.
 
-This package provides a deterministic toolkit plus an orchestrator CLI with
-pause/resume/approve gates.
+This package remains in the public monorepo for implementation, tests, and
+provider-local internals, but it is not the generic product front door.
 """
 
 __all__ = ["__version__"]
