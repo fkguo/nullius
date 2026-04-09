@@ -29,13 +29,13 @@ description: （中文说明 / translation）从 `research-team` 项目脚手架
 - 网络（仅 `--fetch-bibtex` 会访问 INSPIRE/DOI）。
 - 本地 `claude` + `gemini` CLI（仅 `--run-models` 会调用）。
 
-## run-card + export manifest（与 hep-autoresearch 对接）
+## run-card + export manifest（与上层 orchestrator 对接）
 
 三个入口都支持可选参数：`--run-card <path>`：
 - run-card 作为**不透明 JSON**处理：原样拷贝进输出目录（便于追溯，不要求理解全部字段）。
 - 同时会写入 best-effort 摘要（如 `run_id`、`backend`、`approval_trace_id`）到 `paper/run.json`（scaffold/draft-sections）或 `paper/build_trace.jsonl`（consume）。
 
-三个入口也会写一个最小的 `export_manifest.json`，供上层（例如 `hep-autoresearch`）导入并转写为其 `artifacts/` 结构。
+三个入口也会写一个最小的 `export_manifest.json`，供上层 orchestrator 导入并转写为其 `artifacts/` 结构。
 
 ## 快速开始：一键 scaffold
 
@@ -93,9 +93,9 @@ bash scripts/bin/research_writer_consume_paper_manifest.sh \
 - `paper/export_manifest.json`
 - 若 `--run-card`：`paper/run_card*.json`
 
-## 从 hep-autoresearch 调用（推荐模式）
+## 从上层 orchestrator 调用（推荐模式）
 
-上层 orchestrator（例如 `hep-autoresearch`）建议：
+上层 orchestrator 建议：
 1) 生成/维护 run-card（记录 prompts/tools/approvals；由上层负责 schema 与审批逻辑）。
 2) 调用本工具时传 `--run-card`，确保产物自描述、可追溯。
 3) 读取 `paper/export_manifest.json` 并将相关文件复制/快照到上层 `artifacts/`（由上层负责）。
@@ -104,4 +104,3 @@ bash scripts/bin/research_writer_consume_paper_manifest.sh \
 - `artifacts/runs/<run_id>/run_card.json`
 - `artifacts/runs/<run_id>/manifest.json`（可存 `paper/export_manifest.json`）
 - `artifacts/runs/<run_id>/analysis.json`（可存编译摘要/告警；或 consume 的 `paper/build_trace.jsonl` 提取结果）
-

@@ -127,7 +127,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
 
 ### Build a research-team verification plan (JSON)
 
-To help `hep-autoresearch`/`hepar` orchestrate literature verification, you can convert
+To help a research workflow orchestrate literature verification, you can convert
 `verification_requests.json` into a deterministic plan of `research-team` `literature_fetch.py` commands:
 
 ```bash

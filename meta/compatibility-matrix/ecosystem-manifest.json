@@ -4,15 +4,6 @@
   "org": "autoresearch-lab",
   "channels": ["stable", "beta", "dev"],
   "components": {
-    "hep-autoresearch": {
-      "repo": "autoresearch-lab/hep-autoresearch",
-      "type": "workflow-pack",
-      "channel": "beta",
-      "version": "0.0.1",
-      "depends_on": {
-        "hep-mcp": ">=0.3.0 <0.4.0"
-      }
-    },
     "hep-mcp": {
       "repo": "autoresearch-lab/autoresearch-lab",
       "type": "tool-pack",
@@ -31,17 +22,6 @@
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "~/.codex/skills/hep-calc/SKILL.md"
-    },
-    "hepar": {
-      "repo": "autoresearch-lab/skills-market",
-      "type": "skill-pack",
-      "channel": "beta",
-      "version": "0.1.0",
-      "source_path": "~/.codex/skills/hepar/SKILL.md",
-      "depends_on": {
-        "hep-autoresearch": ">=0.0.1 <0.1.0",
-        "hep-mcp": ">=0.3.0 <0.4.0"
-      }
     },
     "paper-reviser": {
       "repo": "autoresearch-lab/skills-market",

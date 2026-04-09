@@ -57,12 +57,12 @@ Selective skill install (default: install only what you ask for):
 # Install one skill to Codex path (~/.codex/skills/<skill-id>)
 python3 scripts/install_skill.py \
   --platform codex \
-  --package hepar
+  --package research-team
 
 # Install multiple skills (with skill-pack dependency auto-install)
 python3 scripts/install_skill.py \
   --platform codex \
-  --package hepar \
+  --package research-team \
   --package research-writer
 ```
 

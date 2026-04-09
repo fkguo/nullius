@@ -27,7 +27,7 @@ metadata:
 - `open_questions.md`：需要作者确认/外部查证的问题
 - `audit.md`：独立审稿人视角的意见（含 READY/NOT_READY）
 - `verification_requests.md`：简单但重要 statement 的查证请求（含建议检索词）
-- `verification_requests.json`：机器可读的查证任务清单（便于 hepar/编排；schema_version=1）
+- `verification_requests.json`：机器可读的查证任务清单（便于工作流编排；schema_version=1）
 - `deep_verification.md`：由 `verification_requests.md` 驱动的“逐步不跳步”推导/数学核验（使用本地 `codex` CLI）
 - `deep_verification_secondary.md`：可选：第二个独立推导/数学核验（`--secondary-deep-verify-*`；用于冗余交叉检查）
 - 以及 `readthrough.md` / `risk_flags.md` / `run.json` / `trace.jsonl` 等辅助与可追溯文件
@@ -121,7 +121,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
 
 ### 生成 research-team 查证计划（JSON）
 
-为了让 `hep-autoresearch`/`hepar` 更容易编排“文献查证”步骤，可以把
+为了让研究工作流更容易编排“文献查证”步骤，可以把
 `verification_requests.json` 转成一个确定性的 `literature_fetch.py` 任务计划：
 
 ```bash

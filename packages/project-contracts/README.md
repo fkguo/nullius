@@ -8,4 +8,4 @@ This package is intentionally narrow:
 - one source of truth for `research_notebook.md` -> `research_contract.md` sync,
 - one source of truth for `real_project` root/output policy plus the lower-level internal maintainer-fixture guardrail.
 
-`hep-autoresearch` remains a transitional consumer of this package in the current repo.
+`hep-autoresearch` remains a provider-local internal consumer of this package in the current repo.

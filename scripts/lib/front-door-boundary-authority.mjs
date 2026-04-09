@@ -224,7 +224,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
       '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
       '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
-      '2. `packages/hep-autoresearch` / `hepar` is now a residual compatibility/provider-local surface. It may project onto canonical lifecycle behavior, but it must not reclaim `orch_*` or `autoresearch` authority.',
+      '2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. The retired public `hepar` shell must not reclaim `orch_*` or `autoresearch` authority.',
     ],
   },
   {

@@ -27,13 +27,13 @@ Optional (only needed for specific workflows):
 - Network access for `--fetch-bibtex` (INSPIRE/DOI).
 - Local `claude` + `gemini` CLIs (and their runner skills) for `--run-models` (draft-sections path).
 
-## Run-card + export manifest (hep-autoresearch interop)
+## Run-card + export manifest (orchestrator interop)
 
 All three main entry points accept an optional `--run-card <path>`:
 - The run-card is treated as an **opaque JSON blob**: it is copied verbatim into the output directory (no schema assumptions).
 - A best-effort **summary** (`run_id`, `backend`, `approval_trace_id`, …) is logged into `paper/run.json` (scaffold/draft-sections) or `paper/build_trace.jsonl` (consume).
 
-All entry points also write a minimal `export_manifest.json` to help upstream orchestrators (e.g., `hep-autoresearch`) import the paper output into their own `artifacts/` layout.
+All entry points also write a minimal `export_manifest.json` to help upstream orchestrators import the paper output into their own `artifacts/` layout.
 
 ## Quick start (one-shot scaffold)
 
@@ -270,9 +270,9 @@ Outputs:
 
 `--compile` runs `latexmk -pdf main.tex` if `latexmk` is available; otherwise it records a deterministic `SKIPPED` result in `paper/build_trace.jsonl` (not a failure).
 
-## Calling from hep-autoresearch (recommended pattern)
+## Calling from an orchestrator (recommended pattern)
 
-`hep-autoresearch` (or any orchestrator) should:
+An orchestrator should:
 1) Prepare a JSON run-card that records prompts/tools/approvals (owned by the orchestrator).
 2) Call `research-writer` with `--run-card` so the paper output is self-describing and traceable.
 3) Ingest `paper/export_manifest.json` and copy/snapshot the referenced files into the orchestrator’s `artifacts/` structure (owned by the orchestrator).

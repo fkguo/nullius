@@ -212,5 +212,5 @@ orch://runs/<run_id>                → lifecycle / control-plane view
 ## 6. Compatibility and Migration Notes
 
 1. The old “TS orchestrator is read-only Stage 1” framing is no longer live truth. `@autoresearch/orchestrator` already owns the current `orch_*` surface.
-2. `packages/hep-autoresearch` / `hepar` is now a residual compatibility/provider-local surface. It may project onto canonical lifecycle behavior, but it must not reclaim `orch_*` or `autoresearch` authority.
+2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. The retired public `hepar` shell must not reclaim `orch_*` or `autoresearch` authority.
 3. Public documentation or review packets that need the current orchestrator MCP truth should point at this file plus the live tool registry/tests (`packages/hep-mcp/tests/toolContracts.test.ts`, `packages/hep-mcp/tests/docs/docToolDrift.test.ts`) rather than older Stage 1/2 sketches.

@@ -399,8 +399,8 @@ pytest hep-autoresearch/tests/test_approval_packet_triple.py
 
 **CI 验证**:
 ```bash
-# 检查日志输出可被 jq 解析
-hepar run --dry-run 2>&1 | grep '^{' | jq -e '.ts and .level and .component' > /dev/null
+# 检查 computation 入口的日志输出可被 jq 解析
+autoresearch run --workflow-id computation --dry-run 2>&1 | grep '^{' | jq -e '.ts and .level and .component' > /dev/null
 ```
 
 **违规行为**: **fail-open** (警告) — 渐进迁移，新组件强制

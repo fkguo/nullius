@@ -41,7 +41,6 @@ Use the Python installer (`scripts/install_skill.py`) when you want:
   skills-market/
   skills/
     skills/
-      hepar/
       research-team/
       ...
 ```
