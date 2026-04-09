@@ -34,7 +34,7 @@ class PaperReviserInputs:
     paper_root: str = "paper"
     tex_main: str = "main.tex"
 
-    # Required: no model defaults at the hepar layer (even if stub mode is used).
+    # Required: no model defaults at the provider-local internal layer (even if stub mode is used).
     writer_backend: str = ""
     writer_model: str = ""
     auditor_backend: str = ""
