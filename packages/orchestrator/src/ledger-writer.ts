@@ -1,6 +1,5 @@
-// @autoresearch/orchestrator — LedgerWriter (NEW-05a Stage 1)
-// Append-only ledger for audit trail. Compatible with Python ledger.jsonl format.
-// Python uses json.dumps(event, sort_keys=True) — we use recursive key sorting.
+// @autoresearch/orchestrator — ledger writer
+// Append-only ledger for audit trails with stable recursive key sorting.
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';

@@ -1,6 +1,6 @@
-// @autoresearch/orchestrator — StateManager (NEW-05a Stage 3c)
-// Read + write + enforcement + sentinel + plan validation operations. Compatible with Python orchestrator_state.py.
-// Atomic writes: .tmp → rename (H-07 pre-requisite).
+// @autoresearch/orchestrator — lifecycle state manager
+// Read/write/enforcement helpers for the .autoresearch control plane.
+// Atomic writes: .tmp → rename.
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';

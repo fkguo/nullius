@@ -19,7 +19,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 1. Generic lifecycle workflow
    - `autoresearch init/status/approve/pause/resume/export` for `.autoresearch/` project state outside the development repo.
 1. Launcher-backed literature workflow family
-   - `autoresearch workflow-plan` is the recommended stateful launcher-backed front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. Internal checked-in Python consumers remain implementation/regression proof only, not separate public entrypoints.
+   - `autoresearch workflow-plan` is the recommended stateful launcher-backed front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`.
 1. Native TS computation workflow
    - `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; approval handling stays on `autoresearch status/approve`.
 1. Experimental idea campaign workflow

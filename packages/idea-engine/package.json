@@ -2,7 +2,7 @@
   "name": "@autoresearch/idea-engine",
   "version": "0.0.1",
   "private": true,
-  "description": "TS idea engine for the public idea campaign runtime surface",
+  "description": "TS idea campaign runtime and contract authority",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

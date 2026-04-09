@@ -1,6 +1,4 @@
-// @autoresearch/orchestrator — Shared types (NEW-05a Stage 1)
-// Compatible with Python orchestrator_state.py schema_version: 1
-// Python is SSOT; TS types must mirror Python's state.json shape exactly.
+// @autoresearch/orchestrator — lifecycle state and approval policy types
 
 export type RunStatus =
   | 'idle'

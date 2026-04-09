@@ -1,6 +1,5 @@
-// @autoresearch/orchestrator — ApprovalGate (NEW-05a Stage 1)
-// Implements C-01 approval watchdog: timeout enforcement + budget limits.
-// Stage 1: read-only checks. Stage 2 will add state mutation.
+// @autoresearch/orchestrator — approval gate helpers
+// Implements approval timeout enforcement and budget limits.
 
 import { createHash } from 'node:crypto';
 import type { RunState, ApprovalPolicy, PendingApproval } from './types.js';

@@ -2,7 +2,7 @@
   "name": "@autoresearch/orchestrator",
   "version": "0.0.1",
   "private": true,
-  "description": "TS workflow orchestrator (NEW-05a)",
+  "description": "Generic lifecycle control plane and bounded workflow CLI",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
