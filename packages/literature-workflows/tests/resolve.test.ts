@@ -1,7 +1,17 @@
+import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { resolveWorkflowRecipe } from '../src/index.js';
+import { getRecipeDir } from '../src/recipeLoader.js';
 
 describe('literature workflow resolver', () => {
+  it('keeps checked-in recipe authority package-local', () => {
+    const recipeDir = getRecipeDir();
+
+    expect(path.basename(recipeDir)).toBe('recipes');
+    expect(recipeDir).toContain(`${path.sep}packages${path.sep}literature-workflows${path.sep}recipes`);
+    expect(recipeDir).not.toContain(`${path.sep}meta${path.sep}recipes`);
+  });
+
   it('resolves literature gap discover through provider-neutral search authority', () => {
     const plan = resolveWorkflowRecipe({
       recipe_id: 'literature_gap_analysis',

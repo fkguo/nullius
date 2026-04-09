@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "@autoresearch/arxiv-mcp": "workspace:*",
-    "@autoresearch/hep-mcp": "workspace:*",
     "@autoresearch/openalex-mcp": "workspace:*",
     "@autoresearch/shared": "workspace:*",
     "zod": "^4.3.5"

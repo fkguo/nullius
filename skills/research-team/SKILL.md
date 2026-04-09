@@ -22,7 +22,7 @@ Use `research-team` when you want a project workflow with:
 
 ## Workflow authority boundary
 
-- Generic literature workflow authority does **not** live inside `research-team`; it lives in the checked-in `literature-workflows` workflow-pack (`meta/recipes/` + session protocol) and the checked-in `packages/literature-workflows` launcher.
+- Generic literature workflow authority does **not** live inside `research-team`; it lives in the checked-in `literature-workflows` workflow-pack (`packages/literature-workflows/recipes/` + session protocol) and the checked-in `packages/literature-workflows` launcher.
 - `research-team` consumes that authority during prework / KB building and later evidence-oriented stages; it should not redefine provider-neutral literature workflow truth.
 - `scripts/bin/literature_fetch.py` is a source-adapter helper for INSPIRE/arXiv/Crossref/DataCite/GitHub/DOI and local KB preparation; when it needs workflow truth, it must call the checked-in launcher rather than restating recipe semantics locally.
 

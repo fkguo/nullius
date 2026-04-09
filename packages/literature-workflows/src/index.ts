@@ -14,5 +14,5 @@ export {
   type WorkflowRecipe,
 } from './types.js';
 export { getWorkflowProviderProfiles } from './providerProfiles.js';
-export { loadWorkflowRecipe } from './recipeLoader.js';
+export { getRecipeDir, loadWorkflowRecipe } from './recipeLoader.js';
 export { resolveWorkflowRecipe } from './resolver.js';

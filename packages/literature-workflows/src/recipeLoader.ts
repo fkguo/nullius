@@ -1,24 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { WorkflowRecipeSchema, type WorkflowRecipe } from './types.js';
 
-function findRepoRoot(fromDir: string): string {
-  let current = fromDir;
-  while (true) {
-    if (fs.existsSync(path.join(current, 'meta', 'recipes'))) {
-      return current;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      throw new Error(`Unable to locate repo root from ${fromDir}`);
-    }
-    current = parent;
-  }
-}
-
-export function getRecipeDir(fromDir = path.dirname(new URL(import.meta.url).pathname)): string {
-  const repoRoot = findRepoRoot(path.resolve(fromDir));
-  return path.join(repoRoot, 'meta', 'recipes');
+export function getRecipeDir(): string {
+  return path.resolve(fileURLToPath(new URL('../recipes/', import.meta.url)));
 }
 
 export function loadWorkflowRecipe(recipeId: string): WorkflowRecipe {

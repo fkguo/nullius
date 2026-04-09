@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../../../..');
 
 const recipeSchemaPath = path.join(repoRoot, 'meta/schemas/workflow_recipe_v1.schema.json');
-const recipeDir = path.join(repoRoot, 'meta/recipes');
+const recipeDir = path.join(repoRoot, 'packages/literature-workflows/recipes');
 
 function readJson(filePath: string): any {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));

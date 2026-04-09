@@ -1,7 +1,9 @@
 import { ARXIV_DISCOVERY_DESCRIPTOR } from '@autoresearch/arxiv-mcp/tooling';
-import { INSPIRE_DISCOVERY_DESCRIPTOR } from '@autoresearch/hep-mcp/provider-descriptors';
 import { OPENALEX_DISCOVERY_DESCRIPTOR } from '@autoresearch/openalex-mcp/tooling';
-import type { DiscoveryProviderDescriptor } from '@autoresearch/shared';
+import {
+  DiscoveryProviderDescriptorSchema,
+  type DiscoveryProviderDescriptor,
+} from '@autoresearch/shared';
 import type { WorkflowActionId, WorkflowCapabilityId, WorkflowProviderId } from './types.js';
 
 type ProviderProfile = {
@@ -17,6 +19,21 @@ function discoveryCapabilities(descriptor: DiscoveryProviderDescriptor): Workflo
     .filter(([, enabled]) => enabled === true)
     .map(([capability]) => capability as WorkflowCapabilityId);
 }
+
+const INSPIRE_DISCOVERY_DESCRIPTOR: DiscoveryProviderDescriptor = DiscoveryProviderDescriptorSchema.parse({
+  provider: 'inspire',
+  display_name: 'INSPIRE-HEP',
+  capabilities: {
+    supports_keyword_search: true,
+    supports_semantic_search: false,
+    supports_citation_graph: true,
+    supports_fulltext: true,
+    supports_source_download: true,
+    supports_open_access_content: true,
+  },
+  supported_intents: ['known_item', 'keyword_search', 'citation_expansion', 'fulltext_search'],
+  notes: 'Workflow-authority descriptor for INSPIRE-backed literature discovery and bounded analysis selection.',
+});
 
 const PROVIDER_PROFILES: ProviderProfile[] = [
   {

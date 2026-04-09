@@ -5,7 +5,7 @@
 
 > The old `hepar literature-gap` shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `autoresearch workflow-plan`.
 
-> High-level literature workflow authority for Stage 1-2 lives in checked-in workflow recipes (`meta/recipes/`) packaged as `literature-workflows`. Provider-specific MCP tools remain the bounded atomic building blocks underneath those recipes; they are not the canonical high-level workflow truth or the public front door.
+> High-level literature workflow authority for Stage 1-2 lives in the checked-in package-local workflow recipes under `packages/literature-workflows/recipes/`, packaged as `literature-workflows`. Provider-specific MCP tools remain the bounded atomic building blocks underneath those recipes; they are not the canonical high-level workflow truth or the public front door.
 
 ## Stage Enumeration
 
