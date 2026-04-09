@@ -24,7 +24,6 @@ DEFAULT_GENERAL_SKILLS: tuple[str, ...] = (
     "review-swarm",
     "claude-cli-runner",
     "gemini-cli-runner",
-    "hepar",
     "md-toc-latex-unescape",
     "referee-review",
     "research-team",
