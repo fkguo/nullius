@@ -476,7 +476,7 @@ def run_literature_gap_discover(repo_root: Path, inputs: LiteratureGapDiscoverIn
 
     try:
         with McpStdioClient(cfg=cfg, cwd=repo_root, env=env) as client:
-            init_raw = client.initialize(client_name="hepar", client_version="0.0.1")
+            init_raw = client.initialize(client_name="autoresearch", client_version="0.0.1")
             mcp_init = {
                 "protocolVersion": init_raw.get("protocolVersion") if isinstance(init_raw, dict) else None,
                 "serverInfo": init_raw.get("serverInfo") if isinstance(init_raw, dict) else None,
@@ -762,7 +762,7 @@ def run_literature_gap_analyze(repo_root: Path, inputs: LiteratureGapAnalyzeInpu
 
     try:
         with McpStdioClient(cfg=cfg, cwd=repo_root, env=env) as client:
-            init_raw = client.initialize(client_name="hepar", client_version="0.0.1")
+            init_raw = client.initialize(client_name="autoresearch", client_version="0.0.1")
             mcp_init = {
                 "protocolVersion": init_raw.get("protocolVersion") if isinstance(init_raw, dict) else None,
                 "serverInfo": init_raw.get("serverInfo") if isinstance(init_raw, dict) else None,

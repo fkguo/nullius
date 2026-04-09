@@ -138,7 +138,7 @@ def test_initialize_wraps_timeout_as_initialize_error() -> None:
 
     with patch.object(client, "_request", side_effect=McpRequestTimeout("timeout")):
         with pytest.raises(McpInitializeError, match="timed out"):
-            client.initialize(client_name="hepar", client_version="0.0.1", timeout_seconds=0.2)
+            client.initialize(client_name="autoresearch", client_version="0.0.1", timeout_seconds=0.2)
 
 
 def test_initialize_rejects_missing_protocol_version() -> None:
@@ -146,7 +146,7 @@ def test_initialize_rejects_missing_protocol_version() -> None:
 
     with patch.object(client, "_request", return_value={}), patch.object(client, "_notify", return_value=None):
         with pytest.raises(McpInitializeError, match="missing protocolVersion"):
-            client.initialize(client_name="hepar", client_version="0.0.1")
+            client.initialize(client_name="autoresearch", client_version="0.0.1")
 
 
 def test_initialize_wraps_initialized_notification_transport_failure() -> None:
@@ -158,7 +158,7 @@ def test_initialize_wraps_initialized_notification_transport_failure() -> None:
         side_effect=McpTransportError("notification write failed"),
     ):
         with pytest.raises(McpInitializeError, match="acknowledgement failed"):
-            client.initialize(client_name="hepar", client_version="0.0.1")
+            client.initialize(client_name="autoresearch", client_version="0.0.1")
 
 
 def test_call_tool_json_injects_trace_id_and_preserves_response_trace_id() -> None:
