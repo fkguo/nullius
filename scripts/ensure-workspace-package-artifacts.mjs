@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import {
   collectArtifactPaths,
   collectFreshnessErrors,
+  defaultBuildInfoPath,
   readJson,
   resolvePackageFreshnessRoots,
 } from './lib/workspace-package-freshness.mjs';
@@ -42,7 +43,11 @@ function needsFreshBuild(packageDir, pkgJson) {
   if (!fs.existsSync(roots.srcRoot) || !fs.existsSync(roots.distRoot)) {
     return false;
   }
-  return collectFreshnessErrors({ repoRoot, ...roots }).length > 0;
+  return collectFreshnessErrors({
+    repoRoot,
+    ...roots,
+    buildInfoPath: defaultBuildInfoPath(packageDir),
+  }).length > 0;
 }
 
 function ensureBuilt(packageName) {

@@ -76,6 +76,10 @@ export function resolvePackageFreshnessRoots(packageDir, pkgJson) {
   };
 }
 
+export function defaultBuildInfoPath(packageDir) {
+  return path.join(packageDir, 'tsconfig.tsbuildinfo');
+}
+
 export function resolvePackageFreshnessOptions({ packageDir, packageLabel }) {
   const resolvedPackageDir = path.resolve(packageDir);
   const packageJsonPath = path.join(resolvedPackageDir, 'package.json');
@@ -95,6 +99,7 @@ export function resolvePackageFreshnessOptions({ packageDir, packageLabel }) {
     packageLabel: packageLabel ?? pkgJson.name ?? path.basename(resolvedPackageDir),
     srcRoot: roots.srcRoot,
     distRoot: roots.distRoot,
+    buildInfoPath: defaultBuildInfoPath(resolvedPackageDir),
   };
 }
 
@@ -139,7 +144,7 @@ export function toDisplayPath(repoRoot, targetPath) {
   return targetPath;
 }
 
-export function collectFreshnessErrors({ repoRoot, srcRoot, distRoot }) {
+export function collectFreshnessErrors({ repoRoot, srcRoot, distRoot, buildInfoPath = null }) {
   if (!existsSync(srcRoot)) {
     return [`Source root not found: ${toDisplayPath(repoRoot, srcRoot)}`];
   }
@@ -153,6 +158,9 @@ export function collectFreshnessErrors({ repoRoot, srcRoot, distRoot }) {
   }
 
   const errors = [];
+  const buildInfoMtimeMs = buildInfoPath !== null && existsSync(buildInfoPath)
+    ? statSync(buildInfoPath).mtimeMs
+    : 0;
   for (const sourcePath of sourceFiles) {
     const sourceStat = statSync(sourcePath);
     const { primaryPath, declarationPath } = buildArtifactPaths(sourcePath, srcRoot, distRoot);
@@ -169,8 +177,12 @@ export function collectFreshnessErrors({ repoRoot, srcRoot, distRoot }) {
       continue;
     }
 
-    const artifactStat = statSync(primaryPath);
-    if (artifactStat.mtimeMs < sourceStat.mtimeMs) {
+    const freshestArtifactMtimeMs = Math.max(
+      statSync(primaryPath).mtimeMs,
+      statSync(declarationPath).mtimeMs,
+      buildInfoMtimeMs,
+    );
+    if (freshestArtifactMtimeMs < sourceStat.mtimeMs) {
       errors.push(
         `stale emitted artifact: source=${toDisplayPath(repoRoot, sourcePath)} artifact=${toDisplayPath(repoRoot, primaryPath)}`
       );

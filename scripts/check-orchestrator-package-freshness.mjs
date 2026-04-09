@@ -16,6 +16,7 @@ function parseArgs(argv) {
     packageDir: null,
     srcRoot: null,
     distRoot: null,
+    buildInfoPath: null,
     packageLabel: null,
   };
 
@@ -64,11 +65,18 @@ function finalizeOptions(options) {
     finalized.packageLabel = inferred.packageLabel;
     finalized.srcRoot ??= inferred.srcRoot;
     finalized.distRoot ??= inferred.distRoot;
+    finalized.buildInfoPath ??= inferred.buildInfoPath;
   }
 
+  const usingDefaultOrchestratorPaths = finalized.packageDir === null
+    && finalized.srcRoot === null
+    && finalized.distRoot === null;
   finalized.srcRoot ??= path.join(repoRoot, 'packages', 'orchestrator', 'src');
   finalized.distRoot ??= path.join(repoRoot, 'packages', 'orchestrator', 'dist');
   finalized.packageLabel ??= '@autoresearch/orchestrator';
+  if (usingDefaultOrchestratorPaths) {
+    finalized.buildInfoPath ??= path.join(repoRoot, 'packages', 'orchestrator', 'tsconfig.tsbuildinfo');
+  }
 
   return finalized;
 }

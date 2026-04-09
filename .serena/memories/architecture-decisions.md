@@ -586,3 +586,12 @@
 - `hep-autoresearch` internal A2A / bound-agent error envelopes and MCP stdio client initialization use package-local `hep-autoresearch` identity strings, not `hepar` branding.
 
 **Why**: Leaving `hepar` embedded in hidden runtime assets or internal transport envelopes would keep a second obsolete naming authority alive even after the public shell and docs were retired. Generic-first cleanup only really closes when active runtime artifacts, fixture goldens, and internal transport identities all stop reintroducing the old brand.
+
+### [2026-04-09] Workspace freshness invariant: incremental TypeScript builds may leave emitted mtimes unchanged when output content is identical
+
+**Decision**:
+- Workspace freshness checks must not rely only on emitted `.js`/`.d.ts` mtimes to decide whether a package is stale.
+- When TypeScript project builds are incremental/composite, `tsconfig.tsbuildinfo` may be the only file whose mtime advances after a valid no-op emit; freshness guards should treat that build info timestamp as evidence of a successful up-to-date build.
+- Freshness guards must still fail when required emitted artifacts are missing; `tsbuildinfo` supplements artifact existence checks, it does not replace them.
+
+**Why**: Type-only or declaration-neutral edits can legitimately trigger an incremental build that leaves generated files byte-identical and therefore untouched on disk. A freshness checker that only compares source mtimes to emitted artifact mtimes will then report false stale-dist failures and break downstream package builds even though the package was rebuilt successfully.
