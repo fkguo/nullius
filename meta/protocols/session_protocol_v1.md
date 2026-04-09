@@ -1,7 +1,7 @@
 # Session Protocol v1 — Research Session Entry Convention
 
 > UX-06: Agent behavior protocol for guiding users through a research-session pipeline.
-> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the checked-in `packages/literature-workflows` launcher plus checked-in consumers such as `research-team`, `autoresearch workflow-plan`, and the lower-level checked-in `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` consumer used for maintainer/eval coverage.
+> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through checked-in workflow recipes packaged as `literature-workflows`, with `autoresearch workflow-plan` as the recommended stateful front door. Other checked-in consumers such as `research-team` or `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` are lower-level/internal coverage consumers of the same authority, not competing entrypoints.
 
 > The old `hepar literature-gap` shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `autoresearch workflow-plan`.
 
