@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "method_spec_v1.schema.json",
   "title": "Method Spec v1",
-  "description": "Structured method-design bundle for hepar method-design --template spec_v1. Strict mode: unknown fields are errors. Schema version must be exactly 1. Note: runtime still validates run_card v2 and enforces path safety more strictly than regexes can express.",
+  "description": "Structured method-design bundle for the internal Autoresearch method-design toolkit with template spec_v1. Strict mode: unknown fields are errors. Schema version must be exactly 1. Note: runtime still validates run_card v2 and enforces path safety more strictly than regexes can express.",
   "type": "object",
   "required": ["schema_version", "project", "run_card"],
   "additionalProperties": false,
@@ -88,4 +88,3 @@
     }
   }
 }
-

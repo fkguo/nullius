@@ -1131,7 +1131,7 @@ def paper_reviser_one(
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "created_at": created_at,
-        "command": "hepar run --workflow-id paper_reviser",
+        "command": "autoresearch-internal run --workflow-id paper_reviser",
         "cwd": manifest_cwd(repo_root=repo_root, cwd=repo_root),
         "params": {
             "tag": inps.tag,

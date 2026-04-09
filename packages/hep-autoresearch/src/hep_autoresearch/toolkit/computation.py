@@ -697,7 +697,7 @@ def computation_one(inps: ComputationInputs, repo_root: Path) -> dict[str, Any]:
     analysis_path = out_dir / "analysis.json"
     report_path = out_dir / "report.md"
 
-    cmd_str = "hepar run (computation)"
+    cmd_str = "autoresearch run --workflow-id computation"
     if isinstance(inps.command_argv, list) and inps.command_argv:
         cmd_str = " ".join(shlex.quote(str(x)) for x in inps.command_argv if str(x).strip())
 
