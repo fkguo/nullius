@@ -42,7 +42,7 @@ pnpm -C packages/zotero-mcp exec zotero-mcp
 
 - Use `zotero_search_items` for **interactive browsing/search**: it forwards query params to Zotero Local API and returns a lightweight summary (often good for “find candidates and get item keys”).
 - Use `zotero_find_items` for **identifier resolution/dedupe**: you provide identifiers (doi/arXiv/INSPIRE recid/item_key/title) and optional filters; it fetches a limited candidate set and verifies which items actually match (optionally scoped by `collection_key`, and `include_children` to include descendant collections).
-- Both tools return the same per-item summary shape (`item_key`, `item_type`, `title`, `select_uri`, `identifiers`, …); `zotero_find_items` also keeps `matches` for backward compatibility (alias: `items`).
+- Both tools return the same per-item summary shape under `items` (`item_key`, `item_type`, `title`, `select_uri`, `identifiers`, …).
 
 ## Integration with `hep-mcp`
 

@@ -190,12 +190,12 @@ describe('zotero-mcp: read tools (tags/export)', () => {
 
     const payload = JSON.parse(res.content[0].text) as {
       query?: { collection_key?: string };
-      matches?: Array<{ item_key: string }>;
+      items?: Array<{ item_key: string }>;
       summary?: { matched: number; scanned?: number; total_results_header?: number };
     };
     expect(payload.query?.collection_key).toBe('COLL1');
-    expect(payload.matches?.map(m => m.item_key)).toEqual(['ITEM1']);
-    expect((payload.matches?.[0] as any)?.item_type).toBe('journalArticle');
+    expect(payload.items?.map(m => m.item_key)).toEqual(['ITEM1']);
+    expect((payload.items?.[0] as any)?.item_type).toBe('journalArticle');
     expect(payload.summary?.matched).toBe(1);
     expect(payload.summary?.scanned).toBe(2);
     expect(payload.summary?.total_results_header).toBe(10);
@@ -223,10 +223,10 @@ describe('zotero-mcp: read tools (tags/export)', () => {
     expect(res.isError).not.toBe(true);
 
     const payload = JSON.parse(res.content[0].text) as {
-      matches?: Array<{ item_key: string }>;
+      items?: Array<{ item_key: string }>;
       summary?: { matched: number; scanned?: number };
     };
-    expect(payload.matches?.length).toBe(0);
+    expect(payload.items?.length).toBe(0);
     expect(payload.summary?.matched).toBe(0);
     expect(payload.summary?.scanned).toBe(1);
   });
@@ -277,12 +277,12 @@ describe('zotero-mcp: read tools (tags/export)', () => {
 
     const payload = JSON.parse(res.content[0].text) as {
       query?: { collection_key?: string; include_children?: boolean };
-      matches?: Array<{ item_key: string }>;
+      items?: Array<{ item_key: string }>;
       summary?: { matched: number };
     };
     expect(payload.query?.collection_key).toBe('PARENT1');
     expect(payload.query?.include_children).toBe(true);
-    expect(payload.matches?.map(m => m.item_key)).toEqual(['HIT1']);
+    expect(payload.items?.map(m => m.item_key)).toEqual(['HIT1']);
     expect(payload.summary?.matched).toBe(1);
   });
 });

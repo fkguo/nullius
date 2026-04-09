@@ -1075,7 +1075,7 @@ async function dedupeFindFirst(params: {
     include_attachments: false,
     match: 'exact',
   });
-  const first = res.matches[0];
+  const first = res.items[0];
   if (!first) return undefined;
   return { item_key: first.item_key, title: first.title, identifiers: first.identifiers };
 }
@@ -1503,17 +1503,6 @@ export async function zoteroFindItems(params: {
       issue?: string;
     };
   };
-  matches: Array<{
-    item_key: string;
-    item_type?: string;
-    title?: string;
-    select_uri: string;
-    identifiers: { doi?: string; arxiv_id?: string; inspire_recid?: string };
-    creators?: ZoteroCreatorSummary[];
-    date?: string;
-    publication_title?: string;
-    attachment_keys?: string[];
-  }>;
   items: Array<{
     item_key: string;
     item_type?: string;
@@ -1548,7 +1537,6 @@ export async function zoteroFindItems(params: {
     if ('status' in res) {
       return {
         query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-        matches: [],
         items: [],
         summary: { matched: 0, returned: 0, scanned: 0 },
       };
@@ -1557,7 +1545,6 @@ export async function zoteroFindItems(params: {
     if (!isRecordWithKey(item)) {
       return {
         query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-        matches: [],
         items: [],
         summary: { matched: 0, returned: 0, scanned: 0 },
       };
@@ -1569,7 +1556,6 @@ export async function zoteroFindItems(params: {
     if (itemTypeNorm === 'attachment' || itemTypeNorm === 'note' || itemTypeNorm === 'annotation') {
       return {
         query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-        matches: [],
         items: [],
         summary: { matched: 0, returned: 0, scanned: 1 },
       };
@@ -1577,7 +1563,6 @@ export async function zoteroFindItems(params: {
     if (scopedCollectionKeySet && !isItemInAnyCollection(item, scopedCollectionKeySet)) {
       return {
         query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-        matches: [],
         items: [],
         summary: { matched: 0, returned: 0, scanned: 1 },
       };
@@ -1587,7 +1572,6 @@ export async function zoteroFindItems(params: {
     if (!matchItemIdentifiers(extracted, identifiers, match)) {
       return {
         query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-        matches: [],
         items: [],
         summary: { matched: 0, returned: 0, scanned: 1 },
       };
@@ -1595,7 +1579,6 @@ export async function zoteroFindItems(params: {
     if (!matchItemFilters(item, filters, match)) {
       return {
         query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-        matches: [],
         items: [],
         summary: { matched: 0, returned: 0, scanned: 1 },
       };
@@ -1608,19 +1591,17 @@ export async function zoteroFindItems(params: {
     if (!summary) {
       return {
         query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-        matches: [],
         items: [],
         summary: { matched: 0, returned: 0, scanned: 1 },
       };
     }
 
     const matchItem: ZoteroItemSummaryWithAttachments = { ...summary, attachment_keys };
-    const matches = [matchItem];
+    const items = [matchItem];
 
     return {
       query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-      matches,
-      items: matches,
+      items,
       summary: { matched: 1, returned: 1, scanned: 1 },
     };
   }
@@ -1630,7 +1611,7 @@ export async function zoteroFindItems(params: {
   if (token.length > 512) throw invalidParams('Search token too long (max 512 chars)', { length: token.length });
 
   const candidates = await fetchZoteroItemCandidates({ token, limit, collection_keys: scopedCollectionKeys });
-  const matches: ZoteroItemSummaryWithAttachments[] = [];
+  const items: ZoteroItemSummaryWithAttachments[] = [];
 
   for (const item of candidates.items) {
     if (!isRecordWithKey(item)) continue;
@@ -1649,16 +1630,15 @@ export async function zoteroFindItems(params: {
 
     const summary = buildZoteroItemSummary(item, extracted);
     if (!summary) continue;
-    matches.push({ ...summary, attachment_keys });
+    items.push({ ...summary, attachment_keys });
   }
 
   return {
     query: { collection_key: collectionKey, include_children: includeChildren, identifiers, filters },
-    matches,
-    items: matches,
+    items,
     summary: {
-      matched: matches.length,
-      returned: matches.length,
+      matched: items.length,
+      returned: items.length,
       scanned: candidates.items.length,
       total_results_header: candidates.total_results,
       collections_scanned: candidates.collections_scanned,
@@ -1735,7 +1715,7 @@ async function findCreatedItemKey(params: {
     };
 
     const res = await zoteroFindItems({ identifiers: query, limit: 20, include_attachments: false, match: 'exact' });
-    const first = res.matches[0];
+    const first = res.items[0];
     if (first?.item_key) return first.item_key;
 
     await new Promise(r => setTimeout(r, 150));
