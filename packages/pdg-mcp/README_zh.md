@@ -64,7 +64,6 @@
 
 - `name: string`
 - `mcid: int`（PDG Monte Carlo ID / PDG code；也接受纯数字字符串）
-- `pdg_code: int`（`mcid` 的别名）
 - `pdgid: string`
 
 通用参数：
@@ -87,7 +86,7 @@
 
 输入：
 
-- `particle`: `{ name | mcid | pdg_code | pdgid, case_sensitive?: boolean = false }`（四选一）
+- `particle`: `{ name | mcid | pdgid, case_sensitive?: boolean = false }`（三选一）
 - `property: 'mass' | 'width' | 'lifetime'`
 - `edition?: string`
 - `allow_derived?: boolean = false`
@@ -127,7 +126,7 @@
 
 输入：
 
-- `particle`: `{ name | mcid | pdg_code | pdgid, case_sensitive?: boolean = false }`（四选一）
+- `particle`: `{ name | mcid | pdgid, case_sensitive?: boolean = false }`（三选一）
 - `edition?: string`
 - `start?: int = 0`
 - `limit?: int = 200`（最大 500）
@@ -192,7 +191,7 @@
 该工具也支持一个更符合直觉的 **粒子模式** 入口：
 
 - 你可以传入 `particle`（`name | mcid | pdgid`），或
-- 直接把数字形式的 `pdgid` 当作 **MCID/PDG code** 的简写（例如 `pi0` 的 `111`）。
+- 直接把数字形式的 `pdgid` 当作 **MCID** 的简写（例如 `pi0` 的 `111`）。
 
 当粒子对应 **多个** “测量序列”（同一粒子下有多个 child PDG identifier 具备测量数据）时，工具会返回一个 **JSON artifact**，列出可选序列；此时不会直接返回测量 JSONL。
 
@@ -201,7 +200,7 @@
 三选一（必须且只能提供一个入口，或直接使用 property_pdgid）：
 
 - `pdgid: string`（PDG identifier，例如 `S009T`；若为纯数字则按 MCID/PDG code 处理）
-- `particle: { name | mcid | pdg_code | pdgid, case_sensitive?: boolean = false }`
+- `particle: { name | mcid | pdgid, case_sensitive?: boolean = false }`
 - `property_pdgid: string`（可直接单独使用，查询特定的 PDG identifier，例如 `S009R1`）
 
 可选的消歧参数（当使用 `particle` 或纯数字 `pdgid` 时）：

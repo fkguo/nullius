@@ -87,7 +87,6 @@ const PdgFindParticleToolSchema = z
   .object({
     name: z.string().min(1).optional(),
     mcid: IntLikeSchema.optional(),
-    pdg_code: IntLikeSchema.optional(),
     pdgid: z.string().min(1).optional(),
     case_sensitive: z.boolean().optional().default(false),
     match: z.enum(['exact', 'prefix', 'contains']).optional().default('exact'),
@@ -96,7 +95,7 @@ const PdgFindParticleToolSchema = z
   })
   .refine(
     v => {
-      const keys = [v.name, v.mcid, v.pdg_code, v.pdgid].filter(x => x !== undefined);
+      const keys = [v.name, v.mcid, v.pdgid].filter(x => x !== undefined);
       return keys.length === 1;
     },
     { message: 'Provide exactly one of: name, mcid, pdgid' }
@@ -106,13 +105,12 @@ const ParticleSelectorSchema = z
   .object({
     name: z.string().min(1).optional(),
     mcid: IntLikeSchema.optional(),
-    pdg_code: IntLikeSchema.optional(),
     pdgid: z.string().min(1).optional(),
     case_sensitive: z.boolean().optional().default(false),
   })
   .refine(
     v => {
-      const keys = [v.name, v.mcid, v.pdg_code, v.pdgid].filter(x => x !== undefined);
+      const keys = [v.name, v.mcid, v.pdgid].filter(x => x !== undefined);
       return keys.length === 1;
     },
     { message: 'Provide exactly one of: name, mcid, pdgid' }
@@ -151,7 +149,7 @@ const PdgGetDecaysToolSchema = z.object({
 });
 
 const PdgGetMeasurementsToolSchema = z.object({
-  /** PDG identifier (e.g. S009T) OR, for convenience, a numeric MCID/PDG code (e.g. 111). */
+  /** PDG identifier (e.g. S009T) OR, for convenience, a numeric MCID string (e.g. 111). */
   pdgid: z.string().min(1).optional(),
   /** Particle selector (preferred when you only know name/MCID). */
   particle: ParticleSelectorSchema.optional(),
@@ -329,7 +327,7 @@ export const TOOL_SPECS: ToolSpec[] = [
         };
       }
 
-      const mcid = params.mcid ?? params.pdg_code;
+      const mcid = params.mcid;
       if (mcid !== undefined) {
         const { candidates, has_more } = await findPdgParticlesByMcid(dbPath, mcid, { start, limit });
         const disambiguation =

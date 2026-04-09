@@ -11,7 +11,6 @@ import { normalizeParticleNameInput } from './nameNormalization.js';
 export interface ParticleSelectorInput {
   name?: string;
   mcid?: number;
-  pdg_code?: number;
   pdgid?: string;
   case_sensitive: boolean;
 }
@@ -37,7 +36,7 @@ export async function resolveParticleCandidates(
       const { normalized, changed } = normalizeParticleNameInput(selector.name);
       return { kind: 'name' as const, normalized, changed };
     }
-    if (selector.mcid !== undefined || selector.pdg_code !== undefined) return { kind: 'mcid' as const };
+    if (selector.mcid !== undefined) return { kind: 'mcid' as const };
     return { kind: 'pdgid' as const };
   })();
 
@@ -60,13 +59,13 @@ export async function resolveParticleCandidates(
     }
 
     if (resolved.kind === 'mcid') {
-      const mcid = selector.mcid ?? selector.pdg_code!;
+      const mcid = selector.mcid!;
       const { candidates, has_more } = await findPdgParticlesByMcid(dbPath, mcid, {
         start: 0,
         limit: RESOLVE_LIMIT,
       });
       if (has_more) {
-        throwTooManyMatches('Ambiguous particle selector; too many matches for mcid/pdg_code', selector, candidates);
+        throwTooManyMatches('Ambiguous particle selector; too many matches for mcid', selector, candidates);
       }
       return { candidates };
     }

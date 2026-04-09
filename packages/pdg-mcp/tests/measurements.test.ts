@@ -305,7 +305,7 @@ describe('pdg_get_measurements (R3)', () => {
     expect(fs.existsSync(artifactPath)).toBe(true);
   });
 
-  it('accepts particle.pdg_code alias (preferred) for mcid-based measurement lookup', async () => {
+  it('rejects retired particle.pdg_code alias for mcid-based measurement lookup', async () => {
     const dbPath = makeMcidFixtureDb({ seriesCount: 1 });
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdg-r3-mcid-data-'));
     process.env.PDG_DB_PATH = dbPath;
@@ -323,13 +323,9 @@ describe('pdg_get_measurements (R3)', () => {
       },
       'standard'
     );
-    expect(res.isError).not.toBe(true);
+    expect(res.isError).toBe(true);
 
     const payload = JSON.parse(res.content[0]?.text ?? '{}') as any;
-    expect(payload.summary?.pdgid).toBe('S009T');
-    expect(payload.summary?.measurements).toBe(1);
-
-    const artifactPath = path.join(dataDir, 'artifacts', 'mcid_measurements_particle.jsonl');
-    expect(fs.existsSync(artifactPath)).toBe(true);
+    expect(payload.error?.code).toBe('INVALID_PARAMS');
   });
 });

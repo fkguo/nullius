@@ -133,16 +133,15 @@ describe('pdg_find_particle (M2)', () => {
     expect(payload.candidates?.[0]?.name).toBe('W+');
   });
 
-  it('accepts pdg_code alias for mcid (including integer strings)', async () => {
+  it('rejects retired pdg_code alias for mcid lookup', async () => {
     const dbPath = makeParticleFixtureDb();
     process.env.PDG_DB_PATH = dbPath;
 
     const res = await handleToolCall('pdg_find_particle', { pdg_code: '24' }, 'standard');
-    expect(res.isError).not.toBe(true);
+    expect(res.isError).toBe(true);
 
     const payload = JSON.parse(res.content[0]?.text ?? '{}') as any;
-    expect(payload.candidates?.length).toBe(1);
-    expect(payload.candidates?.[0]?.name).toBe('W+');
+    expect(payload.error?.code).toBe('INVALID_PARAMS');
   });
 
   it('normalizes non-particle pdgid via parent_pdgid when possible', async () => {

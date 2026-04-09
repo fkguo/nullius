@@ -64,7 +64,6 @@ Input (exactly one query):
 
 - `name: string`
 - `mcid: int` (PDG Monte Carlo ID / PDG code; integer strings are accepted)
-- `pdg_code: int` (alias of `mcid`)
 - `pdgid: string`
 
 Common parameters:
@@ -88,7 +87,6 @@ Purpose: fetch a high-frequency property (`mass/width/lifetime`) with uncertaint
 Input:
 
 - `particle`: `{ name | mcid | pdgid, case_sensitive?: boolean = false }` (exactly one)
-  - `particle.pdg_code` is supported as an alias of `mcid`
 - `property: 'mass' | 'width' | 'lifetime'`
 - `edition?: string`
 - `allow_derived?: boolean = false`
@@ -128,7 +126,7 @@ Purpose: list decay modes for a particle (writes JSONL artifact; tool returns `u
 
 Input:
 
-- `particle`: `{ name | mcid | pdg_code | pdgid, case_sensitive?: boolean = false }` (exactly one)
+- `particle`: `{ name | mcid | pdgid, case_sensitive?: boolean = false }` (exactly one)
 - `edition?: string`
 - `start?: int = 0`
 - `limit?: int = 200` (max 500)
@@ -193,7 +191,7 @@ Purpose: list measurements for a PDG identifier (writes JSONL artifact; paginate
 This tool also supports a **particle-mode** entry point:
 
 - you can pass a `particle` selector (`name | mcid | pdgid`), or
-- pass a numeric `pdgid` string as a convenience shorthand for **MCID/PDG code** (e.g. `111` for `pi0`).
+- pass a numeric `pdgid` string as a convenience shorthand for **MCID** (e.g. `111` for `pi0`).
 
 If the particle maps to **multiple measurement series** (multiple child PDG identifiers under the particle), the tool returns a **JSON artifact** with series options instead of measurement JSONL.
 
@@ -202,7 +200,7 @@ Input:
 Exactly one of (or use property_pdgid directly):
 
 - `pdgid: string` (PDG identifier like `S009T`; numeric strings are treated as MCID/PDG code)
-- `particle: { name | mcid | pdg_code | pdgid, case_sensitive?: boolean = false }`
+- `particle: { name | mcid | pdgid, case_sensitive?: boolean = false }`
 - `property_pdgid: string` (can be used alone to directly query a specific PDG identifier like `S009R1`)
 
 Optional disambiguation (when using `particle` or numeric `pdgid`):

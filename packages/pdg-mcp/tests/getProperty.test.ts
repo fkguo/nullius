@@ -169,16 +169,15 @@ describe('pdg_get_property (M3)', () => {
     expect(typeof payload.pdg_locator?.pdgdata_id).toBe('number');
   });
 
-  it('accepts particle.pdg_code alias (including integer strings)', async () => {
+  it('rejects retired particle.pdg_code alias', async () => {
     const dbPath = makePropertyFixtureDb();
     process.env.PDG_DB_PATH = dbPath;
 
     const res = await handleToolCall('pdg_get_property', { particle: { pdg_code: '24' }, property: 'mass' }, 'standard');
-    expect(res.isError).not.toBe(true);
+    expect(res.isError).toBe(true);
 
     const payload = JSON.parse(res.content[0]?.text ?? '{}') as any;
-    expect(payload.particle?.pdgid).toBe('S043');
-    expect(payload.property?.pdgid).toBe('S043M');
+    expect(payload.error?.code).toBe('INVALID_PARAMS');
   });
 
   it('returns lifetime (mean life) for pi+-', async () => {
