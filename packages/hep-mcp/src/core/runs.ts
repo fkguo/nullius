@@ -16,14 +16,8 @@ import { getProject, updateProjectUpdatedAt } from './projects.js';
 import { writeRunJsonArtifact } from './citations.js';
 import { createHepRunArtifactRef, makeHepRunManifestUri } from './runArtifactUri.js';
 
-// Re-export from shared (H-03, H-18) so existing consumers don't need import changes
+// Re-export from shared so this package does not invent a second run-state authority.
 export type { RunArtifactRef, RunState, RunStepState };
-
-/**
- * @deprecated Use `RunStepState` from `@autoresearch/shared` instead (H-03).
- * Kept for backward compatibility during migration.
- */
-export type RunStepStatus = RunStepState;
 
 export interface RunStep {
   step: string;

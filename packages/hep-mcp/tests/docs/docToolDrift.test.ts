@@ -276,7 +276,7 @@ describe('Docs tool drift guard', () => {
   it('front-door authority map classifies the live public surfaces', () => {
     expect(FRONT_DOOR_AUTHORITY_SURFACE_IDS).toEqual([
       'autoresearch_cli',
-      'hepar_internal_full_parser',
+      'hep_autoresearch_internal_parser',
       'orchestrator_mcp_tools_spec',
     ]);
 
@@ -285,7 +285,7 @@ describe('Docs tool drift guard', () => {
       surface_kind: 'cli_command_inventory',
       exact_inventory_source: 'packages/orchestrator/src/cli-command-inventory.ts',
     });
-    expect(getFrontDoorAuthoritySurface('hepar_internal_full_parser')).toMatchObject({
+    expect(getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser')).toMatchObject({
       classification: 'internal_only',
       surface_kind: 'internal_full_parser',
       exact_inventory_source: 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main',
@@ -306,11 +306,11 @@ describe('Docs tool drift guard', () => {
       owner: getFrontDoorAuthoritySurface('autoresearch_cli').owner,
       relPath: getFrontDoorAuthoritySurface('autoresearch_cli').exact_inventory_source,
     });
-    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.hepar_internal_full_parser).toMatchObject({
-      surface: 'hepar_internal_full_parser',
-      classification: getFrontDoorAuthoritySurface('hepar_internal_full_parser').classification,
-      owner: getFrontDoorAuthoritySurface('hepar_internal_full_parser').owner,
-      relPath: getFrontDoorAuthoritySurface('hepar_internal_full_parser').exact_inventory_source,
+    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.hep_autoresearch_internal_parser).toMatchObject({
+      surface: 'hep_autoresearch_internal_parser',
+      classification: getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser').classification,
+      owner: getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser').owner,
+      relPath: getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser').exact_inventory_source,
     });
     expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.orchestrator_mcp_tools_spec).toMatchObject({
       surface: 'orchestrator_mcp_tools_spec',
@@ -324,7 +324,7 @@ describe('Docs tool drift guard', () => {
       commands: entry.commands.map(command => command.command),
     }));
     expect(normalizedInternalGroups).toEqual(
-      getFrontDoorAuthoritySurface('hepar_internal_full_parser').command_groups,
+      getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser').command_groups,
     );
   });
 

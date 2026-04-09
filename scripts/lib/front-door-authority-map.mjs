@@ -51,7 +51,7 @@ export const FRONT_DOOR_AUTHORITY_CLASSIFICATIONS = Object.freeze([
 ]);
 
 export const AUTORESEARCH_FRONT_DOOR_REL_PATH = 'packages/orchestrator/src/cli-command-inventory.ts';
-export const HEPAR_INTERNAL_PARSER_REL_PATH = 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py';
+export const HEP_AUTORESEARCH_INTERNAL_PARSER_REL_PATH = 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py';
 export const ORCH_EXACT_SPEC_REL_PATH = 'meta/docs/orchestrator-mcp-tools-spec.md';
 export const FRONT_DOOR_AUTHORITY_JSON_REL_PATH = 'meta/front_door_authority_map_v1.json';
 
@@ -70,7 +70,7 @@ export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
   Object.freeze({
     group: 'internal_support_commands',
     owner: 'internal full parser only; maintainer/eval/regression compatibility surface',
-    commands: freezeCommands([]),
+    commands: freezeCommands(['branch']),
   }),
   Object.freeze({
     group: 'retired_public_support_commands',
@@ -78,7 +78,6 @@ export const INTERNAL_ONLY_FRONT_DOOR_GROUPS = Object.freeze([
     commands: freezeCommands([
       'method-design',
       'run-card',
-      'branch',
     ]),
   }),
   Object.freeze({
@@ -110,10 +109,10 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
     commands: freezeCommands(AUTORESEARCH_FRONT_DOOR_COMMANDS),
   }),
   Object.freeze({
-    surface: 'hepar_internal_full_parser',
+    surface: 'hep_autoresearch_internal_parser',
     classification: 'internal_only',
     owner: 'packages/hep-autoresearch',
-    relPath: `${HEPAR_INTERNAL_PARSER_REL_PATH}#main`,
+    relPath: `${HEP_AUTORESEARCH_INTERNAL_PARSER_REL_PATH}#main`,
     exactInventoryKind: 'group_classification_only',
     groups: INTERNAL_ONLY_FRONT_DOOR_GROUPS,
   }),
