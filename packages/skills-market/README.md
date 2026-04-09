@@ -120,7 +120,7 @@ When a skill opts in via `runtime.python`, the installed payload records `python
 
 ## Notes
 
-- This repo is private and oriented to internal ecosystem rollout.
+- This repo is public but still pre-release; installer/runtime truth should follow checked-in manifests rather than private rollout assumptions.
 - Runtime compatibility SSOT:
-  - Local sibling checkout: `../autoresearch-meta/compatibility-matrix/ecosystem-manifest.json`
-  - GitHub: `https://github.com/autoresearch-lab/autoresearch-meta/blob/main/compatibility-matrix/ecosystem-manifest.json`
+  - Checked-in manifest in this repo: `meta/compatibility-matrix/ecosystem-manifest.json`
+  - GitHub mirror: `https://github.com/autoresearch-lab/autoresearch-meta/blob/main/compatibility-matrix/ecosystem-manifest.json`
