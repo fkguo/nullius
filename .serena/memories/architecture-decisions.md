@@ -555,3 +555,14 @@
 - The duplicate `packages/hep-autoresearch/specs/plan.schema.json` is no longer the canonical generic scaffold source; any future retirement or consolidation work must treat it as provider-local residue or mirrored copy, not as front-door authority.
 
 **Why**: `project-contracts` already owns new-project scaffold materialization and ships the plan schema in its install tree. Leaving generic comments or provenance notes pointed at `hep-autoresearch` would keep a false shared-authority story alive even after scaffold ownership moved to the generic contracts package.
+
+### [2026-04-09] `hep-autoresearch` residual data/schemas bucket invariant: keep live provider-local fixtures, retire only dead public-looking residue
+
+**Decision**:
+- `packages/hep-autoresearch/templates/` is retired, but `packages/hep-autoresearch/specs/`, `packages/hep-autoresearch/knowledge_base/`, and `packages/hep-autoresearch/references/arxiv/` are not to be deleted by association.
+- `packages/hep-autoresearch/specs/` currently remains provider-local runtime/eval/schema authority for Python computation/method-design/evals, except that generic `plan.schema.json` source authority has already moved to `project-contracts`.
+- `packages/hep-autoresearch/knowledge_base/_index/` and `knowledge_base/_index/kb_profiles/*.json` remain live package-local KB seed fixtures consumed by `kb_profile` / context-pack / orchestrator regression coverage.
+- `packages/hep-autoresearch/references/arxiv/*/metadata.json` remain package-local ingest/eval anchors, not generic public front-door truth.
+- Generated hep-mcp inventory outputs must stay untracked under `.tmp/` rather than reappearing under tracked `references/` paths.
+
+**Why**: The remaining `hep-autoresearch` residue is split: some files were truly dead public-looking template baggage, while others still anchor package-local schema validation, KB profile generation, regression fixtures, or ingest evals. Treating all residue as equally deletable would risk breaking still-live provider-local coverage; treating all of it as public authority would recreate the wrong generic-first story.
