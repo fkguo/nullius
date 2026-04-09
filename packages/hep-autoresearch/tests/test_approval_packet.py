@@ -37,7 +37,7 @@ def sample_data() -> ApprovalPacketData:
         budgets={"max_network_calls": 100, "max_runtime_minutes": 30},
         outputs=["artifacts/runs/test-run-1/ingest/"],
         rollback="Delete ingested artifacts and reset state.",
-        commands=["hepar run --run-id test-run-1 --workflow-id ingest"],
+        commands=["autoresearch-internal run --run-id test-run-1 --workflow-id ingest"],
         checklist=["Verify network access", "Check disk space"],
         requested_at="2026-02-26T12:00:00Z",
     )

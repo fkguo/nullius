@@ -71,7 +71,7 @@ class TestOrchestratorWComputeCLI(unittest.TestCase):
             run_card_path = proj / "run_cards" / "basic.json"
             run_card_path.write_text(json.dumps(run_card, indent=2) + "\n", encoding="utf-8")
 
-            # Run computation via hepar CLI.
+            # Run computation via the internal parser CLI.
             rc = run_cli(
                 [
                     "hepar",
