@@ -81,7 +81,7 @@ class TestPublicCliSurface(unittest.TestCase):
         groups = {entry["group"]: entry["commands"] for entry in surface["command_groups"]}
 
         self.assertEqual(surface["classification"], "internal_only")
-        self.assertEqual(surface["surface_kind"], "compatibility_full_parser")
+        self.assertEqual(surface["surface_kind"], "internal_full_parser")
         self.assertEqual(
             surface["exact_inventory_source"],
             "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main",

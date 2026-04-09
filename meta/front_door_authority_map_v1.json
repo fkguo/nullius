@@ -44,7 +44,7 @@
     },
     "hepar_internal_full_parser": {
       "classification": "internal_only",
-      "surface_kind": "compatibility_full_parser",
+      "surface_kind": "internal_full_parser",
       "owner": "packages/hep-autoresearch",
       "exact_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main",
       "command_groups": [

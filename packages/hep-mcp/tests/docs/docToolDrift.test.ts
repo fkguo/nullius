@@ -287,7 +287,7 @@ describe('Docs tool drift guard', () => {
     });
     expect(getFrontDoorAuthoritySurface('hepar_internal_full_parser')).toMatchObject({
       classification: 'internal_only',
-      surface_kind: 'compatibility_full_parser',
+      surface_kind: 'internal_full_parser',
       exact_inventory_source: 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main',
     });
     expect(getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec')).toMatchObject({
