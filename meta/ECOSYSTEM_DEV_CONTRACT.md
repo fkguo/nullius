@@ -221,7 +221,7 @@ pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 
 ### SYNC-05: 跨组件冒烟矩阵
 
-**规则**: CI 必须覆盖 `standard` 和 `full` 两种 MCP tool inventory truth，但不再依赖已经删除的 `doctor` / `bridge` parser shells。当前 smoke 必须走 package-local contract/tool-listing 验证，而不是复活 legacy compatibility wrapper。
+**规则**: CI 必须覆盖 `standard` 和 `full` 两种 MCP tool inventory truth，但不再依赖已经删除的 `doctor` / `bridge` parser shells。当前 smoke 必须走 package-local contract/tool-listing 验证，而不是复活已退役 wrapper。
 
 **CI 验证**:
 ```bash
