@@ -2,7 +2,7 @@
   "schema_version": 1,
   "case_id": "E30-project-init-scaffold-v0",
   "workflow": "custom",
-  "description": "Regression: hep-autoresearch init scaffolds a real research project root (docs+KB+specs) and root discovery works from subdirs; a run can reach the A3 gate without schema/KB failures.",
+  "description": "Regression: the provider-local init passthrough scaffolds a real research project root (docs+KB+specs), root discovery works from subdirs, and a run can reach the A3 gate without schema/KB failures.",
   "inputs": {
     "tag": "M54-project-init-r1"
   },

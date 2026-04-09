@@ -338,7 +338,7 @@ def _ensure_run_card(
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    # Keep the legacy wrapper fail-closed on repo-internal real-project roots
+    # Keep the provider-local passthrough fail-closed on repo-internal real-project roots
     # before the TS passthrough attempts any filesystem work.
     repo_root = assert_project_root_allowed(
         _repo_root_for_init(args),
@@ -3057,7 +3057,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             if export_log.exists() and export_log.is_file():
                 artifact_paths["survey_export_log"] = os.fspath(export_log.relative_to(repo_root))
             artifact_paths.update(polish.get("artifact_paths") or {})
-            # Keep the last-produced artifacts under the legacy keys for status readability.
+            # Preserve the last-produced artifact aliases for status readability.
             for k in ["manifest", "summary", "analysis", "report"]:
                 if (polish.get("artifact_paths") or {}).get(k):
                     artifact_paths[k] = str((polish.get("artifact_paths") or {}).get(k))
