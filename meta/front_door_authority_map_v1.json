@@ -42,7 +42,7 @@
         }
       ]
     },
-    "hepar_internal_full_parser": {
+    "hep_autoresearch_internal_parser": {
       "classification": "internal_only",
       "surface_kind": "internal_full_parser",
       "owner": "packages/hep-autoresearch",

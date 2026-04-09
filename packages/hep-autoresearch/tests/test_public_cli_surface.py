@@ -77,7 +77,7 @@ class TestPublicCliSurface(unittest.TestCase):
 
     def test_authority_map_keeps_internal_full_parser_residue_explicit(self) -> None:
         authority_map = self._read_front_door_authority_map()
-        surface = authority_map["surfaces"]["hepar_internal_full_parser"]
+        surface = authority_map["surfaces"]["hep_autoresearch_internal_parser"]
         groups = {entry["group"]: entry["commands"] for entry in surface["command_groups"]}
 
         self.assertEqual(surface["classification"], "internal_only")
