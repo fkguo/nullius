@@ -90,7 +90,7 @@ The current user-facing generic lifecycle + computation + workflow-plan entrypoi
 High-level literature workflows are meant to enter through the stateful launcher-backed `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:
 
 - `autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`
-- `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` → lower-level checked-in consumer of the same workflow authority
+- `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` → lower-level internal / maintainer coverage consumer of the same workflow authority
 
 These workflow-plan consumers are not the root identity of the repo; they are one layer above checked-in recipe authority.
 

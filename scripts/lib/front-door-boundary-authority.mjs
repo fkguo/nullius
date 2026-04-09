@@ -162,6 +162,7 @@ export const FRONT_DOOR_SNIPPETS = [
       'The current user-facing generic lifecycle + computation + workflow-plan entrypoint is the `autoresearch` CLI, not the root MCP server.',
       'High-level literature workflows are meant to enter through the stateful launcher-backed `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:',
       '`autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`',
+      '`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` → lower-level internal / maintainer coverage consumer of the same workflow authority',
       '`autoresearch run --workflow-id computation` is the native TS computation entrypoint in this slice.',
       `For the exact live \`orch_*\` inventory and semantics, read \`${ORCHESTRATOR_MCP_TOOLS_SPEC_PATH}\`.`,
       'Users who need generic lifecycle state should invoke `autoresearch` directly rather than expecting the root MCP server to own that surface today.',
@@ -175,7 +176,7 @@ export const FRONT_DOOR_SNIPPETS = [
     snippets: [
       'launcher 解析后再下沉到 `inspire_search` / provenance / network operators',
       '不再通过 provider-specific high-level MCP facade',
-      '高层 literature workflow 现由 stateful launcher-backed `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；checked-in 的 Python `workflow-plan` 脚本是同一 authority 的较底层 consumer。',
+      '高层 literature workflow 现由 stateful launcher-backed `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；checked-in 的 Python `workflow-plan` 脚本只是同一 authority 的较底层 internal / maintainer coverage consumer。',
     ],
     forbiddenSnippets: [
       '`hepar literature-gap` 仅剩 legacy shell',
@@ -194,7 +195,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '- legacy Python CLI 不再属于公开 front-door；如仍需覆盖，只作为 maintainer/eval/regression-only 内部路径测试',
       '### 5.4 launcher-backed literature workflow consumers',
       '这部分不是 MCP 工具，而是当前真实存在的高层 workflow consumers：',
-      '这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 是较底层的并行 consumer。',
+      '这个推荐的 stateful launcher-backed front-door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`；`python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` 只是同一 authority 的较底层 internal / maintainer coverage consumer。',
       'Maintainer / eval / regression only:',
       '旧的 internal parser `literature-gap` command 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：',
       '`PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m pytest -q packages/hep-autoresearch/tests/test_literature_gap_runner.py`',
@@ -211,7 +212,7 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'meta/protocols/session_protocol_v1.md',
     snippets: [
-      '> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the checked-in `packages/literature-workflows` launcher plus checked-in consumers such as `research-team`, `autoresearch workflow-plan`, and the lower-level checked-in `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` consumer used for maintainer/eval coverage.',
+      '> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through checked-in workflow recipes packaged as `literature-workflows`, with `autoresearch workflow-plan` as the recommended stateful front door. Other checked-in consumers such as `research-team` or `python3 skills/research-team/scripts/bin/literature_fetch.py workflow-plan` are lower-level/internal coverage consumers of the same authority, not competing entrypoints.',
       '> The old `hepar literature-gap` shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `autoresearch workflow-plan`.',
     ],
     forbiddenSnippets: [
