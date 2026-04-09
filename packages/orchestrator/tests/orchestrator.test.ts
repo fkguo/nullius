@@ -12,6 +12,7 @@ import type { RunState } from '../src/index.js';
 import { handleOrchPolicyQuery } from '../src/orch-tools/control.js';
 import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
 import { buildRunStatusView, readApprovalsView, readRunListView } from '../src/orch-tools/run-read-model.js';
+import { OrchRunApprovalsListSchema } from '../src/orch-tools/schemas.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'orch-test-'));
@@ -1925,7 +1926,7 @@ describe('orch approval/query read models', () => {
     });
   });
 
-  it('keeps approval_required as a compatibility alias for approval decisions', async () => {
+  it('ignores non-canonical approval_required policy keys', async () => {
     writePolicy(tmpDir, {
       approval_required: {
         mass_search: true,
@@ -1943,7 +1944,7 @@ describe('orch approval/query read models', () => {
     });
 
     expect(result).toMatchObject({
-      requires_approval: false,
+      requires_approval: true,
     });
   });
 
@@ -1965,7 +1966,7 @@ describe('orch approval/query read models', () => {
     expect(state.approval_seq).not.toHaveProperty('A0');
   });
 
-  it('keeps A0 as a compatibility-only approval filter', () => {
+  it('rejects A0 as a retired approval filter alias', () => {
     const manager = new StateManager(tmpDir);
     manager.ensureDirs();
     const state = manager.readState();
@@ -1982,13 +1983,11 @@ describe('orch approval/query read models', () => {
     };
     manager.saveState(state);
 
-    const view = readApprovalsView(tmpDir, state, {
+    expect(() => OrchRunApprovalsListSchema.parse({
+      project_root: tmpDir,
       gate_filter: 'A0',
       include_history: false,
-    });
-
-    expect(view.approvals).toEqual([]);
-    expect(view.total).toBe(0);
+    })).toThrow(/gate_filter must be one of/);
   });
 
   it('keeps root-run approval ownership explicit in read-model projections', () => {

@@ -566,3 +566,14 @@
 - Generated hep-mcp inventory outputs must stay untracked under `.tmp/` rather than reappearing under tracked `references/` paths.
 
 **Why**: The remaining `hep-autoresearch` residue is split: some files were truly dead public-looking template baggage, while others still anchor package-local schema validation, KB profile generation, regression fixtures, or ingest evals. Treating all residue as equally deletable would risk breaking still-live provider-local coverage; treating all of it as public authority would recreate the wrong generic-first story.
+
+### [2026-04-09] Orchestrator alias retirement invariant: operator-facing filters and policy keys stay fail-closed and canonical
+
+**Decision**:
+- `packages/orchestrator` no longer accepts compatibility aliases for approval policy or run-status filters on its operator-facing tool surface.
+- `handleOrchPolicyQuery()` reads only canonical `require_approval_for`; legacy `approval_required` keys are ignored rather than treated as an alternate policy shape.
+- Approval filters accept only shared gate ids plus `all`; retired `A0` is not a valid filter.
+- Fleet/run list status filters accept canonical `completed` only; `complete` is rejected at schema validation time.
+- Cross-package host tests (for example `hep-mcp` contract coverage) must assert the same fail-closed behavior instead of preserving compatibility wording.
+
+**Why**: The repository is still pre-release and explicitly carries no backward-compatibility burden. Keeping tiny aliases like `approval_required`, `A0`, or `complete` alive only creates more hidden support surface, more ambiguous docs/tests, and more future cleanup cost. Canonical operator/control-plane inputs should stay exact so drift is obvious and deletions are real.

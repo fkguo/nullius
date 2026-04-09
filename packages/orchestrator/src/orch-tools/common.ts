@@ -9,14 +9,13 @@ import {
 } from '@autoresearch/shared';
 import { StateManager } from '../state-manager.js';
 
-export type ApprovalGateFilter = ApprovalGateId | 'A0' | 'all';
+export type ApprovalGateFilter = ApprovalGateId | 'all';
 
 export function isApprovalGateFilter(value: string): value is ApprovalGateFilter {
-  return value === 'A0' || value === 'all' || isApprovalGateId(value);
+  return value === 'all' || isApprovalGateId(value);
 }
 
 export const APPROVAL_GATE_FILTER_VALUES = [
-  'A0',
   ...APPROVAL_GATE_IDS,
   'all',
 ] as const satisfies readonly ApprovalGateFilter[];

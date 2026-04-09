@@ -42,10 +42,9 @@ const AgentToolSchema = z.object({
   input_schema: z.record(z.string(), z.unknown()),
 });
 const VisibleRunStatusFilterSchema = z
-  .enum(['idle', 'running', 'awaiting_approval', 'paused', 'completed', 'complete', 'failed', 'all'])
+  .enum(['idle', 'running', 'awaiting_approval', 'paused', 'completed', 'failed', 'all'])
   .optional()
-  .default('all')
-  .transform(value => (value === 'complete' ? 'completed' : value));
+  .default('all');
 const QueueOwnerSchema = z.string().min(1).max(128);
 const QueueItemIdSchema = z.string().min(1);
 const QueueDispositionSchema = z.enum(['requeue', 'completed', 'failed', 'cancelled']);

@@ -161,13 +161,19 @@ describe('orch_fleet_status contract', () => {
     ]);
   });
 
-  it('accepts the legacy complete alias through the host schema', async () => {
+  it('rejects the retired complete alias through the host schema and requires completed', async () => {
     const projectRoot = makeTmpDir();
     writeProject(projectRoot, { completed: true });
 
-    const res = await handleToolCall('orch_fleet_status', {
+    const invalid = await handleToolCall('orch_fleet_status', {
       project_roots: [projectRoot],
       status_filter: 'complete',
+    }, 'full');
+    expect((invalid as { isError?: boolean }).isError).toBe(true);
+
+    const res = await handleToolCall('orch_fleet_status', {
+      project_roots: [projectRoot],
+      status_filter: 'completed',
     }, 'full');
     expect((res as { isError?: boolean }).isError).toBeFalsy();
 

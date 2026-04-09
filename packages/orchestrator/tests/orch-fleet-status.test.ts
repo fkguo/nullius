@@ -128,7 +128,7 @@ describe('orch_fleet_status', () => {
     ]);
   });
 
-  it('accepts the legacy complete alias but filters on completed status', async () => {
+  it('rejects the retired complete alias and requires completed', async () => {
     const projectRoot = makeTmpDir();
     writeState(projectRoot, baseState({
       run_id: 'run-completed',
@@ -153,9 +153,14 @@ describe('orch_fleet_status', () => {
       },
     ]);
 
-    const payload = await handleOrchFleetStatus(OrchFleetStatusSchema.parse({
+    expect(() => OrchFleetStatusSchema.parse({
       project_roots: [projectRoot],
       status_filter: 'complete',
+    })).toThrow();
+
+    const payload = await handleOrchFleetStatus(OrchFleetStatusSchema.parse({
+      project_roots: [projectRoot],
+      status_filter: 'completed',
     })) as {
       projects: Array<{
         runs: Array<{ run_id: string; last_status: string }>;
