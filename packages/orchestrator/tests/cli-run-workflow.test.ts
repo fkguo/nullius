@@ -35,6 +35,32 @@ function makeRunInput(projectRoot: string, workflowId: string, runId: string, dr
   };
 }
 
+async function withEnv<T>(
+  env: Record<string, string | undefined>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(env)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [key, value] of previous.entries()) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 function persistWorkflowPlan(projectRoot: string, options?: {
   workflowId?: string;
   secondStepDegradeMode?: string | null;
@@ -202,5 +228,122 @@ describe('workflow run consumer', () => {
     });
     const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
     expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'skipped' });
+  });
+
+  it('fails closed when no MCP tool caller is configured', async () => {
+    const projectRoot = makeTempProjectRoot();
+    persistWorkflowPlan(projectRoot);
+    const { io, stdout } = makeIo(projectRoot);
+
+    await withEnv({
+      AUTORESEARCH_RUN_MCP_COMMAND: undefined,
+      AUTORESEARCH_RUN_MCP_ARGS_JSON: undefined,
+      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+    }, async () => {
+      await expect(runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io)).resolves.toBe(1);
+      expect(JSON.parse(stdout.join(''))).toMatchObject({
+        status: 'failed',
+        ok: false,
+        step_id: 'critical_review',
+        error:
+        'workflow step execution requires a configured MCP tool server; set AUTORESEARCH_RUN_MCP_COMMAND and optional AUTORESEARCH_RUN_MCP_ARGS_JSON/AUTORESEARCH_RUN_MCP_ENV_JSON',
+      });
+    });
+  });
+
+  it('wraps malformed MCP args JSON with a stable fail-closed error', async () => {
+    const projectRoot = makeTempProjectRoot();
+    persistWorkflowPlan(projectRoot);
+    const { io, stdout } = makeIo(projectRoot);
+
+    await withEnv({
+      AUTORESEARCH_RUN_MCP_COMMAND: 'mock-mcp',
+      AUTORESEARCH_RUN_MCP_ARGS_JSON: '{not-json',
+      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+    }, async () => {
+      await expect(runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io)).resolves.toBe(1);
+      expect(JSON.parse(stdout.join(''))).toMatchObject({
+        status: 'failed',
+        ok: false,
+        step_id: 'critical_review',
+        error: 'AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array',
+      });
+    });
+  });
+
+  it('treats rerunning an already completed workflow plan as idempotent completion', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot);
+    const state = manager.readState();
+    const steps = ((state.plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
+    steps[0]!.status = 'completed';
+    steps[1]!.status = 'completed';
+    state.run_status = 'completed';
+    state.current_step = null;
+    delete (state.plan as Record<string, unknown>).current_step_id;
+    manager.saveState(state);
+    const beforeLedgerLines = fs.readFileSync(manager.ledgerPath, 'utf-8').trim().split('\n').filter(Boolean).length;
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io, {
+      workflowToolCaller: { callTool: vi.fn() },
+    });
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'completed',
+      ok: true,
+      message: 'workflow plan has no pending executable steps',
+    });
+    expect(manager.readState().run_status).toBe('completed');
+    const afterLedgerLines = fs.readFileSync(manager.ledgerPath, 'utf-8').trim().split('\n').filter(Boolean).length;
+    expect(afterLedgerLines).toBe(beforeLedgerLines);
+  });
+
+  it('replays the same pending approval when rerunning the active workflow request', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot);
+    const state = manager.readState();
+    state.run_status = 'awaiting_approval';
+    state.pending_approval = {
+      approval_id: 'A1-0001',
+      category: 'A1',
+      plan_step_ids: ['critical_review'],
+      requested_at: '2026-01-01T00:00:00Z',
+      timeout_at: null,
+      on_timeout: 'block',
+      packet_path: 'artifacts/runs/M-WF-1/approvals/A1-0001/packet.md',
+    };
+    manager.saveState(state);
+    const callTool = vi.fn();
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io, {
+      workflowToolCaller: { callTool },
+    });
+
+    expect(code).toBe(0);
+    expect(callTool).not.toHaveBeenCalled();
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'requires_approval',
+      gate_id: 'A1',
+      run_id: 'M-WF-1',
+      workflow_id: 'review_cycle',
+      approval_id: 'A1-0001',
+      packet_path: 'artifacts/runs/M-WF-1/approvals/A1-0001/packet.md',
+    });
+    expect(manager.readState().run_status).toBe('awaiting_approval');
+  });
+
+  it('rejects shell-sensitive run identifiers before path resolution', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io } = makeIo(projectRoot);
+
+    await expect(
+      runCommand(makeRunInput(projectRoot, 'review_cycle', 'bad:name'), io),
+    ).rejects.toThrow('run_id must be a simple identifier, got: bad:name');
   });
 });

@@ -77,7 +77,7 @@ function normalizeRunId(raw: string | null): string {
   if (!runId) {
     throw new Error('run requires --run-id <id> (or an existing state.run_id)');
   }
-  if (runId.includes('/') || runId.includes('\\') || runId.includes('..')) {
+  if (!/^[A-Za-z0-9._-]+$/.test(runId) || runId.includes('..')) {
     throw new Error(`run_id must be a simple identifier, got: ${runId}`);
   }
   return runId;
@@ -288,6 +288,9 @@ function ensureWorkflowRunStarted(manager: StateManager, runId: string, workflow
     return;
   }
   if (state.run_status === 'awaiting_approval') {
+    if (state.run_id === runId && state.workflow_id === workflowId) {
+      return;
+    }
     throw new Error('cannot run while status is awaiting_approval; approve or reject the pending gate first');
   }
   if (state.run_status === 'paused' || state.run_status === 'blocked' || state.run_status === 'needs_recovery') {
@@ -307,18 +310,32 @@ function ensureWorkflowRunStarted(manager: StateManager, runId: string, workflow
   });
 }
 
+function parseWorkflowJsonEnv<T>(
+  name: 'AUTORESEARCH_RUN_MCP_ARGS_JSON' | 'AUTORESEARCH_RUN_MCP_ENV_JSON',
+  raw: string,
+): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    if (name === 'AUTORESEARCH_RUN_MCP_ARGS_JSON') {
+      throw new Error('AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array');
+    }
+    throw new Error('AUTORESEARCH_RUN_MCP_ENV_JSON must decode to a JSON object');
+  }
+}
+
 function loadWorkflowToolServerConfigFromEnv(): WorkflowToolServerConfig | null {
   const command = (process.env.AUTORESEARCH_RUN_MCP_COMMAND ?? '').trim();
   if (!command) return null;
   const argsRaw = (process.env.AUTORESEARCH_RUN_MCP_ARGS_JSON ?? '').trim();
   const envRaw = (process.env.AUTORESEARCH_RUN_MCP_ENV_JSON ?? '').trim();
-  const args = argsRaw ? JSON.parse(argsRaw) : [];
+  const args = argsRaw ? parseWorkflowJsonEnv<unknown>('AUTORESEARCH_RUN_MCP_ARGS_JSON', argsRaw) : [];
   if (!Array.isArray(args) || !args.every(item => typeof item === 'string')) {
     throw new Error('AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array');
   }
   let env: Record<string, string> | undefined;
   if (envRaw) {
-    const parsed = JSON.parse(envRaw);
+    const parsed = parseWorkflowJsonEnv<unknown>('AUTORESEARCH_RUN_MCP_ENV_JSON', envRaw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('AUTORESEARCH_RUN_MCP_ENV_JSON must decode to a JSON object');
     }
@@ -357,6 +374,56 @@ async function runWorkflowCommand(
   const initialState = manager.readState();
   const selection = selectNextWorkflowStep(initialState);
 
+  if (
+    !resolved.dryRun
+    && initialState.run_status === 'awaiting_approval'
+    && initialState.run_id === resolved.runId
+    && initialState.workflow_id === resolved.workflowId
+    && initialState.pending_approval
+  ) {
+    io.stdout(`${JSON.stringify({
+      status: 'requires_approval',
+      gate_id: initialState.pending_approval.category,
+      run_id: resolved.runId,
+      workflow_id: resolved.workflowId,
+      approval_id: initialState.pending_approval.approval_id,
+      packet_path: initialState.pending_approval.packet_path,
+    }, null, 2)}\n`);
+    return 0;
+  }
+
+  if (!selection.step && !selection.blockedReason) {
+    if (resolved.dryRun) {
+      io.stdout(`${JSON.stringify({
+        status: 'dry_run',
+        validated: true,
+        dry_run: true,
+        run_id: resolved.runId,
+        workflow_id: resolved.workflowId,
+        next_step_id: null,
+        step: null,
+        blocked_reason: null,
+      }, null, 2)}\n`);
+      return 0;
+    }
+    if (initialState.run_status !== 'completed') {
+      initialState.run_status = 'completed';
+      initialState.current_step = null;
+      setPlanCurrentStepId(initialState, null);
+      manager.saveStateWithLedger(initialState, 'workflow_plan_completed', {
+        details: { run_id: resolved.runId, workflow_id: resolved.workflowId },
+      });
+    }
+    io.stdout(`${JSON.stringify({
+      status: 'completed',
+      ok: true,
+      run_id: resolved.runId,
+      workflow_id: resolved.workflowId,
+      message: 'workflow plan has no pending executable steps',
+    }, null, 2)}\n`);
+    return 0;
+  }
+
   if (resolved.dryRun) {
     io.stdout(`${JSON.stringify({
       status: 'dry_run',
@@ -387,20 +454,7 @@ async function runWorkflowCommand(
       });
       throw new Error(blockedReason);
     }
-    state.run_status = 'completed';
-    state.current_step = null;
-    setPlanCurrentStepId(state, null);
-    manager.saveStateWithLedger(state, 'workflow_plan_completed', {
-      details: { run_id: resolved.runId, workflow_id: resolved.workflowId },
-    });
-    io.stdout(`${JSON.stringify({
-      status: 'completed',
-      ok: true,
-      run_id: resolved.runId,
-      workflow_id: resolved.workflowId,
-      message: 'workflow plan has no pending executable steps',
-    }, null, 2)}\n`);
-    return 0;
+    throw new Error('workflow step selection drifted after startup; retry the run command');
   }
 
   const startedAt = utcNowIso();

@@ -66,7 +66,7 @@
           ]
         },
         {
-          "group": "retired_public_support_commands",
+          "group": "deleted_public_support_commands",
           "commands": [
             "method-design",
             "run-card"
