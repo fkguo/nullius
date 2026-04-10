@@ -39,14 +39,15 @@
 
 **Why**: The repo already converged on one generic control-plane front door. Leaving a separately installable `literature-workflows` launcher alive as a quasi-public entrypoint would recreate split-brain workflow authority exactly where the generic substrate is supposed to be consolidating.
 
-### [2026-04-09] Workflow-plan execution-seam invariant: persisted plan state is a real control-plane substrate, but not yet the generic executor
+### [2026-04-09] Workflow-plan execution-seam invariant: persisted plan state is a real control-plane substrate with a canonical minimal consumer, but not yet a full loop runtime
 
 **Decision**:
 - `autoresearch workflow-plan` already owns a real stateful control-plane seam by resolving checked-in workflow recipes into `.autoresearch/state.json#/plan` plus `.autoresearch/plan.md` on an initialized external project root.
 - That persisted plan substrate should be treated as the precursor to generic workflow execution, not as a terminal summary artifact and not as permission to keep provider-local high-level launchers alive.
-- Future closure should promote this seam by introducing typed executable workflow-step fields that the generic control plane can consume directly, instead of continuing to hide tool/provider/dependency semantics inside free-form strings such as `recovery_notes`.
+- `autoresearch run` is now the canonical minimal consumer for that seam: it can execute one dependency-satisfied persisted workflow step through the generic MCP tool-caller path while preserving `autoresearch` as the only execution front door.
+- Future closure should refine the runtime contract and adapter boundary around that minimal consumer, not regress to provider-local launchers or manual-only seam wording.
 
-**Why**: Today the system has a real plan substrate but not a full generic launcher/executor closure. Encoding that status explicitly keeps docs honest, prevents accidental regression back to provider-local shells, and points the next batch toward typed execution closure rather than more naming cleanup.
+**Why**: The system no longer stops at a typed planning seam; it now has a real minimal execution bridge. Encoding that status explicitly keeps docs honest, prevents regression back to provider-local shells, and points the next batch toward post-C3 runtime refinement rather than re-litigating whether a consumer exists.
 
 ### [2026-04-08] Regression harness external-root invariant: real-project semantics must be exercised on an external authority root, never by relaxing policy
 
