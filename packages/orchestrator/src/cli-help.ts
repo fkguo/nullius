@@ -17,8 +17,8 @@ Global options:
 
 Notes:
   - workflow-plan resolves checked-in generic literature workflow recipes into bounded steps.
-  - workflow-plan currently persists executable planning metadata; execution/consumption of persisted plan steps remains downstream.
-  - \`run\` is now the native TS computation entrypoint.
+  - workflow-plan persists executable planning metadata into \`.autoresearch/state.json#/plan\`.
+  - \`run\` remains the only execution front door: computation manifests run natively, while persisted workflow-plan steps execute through a configured MCP tool caller.
   - Pipeline A parser support commands \`doctor\`, \`bridge\`, and \`literature-gap\` are deleted.
   - Retired-public maintainer helpers \`method-design\` and \`run-card\` are deleted; only \`branch\` remains on the provider-local internal parser.
 `;
@@ -36,20 +36,23 @@ Pass-through options:
 
 Use --project-root <path> to target a root explicitly.
 `,
-  run: `autoresearch run --workflow-id computation [options]
+  run: `autoresearch run --workflow-id <id> [options]
 
-Execute a computation manifest through the native TS orchestrator computation authority.
+Execute exactly one bounded step through the canonical TS run front door.
 
 Options:
-  --workflow-id <id>         Must be "computation" in this bounded slice
+  --workflow-id <id>         "computation" or the persisted state.workflow_id
   --run-id <id>              Defaults to current state.run_id when set
-  --run-dir <path>           Defaults to <project_root>/<run_id>
-  --manifest <path>          Defaults to <run_dir>/computation/manifest.json
+  --run-dir <path>           Computation only; defaults to <project_root>/<run_id>
+  --manifest <path>          Computation only; defaults to <run_dir>/computation/manifest.json
   --dry-run                  Validate only; do not execute steps
 
 Behavior:
   Requires an initialized external project root (\`autoresearch init\`).
-  Non-dry-run execution requests A3 approval when gate_satisfied.A3 is absent.
+  Computation requests A3 approval when gate_satisfied.A3 is absent.
+  Persisted workflow-plan steps execute one dependency-satisfied step at a time.
+  Workflow-step execution requires a configured local MCP stdio server via \`AUTORESEARCH_RUN_MCP_COMMAND\`
+  plus optional \`AUTORESEARCH_RUN_MCP_ARGS_JSON\` / \`AUTORESEARCH_RUN_MCP_ENV_JSON\`.
 
 Output:
   JSON execution result is written to stdout.
@@ -114,7 +117,7 @@ Behavior:
   Requires an initialized external project root (\`autoresearch init\`).
   Persists the resolved plan into \`.autoresearch/state.json#/plan\`.
   Derives \`.autoresearch/plan.md\` from the persisted plan.
-  Execution/consumption of persisted plan steps remains manual or downstream in this slice.
+  Execution happens later through \`autoresearch run\`, one persisted step at a time.
 
 Output:
   JSON workflow plan is still written to stdout.

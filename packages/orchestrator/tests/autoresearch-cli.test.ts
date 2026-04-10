@@ -103,8 +103,9 @@ describe('autoresearch CLI', () => {
     const helpText = stdout.join('');
     const requiredSnippets = [
       'Canonical generic lifecycle and workflow-plan entrypoint',
-      'autoresearch run --workflow-id computation [options]',
+      'autoresearch run --workflow-id <id> [options]',
       'autoresearch workflow-plan --recipe <recipe_id> [options]',
+      '`run` remains the only execution front door',
       'Pipeline A parser support commands `doctor`, `bridge`, and `literature-gap` are deleted.',
       'Retired-public maintainer helpers `method-design` and `run-card` are deleted; only `branch` remains on the provider-local internal parser.',
     ] as const;
@@ -222,6 +223,7 @@ describe('autoresearch CLI', () => {
       '--analysis-seed', '1234',
       '--recid', '1234',
       '--recid', '5678',
+      '--available-tool', 'inspire_search',
       '--available-tool', 'inspire_topic_analysis',
       '--available-tool', 'inspire_critical_analysis',
       '--available-tool', 'inspire_network_analysis',
@@ -418,15 +420,29 @@ describe('autoresearch CLI', () => {
     expect(resumed.notes).toBe('force resume');
   });
 
-  it('fails closed when run requests unsupported workflow ids', async () => {
+  it('fails closed when run workflow_id conflicts with the persisted workflow plan', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
-    manager.saveState(manager.readState());
+    const state = manager.readState();
+    state.run_id = 'M-RUN-1';
+    state.workflow_id = 'literature_landscape';
+    state.plan = {
+      schema_version: 1,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      plan_id: 'M-RUN-1:literature_landscape',
+      run_id: 'M-RUN-1',
+      workflow_id: 'literature_landscape',
+      current_step_id: 'seed_search',
+      steps: [],
+      notes: '',
+    };
+    manager.saveState(state);
     const { io } = makeIo(projectRoot);
     await expect(
-      runCli(['run', '--workflow-id', 'ingest', '--run-id', 'M-RUN-1'], io),
-    ).rejects.toThrow('run currently supports only --workflow-id computation');
+      runCli(['run', '--workflow-id', 'review_cycle', '--run-id', 'M-RUN-1'], io),
+    ).rejects.toThrow('run workflow_id mismatch: state.workflow_id=literature_landscape but got review_cycle');
   });
 
   it('fails closed when run targets an uninitialized project root', async () => {
@@ -435,6 +451,50 @@ describe('autoresearch CLI', () => {
     await expect(
       runCli(['run', '--workflow-id', 'computation', '--run-id', 'M-RUN-UNINIT'], io),
     ).rejects.toThrow(`project root is not initialized: ${projectRoot}; run autoresearch init first`);
+  });
+
+  it('dry-runs the next persisted workflow-plan step through the canonical run front door', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    await runCli([
+      'workflow-plan',
+      '--recipe', 'literature_gap_analysis',
+      '--run-id', 'M-REVIEW-DRY',
+      '--query', 'bootstrap amplitudes',
+      '--topic', 'bootstrap amplitudes',
+      '--analysis-seed', '1234',
+      '--recid', '1234',
+      '--recid', '5678',
+      '--available-tool', 'inspire_search',
+      '--available-tool', 'inspire_topic_analysis',
+      '--available-tool', 'inspire_critical_analysis',
+      '--available-tool', 'inspire_network_analysis',
+      '--available-tool', 'inspire_find_connections',
+    ], makeIo(projectRoot).io);
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli([
+      'run',
+      '--workflow-id', 'literature_gap_analysis',
+      '--run-id', 'M-REVIEW-DRY',
+      '--dry-run',
+    ], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'dry_run',
+      dry_run: true,
+      workflow_id: 'literature_gap_analysis',
+      next_step_id: 'seed_search',
+      step: {
+        step_id: 'seed_search',
+        execution: {
+          tool: 'inspire_search',
+        },
+      },
+    });
   });
 
   it('requests A3 approval when computation run is unsatisfied', async () => {

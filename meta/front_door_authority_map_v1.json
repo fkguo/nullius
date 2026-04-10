@@ -14,7 +14,7 @@
         },
         {
           "command": "run",
-          "usage": "autoresearch run --workflow-id computation [options]"
+          "usage": "autoresearch run --workflow-id <id> [options]"
         },
         {
           "command": "status",
