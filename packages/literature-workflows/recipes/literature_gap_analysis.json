@@ -6,6 +6,7 @@
   "steps": [
     {
       "id": "seed_search",
+      "task_kind": "literature",
       "action": "discover.seed_search",
       "purpose": "Run a search to assemble the initial paper set",
       "required_capabilities": [
@@ -30,6 +31,7 @@
     },
     {
       "id": "topic_scan",
+      "task_kind": "literature",
       "action": "analyze.topic_evolution",
       "purpose": "Summarize trends and identify underexplored subtopics",
       "depends_on": [
@@ -56,6 +58,7 @@
     },
     {
       "id": "critical_analysis",
+      "task_kind": "literature",
       "action": "analyze.paper_set_critical_review",
       "purpose": "Run bounded critical analysis over representative papers",
       "depends_on": [
@@ -80,6 +83,7 @@
     },
     {
       "id": "citation_network",
+      "task_kind": "literature",
       "action": "analyze.citation_network",
       "purpose": "Map citation structure around the current anchor paper",
       "depends_on": [
@@ -106,6 +110,7 @@
     },
     {
       "id": "connection_scan",
+      "task_kind": "literature",
       "action": "analyze.paper_connections",
       "purpose": "Detect bridge papers, isolated clusters, and external hubs",
       "depends_on": [

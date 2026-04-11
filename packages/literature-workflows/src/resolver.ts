@@ -120,6 +120,7 @@ export function resolveWorkflowRecipe(request: ResolveWorkflowRequest): Resolved
       }
       return {
         id: step.id,
+        task_kind: step.task_kind,
         action: step.action,
         tool,
         provider,

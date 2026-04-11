@@ -6,6 +6,7 @@
   "steps": [
     {
       "id": "build_writing_evidence",
+      "task_kind": "literature",
       "tool": "hep_run_build_writing_evidence",
       "purpose": "Build reusable writing evidence artifacts",
       "params": {
@@ -15,6 +16,7 @@
     },
     {
       "id": "extract_measurements",
+      "task_kind": "literature",
       "tool": "hep_run_build_measurements",
       "purpose": "Extract numeric measurements from evidence",
       "depends_on": [
@@ -26,6 +28,7 @@
     },
     {
       "id": "compare_measurements",
+      "task_kind": "literature",
       "tool": "hep_project_compare_measurements",
       "purpose": "Compare extracted measurements and flag tensions",
       "depends_on": [

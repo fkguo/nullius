@@ -24,6 +24,7 @@ describe('literature workflow resolver', () => {
     expect(plan.resolved_steps).toHaveLength(1);
     expect(plan.resolved_steps[0]).toMatchObject({
       id: 'seed_search',
+      task_kind: 'literature',
       action: 'discover.seed_search',
       provider: 'inspire',
       tool: 'inspire_search',
@@ -42,6 +43,7 @@ describe('literature workflow resolver', () => {
 
     expect(plan.resolved_steps[0]).toMatchObject({
       id: 'seed_search',
+      task_kind: 'literature',
       provider: 'openalex',
       tool: 'openalex_search',
     });
@@ -65,6 +67,7 @@ describe('literature workflow resolver', () => {
     expect(plan.resolved_steps).toMatchObject([
       {
         id: 'topic_scan',
+        task_kind: 'literature',
         action: 'analyze.topic_evolution',
         provider: 'inspire',
         tool: 'inspire_topic_analysis',
@@ -72,6 +75,7 @@ describe('literature workflow resolver', () => {
       },
       {
         id: 'critical_analysis',
+        task_kind: 'literature',
         action: 'analyze.paper_set_critical_review',
         provider: 'inspire',
         tool: 'inspire_critical_analysis',
@@ -79,6 +83,7 @@ describe('literature workflow resolver', () => {
       },
       {
         id: 'citation_network',
+        task_kind: 'literature',
         action: 'analyze.citation_network',
         provider: 'inspire',
         tool: 'inspire_network_analysis',
@@ -86,6 +91,7 @@ describe('literature workflow resolver', () => {
       },
       {
         id: 'connection_scan',
+        task_kind: 'literature',
         action: 'analyze.paper_connections',
         provider: 'inspire',
         tool: 'inspire_find_connections',
@@ -133,12 +139,14 @@ describe('literature workflow resolver', () => {
     expect(plan.resolved_steps).toMatchObject([
       {
         id: 'search_export',
+        task_kind: 'literature',
         action: 'discover.seed_search',
         provider: 'inspire',
         tool: 'inspire_search',
       },
       {
         id: 'build_evidence',
+        task_kind: 'literature',
         action: 'materialize.evidence_build',
         tool: 'hep_project_build_evidence',
       },

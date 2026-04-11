@@ -6,6 +6,7 @@
   "steps": [
     {
       "id": "seed_search",
+      "task_kind": "literature",
       "action": "discover.seed_search",
       "purpose": "Run a broad keyword search to seed the landscape",
       "required_capabilities": [
@@ -30,6 +31,7 @@
     },
     {
       "id": "topic_scan",
+      "task_kind": "literature",
       "action": "analyze.topic_evolution",
       "purpose": "Summarize topic trends and emerging subtopics",
       "depends_on": [
@@ -56,6 +58,7 @@
     },
     {
       "id": "citation_network",
+      "task_kind": "literature",
       "action": "analyze.citation_network",
       "purpose": "Map the citation structure around an anchor paper",
       "depends_on": [
@@ -82,6 +85,7 @@
     },
     {
       "id": "source_trace",
+      "task_kind": "literature",
       "action": "analyze.provenance_trace",
       "purpose": "Trace likely original sources for a representative anchor paper",
       "depends_on": [

@@ -6,6 +6,7 @@
   "steps": [
     {
       "id": "critical_review",
+      "task_kind": "literature",
       "tool": "inspire_critical_analysis",
       "purpose": "Generate bounded critical analysis for the target paper",
       "params": {
@@ -14,6 +15,7 @@
     },
     {
       "id": "render_latex",
+      "task_kind": "literature",
       "tool": "hep_render_latex",
       "purpose": "Render section/report draft into latex artifacts",
       "depends_on": [
@@ -29,6 +31,7 @@
     },
     {
       "id": "export_project",
+      "task_kind": "literature",
       "tool": "hep_export_project",
       "purpose": "Export report/bib/research pack artifacts",
       "depends_on": [

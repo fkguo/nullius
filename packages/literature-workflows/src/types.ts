@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { DiscoveryCapabilityNameSchema } from '@autoresearch/shared';
+import {
+  DiscoveryCapabilityNameSchema,
+  WorkflowTaskKindSchema,
+} from '@autoresearch/shared';
 
 export const WorkflowProviderIdSchema = z.enum([
   'inspire',
@@ -39,6 +42,7 @@ export const WorkflowDegradeModeSchema = z.enum([
 
 export const WorkflowRecipeStepSchema = z.object({
   id: z.string().min(1),
+  task_kind: WorkflowTaskKindSchema,
   tool: z.string().min(1).optional(),
   action: WorkflowActionIdSchema.optional(),
   purpose: z.string().min(1),
@@ -89,6 +93,7 @@ export const ResolveWorkflowRequestSchema = z.object({
 
 export const ResolvedWorkflowStepSchema = z.object({
   id: z.string().min(1),
+  task_kind: WorkflowTaskKindSchema,
   action: WorkflowActionIdSchema.optional(),
   tool: z.string().min(1),
   provider: WorkflowProviderIdSchema.optional(),
@@ -111,6 +116,7 @@ export const ResolvedWorkflowPlanSchema = z.object({
 export type WorkflowProviderId = z.infer<typeof WorkflowProviderIdSchema>;
 export type WorkflowCapabilityId = z.infer<typeof WorkflowCapabilityIdSchema>;
 export type WorkflowActionId = z.infer<typeof WorkflowActionIdSchema>;
+export type WorkflowTaskKind = z.infer<typeof WorkflowTaskKindSchema>;
 export type WorkflowRecipe = z.infer<typeof WorkflowRecipeSchema>;
 export type WorkflowRecipeStep = z.infer<typeof WorkflowRecipeStepSchema>;
 export type ResolveWorkflowRequest = z.infer<typeof ResolveWorkflowRequestSchema>;

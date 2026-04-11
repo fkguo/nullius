@@ -53,7 +53,7 @@ function collectWorkflowTaskPreconditions(step: ResolvedWorkflowStep): WorkflowT
 function buildWorkflowTaskProjection(step: ResolvedWorkflowStep): Record<string, unknown> {
   return buildWorkflowStepTaskProjection({
     task_id: step.id,
-    task_kind: 'literature',
+    task_kind: step.task_kind,
     action: step.action,
     description: step.purpose,
     depends_on_task_ids: [...step.depends_on],

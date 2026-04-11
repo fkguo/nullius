@@ -6,6 +6,7 @@
   "steps": [
     {
       "id": "search_export",
+      "task_kind": "literature",
       "action": "discover.seed_search",
       "purpose": "Run search and write export artifacts",
       "required_capabilities": [
@@ -31,6 +32,7 @@
     },
     {
       "id": "build_evidence",
+      "task_kind": "literature",
       "action": "materialize.evidence_build",
       "purpose": "Build evidence catalog from selected papers",
       "depends_on": [
