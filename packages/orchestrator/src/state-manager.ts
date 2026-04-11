@@ -1238,6 +1238,34 @@ export class StateManager {
       if (rec) {
         lines.push(`   - recovery_notes: ${rec}`);
       }
+      const task = isDict(step.task) ? step.task : null;
+      if (task) {
+        const taskKind = String(task.task_kind || '').trim();
+        const taskIntent = String(task.task_intent || '').trim();
+        const taskTitle = String(task.title || '').trim();
+        const taskCapabilities = task.required_capabilities;
+        const taskDependsOn = task.depends_on_task_ids;
+        const taskExpectedArtifacts = task.expected_artifacts;
+        const taskPreconditions = task.preconditions;
+        if (taskKind) lines.push(`   - task_kind: ${taskKind}`);
+        if (taskIntent) lines.push(`   - task_intent: ${taskIntent}`);
+        if (taskTitle && taskTitle !== desc) lines.push(`   - task_title: ${taskTitle}`);
+        if (Array.isArray(taskCapabilities) && taskCapabilities.length > 0) {
+          lines.push(`   - task_required_capabilities: ${(taskCapabilities as unknown[]).map(item => String(item)).join(', ')}`);
+        }
+        if (Array.isArray(taskDependsOn) && taskDependsOn.length > 0) {
+          lines.push(`   - task_depends_on: ${(taskDependsOn as unknown[]).map(item => String(item)).join(', ')}`);
+        }
+        if (Array.isArray(taskExpectedArtifacts) && taskExpectedArtifacts.length > 0) {
+          lines.push('   - task_expected_artifacts:');
+          for (const artifact of taskExpectedArtifacts as unknown[]) {
+            if (artifact) lines.push(`     - ${String(artifact)}`);
+          }
+        }
+        if (Array.isArray(taskPreconditions) && taskPreconditions.length > 0) {
+          lines.push(`   - task_preconditions: ${(taskPreconditions as unknown[]).map(item => String(item)).join(', ')}`);
+        }
+      }
       const execution = isDict(step.execution) ? step.execution : null;
       if (execution) {
         const action = String(execution.action || '').trim();

@@ -2258,6 +2258,17 @@ describe('Stage 3c: renderPlanMd', () => {
           expected_approvals: [],
           expected_outputs: ['artifacts/seed_search.json'],
           recovery_notes: '',
+          task: {
+            task_id: 'seed_search',
+            task_kind: 'literature',
+            task_intent: 'discover.seed_search',
+            title: 'Seed Search',
+            description: 'Seed search',
+            depends_on_task_ids: [],
+            required_capabilities: ['supports_keyword_search'],
+            expected_artifacts: ['artifacts/seed_search.json'],
+            preconditions: ['project_required'],
+          },
           execution: {
             action: 'discover.seed_search',
             tool: 'openalex_search',
@@ -2272,6 +2283,14 @@ describe('Stage 3c: renderPlanMd', () => {
       ],
     }));
 
+    expect(md).toContain('task_kind: literature');
+    expect(md).toContain('task_intent: discover.seed_search');
+    expect(md).toContain('task_title: Seed Search');
+    expect(md).toContain('task_required_capabilities: supports_keyword_search');
+    expect(md).toContain('task_expected_artifacts:');
+    expect(md).toContain('task_preconditions: project_required');
+    expect(md).not.toContain('consumer_hints');
+    expect(md).not.toContain('"query":"bootstrap amplitudes"');
     expect(md).toContain('execution_action: discover.seed_search');
     expect(md).toContain('execution_tool: openalex_search');
     expect(md).toContain('execution_provider: openalex');
