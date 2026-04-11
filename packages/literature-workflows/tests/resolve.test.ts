@@ -94,6 +94,57 @@ describe('literature workflow resolver', () => {
     ]);
   });
 
+  it('does not let provider preference overrule current analysis-capability maturity', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'literature_gap_analysis',
+      phase: 'analyze',
+      inputs: { topic: 'nonlinear sigma model', recids: ['1001', '2001'], analysis_seed: '1001' },
+      preferred_providers: ['openalex', 'arxiv'],
+      available_tools: [
+        'inspire_topic_analysis',
+        'inspire_critical_analysis',
+        'inspire_network_analysis',
+        'inspire_find_connections',
+        'openalex_search',
+        'arxiv_search',
+      ],
+    });
+
+    expect(plan.resolved_steps.map(step => step.provider)).toEqual([
+      'inspire',
+      'inspire',
+      'inspire',
+      'inspire',
+    ]);
+  });
+
+  it('keeps materialize.evidence_build on the current first-host adapter seam', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'literature_to_evidence',
+      inputs: {
+        query: 'bootstrap amplitudes',
+        run_id: 'RUN-1',
+        project_id: 'project-1',
+        paper_id: 'paper-1',
+      },
+      available_tools: ['inspire_search', 'hep_project_build_evidence'],
+    });
+
+    expect(plan.resolved_steps).toMatchObject([
+      {
+        id: 'search_export',
+        action: 'discover.seed_search',
+        provider: 'inspire',
+        tool: 'inspire_search',
+      },
+      {
+        id: 'build_evidence',
+        action: 'materialize.evidence_build',
+        tool: 'hep_project_build_evidence',
+      },
+    ]);
+  });
+
   it('fails closed when no allowed provider satisfies the workflow action', () => {
     expect(() => resolveWorkflowRecipe({
       recipe_id: 'literature_gap_analysis',

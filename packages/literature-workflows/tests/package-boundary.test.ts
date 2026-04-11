@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 
 describe('literature-workflows package boundary', () => {
-  it('stays free of hep-mcp as a generic workflow authority dependency', () => {
+  it('stays free of hep-mcp as a checked-in workflow-pack dependency', () => {
     const packageJsonPath = path.join(repoRoot, 'packages', 'literature-workflows', 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
       dependencies?: Record<string, string>;
@@ -19,7 +19,7 @@ describe('literature-workflows package boundary', () => {
     expect(fs.existsSync(standaloneCliPath)).toBe(false);
   });
 
-  it('does not import hep-mcp sources to resolve generic workflow plans', () => {
+  it('does not import hep-mcp sources to resolve the checked-in workflow pack', () => {
     const providerProfilesPath = path.join(repoRoot, 'packages', 'literature-workflows', 'src', 'providerProfiles.ts');
     const providerProfilesSource = fs.readFileSync(providerProfilesPath, 'utf8');
 

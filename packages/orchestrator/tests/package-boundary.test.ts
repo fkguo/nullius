@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // `autoresearch workflow-plan` is a native TS front door in the orchestrator
-// package, so it may consume the checked-in generic workflow authority package
-// in addition to shared contract/control-plane helpers.
+// package, so it may consume the checked-in literature workflow pack in
+// addition to shared contract/control-plane helpers.
 const ALLOWED_WORKSPACE_IMPORTS = new Set([
   '@autoresearch/shared',
   '@autoresearch/literature-workflows',
@@ -100,7 +100,7 @@ function packageDependencyOffenders(packageJsonPath: string): string[] {
 }
 
 describe('orchestrator package boundary', () => {
-  it('keeps orchestrator source limited to shared plus checked-in workflow authority workspace dependencies', () => {
+  it('keeps orchestrator source limited to shared plus checked-in literature workflow-pack workspace dependencies', () => {
     const repoRoot = repoRootFromThisFile();
     const srcRoot = path.join(repoRoot, 'packages', 'orchestrator', 'src');
     const offenders = collectTsFiles(srcRoot).flatMap(filePath => {

@@ -1,7 +1,7 @@
 {
   "name": "@autoresearch/literature-workflows",
   "version": "0.1.0",
-  "description": "Checked-in literature workflow recipe authority and provider/capability resolver",
+  "description": "Checked-in literature workflow authority pack and provider/capability resolver",
   "author": "Feng-Kun Guo",
   "type": "module",
   "main": "./dist/index.js",

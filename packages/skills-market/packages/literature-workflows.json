@@ -4,7 +4,7 @@
   "repo": "autoresearch-lab/autoresearch-meta",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Checked-in literature workflow pack: package-local recipes + session protocol resolved through `autoresearch workflow-plan` plus internal coverage consumers.",
+  "summary": "Checked-in literature workflow authority pack: package-local recipes + session protocol resolved through `autoresearch workflow-plan`, with mixed provider maturity beneath the workflow layer.",
   "platforms": [
     "claude_code",
     "codex",

@@ -55,7 +55,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | Evidence-first Project/Run 工作流 | `@autoresearch/hep-mcp`、`hep_*`、`hep://...` | 当前最强的端到端 workflow family |
 | 文献与数据 providers | `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*` | 直接搜索、下载、导出、受限分析的组合面 |
 | 本地参考 providers | `zotero_*`、`pdg_*` | 可选的本地输入与查验工具 |
-| Workflow shells | `workflow-plan` | checked-in generic workflow authority，由 `autoresearch workflow-plan` 直接消费 |
+| Workflow shells | `workflow-plan` | checked-in workflow authority pack，由 `autoresearch workflow-plan` 直接消费 |
 
 Skill 源码面与分发面是分离的：
 

@@ -55,7 +55,7 @@ Current package map, grouped by capability rather than identity:
 | Evidence-first Project/Run workflows | `@autoresearch/hep-mcp`, `hep_*`, `hep://...` | Current strongest end-to-end workflow family |
 | Literature and data providers | `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*` | Mix of direct search, download, export, and bounded analysis |
 | Local reference providers | `zotero_*`, `pdg_*` | Optional local-only inputs and lookups |
-| Workflow shells | `workflow-plan` | Checked-in generic workflow authority consumed directly by `autoresearch workflow-plan` |
+| Workflow shells | `workflow-plan` | Checked-in workflow authority pack consumed directly by `autoresearch workflow-plan` |
 
 Skill source and distribution are separate surfaces:
 
