@@ -106,6 +106,8 @@ High-level literature workflows are meant to enter through the public stateful `
 - `autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`
 - other checked-in consumers remain internal-only validation seams and do not define public workflow authority
 
+The workflow-pack authority sits above current provider maturity. Some bounded steps under that workflow layer still resolve through current HEP-backed seams; that is acceptable current truth, but it must not be narrated as provider-parity across the whole pack.
+
 These workflow-plan consumers are not the root identity of the repo; they are one layer above checked-in recipe authority.
 
 Current execution boundary:
