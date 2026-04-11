@@ -505,6 +505,15 @@
 
 **Why**: The real gap was not missing public fields; it was that live delegated execution dropped the typed relation back to canonical task authority once follow-ups entered team runtime. Preserving that relation internally matches mature thread/session systems that keep canonical ids in durable history while projecting smaller operator summaries outward, and it closes the lineage hole without reopening payload/UI scope.
 
+### [2026-04-11] Bounded task-view invariant: derived plan task layer is projection, not new task authority
+
+**Decision**:
+- `task` on persisted `workflow-plan` steps is a bounded task-view projection that sits alongside the existing `execution` seam.
+- The derived plan view may surface task-layer fields such as `task_kind`, `task_intent`, `title`, `description`, `depends_on_task_ids`, `required_capabilities`, `expected_artifacts`, and `preconditions`, but provider-local execution details remain under the existing `execution_*` vocabulary.
+- `workflow-plan` may use the shared helper to project canonical task authority into the plan view, but that helper does not replace the canonical research-task families elsewhere in the control plane.
+
+**Why**: After the task-property-first contract landed, the next real drift risk was to mistake the new plan-view task layer for a second task authority. Keeping the task layer explicitly projection-only preserves the separation between canonical task authority, planning projection, and runtime execution details.
+
 ### [2026-04-07] Legacy Python lifecycle/workflow retirement invariant: generic authority stays on `autoresearch`, residue stays provider-local
 
 **Decision**:
