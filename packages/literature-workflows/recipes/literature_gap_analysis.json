@@ -58,7 +58,7 @@
     },
     {
       "id": "critical_analysis",
-      "task_kind": "literature",
+      "task_kind": "review",
       "action": "analyze.paper_set_critical_review",
       "purpose": "Run bounded critical analysis over representative papers",
       "depends_on": [

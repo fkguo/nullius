@@ -294,6 +294,16 @@ describe('autoresearch CLI', () => {
         provider: 'inspire',
       },
     });
+    expect(persistedSteps[1]).toMatchObject({
+      step_id: 'critical_analysis',
+      task: {
+        task_kind: 'review',
+      },
+      execution: {
+        provider: 'inspire',
+        tool: 'inspire_critical_analysis',
+      },
+    });
     const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
     expect(planMd).toContain('topic_scan');
     expect(planMd).toContain('connection_scan');
@@ -324,12 +334,24 @@ describe('autoresearch CLI', () => {
       step_id: 'critical_review',
       task: {
         task_id: 'critical_review',
-        task_kind: 'literature',
+        task_kind: 'review',
         task_intent: 'workflow_step.critical_review',
         preconditions: [],
       },
       execution: {
         tool: 'inspire_critical_analysis',
+      },
+    });
+    expect(persistedSteps[1]).toMatchObject({
+      step_id: 'render_latex',
+      task: {
+        task_kind: 'draft_update',
+      },
+    });
+    expect(persistedSteps[2]).toMatchObject({
+      step_id: 'export_project',
+      task: {
+        task_kind: 'draft_update',
       },
     });
   });

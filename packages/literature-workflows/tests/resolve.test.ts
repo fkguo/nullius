@@ -75,7 +75,7 @@ describe('literature workflow resolver', () => {
       },
       {
         id: 'critical_analysis',
-        task_kind: 'literature',
+        task_kind: 'review',
         action: 'analyze.paper_set_critical_review',
         provider: 'inspire',
         tool: 'inspire_critical_analysis',
@@ -122,6 +122,12 @@ describe('literature workflow resolver', () => {
       'inspire',
       'inspire',
     ]);
+    expect(plan.resolved_steps[1]).toMatchObject({
+      id: 'critical_analysis',
+      task_kind: 'review',
+      provider: 'inspire',
+      tool: 'inspire_critical_analysis',
+    });
   });
 
   it('keeps materialize.evidence_build on the current first-host adapter seam', () => {
@@ -149,6 +155,31 @@ describe('literature workflow resolver', () => {
         task_kind: 'literature',
         action: 'materialize.evidence_build',
         tool: 'hep_project_build_evidence',
+      },
+    ]);
+  });
+
+  it('keeps review-cycle task kinds explicit in the recipe layer', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'review_cycle',
+      inputs: { recid: '1234', run_id: 'RUN-1' },
+    });
+
+    expect(plan.resolved_steps).toMatchObject([
+      {
+        id: 'critical_review',
+        task_kind: 'review',
+        tool: 'inspire_critical_analysis',
+      },
+      {
+        id: 'render_latex',
+        task_kind: 'draft_update',
+        tool: 'hep_render_latex',
+      },
+      {
+        id: 'export_project',
+        task_kind: 'draft_update',
+        tool: 'hep_export_project',
       },
     ]);
   });
