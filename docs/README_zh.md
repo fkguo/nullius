@@ -19,7 +19,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 1. 通用 lifecycle 工作流
    - `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。
 1. Stateful 文献工作流家族
-   - `autoresearch workflow-plan` 是推荐的公开 stateful 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in generic workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。
+   - `autoresearch workflow-plan` 是推荐的公开 stateful 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。
 1. 原生 TS computation 工作流
    - `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。
 1. 实验性 idea campaign 工作流

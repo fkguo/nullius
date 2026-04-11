@@ -230,6 +230,48 @@ describe('workflow run consumer', () => {
     expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'skipped' });
   });
 
+  it('surfaces partial_result through the existing completed envelope plus diagnostics', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot, {
+      secondStepDegradeMode: 'partial_result',
+    });
+    const state = manager.readState();
+    const steps = ((state.plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
+    steps[0]!.status = 'completed';
+    manager.saveState(state);
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCommand(
+      makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'),
+      io,
+      {
+        workflowToolCaller: {
+          callTool: vi.fn(async () => ({
+            ok: false,
+            isError: true,
+            rawText: 'upstream timeout after partial export',
+            json: null,
+            errorCode: 'TIMEOUT',
+          })),
+        },
+      },
+    );
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'completed',
+      ok: true,
+      partial: true,
+      step_id: 'export_project',
+    });
+    expect(manager.readState()).toMatchObject({
+      run_status: 'completed',
+      current_step: null,
+    });
+    const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
+    expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'completed' });
+  });
+
   it('fails closed when no MCP tool caller is configured', async () => {
     const projectRoot = makeTempProjectRoot();
     persistWorkflowPlan(projectRoot);
@@ -249,6 +291,45 @@ describe('workflow run consumer', () => {
         'workflow step execution requires a configured MCP tool server; set AUTORESEARCH_RUN_MCP_COMMAND and optional AUTORESEARCH_RUN_MCP_ARGS_JSON/AUTORESEARCH_RUN_MCP_ENV_JSON',
       });
     });
+  });
+
+  it('does not treat missing MCP infrastructure as skippable even when the step degrade_mode is skip_with_reason', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot, {
+      secondStepDegradeMode: 'skip_with_reason',
+    });
+    const state = manager.readState();
+    const steps = ((state.plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
+    steps[0]!.status = 'completed';
+    manager.saveState(state);
+    const { io, stdout } = makeIo(projectRoot);
+
+    await withEnv({
+      AUTORESEARCH_RUN_MCP_COMMAND: undefined,
+      AUTORESEARCH_RUN_MCP_ARGS_JSON: undefined,
+      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+    }, async () => {
+      await expect(runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io)).resolves.toBe(1);
+      expect(JSON.parse(stdout.join(''))).toMatchObject({
+        status: 'failed',
+        ok: false,
+        step_id: 'export_project',
+        diagnostics: [
+          {
+            code: 'no_mcp_tool_server',
+            message:
+              'workflow step execution requires a configured MCP tool server; set AUTORESEARCH_RUN_MCP_COMMAND and optional AUTORESEARCH_RUN_MCP_ARGS_JSON/AUTORESEARCH_RUN_MCP_ENV_JSON',
+          },
+        ],
+      });
+    });
+
+    expect(manager.readState()).toMatchObject({
+      run_status: 'failed',
+      current_step: null,
+    });
+    const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
+    expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'failed' });
   });
 
   it('wraps malformed MCP args JSON with a stable fail-closed error', async () => {
@@ -346,4 +427,5 @@ describe('workflow run consumer', () => {
       runCommand(makeRunInput(projectRoot, 'review_cycle', 'bad:name'), io),
     ).rejects.toThrow('run_id must be a simple identifier, got: bad:name');
   });
+
 });

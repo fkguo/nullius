@@ -49,6 +49,16 @@
 
 **Why**: The system no longer stops at a typed planning seam; it now has a real minimal execution bridge. Encoding that status explicitly keeps docs honest, prevents regression back to provider-local shells, and points the next batch toward post-C3 runtime refinement rather than re-litigating whether a consumer exists.
 
+### [2026-04-11] Workflow runtime substrate invariant: persisted workflow execution compiles into an internal runtime request/result seam, while `autoresearch run` remains the only execution front door
+
+**Decision**:
+- Post-C3 workflow-step execution now passes through one internal runtime substrate (`workflow-runtime.ts`) that owns persisted-step compilation, MCP execution, artifact normalization, and structured runtime diagnostics.
+- Persisted plan state remains the checked-in seam of authority; runtime-only fields such as canonical artifact selection, partial/skip/failure diagnostics, and MCP environment classification do not widen the persisted schema family or create a second public CLI/runtime entrypoint.
+- `autoresearch run` stays the only execution front door. It orchestrates run-state transitions and plan cursor updates, while the runtime substrate consumes only the minimal execution contract actually needed at step runtime.
+- `consumer_hints` stay planning-layer metadata except for the pieces the runtime truly consumes now: canonical artifact key derivation plus explicit `project_required` / `run_required` precondition assertions.
+
+**Why**: The minimal consumer had already landed, but its compile/execute/normalize logic was still fused into the CLI front door. Extracting one internal runtime seam makes the post-C3 contract explicit, keeps diagnostics structured, and leaves room for later adapter refinement without reopening scheduler, schema-family, or second-front-door scope.
+
 ### [2026-04-08] Regression harness external-root invariant: real-project semantics must be exercised on an external authority root, never by relaxing policy
 
 **Decision**:

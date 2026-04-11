@@ -16,7 +16,7 @@ Global options:
   -h, --help              Show help.
 
 Notes:
-  - workflow-plan resolves checked-in generic literature workflow recipes into bounded steps.
+  - workflow-plan resolves checked-in literature workflow recipes into bounded steps.
   - workflow-plan persists executable planning metadata into \`.autoresearch/state.json#/plan\`.
   - \`run\` remains the only execution front door: computation manifests run natively, while persisted workflow-plan steps execute through a configured MCP tool caller.
   - Pipeline A parser support commands \`doctor\`, \`bridge\`, and \`literature-gap\` are deleted.

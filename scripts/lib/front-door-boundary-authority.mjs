@@ -63,7 +63,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'README.md',
     snippets: [
       'Autoresearch Lab is a domain-neutral, evidence-first research monorepo.',
-      '`autoresearch workflow-plan` is the recommended public stateful front door for literature workflows on an initialized external project root; it resolves checked-in generic workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`.',
+      '`autoresearch workflow-plan` is the recommended public stateful front door for literature workflows on an initialized external project root; it resolves checked-in workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`.',
       '| Generic lifecycle + computation + workflow-plan front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful workflow-plan persistence |',
       '| High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended public stateful entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md` |',
       '- `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; approval handling stays on `autoresearch status/approve`.',
@@ -97,7 +97,7 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'docs/README_zh.md',
     snippets: [
       'Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first monorepo。',
-      '`autoresearch workflow-plan` 是推荐的公开 stateful 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in generic workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。',
+      '`autoresearch workflow-plan` 是推荐的公开 stateful 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。',
       '| 通用 lifecycle + computation + workflow-plan front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful workflow-plan 持久化 |',
       '| 高层文献工作流入口 | `autoresearch workflow-plan` | 推荐的公开 stateful 前门，面向已初始化的外部 project root；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` |',
       '- `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。',

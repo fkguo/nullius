@@ -3,11 +3,17 @@ import * as path from 'node:path';
 import { executeComputationManifest } from './computation/index.js';
 import type { CliIo } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
-import { McpClient, type ToolCaller } from './mcp-client.js';
 import { resolveUserPath } from './project-policy.js';
 import { StateManager } from './state-manager.js';
 import type { RunState } from './types.js';
 import { utcNowIso } from './util.js';
+import {
+  compileWorkflowRuntimeRequest,
+  executeWorkflowRuntimeRequest,
+  parsePersistedWorkflowExecution,
+  type PersistedWorkflowPlanStep,
+  type WorkflowRuntimeDeps,
+} from './workflow-runtime.js';
 
 export type RunCommandInput = {
   command: 'run';
@@ -39,33 +45,15 @@ type WorkflowResolvedRunInput = {
 
 type AnyResolvedRunInput = ResolvedRunInput | WorkflowResolvedRunInput;
 
-type WorkflowExecutionMetadata = {
-  action: string | null;
-  tool: string;
-  provider: string | null;
-  depends_on: string[];
-  params: Record<string, unknown>;
-  required_capabilities: string[];
-  degrade_mode: string | null;
-  consumer_hints: Record<string, unknown> | null;
-};
-
-type WorkflowPlanStep = {
-  step_id: string;
-  description: string;
-  status: string;
-  execution: WorkflowExecutionMetadata | null;
-};
-
-type WorkflowToolServerConfig = {
-  command: string;
-  args: string[];
-  env: Record<string, string> | undefined;
-};
-
 export type RunCommandDeps = {
-  workflowToolCaller?: ToolCaller;
+  workflowToolCaller?: WorkflowRuntimeDeps['workflowToolCaller'];
 };
+
+function classifyWorkflowCompileDiagnostic(message: string): 'malformed_execution' | 'project_required_missing' | 'run_required_missing' {
+  if (/requires project_root\b/.test(message)) return 'project_required_missing';
+  if (/requires run_id\b/.test(message)) return 'run_required_missing';
+  return 'malformed_execution';
+}
 
 function isWithinPath(basePath: string, candidatePath: string): boolean {
   const relative = path.relative(path.resolve(basePath), path.resolve(candidatePath));
@@ -166,30 +154,7 @@ function ensureComputationRunStarted(manager: StateManager, runId: string): void
   manager.createRun(state, runId, 'computation');
 }
 
-function parseWorkflowExecution(raw: unknown): WorkflowExecutionMetadata | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const record = raw as Record<string, unknown>;
-  const tool = typeof record.tool === 'string' ? record.tool.trim() : '';
-  if (!tool) return null;
-  return {
-    action: typeof record.action === 'string' && record.action.trim() ? record.action : null,
-    tool,
-    provider: typeof record.provider === 'string' && record.provider.trim() ? record.provider : null,
-    depends_on: Array.isArray(record.depends_on) ? record.depends_on.map(String) : [],
-    params: record.params && typeof record.params === 'object' && !Array.isArray(record.params)
-      ? { ...(record.params as Record<string, unknown>) }
-      : {},
-    required_capabilities: Array.isArray(record.required_capabilities)
-      ? record.required_capabilities.map(String)
-      : [],
-    degrade_mode: typeof record.degrade_mode === 'string' && record.degrade_mode.trim() ? record.degrade_mode : null,
-    consumer_hints: record.consumer_hints && typeof record.consumer_hints === 'object' && !Array.isArray(record.consumer_hints)
-      ? { ...(record.consumer_hints as Record<string, unknown>) }
-      : null,
-  };
-}
-
-function getWorkflowPlanSteps(state: RunState): WorkflowPlanStep[] {
+function getWorkflowPlanSteps(state: RunState): PersistedWorkflowPlanStep[] {
   const plan = state.plan;
   if (!plan || typeof plan !== 'object' || Array.isArray(plan)) {
     throw new Error('run requires state.plan to execute a persisted workflow plan');
@@ -198,18 +163,18 @@ function getWorkflowPlanSteps(state: RunState): WorkflowPlanStep[] {
   if (!Array.isArray(stepsRaw) || stepsRaw.length === 0) {
     throw new Error('run requires state.plan.steps to contain at least one persisted workflow step');
   }
-  return stepsRaw.map((rawStep): WorkflowPlanStep => {
+  return stepsRaw.map((rawStep): PersistedWorkflowPlanStep => {
     const step = rawStep as Record<string, unknown>;
     return {
       step_id: String(step.step_id ?? ''),
       description: String(step.description ?? ''),
       status: String(step.status ?? 'pending'),
-      execution: parseWorkflowExecution(step.execution),
+      execution: parsePersistedWorkflowExecution(step.execution),
     };
   });
 }
 
-function dependenciesSatisfied(step: WorkflowPlanStep, byId: Map<string, WorkflowPlanStep>): boolean {
+function dependenciesSatisfied(step: PersistedWorkflowPlanStep, byId: Map<string, PersistedWorkflowPlanStep>): boolean {
   return step.execution?.depends_on.every(depId => {
     const dep = byId.get(depId);
     return dep?.status === 'completed' || dep?.status === 'skipped';
@@ -217,7 +182,7 @@ function dependenciesSatisfied(step: WorkflowPlanStep, byId: Map<string, Workflo
 }
 
 function selectNextWorkflowStep(state: RunState): {
-  step: WorkflowPlanStep | null;
+  step: PersistedWorkflowPlanStep | null;
   nextStepId: string | null;
   blockedReason: string | null;
 } {
@@ -255,28 +220,6 @@ function setPlanCurrentStepId(state: RunState, stepId: string | null): void {
   delete record.current_step_id;
 }
 
-function summarizeWorkflowResult(result: unknown): string {
-  if (result === null || result === undefined) return '';
-  if (typeof result === 'string') return result;
-  try {
-    return JSON.stringify(result);
-  } catch {
-    return String(result);
-  }
-}
-
-function extractArtifactUri(result: unknown): string | null {
-  if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
-  const record = result as Record<string, unknown>;
-  if (typeof record.uri === 'string' && record.uri.trim()) return record.uri;
-  const summary = record.summary;
-  if (summary && typeof summary === 'object' && !Array.isArray(summary)) {
-    const uri = (summary as Record<string, unknown>).uri;
-    if (typeof uri === 'string' && uri.trim()) return uri;
-  }
-  return null;
-}
-
 function ensureWorkflowRunStarted(manager: StateManager, runId: string, workflowId: string): void {
   const state = manager.readState();
   if (state.run_status === 'running') {
@@ -308,61 +251,6 @@ function ensureWorkflowRunStarted(manager: StateManager, runId: string, workflow
   manager.saveStateWithLedger(state, 'workflow_run_resumed', {
     details: { run_id: runId, workflow_id: workflowId },
   });
-}
-
-function parseWorkflowJsonEnv<T>(
-  name: 'AUTORESEARCH_RUN_MCP_ARGS_JSON' | 'AUTORESEARCH_RUN_MCP_ENV_JSON',
-  raw: string,
-): T {
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    if (name === 'AUTORESEARCH_RUN_MCP_ARGS_JSON') {
-      throw new Error('AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array');
-    }
-    throw new Error('AUTORESEARCH_RUN_MCP_ENV_JSON must decode to a JSON object');
-  }
-}
-
-function loadWorkflowToolServerConfigFromEnv(): WorkflowToolServerConfig | null {
-  const command = (process.env.AUTORESEARCH_RUN_MCP_COMMAND ?? '').trim();
-  if (!command) return null;
-  const argsRaw = (process.env.AUTORESEARCH_RUN_MCP_ARGS_JSON ?? '').trim();
-  const envRaw = (process.env.AUTORESEARCH_RUN_MCP_ENV_JSON ?? '').trim();
-  const args = argsRaw ? parseWorkflowJsonEnv<unknown>('AUTORESEARCH_RUN_MCP_ARGS_JSON', argsRaw) : [];
-  if (!Array.isArray(args) || !args.every(item => typeof item === 'string')) {
-    throw new Error('AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array');
-  }
-  let env: Record<string, string> | undefined;
-  if (envRaw) {
-    const parsed = parseWorkflowJsonEnv<unknown>('AUTORESEARCH_RUN_MCP_ENV_JSON', envRaw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('AUTORESEARCH_RUN_MCP_ENV_JSON must decode to a JSON object');
-    }
-    env = Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key, String(value)]),
-    );
-  }
-  return { command, args, env };
-}
-
-async function withWorkflowToolCaller<T>(deps: RunCommandDeps, fn: (toolCaller: ToolCaller) => Promise<T>): Promise<T> {
-  if (deps.workflowToolCaller) {
-    return fn(deps.workflowToolCaller);
-  }
-  const serverConfig = loadWorkflowToolServerConfigFromEnv();
-  if (!serverConfig) {
-    throw new Error(
-      'workflow step execution requires a configured MCP tool server; set AUTORESEARCH_RUN_MCP_COMMAND and optional AUTORESEARCH_RUN_MCP_ARGS_JSON/AUTORESEARCH_RUN_MCP_ENV_JSON',
-    );
-  }
-  const client = new McpClient();
-  await client.start(serverConfig.command, serverConfig.args, serverConfig.env);
-  try {
-    return await fn(client);
-  } finally {
-    await client.close();
-  }
 }
 
 async function runWorkflowCommand(
@@ -474,14 +362,50 @@ async function runWorkflowCommand(
     },
   });
 
+  let runtimeRequest: ReturnType<typeof compileWorkflowRuntimeRequest>;
+  let runtimeResult: Awaited<ReturnType<typeof executeWorkflowRuntimeRequest>>;
   try {
-    const toolResult = await withWorkflowToolCaller(deps, toolCaller =>
-      toolCaller.callTool(step.execution!.tool, step.execution!.params),
-    );
-    if (!toolResult.ok || toolResult.isError) {
-      throw new Error(toolResult.rawText || `tool call failed: ${step.execution!.tool}`);
-    }
+    runtimeRequest = compileWorkflowRuntimeRequest({
+      projectRoot: resolved.projectRoot,
+      workflowId: resolved.workflowId,
+      runId: resolved.runId,
+      step,
+    });
+    runtimeResult = await executeWorkflowRuntimeRequest(runtimeRequest, deps);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const diagnosticCode = classifyWorkflowCompileDiagnostic(message);
     const persisted = manager.readState();
+    manager.syncPlanTerminal(persisted, step.step_id, step.description, 'failed');
+    persisted.current_step = null;
+    persisted.run_status = 'failed';
+    persisted.notes = message;
+    setPlanCurrentStepId(persisted, null);
+    manager.saveStateWithLedger(persisted, 'workflow_step_failed', {
+      step_id: step.step_id,
+      details: {
+        workflow_id: resolved.workflowId,
+        tool: step.execution?.tool ?? null,
+        degrade_mode: step.execution?.degrade_mode ?? 'fail_closed',
+        error: message,
+        next_step_id: null,
+        diagnostics: [{ code: diagnosticCode, message }],
+      },
+    });
+    io.stdout(`${JSON.stringify({
+      status: 'failed',
+      ok: false,
+      run_id: resolved.runId,
+      workflow_id: resolved.workflowId,
+      step_id: step.step_id,
+      error: message,
+      diagnostics: [{ code: diagnosticCode, message }],
+    }, null, 2)}\n`);
+    return 1;
+  }
+  const persisted = manager.readState();
+
+  if (runtimeResult.status === 'completed' || runtimeResult.status === 'partial') {
     manager.syncPlanTerminal(persisted, step.step_id, step.description, 'completed');
     persisted.current_step = null;
     const nextSelection = selectNextWorkflowStep(persisted);
@@ -489,14 +413,12 @@ async function runWorkflowCommand(
     if (nextSelection.nextStepId === null) {
       persisted.run_status = 'completed';
     }
-    const artifactKey = typeof step.execution?.consumer_hints?.artifact === 'string'
-      ? step.execution.consumer_hints.artifact
-      : step.step_id;
-    const artifactUri = extractArtifactUri(toolResult.json);
+    const artifactKey = runtimeRequest.artifact_key;
+    const artifactUri = runtimeResult.canonical_artifact_uri;
     if (artifactUri) {
       persisted.artifacts[artifactKey] = artifactUri;
     }
-    persisted.notes = summarizeWorkflowResult(toolResult.json ?? toolResult.rawText).slice(0, 2000);
+    persisted.notes = runtimeResult.summary_text.slice(0, 2000);
     manager.saveStateWithLedger(persisted, 'workflow_step_completed', {
       step_id: step.step_id,
       details: {
@@ -505,11 +427,13 @@ async function runWorkflowCommand(
         next_step_id: nextSelection.nextStepId,
         artifact_key: artifactKey,
         artifact_uri: artifactUri,
+        runtime_status: runtimeResult.status,
       },
     });
     io.stdout(`${JSON.stringify({
       status: 'completed',
       ok: true,
+      ...(runtimeResult.status === 'partial' ? { partial: true } : {}),
       run_id: resolved.runId,
       workflow_id: resolved.workflowId,
       step_id: step.step_id,
@@ -517,57 +441,59 @@ async function runWorkflowCommand(
       provider: step.execution?.provider ?? null,
       next_step_id: nextSelection.nextStepId,
       run_status: persisted.run_status,
-      result: toolResult.json ?? toolResult.rawText,
+      result: runtimeResult.payload,
+      ...(runtimeResult.diagnostics.length > 0 ? { diagnostics: runtimeResult.diagnostics } : {}),
     }, null, 2)}\n`);
     return 0;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const persisted = manager.readState();
-    const degradeMode = step.execution?.degrade_mode ?? 'fail_closed';
-    const terminalStatus = degradeMode === 'skip_with_reason' ? 'skipped' : 'failed';
-    manager.syncPlanTerminal(persisted, step.step_id, step.description, terminalStatus);
-    persisted.current_step = null;
-    persisted.notes = message;
-    const nextSelection = terminalStatus === 'skipped' ? selectNextWorkflowStep(persisted) : { nextStepId: null };
-    setPlanCurrentStepId(persisted, nextSelection.nextStepId);
-    if (terminalStatus === 'failed') {
-      persisted.run_status = 'failed';
-    } else if (nextSelection.nextStepId === null) {
-      persisted.run_status = 'completed';
-    }
-    manager.saveStateWithLedger(persisted, terminalStatus === 'skipped' ? 'workflow_step_skipped' : 'workflow_step_failed', {
-      step_id: step.step_id,
-      details: {
-        workflow_id: resolved.workflowId,
-        tool: step.execution?.tool ?? null,
-        degrade_mode: degradeMode,
-        error: message,
-        next_step_id: nextSelection.nextStepId,
-      },
-    });
-    if (terminalStatus === 'skipped') {
-      io.stdout(`${JSON.stringify({
-        status: 'completed',
-        ok: true,
-        skipped: true,
-        run_id: resolved.runId,
-        workflow_id: resolved.workflowId,
-        step_id: step.step_id,
-        next_step_id: nextSelection.nextStepId,
-        reason: message,
-      }, null, 2)}\n`);
-      return 0;
-    }
+  }
+
+  const message = runtimeResult.summary_text;
+  const terminalStatus = runtimeResult.status === 'skipped' ? 'skipped' : 'failed';
+  manager.syncPlanTerminal(persisted, step.step_id, step.description, terminalStatus);
+  persisted.current_step = null;
+  persisted.notes = message;
+  const nextSelection = terminalStatus === 'skipped' ? selectNextWorkflowStep(persisted) : { nextStepId: null };
+  setPlanCurrentStepId(persisted, nextSelection.nextStepId);
+  if (terminalStatus === 'failed') {
+    persisted.run_status = 'failed';
+  } else if (nextSelection.nextStepId === null) {
+    persisted.run_status = 'completed';
+  }
+  manager.saveStateWithLedger(persisted, terminalStatus === 'skipped' ? 'workflow_step_skipped' : 'workflow_step_failed', {
+    step_id: step.step_id,
+    details: {
+      workflow_id: resolved.workflowId,
+      tool: step.execution?.tool ?? null,
+      degrade_mode: runtimeRequest.degrade_mode,
+      error: message,
+      next_step_id: nextSelection.nextStepId,
+      diagnostics: runtimeResult.diagnostics,
+    },
+  });
+  if (terminalStatus === 'skipped') {
     io.stdout(`${JSON.stringify({
-      status: 'failed',
-      ok: false,
+      status: 'completed',
+      ok: true,
+      skipped: true,
       run_id: resolved.runId,
       workflow_id: resolved.workflowId,
       step_id: step.step_id,
-      error: message,
+      next_step_id: nextSelection.nextStepId,
+      reason: message,
+      diagnostics: runtimeResult.diagnostics,
     }, null, 2)}\n`);
-    return 1;
+    return 0;
   }
+  io.stdout(`${JSON.stringify({
+    status: 'failed',
+    ok: false,
+    run_id: resolved.runId,
+    workflow_id: resolved.workflowId,
+    step_id: step.step_id,
+    error: message,
+    diagnostics: runtimeResult.diagnostics,
+  }, null, 2)}\n`);
+  return 1;
 }
 
 export async function runCommand(input: RunCommandInput, io: CliIo, deps: RunCommandDeps = {}): Promise<number> {
