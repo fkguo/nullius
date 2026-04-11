@@ -58,7 +58,7 @@
     },
     {
       "id": "citation_network",
-      "task_kind": "literature",
+      "task_kind": "finding",
       "action": "analyze.citation_network",
       "purpose": "Map the citation structure around an anchor paper",
       "depends_on": [
@@ -85,7 +85,7 @@
     },
     {
       "id": "source_trace",
-      "task_kind": "literature",
+      "task_kind": "evidence_search",
       "action": "analyze.provenance_trace",
       "purpose": "Trace likely original sources for a representative anchor paper",
       "depends_on": [

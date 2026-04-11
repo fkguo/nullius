@@ -83,7 +83,7 @@
     },
     {
       "id": "citation_network",
-      "task_kind": "literature",
+      "task_kind": "finding",
       "action": "analyze.citation_network",
       "purpose": "Map citation structure around the current anchor paper",
       "depends_on": [
@@ -110,7 +110,7 @@
     },
     {
       "id": "connection_scan",
-      "task_kind": "literature",
+      "task_kind": "finding",
       "action": "analyze.paper_connections",
       "purpose": "Detect bridge papers, isolated clusters, and external hubs",
       "depends_on": [

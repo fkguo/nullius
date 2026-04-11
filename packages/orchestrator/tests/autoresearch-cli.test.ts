@@ -304,6 +304,18 @@ describe('autoresearch CLI', () => {
         tool: 'inspire_critical_analysis',
       },
     });
+    expect(persistedSteps[2]).toMatchObject({
+      step_id: 'citation_network',
+      task: {
+        task_kind: 'finding',
+      },
+    });
+    expect(persistedSteps[3]).toMatchObject({
+      step_id: 'connection_scan',
+      task: {
+        task_kind: 'finding',
+      },
+    });
     const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
     expect(planMd).toContain('topic_scan');
     expect(planMd).toContain('connection_scan');
@@ -352,6 +364,48 @@ describe('autoresearch CLI', () => {
       step_id: 'export_project',
       task: {
         task_kind: 'draft_update',
+      },
+    });
+  });
+
+  it('keeps landscape provenance and network task kinds sourced from recipe authority', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCli([
+      'workflow-plan',
+      '--recipe', 'literature_landscape',
+      '--phase', 'prework',
+      '--run-id', 'M-LIT-2',
+      '--query', 'bootstrap amplitudes',
+      '--topic', 'bootstrap amplitudes',
+      '--seed-recid', '1234',
+      '--preferred-provider', 'openalex',
+      '--available-tool', 'openalex_search',
+      '--available-tool', 'inspire_topic_analysis',
+      '--available-tool', 'inspire_network_analysis',
+      '--available-tool', 'inspire_trace_original_source',
+    ], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      recipe_id: 'literature_landscape',
+      phase: 'prework',
+    });
+    const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Record<string, unknown>[];
+    expect(persistedSteps[2]).toMatchObject({
+      step_id: 'citation_network',
+      task: {
+        task_kind: 'finding',
+      },
+    });
+    expect(persistedSteps[3]).toMatchObject({
+      step_id: 'source_trace',
+      task: {
+        task_kind: 'evidence_search',
       },
     });
   });

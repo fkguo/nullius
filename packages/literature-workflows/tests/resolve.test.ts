@@ -83,7 +83,7 @@ describe('literature workflow resolver', () => {
       },
       {
         id: 'citation_network',
-        task_kind: 'literature',
+        task_kind: 'finding',
         action: 'analyze.citation_network',
         provider: 'inspire',
         tool: 'inspire_network_analysis',
@@ -91,7 +91,7 @@ describe('literature workflow resolver', () => {
       },
       {
         id: 'connection_scan',
-        task_kind: 'literature',
+        task_kind: 'finding',
         action: 'analyze.paper_connections',
         provider: 'inspire',
         tool: 'inspire_find_connections',
@@ -127,6 +127,12 @@ describe('literature workflow resolver', () => {
       task_kind: 'review',
       provider: 'inspire',
       tool: 'inspire_critical_analysis',
+    });
+    expect(plan.resolved_steps[2]).toMatchObject({
+      id: 'citation_network',
+      task_kind: 'finding',
+      provider: 'inspire',
+      tool: 'inspire_network_analysis',
     });
   });
 
@@ -181,6 +187,23 @@ describe('literature workflow resolver', () => {
         task_kind: 'draft_update',
         tool: 'hep_export_project',
       },
+    ]);
+  });
+
+  it('keeps landscape provenance and network task kinds explicit in the recipe layer', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'literature_landscape',
+      phase: 'prework',
+      inputs: { query: 'bootstrap amplitudes', topic: 'bootstrap amplitudes', seed_recid: '1234' },
+      preferred_providers: ['openalex'],
+      available_tools: ['openalex_search', 'inspire_topic_analysis', 'inspire_network_analysis', 'inspire_trace_original_source'],
+    });
+
+    expect(plan.resolved_steps).toMatchObject([
+      { id: 'seed_search', task_kind: 'literature' },
+      { id: 'topic_scan', task_kind: 'literature' },
+      { id: 'citation_network', task_kind: 'finding' },
+      { id: 'source_trace', task_kind: 'evidence_search' },
     ]);
   });
 
