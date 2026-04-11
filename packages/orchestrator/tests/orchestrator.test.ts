@@ -1760,6 +1760,44 @@ describe('Stage 3c: validatePlan', () => {
     expect(() => sm.validatePlan(plan)).toThrow(/task_kind/);
   });
 
+  it('rejects task projection with invalid precondition enum', () => {
+    const plan = basePlan({
+      steps: [
+        {
+          step_id: 'seed_search',
+          description: 'Seed search',
+          status: 'pending',
+          expected_approvals: [],
+          expected_outputs: ['artifacts/seed_search.json'],
+          recovery_notes: '',
+          task: {
+            task_id: 'seed_search',
+            task_kind: 'literature',
+            task_intent: 'discover.seed_search',
+            title: 'Seed Search',
+            description: 'Seed search',
+            depends_on_task_ids: [],
+            required_capabilities: ['supports_keyword_search'],
+            expected_artifacts: ['artifacts/seed_search.json'],
+            preconditions: ['topic_required'],
+          },
+          execution: {
+            action: 'discover.seed_search',
+            tool: 'openalex_search',
+            provider: 'openalex',
+            depends_on: [],
+            params: { query: 'bootstrap amplitudes', size: 25 },
+            required_capabilities: ['supports_keyword_search'],
+            degrade_mode: 'fail_closed',
+            consumer_hints: { artifact: 'artifacts/seed_search.json', project_required: true },
+          },
+        },
+      ],
+    });
+
+    expect(() => sm.validatePlan(plan)).toThrow(/preconditions/);
+  });
+
   it('rejects task projection with unexpected provider-local fields', () => {
     const plan = basePlan({
       steps: [

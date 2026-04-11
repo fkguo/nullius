@@ -5,6 +5,10 @@ import {
   type ResolvedWorkflowPlan,
   type ResolvedWorkflowStep,
 } from '@autoresearch/literature-workflows';
+import {
+  buildWorkflowStepTaskProjection,
+  type WorkflowTaskPrecondition,
+} from '@autoresearch/shared';
 import type { CliIo } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 import { StateManager } from './state-manager.js';
@@ -39,35 +43,24 @@ function buildWorkflowExecution(step: ResolvedWorkflowStep): Record<string, unkn
   };
 }
 
-function humanizeWorkflowStepTitle(stepId: string): string {
-  return stepId
-    .split(/[_-]+/)
-    .filter(Boolean)
-    .map(token => token.charAt(0).toUpperCase() + token.slice(1))
-    .join(' ');
-}
-
-function taskIntentForStep(step: ResolvedWorkflowStep): string {
-  if (step.action) return step.action;
-  return `workflow_step.${step.id}`;
+function collectWorkflowTaskPreconditions(step: ResolvedWorkflowStep): WorkflowTaskPrecondition[] {
+  const preconditions: WorkflowTaskPrecondition[] = [];
+  if (step.consumer_hints?.project_required) preconditions.push('project_required');
+  if (step.consumer_hints?.run_required) preconditions.push('run_required');
+  return preconditions;
 }
 
 function buildWorkflowTaskProjection(step: ResolvedWorkflowStep): Record<string, unknown> {
-  const preconditions: string[] = [];
-  if (step.consumer_hints?.project_required) preconditions.push('project_required');
-  if (step.consumer_hints?.run_required) preconditions.push('run_required');
-
-  return {
+  return buildWorkflowStepTaskProjection({
     task_id: step.id,
     task_kind: 'literature',
-    task_intent: taskIntentForStep(step),
-    title: humanizeWorkflowStepTitle(step.id),
+    action: step.action,
     description: step.purpose,
     depends_on_task_ids: [...step.depends_on],
     required_capabilities: [...step.required_capabilities],
     expected_artifacts: step.consumer_hints?.artifact ? [step.consumer_hints.artifact] : [],
-    preconditions,
-  };
+    preconditions: collectWorkflowTaskPreconditions(step),
+  });
 }
 
 function buildPersistedPlan(input: WorkflowPlanCommandInput, resolvedPlan: ResolvedWorkflowPlan, runId: string): Record<string, unknown> {

@@ -47,3 +47,20 @@ class TestPlanSchemaTaskProjection(unittest.TestCase):
         self.assertNotIn("params", task_def["properties"])
         self.assertNotIn("degrade_mode", task_def["properties"])
         self.assertNotIn("consumer_hints", task_def["properties"])
+
+    def test_task_projection_uses_bounded_precondition_vocab(self) -> None:
+        schema = json.loads(_plan_schema_path().read_text(encoding="utf-8"))
+        task_def = schema["$defs"]["workflow_step_task"]
+        precondition_def = schema["$defs"]["workflow_task_precondition"]
+
+        self.assertEqual(
+            task_def["properties"]["preconditions"],
+            {"type": "array", "items": {"$ref": "#/$defs/workflow_task_precondition"}},
+        )
+        self.assertEqual(
+            precondition_def,
+            {
+                "type": "string",
+                "enum": ["project_required", "run_required"],
+            },
+        )

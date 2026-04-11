@@ -44,10 +44,18 @@ export {
   type FormatOptions,
 } from './common.js';
 
-// Workflow task projection (N2 batch 1)
+// Workflow task projection (N2 batch 1/2)
 export {
+  WorkflowTaskArtifactRefSchema,
+  WorkflowTaskPreconditionSchema,
+  WorkflowTaskProjectionInputSchema,
   WorkflowTaskKindSchema,
   WorkflowStepTaskProjectionSchema,
+  buildWorkflowStepTaskProjection,
+  deriveWorkflowTaskIntent,
+  type WorkflowTaskArtifactRef,
+  type WorkflowTaskPrecondition,
+  type WorkflowTaskProjectionInput,
   type WorkflowTaskKind,
   type WorkflowStepTaskProjection,
 } from './task-projection.js';

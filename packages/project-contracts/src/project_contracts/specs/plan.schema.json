@@ -176,15 +176,30 @@
           "type": "string",
           "enum": ["literature", "idea", "compute", "evidence_search", "finding", "draft_update", "review"]
         },
-        "task_intent": { "type": "string", "minLength": 1 },
+        "task_intent": {
+          "description": "Provider-neutral task intent. When a producer has no explicit intent id yet, it should fall back to a stable workflow_step.<task_id> namespace instead of leaking tool/provider details.",
+          "type": "string",
+          "minLength": 1
+        },
         "title": { "type": "string", "minLength": 1 },
         "description": { "type": "string", "minLength": 1 },
         "depends_on_task_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "required_capabilities": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "expected_artifacts": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "preconditions": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "expected_artifacts": {
+          "description": "Authority-level artifact references expected from completing the task. This layer records stable task-facing outputs, not provider-local execution params or payload bodies.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "preconditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/workflow_task_precondition" }
+        }
       },
       "additionalProperties": false
+    },
+    "workflow_task_precondition": {
+      "type": "string",
+      "enum": ["project_required", "run_required"]
     },
     "workflow_step_execution": {
       "type": "object",

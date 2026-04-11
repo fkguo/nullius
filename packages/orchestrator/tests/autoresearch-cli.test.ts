@@ -326,6 +326,7 @@ describe('autoresearch CLI', () => {
         task_id: 'critical_review',
         task_kind: 'literature',
         task_intent: 'workflow_step.critical_review',
+        preconditions: [],
       },
       execution: {
         tool: 'inspire_critical_analysis',

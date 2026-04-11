@@ -135,9 +135,13 @@ const PLAN_SCHEMA: Record<string, unknown> = {
         depends_on_task_ids: { type: 'array', items: { type: 'string', minLength: 1 } },
         required_capabilities: { type: 'array', items: { type: 'string', minLength: 1 } },
         expected_artifacts: { type: 'array', items: { type: 'string', minLength: 1 } },
-        preconditions: { type: 'array', items: { type: 'string', minLength: 1 } },
+        preconditions: { type: 'array', items: { $ref: '#/$defs/workflow_task_precondition' } },
       },
       additionalProperties: false,
+    },
+    workflow_task_precondition: {
+      type: 'string',
+      enum: ['project_required', 'run_required'],
     },
     workflow_step_execution: {
       type: 'object',
