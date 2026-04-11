@@ -381,6 +381,40 @@ describe('workflow run consumer', () => {
     expect(afterLedgerLines).toBe(beforeLedgerLines);
   });
 
+  it('keeps a failed single-step workflow failed on rerun instead of upgrading it to completed', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot);
+    const state = manager.readState();
+    const planRecord = state.plan as Record<string, unknown>;
+    const steps = (planRecord.steps ?? []) as Array<Record<string, unknown>>;
+    planRecord.steps = [steps[0]];
+    ((planRecord.steps as Array<Record<string, unknown>>)[0]!).status = 'failed';
+    state.run_status = 'failed';
+    state.current_step = null;
+    delete planRecord.current_step_id;
+    manager.saveState(state);
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io, {
+      workflowToolCaller: { callTool: vi.fn() },
+    });
+
+    expect(code).toBe(1);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'failed',
+      ok: false,
+      step_id: 'critical_review',
+      error: 'workflow plan contains failed step critical_review; recover or replace the plan before rerunning',
+    });
+    expect(manager.readState()).toMatchObject({
+      run_status: 'failed',
+      current_step: null,
+      notes: 'workflow plan contains failed step critical_review; recover or replace the plan before rerunning',
+    });
+    const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
+    expect(persistedSteps).toMatchObject([{ step_id: 'critical_review', status: 'failed' }]);
+  });
+
   it('replays the same pending approval when rerunning the active workflow request', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = persistWorkflowPlan(projectRoot);

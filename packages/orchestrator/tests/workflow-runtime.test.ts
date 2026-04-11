@@ -280,6 +280,27 @@ describe('workflow runtime diagnostics', () => {
     });
   });
 
+  it('keeps mcp_server_unavailable fail-closed even when degrade_mode=skip_with_reason', async () => {
+    const result = await executeWorkflowRuntimeRequest(
+      makeRequest({ degrade_mode: 'skip_with_reason' }),
+      {
+        workflowToolCaller: {
+          callTool: async () => {
+            throw new Error('MCP process timed out while calling inspire_critical_analysis');
+          },
+        },
+      },
+    );
+
+    expect(result.status).toBe('failed');
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'mcp_server_unavailable',
+        message: 'MCP process timed out while calling inspire_critical_analysis',
+      }),
+    ]);
+  });
+
   it('surfaces partial_result as structured diagnostics', async () => {
     const result = await executeWorkflowRuntimeRequest(
       makeRequest({ degrade_mode: 'partial_result' }),

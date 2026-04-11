@@ -208,6 +208,10 @@ function selectNextWorkflowStep(state: RunState): {
   return { step: null, nextStepId: null, blockedReason: null };
 }
 
+function failedWorkflowStep(steps: PersistedWorkflowPlanStep[]): PersistedWorkflowPlanStep | null {
+  return steps.find(step => step.status === 'failed') ?? null;
+}
+
 function setPlanCurrentStepId(state: RunState, stepId: string | null): void {
   const plan = state.plan;
   if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return;
@@ -281,6 +285,44 @@ async function runWorkflowCommand(
   }
 
   if (!selection.step && !selection.blockedReason) {
+    const failedStep = failedWorkflowStep(getWorkflowPlanSteps(initialState));
+    if (failedStep) {
+      const message = `workflow plan contains failed step ${failedStep.step_id}; recover or replace the plan before rerunning`;
+      if (resolved.dryRun) {
+        io.stdout(`${JSON.stringify({
+          status: 'dry_run',
+          validated: false,
+          dry_run: true,
+          run_id: resolved.runId,
+          workflow_id: resolved.workflowId,
+          next_step_id: failedStep.step_id,
+          step: null,
+          blocked_reason: message,
+        }, null, 2)}\n`);
+        return 0;
+      }
+      initialState.run_status = 'failed';
+      initialState.current_step = null;
+      initialState.notes = message;
+      setPlanCurrentStepId(initialState, null);
+      manager.saveStateWithLedger(initialState, 'workflow_step_selection_failed', {
+        details: {
+          run_id: resolved.runId,
+          workflow_id: resolved.workflowId,
+          reason: message,
+          failed_step_id: failedStep.step_id,
+        },
+      });
+      io.stdout(`${JSON.stringify({
+        status: 'failed',
+        ok: false,
+        run_id: resolved.runId,
+        workflow_id: resolved.workflowId,
+        step_id: failedStep.step_id,
+        error: message,
+      }, null, 2)}\n`);
+      return 1;
+    }
     if (resolved.dryRun) {
       io.stdout(`${JSON.stringify({
         status: 'dry_run',
