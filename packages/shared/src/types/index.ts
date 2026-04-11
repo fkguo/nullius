@@ -44,6 +44,14 @@ export {
   type FormatOptions,
 } from './common.js';
 
+// Workflow task projection (N2 batch 1)
+export {
+  WorkflowTaskKindSchema,
+  WorkflowStepTaskProjectionSchema,
+  type WorkflowTaskKind,
+  type WorkflowStepTaskProjection,
+} from './task-projection.js';
+
 // Semantic assessment contracts
 export {
   SemanticAssessmentBackendSchema,

@@ -142,6 +142,9 @@
         },
         "expected_outputs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "recovery_notes": { "type": "string" },
+        "task": {
+          "oneOf": [{ "$ref": "#/$defs/workflow_step_task" }, { "type": "null" }]
+        },
         "execution": {
           "oneOf": [{ "$ref": "#/$defs/workflow_step_execution" }, { "type": "null" }]
         },
@@ -151,6 +154,35 @@
         "completed_at": {
           "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
         }
+      },
+      "additionalProperties": false
+    },
+    "workflow_step_task": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "task_kind",
+        "task_intent",
+        "title",
+        "description",
+        "depends_on_task_ids",
+        "required_capabilities",
+        "expected_artifacts",
+        "preconditions"
+      ],
+      "properties": {
+        "task_id": { "type": "string", "minLength": 1 },
+        "task_kind": {
+          "type": "string",
+          "enum": ["literature", "idea", "compute", "evidence_search", "finding", "draft_update", "review"]
+        },
+        "task_intent": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "depends_on_task_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "required_capabilities": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "expected_artifacts": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "preconditions": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       },
       "additionalProperties": false
     },

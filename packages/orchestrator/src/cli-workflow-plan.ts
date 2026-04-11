@@ -39,6 +39,37 @@ function buildWorkflowExecution(step: ResolvedWorkflowStep): Record<string, unkn
   };
 }
 
+function humanizeWorkflowStepTitle(stepId: string): string {
+  return stepId
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map(token => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+function taskIntentForStep(step: ResolvedWorkflowStep): string {
+  if (step.action) return step.action;
+  return `workflow_step.${step.id}`;
+}
+
+function buildWorkflowTaskProjection(step: ResolvedWorkflowStep): Record<string, unknown> {
+  const preconditions: string[] = [];
+  if (step.consumer_hints?.project_required) preconditions.push('project_required');
+  if (step.consumer_hints?.run_required) preconditions.push('run_required');
+
+  return {
+    task_id: step.id,
+    task_kind: 'literature',
+    task_intent: taskIntentForStep(step),
+    title: humanizeWorkflowStepTitle(step.id),
+    description: step.purpose,
+    depends_on_task_ids: [...step.depends_on],
+    required_capabilities: [...step.required_capabilities],
+    expected_artifacts: step.consumer_hints?.artifact ? [step.consumer_hints.artifact] : [],
+    preconditions,
+  };
+}
+
 function buildPersistedPlan(input: WorkflowPlanCommandInput, resolvedPlan: ResolvedWorkflowPlan, runId: string): Record<string, unknown> {
   const now = utcNowIso();
   const steps = resolvedPlan.resolved_steps.map(step => {
@@ -49,6 +80,7 @@ function buildPersistedPlan(input: WorkflowPlanCommandInput, resolvedPlan: Resol
       expected_approvals: [],
       expected_outputs: step.consumer_hints?.artifact ? [step.consumer_hints.artifact] : [],
       recovery_notes: '',
+      task: buildWorkflowTaskProjection(step),
       execution: buildWorkflowExecution(step),
     };
   });

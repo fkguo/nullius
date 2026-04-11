@@ -192,6 +192,17 @@ describe('autoresearch CLI', () => {
     const persistedSteps = ((persistedState.plan as Record<string, unknown>).steps ?? []) as Record<string, unknown>[];
     expect(persistedSteps[0]).toMatchObject({
       step_id: 'seed_search',
+      task: {
+        task_id: 'seed_search',
+        task_kind: 'literature',
+        task_intent: 'discover.seed_search',
+        title: 'Seed Search',
+        description: 'Run a broad keyword search to seed the landscape',
+        depends_on_task_ids: [],
+        required_capabilities: ['supports_keyword_search'],
+        expected_artifacts: ['seed_search'],
+        preconditions: [],
+      },
       recovery_notes: '',
       execution: {
         action: 'discover.seed_search',
@@ -266,6 +277,17 @@ describe('autoresearch CLI', () => {
     const persistedSteps = ((persistedState.plan as Record<string, unknown>).steps ?? []) as Record<string, unknown>[];
     expect(persistedSteps[0]).toMatchObject({
       step_id: 'topic_scan',
+      task: {
+        task_id: 'topic_scan',
+        task_kind: 'literature',
+        task_intent: 'analyze.topic_evolution',
+        title: 'Topic Scan',
+        description: 'Summarize trends and identify underexplored subtopics',
+        depends_on_task_ids: ['seed_search'],
+        required_capabilities: ['analysis.topic_evolution'],
+        expected_artifacts: ['topic_analysis'],
+        preconditions: [],
+      },
       execution: {
         action: 'analyze.topic_evolution',
         tool: 'inspire_topic_analysis',
@@ -276,6 +298,39 @@ describe('autoresearch CLI', () => {
     expect(planMd).toContain('topic_scan');
     expect(planMd).toContain('connection_scan');
     expect(planMd).toContain('execution_tool: inspire_topic_analysis');
+  });
+
+  it('keeps task_intent provider-neutral when a recipe step has no explicit action', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCli([
+      'workflow-plan',
+      '--recipe', 'review_cycle',
+      '--run-id', 'M-REVIEW-1',
+      '--recid', '1234',
+    ], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      recipe_id: 'review_cycle',
+      entry_tool: 'inspire_critical_analysis',
+    });
+    const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Record<string, unknown>[];
+    expect(persistedSteps[0]).toMatchObject({
+      step_id: 'critical_review',
+      task: {
+        task_id: 'critical_review',
+        task_kind: 'literature',
+        task_intent: 'workflow_step.critical_review',
+      },
+      execution: {
+        tool: 'inspire_critical_analysis',
+      },
+    });
   });
 
   it('fails closed when workflow-plan targets an uninitialized project root', async () => {

@@ -177,6 +177,7 @@ function parseWorkflowPlanArgs(args: string[]): Omit<Extract<ParsedCliArgs, { co
     topic: '',
     seed_recid: '',
     analysis_seed: '',
+    recid: '',
     recids: [],
     project_id: '',
     paper_id: '',
@@ -214,7 +215,11 @@ function parseWorkflowPlanArgs(args: string[]): Omit<Extract<ParsedCliArgs, { co
       continue;
     }
     if (arg === '--recid') {
-      (inputs.recids as string[]).push(readOptionValue(args, index, '--recid'));
+      const recid = readOptionValue(args, index, '--recid');
+      if (!inputs.recid) {
+        inputs.recid = recid;
+      }
+      (inputs.recids as string[]).push(recid);
       index += 1;
       continue;
     }
