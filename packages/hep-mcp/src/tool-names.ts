@@ -22,9 +22,6 @@ export const HEP_RUN_READ_ARTIFACT_CHUNK = 'hep_run_read_artifact_chunk' as cons
 export const HEP_RUN_CLEAR_MANIFEST_LOCK = 'hep_run_clear_manifest_lock' as const;
 export const HEP_RUN_STAGE_CONTENT = 'hep_run_stage_content' as const;
 export const HEP_RUN_INGEST_SKILL_ARTIFACTS = 'hep_run_ingest_skill_artifacts' as const;
-export const HEP_RUN_EXECUTE_MANIFEST = 'hep_run_execute_manifest' as const;
-export const HEP_RUN_CREATE_FROM_IDEA = 'hep_run_create_from_idea' as const;
-export const HEP_RUN_PLAN_COMPUTATION = 'hep_run_plan_computation' as const;
 export const HEP_RUN_BUILD_WRITING_EVIDENCE = 'hep_run_build_writing_evidence' as const;
 export const HEP_RUN_BUILD_MEASUREMENTS = 'hep_run_build_measurements' as const;
 export const HEP_RUN_BUILD_CITATION_MAPPING = 'hep_run_build_citation_mapping' as const;
@@ -75,27 +72,6 @@ export {
   OPENALEX_REFERENCES,
   OPENALEX_SEARCH,
   OPENALEX_SEMANTIC_SEARCH,
-  ORCH_FLEET_CLAIM,
-  ORCH_FLEET_ADJUDICATE_STALE_CLAIM,
-  ORCH_FLEET_ENQUEUE,
-  ORCH_FLEET_REASSIGN_CLAIM,
-  ORCH_FLEET_RELEASE,
-  ORCH_FLEET_STATUS,
-  ORCH_FLEET_WORKER_HEARTBEAT,
-  ORCH_FLEET_WORKER_POLL,
-  ORCH_FLEET_WORKER_SET_CLAIM_ACCEPTANCE,
-  ORCH_FLEET_WORKER_UNREGISTER,
-  ORCH_POLICY_QUERY,
-  ORCH_RUN_APPROVALS_LIST,
-  ORCH_RUN_APPROVE,
-  ORCH_RUN_CREATE,
-  ORCH_RUN_EXECUTE_AGENT,
-  ORCH_RUN_EXPORT,
-  ORCH_RUN_LIST,
-  ORCH_RUN_PAUSE,
-  ORCH_RUN_REJECT,
-  ORCH_RUN_RESUME,
-  ORCH_RUN_STATUS,
   PDG_BATCH,
   PDG_FIND_PARTICLE,
   PDG_FIND_REFERENCE,

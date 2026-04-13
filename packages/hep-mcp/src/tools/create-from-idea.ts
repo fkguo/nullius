@@ -8,16 +8,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  invalidParams,
   INSPIRE_SEARCH,
+  ORCH_RUN_PLAN_COMPUTATION,
+  invalidParams,
 } from '@autoresearch/shared';
+import {
+  parseIdeaHandoffRecord,
+  readIdeaHandoffRecord,
+  stageIdeaArtifactsIntoRun,
+} from '@autoresearch/orchestrator';
 import { createProject } from '../core/projects.js';
 import { createRun } from '../core/runs.js';
-import { getProjectDir } from '../core/paths.js';
-import { writeRunJsonArtifact } from '../core/citations.js';
-import { makeHepRunManifestUri } from '../core/runArtifactUri.js';
-import { HEP_PROJECT_BUILD_EVIDENCE, HEP_RUN_PLAN_COMPUTATION } from '../tool-names.js';
-import { type OutlineSeedV1, resolveHandoffPath } from './idea-staging.js';
+import { getProjectDir, getRunDir } from '../core/paths.js';
+import { makeHepRunArtifactUri, makeHepRunManifestUri } from '../core/runArtifactUri.js';
+import { HEP_PROJECT_BUILD_EVIDENCE } from '../tool-names.js';
+import { resolveHandoffPath } from './idea-staging.js';
 
 export interface CreateFromIdeaParams {
   handoff_uri: string;
@@ -27,6 +32,7 @@ export interface CreateFromIdeaParams {
 
 export interface CreateFromIdeaResult {
   run_id: string;
+  run_dir: string;
   project_id: string;
   manifest_uri: string;
   outline_seed_uri: string;
@@ -36,57 +42,18 @@ export interface CreateFromIdeaResult {
 export function createFromIdea(params: CreateFromIdeaParams): CreateFromIdeaResult {
   const { handoff_uri, project_id: existingProjectId, run_label } = params;
 
-  // 1. Read handoff artifact
+  // Validate the generic handoff contract before creating any local state.
   const handoffPath = resolveHandoffPath(handoff_uri);
-  if (!fs.existsSync(handoffPath)) {
-    throw invalidParams('IdeaHandoffC2 artifact not found', {
-      handoff_uri,
-      resolved_path: handoffPath,
-    });
-  }
+  const handoffRecord = readIdeaHandoffRecord(handoffPath);
+  const { outlineSeed } = parseIdeaHandoffRecord({
+    handoffRecord,
+    handoffUri: handoff_uri,
+  });
+  const thesis = outlineSeed.thesis;
 
-  let handoff: Record<string, unknown>;
-  try {
-    handoff = JSON.parse(fs.readFileSync(handoffPath, 'utf-8')) as Record<string, unknown>;
-  } catch (err) {
-    throw invalidParams('Failed to parse IdeaHandoffC2 artifact', {
-      handoff_uri,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  // 2. Extract idea_card fields
-  const ideaCard = handoff.idea_card as Record<string, unknown> | undefined;
-  if (!ideaCard || typeof ideaCard !== 'object') {
-    throw invalidParams('IdeaHandoffC2 artifact missing idea_card', { handoff_uri });
-  }
-
-  const thesis = ideaCard.thesis_statement;
-  if (typeof thesis !== 'string' || thesis.length === 0) {
-    throw invalidParams('idea_card.thesis_statement missing or empty', { handoff_uri });
-  }
-
-  const claims = ideaCard.claims;
-  if (!Array.isArray(claims) || claims.length === 0) {
-    throw invalidParams('idea_card.claims missing or empty', { handoff_uri });
-  }
-
-  const hypotheses = ideaCard.testable_hypotheses;
-  if (!Array.isArray(hypotheses)) {
-    throw invalidParams('idea_card.testable_hypotheses missing', { handoff_uri });
-  }
-
-  // Validate hypothesis elements are strings
-  for (let i = 0; i < hypotheses.length; i++) {
-    if (typeof hypotheses[i] !== 'string') {
-      throw invalidParams(`idea_card.testable_hypotheses[${i}] must be a string`, { handoff_uri });
-    }
-  }
-
-  // 3. Create or reuse project
+  // Create or reuse project only after the generic parse succeeds.
   let projectId: string;
   if (existingProjectId) {
-    // Validate project existence and parsability up-front → consistent invalidParams error
     const projectDir = getProjectDir(existingProjectId);
     const projectJsonPath = path.join(projectDir, 'project.json');
     if (!fs.existsSync(projectJsonPath)) {
@@ -107,7 +74,6 @@ export function createFromIdea(params: CreateFromIdeaParams): CreateFromIdeaResu
     projectId = project.project_id;
   }
 
-  // 4. Create run
   const { manifest } = createRun({
     project_id: projectId,
     args_snapshot: {
@@ -118,27 +84,25 @@ export function createFromIdea(params: CreateFromIdeaParams): CreateFromIdeaResu
   });
 
   const runId = manifest.run_id;
+  const runDir = getRunDir(runId);
 
-  // 5. Write outline_seed_v1.json
-  const outlineSeed: OutlineSeedV1 = {
-    thesis,
-    claims,
-    hypotheses: hypotheses as string[],
-    source_handoff_uri: handoff_uri,
-  };
+  // Reuse the already validated handoff record; HEP only owns local project/run placement.
+  stageIdeaArtifactsIntoRun({
+    handoffRecord,
+    handoffUri: handoff_uri,
+    runDir,
+  });
 
-  const outlineSeedRef = writeRunJsonArtifact(runId, 'outline_seed_v1.json', outlineSeed);
-
-  // 6. Return result with hint-only next_actions (no args — agent fills from context)
   return {
     run_id: runId,
+    run_dir: runDir,
     project_id: projectId,
     manifest_uri: makeHepRunManifestUri(runId),
-    outline_seed_uri: outlineSeedRef.uri,
+    outline_seed_uri: makeHepRunArtifactUri(runId, 'outline_seed_v1.json'),
     next_actions: [
       {
-        tool: HEP_RUN_PLAN_COMPUTATION,
-        reason: 'Compile the staged outline seed into execution_plan_v1 and materialize computation/manifest.json before any approval request.',
+        tool: ORCH_RUN_PLAN_COMPUTATION,
+        reason: 'Preferred next step: use the generic orchestrator planning entry with this run_id, returned run_dir, and your chosen orchestrator project_root to compile execution_plan_v1 and materialize computation/manifest.json before any approval request.',
       },
       {
         tool: INSPIRE_SEARCH,

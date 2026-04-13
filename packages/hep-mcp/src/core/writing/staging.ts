@@ -1,19 +1,15 @@
 import * as fs from 'fs';
-import { randomUUID } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import {
+  invalidParams,
+  parseStagedContentArtifactV1,
+} from '@autoresearch/shared';
+import { stageContentInRunDir } from '@autoresearch/orchestrator';
 
 import { getRun } from '../runs.js';
-import { getRunArtifactPath } from '../paths.js';
+import { getRunArtifactPath, getRunDir } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { HEP_RUN_STAGE_CONTENT } from '../../tool-names.js';
 import { parseHepRunArtifactUriOrThrow } from '../runArtifactUri.js';
-
-type StagedContentArtifactV1 = {
-  version: 1;
-  staged_at: string;
-  content_type: 'section_output' | 'outline_plan' | 'paperset_curation' | 'revision_plan' | 'reviewer_report' | 'judge_decision';
-  content: string;
-};
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -24,38 +20,38 @@ export async function stageRunContent(params: {
   content_type: 'section_output' | 'outline_plan' | 'paperset_curation' | 'revision_plan' | 'reviewer_report' | 'judge_decision';
   content: string;
   artifact_suffix?: string;
+  task_id?: string;
+  task_kind?: 'draft_update' | 'review';
 }): Promise<{
   run_id: string;
   staging_uri: string;
   artifact_name: string;
   content_bytes: number;
 }> {
-  getRun(params.run_id);
-
-  const suffix = params.artifact_suffix?.trim() ? params.artifact_suffix.trim() : `${Date.now()}_${randomUUID()}`;
-  const artifactName = `staged_${params.content_type}_${suffix}.json`;
-
-  const payload: StagedContentArtifactV1 = {
-    version: 1,
-    staged_at: nowIso(),
-    content_type: params.content_type,
+  const run = getRun(params.run_id);
+  const staged = stageContentInRunDir({
+    runId: params.run_id,
+    runDir: getRunDir(params.run_id),
+    contentType: params.content_type,
     content: params.content,
-  };
-
-  const ref = writeRunJsonArtifact(params.run_id, artifactName, payload);
+    artifactSuffix: params.artifact_suffix,
+    taskId: params.task_id,
+    taskKind: params.task_kind,
+  });
+  const repArtifactName = staged.artifact_name;
 
   return {
     run_id: params.run_id,
-    staging_uri: ref.uri,
-    artifact_name: artifactName,
-    content_bytes: Buffer.byteLength(params.content, 'utf-8'),
+    staging_uri: `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent(repArtifactName)}`,
+    artifact_name: repArtifactName,
+    content_bytes: staged.content_bytes,
   };
 }
 
 export async function readStagedContent(
   run_id: string,
   staging_uri: string,
-  expected_content_type: StagedContentArtifactV1['content_type'] = 'section_output'
+  expected_content_type: 'section_output' | 'outline_plan' | 'paperset_curation' | 'revision_plan' | 'reviewer_report' | 'judge_decision' = 'section_output'
 ): Promise<unknown> {
   const parsed = parseHepRunArtifactUriOrThrow(staging_uri);
   if (parsed.runId !== run_id) {
@@ -91,31 +87,31 @@ export async function readStagedContent(
     });
   }
 
-  const obj = artifact && typeof artifact === 'object' ? (artifact as Record<string, unknown>) : null;
-  const version = obj?.version;
-  const contentType = obj?.content_type;
-  const content = obj?.content;
-
-  if (version !== 1) {
-    throw invalidParams('Unsupported staged artifact version', { run_id, staging_uri, artifact_name: parsed.artifactName, version });
+  let stagedArtifact;
+  try {
+    stagedArtifact = parseStagedContentArtifactV1(artifact);
+  } catch (err) {
+    throw invalidParams('Unsupported staged artifact shape', {
+      run_id,
+      staging_uri,
+      artifact_name: parsed.artifactName,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
-  if (contentType !== expected_content_type) {
+  if (stagedArtifact.content_type !== expected_content_type) {
     throw invalidParams('Unsupported staged content_type', {
       run_id,
       staging_uri,
       artifact_name: parsed.artifactName,
-      content_type: contentType,
+      content_type: stagedArtifact.content_type,
       expected_content_type,
     });
   }
-  if (typeof content !== 'string') {
-    throw invalidParams('Staged content must be a string', { run_id, staging_uri, artifact_name: parsed.artifactName });
-  }
 
   try {
-    return JSON.parse(content);
+    return JSON.parse(stagedArtifact.content);
   } catch (err) {
-    const preview = content.length > 512 ? `${content.slice(0, 512)}…` : content;
+    const preview = stagedArtifact.content.length > 512 ? `${stagedArtifact.content.slice(0, 512)}…` : stagedArtifact.content;
     const parseErrRef = writeRunJsonArtifact(run_id, `writing_parse_error_staged_content_${parsed.artifactName}.json`, {
       version: 1,
       generated_at: nowIso(),
@@ -125,7 +121,7 @@ export async function readStagedContent(
       expected_content_type,
       error: err instanceof Error ? err.message : String(err),
       content_preview: preview,
-      content_bytes: Buffer.byteLength(content, 'utf-8'),
+      content_bytes: Buffer.byteLength(stagedArtifact.content, 'utf-8'),
     });
     throw invalidParams('Staged content is not valid JSON (fail-fast)', {
       run_id,

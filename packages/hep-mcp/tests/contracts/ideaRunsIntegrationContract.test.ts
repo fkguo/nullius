@@ -2,14 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import { createFromIdea } from '../../src/tools/create-from-idea.js';
 import { getRun } from '../../src/core/runs.js';
 
 function makeHandoff(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    campaign_id: '00000000-0000-0000-0000-000000000011',
-    node_id: '00000000-0000-0000-0000-000000000022',
-    idea_id: '00000000-0000-0000-0000-000000000033',
+    campaign_id: '11111111-1111-4111-8111-111111111111',
+    node_id: '22222222-2222-4222-8222-222222222222',
+    idea_id: '33333333-3333-4333-8333-333333333333',
     promoted_at: '2026-01-01T00:00:00Z',
     idea_card: {
       thesis_statement: 'Dispersive constraints can tighten hadronic light-by-light uncertainty in muon g-2.',
@@ -23,6 +24,12 @@ function makeHandoff(overrides: Record<string, unknown> = {}): Record<string, un
           evidence_uris: ['https://inspirehep.net/literature/12345'],
         },
       ],
+    },
+    grounding_audit: {
+      status: 'pass',
+      folklore_risk_score: 0.1,
+      failures: [],
+      timestamp: '2026-01-01T00:00:00Z',
     },
     ...overrides,
   };
@@ -41,6 +48,7 @@ describe('idea-runs integration contract', () => {
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     delete process.env.HEP_DATA_DIR;
+    delete process.env.IDEA_MCP_DATA_DIR;
   });
 
   it('enforces artifact naming and path contract for created run', () => {
@@ -54,34 +62,13 @@ describe('idea-runs integration contract', () => {
     const argsSnapshotPath = path.join(artifactsDir, 'args_snapshot.json');
     const outlineSeedPath = path.join(artifactsDir, 'outline_seed_v1.json');
 
+    expect(result.run_dir).toBe(runDir);
     expect(fs.existsSync(argsSnapshotPath)).toBe(true);
     expect(fs.existsSync(outlineSeedPath)).toBe(true);
     expect(result.manifest_uri).toBe(`hep://runs/${encodeURIComponent(result.run_id)}/manifest`);
     expect(result.outline_seed_uri).toBe(
       `hep://runs/${encodeURIComponent(result.run_id)}/artifact/outline_seed_v1.json`,
     );
-  });
-
-  it('maps idea_card fields to outline_seed_v1 with source handoff provenance', () => {
-    const handoffPath = path.join(tmpDir, 'handoff-map.json');
-    const handoff = makeHandoff();
-    fs.writeFileSync(handoffPath, JSON.stringify(handoff), 'utf-8');
-
-    const result = createFromIdea({ handoff_uri: handoffPath, run_label: 'batch2-contract' });
-
-    const outlineSeedPath = path.join(tmpDir, 'runs', result.run_id, 'artifacts', 'outline_seed_v1.json');
-    const outlineSeed = JSON.parse(fs.readFileSync(outlineSeedPath, 'utf-8')) as {
-      thesis: string;
-      claims: unknown[];
-      hypotheses: string[];
-      source_handoff_uri: string;
-    };
-
-    const ideaCard = handoff.idea_card as Record<string, unknown>;
-    expect(outlineSeed.thesis).toBe(ideaCard.thesis_statement);
-    expect(outlineSeed.claims).toEqual(ideaCard.claims);
-    expect(outlineSeed.hypotheses).toEqual(ideaCard.testable_hypotheses);
-    expect(outlineSeed.source_handoff_uri).toBe(handoffPath);
   });
 
   it('keeps key cross references consistent across result, manifest, args snapshot, and outline seed', () => {
@@ -118,5 +105,56 @@ describe('idea-runs integration contract', () => {
     expect(argsSnapshot.args_snapshot.run_label).toBe('xref-check');
 
     expect(outlineSeed.source_handoff_uri).toBe(handoffPath);
+  });
+
+  it('accepts file:// handoff refs inside IDEA_MCP_DATA_DIR and preserves provenance', () => {
+    const ideaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idea-handoff-contract-'));
+    try {
+      process.env.IDEA_MCP_DATA_DIR = ideaDir;
+      const handoffPath = path.join(ideaDir, 'handoff-file-uri.json');
+      fs.writeFileSync(handoffPath, JSON.stringify(makeHandoff()), 'utf-8');
+
+      const handoffUri = pathToFileURL(handoffPath).href;
+      const result = createFromIdea({ handoff_uri: handoffUri });
+      const outlineSeedPath = path.join(tmpDir, 'runs', result.run_id, 'artifacts', 'outline_seed_v1.json');
+      const outlineSeed = JSON.parse(fs.readFileSync(outlineSeedPath, 'utf-8')) as {
+        source_handoff_uri: string;
+      };
+
+      expect(outlineSeed.source_handoff_uri).toBe(handoffUri);
+    } finally {
+      fs.rmSync(ideaDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed when file:// handoff refs are used without IDEA_MCP_DATA_DIR', () => {
+    const ideaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idea-handoff-contract-'));
+    try {
+      const handoffPath = path.join(ideaDir, 'handoff-file-uri.json');
+      fs.writeFileSync(handoffPath, JSON.stringify(makeHandoff()), 'utf-8');
+
+      expect(() => createFromIdea({ handoff_uri: pathToFileURL(handoffPath).href })).toThrow(
+        'file:// handoff_uri requires IDEA_MCP_DATA_DIR to be set',
+      );
+    } finally {
+      fs.rmSync(ideaDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed when file:// handoff refs point outside IDEA_MCP_DATA_DIR', () => {
+    const ideaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idea-handoff-contract-'));
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idea-handoff-outside-'));
+    try {
+      process.env.IDEA_MCP_DATA_DIR = ideaDir;
+      const handoffPath = path.join(outsideDir, 'handoff-file-uri.json');
+      fs.writeFileSync(handoffPath, JSON.stringify(makeHandoff()), 'utf-8');
+
+      expect(() => createFromIdea({ handoff_uri: pathToFileURL(handoffPath).href })).toThrow(
+        'handoff_uri must be within',
+      );
+    } finally {
+      fs.rmSync(ideaDir, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 });

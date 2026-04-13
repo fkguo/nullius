@@ -27,6 +27,47 @@ function makeVerificationArtifactRef(runId: string, artifactName: string, conten
   };
 }
 
+function writeRunArtifactJson(runArtifactsDir: string, artifactName: string, payload: unknown) {
+  fs.writeFileSync(
+    path.join(runArtifactsDir, artifactName),
+    JSON.stringify(payload, null, 2) + '\n',
+    'utf-8',
+  );
+}
+
+function makeBridgePayloadBase(params: {
+  runId: string;
+  summary: string;
+  outputContent: string;
+  verificationRefs?: {
+    subject_refs?: Array<{ uri: string; sha256: string }>;
+    check_run_refs?: Array<{ uri: string; sha256: string }>;
+    subject_verdict_refs?: Array<{ uri: string; sha256: string }>;
+    coverage_refs?: Array<{ uri: string; sha256: string }>;
+  };
+}) {
+  return {
+    schema_version: 1,
+    run_id: params.runId,
+    objective_title: 'Bridge-only refresh',
+    feedback_signal: 'success',
+    decision_kind: 'capture_finding',
+    summary: params.summary,
+    computation_result_uri: runArtifactUri(params.runId, 'artifacts/computation_result_v1.json'),
+    manifest_ref: {
+      uri: runArtifactUri(params.runId, 'computation/manifest.json'),
+      sha256: 'a'.repeat(64),
+    },
+    produced_artifact_refs: [
+      {
+        uri: runArtifactUri(params.runId, 'artifacts/task_001.json'),
+        sha256: sha256(params.outputContent),
+      },
+    ],
+    verification_refs: params.verificationRefs,
+  };
+}
+
 describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semantic query', () => {
   let dataDir: string;
   let originalDataDirEnv: string | undefined;
@@ -292,7 +333,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(status.summary.skipped).toBe(0);
   });
 
-  it('accepts computation followup bridge artifacts as the typed verification metadata authority', async () => {
+  it('ingests computation followup bridge artifacts as downstream consumer metadata', async () => {
     const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence bridge', description: 'semantic-query' });
     const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
     const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
@@ -373,35 +414,18 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
 
     const writingBridgeArtifactName = 'writing_followup_bridge_v1.json';
     const reviewBridgeArtifactName = 'review_followup_bridge_v1.json';
-    const bridgePayloadBase = {
-      schema_version: 1,
-      run_id: run.run_id,
-      objective_title: 'Bridge-only refresh',
-      feedback_signal: 'success',
-      decision_kind: 'capture_finding',
+    const bridgePayloadBase = makeBridgePayloadBase({
+      runId: run.run_id,
       summary: 'Bridge seed should refresh writing evidence metadata without faking LaTeX evidence.',
-      computation_result_uri: runArtifactUri(run.run_id, 'artifacts/computation_result_v1.json'),
-      manifest_ref: {
-        uri: runArtifactUri(run.run_id, 'computation/manifest.json'),
-        sha256: 'a'.repeat(64),
-      },
-      produced_artifact_refs: [
-        {
-          uri: runArtifactUri(run.run_id, 'artifacts/task_001.json'),
-          sha256: sha256(outputContent),
-        },
-      ],
-      verification_refs: {
+      outputContent,
+      verificationRefs: {
         subject_refs: [subjectRef],
         subject_verdict_refs: [verdictRef],
         coverage_refs: [coverageRef],
       },
-    };
-    fs.writeFileSync(
-      path.join(runArtifactsDir, writingBridgeArtifactName),
-      JSON.stringify({
+    });
+    writeRunArtifactJson(runArtifactsDir, writingBridgeArtifactName, {
         ...bridgePayloadBase,
-        schema_version: 1,
         bridge_kind: 'writing',
         target: {
           task_kind: 'draft_update',
@@ -413,19 +437,13 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
             manifest_uri: runArtifactUri(run.run_id, 'computation/manifest.json'),
             summary: 'Bridge seed should refresh writing evidence metadata without faking LaTeX evidence.',
             produced_artifact_uris: [runArtifactUri(run.run_id, 'artifacts/task_001.json')],
-            finding_node_ids: ['finding:test'],
-            draft_node_id: 'draft-seed:run',
           },
         },
         context: {
           draft_context_mode: 'seeded_draft',
         },
-      }, null, 2) + '\n',
-      'utf-8',
-    );
-    fs.writeFileSync(
-      path.join(runArtifactsDir, reviewBridgeArtifactName),
-      JSON.stringify({
+      });
+    writeRunArtifactJson(runArtifactsDir, reviewBridgeArtifactName, {
         ...bridgePayloadBase,
         bridge_kind: 'review',
         target: {
@@ -438,30 +456,17 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
             manifest_uri: runArtifactUri(run.run_id, 'computation/manifest.json'),
             summary: 'Bridge seed should refresh writing evidence metadata without faking LaTeX evidence.',
             produced_artifact_uris: [runArtifactUri(run.run_id, 'artifacts/task_001.json')],
-            issue_node_id: 'review:run',
-            target_draft_node_id: 'draft-seed:run',
-            source_artifact_name: 'staged_reviewer_report_fixture.json',
-            source_content_type: 'reviewer_report',
           },
         },
         handoff: {
           handoff_kind: 'review',
           target_node_id: 'review:run',
-          payload: {
-            issue_node_id: 'review:run',
-            target_draft_node_id: 'draft-seed:run',
-          },
+          payload: {},
         },
         context: {
           draft_context_mode: 'existing_draft',
-          draft_source_artifact_name: 'staged_section_output_fixture.json',
-          draft_source_content_type: 'section_output',
-          review_source_artifact_name: 'staged_reviewer_report_fixture.json',
-          review_source_content_type: 'reviewer_report',
         },
-      }, null, 2) + '\n',
-      'utf-8',
-    );
+      });
 
     const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
       run_id: run.run_id,
@@ -502,14 +507,14 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(status.summary.failed).toBe(0);
 
     const meta = JSON.parse(String((readHepResource(metaUri!) as any).text)) as {
-      bridges: Array<{ artifact_name: string; bridge_kind: string; task_kind: string; produced_artifact_count: number }>;
+      bridges: Array<{ artifact_name: string; bridge_kind: string; task_kind: string; target_node_id: string; produced_artifact_count: number }>;
       verification: {
         subject_refs: Array<{ uri: string }>;
         check_run_refs: Array<{ uri: string }>;
         subject_verdict_refs: Array<{ uri: string }>;
         coverage_refs: Array<{ uri: string }>;
-        subject_verdicts: Array<{ uri: string; subject_id: string; status: string; missing_decisive_checks: Array<{ check_kind: string; reason: string; priority: string }> }>;
-        coverage: Array<{ uri: string; summary: { subjects_not_attempted: number }; missing_decisive_checks: Array<{ subject_id: string; check_kind: string; reason: string; priority: string }> }>;
+        subject_verdicts: Array<{ uri: string; subject_id: string; status: string }>;
+        coverage: Array<{ uri: string; summary: { subjects_not_attempted: number } }>;
       };
       sources_summary: { succeeded: number };
     };
@@ -520,12 +525,14 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
         artifact_name: writingBridgeArtifactName,
         bridge_kind: 'writing',
         task_kind: 'draft_update',
+        target_node_id: 'draft-seed:run',
         produced_artifact_count: 1,
       }),
       expect.objectContaining({
         artifact_name: reviewBridgeArtifactName,
         bridge_kind: 'review',
         task_kind: 'review',
+        target_node_id: 'review:run',
         produced_artifact_count: 1,
       }),
     ]));
@@ -533,33 +540,21 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(meta.verification.check_run_refs).toEqual([]);
     expect(meta.verification.subject_verdict_refs).toEqual([verdictRef]);
     expect(meta.verification.coverage_refs).toEqual([coverageRef]);
-    expect(meta.verification.subject_verdicts).toEqual([{
-      uri: verdictRef.uri,
-      subject_id: `result:${run.run_id}:computation_result`,
-      status: 'not_attempted',
-      missing_decisive_checks: [{
-        check_kind: 'decisive_verification_pending',
-        reason: 'Decisive verification has not been attempted yet.',
-        priority: 'high',
-      }],
-    }]);
-    expect(meta.verification.coverage).toEqual([{
-      uri: coverageRef.uri,
-      summary: {
-        subjects_total: 1,
-        subjects_verified: 0,
-        subjects_partial: 0,
-        subjects_failed: 0,
-        subjects_blocked: 0,
-        subjects_not_attempted: 1,
-      },
-      missing_decisive_checks: [{
+    expect(meta.verification.subject_verdicts).toEqual([
+      expect.objectContaining({
+        uri: verdictRef.uri,
         subject_id: `result:${run.run_id}:computation_result`,
-        check_kind: 'decisive_verification_pending',
-        reason: 'Decisive verification has not been attempted yet.',
-        priority: 'high',
-      }],
-    }]);
+        status: 'not_attempted',
+      }),
+    ]);
+    expect(meta.verification.coverage).toEqual([
+      expect.objectContaining({
+        uri: coverageRef.uri,
+        summary: expect.objectContaining({
+          subjects_not_attempted: 1,
+        }),
+      }),
+    ]);
   });
 
   it('does not re-export the deleted heuristic verification surface from the research barrel', async () => {
@@ -647,6 +642,312 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
       error_code: 'BRIDGE_PARSE_ERROR',
     });
     expect(status.summary.succeeded).toBe(0);
+    expect(status.summary.failed).toBe(1);
+  });
+
+  it('treats malformed nested bridge shape as a bridge-source failure and writes source status before failing', async () => {
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence malformed bridge', description: 'semantic-query' });
+    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
+    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    const runArtifactsDir = path.join(dataDir, 'runs', run.run_id, 'artifacts');
+    fs.mkdirSync(runArtifactsDir, { recursive: true });
+    const outputContent = JSON.stringify({ amplitude: 2.34 }, null, 2) + '\n';
+    fs.writeFileSync(path.join(runArtifactsDir, 'task_001.json'), outputContent, 'utf-8');
+
+    fs.writeFileSync(
+      path.join(runArtifactsDir, 'writing_followup_bridge_v1.json'),
+      JSON.stringify({
+        schema_version: 1,
+        bridge_kind: 'writing',
+        run_id: run.run_id,
+        objective_title: 'Malformed nested bridge',
+        feedback_signal: 'success',
+        decision_kind: 'capture_finding',
+        summary: 'Malformed nested bridge should fail closed.',
+        computation_result_uri: runArtifactUri(run.run_id, 'artifacts/computation_result_v1.json'),
+        manifest_ref: {
+          uri: runArtifactUri(run.run_id, 'computation/manifest.json'),
+          sha256: 'c'.repeat(64),
+        },
+        produced_artifact_refs: {
+          uri: runArtifactUri(run.run_id, 'artifacts/task_001.json'),
+          sha256: sha256(outputContent),
+        },
+        target: {
+          title: 'Broken bridge',
+          suggested_content_type: 'section_output',
+          seed_payload: {
+            computation_result_uri: runArtifactUri(run.run_id, 'artifacts/computation_result_v1.json'),
+            manifest_uri: runArtifactUri(run.run_id, 'computation/manifest.json'),
+            summary: 'Malformed nested bridge should fail closed.',
+            produced_artifact_uris: [runArtifactUri(run.run_id, 'artifacts/task_001.json')],
+          },
+        },
+        context: {
+          draft_context_mode: 'seeded_draft',
+        },
+      }, null, 2) + '\n',
+      'utf-8',
+    );
+
+    const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
+      run_id: run.run_id,
+      bridge_artifact_names: ['writing_followup_bridge_v1.json'],
+    });
+    expect(buildRes.isError).toBe(true);
+
+    const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
+    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+      sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
+      summary: { succeeded: number; failed: number };
+    };
+    expect(status.sources).toHaveLength(1);
+    expect(status.sources[0]).toMatchObject({
+      source_kind: 'bridge',
+      identifier: 'writing_followup_bridge_v1.json',
+      status: 'failed',
+      error_code: 'BRIDGE_PARSE_ERROR',
+    });
+    expect(status.summary.succeeded).toBe(0);
+    expect(status.summary.failed).toBe(1);
+  });
+
+  it('treats cross-run bridge verification refs as a bridge-source failure and writes source status before failing', async () => {
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence cross-run bridge ref', description: 'semantic-query' });
+    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
+    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    const runArtifactsDir = path.join(dataDir, 'runs', run.run_id, 'artifacts');
+    fs.mkdirSync(runArtifactsDir, { recursive: true });
+    const outputContent = JSON.stringify({ amplitude: 3.45 }, null, 2) + '\n';
+    fs.writeFileSync(path.join(runArtifactsDir, 'task_001.json'), outputContent, 'utf-8');
+
+    writeRunArtifactJson(runArtifactsDir, 'writing_followup_bridge_v1.json', {
+      ...makeBridgePayloadBase({
+        runId: run.run_id,
+        summary: 'Cross-run verification refs should fail closed.',
+        outputContent,
+        verificationRefs: {
+          subject_verdict_refs: [
+            {
+              uri: runArtifactUri('other-run', 'artifacts/verification_subject_verdict_computation_result_v1.json'),
+              sha256: 'd'.repeat(64),
+            },
+          ],
+        },
+      }),
+      bridge_kind: 'writing',
+      target: {
+        task_kind: 'draft_update',
+        title: 'Cross-run bridge',
+        target_node_id: 'draft-seed:run',
+        suggested_content_type: 'section_output',
+        seed_payload: {
+          computation_result_uri: runArtifactUri(run.run_id, 'artifacts/computation_result_v1.json'),
+          manifest_uri: runArtifactUri(run.run_id, 'computation/manifest.json'),
+          summary: 'Cross-run verification refs should fail closed.',
+          produced_artifact_uris: [runArtifactUri(run.run_id, 'artifacts/task_001.json')],
+        },
+      },
+      context: {
+        draft_context_mode: 'seeded_draft',
+      },
+    });
+
+    const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
+      run_id: run.run_id,
+      bridge_artifact_names: ['writing_followup_bridge_v1.json'],
+    });
+    expect(buildRes.isError).toBe(true);
+
+    const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
+    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+      sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
+      summary: { succeeded: number; failed: number };
+    };
+    expect(status.sources).toHaveLength(1);
+    expect(status.sources[0]).toMatchObject({
+      source_kind: 'bridge',
+      identifier: 'writing_followup_bridge_v1.json',
+      status: 'failed',
+      error_code: 'BRIDGE_PARSE_ERROR',
+    });
+    expect(status.summary.succeeded).toBe(0);
+    expect(status.summary.failed).toBe(1);
+  });
+
+  it('treats malformed verification subject verdict artifacts as a bridge-source failure and writes source status before failing', async () => {
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence malformed verdict meta', description: 'semantic-query' });
+    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
+    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    const runArtifactsDir = path.join(dataDir, 'runs', run.run_id, 'artifacts');
+    fs.mkdirSync(runArtifactsDir, { recursive: true });
+    const outputContent = JSON.stringify({ amplitude: 4.56 }, null, 2) + '\n';
+    fs.writeFileSync(path.join(runArtifactsDir, 'task_001.json'), outputContent, 'utf-8');
+    writeRunArtifactJson(runArtifactsDir, 'verification_subject_verdict_computation_result_v1.json', {
+      schema_version: 1,
+      subject_id: `result:${run.run_id}:computation_result`,
+      status: 'not_attempted',
+      missing_decisive_checks: [
+        {
+          check_kind: 'decisive_verification_pending',
+          priority: 'high',
+        },
+      ],
+    });
+
+    writeRunArtifactJson(runArtifactsDir, 'writing_followup_bridge_v1.json', {
+      ...makeBridgePayloadBase({
+        runId: run.run_id,
+        summary: 'Malformed verdict meta should fail closed.',
+        outputContent,
+        verificationRefs: {
+          subject_verdict_refs: [
+            makeVerificationArtifactRef(
+              run.run_id,
+              'verification_subject_verdict_computation_result_v1.json',
+              JSON.stringify({
+                schema_version: 1,
+                subject_id: `result:${run.run_id}:computation_result`,
+                status: 'not_attempted',
+                missing_decisive_checks: [
+                  {
+                    check_kind: 'decisive_verification_pending',
+                    priority: 'high',
+                  },
+                ],
+              }, null, 2) + '\n',
+            ),
+          ],
+        },
+      }),
+      bridge_kind: 'writing',
+      target: {
+        task_kind: 'draft_update',
+        title: 'Broken verdict meta bridge',
+        target_node_id: 'draft-seed:run',
+        suggested_content_type: 'section_output',
+        seed_payload: {
+          computation_result_uri: runArtifactUri(run.run_id, 'artifacts/computation_result_v1.json'),
+          manifest_uri: runArtifactUri(run.run_id, 'computation/manifest.json'),
+          summary: 'Malformed verdict meta should fail closed.',
+          produced_artifact_uris: [runArtifactUri(run.run_id, 'artifacts/task_001.json')],
+        },
+      },
+      context: {
+        draft_context_mode: 'seeded_draft',
+      },
+    });
+
+    const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
+      run_id: run.run_id,
+      bridge_artifact_names: ['writing_followup_bridge_v1.json'],
+    });
+    expect(buildRes.isError).toBe(true);
+
+    const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
+    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+      sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
+      summary: { succeeded: number; failed: number };
+    };
+    expect(status.sources[0]).toMatchObject({
+      source_kind: 'bridge',
+      identifier: 'writing_followup_bridge_v1.json',
+      status: 'failed',
+      error_code: 'BRIDGE_PARSE_ERROR',
+    });
+    expect(status.summary.failed).toBe(1);
+  });
+
+  it('treats malformed verification coverage artifacts as a bridge-source failure and writes source status before failing', async () => {
+    const projectRes = await handleToolCall('hep_project_create', { name: 'writing evidence malformed coverage meta', description: 'semantic-query' });
+    const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+    const runRes = await handleToolCall('hep_run_create', { project_id: project.project_id });
+    const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+    const runArtifactsDir = path.join(dataDir, 'runs', run.run_id, 'artifacts');
+    fs.mkdirSync(runArtifactsDir, { recursive: true });
+    const outputContent = JSON.stringify({ amplitude: 5.67 }, null, 2) + '\n';
+    fs.writeFileSync(path.join(runArtifactsDir, 'task_001.json'), outputContent, 'utf-8');
+    writeRunArtifactJson(runArtifactsDir, 'verification_coverage_v1.json', {
+      schema_version: 1,
+      summary: {
+        subjects_total: 'many',
+        subjects_verified: 0,
+        subjects_partial: 0,
+        subjects_failed: 0,
+        subjects_blocked: 0,
+        subjects_not_attempted: 1,
+      },
+      missing_decisive_checks: [],
+    });
+
+    writeRunArtifactJson(runArtifactsDir, 'writing_followup_bridge_v1.json', {
+      ...makeBridgePayloadBase({
+        runId: run.run_id,
+        summary: 'Malformed coverage meta should fail closed.',
+        outputContent,
+        verificationRefs: {
+          coverage_refs: [
+            makeVerificationArtifactRef(
+              run.run_id,
+              'verification_coverage_v1.json',
+              JSON.stringify({
+                schema_version: 1,
+                summary: {
+                  subjects_total: 'many',
+                  subjects_verified: 0,
+                  subjects_partial: 0,
+                  subjects_failed: 0,
+                  subjects_blocked: 0,
+                  subjects_not_attempted: 1,
+                },
+                missing_decisive_checks: [],
+              }, null, 2) + '\n',
+            ),
+          ],
+        },
+      }),
+      bridge_kind: 'writing',
+      target: {
+        task_kind: 'draft_update',
+        title: 'Broken coverage meta bridge',
+        target_node_id: 'draft-seed:run',
+        suggested_content_type: 'section_output',
+        seed_payload: {
+          computation_result_uri: runArtifactUri(run.run_id, 'artifacts/computation_result_v1.json'),
+          manifest_uri: runArtifactUri(run.run_id, 'computation/manifest.json'),
+          summary: 'Malformed coverage meta should fail closed.',
+          produced_artifact_uris: [runArtifactUri(run.run_id, 'artifacts/task_001.json')],
+        },
+      },
+      context: {
+        draft_context_mode: 'seeded_draft',
+      },
+    });
+
+    const buildRes = await handleToolCall('hep_run_build_writing_evidence', {
+      run_id: run.run_id,
+      bridge_artifact_names: ['writing_followup_bridge_v1.json'],
+    });
+    expect(buildRes.isError).toBe(true);
+
+    const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
+    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+      sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
+      summary: { succeeded: number; failed: number };
+    };
+    expect(status.sources[0]).toMatchObject({
+      source_kind: 'bridge',
+      identifier: 'writing_followup_bridge_v1.json',
+      status: 'failed',
+      error_code: 'BRIDGE_PARSE_ERROR',
+    });
     expect(status.summary.failed).toBe(1);
   });
 

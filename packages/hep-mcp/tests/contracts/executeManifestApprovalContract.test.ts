@@ -3,8 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { StateManager } from '@autoresearch/orchestrator';
-import { handleToolCall } from '../../src/tools/index.js';
+import { StateManager, handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'execute-manifest-approval-'));
@@ -29,7 +28,7 @@ afterEach(() => {
   }
 });
 
-describe('hep_run_execute_manifest approval contract', () => {
+describe('orch_run_execute_manifest approval contract', () => {
   it('requires A3 approval before executing the manifest', async () => {
     const projectRoot = makeTmpDir();
     CLEANUP_DIRS.push(projectRoot);
@@ -74,12 +73,13 @@ describe('hep_run_execute_manifest approval contract', () => {
     const state = manager.readState();
     manager.createRun(state, runId, 'computation');
 
-    const result = await handleToolCall(
-      'hep_run_execute_manifest',
+    const result = await handleOrchToolCall(
+      'orch_run_execute_manifest',
       {
         _confirm: true,
         project_root: projectRoot,
         run_id: runId,
+        run_dir: runDir,
         manifest_path: 'computation/manifest.json',
       },
       'full',
@@ -138,12 +138,13 @@ describe('hep_run_execute_manifest approval contract', () => {
     const state = manager.readState();
     manager.createRun(state, runId, 'computation');
 
-    const result = await handleToolCall(
-      'hep_run_execute_manifest',
+    const result = await handleOrchToolCall(
+      'orch_run_execute_manifest',
       {
         _confirm: true,
         project_root: projectRoot,
         run_id: runId,
+        run_dir: runDir,
         manifest_path: 'computation/manifest.json',
       },
       'full',

@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-04-04T14:56:23.521Z",
-  "commit": "14a9502",
+  "generated_at": "2026-04-12T15:16:13.653Z",
+  "commit": "595b575",
   "mode": "standard",
-  "count": 72,
+  "count": 70,
   "tools": [
     "arxiv_get_metadata",
     "arxiv_paper_source",
@@ -28,8 +28,6 @@
     "hep_run_build_writing_evidence",
     "hep_run_clear_manifest_lock",
     "hep_run_create",
-    "hep_run_create_from_idea",
-    "hep_run_plan_computation",
     "hep_run_read_artifact_chunk",
     "hep_run_stage_content",
     "hepdata_download",

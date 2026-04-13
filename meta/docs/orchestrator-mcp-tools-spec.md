@@ -12,9 +12,9 @@
 
 | Namespace | Owner | Scope |
 |---|---|---|
-| `orch_run_*` | `@autoresearch/orchestrator` | Project-root run lifecycle, approvals, export, and bounded agent runtime execution |
-| `orch_policy_*` | `@autoresearch/orchestrator` | Read-only policy inspection for approval/operation gates |
-| `orch_fleet_*` | `@autoresearch/orchestrator` | Queue and worker coordination for the per-project fleet substrate |
+| orchestrator run-tool family | `@autoresearch/orchestrator` | Project-root run lifecycle, approvals, export, and bounded agent runtime execution |
+| orchestrator policy-tool family | `@autoresearch/orchestrator` | Read-only policy inspection for approval/operation gates |
+| orchestrator fleet-tool family | `@autoresearch/orchestrator` | Queue and worker coordination for the per-project fleet substrate |
 | `hep_run_*` | `@autoresearch/hep-mcp` | Evidence-first run artifacts and run-scoped research assets |
 | `hep_project_*` | `@autoresearch/hep-mcp` | Project-level evidence/query/export operations |
 | `inspire_*` / `hepdata_*` / `openalex_*` / `arxiv_*` | provider packages | Network/data retrieval and literature analysis |
@@ -30,6 +30,10 @@
 | Tool | Risk | Live responsibility |
 |---|---|---|
 | `orch_run_create` | `write` | Initialize or replay an orchestrator run in a project root |
+| `orch_run_stage_idea` | `write` | Stage IdeaHandoffC2 artifacts into an existing domain-owned run directory |
+| `orch_run_stage_content` | `write` | Stage generic writing/review content into an existing run directory and return a `rep://runs/.../artifact/...` staging URI; loop-owned draft/review tasks may attach task-scoped provenance so completion and downstream review refresh can fail closed on missing outputs |
+| `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and `computation/manifest.json` |
+| `orch_run_execute_manifest` | `destructive` | Execute a staged `computation_manifest_v1` from an existing run directory |
 | `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json` |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
 | `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification |
@@ -39,6 +43,9 @@
 | `orch_run_approvals_list` | `read` | Inspect pending and historical approvals for a run |
 | `orch_run_export` | `destructive` | Export run summary/artifact listing |
 | `orch_run_execute_agent` | `destructive` | Execute an orchestrator agent runtime with persisted checkpoints |
+| `orch_run_stage_idea` | `write` | Stage an IdeaHandoffC2 artifact into a domain-owned run directory |
+| `orch_run_plan_computation` | `write` | Compile staged idea artifacts from a run directory into execution_plan_v1 and computation/manifest.json |
+| `orch_run_execute_manifest` | `destructive` | Execute a computation_manifest_v1 plan from an existing run directory |
 
 #### Policy surface
 
@@ -98,7 +105,7 @@ Fleet tools operate on queue items and worker ids rather than on artifact ids or
 1. `orch_*` is workflow-agnostic. It owns control-plane semantics, not domain DAG content.
 2. Domain tools must not mutate `.autoresearch/state.json`, ledger state, queue state, or approval packets directly.
 3. Approval resolution lives on `orch_run_status`, `orch_run_approvals_list`, `orch_run_approve`, and `orch_run_reject`; domain tools may trigger the need for a gate but do not own the gate state.
-4. Fleet semantics live on `orch_fleet_*`; they are not hidden behind domain packs or legacy Python shells.
+4. Fleet semantics live on the orchestrator fleet-tool family; they are not hidden behind domain packs or legacy Python shells.
 5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.
 
 ### 2.3 Interaction Sketch
@@ -107,6 +114,10 @@ Fleet tools operate on queue items and worker ids rather than on artifact ids or
 Agent / operator
   │
   ├──► orch_run_create(project_root, run_id)            → initialize / replay run
+  ├──► orch_run_stage_idea(run_dir, handoff_path, ...)  → stage provider-local idea artifacts
+  ├──► orch_run_stage_content(run_dir, content_type, ...) → stage generic writing/review artifacts
+  ├──► orch_run_plan_computation(...)                   → compile staged idea into execution plan + manifest
+  ├──► orch_run_execute_manifest(...)                   → execute approved computation manifest
   ├──► orch_run_status(project_root)                    → lifecycle snapshot
   ├──► hep_run_* / hep_project_* / inspire_* ...        → strategy/domain work
   ├──► orch_run_approvals_list(project_root, run_id)    → inspect pending gates
@@ -154,7 +165,7 @@ Agent / operator
 **Threat**: an agent executes destructive control-plane actions without operator intent.
 
 **Mitigations**:
-- `orch_run_approve`, `orch_run_reject`, `orch_run_export`, and `orch_run_execute_agent` are destructive and require `_confirm: true`.
+- `orch_run_approve`, `orch_run_reject`, `orch_run_export`, `orch_run_execute_manifest`, and `orch_run_execute_agent` are destructive and require `_confirm: true`.
 - The destructive surface is intentionally smaller than the full `orch_*` family; read/write semantics are explicit in the registry/tests.
 - Fleet mutation surfaces are write-only rather than destructive, but still require explicit worker/queue identifiers and notes for sensitive transitions.
 
@@ -174,7 +185,7 @@ This keeps approval state on the control plane even when the underlying need for
 
 ### 4.2 Fleet flow
 
-`orch_fleet_*` is the only live scheduler-facing surface:
+The orchestrator fleet-tool family is the only live scheduler-facing surface:
 
 1. enqueue a run with `orch_fleet_enqueue`
 2. heartbeat or poll workers with `orch_fleet_worker_heartbeat` / `orch_fleet_worker_poll`

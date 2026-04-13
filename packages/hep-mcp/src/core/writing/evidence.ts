@@ -1,7 +1,10 @@
 import * as fs from 'fs';
 import {
   invalidParams,
+  safeParseWritingReviewBridgeV1,
   parseScopedArtifactUri,
+  safeParseVerificationCoverageMetaV1,
+  safeParseVerificationSubjectVerdictMetaV1,
   type ArtifactRefV1,
   type EvidenceCatalogItemV1,
   type EvidenceType,
@@ -224,14 +227,15 @@ function readBridgeArtifact(runId: string, artifactName: string): WritingReviewB
     throw invalidParams('Bridge artifact not found', { run_id: runId, artifact_name: artifactName });
   }
   const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as unknown;
-  if (!parsed || typeof parsed !== 'object') {
-    throw invalidParams('Bridge artifact must be a JSON object', { run_id: runId, artifact_name: artifactName });
+  const bridge = safeParseWritingReviewBridgeV1(parsed);
+  if (!bridge.ok) {
+    throw invalidParams('Unsupported bridge artifact shape', {
+      run_id: runId,
+      artifact_name: artifactName,
+      issues: bridge.issues,
+    });
   }
-  const bridge = parsed as Partial<WritingReviewBridgeV1>;
-  if (bridge.schema_version !== 1 || typeof bridge.bridge_kind !== 'string') {
-    throw invalidParams('Unsupported bridge artifact shape', { run_id: runId, artifact_name: artifactName });
-  }
-  return bridge as WritingReviewBridgeV1;
+  return bridge.value;
 }
 
 type VerificationSubjectVerdictMetaV1 = {
@@ -369,43 +373,19 @@ function readVerificationSubjectVerdictMeta(params: {
     bridgeArtifactName: params.bridgeArtifactName,
     ref: params.ref,
     refBucket: 'subject_verdict_refs',
-  }) as Partial<VerificationSubjectVerdictV1>;
-  if (
-    parsed.schema_version !== 1
-    || typeof parsed.subject_id !== 'string'
-    || typeof parsed.status !== 'string'
-    || !Array.isArray(parsed.missing_decisive_checks)
-  ) {
+  });
+  const verdict = safeParseVerificationSubjectVerdictMetaV1(parsed);
+  if (!verdict.ok) {
     throw invalidParams('Unsupported verification subject verdict artifact shape', {
       run_id: params.runId,
       bridge_artifact_name: params.bridgeArtifactName,
       uri: params.ref.uri,
+      issues: verdict.issues,
     });
   }
   return {
     uri: params.ref.uri,
-    subject_id: parsed.subject_id,
-    status: parsed.status as VerificationSubjectVerdictV1['status'],
-    missing_decisive_checks: parsed.missing_decisive_checks.map(check => {
-      if (
-        !check
-        || typeof check !== 'object'
-        || typeof check.check_kind !== 'string'
-        || typeof check.reason !== 'string'
-        || !['low', 'medium', 'high'].includes(String(check.priority))
-      ) {
-        throw invalidParams('Unsupported verification subject verdict missing-check shape', {
-          run_id: params.runId,
-          bridge_artifact_name: params.bridgeArtifactName,
-          uri: params.ref.uri,
-        });
-      }
-      return {
-        check_kind: check.check_kind,
-        reason: check.reason,
-        priority: check.priority as 'low' | 'medium' | 'high',
-      };
-    }),
+    ...verdict.value,
   };
 }
 
@@ -419,52 +399,19 @@ function readVerificationCoverageMeta(params: {
     bridgeArtifactName: params.bridgeArtifactName,
     ref: params.ref,
     refBucket: 'coverage_refs',
-  }) as Partial<VerificationCoverageV1>;
-  const summary = parsed.summary;
-  if (
-    parsed.schema_version !== 1
-    || !summary
-    || typeof summary !== 'object'
-    || !Array.isArray(parsed.missing_decisive_checks)
-  ) {
+  });
+  const coverage = safeParseVerificationCoverageMetaV1(parsed);
+  if (!coverage.ok) {
     throw invalidParams('Unsupported verification coverage artifact shape', {
       run_id: params.runId,
       bridge_artifact_name: params.bridgeArtifactName,
       uri: params.ref.uri,
+      issues: coverage.issues,
     });
   }
   return {
     uri: params.ref.uri,
-    summary: {
-      subjects_total: Number(summary.subjects_total ?? 0),
-      subjects_verified: Number(summary.subjects_verified ?? 0),
-      subjects_partial: Number(summary.subjects_partial ?? 0),
-      subjects_failed: Number(summary.subjects_failed ?? 0),
-      subjects_blocked: Number(summary.subjects_blocked ?? 0),
-      subjects_not_attempted: Number(summary.subjects_not_attempted ?? 0),
-    },
-    missing_decisive_checks: parsed.missing_decisive_checks.map(gap => {
-      if (
-        !gap
-        || typeof gap !== 'object'
-        || typeof gap.subject_id !== 'string'
-        || typeof gap.check_kind !== 'string'
-        || typeof gap.reason !== 'string'
-        || !['low', 'medium', 'high'].includes(String(gap.priority))
-      ) {
-        throw invalidParams('Unsupported verification coverage gap shape', {
-          run_id: params.runId,
-          bridge_artifact_name: params.bridgeArtifactName,
-          uri: params.ref.uri,
-        });
-      }
-      return {
-        subject_id: gap.subject_id,
-        check_kind: gap.check_kind,
-        reason: gap.reason,
-        priority: gap.priority as 'low' | 'medium' | 'high',
-      };
-    }),
+    ...coverage.value,
   };
 }
 

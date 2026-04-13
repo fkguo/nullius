@@ -3,9 +3,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { StateManager } from '@autoresearch/orchestrator';
+import { StateManager, handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
 import { createFromIdea } from '../../src/tools/create-from-idea.js';
-import { handleToolCall } from '../../src/tools/index.js';
 
 function makeTmpDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -23,9 +22,9 @@ function extractPayload(res: unknown): Record<string, unknown> {
 
 function makeHandoff(): Record<string, unknown> {
   return {
-    campaign_id: '00000000-0000-0000-0000-000000000101',
-    node_id: '00000000-0000-0000-0000-000000000102',
-    idea_id: '00000000-0000-0000-0000-000000000103',
+    campaign_id: '11111111-1111-4111-8111-111111111111',
+    node_id: '22222222-2222-4222-8222-222222222222',
+    idea_id: '33333333-3333-4333-8333-333333333333',
     promoted_at: '2026-03-13T00:00:00Z',
     idea_card: {
       thesis_statement: 'Minimal approved execution should lower back into the single-user substrate.',
@@ -70,21 +69,24 @@ describe('compute loop contract', () => {
     const manager = new StateManager(projectRoot);
     manager.createRun(manager.readState(), staged.run_id, 'computation');
 
-    const planPayload = extractPayload(await handleToolCall(
-      'hep_run_plan_computation',
-      { project_root: projectRoot, run_id: staged.run_id, dry_run: false },
+    const runDir = staged.run_dir;
+
+    const planPayload = extractPayload(await handleOrchToolCall(
+      'orch_run_plan_computation',
+      { project_root: projectRoot, run_id: staged.run_id, run_dir: runDir, dry_run: false },
       'full',
     ));
     expect(planPayload.status).toBe('requires_approval');
 
     manager.approveRun(manager.readState(), String(planPayload.approval_id), 'approve for test');
 
-    const execPayload = extractPayload(await handleToolCall(
-      'hep_run_execute_manifest',
+    const execPayload = extractPayload(await handleOrchToolCall(
+      'orch_run_execute_manifest',
       {
         _confirm: true,
         project_root: projectRoot,
         run_id: staged.run_id,
+        run_dir: runDir,
         manifest_path: String(planPayload.manifest_path),
       },
       'full',
@@ -112,20 +114,11 @@ describe('compute loop contract', () => {
     expect(outcome.executor_provenance.execution_surface).toBe('computation_manifest_executor');
     expect(outcome.followup_bridge_refs).toHaveLength(1);
     expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'finding' && task.status === 'pending')).toBe(true);
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'draft_update' && task.status === 'pending')).toBe(true);
 
     const writingBridgePath = path.join(hepDataDir, 'runs', staged.run_id, 'artifacts', 'writing_followup_bridge_v1.json');
-    const writingBridge = JSON.parse(fs.readFileSync(writingBridgePath, 'utf-8')) as {
-      computation_result_uri: string;
-      produced_artifact_refs: Array<{ uri: string }>;
-      target: { seed_payload: { computation_result_uri: string; produced_artifact_uris: string[] } };
-    };
-    expect(writingBridge.computation_result_uri).toContain('computation_result_v1.json');
-    expect(writingBridge.produced_artifact_refs.length).toBeGreaterThan(0);
-    expect(writingBridge.target.seed_payload.computation_result_uri).toBe(writingBridge.computation_result_uri);
-    expect(writingBridge.target.seed_payload.produced_artifact_uris).toEqual(
-      writingBridge.produced_artifact_refs.map(ref => ref.uri),
-    );
+    expect(fs.existsSync(writingBridgePath)).toBe(true);
+    expect(execPayload.followup_bridge_refs[0]?.uri).toContain('writing_followup_bridge_v1.json');
+    expect(outcome.followup_bridge_refs[0]?.uri).toContain('writing_followup_bridge_v1.json');
   });
 
   it('surfaces deterministic feedback backtracks through the thin hep-mcp adapter when approved execution fails', async () => {
@@ -143,9 +136,11 @@ describe('compute loop contract', () => {
     const manager = new StateManager(projectRoot);
     manager.createRun(manager.readState(), staged.run_id, 'computation');
 
-    const planPayload = extractPayload(await handleToolCall(
-      'hep_run_plan_computation',
-      { project_root: projectRoot, run_id: staged.run_id, dry_run: false },
+    const runDir = path.join(hepDataDir, 'runs', staged.run_id);
+
+    const planPayload = extractPayload(await handleOrchToolCall(
+      'orch_run_plan_computation',
+      { project_root: projectRoot, run_id: staged.run_id, run_dir: runDir, dry_run: false },
       'full',
     ));
     fs.writeFileSync(
@@ -155,12 +150,13 @@ describe('compute loop contract', () => {
     );
     manager.approveRun(manager.readState(), String(planPayload.approval_id), 'approve for test');
 
-    const execPayload = extractPayload(await handleToolCall(
-      'hep_run_execute_manifest',
+    const execPayload = extractPayload(await handleOrchToolCall(
+      'orch_run_execute_manifest',
       {
         _confirm: true,
         project_root: projectRoot,
         run_id: staged.run_id,
+        run_dir: runDir,
         manifest_path: String(planPayload.manifest_path),
       },
       'full',

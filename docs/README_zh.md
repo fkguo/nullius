@@ -36,15 +36,15 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | 通用 lifecycle + computation + workflow-plan front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful workflow-plan 持久化 |
 | 高层文献工作流入口 | `autoresearch workflow-plan` | 推荐的公开 stateful 前门，面向已初始化的外部 project root；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` |
 | 实验性 idea campaign MCP surface | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted idea campaign runtime bridge，覆盖 `idea_campaign_init/status/topup/pause/resume/complete`、`idea_search_step`、`idea_eval_run` |
-| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的 HEP 领域 MCP server `(72 std / 101)` |
+| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的 HEP 领域 MCP server `(70 std / 77)` |
 | 叶子 provider 包 | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 可组合进客户端工作流的 provider-specific capabilities |
 
-工具数量：**`standard` 模式 72 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 101 个**（额外暴露 advanced 工具）。
+工具数量：**`standard` 模式 70 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 77 个**（额外暴露 advanced 工具）。
 
 | 模式 | 工具数 | 适用场景 |
 | --- | --- | --- |
-| `standard` | 72 | 日常客户端使用的紧凑 front door |
-| `full` | 101 | 额外暴露 advanced 与 lifecycle-adjacent slices |
+| `standard` | 70 | 日常客户端使用的紧凑 front door |
+| `full` | 77 | 额外暴露 advanced 与 lifecycle-adjacent slices |
 
 按 capability 而不是按产品身份理解当前包面：
 

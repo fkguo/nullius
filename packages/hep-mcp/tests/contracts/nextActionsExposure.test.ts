@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { getToolSpecs as getOrchestratorToolSpecs } from '@autoresearch/orchestrator';
 import { getToolSpecs } from '../../src/tools/index.js';
 
 function repoRootFromThisFile(): string {
@@ -44,7 +45,7 @@ function extractNextActionToolRefs(source: string): string[] {
 }
 
 describe('Contract: next_actions tool exposure', () => {
-  it('all next_actions tool refs are exposed in standard mode', () => {
+  it('all next_actions tool refs stay on the standard hep surface or point to live generic orchestrator tools', () => {
     const root = repoRootFromThisFile();
     const toolsRoot = path.join(root, 'packages', 'hep-mcp', 'src', 'tools');
     const files = collectTsFiles(toolsRoot);
@@ -60,7 +61,10 @@ describe('Contract: next_actions tool exposure', () => {
     expect(referenced.size).toBeGreaterThan(0);
 
     const standardNames = new Set(getToolSpecs('standard').map(spec => spec.name));
-    const missing = Array.from(referenced).filter(name => !standardNames.has(name)).sort();
+    const orchestratorNames = new Set(getOrchestratorToolSpecs('full').map(spec => spec.name));
+    const missing = Array.from(referenced)
+      .filter(name => !standardNames.has(name) && !orchestratorNames.has(name))
+      .sort();
 
     expect(missing).toEqual([]);
   });

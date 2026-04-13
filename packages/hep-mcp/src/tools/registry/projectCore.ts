@@ -262,7 +262,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'Stage large client content into a run artifact and return its URI (token-limit safe two-step submission; local-only)',
+      'Stage client content into a HEP run artifact and return a hep:// staging URI (HEP substrate adapter over the generic writing/review staging kernel; local-only)',
     zodSchema: HepRunStageContentToolSchema,
     handler: async params => {
       const { stageRunContent } = await import('../../core/writing/staging.js');
@@ -271,6 +271,8 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         content_type: params.content_type,
         content: params.content,
         artifact_suffix: params.artifact_suffix,
+        task_id: params.task_id,
+        task_kind: params.task_kind,
       });
     },
   },

@@ -36,15 +36,15 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 | Generic lifecycle + computation + workflow-plan front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful workflow-plan persistence |
 | High-level literature workflow plan entrypoint | `autoresearch workflow-plan` | Recommended public stateful entrypoint for initialized external project roots; resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md` |
 | Experimental idea campaign MCP surface | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | TS-hosted idea campaign runtime bridge for `idea_campaign_init/status/topup/pause/resume/complete`, `idea_search_step`, and `idea_eval_run` on explicit external data roots |
-| Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research/navigation/evidence/export workflows `(72 std / 101)` |
+| Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research/navigation/evidence/export workflows `(70 std / 77)` |
 | Leaf provider packages | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Provider-specific capabilities that can be composed into client workflows |
 
-Tool counts: **72 tools in `standard` mode** (default, compact surface) and **101 tools in `full` mode** (adds advanced tools).
+Tool counts: **70 tools in `standard` mode** (default, compact surface) and **77 tools in `full` mode** (adds advanced tools).
 
 | Mode | Tools | Use when |
 | --- | --- | --- |
-| `standard` | 72 | Compact front door for everyday client use |
-| `full` | 101 | Adds advanced and lifecycle-adjacent slices |
+| `standard` | 70 | Compact front door for everyday client use |
+| `full` | 77 | Adds advanced and lifecycle-adjacent slices |
 
 Current package map, grouped by capability rather than identity:
 

@@ -1,4 +1,4 @@
-# Tool Categories（standard=72 / full=101）
+# Tool Categories（standard=70 / full=77）
 
 本文件把 `hep-mcp` 的 **standard 暴露**工具按“场景/闭环”分组，目的是让你不必理解全部工具，也能快速完成闭环。它描述的是当前 HEP 领域工具面，不是仓库的 root 产品身份；generic lifecycle/control-plane 入口仍是 `autoresearch`。
 
@@ -70,8 +70,10 @@
 - `hep_run_clear_manifest_lock`
 - `hep_run_stage_content`
 
-**Idea → Run（Pipeline Connectivity）**
-- `hep_run_create_from_idea`（从 IdeaHandoffC2 创建 project + run + outline seed）
+**generic lifecycle / staging / execution 已迁回 orchestrator**
+- HEP 包不再默认暴露 idea staging / computation planning / manifest execution 入口
+- 需要这类流程时，先用 HEP 领域能力创建或读取 run，再使用 orchestrator 的 `orch_run_stage_idea` / `orch_run_stage_content` / `orch_run_plan_computation` / `orch_run_execute_manifest`
+- `hep_run_stage_content` 仍保留，但它只是 HEP run-artifact substrate adapter，不再代表 generic 写作/评审 staging authority
 
 ## B) Evidence 构建（写作/检索/回放的输入资产）
 

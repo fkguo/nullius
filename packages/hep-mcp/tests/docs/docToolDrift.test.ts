@@ -167,13 +167,13 @@ describe('Docs tool drift guard', () => {
     else process.env.HEP_ENABLE_ZOTERO = originalEnv.HEP_ENABLE_ZOTERO;
   });
 
-  it('docs/TOOL_CATEGORIES.md only references standard tools', async () => {
+  it('docs/TOOL_CATEGORIES.md only references live tools and may mark temporary full-only bridges explicitly', async () => {
     const { getTools } = await import('../../src/tools/index.js');
-    const standard = new Set(getTools('standard').map(t => t.name));
+    const full = new Set(getTools('full').map(t => t.name));
 
     const md = readText(root, 'docs/TOOL_CATEGORIES.md');
     const referenced = extractToolNamesFromToolCategories(md);
-    assertAllExist({ referenced, allowed: standard, label: 'docs/TOOL_CATEGORIES.md' });
+    assertAllExist({ referenced, allowed: full, label: 'docs/TOOL_CATEGORIES.md' });
   });
 
   it('README tables reference existing tools', async () => {
@@ -229,8 +229,8 @@ describe('Docs tool drift guard', () => {
   });
 
   it('meta/docs/orchestrator-mcp-tools-spec.md publishes the exact live orch_* inventory', async () => {
-    const { getTools } = await import('../../src/tools/index.js');
-    const live = getTools('full')
+    const { ORCH_TOOL_SPECS } = await import('@autoresearch/orchestrator');
+    const live = ORCH_TOOL_SPECS
       .map(tool => tool.name)
       .filter(name => name.startsWith('orch_'))
       .sort((left, right) => left.localeCompare(right));

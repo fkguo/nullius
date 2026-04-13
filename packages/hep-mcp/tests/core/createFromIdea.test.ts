@@ -6,9 +6,9 @@ import { createFromIdea } from '../../src/tools/create-from-idea.js';
 
 function makeHandoff(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    campaign_id: '00000000-0000-0000-0000-000000000001',
-    node_id: '00000000-0000-0000-0000-000000000002',
-    idea_id: '00000000-0000-0000-0000-000000000003',
+    campaign_id: '11111111-1111-4111-8111-111111111111',
+    node_id: '22222222-2222-4222-8222-222222222222',
+    idea_id: '33333333-3333-4333-8333-333333333333',
     promoted_at: '2026-01-01T00:00:00Z',
     idea_card: {
       thesis_statement: 'Anomalous magnetic moment of the muon receives significant contributions from light-by-light scattering at two loops.',
@@ -66,6 +66,7 @@ describe('createFromIdea (NEW-CONN-04)', () => {
     const result = createFromIdea({ handoff_uri: handoffPath });
 
     expect(result.run_id).toBeTruthy();
+    expect(result.run_dir).toBe(path.join(tmpDir, 'runs', result.run_id));
     expect(result.project_id).toBeTruthy();
     expect(result.manifest_uri).toMatch(/^hep:\/\/runs\//);
     expect(result.outline_seed_uri).toMatch(/outline_seed_v1\.json/);
@@ -129,7 +130,7 @@ describe('createFromIdea (NEW-CONN-04)', () => {
 
     expect(result.next_actions).toHaveLength(3);
     const toolNames = result.next_actions.map(a => a.tool);
-    expect(toolNames).toContain('hep_run_plan_computation');
+    expect(toolNames).toContain('orch_run_plan_computation');
     expect(toolNames).toContain('inspire_search');
     expect(toolNames).toContain('hep_project_build_evidence');
 
@@ -200,34 +201,34 @@ describe('createFromIdea (NEW-CONN-04)', () => {
     ).toThrow(/must be within/);
   });
 
-  it('throws when idea_card is missing', () => {
+  it('leaves no project or run side effects when generic handoff validation fails', () => {
     const handoffPath = path.join(tmpDir, 'bad.json');
-    fs.writeFileSync(handoffPath, JSON.stringify({ campaign_id: 'x' }));
+    fs.writeFileSync(handoffPath, JSON.stringify({
+      campaign_id: '11111111-1111-4111-8111-111111111111',
+      node_id: '22222222-2222-4222-8222-222222222222',
+      idea_id: '33333333-3333-4333-8333-333333333333',
+      promoted_at: '2026-01-01T00:00:00Z',
+      grounding_audit: {
+        status: 'pass',
+        folklore_risk_score: 0.1,
+        failures: [],
+        timestamp: '2026-01-01T00:00:00Z',
+      },
+    }));
 
-    expect(() =>
-      createFromIdea({ handoff_uri: handoffPath }),
-    ).toThrow(/idea_card/i);
+    expect(() => createFromIdea({ handoff_uri: handoffPath })).toThrow(/idea_card/i);
+    expect(fs.readdirSync(path.join(tmpDir, 'projects'))).toEqual([]);
+    expect(fs.readdirSync(path.join(tmpDir, 'runs'))).toEqual([]);
   });
 
-  it('throws when claims are empty', () => {
-    const handoff = makeHandoff();
-    (handoff.idea_card as Record<string, unknown>).claims = [];
-    const handoffPath = path.join(tmpDir, 'empty-claims.json');
-    fs.writeFileSync(handoffPath, JSON.stringify(handoff));
+  it('throws structured invalidParams when an explicit project_id does not exist', () => {
+    const handoffPath = path.join(tmpDir, 'handoff.json');
+    fs.writeFileSync(handoffPath, JSON.stringify(makeHandoff()));
 
-    expect(() =>
-      createFromIdea({ handoff_uri: handoffPath }),
-    ).toThrow(/claims/i);
-  });
-
-  it('throws when testable_hypotheses contains non-string elements', () => {
-    const handoff = makeHandoff();
-    (handoff.idea_card as Record<string, unknown>).testable_hypotheses = ['valid', 42, null];
-    const handoffPath = path.join(tmpDir, 'bad-hypotheses.json');
-    fs.writeFileSync(handoffPath, JSON.stringify(handoff));
-
-    expect(() =>
-      createFromIdea({ handoff_uri: handoffPath }),
-    ).toThrow(/testable_hypotheses\[1\].*string/i);
+    expect(() => createFromIdea({
+      handoff_uri: handoffPath,
+      project_id: 'missing-project',
+    })).toThrow(/project_id not found/i);
+    expect(fs.readdirSync(path.join(tmpDir, 'runs'))).toEqual([]);
   });
 });

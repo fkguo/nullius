@@ -113,7 +113,7 @@ These workflow-plan consumers are not the root identity of the repo; they are on
 Current execution boundary:
 
 - `workflow-plan` is currently a public stateful literature front door with stable typed `plan.execution` metadata persisted in `.autoresearch/state.json#/plan`.
-- `autoresearch run` is now the canonical minimal consumer for that seam: it executes one dependency-satisfied persisted workflow step through the generic MCP tool-caller path while remaining the only execution front door.
+- `autoresearch run` is now the canonical bounded consumer for that seam: it advances dependency-satisfied persisted workflow steps through the generic MCP tool-caller path until completion or a blocking failure while remaining the only execution front door.
 - This is still not a canonical closed-loop literature execution runtime: there is no full scheduler, autonomous multi-step orchestration layer, or end-to-end closed loop in this slice.
 
 ## 4. Current workflow families

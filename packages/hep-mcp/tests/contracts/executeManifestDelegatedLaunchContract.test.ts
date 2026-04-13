@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { StateManager } from '@autoresearch/orchestrator';
+import { StateManager, handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
 import { createFromIdea } from '../../src/tools/create-from-idea.js';
 import { handleToolCall } from '../../src/tools/index.js';
 import { extractPayload, makeTmpDir } from './executeManifestContractTestSupport.js';
@@ -14,9 +14,9 @@ function writeJson(filePath: string, payload: unknown): void {
 
 function makeHandoff(): Record<string, unknown> {
   return {
-    campaign_id: '00000000-0000-0000-0000-000000000101',
-    node_id: '00000000-0000-0000-0000-000000000102',
-    idea_id: '00000000-0000-0000-0000-000000000103',
+    campaign_id: '11111111-1111-4111-8111-111111111111',
+    node_id: '22222222-2222-4222-8222-222222222222',
+    idea_id: '33333333-3333-4333-8333-333333333333',
     promoted_at: '2026-03-13T00:00:00Z',
     idea_card: {
       thesis_statement: 'Computation completion should auto-launch the first pending delegated writing task.',
@@ -37,8 +37,19 @@ function makeHandoff(): Record<string, unknown> {
 }
 
 async function stageExistingDraftAndReview(runId: string): Promise<void> {
-  await handleToolCall('hep_run_stage_content', { run_id: runId, content_type: 'section_output', content: 'existing draft seed' }, 'full');
-  await handleToolCall('hep_run_stage_content', { run_id: runId, content_type: 'reviewer_report', content: 'existing review seed' }, 'full');
+  const runDir = path.join(process.env.HEP_DATA_DIR!, 'runs', runId);
+  await handleOrchToolCall('orch_run_stage_content', {
+    run_id: runId,
+    run_dir: runDir,
+    content_type: 'section_output',
+    content: 'existing draft seed',
+  }, 'full');
+  await handleOrchToolCall('orch_run_stage_content', {
+    run_id: runId,
+    run_dir: runDir,
+    content_type: 'reviewer_report',
+    content: 'existing review seed',
+  }, 'full');
 }
 
 const CLEANUP_DIRS: string[] = [];
@@ -50,8 +61,8 @@ afterEach(() => {
   }
 });
 
-describe('hep_run_execute_manifest delegated launch contract', () => {
-  it('auto-launches the first pending draft_update assignment through the bounded team runtime', async () => {
+describe('generic execute-manifest surface after hep-mcp migration', () => {
+  it('keeps approved execution successful without appending delegated launch policy from hep-mcp', async () => {
     const hepDataDir = makeTmpDir('hep-delegated-launch-');
     const projectRoot = makeTmpDir('orch-delegated-launch-');
     CLEANUP_DIRS.push(hepDataDir, projectRoot);
@@ -66,98 +77,36 @@ describe('hep_run_execute_manifest delegated launch contract', () => {
 
     const manager = new StateManager(projectRoot);
     manager.createRun(manager.readState(), staged.run_id, 'computation');
-    const planPayload = extractPayload(await handleToolCall(
-      'hep_run_plan_computation',
-      { project_root: projectRoot, run_id: staged.run_id, dry_run: false },
+    const runDir = path.join(hepDataDir, 'runs', staged.run_id);
+    const planPayload = extractPayload(await handleOrchToolCall(
+      'orch_run_plan_computation',
+      { project_root: projectRoot, run_id: staged.run_id, run_dir: runDir, dry_run: false },
       'full',
     ));
     manager.approveRun(manager.readState(), String(planPayload.approval_id), 'approve for test');
 
-    let samplingCallCount = 0;
-    const execPayload = extractPayload(await handleToolCall(
-      'hep_run_execute_manifest',
+    const execPayload = extractPayload(await handleOrchToolCall(
+      'orch_run_execute_manifest',
       {
         _confirm: true,
         project_root: projectRoot,
         run_id: staged.run_id,
-        manifest_path: String(planPayload.manifest_path),
-      },
-      'full',
-      {
-        createMessage: async () => {
-          samplingCallCount += 1;
-          if (samplingCallCount === 1) {
-            return {
-              model: 'claude-test',
-              role: 'assistant',
-              content: [{
-                type: 'tool_use',
-                id: 'tu_stage',
-                name: 'hep_run_stage_content',
-                input: { run_id: staged.run_id, content_type: 'section_output', content: 'delegated draft update' },
-              }],
-              stopReason: 'tool_use',
-            };
-          }
-          throw new Error('interrupt after checkpoint');
-        },
-      },
-    )) as {
-      status: string;
-      delegated_launch: { status: string; task_kind: string; team_state_path: string };
-    };
-
-    expect(execPayload.status).toBe('completed');
-    expect(execPayload.delegated_launch.status).toBe('launched');
-    expect(execPayload.delegated_launch.task_kind).toBe('draft_update');
-    expect(fs.existsSync(execPayload.delegated_launch.team_state_path)).toBe(true);
-
-    const teamState = JSON.parse(fs.readFileSync(execPayload.delegated_launch.team_state_path, 'utf-8')) as {
-      delegate_assignments: Array<{ task_kind: string }>;
-    };
-    expect(teamState.delegate_assignments).toHaveLength(1);
-    expect(teamState.delegate_assignments[0]?.task_kind).toBe('draft_update');
-    expect(teamState.delegate_assignments.some(assignment => assignment.task_kind === 'review')).toBe(false);
-  });
-
-  it('keeps approved execution successful and reports a bounded skip when host sampling support is unavailable', async () => {
-    const hepDataDir = makeTmpDir('hep-delegated-launch-');
-    const projectRoot = makeTmpDir('orch-delegated-launch-');
-    CLEANUP_DIRS.push(hepDataDir, projectRoot);
-    process.env.HEP_DATA_DIR = hepDataDir;
-    fs.mkdirSync(path.join(hepDataDir, 'projects'), { recursive: true });
-    fs.mkdirSync(path.join(hepDataDir, 'runs'), { recursive: true });
-
-    const handoffPath = path.join(hepDataDir, 'idea_handoff_c2_v1.json');
-    writeJson(handoffPath, makeHandoff());
-    const staged = createFromIdea({ handoff_uri: handoffPath });
-    await stageExistingDraftAndReview(staged.run_id);
-
-    const manager = new StateManager(projectRoot);
-    manager.createRun(manager.readState(), staged.run_id, 'computation');
-    const planPayload = extractPayload(await handleToolCall(
-      'hep_run_plan_computation',
-      { project_root: projectRoot, run_id: staged.run_id, dry_run: false },
-      'full',
-    ));
-    manager.approveRun(manager.readState(), String(planPayload.approval_id), 'approve for test');
-
-    const execPayload = extractPayload(await handleToolCall(
-      'hep_run_execute_manifest',
-      {
-        _confirm: true,
-        project_root: projectRoot,
-        run_id: staged.run_id,
+        run_dir: runDir,
         manifest_path: String(planPayload.manifest_path),
       },
       'full',
     )) as {
       status: string;
-      delegated_launch: { status: string; task_kind: string };
+      next_actions: Array<{ action_kind: string; task_kind: string }>;
+      followup_bridge_refs: Array<{ uri: string }>;
     };
 
     expect(execPayload.status).toBe('completed');
-    expect(execPayload.delegated_launch.status).toBe('skipped_missing_host_context');
-    expect(execPayload.delegated_launch.task_kind).toBe('draft_update');
+    expect(execPayload.next_actions[0]).toMatchObject({
+      action_kind: 'capture_finding',
+      task_kind: 'finding',
+    });
+    expect(execPayload.followup_bridge_refs).toHaveLength(2);
+    expect(execPayload).not.toHaveProperty('delegated_launch');
   });
 });

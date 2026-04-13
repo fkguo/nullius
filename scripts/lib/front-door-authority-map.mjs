@@ -120,7 +120,7 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
   Object.freeze({
     surface: 'orchestrator_mcp_tools_spec',
     classification: 'canonical_public',
-    owner: '@autoresearch/hep-mcp',
+    owner: '@autoresearch/orchestrator',
     relPath: ORCH_EXACT_SPEC_REL_PATH,
     exactInventoryKind: 'exact_spec_doc',
     toolPrefix: 'orch_',

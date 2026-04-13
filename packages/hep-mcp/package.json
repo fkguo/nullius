@@ -1,7 +1,7 @@
 {
   "name": "@autoresearch/hep-mcp",
   "version": "0.3.0",
-  "description": "Current HEP MCP front door for project/run, evidence, provider, and control-plane workflows",
+  "description": "Current HEP MCP domain pack for project/run artifacts, evidence, data, and writing surfaces",
   "author": "Feng-Kun Guo",
   "type": "module",
   "main": "./dist/index.js",

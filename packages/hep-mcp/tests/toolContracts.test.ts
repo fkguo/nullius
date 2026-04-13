@@ -210,42 +210,16 @@ describe('Tool risk level contracts (H-11a)', () => {
     }
   });
 
-  it('orchestrator tool surface is present with the expected risk contract', () => {
-    const expected: Record<string, ToolRiskLevel> = {
-      [T.ORCH_RUN_CREATE]: 'write',
-      [T.ORCH_RUN_STATUS]: 'read',
-      [T.ORCH_RUN_LIST]: 'read',
-      [T.ORCH_RUN_APPROVE]: 'destructive',
-      [T.ORCH_RUN_REJECT]: 'destructive',
-      [T.ORCH_RUN_EXPORT]: 'destructive',
-      [T.ORCH_RUN_PAUSE]: 'write',
-      [T.ORCH_RUN_RESUME]: 'write',
-      [T.ORCH_RUN_APPROVALS_LIST]: 'read',
-      [T.ORCH_RUN_EXECUTE_AGENT]: 'destructive',
-      [T.ORCH_POLICY_QUERY]: 'read',
-      [T.ORCH_FLEET_ENQUEUE]: 'write',
-      [T.ORCH_FLEET_CLAIM]: 'write',
-      [T.ORCH_FLEET_ADJUDICATE_STALE_CLAIM]: 'write',
-      [T.ORCH_FLEET_REASSIGN_CLAIM]: 'write',
-      [T.ORCH_FLEET_RELEASE]: 'write',
-      [T.ORCH_FLEET_STATUS]: 'read',
-      [T.ORCH_FLEET_WORKER_POLL]: 'write',
-      [T.ORCH_FLEET_WORKER_HEARTBEAT]: 'write',
-      [T.ORCH_FLEET_WORKER_SET_CLAIM_ACCEPTANCE]: 'write',
-      [T.ORCH_FLEET_WORKER_UNREGISTER]: 'write',
-    };
-    const specsByName = new Map(getToolSpecs('full').map(spec => [spec.name, spec]));
-    expect(Object.keys(expected).every(name => specsByName.has(name))).toBe(true);
-    for (const [name, risk] of Object.entries(expected)) {
-      expect(specsByName.get(name)?.riskLevel).toBe(risk);
-    }
+  it('does not expose generic orchestrator tool surface through hep-mcp', () => {
+    const names = new Set(getToolSpecs('full').map(spec => spec.name));
+    expect(Array.from(names).some(name => name.startsWith('orch_'))).toBe(false);
   });
 
-  it('orch_* and hep_run_* namespaces do not collide', () => {
+  it('hep-mcp tool surface keeps hep_run_* distinct without also exporting orch_*', () => {
     const names = getTools('full').map(tool => tool.name);
     const orchNames = names.filter(name => name.startsWith('orch_'));
     const hepRunNames = new Set(names.filter(name => name.startsWith(T.HEP_RUN_PREFIX)));
-    expect(orchNames.length).toBeGreaterThan(0);
+    expect(orchNames.length).toBe(0);
     expect(orchNames.filter(name => hepRunNames.has(name))).toEqual([]);
   });
 });
