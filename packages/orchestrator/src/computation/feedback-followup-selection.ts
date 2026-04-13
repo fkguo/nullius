@@ -2,7 +2,7 @@ import type { ComputationResultV1 } from '@autoresearch/shared';
 import type { TeamExecutionState } from '../team-execution-types.js';
 
 type FollowupTask = ComputationResultV1['workspace_feedback']['tasks'][number];
-export type DelegatedFeedbackFollowupTask = Omit<FollowupTask, 'kind'> & { kind: 'idea' };
+export type DelegatedFeedbackFollowupTask = Omit<FollowupTask, 'kind'> & { kind: 'idea' | 'literature' };
 
 function hasTeamExecutionKey(task: FollowupTask): boolean {
   return Boolean(
@@ -23,7 +23,12 @@ function hasFeedbackHandoff(task: FollowupTask): boolean {
 }
 
 function isDelegatedFeedbackLaunchCandidate(task: FollowupTask): task is DelegatedFeedbackFollowupTask {
-  return task.kind === 'idea' && task.status === 'pending' && hasTeamExecutionKey(task) && hasFeedbackHandoff(task);
+  return (
+    (task.kind === 'idea' || task.kind === 'literature')
+    && task.status === 'pending'
+    && hasTeamExecutionKey(task)
+    && hasFeedbackHandoff(task)
+  );
 }
 
 function isTerminalAssignmentStatus(status: TeamExecutionState['delegate_assignments'][number]['status']): boolean {

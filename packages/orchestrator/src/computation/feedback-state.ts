@@ -166,7 +166,7 @@ export function deriveNextIdeaLoopState(
   runtime.transitionTask(computeTask.task_id, 'active', { source: 'system', actor_id: null });
   runtime.transitionTask(computeTask.task_id, input.feedback_lowering.signal === 'failure' ? 'blocked' : 'completed', { source: 'system', actor_id: null });
   const taskInput = feedbackTaskInput(input);
-  if (input.feedback_lowering.target_task_kind === 'idea') {
+  if (input.feedback_lowering.target_task_kind === 'idea' || input.feedback_lowering.target_task_kind === 'literature') {
     const handoff = feedbackHandoff(input, computeTask.task_id);
     const followupTask = runtime.appendDelegatedTask({ handoff, task: taskInput });
     attachDelegatedFollowupTeamExecutionMetadata(followupTask, handoff);

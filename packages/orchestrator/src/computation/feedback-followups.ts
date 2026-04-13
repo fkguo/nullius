@@ -16,7 +16,7 @@ import { TeamExecutionStateManager } from '../team-execution-storage.js';
 import type { WritingFollowupWorkspaceSeed } from './followup-bridges.js';
 
 type DelegatedFollowupTask = Pick<ResearchTask, 'task_id' | 'kind' | 'metadata'>;
-type DelegatedFollowupTaskKind = Extract<ResearchTask['kind'], 'idea' | 'draft_update' | 'review'>;
+type DelegatedFollowupTaskKind = Extract<ResearchTask['kind'], 'literature' | 'idea' | 'draft_update' | 'review'>;
 type DelegatedFollowupHandoffKind = Extract<ResearchHandoff['handoff_kind'], 'feedback' | 'writing' | 'review'>;
 type DelegatedFollowupHandoff = Extract<ResearchHandoff, { handoff_kind: DelegatedFollowupHandoffKind }>;
 type DelegatedFollowupTeamExecutionMetadata = {
@@ -37,7 +37,7 @@ export type DelegatedFollowupTeamConfig = DelegatedFollowupTeamExecutionMetadata
 };
 
 function isDelegatedFollowupTaskKind(kind: ResearchTask['kind']): kind is DelegatedFollowupTaskKind {
-  return kind === 'idea' || kind === 'draft_update' || kind === 'review';
+  return kind === 'literature' || kind === 'idea' || kind === 'draft_update' || kind === 'review';
 }
 
 function isDelegatedFollowupTeamExecutionMetadata(

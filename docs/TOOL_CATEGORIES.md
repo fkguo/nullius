@@ -74,7 +74,7 @@
 - HEP 包不再默认暴露 idea staging / computation planning / manifest execution 入口
 - 需要这类流程时，先用 HEP 领域能力创建或读取 run，再使用 orchestrator 的 `orch_run_stage_idea` / `orch_run_stage_content` / `orch_run_plan_computation` / `orch_run_execute_manifest` / `orch_run_progress_followups`
 - `hep_run_stage_content` 仍保留，但它只是 HEP run-artifact substrate adapter，不再代表 generic 写作/评审 staging authority
-- `orch_run_progress_followups` 是 generic follow-up continuation front door：它最多推进一个 computation-generated follow-up task；当前会接续 delegated `idea` feedback 与 writer/reviewer 路径，但对 `literature_followup` 仍显式返回 deferred skip
+- `orch_run_progress_followups` 是 generic follow-up continuation front door：它最多推进一个 computation-generated follow-up task；当前会接续 delegated `idea`/`literature` feedback 与 writer/reviewer 路径，只消费 computation result / handoff 中已有的显式 authority
 
 ## B) Evidence 构建（写作/检索/回放的输入资产）
 

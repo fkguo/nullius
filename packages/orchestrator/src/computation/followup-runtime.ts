@@ -14,8 +14,8 @@ export const FEEDBACK_FOLLOWUP_RUNTIME_TOOLS: Array<{
   input_schema: Record<string, unknown>;
 }> = [];
 
-export function followupRuntimeToolsForTaskKind(taskKind: 'idea' | 'draft_update' | 'review') {
-  return taskKind === 'idea'
+export function followupRuntimeToolsForTaskKind(taskKind: 'literature' | 'idea' | 'draft_update' | 'review') {
+  return (taskKind === 'idea' || taskKind === 'literature')
     ? [...FEEDBACK_FOLLOWUP_RUNTIME_TOOLS]
     : [...WRITING_REVIEW_FOLLOWUP_RUNTIME_TOOLS];
 }
@@ -23,7 +23,7 @@ export function followupRuntimeToolsForTaskKind(taskKind: 'idea' | 'draft_update
 export function buildFollowupRuntimePrompt(params: {
   runId: string;
   taskId: string;
-  taskKind: 'idea' | 'draft_update' | 'review';
+  taskKind: 'literature' | 'idea' | 'draft_update' | 'review';
   taskTitle: string;
   computationResultUri: string;
   handoffId: string;
@@ -53,6 +53,7 @@ export function buildFollowupRuntimePrompt(params: {
   }
   lines.push('Use the current ResearchWorkspace, tasks, handoffs, and follow-up artifacts as the sole source of truth.');
   lines.push('Stay inside this single supervised_delegate assignment. Do not launch schedulers, second shells, or parallel follow-ups.');
-  lines.push('Do not guess or synthesize literature-search queries. If the continuation would require a literature_followup, leave that for the host-level deferred path.');
+  lines.push('Consume only the explicit authority already present in the current task, handoff payload, workspace, and computation result.');
+  lines.push('Do not invent a second follow-up, host-level fallback, or scheduler layer.');
   return lines.join('\n');
 }

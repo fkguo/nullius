@@ -22,7 +22,7 @@ export type FeedbackFollowupLaunchStatus =
 export type FeedbackFollowupLaunchResult = {
   status: FeedbackFollowupLaunchStatus;
   task_id?: string;
-  task_kind?: 'idea';
+  task_kind?: 'idea' | 'literature';
   assignment_id?: string;
   team_state_path?: string;
   error?: string;
@@ -86,7 +86,7 @@ export async function progressDelegatedFeedbackFollowups(params: {
     return {
       status: 'skipped_invalid_team_execution',
       task_id: task.task_id,
-      task_kind: 'idea',
+      task_kind: task.kind,
       error: error instanceof Error ? error.message : String(error),
     };
   }

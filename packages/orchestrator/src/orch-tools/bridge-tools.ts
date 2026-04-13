@@ -220,12 +220,12 @@ async function launchFollowupTaskViaTeamRuntime(params: {
     primary
     && ['failed', 'needs_recovery', 'timed_out', 'cancelled', 'cascade_stopped'].includes(primary.status)
   ) {
-    if (params.task.kind === 'idea') {
+    if (params.task.kind === 'idea' || params.task.kind === 'literature') {
       return {
         launchResult: {
           status: 'launch_failed',
           task_id: params.task.task_id,
-          task_kind: 'idea',
+          task_kind: params.task.kind,
           assignment_id: result.assignment_id,
           team_state_path: result.team_state_path,
           error: `delegated runtime finished with ${primary.status}`,
@@ -245,12 +245,12 @@ async function launchFollowupTaskViaTeamRuntime(params: {
       teamState: result.team_state,
     };
   }
-  if (params.task.kind === 'idea') {
+  if (params.task.kind === 'idea' || params.task.kind === 'literature') {
     return {
       launchResult: {
         status: 'launched',
         task_id: params.task.task_id,
-        task_kind: 'idea',
+        task_kind: params.task.kind,
         assignment_id: result.assignment_id,
         team_state_path: result.team_state_path,
       },

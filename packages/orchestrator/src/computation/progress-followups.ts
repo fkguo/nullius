@@ -22,7 +22,6 @@ import {
 export type ProgressFollowupsStatus =
   | 'launched'
   | 'skipped_no_pending_task'
-  | 'skipped_deferred_literature_followup'
   | 'skipped_invalid_team_execution'
   | 'launch_failed';
 
@@ -32,15 +31,19 @@ export type ProgressFollowupsResult = {
   status: ProgressFollowupsStatus;
   branch: ProgressFollowupsBranch;
   task_id?: string;
-  task_kind?: 'idea' | 'draft_update' | 'review';
+  task_kind?: 'literature' | 'idea' | 'draft_update' | 'review';
   assignment_id?: string;
   team_state_path?: string;
   error?: string;
 };
 
-function hasDeferredLiteratureFollowup(computationResult: ComputationResultV1): boolean {
-  if (computationResult.workspace_feedback.tasks.some(task => task.kind === 'literature' && task.status === 'pending')) {
+function hasPendingLiteratureFollowup(computationResult: ComputationResultV1): boolean {
+  const literatureTasks = computationResult.workspace_feedback.tasks.filter(task => task.kind === 'literature');
+  if (literatureTasks.some(task => task.status === 'pending')) {
     return true;
+  }
+  if (literatureTasks.length > 0) {
+    return false;
   }
   return computationResult.next_actions.some(action =>
     action.task_kind === 'literature' || action.action_kind === 'literature_followup',
@@ -145,11 +148,12 @@ export async function progressRunFollowups(params: {
     return toWritingBranchResult(writingReviewResult);
   }
 
-  if (hasDeferredLiteratureFollowup(params.computationResult)) {
+  if (hasPendingLiteratureFollowup(params.computationResult)) {
     return {
-      status: 'skipped_deferred_literature_followup',
-      branch: 'none',
-      error: 'literature follow-up continuation is still explicitly deferred on the generic surface',
+      status: 'skipped_invalid_team_execution',
+      branch: 'feedback',
+      task_kind: 'literature',
+      error: 'literature follow-up is pending but missing delegated feedback authority',
     };
   }
 

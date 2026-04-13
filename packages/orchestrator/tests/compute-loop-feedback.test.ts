@@ -276,4 +276,98 @@ describe('compute-loop failure lowering', () => {
       stored.workspace_feedback.handoffs.map(handoff => ({ kind: handoff.handoff_kind, target: handoff.target_node_id, payload: handoff.payload })),
     );
   });
+
+  it('derives delegated literature follow-up authority when feedback lowering explicitly backtracks to literature', () => {
+    const runId = 'run-loop-literature-followup';
+    const literatureNodeId = `evidence:${runId}`;
+    const base = assertComputationResultValid({
+      schema_version: 1,
+      run_id: runId,
+      objective_title: 'Backtrack literature after failed execution',
+      manifest_ref: {
+        uri: `rep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('computation/manifest.json')}`,
+        sha256: 'a'.repeat(64),
+        size_bytes: 1,
+      },
+      execution_status: 'failed',
+      produced_artifact_refs: [],
+      started_at: '2026-04-14T00:00:00.000Z',
+      finished_at: '2026-04-14T00:01:00.000Z',
+      summary: 'Execution failed and should trigger a literature backtrack.',
+      failure_reason: 'step failed',
+      feedback_lowering: {
+        signal: 'failure',
+        decision_kind: 'literature_followup',
+        priority_change: 'lower',
+        prune_candidate: true,
+        target_task_kind: 'literature',
+        target_node_id: literatureNodeId,
+        backtrack_to_task_kind: 'literature',
+        backtrack_to_node_id: literatureNodeId,
+      },
+      next_actions: [{
+        action_kind: 'literature_followup',
+        task_kind: 'literature',
+        title: 'Backtrack literature after failed execution',
+        target_node_id: literatureNodeId,
+        reason: 'Execution failed and should trigger a literature backtrack.',
+        handoff_kind: 'feedback',
+      }],
+      followup_bridge_refs: [],
+      executor_provenance: {
+        orchestrator_component: '@autoresearch/orchestrator',
+        execution_surface: 'orch_run_execute_manifest',
+        approval_gate: 'A3',
+        step_tools: ['python'],
+        step_ids: ['task_001'],
+      },
+      workspace_feedback: {
+        policy_mode: 'interactive',
+        workspace: {
+          schema_version: 1,
+          workspace_id: `workspace:${runId}`,
+          primary_question_id: `question:${runId}`,
+          nodes: [
+            { node_id: `question:${runId}`, kind: 'question', title: 'Backtrack literature after failed execution' },
+            { node_id: `idea:${runId}`, kind: 'idea', title: 'Staged idea for Backtrack literature after failed execution' },
+            { node_id: literatureNodeId, kind: 'evidence_set', title: 'Evidence follow-up for Backtrack literature after failed execution' },
+            { node_id: `compute:${runId}`, kind: 'compute_attempt', title: 'Approved computation for Backtrack literature after failed execution' },
+            { node_id: `finding:${runId}`, kind: 'finding', title: 'Finding from Backtrack literature after failed execution' },
+            { node_id: `decision:${runId}`, kind: 'decision', title: 'Feedback decision for Backtrack literature after failed execution' },
+          ],
+          edges: [],
+          created_at: '2026-04-14T00:00:00.000Z',
+          updated_at: '2026-04-14T00:00:00.000Z',
+        },
+        tasks: [],
+        events: [],
+        handoffs: [],
+        active_task_ids: [],
+      },
+    });
+
+    const derived = deriveNextIdeaLoopState(base);
+    expect(derived.nextActions).toEqual([{
+      action_kind: 'literature_followup',
+      task_kind: 'literature',
+      title: 'Backtrack literature after Backtrack literature after failed execution',
+      target_node_id: literatureNodeId,
+      reason: 'step failed',
+      handoff_kind: 'feedback',
+    }]);
+    const literatureTask = derived.workspaceFeedback.tasks.find(task => task.kind === 'literature')!;
+    expect(literatureTask.status).toBe('pending');
+    expect(literatureTask.metadata?.team_execution).toMatchObject({
+      handoff_kind: 'feedback',
+      workspace_id: derived.workspaceFeedback.workspace.workspace_id,
+      research_task_ref: {
+        task_id: literatureTask.task_id,
+        task_kind: 'literature',
+      },
+    });
+    expect(derived.workspaceFeedback.handoffs).toHaveLength(1);
+    expect(derived.workspaceFeedback.handoffs[0]?.handoff_kind).toBe('feedback');
+    expect(derived.workspaceFeedback.handoffs[0]?.target_node_id).toBe(literatureNodeId);
+    expect(derived.workspaceFeedback.handoffs[0]?.payload.disposition).toBe('literature_followup');
+  });
 });

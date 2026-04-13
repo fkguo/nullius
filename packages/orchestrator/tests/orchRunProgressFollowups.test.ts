@@ -6,6 +6,7 @@ import { executeComputationManifest, stageContentInRunDir } from '../src/computa
 import { assertComputationResultValid } from '../src/computation/result-schema.js';
 import { compileExecutionPlan } from '../src/computation/execution-plan.js';
 import { executionPlanArtifactPath, materializeExecutionPlan } from '../src/computation/materialize-execution-plan.js';
+import { deriveNextIdeaLoopState } from '../src/computation/loop-feedback.js';
 import {
   cleanupRegisteredDirs,
   initRunState,
@@ -301,9 +302,103 @@ describe('orch_run_progress_followups', () => {
     });
   });
 
-  it('returns an explicit deferred skip when only a literature follow-up remains', async () => {
+  it('launches a delegated literature follow-up when the computation result carries explicit delegated feedback authority', async () => {
     const projectRoot = makeTmpDir();
-    const runId = 'run-progress-literature-deferred';
+    const runId = 'run-progress-literature-followup';
+    registerCleanup(projectRoot);
+
+    const { runDir, manifestPath } = createFeedbackBridgeRun(runId, projectRoot);
+    fs.writeFileSync(
+      path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'),
+      "raise SystemExit(1)\n",
+      'utf-8',
+    );
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+
+    const executed = await executeComputationManifest({
+      manifestPath,
+      projectRoot,
+      runDir,
+      runId,
+    });
+    expect(executed.status).toBe('failed');
+
+    const outcomePath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
+    const outcome = assertComputationResultValid(
+      JSON.parse(fs.readFileSync(outcomePath, 'utf-8')) as unknown,
+    );
+    const literatureNode = outcome.workspace_feedback.workspace.nodes.find(node => node.kind === 'evidence_set')!;
+    const rewrittenSeed = deriveNextIdeaLoopState({
+      ...outcome,
+      feedback_lowering: {
+        ...outcome.feedback_lowering,
+        decision_kind: 'literature_followup',
+        target_task_kind: 'literature',
+        target_node_id: literatureNode.node_id,
+        backtrack_to_task_kind: 'literature',
+        backtrack_to_node_id: literatureNode.node_id,
+      },
+    });
+    const rewritten = assertComputationResultValid({
+      ...outcome,
+      feedback_lowering: {
+        ...outcome.feedback_lowering,
+        decision_kind: 'literature_followup',
+        target_task_kind: 'literature',
+        target_node_id: literatureNode.node_id,
+        backtrack_to_task_kind: 'literature',
+        backtrack_to_node_id: literatureNode.node_id,
+      },
+      next_actions: rewrittenSeed.nextActions,
+      workspace_feedback: rewrittenSeed.workspaceFeedback,
+    });
+    fs.writeFileSync(outcomePath, JSON.stringify(rewritten, null, 2) + '\n', 'utf-8');
+
+    const launched = extractPayload(await handleToolCall(
+      'orch_run_progress_followups',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: runId,
+        run_dir: runDir,
+      },
+      'full',
+      {
+        createMessage: async () => textResponse('literature follow-up complete'),
+        callTool: async () => ({ content: [{ type: 'text', text: '{}' }], isError: false }),
+      },
+    ));
+
+    expect(launched).toMatchObject({
+      status: 'launched',
+      branch: 'feedback',
+      task_kind: 'literature',
+    });
+
+    const second = extractPayload(await handleToolCall(
+      'orch_run_progress_followups',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: runId,
+        run_dir: runDir,
+      },
+      'full',
+      {
+        createMessage: async () => textResponse('unused'),
+        callTool: async () => ({ content: [{ type: 'text', text: '{}' }], isError: false }),
+      },
+    ));
+    expect(second).toEqual({
+      status: 'skipped_no_pending_task',
+      branch: 'none',
+    });
+  });
+
+  it('fails closed when a literature follow-up is pending without delegated feedback authority', async () => {
+    const projectRoot = makeTmpDir();
+    const runId = 'run-progress-literature-invalid-authority';
     registerCleanup(projectRoot);
 
     const { runDir, manifestPath } = createFeedbackBridgeRun(runId, projectRoot);
@@ -360,7 +455,7 @@ describe('orch_run_progress_followups', () => {
     });
     fs.writeFileSync(outcomePath, JSON.stringify(rewritten, null, 2) + '\n', 'utf-8');
 
-    const skipped = extractPayload(await handleToolCall(
+    const invalid = extractPayload(await handleToolCall(
       'orch_run_progress_followups',
       {
         _confirm: true,
@@ -374,10 +469,11 @@ describe('orch_run_progress_followups', () => {
         callTool: async () => ({ content: [{ type: 'text', text: '{}' }], isError: false }),
       },
     ));
-    expect(skipped).toEqual({
-      status: 'skipped_deferred_literature_followup',
-      branch: 'none',
-      error: 'literature follow-up continuation is still explicitly deferred on the generic surface',
+    expect(invalid).toEqual({
+      status: 'skipped_invalid_team_execution',
+      branch: 'feedback',
+      task_kind: 'literature',
+      error: 'literature follow-up is pending but missing delegated feedback authority',
     });
   });
 });

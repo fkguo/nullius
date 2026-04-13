@@ -34,7 +34,7 @@
 | `orch_run_stage_content` | `write` | Stage generic writing/review content into an existing run directory and return a `rep://runs/.../artifact/...` staging URI; loop-owned draft/review tasks may attach task-scoped provenance so completion and downstream review refresh can fail closed on missing outputs |
 | `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and `computation/manifest.json` |
 | `orch_run_execute_manifest` | `destructive` | Execute a staged `computation_manifest_v1` from an existing run directory |
-| `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; idea feedback launches now, literature follow-up remains explicit deferred-skip |
+| `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
 | `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json` |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
 | `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification |
@@ -120,7 +120,7 @@ Agent / operator
   ├──► orch_run_stage_content(run_dir, content_type, ...) → stage generic writing/review artifacts
   ├──► orch_run_plan_computation(...)                   → compile staged idea into execution plan + manifest
   ├──► orch_run_execute_manifest(...)                   → execute approved computation manifest
-  ├──► orch_run_progress_followups(...)                 → advance one feedback or writing/review continuation
+  ├──► orch_run_progress_followups(...)                 → advance one feedback/literature or writing/review continuation
   ├──► orch_run_status(project_root)                    → lifecycle snapshot
   ├──► hep_run_* / hep_project_* / inspire_* ...        → strategy/domain work
   ├──► orch_run_approvals_list(project_root, run_id)    → inspect pending gates
