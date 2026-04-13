@@ -9,7 +9,7 @@ import { getRun } from '../runs.js';
 import { getRunArtifactPath, getRunDir } from '../paths.js';
 import { writeRunJsonArtifact } from '../citations.js';
 import { HEP_RUN_STAGE_CONTENT } from '../../tool-names.js';
-import { parseHepRunArtifactUriOrThrow } from '../runArtifactUri.js';
+import { makeHepRunArtifactUri, parseHepRunArtifactUriOrThrow } from '../runArtifactUri.js';
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -42,7 +42,7 @@ export async function stageRunContent(params: {
 
   return {
     run_id: params.run_id,
-    staging_uri: `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent(repArtifactName)}`,
+    staging_uri: makeHepRunArtifactUri(run.run_id, repArtifactName),
     artifact_name: repArtifactName,
     content_bytes: staged.content_bytes,
   };
