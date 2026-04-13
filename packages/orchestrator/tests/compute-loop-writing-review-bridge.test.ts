@@ -6,7 +6,7 @@ import {
   buildTeamConfigForDelegatedFollowupTask,
   primeDelegatedFollowupTeamState,
 } from '../src/computation/feedback-followups.js';
-import { executeComputationManifest } from '../src/computation/index.js';
+import { executeComputationManifest, progressDelegatedComputationFollowups } from '../src/computation/index.js';
 import { assertComputationResultValid } from '../src/computation/result-schema.js';
 import { handleOrchRunExecuteAgent } from '../src/orch-tools/agent-runtime.js';
 import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
@@ -90,6 +90,47 @@ describe('compute-loop writing/review bridges', () => {
     expect(writingBridge.handoff).toBeUndefined();
   });
 
+  it('prefers the latest staged draft and review artifacts when seeding follow-up bridges', async () => {
+    const projectRoot = makeTmpDir();
+    const runId = 'run-writing-review-latest';
+    registerCleanup(projectRoot);
+
+    const { runDir, manifestPath } = createBridgeRun(runId, projectRoot);
+    stageContextArtifact(runDir, 'section_output', 'aaa-old', {
+      stagedAt: '2026-03-13T00:00:00Z',
+      taskRef: { taskId: 'draft-old', taskKind: 'draft_update' },
+    });
+    stageContextArtifact(runDir, 'section_output', 'zzz-new', {
+      stagedAt: '2026-03-13T00:00:10Z',
+      taskRef: { taskId: 'draft-new', taskKind: 'draft_update' },
+    });
+    stageContextArtifact(runDir, 'reviewer_report', 'aaa-old', { stagedAt: '2026-03-13T00:00:01Z' });
+    stageContextArtifact(runDir, 'reviewer_report', 'zzz-new', { stagedAt: '2026-03-13T00:00:11Z' });
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+
+    const result = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect(result.status).toBe('completed');
+
+    const writingBridge = JSON.parse(
+      fs.readFileSync(path.join(runDir, 'artifacts', 'writing_followup_bridge_v1.json'), 'utf-8'),
+    ) as {
+      context: { draft_source_artifact_name?: string };
+    };
+    const reviewBridge = JSON.parse(
+      fs.readFileSync(path.join(runDir, 'artifacts', 'review_followup_bridge_v1.json'), 'utf-8'),
+    ) as {
+      context: {
+        draft_source_artifact_name?: string;
+        review_source_artifact_name?: string;
+      };
+    };
+
+    expect(writingBridge.context.draft_source_artifact_name).toBe('staged_section_output_zzz-new.json');
+    expect(reviewBridge.context.draft_source_artifact_name).toBe('staged_section_output_zzz-new.json');
+    expect(reviewBridge.context.review_source_artifact_name).toBe('staged_reviewer_report_zzz-new.json');
+  });
+
   it('launches the real computation writing follow-up through orch_run_execute_agent.team and resumes from persisted team state', async () => {
     const projectRoot = makeTmpDir();
     const runId = 'run-writing-review-bridge';
@@ -141,14 +182,37 @@ describe('compute-loop writing/review bridges', () => {
       model: 'claude-test',
       messages: [{
         role: 'assistant' as const,
-        content: [{ type: 'tool_use' as const, id: 'tu_bridge', name: 'do_thing', input: {} }],
+        content: [{
+          type: 'tool_use' as const,
+          id: 'tu_bridge',
+          name: 'orch_run_stage_content',
+          input: {
+            run_id: runId,
+            run_dir: runDir,
+            content_type: 'section_output',
+            content: '{"section_number":"1","title":"Draft","content":"Updated draft"}',
+            task_id: draftTask.task_id,
+            task_kind: 'draft_update',
+          },
+        }],
       }],
-      tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+      tools: [{ name: 'orch_run_stage_content', input_schema: { type: 'object', properties: {} } }],
       team: writingLaunchTeam,
     };
 
     const first = await handleOrchRunExecuteAgent(runtimeArgs, {
-      callTool: vi.fn(async () => ({ content: [{ type: 'text', text: 'tool-result' }], isError: false })),
+      callTool: vi.fn(async () => ({
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            run_id: runId,
+            artifact_name: `staged_section_output_${draftTask.task_id}.json`,
+            staging_uri: `rep://runs/${runId}/artifact/${encodeURIComponent(`artifacts/staged_section_output_${draftTask.task_id}.json`)}`,
+            content_bytes: 64,
+          }),
+        }],
+        isError: false,
+      })),
       createMessage: async () => { throw new Error('interrupt after checkpoint'); },
     }) as {
       last_completed_step: string;
@@ -261,5 +325,103 @@ describe('compute-loop writing/review bridges', () => {
     expect(verificationUriBuckets(reviewBridge.verification_refs)).toEqual(resultVerificationUris);
     expect(reviewBridge.verification_refs).not.toHaveProperty('check_run_refs');
     expect(reviewBridge.handoff.handoff_kind).toBe('review');
+  });
+
+  it('refreshes the pending review bridge to the latest staged draft after draft completion without changing persisted node linkage', async () => {
+    const projectRoot = makeTmpDir();
+    const runId = 'run-review-refresh';
+    registerCleanup(projectRoot);
+
+    const { runDir, manifestPath } = createBridgeRun(runId, projectRoot);
+    stageContextArtifact(runDir, 'section_output', 'zzz-old', {
+      stagedAt: '2026-03-13T00:00:00Z',
+      taskRef: { taskId: 'placeholder', taskKind: 'draft_update' },
+    });
+    stageContextArtifact(runDir, 'reviewer_report', 'mid-old', { stagedAt: '2026-03-13T00:00:01Z' });
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+
+    const result = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect(result.status).toBe('completed');
+
+    const computationResult = assertComputationResultValid(
+      JSON.parse(fs.readFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), 'utf-8')) as unknown,
+    );
+    const draftTask = computationResult.workspace_feedback.tasks.find(task => task.kind === 'draft_update')!;
+    const reviewTask = computationResult.workspace_feedback.tasks.find(task => task.kind === 'review')!;
+
+    let callCount = 0;
+    const launchTask = vi.fn(async ({ task }) => {
+      callCount += 1;
+      if (callCount === 1) {
+        expect(task.kind).toBe('draft_update');
+        stageContextArtifact(runDir, 'section_output', 'aaa-new', {
+          stagedAt: '2026-03-13T00:00:10Z',
+          taskRef: { taskId: draftTask.task_id, taskKind: 'draft_update' },
+        });
+        stageContextArtifact(runDir, 'section_output', 'zzz-other', {
+          stagedAt: '2026-03-13T00:00:20Z',
+          taskRef: { taskId: 'other-draft-task', taskKind: 'draft_update' },
+        });
+        return {
+          launchResult: {
+            status: 'launched' as const,
+            task_id: draftTask.task_id,
+            task_kind: 'draft_update' as const,
+            assignment_id: 'assign-draft-1',
+          },
+          teamState: {
+            delegate_assignments: [
+              { assignment_id: 'assign-draft-1', task_id: draftTask.task_id, task_kind: 'draft_update', status: 'completed' },
+            ],
+          },
+        };
+      }
+      expect(task.kind).toBe('review');
+      return {
+        launchResult: {
+          status: 'launched' as const,
+          task_id: reviewTask.task_id,
+          task_kind: 'review' as const,
+          assignment_id: 'assign-review-1',
+        },
+        teamState: {
+          delegate_assignments: [
+            { assignment_id: 'assign-draft-1', task_id: draftTask.task_id, task_kind: 'draft_update', status: 'completed' },
+            { assignment_id: 'assign-review-1', task_id: reviewTask.task_id, task_kind: 'review', status: 'running' },
+          ],
+        },
+      };
+    });
+
+    const launchResult = await progressDelegatedComputationFollowups({
+      computationResult,
+      projectRoot,
+      runId,
+      runDir,
+      launchTask,
+    });
+
+    expect(launchResult).toMatchObject({
+      status: 'launched',
+      task_id: reviewTask.task_id,
+      task_kind: 'review',
+    });
+
+    const reviewBridge = JSON.parse(
+      fs.readFileSync(path.join(runDir, 'artifacts', 'review_followup_bridge_v1.json'), 'utf-8'),
+    ) as {
+      target: { target_node_id: string; seed_payload: { source_artifact_name?: string; target_draft_node_id?: string } };
+      handoff: { target_node_id: string; payload: { issue_node_id?: string; target_draft_node_id?: string } };
+      context: { draft_source_artifact_name?: string };
+    };
+
+    expect(reviewBridge.context.draft_source_artifact_name).toContain('staged_section_output_aaa-new');
+    expect(reviewBridge.context.draft_source_artifact_name).not.toContain('zzz-other');
+    expect(reviewBridge.target.seed_payload.source_artifact_name).toContain('staged_section_output_aaa-new');
+    expect(reviewBridge.target.target_node_id).toBe(reviewTask.target_node_id);
+    expect(reviewBridge.handoff.target_node_id).toBe(reviewTask.target_node_id);
+    expect(reviewBridge.handoff.payload.issue_node_id).toBe(reviewTask.target_node_id ?? undefined);
+    expect(reviewBridge.handoff.payload.target_draft_node_id).toBe(draftTask.target_node_id ?? undefined);
   });
 });

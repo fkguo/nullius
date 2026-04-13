@@ -3,6 +3,7 @@ import * as path from 'node:path';
 
 import { compileExecutionPlan } from '../src/computation/execution-plan.js';
 import { executionPlanArtifactPath, materializeExecutionPlan } from '../src/computation/materialize-execution-plan.js';
+import { stageContentInRunDir } from '../src/computation/staged-content.js';
 import { writeJson } from './executeManifestTestUtils.js';
 
 export function createBridgeRun(runId: string, projectRoot: string) {
@@ -29,14 +30,30 @@ export function stageContextArtifact(
   runDir: string,
   contentType: 'section_output' | 'reviewer_report' | 'revision_plan',
   suffix: string,
+  options?: {
+    stagedAt?: string;
+    content?: string;
+    taskRef?: {
+      taskId: string;
+      taskKind: 'draft_update' | 'review';
+    };
+  },
 ): void {
-  const artifactPath = path.join(runDir, 'artifacts', `staged_${contentType}_${suffix}.json`);
-  writeJson(artifactPath, {
-    version: 1,
-    staged_at: '2026-03-13T00:00:00Z',
-    content_type: contentType,
-    content: JSON.stringify({ section_number: '1', title: 'Seed context', content: 'Seed content' }),
+  const staged = stageContentInRunDir({
+    runId: path.basename(runDir),
+    runDir,
+    contentType,
+    content: options?.content ?? JSON.stringify({ section_number: '1', title: 'Seed context', content: 'Seed content' }),
+    artifactSuffix: suffix,
+    taskId: options?.taskRef?.taskId,
+    taskKind: options?.taskRef?.taskKind,
   });
+  if (options?.stagedAt) {
+    const artifactPath = path.join(runDir, 'artifacts', staged.artifact_name);
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as Record<string, unknown>;
+    artifact.staged_at = options.stagedAt;
+    writeJson(artifactPath, artifact);
+  }
 }
 
 export function textResponse(text: string) {

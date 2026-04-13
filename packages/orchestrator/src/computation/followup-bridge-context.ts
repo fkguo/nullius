@@ -12,6 +12,14 @@ export type DraftContext = {
   reviewSourceContentType?: ReviewContentType;
 };
 
+export type StagedContentArtifact = {
+  artifactName: string;
+  contentType: SourceContentType;
+  stagedAtMs: number | null;
+};
+
+type ReviewStagedContentArtifact = StagedContentArtifact & { contentType: ReviewContentType };
+
 const DRAFT_SOURCE_PRIORITY: Record<SourceContentType, number> = {
   section_output: 0,
   reviewer_report: 1,
@@ -27,12 +35,21 @@ export function slugFor(value: string): string {
   return value.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'seed';
 }
 
-function readStagedContentType(filePath: string): SourceContentType | null {
+function readStagedContentArtifact(filePath: string, artifactName: string): StagedContentArtifact | null {
   try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as { content_type?: unknown };
+    const stat = fs.statSync(filePath);
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as {
+      content_type?: unknown;
+      staged_at?: unknown;
+    };
     const contentType = parsed.content_type;
     if (contentType === 'section_output' || contentType === 'reviewer_report' || contentType === 'revision_plan') {
-      return contentType;
+      const stagedAt = typeof parsed.staged_at === 'string' ? Date.parse(parsed.staged_at) : Number.NaN;
+      return {
+        artifactName,
+        contentType,
+        stagedAtMs: Number.isFinite(stagedAt) ? stagedAt : stat.mtimeMs,
+      };
     }
   } catch {
     return null;
@@ -40,46 +57,64 @@ function readStagedContentType(filePath: string): SourceContentType | null {
   return null;
 }
 
+function isLaterArtifact(
+  current: StagedContentArtifact,
+  candidate: StagedContentArtifact,
+): boolean {
+  const currentStagedAt = current.stagedAtMs ?? Number.NEGATIVE_INFINITY;
+  const candidateStagedAt = candidate.stagedAtMs ?? Number.NEGATIVE_INFINITY;
+  if (candidateStagedAt !== currentStagedAt) {
+    return candidateStagedAt > currentStagedAt;
+  }
+  return candidate.artifactName.localeCompare(current.artifactName) > 0;
+}
+
 function preferDraftSource(
-  current: { artifactName: string; contentType: SourceContentType } | undefined,
-  candidate: { artifactName: string; contentType: SourceContentType },
-): { artifactName: string; contentType: SourceContentType } {
+  current: StagedContentArtifact | undefined,
+  candidate: StagedContentArtifact,
+): StagedContentArtifact {
   if (!current) return candidate;
   const currentPriority = DRAFT_SOURCE_PRIORITY[current.contentType];
   const candidatePriority = DRAFT_SOURCE_PRIORITY[candidate.contentType];
   if (candidatePriority !== currentPriority) {
     return candidatePriority < currentPriority ? candidate : current;
   }
-  return candidate.artifactName.localeCompare(current.artifactName) < 0 ? candidate : current;
+  return isLaterArtifact(current, candidate) ? candidate : current;
 }
 
 function preferReviewSource(
-  current: { artifactName: string; contentType: ReviewContentType } | undefined,
-  candidate: { artifactName: string; contentType: ReviewContentType },
-): { artifactName: string; contentType: ReviewContentType } {
+  current: ReviewStagedContentArtifact | undefined,
+  candidate: ReviewStagedContentArtifact,
+): ReviewStagedContentArtifact {
   if (!current) return candidate;
   const currentPriority = REVIEW_SOURCE_PRIORITY[current.contentType];
   const candidatePriority = REVIEW_SOURCE_PRIORITY[candidate.contentType];
   if (candidatePriority !== currentPriority) {
     return candidatePriority < currentPriority ? candidate : current;
   }
-  return candidate.artifactName.localeCompare(current.artifactName) < 0 ? candidate : current;
+  return isLaterArtifact(current, candidate) ? candidate : current;
+}
+
+export function listStagedContentArtifacts(runDir: string): StagedContentArtifact[] {
+  const artifactsDir = path.join(runDir, 'artifacts');
+  if (!fs.existsSync(artifactsDir)) {
+    return [];
+  }
+  return fs.readdirSync(artifactsDir)
+    .filter(name => name.startsWith('staged_') && name.endsWith('.json'))
+    .sort()
+    .map(artifactName => readStagedContentArtifact(path.join(artifactsDir, artifactName), artifactName))
+    .filter((artifact): artifact is StagedContentArtifact => artifact !== null);
 }
 
 export function detectDraftContext(runDir: string): DraftContext {
-  const artifactsDir = path.join(runDir, 'artifacts');
-  if (!fs.existsSync(artifactsDir)) {
-    return { mode: 'seeded_draft' };
-  }
-  const candidates = fs.readdirSync(artifactsDir).filter(name => name.startsWith('staged_') && name.endsWith('.json')).sort();
-  let draftSource: { artifactName: string; contentType: SourceContentType } | undefined;
-  let reviewSource: { artifactName: string; contentType: ReviewContentType } | undefined;
-  for (const artifactName of candidates) {
-    const contentType = readStagedContentType(path.join(artifactsDir, artifactName));
-    if (!contentType) continue;
-    draftSource = preferDraftSource(draftSource, { artifactName, contentType });
-    if (contentType === 'reviewer_report' || contentType === 'revision_plan') {
-      reviewSource = preferReviewSource(reviewSource, { artifactName, contentType });
+  const candidates = listStagedContentArtifacts(runDir);
+  let draftSource: StagedContentArtifact | undefined;
+  let reviewSource: ReviewStagedContentArtifact | undefined;
+  for (const candidate of candidates) {
+    draftSource = preferDraftSource(draftSource, candidate);
+    if (candidate.contentType === 'reviewer_report' || candidate.contentType === 'revision_plan') {
+      reviewSource = preferReviewSource(reviewSource, candidate as ReviewStagedContentArtifact);
     }
   }
   if (!draftSource) {

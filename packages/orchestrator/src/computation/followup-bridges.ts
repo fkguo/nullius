@@ -1,5 +1,12 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ArtifactRefV1, ComputationResultV1, WritingReviewBridgeV1 } from '@autoresearch/shared';
+import {
+  parseWritingReviewBridgeV1,
+  parseStagedContentArtifactV1,
+  type ArtifactRefV1,
+  type ComputationResultV1,
+  type WritingReviewBridgeV1,
+} from '@autoresearch/shared';
 import type { ReviewHandoff, ResearchEdge, ResearchNode, ResearchTaskInput, WritingHandoff } from '../research-loop/index.js';
 import { createRunArtifactRef, makeRunArtifactUri } from './artifact-refs.js';
 import { loopNodeIdsFor } from './feedback-lowering.js';
@@ -46,6 +53,33 @@ export type ComputationFollowupBridges = {
   bridgePlans: PlannedBridgeArtifact[];
   writingSeed?: WritingFollowupWorkspaceSeed;
 };
+
+function selectLatestSectionOutputForTask(
+  runDir: string,
+  taskId: string,
+): { artifactName: string; contentType: 'section_output' } | null {
+  const artifactsDir = path.join(runDir, 'artifacts');
+  if (!fs.existsSync(artifactsDir)) return null;
+  let latest: { artifactName: string; stagedAtMs: number } | null = null;
+  for (const artifactName of fs.readdirSync(artifactsDir).filter(name => name.startsWith('staged_') && name.endsWith('.json')).sort()) {
+    const artifactPath = path.join(artifactsDir, artifactName);
+    let parsed;
+    try {
+      parsed = parseStagedContentArtifactV1(JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as unknown);
+    } catch {
+      continue;
+    }
+    if (parsed.content_type !== 'section_output') continue;
+    if (!parsed.task_ref || parsed.task_ref.task_kind !== 'draft_update' || parsed.task_ref.task_id !== taskId) continue;
+    const stagedAtMs = Number.isFinite(Date.parse(parsed.staged_at))
+      ? Date.parse(parsed.staged_at)
+      : fs.statSync(artifactPath).mtimeMs;
+    if (!latest || stagedAtMs > latest.stagedAtMs || (stagedAtMs === latest.stagedAtMs && artifactName.localeCompare(latest.artifactName) > 0)) {
+      latest = { artifactName, stagedAtMs };
+    }
+  }
+  return latest ? { artifactName: latest.artifactName, contentType: 'section_output' } : null;
+}
 
 export function planComputationFollowupBridges(runDir: string, input: BridgeAuthorityInput): ComputationFollowupBridges {
   if (input.feedback_lowering.decision_kind !== 'capture_finding') {
@@ -186,4 +220,75 @@ export function writeComputationFollowupBridgeArtifacts(runId: string, runDir: s
     writeJsonAtomic(artifactPath, plan.payload);
     return createRunArtifactRef(runId, runDir, artifactPath, 'writing_review_bridge');
   });
+}
+
+export function refreshReviewFollowupBridge(params: {
+  runId: string;
+  runDir: string;
+  computationResult: ComputationResultV1;
+  reviewTaskId: string;
+  upstreamDraftTaskId: string;
+}): ArtifactRefV1 | null {
+  const bridgePath = path.join(params.runDir, 'artifacts', 'review_followup_bridge_v1.json');
+  if (!params.computationResult.followup_bridge_refs || !params.computationResult.workspace_feedback) {
+    return null;
+  }
+  if (!params.computationResult.workspace_feedback.tasks.some(task => task.kind === 'review' && task.status === 'pending')) {
+    return null;
+  }
+  const selectedReviewTask = params.computationResult.workspace_feedback.tasks.find(
+    task => task.task_id === params.reviewTaskId && task.kind === 'review' && task.status === 'pending',
+  );
+  if (!selectedReviewTask) {
+    return null;
+  }
+  if (!params.computationResult.workspace_feedback.tasks.some(task => task.kind === 'draft_update')) {
+    return null;
+  }
+  if (!fs.existsSync(bridgePath)) {
+    return null;
+  }
+  const latestDraft = selectLatestSectionOutputForTask(params.runDir, params.upstreamDraftTaskId);
+  if (!latestDraft) return null;
+  const currentBridge = parseWritingReviewBridgeV1(
+    JSON.parse(fs.readFileSync(bridgePath, 'utf-8')) as unknown,
+  );
+  if (currentBridge.bridge_kind !== 'review') return null;
+  const draftSourceUnchanged = currentBridge.context.draft_source_artifact_name === latestDraft.artifactName
+    && currentBridge.context.draft_source_content_type === latestDraft.contentType;
+  const seedAlreadyBoundToLatestDraft = currentBridge.target.seed_payload.source_artifact_name === latestDraft.artifactName
+    && currentBridge.target.seed_payload.source_content_type === latestDraft.contentType;
+  if (draftSourceUnchanged && seedAlreadyBoundToLatestDraft && !currentBridge.context.review_source_artifact_name) {
+    return null;
+  }
+
+  const refreshedBridge: WritingReviewBridgeV1 = {
+    ...currentBridge,
+    target: {
+      ...currentBridge.target,
+      seed_payload: {
+        ...currentBridge.target.seed_payload,
+        source_artifact_name: latestDraft.artifactName,
+        source_content_type: latestDraft.contentType,
+      },
+    },
+    context: {
+      draft_context_mode: 'existing_draft',
+      draft_source_artifact_name: latestDraft.artifactName,
+      draft_source_content_type: latestDraft.contentType,
+    },
+  };
+  writeJsonAtomic(bridgePath, refreshedBridge);
+  const refreshedRef = createRunArtifactRef(params.runId, params.runDir, bridgePath, 'writing_review_bridge');
+  const reviewBridgeUri = makeRunArtifactUri(params.runId, 'artifacts/review_followup_bridge_v1.json');
+  const followupRefs = params.computationResult.followup_bridge_refs;
+  const bridgeIndex = followupRefs.findIndex(ref => ref.uri === reviewBridgeUri);
+  if (bridgeIndex >= 0) {
+    followupRefs[bridgeIndex] = refreshedRef;
+    writeJsonAtomic(
+      path.join(params.runDir, 'artifacts', 'computation_result_v1.json'),
+      params.computationResult,
+    );
+  }
+  return refreshedRef;
 }
