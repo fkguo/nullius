@@ -71,6 +71,7 @@ export interface TeamExecutionAssignmentInput {
   task_kind: ResearchTaskKind;
   handoff_id?: string | null;
   handoff_kind?: ResearchHandoff['handoff_kind'] | null;
+  handoff_payload?: Record<string, unknown> | null;
   checkpoint_id?: string | null;
   timeout_at?: string | null;
   forked_from_assignment_id?: string | null;
@@ -109,6 +110,7 @@ export interface TeamDelegateAssignment {
   task_kind: ResearchTaskKind;
   handoff_id: string | null;
   handoff_kind: ResearchHandoff['handoff_kind'] | null;
+  handoff_payload: Record<string, unknown> | null;
   checkpoint_id: string | null;
   status: TeamAssignmentStatus;
   timeout_at: string | null;

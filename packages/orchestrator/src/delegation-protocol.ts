@@ -33,6 +33,7 @@ export interface TeamDelegationProtocol {
     coordination_policy: TeamCoordinationPolicy;
     handoff_id: string | null;
     checkpoint_id: string | null;
+    handoff_payload: Record<string, unknown> | null;
   };
 }
 
@@ -48,6 +49,7 @@ export interface BuildTeamDelegationProtocolInput {
   stage: number;
   handoff_id: string | null;
   handoff_kind: ResearchHandoffKind | null;
+  handoff_payload: Record<string, unknown> | null;
   checkpoint_id: string | null;
   required_tools: string[];
 }
@@ -55,6 +57,19 @@ export interface BuildTeamDelegationProtocolInput {
 export function buildTeamDelegationProtocol(
   input: BuildTeamDelegationProtocolInput,
 ): TeamDelegationProtocol {
+  const taskScopedOutputInstructions =
+    input.task_kind === 'draft_update' && input.handoff_kind === 'writing'
+      ? [
+          `Before declaring success, call orch_run_stage_content with task_id=${input.task_id}, task_kind=draft_update, and content_type=section_output.`,
+          'If no matching task-scoped staged draft is submitted, this delegated draft_update assignment will not be treated as completed.',
+        ]
+      : input.task_kind === 'review' && input.handoff_kind === 'review'
+        ? [
+            `Before declaring success, call orch_run_stage_content with task_id=${input.task_id}, task_kind=review, and content_type=reviewer_report or revision_plan.`,
+            `Also call orch_run_stage_content with task_id=${input.task_id}, task_kind=review, and content_type=judge_decision.`,
+            'If either the narrative review output or the task-scoped judge_decision is missing, this delegated review assignment will not be treated as completed.',
+          ]
+        : [];
   return {
     TASK: {
       assignment_id: input.assignment_id,
@@ -78,6 +93,7 @@ export function buildTeamDelegationProtocol(
         'Respect the team permission matrix before delegating or applying interventions.',
         'Keep progress resumable through the shared runtime manifest and checkpoint bindings.',
         'Treat workspace/task/handoff/checkpoint refs as the only substrate authority for project state.',
+        ...taskScopedOutputInstructions,
       ],
     },
     MUST_NOT_DO: {
@@ -92,6 +108,7 @@ export function buildTeamDelegationProtocol(
       coordination_policy: input.coordination_policy,
       handoff_id: input.handoff_id,
       checkpoint_id: input.checkpoint_id,
+      handoff_payload: input.handoff_payload,
     },
   };
 }

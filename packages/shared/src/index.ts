@@ -40,6 +40,18 @@ export * from './discovery/index.js';
 // Utils
 export * from './utils/index.js';
 
+// Writing/review bridge runtime parser
+export * from './writing-review-bridge.js';
+
+// Generic staged writing/review content runtime parser
+export * from './staged-content.js';
+
+// Structured review judge-decision runtime parser
+export * from './review-judge-decision.js';
+
+// Verification lift runtime parser
+export * from './verification-lift.js';
+
 // Sanitization (H-08)
 export { sanitizePath, sanitizeFilename, sanitizeQueryString } from './sanitize.js';
 

@@ -72,6 +72,20 @@ function readOptionalDatetime(payload: Record<string, unknown>, key: string): st
   return value;
 }
 
+function readOptionalPayloadObject(
+  payload: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null | undefined {
+  const value = payload[key];
+  if (value === undefined || value === null) {
+    return value as null | undefined;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`team intervention payload field '${key}' must be an object or null`);
+  }
+  return structuredClone(value as Record<string, unknown>);
+}
+
 export function buildPendingRedirect(command: TeamInterventionCommand, createdAt: string): TeamPendingRedirect {
   const payload = { ...(command.payload ?? {}) };
   if (!command.note && Object.keys(payload).length === 0) {
@@ -101,6 +115,7 @@ export function buildInjectedAssignmentInput(
     task_kind: readRequiredEnum(payload, 'task_kind', TASK_KINDS),
     handoff_id: readNullableString(payload, 'handoff_id') ?? null,
     handoff_kind: readOptionalEnum(payload, 'handoff_kind', HANDOFF_KINDS) ?? null,
+    handoff_payload: readOptionalPayloadObject(payload, 'handoff_payload') ?? null,
     checkpoint_id: readNullableString(payload, 'checkpoint_id') ?? null,
     timeout_at: readOptionalDatetime(payload, 'timeout_at') ?? null,
   };

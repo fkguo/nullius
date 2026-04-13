@@ -7,7 +7,7 @@ import type {
   TeamExecutionAssignmentInput,
   TeamExecutionState,
 } from './team-execution-types.js';
-import { utcNowIso } from './util.js';
+import { sortKeysRecursive, utcNowIso } from './util.js';
 
 type TeamStateSeed = Pick<TeamExecutionState, 'workspace_id' | 'coordination_policy'>;
 
@@ -20,6 +20,8 @@ export function findMatchingAssignment(
   const inheritance = input.mcp_tool_inheritance ?? { mode: 'team_permission_matrix' as const };
   const normalizeAdditive = (toolNames: ReadonlyArray<string> | undefined): string[] =>
     [...new Set((toolNames ?? []).map(name => String(name)).filter(name => name.length > 0))].sort();
+  const normalizePayload = (payload: Record<string, unknown> | null | undefined): string =>
+    JSON.stringify(sortKeysRecursive(payload ?? null));
   const additive = normalizeAdditive(inheritance.additive_tool_names);
   return assignments.find(candidate =>
     normalizeAdditive(candidate.mcp_tool_inheritance.additive_tool_names).join('\n') === additive.join('\n')
@@ -31,6 +33,7 @@ export function findMatchingAssignment(
     && candidate.delegate_role === input.delegate_role
     && candidate.handoff_id === (input.handoff_id ?? null)
     && candidate.handoff_kind === (input.handoff_kind ?? null)
+    && normalizePayload(candidate.handoff_payload) === normalizePayload(input.handoff_payload)
     && candidate.forked_from_assignment_id === forkedFromAssignmentId
     && candidate.forked_from_session_id === forkedFromSessionId
     && candidate.mcp_tool_inheritance.mode === inheritance.mode
@@ -63,6 +66,7 @@ export function buildTeamDelegateAssignment(
       stage: input.stage ?? 0,
       handoff_id: input.handoff_id ?? null,
       handoff_kind: input.handoff_kind ?? null,
+      handoff_payload: input.handoff_payload ?? null,
       checkpoint_id: input.checkpoint_id ?? null,
       required_tools: requiredTools,
     }),
@@ -73,6 +77,7 @@ export function buildTeamDelegateAssignment(
     task_kind: input.task_kind,
     handoff_id: input.handoff_id ?? null,
     handoff_kind: input.handoff_kind ?? null,
+    handoff_payload: input.handoff_payload ?? null,
     checkpoint_id: input.checkpoint_id ?? null,
     status: 'pending',
     timeout_at: input.timeout_at ?? null,

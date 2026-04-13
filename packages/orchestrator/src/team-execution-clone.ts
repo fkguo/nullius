@@ -35,6 +35,7 @@ function cloneAssignment(assignment: TeamDelegateAssignment): TeamDelegateAssign
     task_kind: assignment.task_kind,
     handoff_id: assignment.handoff_id,
     handoff_kind: assignment.handoff_kind,
+    handoff_payload: assignment.handoff_payload ? structuredClone(assignment.handoff_payload) : null,
     checkpoint_id: assignment.checkpoint_id,
     stage: assignment.stage,
     forked_from_assignment_id: assignment.forked_from_assignment_id,

@@ -2,13 +2,22 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import type { ComputationResultV1 } from '@autoresearch/shared';
 
 import {
+  executeComputationManifest,
   executeTeamDelegatedRuntime,
   executeUnifiedTeamRuntime,
   primeDelegatedFollowupTeamState,
+  stageContentInRunDir,
   type TeamPermissionMatrix,
 } from '../src/index.js';
+import { assertComputationResultValid } from '../src/computation/result-schema.js';
+import {
+  initRunState,
+  markA3Satisfied,
+} from './executeManifestTestUtils.js';
+import { createBridgeRun } from './computeLoopWritingReviewBridgeTestSupport.js';
 import {
   assignmentNeedsApprovalAttention,
   summarizeRuntimeProjectionForOperator,
@@ -18,6 +27,55 @@ import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'team-unified-runtime-'));
+}
+
+function ensureRunDir(projectRoot: string, runId: string): string {
+  const runDir = path.join(projectRoot, runId);
+  fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
+  return runDir;
+}
+
+async function prepareReviewLoweringRun(projectRoot: string, runId: string): Promise<{
+  runDir: string;
+  reviewNodeId: string;
+  evidenceNodeId: string;
+  workspaceId: string;
+}> {
+  const { runDir, manifestPath } = createBridgeRun(runId, projectRoot);
+  stageContentInRunDir({
+    runId,
+    runDir,
+    contentType: 'section_output',
+    artifactSuffix: 'draft-seed',
+    content: '{"section_number":"1","title":"Draft seed","content":"Seed draft"}',
+  });
+  stageContentInRunDir({
+    runId,
+    runDir,
+    contentType: 'reviewer_report',
+    artifactSuffix: 'review-seed',
+    content: '{"summary":"Seed review"}',
+  });
+  const manager = initRunState(projectRoot, runId);
+  markA3Satisfied(manager, 'A3-0001');
+  const result = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+  if (result.status !== 'completed') {
+    throw new Error(`expected completed computation result, received ${result.status}`);
+  }
+  const computationResult = assertComputationResultValid(
+    JSON.parse(fs.readFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), 'utf-8')) as ComputationResultV1,
+  );
+  const reviewNodeId = computationResult.workspace_feedback.workspace.nodes.find(node => node.kind === 'review_issue')?.node_id;
+  const evidenceNodeId = computationResult.workspace_feedback.workspace.nodes.find(node => node.kind === 'evidence_set')?.node_id;
+  if (!reviewNodeId || !evidenceNodeId) {
+    throw new Error('expected computation result workspace to include review_issue and evidence_set nodes');
+  }
+  return {
+    runDir,
+    reviewNodeId,
+    evidenceNodeId,
+    workspaceId: computationResult.workspace_feedback.workspace.workspace_id,
+  };
 }
 
 function textResponse(text: string) {
@@ -55,6 +113,19 @@ function extractTaskId(params: {
   if (protocol.includes('task-complete-1')) return 'task-complete-1';
   if (protocol.includes('task-review-2')) return 'task-review-2';
   return 'task-compute-1';
+}
+
+function extractProtocolText(params: {
+  messages: Array<{ role: string; content: unknown }>;
+}): string {
+  const protocol = params.messages
+    .filter(message => message.role === 'user' && typeof message.content === 'string')
+    .map(message => message.content)
+    .find(content => content.includes('## TASK'));
+  if (!protocol || typeof protocol !== 'string') {
+    throw new Error('missing delegation protocol');
+  }
+  return protocol;
 }
 
 const PERMISSIONS: TeamPermissionMatrix = {
@@ -261,12 +332,41 @@ describe('team unified runtime control paths', () => {
           handoff_kind: 'writing',
         }],
         messages: [{ role: 'user', content: 'draft this section' }],
-        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        tools: [{ name: 'orch_run_stage_content', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
-        mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null })) },
+        mcpClient: { callTool: vi.fn(async () => ({
+          ok: true,
+          isError: false,
+          rawText: JSON.stringify({
+            run_id: 'run-task-ref',
+            artifact_name: 'staged_section_output_task-task-ref.json',
+            staging_uri: 'rep://runs/run-task-ref/artifact/artifacts%2Fstaged_section_output_task-task-ref.json',
+            content_bytes: 42,
+          }),
+          json: {
+            run_id: 'run-task-ref',
+            artifact_name: 'staged_section_output_task-task-ref.json',
+            staging_uri: 'rep://runs/run-task-ref/artifact/artifacts%2Fstaged_section_output_task-task-ref.json',
+            content_bytes: 42,
+          },
+          errorCode: null,
+        })) },
         approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn()
-          .mockResolvedValueOnce(toolUseResponse('tu_task_ref', 'do_thing', { task_id: 'task-task-ref' }))
+          .mockImplementationOnce(async params => {
+            const protocol = extractProtocolText(params);
+            expect(protocol).toContain('orch_run_stage_content');
+            expect(protocol).toContain('task_id=task-task-ref');
+            expect(protocol).toContain('content_type=section_output');
+            return toolUseResponse('tu_task_ref', 'orch_run_stage_content', {
+              run_id: 'run-task-ref',
+              run_dir: path.join(projectRoot, 'run-task-ref'),
+              content_type: 'section_output',
+              content: '{"title":"draft"}',
+              task_id: 'task-task-ref',
+              task_kind: 'draft_update',
+            });
+          })
           .mockResolvedValueOnce(textResponse('done')),
       });
 
@@ -291,6 +391,465 @@ describe('team unified runtime control paths', () => {
       expect(result.live_status.terminal_assignments[0]).not.toHaveProperty('delegated_runtime_handle');
       expect(result.replay[0]).not.toHaveProperty('delegated_runtime_handle');
       expect(result.assignment_results[0]).not.toHaveProperty('delegated_runtime_handle');
+      expect(result.assignment_results[0]?.status).toBe('completed');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('marks delegated draft follow-up assignments as needs_recovery when they finish without task-scoped output submission', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      primeDelegatedFollowupTeamState({
+        projectRoot,
+        runId: 'run-missing-draft-output',
+        team: {
+          workspace_id: 'workspace:run-missing-draft-output',
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+          task_id: 'task-draft-followup',
+          task_kind: 'draft_update',
+          research_task_ref: {
+            task_id: 'task-draft-followup',
+            task_kind: 'draft_update',
+            target_node_id: 'draft:node-1',
+            parent_task_id: null,
+            workspace_id: 'workspace:run-missing-draft-output',
+            handoff_id: 'handoff-writing-1',
+            handoff_kind: 'writing',
+            source_task_id: 'task-finding-1',
+          },
+          handoff_id: 'handoff-writing-1',
+          handoff_kind: 'writing',
+          checkpoint_id: null,
+        },
+      });
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-missing-draft-output',
+        workspaceId: 'workspace:run-missing-draft-output',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: {
+          delegation: [{
+            from_role: 'lead',
+            to_role: 'delegate',
+            allowed_task_kinds: ['draft_update'],
+            allowed_handoff_kinds: ['writing'],
+          }],
+          interventions: PERMISSIONS.interventions,
+        },
+        assignments: [{
+          stage: 0,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          task_id: 'task-draft-followup',
+          task_kind: 'draft_update',
+          handoff_id: 'handoff-writing-1',
+          handoff_kind: 'writing',
+        }],
+        messages: [{ role: 'user', content: 'draft this section' }],
+        tools: [],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn().mockResolvedValue(textResponse('done')),
+      });
+
+      expect(result.assignment_results[0]?.status).toBe('needs_recovery');
+      expect(result.replay.some(entry =>
+        entry.kind === 'assignment_status_changed'
+        && entry.payload.status === 'needs_recovery'
+        && entry.payload.reason === 'missing_task_scoped_output',
+      )).toBe(true);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('marks delegated review follow-up assignments as needs_recovery when they omit judge_decision output', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const runId = 'run-review-missing-decision';
+      const runDir = ensureRunDir(projectRoot, runId);
+      primeDelegatedFollowupTeamState({
+        projectRoot,
+        runId,
+        team: {
+          workspace_id: `workspace:${runId}`,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+          task_id: 'task-review-followup',
+          task_kind: 'review',
+          research_task_ref: {
+            task_id: 'task-review-followup',
+            task_kind: 'review',
+            target_node_id: 'review:node-1',
+            parent_task_id: null,
+            workspace_id: `workspace:${runId}`,
+            handoff_id: 'handoff-review-1',
+            handoff_kind: 'review',
+            source_task_id: 'task-draft-1',
+          },
+          handoff_id: 'handoff-review-1',
+          handoff_kind: 'review',
+          checkpoint_id: null,
+        },
+      });
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId,
+        workspaceId: `workspace:${runId}`,
+        coordinationPolicy: 'supervised_delegate',
+        permissions: {
+          delegation: [{
+            from_role: 'lead',
+            to_role: 'delegate',
+            allowed_task_kinds: ['review'],
+            allowed_handoff_kinds: ['review'],
+          }],
+          interventions: PERMISSIONS.interventions,
+        },
+        assignments: [{
+          stage: 0,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          task_id: 'task-review-followup',
+          task_kind: 'review',
+          handoff_id: 'handoff-review-1',
+          handoff_kind: 'review',
+        }],
+        messages: [{ role: 'user', content: 'review this draft' }],
+        tools: [{ name: 'orch_run_stage_content', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async (_name, args) => {
+          const payload = stageContentInRunDir({
+            runId,
+            runDir,
+            contentType: args.content_type as 'reviewer_report',
+            content: String(args.content),
+            taskId: args.task_id as string,
+            taskKind: args.task_kind as 'review',
+          });
+          return {
+            ok: true,
+            isError: false,
+            rawText: JSON.stringify(payload),
+            json: payload,
+            errorCode: null,
+          };
+        }) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn()
+          .mockImplementationOnce(async params => {
+            const protocol = extractProtocolText(params);
+            expect(protocol).toContain('orch_run_stage_content');
+            expect(protocol).toContain('task_id=task-review-followup');
+            expect(protocol).toMatch(/content_type=reviewer_report or revision_plan/);
+            expect(protocol).toContain('content_type=judge_decision');
+            return toolUseResponse('tu_review_ref', 'orch_run_stage_content', {
+              run_id: runId,
+              run_dir: runDir,
+              content_type: 'reviewer_report',
+              content: '{"summary":"review"}',
+              task_id: 'task-review-followup',
+              task_kind: 'review',
+            });
+          })
+          .mockResolvedValueOnce(textResponse('done')),
+      });
+
+      expect(result.assignment_results[0]?.status).toBe('needs_recovery');
+      expect(result.replay.some(entry =>
+        entry.kind === 'assignment_status_changed'
+        && entry.payload.status === 'needs_recovery'
+        && entry.payload.reason === 'missing_task_scoped_output',
+      )).toBe(true);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps delegated review follow-up assignments on the completed path when they submit narrative review output plus judge_decision(accept)', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const runId = 'run-review-output';
+      const { runDir, reviewNodeId, workspaceId } = await prepareReviewLoweringRun(projectRoot, runId);
+      primeDelegatedFollowupTeamState({
+        projectRoot,
+        runId,
+        team: {
+          workspace_id: workspaceId,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+          task_id: 'task-review-followup',
+          task_kind: 'review',
+          research_task_ref: {
+            task_id: 'task-review-followup',
+            task_kind: 'review',
+            target_node_id: reviewNodeId,
+            parent_task_id: null,
+            workspace_id: workspaceId,
+            handoff_id: 'handoff-review-1',
+            handoff_kind: 'review',
+            source_task_id: 'task-draft-1',
+          },
+          handoff_id: 'handoff-review-1',
+          handoff_kind: 'review',
+          checkpoint_id: null,
+        },
+      });
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId,
+        workspaceId,
+        coordinationPolicy: 'supervised_delegate',
+        permissions: {
+          delegation: [{
+            from_role: 'lead',
+            to_role: 'delegate',
+            allowed_task_kinds: ['review'],
+            allowed_handoff_kinds: ['review'],
+          }],
+          interventions: PERMISSIONS.interventions,
+        },
+        assignments: [{
+          stage: 0,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          task_id: 'task-review-followup',
+          task_kind: 'review',
+          handoff_id: 'handoff-review-1',
+          handoff_kind: 'review',
+        }],
+        messages: [{ role: 'user', content: 'review this draft' }],
+        tools: [{ name: 'orch_run_stage_content', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async (_name, args) => {
+          const payload = stageContentInRunDir({
+            runId,
+            runDir,
+            contentType: args.content_type as 'reviewer_report' | 'judge_decision',
+            content: String(args.content),
+            taskId: args.task_id as string,
+            taskKind: args.task_kind as 'review',
+          });
+          return {
+            ok: true,
+            isError: false,
+            rawText: JSON.stringify(payload),
+            json: payload,
+            errorCode: null,
+          };
+        }) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn()
+          .mockImplementationOnce(async params => {
+            const protocol = extractProtocolText(params);
+            expect(protocol).toContain('content_type=judge_decision');
+            return toolUseResponse('tu_review_report', 'orch_run_stage_content', {
+              run_id: runId,
+              run_dir: runDir,
+              content_type: 'reviewer_report',
+              content: '{"summary":"review"}',
+              task_id: 'task-review-followup',
+              task_kind: 'review',
+            });
+          })
+          .mockImplementationOnce(async () => toolUseResponse('tu_judge_decision', 'orch_run_stage_content', {
+            run_id: runId,
+            run_dir: runDir,
+            content_type: 'judge_decision',
+            content: '{"schema_version":1,"disposition":"accept","reason":"No more evidence required."}',
+            task_id: 'task-review-followup',
+            task_kind: 'review',
+          }))
+          .mockResolvedValueOnce(textResponse('done')),
+      });
+
+      expect(result.assignment_results[0]?.status).toBe('completed');
+      expect(result.team_state.delegate_assignments).toHaveLength(1);
+      expect(result.replay.some(entry =>
+        entry.kind === 'assignment_status_changed'
+        && entry.payload.status === 'completed'
+        && entry.payload.review_followup_disposition === 'accept',
+      )).toBe(true);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('lowers delegated review follow-up judge_decision(request_evidence_search) into a pending evidence_search assignment', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const runId = 'run-review-evidence-search';
+      const { runDir, reviewNodeId, evidenceNodeId, workspaceId } = await prepareReviewLoweringRun(projectRoot, runId);
+      primeDelegatedFollowupTeamState({
+        projectRoot,
+        runId,
+        team: {
+          workspace_id: workspaceId,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          coordination_policy: 'supervised_delegate',
+          task_id: 'task-review-followup',
+          task_kind: 'review',
+          research_task_ref: {
+            task_id: 'task-review-followup',
+            task_kind: 'review',
+            target_node_id: reviewNodeId,
+            parent_task_id: null,
+            workspace_id: workspaceId,
+            handoff_id: 'handoff-review-1',
+            handoff_kind: 'review',
+            source_task_id: 'task-draft-1',
+          },
+          handoff_id: 'handoff-review-1',
+          handoff_kind: 'review',
+          checkpoint_id: null,
+        },
+      });
+
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId,
+        workspaceId,
+        coordinationPolicy: 'supervised_delegate',
+        permissions: {
+          delegation: [{
+            from_role: 'lead',
+            to_role: 'delegate',
+            allowed_task_kinds: ['review', 'evidence_search'],
+            allowed_handoff_kinds: ['review', 'literature'],
+          }],
+          interventions: PERMISSIONS.interventions,
+        },
+        assignments: [{
+          stage: 0,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          task_id: 'task-review-followup',
+          task_kind: 'review',
+          handoff_id: 'handoff-review-1',
+          handoff_kind: 'review',
+        }],
+        messages: [{ role: 'user', content: 'review this draft' }],
+        tools: [{ name: 'orch_run_stage_content', input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async (_name, args) => {
+          const payload = stageContentInRunDir({
+            runId,
+            runDir,
+            contentType: args.content_type as 'reviewer_report' | 'judge_decision',
+            content: String(args.content),
+            taskId: args.task_id as string,
+            taskKind: args.task_kind as 'review',
+          });
+          return {
+            ok: true,
+            isError: false,
+            rawText: JSON.stringify(payload),
+            json: payload,
+            errorCode: null,
+          };
+        }) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn()
+          .mockImplementationOnce(async () => toolUseResponse('tu_review_report', 'orch_run_stage_content', {
+            run_id: runId,
+            run_dir: runDir,
+            content_type: 'reviewer_report',
+            content: '{"summary":"review"}',
+            task_id: 'task-review-followup',
+            task_kind: 'review',
+          }))
+          .mockImplementationOnce(async () => toolUseResponse('tu_judge_decision', 'orch_run_stage_content', {
+            run_id: runId,
+            run_dir: runDir,
+            content_type: 'judge_decision',
+            content: JSON.stringify({
+              schema_version: 1,
+              disposition: 'request_evidence_search',
+              reason: 'Need stronger support.',
+              query: 'targeted evidence refresh',
+              target_evidence_node_id: evidenceNodeId,
+            }),
+            task_id: 'task-review-followup',
+            task_kind: 'review',
+          }))
+          .mockResolvedValueOnce(textResponse('done')),
+      });
+
+      expect(result.assignment_results[0]?.status).toBe('completed');
+      expect(result.team_state.delegate_assignments).toHaveLength(2);
+      const reviewAssignment = result.team_state.delegate_assignments.find(item => item.task_id === 'task-review-followup')!;
+      const evidenceAssignment = result.team_state.delegate_assignments.find(item => item.task_kind === 'evidence_search')!;
+      expect(evidenceAssignment.status).toBe('pending');
+      expect(evidenceAssignment.handoff_kind).toBe('literature');
+      expect(evidenceAssignment.handoff_payload).toEqual({
+        query: 'targeted evidence refresh',
+        reason: 'review_followup',
+      });
+      expect(evidenceAssignment.forked_from_assignment_id).toBe(reviewAssignment.assignment_id);
+      const registry = new TeamExecutionStateManager(projectRoot).loadTaskRefRegistry(runId);
+      expect(registry?.refs_by_task_id[evidenceAssignment.task_id]).toMatchObject({
+        task_id: evidenceAssignment.task_id,
+        task_kind: 'evidence_search',
+        target_node_id: evidenceNodeId,
+        source_task_id: 'task-review-followup',
+      });
+      expect(result.replay.some(entry =>
+        entry.kind === 'assignment_status_changed'
+        && entry.payload.status === 'completed'
+        && entry.payload.review_followup_disposition === 'request_evidence_search'
+        && entry.payload.spawned_task_kind === 'evidence_search',
+      )).toBe(true);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps non-delegated review assignments on the existing completion semantics', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const result = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-plain-review',
+        workspaceId: 'workspace:run-plain-review',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: PERMISSIONS,
+        assignments: [{
+          stage: 0,
+          owner_role: 'lead',
+          delegate_role: 'delegate',
+          delegate_id: 'delegate-1',
+          task_id: 'task-review-plain',
+          task_kind: 'review',
+          handoff_id: null,
+          handoff_kind: null,
+        }],
+        messages: [{ role: 'user', content: 'review this' }],
+        tools: [],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
+        approvalGate: { createPending: () => ({}) } as never,
+        _messagesCreate: vi.fn().mockResolvedValue(textResponse('plain review complete')),
+      });
+
+      expect(result.assignment_results[0]?.status).toBe('completed');
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

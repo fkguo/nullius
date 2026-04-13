@@ -1,6 +1,8 @@
+import type { StagedContentType } from '@autoresearch/shared';
 import type { MessageParam } from './backends/chat-backend.js';
 import { asMcpError, type AgentEvent } from './agent-runner-ops.js';
 import { isTerminalCompletionStopReason } from './agent-runner-stop-reasons.js';
+import { lowerCompletedReviewFollowup } from './computation/review-followup-lowering.js';
 import {
   buildTeamDelegationProtocol,
   renderTeamDelegationProtocol,
@@ -156,6 +158,73 @@ export function deriveAssignmentStatus(
     : 'failed';
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function requiresTaskScopedOutputCompletion(
+  assignment: Pick<TeamExecutionState['delegate_assignments'][number], 'task_id' | 'task_kind' | 'handoff_kind'>,
+  manager: TeamExecutionStateManager,
+  runId: string,
+): boolean {
+  if (
+    !((assignment.task_kind === 'draft_update' || assignment.task_kind === 'review')
+    && (assignment.handoff_kind === 'writing' || assignment.handoff_kind === 'review'))
+  ) {
+    return false;
+  }
+  const registry = manager.loadTaskRefRegistry(runId);
+  const taskRef = registry?.refs_by_task_id[assignment.task_id];
+  return Boolean(taskRef?.source_task_id);
+}
+
+function hasMatchingTaskScopedStageContentEvent(params: {
+  assignment: Pick<TeamExecutionState['delegate_assignments'][number], 'task_id' | 'task_kind'>;
+  events: AgentEvent[];
+}): Array<{ contentType: StagedContentType; runDir: string | null }> {
+  return params.events.flatMap(event => {
+    if (event.type !== 'tool_call' || event.name !== 'orch_run_stage_content') return [];
+    if (!isObject(event.input)) return [];
+    if (event.input.task_id !== params.assignment.task_id) return [];
+    if (event.input.task_kind !== params.assignment.task_kind) return [];
+    if (isObject(event.result) && 'error' in event.result) return [];
+    const contentType = event.input.content_type;
+    if (
+      contentType !== 'section_output'
+      && contentType !== 'outline_plan'
+      && contentType !== 'paperset_curation'
+      && contentType !== 'revision_plan'
+      && contentType !== 'reviewer_report'
+      && contentType !== 'judge_decision'
+    ) {
+      return [];
+    }
+    return [{
+      contentType,
+      runDir: typeof event.input.run_dir === 'string' && event.input.run_dir.length > 0
+        ? event.input.run_dir
+        : null,
+    }];
+  });
+}
+
+function hasRequiredTaskScopedStageContent(params: {
+  assignment: Pick<TeamExecutionState['delegate_assignments'][number], 'task_kind'>;
+  taskScopedOutputs: Array<{ contentType: StagedContentType; runDir: string | null }>;
+}): boolean {
+  if (params.assignment.task_kind === 'draft_update') {
+    return params.taskScopedOutputs.some(output => output.contentType === 'section_output');
+  }
+  if (params.assignment.task_kind === 'review') {
+    const hasNarrative = params.taskScopedOutputs.some(output =>
+      output.contentType === 'reviewer_report' || output.contentType === 'revision_plan',
+    );
+    const hasJudgeDecision = params.taskScopedOutputs.some(output => output.contentType === 'judge_decision');
+    return hasNarrative && hasJudgeDecision;
+  }
+  return true;
+}
+
 function isSuspended(status: TeamAssignmentStatus): boolean {
   return ['paused', 'awaiting_approval', 'timed_out', 'cancelled', 'cascade_stopped'].includes(status);
 }
@@ -181,12 +250,13 @@ export function buildRuntimeProtocol(
     delegate_role: assignment.delegate_role,
     delegate_id: assignment.delegate_id,
     coordination_policy: input.coordinationPolicy,
-    stage: assignment.stage ?? 0,
-    handoff_id: assignment.handoff_id ?? null,
-    handoff_kind: assignment.handoff_kind ?? null,
-    checkpoint_id: assignment.checkpoint_id ?? null,
-    required_tools: permissionProfile.tools.allowed_tool_names,
-  });
+      stage: assignment.stage ?? 0,
+      handoff_id: assignment.handoff_id ?? null,
+      handoff_kind: assignment.handoff_kind ?? null,
+      handoff_payload: assignment.handoff_payload ?? null,
+      checkpoint_id: assignment.checkpoint_id ?? null,
+      required_tools: permissionProfile.tools.allowed_tool_names,
+    });
 
   return {
     ...baseProtocol,
@@ -207,6 +277,7 @@ export function buildRuntimeProtocol(
       coordination_policy: input.coordinationPolicy,
       handoff_id: assignment.handoff_id ?? null,
       checkpoint_id: assignment.checkpoint_id ?? null,
+      handoff_payload: assignment.handoff_payload ?? null,
     },
   };
 }
@@ -429,7 +500,57 @@ function mergeLaunchOutcome(
     };
   }
   const runtimeResult = launch.runtimeResult!;
-  const status = deriveAssignmentStatus(runtimeResult, current);
+  const derivedStatus = deriveAssignmentStatus(runtimeResult, current);
+  const taskScopedOutputs = hasMatchingTaskScopedStageContentEvent({
+    assignment: current,
+    events: runtimeResult.events,
+  });
+  const missingTaskScopedOutput =
+    derivedStatus === 'completed'
+    && requiresTaskScopedOutputCompletion(current, manager, input.runId)
+    && !hasRequiredTaskScopedStageContent({
+      assignment: current,
+      taskScopedOutputs,
+    });
+
+  let loweringFailureReason: 'invalid_review_judge_decision' | null = null;
+  let loweringPayload: Record<string, unknown> = {};
+  let status: TeamAssignmentStatus = missingTaskScopedOutput ? 'needs_recovery' : derivedStatus;
+  if (
+    status === 'completed'
+    && current.task_kind === 'review'
+    && current.handoff_kind === 'review'
+    && requiresTaskScopedOutputCompletion(current, manager, input.runId)
+  ) {
+    const judgeDecisionOutput = taskScopedOutputs.find(output => output.contentType === 'judge_decision');
+    if (!judgeDecisionOutput?.runDir) {
+      loweringFailureReason = 'invalid_review_judge_decision';
+      status = 'needs_recovery';
+    } else {
+      try {
+        const lowered = lowerCompletedReviewFollowup({
+          runId: input.runId,
+          runDir: judgeDecisionOutput.runDir,
+          reviewTaskId: current.task_id,
+          reviewAssignmentId: current.assignment_id,
+          state,
+          taskRefRegistry: manager.loadTaskRefRegistry(input.runId),
+        });
+        manager.saveTaskRefRegistry(lowered.taskRefRegistry);
+        loweringPayload = {
+          review_followup_disposition: lowered.disposition,
+          review_followup_lowering_artifact: lowered.lowering_artifact_name,
+          review_followup_reason: lowered.reason,
+          judge_decision_artifact_name: lowered.judge_decision_artifact_name,
+          ...(lowered.spawned_assignment_id ? { spawned_assignment_id: lowered.spawned_assignment_id } : {}),
+          ...(lowered.spawned_task_kind ? { spawned_task_kind: lowered.spawned_task_kind } : {}),
+        };
+      } catch {
+        loweringFailureReason = 'invalid_review_judge_decision';
+        status = 'needs_recovery';
+      }
+    }
+  }
   const approval = status === 'awaiting_approval'
     ? approvalMetadataFromEvents(runtimeResult.events)
     : null;
@@ -446,7 +567,17 @@ function mergeLaunchOutcome(
   appendTeamEvent(state, {
     kind: 'assignment_status_changed',
     assignment: updated,
-    payload: { stage: updated.stage, status, runtime_run_id: launch.handle.identity.runtime_run_id },
+    payload: {
+      stage: updated.stage,
+      status,
+      runtime_run_id: launch.handle.identity.runtime_run_id,
+      ...(missingTaskScopedOutput
+        ? { reason: 'missing_task_scoped_output' }
+        : loweringFailureReason
+          ? { reason: loweringFailureReason }
+          : {}),
+      ...loweringPayload,
+    },
   });
   recordHeartbeat(state, updated.assignment_id);
   if (runtimeResult.last_completed_step || updated.checkpoint_id) {
