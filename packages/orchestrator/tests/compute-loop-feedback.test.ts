@@ -140,6 +140,20 @@ describe('compute-loop failure lowering', () => {
     expect(outcome.workspace_feedback.handoffs[0]?.payload.feedback_signal).toBe('failure');
     expect(outcome.workspace_feedback.handoffs[0]?.payload.priority_change).toBe('lower');
     expect(outcome.workspace_feedback.handoffs[0]?.payload.prune_candidate).toBe(true);
+    const ideaTask = outcome.workspace_feedback.tasks.find(task => task.kind === 'idea')!;
+    expect(ideaTask.metadata?.team_execution).toMatchObject({
+      owner_role: 'lead',
+      delegate_role: 'delegate',
+      delegate_id: 'delegate-1',
+      coordination_policy: 'supervised_delegate',
+      handoff_kind: 'feedback',
+      workspace_id: outcome.workspace_feedback.workspace.workspace_id,
+      research_task_ref: {
+        task_id: ideaTask.task_id,
+        task_kind: 'idea',
+        source_task_id: outcome.workspace_feedback.tasks.find(task => task.kind === 'compute')?.task_id,
+      },
+    });
     expect(outcome.verification_refs?.subject_refs).toHaveLength(1);
     expect(outcome.verification_refs?.subject_verdict_refs).toHaveLength(1);
     expect(outcome.verification_refs?.coverage_refs).toHaveLength(1);
@@ -212,6 +226,15 @@ describe('compute-loop failure lowering', () => {
     expect(stored.workspace_feedback.workspace.nodes.some(node => node.node_id === `idea-branch:${runId}`)).toBe(true);
     expect(stored.workspace_feedback.workspace.edges.some(edge => edge.kind === 'branches_to' && edge.to_node_id === `idea-branch:${runId}`)).toBe(true);
     expect(stored.workspace_feedback.handoffs[0]?.payload.disposition).toBe('branch_idea');
+    const branchedIdeaTask = stored.workspace_feedback.tasks.find(task => task.kind === 'idea')!;
+    expect(branchedIdeaTask.metadata?.team_execution).toMatchObject({
+      handoff_kind: 'feedback',
+      workspace_id: stored.workspace_feedback.workspace.workspace_id,
+      research_task_ref: {
+        task_id: branchedIdeaTask.task_id,
+        task_kind: 'idea',
+      },
+    });
     expect(stored.verification_refs?.subject_refs).toHaveLength(1);
     expect(stored.verification_refs?.subject_verdict_refs).toHaveLength(1);
     expect(stored.verification_refs?.coverage_refs).toHaveLength(1);

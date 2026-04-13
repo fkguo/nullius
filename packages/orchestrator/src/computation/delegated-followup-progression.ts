@@ -34,7 +34,7 @@ export type DelegatedComputationFollowupLaunchResult = {
 
 type DelegatedAssignmentState = Pick<TeamExecutionState, 'delegate_assignments'> | null;
 
-type DelegatedComputationFollowupLaunchOutcome = {
+export type DelegatedComputationFollowupLaunchOutcome = {
   launchResult: DelegatedComputationFollowupLaunchResult;
   teamState: DelegatedAssignmentState;
 };
@@ -124,6 +124,7 @@ export async function progressDelegatedComputationFollowups(params: {
   projectRoot: string;
   runId: string;
   runDir: string;
+  allowImmediateReviewReselection?: boolean;
   launchTask: (params: {
     computationResult: ComputationResultV1;
     projectRoot: string;
@@ -150,6 +151,9 @@ export async function progressDelegatedComputationFollowups(params: {
     launchTask: params.launchTask,
   });
   if (firstLaunch.launchResult.status !== 'launched' || initialTask.kind !== 'draft_update') {
+    return firstLaunch.launchResult;
+  }
+  if (params.allowImmediateReviewReselection === false) {
     return firstLaunch.launchResult;
   }
 

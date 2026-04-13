@@ -1,5 +1,6 @@
 import { invalidParams } from '@autoresearch/shared';
 import { ORCH_TOOL_SPECS } from './orch-tools/index.js';
+import type { AgentToolHandlerContext } from './orch-tools/agent-runtime.js';
 
 export type ToolExposureMode = 'standard' | 'full';
 export type ToolSpec = typeof ORCH_TOOL_SPECS[number];
@@ -38,6 +39,7 @@ export async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
   mode: ToolExposureMode = 'standard',
+  ctx?: AgentToolHandlerContext,
 ): Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }> {
   const spec = getToolSpec(name);
   if (!spec) {
@@ -53,7 +55,7 @@ export async function handleToolCall(
     }));
   }
   try {
-    const result = await spec.handler(parsed.data);
+    const result = await spec.handler(parsed.data, ctx);
     return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
     };

@@ -39,6 +39,7 @@ Thumbs.db
 .agents/
 .npm/
 tmp/
+.tmp-zotero-official/
 packages/hep-autoresearch/.autopilot/
 packages/hep-autoresearch/uv.lock
 packages/idea-core/uv.lock

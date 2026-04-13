@@ -137,6 +137,13 @@ export const OrchRunExecuteManifestSchema = z.object({
   dry_run: z.boolean().optional().default(false).describe('Validate the manifest without requesting approval or executing any step.'),
 });
 
+export const OrchRunProgressFollowupsSchema = z.object({
+  _confirm: z.literal(true).describe('Must be true to execute this destructive continuation operation.'),
+  project_root: ProjectRootSchema,
+  run_id: RunIdSchema.describe('Run identifier whose persisted computation follow-up tasks should be progressed.'),
+  run_dir: RunDirSchema,
+});
+
 export const OrchRunStatusSchema = z.object({
   project_root: ProjectRootSchema,
 });

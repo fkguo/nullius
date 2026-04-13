@@ -34,6 +34,7 @@
 | `orch_run_stage_content` | `write` | Stage generic writing/review content into an existing run directory and return a `rep://runs/.../artifact/...` staging URI; loop-owned draft/review tasks may attach task-scoped provenance so completion and downstream review refresh can fail closed on missing outputs |
 | `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and `computation/manifest.json` |
 | `orch_run_execute_manifest` | `destructive` | Execute a staged `computation_manifest_v1` from an existing run directory |
+| `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; idea feedback launches now, literature follow-up remains explicit deferred-skip |
 | `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json` |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
 | `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification |
@@ -46,6 +47,7 @@
 | `orch_run_stage_idea` | `write` | Stage an IdeaHandoffC2 artifact into a domain-owned run directory |
 | `orch_run_plan_computation` | `write` | Compile staged idea artifacts from a run directory into execution_plan_v1 and computation/manifest.json |
 | `orch_run_execute_manifest` | `destructive` | Execute a computation_manifest_v1 plan from an existing run directory |
+| `orch_run_progress_followups` | `destructive` | Advance exactly one pending feedback or writing/review follow-up task from a run directory without inventing scheduler semantics |
 
 #### Policy surface
 
@@ -118,6 +120,7 @@ Agent / operator
   ├──► orch_run_stage_content(run_dir, content_type, ...) → stage generic writing/review artifacts
   ├──► orch_run_plan_computation(...)                   → compile staged idea into execution plan + manifest
   ├──► orch_run_execute_manifest(...)                   → execute approved computation manifest
+  ├──► orch_run_progress_followups(...)                 → advance one feedback or writing/review continuation
   ├──► orch_run_status(project_root)                    → lifecycle snapshot
   ├──► hep_run_* / hep_project_* / inspire_* ...        → strategy/domain work
   ├──► orch_run_approvals_list(project_root, run_id)    → inspect pending gates
@@ -165,7 +168,7 @@ Agent / operator
 **Threat**: an agent executes destructive control-plane actions without operator intent.
 
 **Mitigations**:
-- `orch_run_approve`, `orch_run_reject`, `orch_run_export`, `orch_run_execute_manifest`, and `orch_run_execute_agent` are destructive and require `_confirm: true`.
+- `orch_run_approve`, `orch_run_reject`, `orch_run_export`, `orch_run_execute_manifest`, `orch_run_progress_followups`, and `orch_run_execute_agent` are destructive and require `_confirm: true`.
 - The destructive surface is intentionally smaller than the full `orch_*` family; read/write semantics are explicit in the registry/tests.
 - Fleet mutation surfaces are write-only rather than destructive, but still require explicit worker/queue identifiers and notes for sensitive transitions.
 

@@ -182,5 +182,31 @@ describe('compute loop contract', () => {
     expect(outcome.feedback_lowering.decision_kind).toBe('downgrade_idea');
     expect(outcome.feedback_lowering.prune_candidate).toBe(true);
     expect(outcome.workspace_feedback.handoffs[0]?.handoff_kind).toBe('feedback');
+
+    const followupPayload = extractPayload(await handleOrchToolCall(
+      'orch_run_progress_followups',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: staged.run_id,
+        run_dir: runDir,
+      },
+      'full',
+      {
+        createMessage: async () => ({
+          model: 'claude-test',
+          content: { type: 'text', text: 'feedback acknowledged' },
+          stopReason: 'endTurn',
+        }),
+        callTool: async () => ({ content: [{ type: 'text', text: '{}' }], isError: false }),
+      },
+    )) as {
+      status: string;
+      branch: string;
+      task_kind?: string;
+    };
+    expect(followupPayload.status).toBe('launched');
+    expect(followupPayload.branch).toBe('feedback');
+    expect(followupPayload.task_kind).toBe('idea');
   });
 });

@@ -80,8 +80,25 @@ export {
 export {
   buildTeamConfigForDelegatedFollowupTask,
   primeDelegatedFollowupTeamState,
+  attachDelegatedFollowupTeamExecutionMetadata,
   type DelegatedFollowupTeamConfig,
 } from './feedback-followups.js';
+export {
+  hasCompletedDelegatedFeedbackAssignmentForTask,
+  selectDelegatedFeedbackFollowupTask,
+  type DelegatedFeedbackFollowupTask,
+} from './feedback-followup-selection.js';
+export {
+  progressDelegatedFeedbackFollowups,
+  type FeedbackFollowupLaunchResult,
+  type FeedbackFollowupLaunchStatus,
+} from './feedback-followup-progression.js';
+export {
+  progressRunFollowups,
+  type ProgressFollowupsBranch,
+  type ProgressFollowupsResult,
+  type ProgressFollowupsStatus,
+} from './progress-followups.js';
 export {
   hasCompletedDelegatedFollowupAssignmentForTask,
   selectDelegatedComputationFollowupTask,
@@ -94,6 +111,13 @@ export {
 export type {
   DelegatedComputationFollowupLaunchStatus,
 } from './delegated-followup-progression.js';
+export {
+  buildFollowupRuntimePrompt,
+  DEFAULT_FOLLOWUP_RUNTIME_MODEL,
+  FEEDBACK_FOLLOWUP_RUNTIME_TOOLS,
+  WRITING_REVIEW_FOLLOWUP_RUNTIME_TOOLS,
+  followupRuntimeToolsForTaskKind,
+} from './followup-runtime.js';
 export type {
   ExecuteComputationManifestInput,
   ExecuteComputationManifestResult,

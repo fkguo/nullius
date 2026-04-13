@@ -3,6 +3,7 @@ import {
   ORCH_RUN_EXECUTE_AGENT,
   ORCH_RUN_EXECUTE_MANIFEST,
   ORCH_RUN_PLAN_COMPUTATION,
+  ORCH_RUN_PROGRESS_FOLLOWUPS,
   ORCH_POLICY_QUERY,
   ORCH_RUN_APPROVE,
   ORCH_RUN_APPROVALS_LIST,
@@ -36,6 +37,7 @@ import {
 import {
   handleOrchRunExecuteManifest,
   handleOrchRunPlanComputation,
+  handleOrchRunProgressFollowups,
   handleOrchRunStageContent,
   handleOrchRunStageIdea,
 } from './bridge-tools.js';
@@ -47,6 +49,7 @@ import {
   OrchRunApprovalsListSchema,
   OrchRunCreateSchema,
   OrchRunExecuteManifestSchema,
+  OrchRunProgressFollowupsSchema,
   OrchRunExportSchema,
   OrchRunListSchema,
   OrchRunPlanComputationSchema,
@@ -108,6 +111,17 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     description: 'Execute a computation_manifest_v1 plan from an existing run directory. dry_run validates only; real execution requires _confirm: true and returns an approval packet when A3 is pending.',
     zodSchema: OrchRunExecuteManifestSchema,
     handler: async params => handleOrchRunExecuteManifest(params as z.output<typeof OrchRunExecuteManifestSchema>),
+  },
+  {
+    name: ORCH_RUN_PROGRESS_FOLLOWUPS,
+    tier: 'advanced',
+    exposure: 'full',
+    description: 'Progress exactly one computation-generated follow-up task from an existing run directory through the generic delegated runtime surface. Requires _confirm: true and host sampling/tool loopback support.',
+    zodSchema: OrchRunProgressFollowupsSchema,
+    handler: async (params, ctx) => handleOrchRunProgressFollowups(
+      params as z.output<typeof OrchRunProgressFollowupsSchema>,
+      ctx,
+    ),
   },
   {
     name: ORCH_RUN_CREATE,

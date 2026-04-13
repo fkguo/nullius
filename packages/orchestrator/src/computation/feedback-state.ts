@@ -11,7 +11,10 @@ import {
   type ResearchTaskInput,
 } from '../research-loop/index.js';
 import { makeRunArtifactUri } from './artifact-refs.js';
-import { appendWritingFollowups } from './feedback-followups.js';
+import {
+  appendWritingFollowups,
+  attachDelegatedFollowupTeamExecutionMetadata,
+} from './feedback-followups.js';
 import { loopNodeIdsFor } from './feedback-lowering.js';
 import type { WritingFollowupWorkspaceSeed } from './followup-bridges.js';
 
@@ -164,7 +167,9 @@ export function deriveNextIdeaLoopState(
   runtime.transitionTask(computeTask.task_id, input.feedback_lowering.signal === 'failure' ? 'blocked' : 'completed', { source: 'system', actor_id: null });
   const taskInput = feedbackTaskInput(input);
   if (input.feedback_lowering.target_task_kind === 'idea') {
-    const followupTask = runtime.appendDelegatedTask({ handoff: feedbackHandoff(input, computeTask.task_id), task: taskInput });
+    const handoff = feedbackHandoff(input, computeTask.task_id);
+    const followupTask = runtime.appendDelegatedTask({ handoff, task: taskInput });
+    attachDelegatedFollowupTeamExecutionMetadata(followupTask, handoff);
     return {
       workspaceFeedback: snapshot(runtime),
       nextActions: [{

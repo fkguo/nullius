@@ -16,8 +16,8 @@ import { TeamExecutionStateManager } from '../team-execution-storage.js';
 import type { WritingFollowupWorkspaceSeed } from './followup-bridges.js';
 
 type DelegatedFollowupTask = Pick<ResearchTask, 'task_id' | 'kind' | 'metadata'>;
-type DelegatedFollowupTaskKind = Extract<ResearchTask['kind'], 'draft_update' | 'review'>;
-type DelegatedFollowupHandoffKind = Extract<ResearchHandoff['handoff_kind'], 'writing' | 'review'>;
+type DelegatedFollowupTaskKind = Extract<ResearchTask['kind'], 'idea' | 'draft_update' | 'review'>;
+type DelegatedFollowupHandoffKind = Extract<ResearchHandoff['handoff_kind'], 'feedback' | 'writing' | 'review'>;
 type DelegatedFollowupHandoff = Extract<ResearchHandoff, { handoff_kind: DelegatedFollowupHandoffKind }>;
 type DelegatedFollowupTeamExecutionMetadata = {
   workspace_id: string;
@@ -37,7 +37,7 @@ export type DelegatedFollowupTeamConfig = DelegatedFollowupTeamExecutionMetadata
 };
 
 function isDelegatedFollowupTaskKind(kind: ResearchTask['kind']): kind is DelegatedFollowupTaskKind {
-  return kind === 'draft_update' || kind === 'review';
+  return kind === 'idea' || kind === 'draft_update' || kind === 'review';
 }
 
 function isDelegatedFollowupTeamExecutionMetadata(
@@ -53,11 +53,11 @@ function isDelegatedFollowupTeamExecutionMetadata(
     && candidate.coordination_policy === 'supervised_delegate'
     && isResearchTaskExecutionRef(candidate.research_task_ref)
     && typeof candidate.handoff_id === 'string'
-    && (candidate.handoff_kind === 'writing' || candidate.handoff_kind === 'review')
+    && (candidate.handoff_kind === 'feedback' || candidate.handoff_kind === 'writing' || candidate.handoff_kind === 'review')
     && candidate.checkpoint_id === null;
 }
 
-function attachTeamExecutionMetadata(task: ResearchTask, handoff: DelegatedFollowupHandoff): void {
+export function attachDelegatedFollowupTeamExecutionMetadata(task: ResearchTask, handoff: DelegatedFollowupHandoff): void {
   const researchTaskRef = buildResearchTaskExecutionRef({
     task,
     workspace_id: handoff.workspace_id,
@@ -84,7 +84,7 @@ export function buildTeamConfigForDelegatedFollowupTask(
   task: DelegatedFollowupTask,
 ): DelegatedFollowupTeamConfig {
   if (!isDelegatedFollowupTaskKind(task.kind)) {
-    throw new Error(`task ${task.task_id} is not a delegated writing/review follow-up`);
+    throw new Error(`task ${task.task_id} is not a delegated follow-up task`);
   }
   const teamExecution = task.metadata && typeof task.metadata === 'object'
     ? (task.metadata as Record<string, unknown>).team_execution
@@ -157,7 +157,7 @@ export function appendWritingFollowups(
     ? runtime.appendDelegatedTask({ handoff: draftHandoff, task: writingSeed.task })
     : runtime.spawnFollowupTask(findingTaskId, writingSeed.task);
   if (draftHandoff) {
-    attachTeamExecutionMetadata(draftTask, draftHandoff);
+    attachDelegatedFollowupTeamExecutionMetadata(draftTask, draftHandoff);
   }
   if (!writingSeed.reviewTask) return;
   const reviewHandoff = runtimeHandoff(runId, draftTask.task_id, writingSeed.reviewTask.handoff);
@@ -165,5 +165,5 @@ export function appendWritingFollowups(
     handoff: reviewHandoff,
     task: writingSeed.reviewTask.task,
   });
-  attachTeamExecutionMetadata(reviewTask, reviewHandoff);
+  attachDelegatedFollowupTeamExecutionMetadata(reviewTask, reviewHandoff);
 }
