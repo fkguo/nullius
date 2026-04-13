@@ -24,26 +24,42 @@ def resolve_literature_workflow(
     preferred_providers: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     workspace_root = _workspace_root()
+    dist_index = workspace_root / "packages" / "literature-workflows" / "dist" / "index.js"
+    if not dist_index.is_file():
+        raise RuntimeError(
+            "literature workflow launcher requires built TS artifacts at packages/literature-workflows/dist/index.js"
+        )
     request = {
         "inputs": dict(inputs),
         "available_tools": sorted({str(name) for name in available_tools if str(name).strip()}),
         "preferred_providers": list(preferred_providers or []),
         "project_root": str(repo_root),
     }
+    runner = (
+        "import { pathToFileURL } from 'node:url';"
+        "import { readFileSync } from 'node:fs';"
+        f"const mod = await import(pathToFileURL({json.dumps(str(dist_index))}).href);"
+        "const raw = readFileSync(0, 'utf8');"
+        "const payload = raw.trim().length ? JSON.parse(raw) : {};"
+        "const resolved = mod.resolveWorkflowRecipe({"
+        f"  recipe_id: {json.dumps(recipe_id)},"
+        f"  phase: {json.dumps(phase)},"
+        "  inputs: payload.inputs ?? {},"
+        "  preferred_providers: payload.preferred_providers ?? [],"
+        "  allowed_providers: payload.allowed_providers,"
+        "  available_tools: payload.available_tools,"
+        "});"
+        "process.stdout.write(JSON.stringify(resolved));"
+    )
     command = [
         "pnpm",
         "--dir",
         str(workspace_root),
-        "--filter",
-        "@autoresearch/literature-workflows",
         "exec",
-        "tsx",
-        "src/cli.ts",
-        "resolve",
-        "--recipe",
-        recipe_id,
-        "--phase",
-        phase,
+        "node",
+        "--input-type=module",
+        "--eval",
+        runner,
     ]
     completed = subprocess.run(
         command,
