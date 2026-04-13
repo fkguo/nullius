@@ -61,7 +61,7 @@ export async function bridgeStagedIdeaToComputation(
       const approval = ensureA3Approval(input.projectRoot, prepared);
       if (!approval) {
         throw invalidParams(
-          'Bridge surface stops before execution even when A3 is already satisfied; use hep_run_execute_manifest for any post-approval execution.',
+          'Bridge surface stops before execution even when A3 is already satisfied; use orch_run_execute_manifest for any post-approval execution.',
           {
             gate_id: 'A3',
             manifest_path: prepared.manifestRelativePath,

@@ -32,15 +32,36 @@ export {
 export {
   bridgeStagedIdeaToComputation,
   buildTeamConfigForDelegatedFollowupTask,
+  extractIdeaStagingHints,
+  hasCompletedDelegatedFollowupAssignmentForTask,
+  loadStagedIdeaSurfaceFromRunDir,
+  planComputationFromRunDir,
+  parseIdeaHandoffRecord,
   primeDelegatedFollowupTeamState,
+  progressDelegatedComputationFollowups,
+  readStagedContentArtifactFromRunDir,
+  readIdeaHandoffRecord,
+  selectDelegatedComputationFollowupTask,
+  stageContentInRunDir,
+  stageIdeaArtifactsIntoRun,
   executeComputationManifest,
   type ComputeBridgeInput,
   type ComputeBridgeResult,
+  type DelegatedComputationFollowupTask,
+  type DelegatedComputationFollowupLaunchResult,
+  type DelegatedComputationFollowupLaunchStatus,
   type DelegatedFollowupTeamConfig,
   type ExecuteComputationManifestInput,
   type ExecuteComputationManifestResult,
+  type StagedIdeaHintsSnapshotV1,
 } from './computation/index.js';
 export { ORCH_TOOL_SPECS } from './orch-tools/index.js';
+export { getToolSpec, getToolSpecs, handleToolCall, type ToolExposureMode, type ToolSpec } from './tooling.js';
+export {
+  createLoopbackToolCaller,
+  createSamplingAdapter,
+  defaultTeamPermissions,
+} from './team-execution-tool-bridge.js';
 export * from './research-loop/index.js';
 export * from './delegation-protocol.js';
 export * from './team-execution-state.js';

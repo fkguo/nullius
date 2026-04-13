@@ -6,6 +6,8 @@ import type {
   ExecuteComputationManifestInput,
   ExecuteComputationManifestResult,
 } from './types.js';
+import { bridgeStagedIdeaToComputation } from './bridge.js';
+import { loadStagedIdeaSurfaceFromRunDir } from './staged-idea-artifacts.js';
 
 function dryRunResult(input: ExecuteComputationManifestInput): DryRunExecutionResult {
   const prepared = prepareManifest(input);
@@ -44,12 +46,54 @@ export async function executeComputationManifest(
   return runPreparedManifest(input.projectRoot, prepared);
 }
 
+export async function planComputationFromRunDir(input: {
+  projectRoot: string;
+  runId: string;
+  runDir: string;
+  dryRun?: boolean;
+}) {
+  const stagedIdea = loadStagedIdeaSurfaceFromRunDir(input.runDir);
+  return bridgeStagedIdeaToComputation({
+    dryRun: input.dryRun,
+    projectRoot: input.projectRoot,
+    runDir: input.runDir,
+    runId: input.runId,
+    stagedIdea,
+  });
+}
+
 export { bridgeStagedIdeaToComputation, type ComputeBridgeInput, type ComputeBridgeResult } from './bridge.js';
+export {
+  extractIdeaStagingHints,
+  parseIdeaHandoffRecord,
+  readIdeaHandoffRecord,
+  stageIdeaArtifactsIntoRun,
+  stageIdeaArtifactsIntoRunFromPath,
+  type StagedIdeaHintsSnapshotV1,
+} from './staged-idea-artifacts.js';
+export { loadStagedIdeaSurfaceFromRunDir } from './staged-idea-artifacts.js';
+export {
+  createStagedContentArtifactRef,
+  readStagedContentArtifactFromRunDir,
+  stageContentInRunDir,
+} from './staged-content.js';
 export {
   buildTeamConfigForDelegatedFollowupTask,
   primeDelegatedFollowupTeamState,
   type DelegatedFollowupTeamConfig,
 } from './feedback-followups.js';
+export {
+  hasCompletedDelegatedFollowupAssignmentForTask,
+  selectDelegatedComputationFollowupTask,
+  type DelegatedComputationFollowupTask,
+} from './delegated-followup-selection.js';
+export {
+  progressDelegatedComputationFollowups,
+  type DelegatedComputationFollowupLaunchResult,
+} from './delegated-followup-progression.js';
+export type {
+  DelegatedComputationFollowupLaunchStatus,
+} from './delegated-followup-progression.js';
 export type {
   ExecuteComputationManifestInput,
   ExecuteComputationManifestResult,

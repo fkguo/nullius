@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
   ORCH_RUN_EXECUTE_AGENT,
+  ORCH_RUN_EXECUTE_MANIFEST,
+  ORCH_RUN_PLAN_COMPUTATION,
   ORCH_POLICY_QUERY,
   ORCH_RUN_APPROVE,
   ORCH_RUN_APPROVALS_LIST,
@@ -10,6 +12,8 @@ import {
   ORCH_RUN_PAUSE,
   ORCH_RUN_REJECT,
   ORCH_RUN_RESUME,
+  ORCH_RUN_STAGE_CONTENT,
+  ORCH_RUN_STAGE_IDEA,
   ORCH_RUN_STATUS,
 } from '@autoresearch/shared';
 import {
@@ -29,6 +33,12 @@ import {
   handleOrchRunList,
   handleOrchRunStatus,
 } from './create-status-list.js';
+import {
+  handleOrchRunExecuteManifest,
+  handleOrchRunPlanComputation,
+  handleOrchRunStageContent,
+  handleOrchRunStageIdea,
+} from './bridge-tools.js';
 import { FLEET_TOOL_SPECS } from './fleet-tool-specs.js';
 import {
   OrchRunExecuteAgentSchema,
@@ -36,11 +46,15 @@ import {
   OrchRunApproveSchema,
   OrchRunApprovalsListSchema,
   OrchRunCreateSchema,
+  OrchRunExecuteManifestSchema,
   OrchRunExportSchema,
   OrchRunListSchema,
+  OrchRunPlanComputationSchema,
   OrchRunPauseSchema,
   OrchRunRejectSchema,
   OrchRunResumeSchema,
+  OrchRunStageContentSchema,
+  OrchRunStageIdeaSchema,
   OrchRunStatusSchema,
 } from './schemas.js';
 
@@ -62,6 +76,38 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     description: 'Execute an orchestrator agent runtime with run-scoped manifest checkpoints and crash/re-entry resume semantics (destructive: persists run-scoped checkpoints/state). Requires _confirm: true.',
     zodSchema: OrchRunExecuteAgentSchema,
     handler: async (params, ctx) => handleOrchRunExecuteAgent(params as z.output<typeof OrchRunExecuteAgentSchema>, ctx),
+  },
+  {
+    name: ORCH_RUN_STAGE_IDEA,
+    tier: 'advanced',
+    exposure: 'full',
+    description: 'Stage an IdeaHandoffC2 artifact into an existing domain-owned run directory by writing outline_seed_v1.json and idea_handoff_hints_v1.json (local-only).',
+    zodSchema: OrchRunStageIdeaSchema,
+    handler: async params => handleOrchRunStageIdea(params as z.output<typeof OrchRunStageIdeaSchema>),
+  },
+  {
+    name: ORCH_RUN_STAGE_CONTENT,
+    tier: 'advanced',
+    exposure: 'full',
+    description: 'Stage generic writing/review content into an existing run directory by writing a staged_<content_type>_<suffix>.json artifact and returning a rep://runs/... staging URI (local-only).',
+    zodSchema: OrchRunStageContentSchema,
+    handler: async params => handleOrchRunStageContent(params as z.output<typeof OrchRunStageContentSchema>),
+  },
+  {
+    name: ORCH_RUN_PLAN_COMPUTATION,
+    tier: 'advanced',
+    exposure: 'full',
+    description: 'Compile staged idea artifacts from an existing run directory into execution_plan_v1.json and computation/manifest.json, then stop at dry_run validation or A3 approval request before any execution.',
+    zodSchema: OrchRunPlanComputationSchema,
+    handler: async params => handleOrchRunPlanComputation(params as z.output<typeof OrchRunPlanComputationSchema>),
+  },
+  {
+    name: ORCH_RUN_EXECUTE_MANIFEST,
+    tier: 'advanced',
+    exposure: 'full',
+    description: 'Execute a computation_manifest_v1 plan from an existing run directory. dry_run validates only; real execution requires _confirm: true and returns an approval packet when A3 is pending.',
+    zodSchema: OrchRunExecuteManifestSchema,
+    handler: async params => handleOrchRunExecuteManifest(params as z.output<typeof OrchRunExecuteManifestSchema>),
   },
   {
     name: ORCH_RUN_CREATE,

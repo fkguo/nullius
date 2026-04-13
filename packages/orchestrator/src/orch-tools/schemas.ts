@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { type StagedContentType } from '@autoresearch/shared';
 import { type ApprovalGateFilter } from './common.js';
 import { APPROVAL_GATE_FILTER_VALUES, isApprovalGateFilter } from './common.js';
 import { TeamExecutionConfigSchema } from './team-schemas.js';
@@ -7,11 +8,45 @@ const ProjectRootSchema = z
   .string()
   .min(1)
   .describe('Absolute (or tilde-prefixed) path to the autoresearch project root directory (contains .autoresearch/)');
+const RunDirSchema = z
+  .string()
+  .min(1)
+  .describe('Absolute path to the domain-owned run directory whose artifacts should be staged or executed.');
 const RunIdSchema = z
   .string()
   .min(1)
   .max(128)
   .regex(/^[a-zA-Z0-9_\-]+$/, 'run_id must be alphanumeric + _ -');
+const HandoffPathSchema = z
+  .string()
+  .min(1)
+  .describe('Absolute local filesystem path to an IdeaHandoffC2 JSON artifact.');
+const HandoffUriSchema = z
+  .string()
+  .min(1)
+  .describe('Optional provenance URI preserved into staged artifacts. Defaults to handoff_path when omitted.');
+const SafePathSegmentSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine(s => !s.includes('/') && !s.includes('\\'), {
+    message: 'must not include path separators',
+  })
+  .refine(s => s !== '.' && s !== '..' && !s.includes('..'), {
+    message: 'contains unsafe segment',
+  });
+const StagedContentTypeSchema = z.custom<StagedContentType>(
+  (value): value is StagedContentType =>
+    value === 'section_output'
+    || value === 'outline_plan'
+    || value === 'paperset_curation'
+    || value === 'revision_plan'
+    || value === 'reviewer_report'
+    || value === 'judge_decision',
+  {
+    message: 'content_type must be a supported staged content type',
+  },
+);
 const AgentTextBlockSchema = z.object({
   type: z.literal('text'),
   text: z.string(),
@@ -67,6 +102,39 @@ export const OrchRunCreateSchema = z.object({
     .string()
     .optional()
     .describe('Idempotency key. If a run with matching key already exists, returns existing state without error.'),
+});
+
+export const OrchRunStageIdeaSchema = z.object({
+  run_id: RunIdSchema.describe('Run identifier whose domain-owned run_dir should receive staged idea artifacts.'),
+  run_dir: RunDirSchema,
+  handoff_path: HandoffPathSchema,
+  handoff_uri: HandoffUriSchema.optional(),
+});
+
+export const OrchRunStageContentSchema = z.object({
+  run_id: RunIdSchema.describe('Run identifier whose run_dir should receive a staged writing/review artifact.'),
+  run_dir: RunDirSchema,
+  content_type: StagedContentTypeSchema.describe('Generic writing/review staged content type.'),
+  content: z.string().min(1).describe('Opaque content payload preserved into the staged artifact.'),
+  artifact_suffix: SafePathSegmentSchema.optional().describe('Optional suffix for deterministic artifact naming.'),
+  task_id: RunIdSchema.optional().describe('Optional follow-up task identifier whose output is being staged.'),
+  task_kind: z.enum(['draft_update', 'review']).optional().describe('Optional follow-up task kind paired with task_id.'),
+});
+
+export const OrchRunPlanComputationSchema = z.object({
+  project_root: ProjectRootSchema,
+  run_id: RunIdSchema.describe('Run identifier whose existing staged idea artifacts should be compiled into execution_plan_v1 and computation/manifest.json.'),
+  run_dir: RunDirSchema,
+  dry_run: z.boolean().optional().default(false).describe('Validate and materialize the execution plan without requesting approval or executing any computation step.'),
+});
+
+export const OrchRunExecuteManifestSchema = z.object({
+  _confirm: z.literal(true).describe('Must be true to execute this destructive operation.'),
+  project_root: ProjectRootSchema,
+  run_id: RunIdSchema.describe('Run identifier whose computation manifest should be executed.'),
+  run_dir: RunDirSchema,
+  manifest_path: z.string().min(1).describe('Path to computation manifest, relative to run_dir or absolute within run_dir/computation/.'),
+  dry_run: z.boolean().optional().default(false).describe('Validate the manifest without requesting approval or executing any step.'),
 });
 
 export const OrchRunStatusSchema = z.object({
