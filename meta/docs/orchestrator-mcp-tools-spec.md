@@ -32,8 +32,8 @@
 | `orch_run_create` | `write` | Initialize or replay an orchestrator run in a project root |
 | `orch_run_stage_idea` | `write` | Stage IdeaHandoffC2 artifacts into an existing domain-owned run directory |
 | `orch_run_stage_content` | `write` | Stage generic writing/review content into an existing run directory and return a `rep://runs/.../artifact/...` staging URI; loop-owned draft/review tasks may attach task-scoped provenance so completion and downstream review refresh can fail closed on missing outputs |
-| `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and `computation/manifest.json` |
-| `orch_run_execute_manifest` | `destructive` | Execute a staged `computation_manifest_v1` from an existing run directory |
+| `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and a run-local `computation/manifest.json`, preferring provider-backed materialization when the staged surface carries an explicit method bundle |
+| `orch_run_execute_manifest` | `destructive` | Execute an approved run-local `computation_manifest_v1` from an existing run directory |
 | `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
 | `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json` |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
@@ -45,8 +45,8 @@
 | `orch_run_export` | `destructive` | Export run summary/artifact listing |
 | `orch_run_execute_agent` | `destructive` | Execute an orchestrator agent runtime with persisted checkpoints |
 | `orch_run_stage_idea` | `write` | Stage an IdeaHandoffC2 artifact into a domain-owned run directory |
-| `orch_run_plan_computation` | `write` | Compile staged idea artifacts from a run directory into execution_plan_v1 and computation/manifest.json |
-| `orch_run_execute_manifest` | `destructive` | Execute a computation_manifest_v1 plan from an existing run directory |
+| `orch_run_plan_computation` | `write` | Compile staged idea artifacts from a run directory into execution_plan_v1 and a run-local `computation/manifest.json`, preferring provider-backed materialization when available |
+| `orch_run_execute_manifest` | `destructive` | Execute an approved run-local `computation_manifest_v1` plan from an existing run directory |
 | `orch_run_progress_followups` | `destructive` | Advance exactly one pending feedback or writing/review follow-up task from a run directory without inventing scheduler semantics |
 
 #### Policy surface
@@ -118,8 +118,8 @@ Agent / operator
   ├──► orch_run_create(project_root, run_id)            → initialize / replay run
   ├──► orch_run_stage_idea(run_dir, handoff_path, ...)  → stage provider-local idea artifacts
   ├──► orch_run_stage_content(run_dir, content_type, ...) → stage generic writing/review artifacts
-  ├──► orch_run_plan_computation(...)                   → compile staged idea into execution plan + manifest
-  ├──► orch_run_execute_manifest(...)                   → execute approved computation manifest
+  ├──► orch_run_plan_computation(...)                   → compile staged idea into execution plan + run-local manifest
+  ├──► orch_run_execute_manifest(...)                   → execute approved run-local computation manifest
   ├──► orch_run_progress_followups(...)                 → advance one feedback/literature or writing/review continuation
   ├──► orch_run_status(project_root)                    → lifecycle snapshot
   ├──► hep_run_* / hep_project_* / inspire_* ...        → strategy/domain work

@@ -5,6 +5,7 @@ import { compileExecutionPlan, type StagedIdeaSurface } from './execution-plan.j
 import { executionPlanArtifactPath, executionPlanRelativePath, materializeExecutionPlan } from './materialize-execution-plan.js';
 import { sha256File, toPosixRelative, writeJsonAtomic } from './io.js';
 import { type ExecuteComputationManifestResult } from './types.js';
+import { StateManager } from '../state-manager.js';
 
 export interface ComputeBridgeInput {
   projectRoot: string;
@@ -23,13 +24,31 @@ export type ComputeBridgeResult = ExecuteComputationManifestResult & {
   expected_artifacts: string[];
 };
 
+function ensurePlanningRunIsActive(projectRoot: string, runId: string): void {
+  const manager = new StateManager(projectRoot);
+  const state = manager.readState();
+  if (state.run_id !== runId || state.workflow_id !== 'computation') {
+    return;
+  }
+  if (state.run_status !== 'idle') {
+    return;
+  }
+  manager.transitionStatus(state, 'running', {
+    notes: `planning activated: ${runId}`,
+    details: { source: 'orch_run_plan_computation' },
+    eventType: 'planning_started',
+  });
+}
+
 export async function bridgeStagedIdeaToComputation(
   input: ComputeBridgeInput,
 ): Promise<ComputeBridgeResult> {
   const executionPlan = compileExecutionPlan(input.runId, input.stagedIdea);
   const planPath = executionPlanArtifactPath(input.runDir);
   writeJsonAtomic(planPath, executionPlan);
-  const { manifestPath } = materializeExecutionPlan(input.runDir, executionPlan);
+  const { manifestPath } = materializeExecutionPlan(input.runDir, executionPlan, {
+    methodSpec: input.stagedIdea.hints?.method_spec ?? null,
+  });
   const prepared = prepareManifest({
     dryRun: input.dryRun,
     manifestPath,
@@ -37,6 +56,7 @@ export async function bridgeStagedIdeaToComputation(
     runDir: input.runDir,
     runId: input.runId,
   });
+  ensurePlanningRunIsActive(input.projectRoot, input.runId);
   const result = input.dryRun
     ? {
       status: 'dry_run' as const,

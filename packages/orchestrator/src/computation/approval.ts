@@ -30,6 +30,9 @@ function bridgeDetails(prepared: PreparedManifest): string {
     JSON.parse(fs.readFileSync(planPath, 'utf-8')) as unknown,
   );
   const observables = executionPlan.source.required_observables?.join(', ') ?? 'none recorded';
+  const executionSurfaceNote = executionPlan.source.method_spec_present
+    ? 'Execution surface: provider-backed manifest materialized from the staged method bundle.'
+    : 'Execution surface: no staged method bundle was supplied, so the bridge is using an internal fixture runner for bounded contract validation.';
   const taskLines = executionPlan.tasks.map(task => {
     const artifacts = task.expected_artifacts.map(artifact => artifact.path).join(', ');
     return `- ${task.task_id}: ${task.title} [capabilities: ${task.capabilities.join(', ')}] -> ${artifacts}`;
@@ -42,7 +45,7 @@ function bridgeDetails(prepared: PreparedManifest): string {
     `Bridge objective: ${executionPlan.objective}`,
     `Source handoff: ${executionPlan.source.source_handoff_uri}`,
     `Required observables: ${observables}`,
-    'Bridge note: this batch only materializes validation stubs; real provider execution remains out of scope for EVO-01-A.',
+    executionSurfaceNote,
     '',
     'Execution plan tasks:',
     taskLines,
@@ -68,7 +71,9 @@ function buildApprovalPacket(prepared: PreparedManifest, requestedAt: string, ap
     risks: [
       'Project-local scripts will be executed within the run workspace.',
       'Declared outputs are enforced fail-closed; missing outputs mark the run failed.',
-      'Bridge-generated stubs are intentionally non-provider placeholders until a later execution lane lands.',
+      prepared.manifest.description?.includes('Provider-backed execution materialized from staged method_spec.run_card')
+        ? 'Execution authority comes from the staged method bundle; review the materialized provider-backed manifest rather than inferring missing runtime steps.'
+        : 'No staged method bundle was supplied, so approval covers an internal fixture manifest used only for bounded contract validation.',
     ],
     budgets: {
       ...(prepared.manifest.computation_budget?.max_runtime_minutes !== undefined
@@ -84,7 +89,7 @@ function buildApprovalPacket(prepared: PreparedManifest, requestedAt: string, ap
     checklist: [
       'Verify the execution scope is limited to the current run workspace.',
       'Confirm the expected outputs and resource budget are acceptable.',
-      'Confirm the bridge-generated plan is sufficient for approval-only review without inferring missing provider logic.',
+      'Confirm the materialized manifest fully captures the execution authority you intend to approve; do not infer missing provider logic outside the checked-in run workspace.',
     ],
     requested_at: requestedAt,
     run_card_path: prepared.manifestRelativePath,

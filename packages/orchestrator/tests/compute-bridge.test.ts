@@ -53,6 +53,47 @@ function stagedIdeaSurface() {
   };
 }
 
+function stagedIdeaSurfaceWithProviderBundle() {
+  return {
+    ...stagedIdeaSurface(),
+    hints: {
+      ...stagedIdeaSurface().hints,
+      method_spec: {
+        files: [
+          {
+            path: 'scripts/write_provider_result.py',
+            content: [
+              'from pathlib import Path',
+              "Path('results').mkdir(parents=True, exist_ok=True)",
+              "Path('results/provider_result.json').write_text('{\"ok\": true}\\n', encoding='utf-8')",
+              '',
+            ].join('\n'),
+          },
+        ],
+        run_card: {
+          schema_version: 2,
+          run_id: 'provider-run-card',
+          workflow_id: 'computation',
+          title: 'Provider-backed execution bundle',
+          phases: [
+            {
+              phase_id: 'provider_phase',
+              description: 'Write a provider-backed structured result',
+              backend: {
+                kind: 'shell',
+                argv: ['python3', 'scripts/write_provider_result.py'],
+                cwd: '.',
+                timeout_seconds: 30,
+              },
+              outputs: ['results/provider_result.json'],
+            },
+          ],
+        },
+      },
+    },
+  };
+}
+
 afterEach(() => {
   spawnSyncMock.mockClear();
   cleanupRegisteredDirs();
@@ -86,6 +127,44 @@ describe('compute bridge', () => {
     expect((executionPlan.tasks as Array<Record<string, unknown>>)[0]?.capabilities).toContain('observable_estimation');
   });
 
+  it('prefers a staged provider-backed method bundle over the internal fixture runner when present', async () => {
+    const projectRoot = makeTmpDir();
+    const runDir = path.join(projectRoot, 'run-bridge-provider');
+    registerCleanup(projectRoot);
+    fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
+    writeJson(path.join(runDir, 'artifacts', 'outline_seed_v1.json'), stagedIdeaSurfaceWithProviderBundle().outline);
+
+    const result = await bridgeStagedIdeaToComputation({
+      dryRun: true,
+      projectRoot,
+      runDir,
+      runId: 'run-bridge-provider',
+      stagedIdea: stagedIdeaSurfaceWithProviderBundle(),
+    });
+
+    expect(result.status).toBe('dry_run');
+    const manifestPath = path.join(runDir, result.manifest_path);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
+      description?: string;
+      entry_point: { script: string; tool: string };
+      steps: Array<{ id: string; script: string; expected_outputs: string[] }>;
+    };
+    expect(manifest.description).toContain('Provider-backed execution materialized from staged method_spec.run_card');
+    expect(manifest.entry_point).toMatchObject({
+      script: 'scripts/write_provider_result.py',
+      tool: 'python',
+    });
+    expect(manifest.steps).toMatchObject([
+      {
+        id: 'provider_phase',
+        script: 'scripts/write_provider_result.py',
+        expected_outputs: ['results/provider_result.json'],
+      },
+    ]);
+    expect(fs.existsSync(path.join(runDir, 'computation', 'scripts', 'write_provider_result.py'))).toBe(true);
+    expect(fs.existsSync(path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'))).toBe(false);
+  });
+
   it('stops at requires_approval with an enriched A3 packet and still performs zero execution', async () => {
     const projectRoot = makeTmpDir();
     const runId = 'run-bridge-approval';
@@ -111,7 +190,7 @@ describe('compute bridge', () => {
     const packet = JSON.parse(fs.readFileSync(packetPath, 'utf-8')) as { details_md: string; risks: string[] };
     expect(packet.details_md).toContain('Bridge objective');
     expect(packet.details_md).toContain('Required observables: observable_a');
-    expect(packet.risks.some(risk => risk.includes('Bridge-generated stubs'))).toBe(true);
+    expect(packet.risks.some(risk => risk.includes('internal fixture manifest'))).toBe(true);
   });
 
   it('fails closed when A3 is already satisfied and still never executes via the bridge surface', async () => {

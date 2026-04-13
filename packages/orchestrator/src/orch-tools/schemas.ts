@@ -123,7 +123,7 @@ export const OrchRunStageContentSchema = z.object({
 
 export const OrchRunPlanComputationSchema = z.object({
   project_root: ProjectRootSchema,
-  run_id: RunIdSchema.describe('Run identifier whose existing staged idea artifacts should be compiled into execution_plan_v1 and computation/manifest.json.'),
+  run_id: RunIdSchema.describe('Run identifier whose existing staged idea artifacts should be compiled into execution_plan_v1 and a run-local computation/manifest.json, preferring provider-backed materialization when the staged surface carries an explicit method bundle.'),
   run_dir: RunDirSchema,
   dry_run: z.boolean().optional().default(false).describe('Validate and materialize the execution plan without requesting approval or executing any computation step.'),
 });
@@ -131,7 +131,7 @@ export const OrchRunPlanComputationSchema = z.object({
 export const OrchRunExecuteManifestSchema = z.object({
   _confirm: z.literal(true).describe('Must be true to execute this destructive operation.'),
   project_root: ProjectRootSchema,
-  run_id: RunIdSchema.describe('Run identifier whose computation manifest should be executed.'),
+  run_id: RunIdSchema.describe('Run identifier whose approved run-local computation manifest should be executed.'),
   run_dir: RunDirSchema,
   manifest_path: z.string().min(1).describe('Path to computation manifest, relative to run_dir or absolute within run_dir/computation/.'),
   dry_run: z.boolean().optional().default(false).describe('Validate the manifest without requesting approval or executing any step.'),

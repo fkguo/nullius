@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { StateManager, handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
+import { handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
 import { createFromIdea } from '../../src/tools/create-from-idea.js';
 
 function makeTmpDir(prefix: string): string {
@@ -100,9 +100,15 @@ describe('compute bridge contract', () => {
     writeJson(handoffPath, makeHandoff());
 
     const staged = createFromIdea({ handoff_uri: handoffPath });
-    const manager = new StateManager(projectRoot);
-    const state = manager.readState();
-    manager.createRun(state, staged.run_id, 'computation');
+    extractPayload(await handleOrchToolCall(
+      'orch_run_create',
+      {
+        project_root: projectRoot,
+        run_id: staged.run_id,
+        workflow_id: 'computation',
+      },
+      'full',
+    ));
 
     const result = await handleOrchToolCall(
       'orch_run_plan_computation',
@@ -118,6 +124,14 @@ describe('compute bridge contract', () => {
     const payload = extractPayload(result);
     expect(payload.status).toBe('requires_approval');
     expect(payload.gate_id).toBe('A3');
+
+    const manifestPath = path.join(hepDataDir, 'runs', staged.run_id, String(payload.manifest_path));
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
+      entry_point: { script: string };
+      description: string;
+    };
+    expect(manifest.entry_point.script).toBe('scripts/hep_provider_runner.py');
+    expect(manifest.description).toContain('Provider-backed execution materialized from staged method_spec.run_card');
 
     const packetJsonPath = path.join(projectRoot, String(payload.packet_json_path));
     const packet = JSON.parse(fs.readFileSync(packetJsonPath, 'utf-8')) as { details_md: string };

@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { StateManager, handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
+import { handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
 import { createFromIdea } from '../../src/tools/create-from-idea.js';
 
 function makeTmpDir(prefix: string): string {
@@ -65,9 +65,15 @@ describe('compute loop contract', () => {
     const handoffPath = path.join(hepDataDir, 'idea_handoff_c2_v1.json');
     writeJson(handoffPath, makeHandoff());
     const staged = createFromIdea({ handoff_uri: handoffPath });
-
-    const manager = new StateManager(projectRoot);
-    manager.createRun(manager.readState(), staged.run_id, 'computation');
+    extractPayload(await handleOrchToolCall(
+      'orch_run_create',
+      {
+        project_root: projectRoot,
+        run_id: staged.run_id,
+        workflow_id: 'computation',
+      },
+      'full',
+    ));
 
     const runDir = staged.run_dir;
 
@@ -78,7 +84,17 @@ describe('compute loop contract', () => {
     ));
     expect(planPayload.status).toBe('requires_approval');
 
-    manager.approveRun(manager.readState(), String(planPayload.approval_id), 'approve for test');
+    extractPayload(await handleOrchToolCall(
+      'orch_run_approve',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        approval_id: String(planPayload.approval_id),
+        approval_packet_sha256: String(planPayload.approval_packet_sha256),
+        note: 'approve for test',
+      },
+      'full',
+    ));
 
     const execPayload = extractPayload(await handleOrchToolCall(
       'orch_run_execute_manifest',
@@ -132,9 +148,15 @@ describe('compute loop contract', () => {
     const handoffPath = path.join(hepDataDir, 'idea_handoff_c2_v1.json');
     writeJson(handoffPath, makeHandoff());
     const staged = createFromIdea({ handoff_uri: handoffPath });
-
-    const manager = new StateManager(projectRoot);
-    manager.createRun(manager.readState(), staged.run_id, 'computation');
+    extractPayload(await handleOrchToolCall(
+      'orch_run_create',
+      {
+        project_root: projectRoot,
+        run_id: staged.run_id,
+        workflow_id: 'computation',
+      },
+      'full',
+    ));
 
     const runDir = path.join(hepDataDir, 'runs', staged.run_id);
 
@@ -144,11 +166,22 @@ describe('compute loop contract', () => {
       'full',
     ));
     fs.writeFileSync(
-      path.join(hepDataDir, 'runs', staged.run_id, 'computation', 'scripts', 'execution_plan_runner.py'),
+      path.join(hepDataDir, 'runs', staged.run_id, 'computation', 'scripts', 'hep_provider_runner.py'),
       "raise SystemExit(1)\n",
       'utf-8',
     );
-    manager.approveRun(manager.readState(), String(planPayload.approval_id), 'approve for test');
+    const approvalPacketSha = String(planPayload.approval_packet_sha256);
+    extractPayload(await handleOrchToolCall(
+      'orch_run_approve',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        approval_id: String(planPayload.approval_id),
+        approval_packet_sha256: approvalPacketSha,
+        note: 'approve for test',
+      },
+      'full',
+    ));
 
     const execPayload = extractPayload(await handleOrchToolCall(
       'orch_run_execute_manifest',

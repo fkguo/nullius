@@ -81,6 +81,19 @@ describe('createFromIdea (NEW-CONN-04)', () => {
     expect(seed.claims).toHaveLength(2);
     expect(seed.hypotheses).toHaveLength(2);
     expect(seed.source_handoff_uri).toBe(handoffPath);
+
+    const hintsPath = path.join(runDir, 'artifacts', 'idea_handoff_hints_v1.json');
+    const hintsSnapshot = JSON.parse(fs.readFileSync(hintsPath, 'utf-8')) as {
+      hints?: {
+        method_spec?: {
+          files?: Array<{ path: string }>;
+          run_card?: { workflow_id?: string; phases?: Array<{ phase_id: string }> };
+        };
+      };
+    };
+    expect(hintsSnapshot.hints?.method_spec?.run_card?.workflow_id).toBe('computation');
+    expect(hintsSnapshot.hints?.method_spec?.files?.[0]?.path).toBe('scripts/hep_provider_runner.py');
+    expect(hintsSnapshot.hints?.method_spec?.run_card?.phases?.map(item => item.phase_id)).toEqual(['task_001']);
   });
 
   it('reuses existing project_id if provided', () => {
@@ -128,8 +141,9 @@ describe('createFromIdea (NEW-CONN-04)', () => {
 
     const result = createFromIdea({ handoff_uri: handoffPath });
 
-    expect(result.next_actions).toHaveLength(3);
+    expect(result.next_actions).toHaveLength(4);
     const toolNames = result.next_actions.map(a => a.tool);
+    expect(toolNames).toContain('orch_run_create');
     expect(toolNames).toContain('orch_run_plan_computation');
     expect(toolNames).toContain('inspire_search');
     expect(toolNames).toContain('hep_project_build_evidence');
