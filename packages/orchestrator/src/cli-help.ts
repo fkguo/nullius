@@ -38,7 +38,7 @@ Use --project-root <path> to target a root explicitly.
 `,
   run: `autoresearch run --workflow-id <id> [options]
 
-Execute exactly one bounded step through the canonical TS run front door.
+Execute a bounded run slice through the canonical TS run front door.
 
 Options:
   --workflow-id <id>         "computation" or the persisted state.workflow_id
@@ -50,7 +50,7 @@ Options:
 Behavior:
   Requires an initialized external project root (\`autoresearch init\`).
   Computation requests A3 approval when gate_satisfied.A3 is absent.
-  Persisted workflow-plan steps execute one dependency-satisfied step at a time.
+  Persisted workflow-plan steps advance in a bounded loop until completion or a blocking failure is reached.
   Workflow-step execution requires a configured local MCP stdio server via \`AUTORESEARCH_RUN_MCP_COMMAND\`
   plus optional \`AUTORESEARCH_RUN_MCP_ARGS_JSON\` / \`AUTORESEARCH_RUN_MCP_ENV_JSON\`.
 
@@ -117,7 +117,7 @@ Behavior:
   Requires an initialized external project root (\`autoresearch init\`).
   Persists the resolved plan into \`.autoresearch/state.json#/plan\`.
   Derives \`.autoresearch/plan.md\` from the persisted plan.
-  Execution happens later through \`autoresearch run\`, one persisted step at a time.
+  Execution happens later through \`autoresearch run\`, which advances ready persisted steps in a bounded loop.
 
 Output:
   JSON workflow plan is still written to stdout.

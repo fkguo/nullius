@@ -126,7 +126,7 @@ function persistWorkflowPlan(projectRoot: string, options?: {
 }
 
 describe('workflow run consumer', () => {
-  it('executes one dependency-satisfied persisted workflow step and advances the plan cursor', async () => {
+  it('advances dependency-satisfied workflow steps until the persisted plan completes', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = persistWorkflowPlan(projectRoot);
     const callTool = vi.fn(async () => ({
@@ -145,30 +145,69 @@ describe('workflow run consumer', () => {
     );
 
     expect(code).toBe(0);
-    expect(callTool).toHaveBeenCalledWith('inspire_critical_analysis', { recid: '1234' });
+    expect(callTool).toHaveBeenNthCalledWith(1, 'inspire_critical_analysis', { recid: '1234' });
+    expect(callTool).toHaveBeenNthCalledWith(2, 'hep_export_project', { run_id: 'M-WF-1' });
     expect(JSON.parse(stdout.join(''))).toMatchObject({
       status: 'completed',
       ok: true,
       workflow_id: 'review_cycle',
-      step_id: 'critical_review',
-      next_step_id: 'export_project',
-      run_status: 'running',
+      step_id: 'export_project',
+      executed_step_ids: ['critical_review', 'export_project'],
+      next_step_id: null,
+      run_status: 'completed',
     });
     expect(manager.readState()).toMatchObject({
       run_id: 'M-WF-1',
       workflow_id: 'review_cycle',
-      run_status: 'running',
+      run_status: 'completed',
       current_step: null,
       artifacts: {
         critical_analysis: 'hep://runs/M-WF-1/artifact/critical_analysis.json',
-      },
-      plan: {
-        current_step_id: 'export_project',
+        research_pack: 'hep://runs/M-WF-1/artifact/critical_analysis.json',
       },
     });
+    expect((manager.readState().plan as Record<string, unknown>).current_step_id).toBeUndefined();
     const steps = ((manager.readState().plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
     expect(steps[0]).toMatchObject({ step_id: 'critical_review', status: 'completed' });
-    expect(steps[1]).toMatchObject({ step_id: 'export_project', status: 'pending' });
+    expect(steps[1]).toMatchObject({ step_id: 'export_project', status: 'completed' });
+  });
+
+  it('fails closed when a later pending step becomes dependency-blocked during bounded progression', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot, {
+      secondStepDependsOn: ['missing_step'],
+    });
+    const callTool = vi.fn(async () => ({
+      ok: true,
+      isError: false,
+      rawText: JSON.stringify({ uri: 'hep://runs/M-WF-1/artifact/critical_analysis.json' }),
+      json: { uri: 'hep://runs/M-WF-1/artifact/critical_analysis.json' },
+      errorCode: null,
+    }));
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCommand(
+      makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'),
+      io,
+      { workflowToolCaller: { callTool } },
+    );
+
+    expect(code).toBe(1);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'failed',
+      ok: false,
+      step_id: 'critical_review',
+      executed_step_ids: ['critical_review'],
+      error: 'no dependency-satisfied workflow step is ready; next pending step is export_project',
+    });
+    expect(manager.readState()).toMatchObject({
+      run_status: 'failed',
+      current_step: null,
+      notes: 'no dependency-satisfied workflow step is ready; next pending step is export_project',
+    });
+    const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
+    expect(persistedSteps[0]).toMatchObject({ step_id: 'critical_review', status: 'completed' });
+    expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'pending' });
   });
 
   it('fails closed when no dependency-satisfied pending workflow step exists', async () => {
@@ -186,7 +225,7 @@ describe('workflow run consumer', () => {
       runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io, {
         workflowToolCaller: { callTool: vi.fn() },
       }),
-    ).rejects.toThrow('no dependency-satisfied workflow step is ready; next pending step is export_project');
+    ).resolves.toBe(1);
 
     expect(manager.readState()).toMatchObject({
       run_status: 'failed',
@@ -221,6 +260,7 @@ describe('workflow run consumer', () => {
       skipped: true,
       step_id: 'export_project',
       next_step_id: null,
+      reason: 'tool call denied: hep_export_project is not available',
     });
     expect(manager.readState()).toMatchObject({
       run_status: 'completed',
@@ -270,6 +310,145 @@ describe('workflow run consumer', () => {
     });
     const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
     expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'completed' });
+  });
+
+  it('keeps partial_result visible when an earlier step is partial and a later step completes cleanly', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot);
+    const state = manager.readState();
+    const steps = ((state.plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
+    ((steps[0]!.execution as Record<string, unknown>).degrade_mode) = 'partial_result';
+    manager.saveState(state);
+    const { io, stdout } = makeIo(projectRoot);
+    const callTool = vi.fn(async (tool: string) => {
+      if (tool === 'inspire_critical_analysis') {
+        return {
+          ok: false,
+          isError: true,
+          rawText: 'critical analysis partially timed out',
+          json: null,
+          errorCode: 'TIMEOUT',
+        };
+      }
+      return {
+        ok: true,
+        isError: false,
+        rawText: JSON.stringify({ uri: 'hep://runs/M-WF-1/artifact/research_pack.json' }),
+        json: { uri: 'hep://runs/M-WF-1/artifact/research_pack.json' },
+        errorCode: null,
+      };
+    });
+
+    const code = await runCommand(
+      makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'),
+      io,
+      { workflowToolCaller: { callTool } },
+    );
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'completed',
+      ok: true,
+      partial: true,
+      step_id: 'export_project',
+      executed_step_ids: ['critical_review', 'export_project'],
+    });
+    expect(JSON.parse(stdout.join('')).diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'partial_result',
+          message: 'critical analysis partially timed out',
+        }),
+      ]),
+    );
+  });
+
+  it('keeps skip_with_reason visible when an earlier step is skipped and a later step completes cleanly', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot);
+    const state = manager.readState();
+    const steps = ((state.plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
+    ((steps[0]!.execution as Record<string, unknown>).degrade_mode) = 'skip_with_reason';
+    manager.saveState(state);
+    const { io, stdout } = makeIo(projectRoot);
+    const callTool = vi.fn(async (tool: string) => {
+      if (tool === 'inspire_critical_analysis') {
+        throw new Error('critical analysis unavailable');
+      }
+      return {
+        ok: true,
+        isError: false,
+        rawText: JSON.stringify({ uri: 'hep://runs/M-WF-1/artifact/research_pack.json' }),
+        json: { uri: 'hep://runs/M-WF-1/artifact/research_pack.json' },
+        errorCode: null,
+      };
+    });
+
+    const code = await runCommand(
+      makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'),
+      io,
+      { workflowToolCaller: { callTool } },
+    );
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'completed',
+      ok: true,
+      skipped: true,
+      step_id: 'export_project',
+      executed_step_ids: ['critical_review', 'export_project'],
+      reason: 'critical analysis unavailable',
+    });
+    expect(JSON.parse(stdout.join('')).diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'skip_with_reason',
+          message: 'critical analysis unavailable',
+        }),
+      ]),
+    );
+  });
+
+  it('keeps degraded-step diagnostics visible when a later pending step becomes dependency-blocked', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot, {
+      secondStepDependsOn: ['missing_step'],
+    });
+    const state = manager.readState();
+    const steps = ((state.plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
+    ((steps[0]!.execution as Record<string, unknown>).degrade_mode) = 'partial_result';
+    manager.saveState(state);
+    const { io, stdout } = makeIo(projectRoot);
+    const callTool = vi.fn(async () => ({
+      ok: false,
+      isError: true,
+      rawText: 'critical analysis partially timed out',
+      json: null,
+      errorCode: 'TIMEOUT',
+    }));
+
+    const code = await runCommand(
+      makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'),
+      io,
+      { workflowToolCaller: { callTool } },
+    );
+
+    expect(code).toBe(1);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'failed',
+      ok: false,
+      step_id: 'critical_review',
+      executed_step_ids: ['critical_review'],
+      error: 'no dependency-satisfied workflow step is ready; next pending step is export_project',
+    });
+    expect(JSON.parse(stdout.join('')).diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'partial_result',
+          message: 'critical analysis partially timed out',
+        }),
+      ]),
+    );
   });
 
   it('fails closed when no MCP tool caller is configured', async () => {

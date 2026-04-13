@@ -373,169 +373,261 @@ async function runWorkflowCommand(
   }
 
   ensureWorkflowRunStarted(manager, resolved.runId, resolved.workflowId);
-  const state = manager.readState();
-  const { step, blockedReason } = selectNextWorkflowStep(state);
-  if (!step) {
-    if (blockedReason) {
-      state.run_status = 'failed';
-      state.notes = blockedReason;
-      manager.saveStateWithLedger(state, 'workflow_step_selection_failed', {
-        details: { run_id: resolved.runId, workflow_id: resolved.workflowId, reason: blockedReason },
-      });
-      throw new Error(blockedReason);
+  const executedStepIds: string[] = [];
+  let lastStepId: string | null = null;
+  let lastTool: string | null = null;
+  let lastProvider: string | null = null;
+  let lastPayload: unknown = null;
+  const aggregateDiagnostics: Awaited<ReturnType<typeof executeWorkflowRuntimeRequest>>['diagnostics'] = [];
+  let sawPartial = false;
+  let sawSkipped = false;
+  let lastSkipReason: string | null = null;
+
+  while (true) {
+    const state = manager.readState();
+    const { step, blockedReason } = selectNextWorkflowStep(state);
+    if (!step) {
+      if (blockedReason) {
+        state.run_status = 'failed';
+        state.current_step = null;
+        state.notes = blockedReason;
+        setPlanCurrentStepId(state, null);
+        manager.saveStateWithLedger(state, 'workflow_step_selection_failed', {
+          details: { run_id: resolved.runId, workflow_id: resolved.workflowId, reason: blockedReason },
+        });
+        io.stdout(`${JSON.stringify({
+          status: 'failed',
+          ok: false,
+          run_id: resolved.runId,
+          workflow_id: resolved.workflowId,
+          ...(lastStepId ? { step_id: lastStepId } : {}),
+          ...(executedStepIds.length > 0 ? { executed_step_ids: executedStepIds } : {}),
+          error: blockedReason,
+        }, null, 2)}\n`);
+        return 1;
+      }
+      if (executedStepIds.length === 0) {
+        throw new Error('workflow step selection drifted after startup; retry the run command');
+      }
+      const finalState = manager.readState();
+      io.stdout(`${JSON.stringify({
+        status: 'completed',
+        ok: true,
+        ...(sawPartial ? { partial: true } : {}),
+        ...(sawSkipped ? { skipped: true } : {}),
+        run_id: resolved.runId,
+        workflow_id: resolved.workflowId,
+        step_id: lastStepId,
+        ...(lastTool ? { tool: lastTool } : {}),
+        ...(lastProvider ? { provider: lastProvider } : {}),
+        executed_step_ids: executedStepIds,
+        next_step_id: null,
+        run_status: finalState.run_status,
+        result: lastPayload,
+        ...(sawSkipped && lastSkipReason ? { reason: lastSkipReason } : {}),
+        ...(aggregateDiagnostics.length > 0 ? { diagnostics: aggregateDiagnostics } : {}),
+      }, null, 2)}\n`);
+      return 0;
     }
-    throw new Error('workflow step selection drifted after startup; retry the run command');
-  }
 
-  const startedAt = utcNowIso();
-  manager.syncPlanCurrentStep(state, step.step_id, step.description);
-  state.current_step = {
-    step_id: step.step_id,
-    title: step.description,
-    started_at: startedAt,
-  };
-  state.notes = `running workflow step ${step.step_id}`;
-  manager.saveStateWithLedger(state, 'workflow_step_started', {
-    step_id: step.step_id,
-    details: {
-      workflow_id: resolved.workflowId,
-      tool: step.execution?.tool ?? null,
-      provider: step.execution?.provider ?? null,
-    },
-  });
-
-  let runtimeRequest: ReturnType<typeof compileWorkflowRuntimeRequest>;
-  let runtimeResult: Awaited<ReturnType<typeof executeWorkflowRuntimeRequest>>;
-  try {
-    runtimeRequest = compileWorkflowRuntimeRequest({
-      projectRoot: resolved.projectRoot,
-      workflowId: resolved.workflowId,
-      runId: resolved.runId,
-      step,
-    });
-    runtimeResult = await executeWorkflowRuntimeRequest(runtimeRequest, deps);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const diagnosticCode = classifyWorkflowCompileDiagnostic(message);
-    const persisted = manager.readState();
-    manager.syncPlanTerminal(persisted, step.step_id, step.description, 'failed');
-    persisted.current_step = null;
-    persisted.run_status = 'failed';
-    persisted.notes = message;
-    setPlanCurrentStepId(persisted, null);
-    manager.saveStateWithLedger(persisted, 'workflow_step_failed', {
+    const startedAt = utcNowIso();
+    manager.syncPlanCurrentStep(state, step.step_id, step.description);
+    state.current_step = {
+      step_id: step.step_id,
+      title: step.description,
+      started_at: startedAt,
+    };
+    state.notes = `running workflow step ${step.step_id}`;
+    manager.saveStateWithLedger(state, 'workflow_step_started', {
       step_id: step.step_id,
       details: {
         workflow_id: resolved.workflowId,
         tool: step.execution?.tool ?? null,
-        degrade_mode: step.execution?.degrade_mode ?? 'fail_closed',
-        error: message,
-        next_step_id: null,
-        diagnostics: [{ code: diagnosticCode, message }],
+        provider: step.execution?.provider ?? null,
       },
     });
+
+    let runtimeRequest: ReturnType<typeof compileWorkflowRuntimeRequest>;
+    let runtimeResult: Awaited<ReturnType<typeof executeWorkflowRuntimeRequest>>;
+    try {
+      runtimeRequest = compileWorkflowRuntimeRequest({
+        projectRoot: resolved.projectRoot,
+        workflowId: resolved.workflowId,
+        runId: resolved.runId,
+        step,
+      });
+      runtimeResult = await executeWorkflowRuntimeRequest(runtimeRequest, deps);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const diagnosticCode = classifyWorkflowCompileDiagnostic(message);
+      const persisted = manager.readState();
+      manager.syncPlanTerminal(persisted, step.step_id, step.description, 'failed');
+      persisted.current_step = null;
+      persisted.run_status = 'failed';
+      persisted.notes = message;
+      setPlanCurrentStepId(persisted, null);
+      manager.saveStateWithLedger(persisted, 'workflow_step_failed', {
+        step_id: step.step_id,
+        details: {
+          workflow_id: resolved.workflowId,
+          tool: step.execution?.tool ?? null,
+          degrade_mode: step.execution?.degrade_mode ?? 'fail_closed',
+          error: message,
+          next_step_id: null,
+          diagnostics: [{ code: diagnosticCode, message }],
+        },
+      });
+      io.stdout(`${JSON.stringify({
+        status: 'failed',
+        ok: false,
+        run_id: resolved.runId,
+        workflow_id: resolved.workflowId,
+        step_id: step.step_id,
+        ...(executedStepIds.length > 0 ? { executed_step_ids: executedStepIds } : {}),
+        error: message,
+        diagnostics: [{ code: diagnosticCode, message }],
+      }, null, 2)}\n`);
+      return 1;
+    }
+    const persisted = manager.readState();
+
+    if (runtimeResult.status === 'completed' || runtimeResult.status === 'partial') {
+      manager.syncPlanTerminal(persisted, step.step_id, step.description, 'completed');
+      persisted.current_step = null;
+      const nextSelection = selectNextWorkflowStep(persisted);
+      setPlanCurrentStepId(persisted, nextSelection.blockedReason ? null : nextSelection.nextStepId);
+      if (!nextSelection.blockedReason && nextSelection.nextStepId === null) {
+        persisted.run_status = 'completed';
+      }
+      const artifactKey = runtimeRequest.artifact_key;
+      const artifactUri = runtimeResult.canonical_artifact_uri;
+      if (artifactUri) {
+        persisted.artifacts[artifactKey] = artifactUri;
+      }
+      persisted.notes = runtimeResult.summary_text.slice(0, 2000);
+      manager.saveStateWithLedger(persisted, 'workflow_step_completed', {
+        step_id: step.step_id,
+        details: {
+          workflow_id: resolved.workflowId,
+          tool: step.execution?.tool ?? null,
+          next_step_id: nextSelection.nextStepId,
+          artifact_key: artifactKey,
+          artifact_uri: artifactUri,
+          runtime_status: runtimeResult.status,
+        },
+      });
+      executedStepIds.push(step.step_id);
+      lastStepId = step.step_id;
+      lastTool = step.execution?.tool ?? null;
+      lastProvider = step.execution?.provider ?? null;
+      lastPayload = runtimeResult.payload;
+      aggregateDiagnostics.push(...runtimeResult.diagnostics);
+      if (runtimeResult.status === 'partial') {
+        sawPartial = true;
+      }
+      if (nextSelection.blockedReason) {
+        const blockedState = manager.readState();
+        blockedState.run_status = 'failed';
+        blockedState.notes = nextSelection.blockedReason;
+        setPlanCurrentStepId(blockedState, null);
+        manager.saveStateWithLedger(blockedState, 'workflow_step_selection_failed', {
+          details: {
+            run_id: resolved.runId,
+            workflow_id: resolved.workflowId,
+            reason: nextSelection.blockedReason,
+            previous_step_id: step.step_id,
+          },
+        });
+        io.stdout(`${JSON.stringify({
+          status: 'failed',
+          ok: false,
+          run_id: resolved.runId,
+          workflow_id: resolved.workflowId,
+          step_id: step.step_id,
+          executed_step_ids: executedStepIds,
+          error: nextSelection.blockedReason,
+          ...(aggregateDiagnostics.length > 0 ? { diagnostics: aggregateDiagnostics } : {}),
+        }, null, 2)}\n`);
+        return 1;
+      }
+      if (nextSelection.nextStepId !== null) continue;
+      continue;
+    }
+
+    const message = runtimeResult.summary_text;
+    const terminalStatus = runtimeResult.status === 'skipped' ? 'skipped' : 'failed';
+    manager.syncPlanTerminal(persisted, step.step_id, step.description, terminalStatus);
+    persisted.current_step = null;
+    persisted.notes = message;
+    const nextSelection = terminalStatus === 'skipped'
+      ? selectNextWorkflowStep(persisted)
+      : { nextStepId: null, blockedReason: null };
+    setPlanCurrentStepId(persisted, nextSelection.blockedReason ? null : nextSelection.nextStepId);
+    if (terminalStatus === 'failed') {
+      persisted.run_status = 'failed';
+    } else if (!nextSelection.blockedReason && nextSelection.nextStepId === null) {
+      persisted.run_status = 'completed';
+    }
+    manager.saveStateWithLedger(persisted, terminalStatus === 'skipped' ? 'workflow_step_skipped' : 'workflow_step_failed', {
+      step_id: step.step_id,
+      details: {
+        workflow_id: resolved.workflowId,
+        tool: step.execution?.tool ?? null,
+        degrade_mode: runtimeRequest.degrade_mode,
+        error: message,
+        next_step_id: nextSelection.nextStepId,
+        diagnostics: runtimeResult.diagnostics,
+      },
+    });
+    if (terminalStatus === 'skipped') {
+      executedStepIds.push(step.step_id);
+      lastStepId = step.step_id;
+      lastTool = step.execution?.tool ?? null;
+      lastProvider = step.execution?.provider ?? null;
+      lastPayload = null;
+      sawSkipped = true;
+      lastSkipReason = message;
+      aggregateDiagnostics.push(...runtimeResult.diagnostics);
+      if (nextSelection.blockedReason) {
+        const blockedState = manager.readState();
+        blockedState.run_status = 'failed';
+        blockedState.notes = nextSelection.blockedReason;
+        setPlanCurrentStepId(blockedState, null);
+        manager.saveStateWithLedger(blockedState, 'workflow_step_selection_failed', {
+          details: {
+            run_id: resolved.runId,
+            workflow_id: resolved.workflowId,
+            reason: nextSelection.blockedReason,
+            previous_step_id: step.step_id,
+          },
+        });
+        io.stdout(`${JSON.stringify({
+          status: 'failed',
+          ok: false,
+          run_id: resolved.runId,
+          workflow_id: resolved.workflowId,
+          step_id: step.step_id,
+          executed_step_ids: executedStepIds,
+          error: nextSelection.blockedReason,
+          diagnostics: aggregateDiagnostics,
+        }, null, 2)}\n`);
+        return 1;
+      }
+      if (nextSelection.nextStepId !== null) continue;
+      continue;
+    }
     io.stdout(`${JSON.stringify({
       status: 'failed',
       ok: false,
       run_id: resolved.runId,
       workflow_id: resolved.workflowId,
       step_id: step.step_id,
+      ...(executedStepIds.length > 0 ? { executed_step_ids: executedStepIds } : {}),
       error: message,
-      diagnostics: [{ code: diagnosticCode, message }],
+      diagnostics: runtimeResult.diagnostics,
     }, null, 2)}\n`);
     return 1;
   }
-  const persisted = manager.readState();
-
-  if (runtimeResult.status === 'completed' || runtimeResult.status === 'partial') {
-    manager.syncPlanTerminal(persisted, step.step_id, step.description, 'completed');
-    persisted.current_step = null;
-    const nextSelection = selectNextWorkflowStep(persisted);
-    setPlanCurrentStepId(persisted, nextSelection.nextStepId);
-    if (nextSelection.nextStepId === null) {
-      persisted.run_status = 'completed';
-    }
-    const artifactKey = runtimeRequest.artifact_key;
-    const artifactUri = runtimeResult.canonical_artifact_uri;
-    if (artifactUri) {
-      persisted.artifacts[artifactKey] = artifactUri;
-    }
-    persisted.notes = runtimeResult.summary_text.slice(0, 2000);
-    manager.saveStateWithLedger(persisted, 'workflow_step_completed', {
-      step_id: step.step_id,
-      details: {
-        workflow_id: resolved.workflowId,
-        tool: step.execution?.tool ?? null,
-        next_step_id: nextSelection.nextStepId,
-        artifact_key: artifactKey,
-        artifact_uri: artifactUri,
-        runtime_status: runtimeResult.status,
-      },
-    });
-    io.stdout(`${JSON.stringify({
-      status: 'completed',
-      ok: true,
-      ...(runtimeResult.status === 'partial' ? { partial: true } : {}),
-      run_id: resolved.runId,
-      workflow_id: resolved.workflowId,
-      step_id: step.step_id,
-      tool: step.execution?.tool ?? null,
-      provider: step.execution?.provider ?? null,
-      next_step_id: nextSelection.nextStepId,
-      run_status: persisted.run_status,
-      result: runtimeResult.payload,
-      ...(runtimeResult.diagnostics.length > 0 ? { diagnostics: runtimeResult.diagnostics } : {}),
-    }, null, 2)}\n`);
-    return 0;
-  }
-
-  const message = runtimeResult.summary_text;
-  const terminalStatus = runtimeResult.status === 'skipped' ? 'skipped' : 'failed';
-  manager.syncPlanTerminal(persisted, step.step_id, step.description, terminalStatus);
-  persisted.current_step = null;
-  persisted.notes = message;
-  const nextSelection = terminalStatus === 'skipped' ? selectNextWorkflowStep(persisted) : { nextStepId: null };
-  setPlanCurrentStepId(persisted, nextSelection.nextStepId);
-  if (terminalStatus === 'failed') {
-    persisted.run_status = 'failed';
-  } else if (nextSelection.nextStepId === null) {
-    persisted.run_status = 'completed';
-  }
-  manager.saveStateWithLedger(persisted, terminalStatus === 'skipped' ? 'workflow_step_skipped' : 'workflow_step_failed', {
-    step_id: step.step_id,
-    details: {
-      workflow_id: resolved.workflowId,
-      tool: step.execution?.tool ?? null,
-      degrade_mode: runtimeRequest.degrade_mode,
-      error: message,
-      next_step_id: nextSelection.nextStepId,
-      diagnostics: runtimeResult.diagnostics,
-    },
-  });
-  if (terminalStatus === 'skipped') {
-    io.stdout(`${JSON.stringify({
-      status: 'completed',
-      ok: true,
-      skipped: true,
-      run_id: resolved.runId,
-      workflow_id: resolved.workflowId,
-      step_id: step.step_id,
-      next_step_id: nextSelection.nextStepId,
-      reason: message,
-      diagnostics: runtimeResult.diagnostics,
-    }, null, 2)}\n`);
-    return 0;
-  }
-  io.stdout(`${JSON.stringify({
-    status: 'failed',
-    ok: false,
-    run_id: resolved.runId,
-    workflow_id: resolved.workflowId,
-    step_id: step.step_id,
-    error: message,
-    diagnostics: runtimeResult.diagnostics,
-  }, null, 2)}\n`);
-  return 1;
 }
 
 export async function runCommand(input: RunCommandInput, io: CliIo, deps: RunCommandDeps = {}): Promise<number> {
