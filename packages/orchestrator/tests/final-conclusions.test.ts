@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { runCli } from '../src/cli.js';
 import { handleOrchRunApprove, handleOrchRunApprovalsList } from '../src/orch-tools/approval.js';
+import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
 import { handleOrchRunRecordVerification } from '../src/orch-tools/verification.js';
@@ -390,6 +391,10 @@ describe('final conclusions consumer', () => {
       run_id: runId,
       approval_id: 'A5-0001',
       gate_id: 'A5',
+      objective_title: 'Approved computation for M-A5-1',
+      source_result_summary: expect.stringContaining('Approved execution completed'),
+      produced_artifact_refs: expect.any(Array),
+      verification_check_run_refs: expect.any(Array),
       verification_summary: {
         decision: 'pass',
       },
@@ -408,7 +413,30 @@ describe('final conclusions consumer', () => {
       gate_satisfied: {
         A5: 'A5-0001',
       },
+      final_conclusions: {
+        artifact_path: 'artifacts/runs/M-A5-1/final_conclusions_v1.json',
+        artifact_uri: 'orch://runs/M-A5-1/artifact/final_conclusions_v1.json',
+        approval_id: 'A5-0001',
+        objective_title: 'Approved computation for M-A5-1',
+        verification_summary: {
+          decision: 'pass',
+        },
+      },
+      final_conclusions_error: null,
     });
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: true,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+    expect(exportView.current_run_final_conclusions).toMatchObject({
+      artifact_path: 'artifacts/runs/M-A5-1/final_conclusions_v1.json',
+      approval_id: 'A5-0001',
+      objective_title: 'Approved computation for M-A5-1',
+    });
+    expect(exportView.current_run_final_conclusions_error).toBeNull();
 
     const approvalsView = await handleOrchRunApprovalsList({
       project_root: projectRoot,
@@ -452,6 +480,41 @@ describe('final conclusions consumer', () => {
     });
     expect(state.approval_history).toHaveLength(0);
     expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'final_conclusions_v1.json'))).toBe(false);
+  });
+
+  it('reports a structured final_conclusions error when the pointer exists but the artifact is missing', async () => {
+    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
+    await recordVerificationPass(projectRoot, runId);
+    const request = await requestA5(projectRoot, runId);
+    await handleOrchRunApprove({
+      _confirm: true,
+      approval_id: String(request.approval_id),
+      approval_packet_sha256: String(request.approval_packet_sha256),
+      project_root: projectRoot,
+    });
+
+    const artifactPath = path.join(projectRoot, 'artifacts', 'runs', runId, 'final_conclusions_v1.json');
+    fs.unlinkSync(artifactPath);
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.final_conclusions).toBeNull();
+    expect(statusView.final_conclusions_error).toMatchObject({
+      code: 'FINAL_CONCLUSIONS_MISSING',
+    });
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+    expect(exportView.current_run_final_conclusions).toBeNull();
+    expect(exportView.current_run_final_conclusions_error).toMatchObject({
+      code: 'FINAL_CONCLUSIONS_MISSING',
+    });
+
+    // keep state pointer untouched; this path is meant to surface drift, not heal it silently
+    expect(manager.readState().artifacts.final_conclusions_v1).toBe('artifacts/runs/M-A5-1/final_conclusions_v1.json');
   });
 
   it('does not create an approval when verification is still on hold', async () => {

@@ -10,6 +10,10 @@
     "approval_id",
     "gate_id",
     "source_result_ref",
+    "objective_title",
+    "source_result_summary",
+    "produced_artifact_refs",
+    "verification_check_run_refs",
     "approval_packet_ref",
     "verification_summary",
     "summary",
@@ -31,6 +35,24 @@
     },
     "source_result_ref": {
       "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+    },
+    "objective_title": {
+      "type": "string"
+    },
+    "source_result_summary": {
+      "type": "string"
+    },
+    "produced_artifact_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
+    },
+    "verification_check_run_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      }
     },
     "approval_packet_ref": {
       "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"

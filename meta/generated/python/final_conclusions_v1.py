@@ -46,6 +46,82 @@ class SourceResultRef(BaseModel):
     ] = None
 
 
+class ProducedArtifactRef(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    uri: Annotated[
+        str,
+        Field(
+            description="URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote."
+        ),
+    ]
+    kind: Annotated[
+        str | None,
+        Field(
+            description="Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility."
+        ),
+    ] = None
+    schema_version: Annotated[
+        int | None, Field(description='Schema version of the referenced artifact.')
+    ] = None
+    sha256: Annotated[
+        str,
+        Field(
+            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
+            pattern='^[0-9a-f]{64}$',
+        ),
+    ]
+    size_bytes: Annotated[
+        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+    ] = None
+    produced_by: Annotated[
+        str | None, Field(description='Agent or component that produced this artifact.')
+    ] = None
+    created_at: Annotated[
+        AwareDatetime | None,
+        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+    ] = None
+
+
+class VerificationCheckRunRef(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    uri: Annotated[
+        str,
+        Field(
+            description="URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote."
+        ),
+    ]
+    kind: Annotated[
+        str | None,
+        Field(
+            description="Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility."
+        ),
+    ] = None
+    schema_version: Annotated[
+        int | None, Field(description='Schema version of the referenced artifact.')
+    ] = None
+    sha256: Annotated[
+        str,
+        Field(
+            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
+            pattern='^[0-9a-f]{64}$',
+        ),
+    ]
+    size_bytes: Annotated[
+        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+    ] = None
+    produced_by: Annotated[
+        str | None, Field(description='Agent or component that produced this artifact.')
+    ] = None
+    created_at: Annotated[
+        AwareDatetime | None,
+        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+    ] = None
+
+
 class ApprovalPacketRef(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -117,6 +193,10 @@ class FinalconclusionsV1(BaseModel):
             title='ArtifactRef V1',
         ),
     ]
+    objective_title: str
+    source_result_summary: str
+    produced_artifact_refs: list[ProducedArtifactRef]
+    verification_check_run_refs: list[VerificationCheckRunRef]
     approval_packet_ref: Annotated[
         ApprovalPacketRef,
         Field(

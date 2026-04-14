@@ -386,6 +386,10 @@ export function consumeApprovedFinalConclusions(params: {
     approval_id: params.approvalId,
     gate_id: 'A5',
     source_result_ref: sourceResultRef,
+    objective_title: computationResult.objective_title,
+    source_result_summary: computationResult.summary,
+    produced_artifact_refs: computationResult.produced_artifact_refs,
+    verification_check_run_refs: computationResult.verification_refs?.check_run_refs ?? [],
     approval_packet_ref: approvalPacketRef,
     verification_summary: {
       decision: 'pass',
@@ -420,6 +424,78 @@ export function consumeApprovedFinalConclusions(params: {
       }
     },
   };
+}
+
+function readFinalConclusionsPointer(state: RunState): string | null {
+  const pointer = state.artifacts?.final_conclusions_v1;
+  return typeof pointer === 'string' && pointer.length > 0 ? pointer : null;
+}
+
+function resolveFinalConclusionsPath(projectRoot: string, pointer: string): string {
+  const resolvedRoot = path.resolve(projectRoot);
+  const resolved = path.resolve(projectRoot, pointer);
+  const relative = path.relative(resolvedRoot, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw invalidParams('final_conclusions_v1 pointer escapes project root.', {
+      project_root: projectRoot,
+      pointer,
+    });
+  }
+  return resolved;
+}
+
+export function readFinalConclusionsView(projectRoot: string, state: RunState): {
+  final_conclusions: Record<string, unknown> | null;
+  final_conclusions_error: Record<string, unknown> | null;
+} {
+  const pointer = readFinalConclusionsPointer(state);
+  if (!pointer || !state.run_id) {
+    return { final_conclusions: null, final_conclusions_error: null };
+  }
+  try {
+    const filePath = resolveFinalConclusionsPath(projectRoot, pointer);
+    if (!fs.existsSync(filePath)) {
+      return {
+        final_conclusions: null,
+        final_conclusions_error: {
+          code: 'FINAL_CONCLUSIONS_MISSING',
+          message: `final_conclusions_v1 pointer exists but file is missing at ${pointer}.`,
+        },
+      };
+    }
+    const parsed = readJsonFile<unknown>(filePath, 'final_conclusions_v1.json');
+    const artifact = assertFinalConclusionsValid(parsed) as FinalConclusionsV1 & {
+      objective_title?: string;
+      source_result_summary?: string;
+      produced_artifact_refs?: ArtifactRefV1[];
+      verification_check_run_refs?: ArtifactRefV1[];
+    };
+    return {
+      final_conclusions: {
+        artifact_path: pointer,
+        artifact_uri: makeScopedArtifactUri({
+          scheme: 'orch',
+          scope: 'runs',
+          scopeId: state.run_id,
+          artifactName: 'final_conclusions_v1.json',
+        }),
+        approval_id: artifact.approval_id,
+        objective_title: artifact.objective_title,
+        summary: artifact.summary,
+        created_at: artifact.created_at,
+        verification_summary: artifact.verification_summary,
+      },
+      final_conclusions_error: null,
+    };
+  } catch (error) {
+    return {
+      final_conclusions: null,
+      final_conclusions_error: {
+        code: 'FINAL_CONCLUSIONS_INVALID',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
 }
 
 export async function handleOrchRunRequestFinalConclusions(

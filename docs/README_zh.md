@@ -26,6 +26,8 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
    - `autoresearch verify --run-id <id>` 与 `orch_run_record_verification` 会为已有 computation run 记录一次 decisive verification 结果，并 materialize `verification_check_run_v1` 与刷新后的 verdict/coverage/check-run refs，让 A5 `pass` 路径在运行时可达。
 1. 更高结论边界工作流
    - `autoresearch final-conclusions --run-id <id>` 与 `orch_run_request_final_conclusions` 会读取 canonical `computation_result_v1` 的 verification refs；只有 higher-conclusion readiness 明确为 `pass` 时才创建 A5 approval request。随后批准该 A5 request 会落一个本地 generic `final_conclusions_v1` artifact，并保持 run 为 `completed`。
+1. 本地 outcome 读取工作流
+   - `orch_run_status` 与 `orch_run_export` 现在会把当前 run 的 `final_conclusions_v1` 暴露为 local outcome-facing SSOT，而不新增新的 read tool，也不进入 REP surface。
 1. 实验性 idea campaign 工作流
    - 通过 `idea-mcp` 暴露 `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`，并支持 `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete`。这仍是实验性的 TS hosted runtime surface，不是 root front door。当前 MCP 面故意比完整 `idea-engine` runtime contract 更窄，不应假设每个 runtime RPC 都已经映射成 MCP tool。
 1. Project/Run 证据工作流

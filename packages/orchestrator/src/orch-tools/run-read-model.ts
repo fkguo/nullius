@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { invalidParams } from '@autoresearch/shared';
+import { readFinalConclusionsView } from './final-conclusions.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
@@ -33,6 +34,7 @@ export type ApprovalEntry = Record<string, unknown>;
 
 export function buildRunStatusView(projectRoot: string, state: RunState) {
   const paused = fs.existsSync(pauseFilePath(projectRoot));
+  const finalConclusions = readFinalConclusionsView(projectRoot, state);
   return {
     run_id: state.run_id,
     run_status: paused ? 'paused' : state.run_status,
@@ -50,6 +52,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     notes: state.notes ?? '',
     uri: state.run_id ? `orch://runs/${state.run_id}` : null,
     is_paused: paused,
+    final_conclusions: finalConclusions.final_conclusions,
+    final_conclusions_error: finalConclusions.final_conclusions_error,
   };
 }
 

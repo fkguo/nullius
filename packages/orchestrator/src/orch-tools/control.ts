@@ -10,6 +10,7 @@ import {
   createStateManager,
   requireState,
 } from './common.js';
+import { readFinalConclusionsView } from './final-conclusions.js';
 import {
   OrchPolicyQuerySchema,
   OrchRunExportSchema,
@@ -22,8 +23,9 @@ export async function handleOrchRunExport(
 ): Promise<unknown> {
   const { manager, projectRoot } = createStateManager(params.project_root);
   const result: Record<string, unknown> = { project_root: projectRoot };
+  const state = fs.existsSync(manager.statePath) ? manager.readState() : null;
   if (params.include_state) {
-    result.state = fs.existsSync(manager.statePath) ? JSON.parse(fs.readFileSync(manager.statePath, 'utf-8')) : null;
+    result.state = state;
     if (result.state === null) {
       result.state_missing = true;
     }
@@ -40,6 +42,11 @@ export async function handleOrchRunExport(
         }));
     } else {
       result.artifact_runs = [];
+    }
+    if (state && state.run_id) {
+      const finalConclusions = readFinalConclusionsView(projectRoot, state);
+      result.current_run_final_conclusions = finalConclusions.final_conclusions;
+      result.current_run_final_conclusions_error = finalConclusions.final_conclusions_error;
     }
   }
   return {

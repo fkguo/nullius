@@ -37,14 +37,14 @@
 | `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
 | `orch_run_record_verification` | `write` | Record one decisive verification result for an existing computation run, materializing `verification_check_run_v1` plus refreshed verdict/coverage/check-run refs |
 | `orch_run_request_final_conclusions` | `write` | Evaluate canonical computation-result verification truth and create an A5 final-conclusions approval request only when higher-conclusion readiness is a decisive pass |
-| `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json` |
+| `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json`, including current-run `final_conclusions_v1` summary when present |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
 | `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification; A5 approvals consume into a local `final_conclusions_v1` artifact instead of resuming execution |
 | `orch_run_reject` | `destructive` | Reject a pending gate and pause the run |
 | `orch_run_pause` | `write` | Pause the current run |
 | `orch_run_resume` | `write` | Resume a paused run |
 | `orch_run_approvals_list` | `read` | Inspect pending and historical approvals for a run |
-| `orch_run_export` | `destructive` | Export run summary/artifact listing |
+| `orch_run_export` | `destructive` | Export run summary/artifact listing, including current-run `final_conclusions_v1` summary when present |
 | `orch_run_execute_agent` | `destructive` | Execute an orchestrator agent runtime with persisted checkpoints |
 
 #### Policy surface
@@ -187,6 +187,7 @@ Current live approval flow is intentionally split into creation, inspection, and
 For the higher-conclusion boundary:
 - `orch_run_request_final_conclusions` only creates the pending A5 request.
 - `orch_run_approve` consumes that A5 request into `artifacts/runs/<run_id>/final_conclusions_v1.json`, records `gate_satisfied.A5`, and leaves the run `completed`.
+- `orch_run_status` / `orch_run_export` are the read surfaces for the current run's local outcome-facing `final_conclusions_v1` seam; no separate public read tool is introduced in this slice.
 
 Current live approval producers include:
 - `orch_run_execute_manifest` for A3 compute execution

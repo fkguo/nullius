@@ -26,6 +26,8 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
    - `autoresearch verify --run-id <id>` and `orch_run_record_verification` record one decisive verification result for an existing computation run, materialize `verification_check_run_v1`, and refresh verdict/coverage/check-run refs so the A5 `pass` path becomes runtime-reachable.
 1. Higher-conclusion boundary workflow
    - `autoresearch final-conclusions --run-id <id>` and `orch_run_request_final_conclusions` evaluate the canonical `computation_result_v1` verification refs and create an A5 approval request only when higher-conclusion readiness is an explicit `pass`; approving that A5 request now materializes a local generic `final_conclusions_v1` artifact and leaves the run `completed`.
+1. Local outcome read workflow
+   - `orch_run_status` and `orch_run_export` now expose the current run's `final_conclusions_v1` as the local outcome-facing SSOT after A5 closeout, without introducing a new read tool or REP surface.
 1. Experimental idea campaign workflow
    - `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` exposed through `idea-mcp`. This remains an experimental TS-hosted runtime surface, not a root front door. The current MCP surface is intentionally narrower than the full `idea-engine` runtime contract; do not assume every runtime RPC is exposed as an MCP tool.
 1. Project/Run evidence workflow
