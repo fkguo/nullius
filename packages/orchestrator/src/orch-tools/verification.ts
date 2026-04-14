@@ -2,7 +2,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type {
   ArtifactRefV1,
-  ComputationResultV1,
   VerificationCheckRunV1,
   VerificationCoverageV1,
   VerificationSubjectV1,
@@ -12,6 +11,7 @@ import { invalidParams } from '@autoresearch/shared';
 import { z } from 'zod';
 import { createRunArtifactRef } from '../computation/artifact-refs.js';
 import { writeJsonAtomic } from '../computation/io.js';
+import { attachVerificationBoundaryToWorkspaceFeedback } from '../computation/workspace-feedback-boundaries.js';
 import { assertComputationResultValid } from '../computation/result-schema.js';
 import { createStateManager, requireState } from './common.js';
 import { OrchRunRecordVerificationSchema } from './schemas.js';
@@ -170,7 +170,7 @@ export async function handleOrchRunRecordVerification(
   writeJsonAtomic(coveragePath, nextCoverage);
   const coverageRef = createRunArtifactRef(params.run_id, runDir, coveragePath, 'verification_coverage');
 
-  const nextComputationResult: ComputationResultV1 = {
+  const nextComputationResult = attachVerificationBoundaryToWorkspaceFeedback({
     ...computationResult,
     verification_refs: {
       ...(computationResult.verification_refs ?? {}),
@@ -179,8 +179,14 @@ export async function handleOrchRunRecordVerification(
       subject_verdict_refs: [verdictRef],
       coverage_refs: [coverageRef],
     },
-  };
-  writeJsonAtomic(computationResultPath, nextComputationResult);
+  }, {
+    status: params.status,
+    summary: params.summary,
+    check_run_uri: checkRunRef.uri,
+    verdict_uri: verdictRef.uri,
+    coverage_uri: coverageRef.uri,
+  });
+  writeJsonAtomic(computationResultPath, assertComputationResultValid(nextComputationResult));
 
   return {
     recorded: true,

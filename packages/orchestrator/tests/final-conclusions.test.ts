@@ -267,6 +267,27 @@ describe('final conclusions consumer', () => {
     expect(result.verification_refs).toMatchObject({
       check_run_refs: [expect.objectContaining({ kind: 'verification_check_run' })],
     });
+    const verificationDecisionNode = (result.workspace_feedback as Record<string, unknown>).workspace as Record<string, unknown>;
+    expect((verificationDecisionNode.nodes as Array<Record<string, unknown>>)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        node_id: `decision:verification:${runId}`,
+        kind: 'decision',
+        metadata: expect.objectContaining({
+          boundary: 'verification',
+          verification_status: 'passed',
+        }),
+      }),
+    ]));
+    expect((result.workspace_feedback as Record<string, unknown>).events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: 'intervention_recorded',
+        payload: expect.objectContaining({
+          intervention_kind: 'verify',
+          boundary: 'verification',
+          verification_status: 'passed',
+        }),
+      }),
+    ]));
 
     const verdict = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'verification_subject_verdict_computation_result_v1.json'));
     expect(verdict).toMatchObject({
@@ -297,6 +318,28 @@ describe('final conclusions consumer', () => {
       gate_decision: 'pass',
     });
     expect(manager.readState().pending_approval?.category).toBe('A5');
+    const requestedResult = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'computation_result_v1.json'));
+    expect(((requestedResult.workspace_feedback as Record<string, unknown>).workspace as Record<string, unknown>).nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        node_id: `decision:final-conclusions:${runId}`,
+        kind: 'decision',
+        metadata: expect.objectContaining({
+          boundary: 'final_conclusions',
+          status: 'pending_approval',
+          approval_id: 'A5-0001',
+        }),
+      }),
+    ]));
+    expect((requestedResult.workspace_feedback as Record<string, unknown>).events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: 'intervention_recorded',
+        payload: expect.objectContaining({
+          intervention_kind: 'request_final_conclusions',
+          boundary: 'final_conclusions_request',
+          approval_id: 'A5-0001',
+        }),
+      }),
+    ]));
   });
 
   it('fails closed after decisive verification is recorded as failed', async () => {
@@ -404,6 +447,30 @@ describe('final conclusions consumer', () => {
         approved_via: 'orch_run_approve',
       },
     });
+    const updatedResult = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'computation_result_v1.json'));
+    expect((((updatedResult.workspace_feedback as Record<string, unknown>).workspace as Record<string, unknown>).nodes)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        node_id: `decision:final-conclusions:${runId}`,
+        kind: 'decision',
+        metadata: expect.objectContaining({
+          boundary: 'final_conclusions',
+          status: 'approved',
+          approval_id: 'A5-0001',
+          final_conclusions_path: 'artifacts/runs/M-A5-1/final_conclusions_v1.json',
+        }),
+      }),
+    ]));
+    expect((updatedResult.workspace_feedback as Record<string, unknown>).events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: 'intervention_recorded',
+        payload: expect.objectContaining({
+          intervention_kind: 'approve',
+          boundary: 'final_conclusions_approved',
+          approval_id: 'A5-0001',
+          final_conclusions_path: 'artifacts/runs/M-A5-1/final_conclusions_v1.json',
+        }),
+      }),
+    ]));
 
     const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
     expect(statusView).toMatchObject({

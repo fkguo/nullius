@@ -24,6 +24,10 @@ import { assertComputationResultValid } from '../computation/result-schema.js';
 import artifactRefSchema from '../../../../meta/schemas/artifact_ref_v1.schema.json' with { type: 'json' };
 import finalConclusionsSchema from '../../../../meta/schemas/final_conclusions_v1.schema.json' with { type: 'json' };
 import { sha256Text, writeJsonAtomic, writeTextAtomic } from '../computation/io.js';
+import {
+  attachFinalConclusionsApprovalToWorkspaceFeedback,
+  attachFinalConclusionsRequestToWorkspaceFeedback,
+} from '../computation/workspace-feedback-boundaries.js';
 import { createStateManager, requireState } from './common.js';
 import { OrchRunRequestFinalConclusionsSchema } from './schemas.js';
 import type { RunState } from '../types.js';
@@ -372,6 +376,7 @@ export function consumeApprovedFinalConclusions(params: {
   }
 
   const finalConclusionsPath = finalConclusionsArtifactPath(params.projectRoot, runId);
+  const originalComputationResultText = fs.readFileSync(computationResultPath, 'utf-8');
   const sourceResultRef = createRunArtifactRef(runId, runDir, computationResultPath, 'computation_result');
   const approvalPacketRef = createControlPlaneArtifactRef({
     artifactName: `approvals/${params.approvalId}/approval_packet_v1.json`,
@@ -406,6 +411,29 @@ export function consumeApprovedFinalConclusions(params: {
   });
 
   writeJsonAtomic(finalConclusionsPath, payload);
+  try {
+    const nextComputationResult = attachFinalConclusionsApprovalToWorkspaceFeedback(computationResult, {
+      approval_id: params.approvalId,
+      final_conclusions_path: path.relative(params.projectRoot, finalConclusionsPath).split(path.sep).join('/'),
+      final_conclusions_uri: makeScopedArtifactUri({
+        scheme: 'orch',
+        scope: 'runs',
+        scopeId: runId,
+        artifactName: 'final_conclusions_v1.json',
+      }),
+    });
+    writeJsonAtomic(computationResultPath, assertComputationResultValid(nextComputationResult));
+  } catch (error) {
+    try {
+      if (fs.existsSync(finalConclusionsPath)) {
+        fs.unlinkSync(finalConclusionsPath);
+      }
+      fs.writeFileSync(computationResultPath, originalComputationResultText, 'utf-8');
+    } catch {
+      // best-effort rollback only; preserve original error below
+    }
+    throw error;
+  }
   return {
     final_conclusions_path: path.relative(params.projectRoot, finalConclusionsPath).split(path.sep).join('/'),
     final_conclusions_uri: makeScopedArtifactUri({
@@ -419,6 +447,7 @@ export function consumeApprovedFinalConclusions(params: {
         if (fs.existsSync(finalConclusionsPath)) {
           fs.unlinkSync(finalConclusionsPath);
         }
+        fs.writeFileSync(computationResultPath, originalComputationResultText, 'utf-8');
       } catch {
         // best-effort cleanup only; fail-closed state preservation matters more than cleanup reporting
       }
@@ -622,6 +651,8 @@ export async function handleOrchRunRequestFinalConclusions(
   }
 
   const approvalPreviewId = `A5-${String((state.approval_seq.A5 ?? 0) + 1).padStart(4, '0')}`;
+  const { computationResultPath } = loadComputationResult(projectRoot, params.run_id);
+  const originalComputationResultText = fs.readFileSync(computationResultPath, 'utf-8');
   const packet = writeApprovalPacketArtifacts({
     projectRoot,
     state,
@@ -630,17 +661,30 @@ export async function handleOrchRunRequestFinalConclusions(
     gate,
     approvalId: approvalPreviewId,
   });
-  const mutatedState = manager.readState();
-  const approvalId = manager.requestApproval(mutatedState, 'A5', {
-    packet_path: packet.packetPath,
-    ...(params.note ? { note: params.note } : {}),
-    allow_completed: true,
+  const nextComputationResult = attachFinalConclusionsRequestToWorkspaceFeedback(computationResult, {
+    approval_id: approvalPreviewId,
+    gate_summary: gate.summary,
+    packet_json_path: packet.packetJsonPath,
   });
-  if (approvalId !== approvalPreviewId) {
-    throw invalidParams('approval_id drifted while creating A5 request', {
-      expected: approvalPreviewId,
-      actual: approvalId,
+  writeJsonAtomic(computationResultPath, assertComputationResultValid(nextComputationResult));
+  let approvalId: string;
+  try {
+    const mutatedState = manager.readState();
+    approvalId = manager.requestApproval(mutatedState, 'A5', {
+      packet_path: packet.packetPath,
+      ...(params.note ? { note: params.note } : {}),
+      allow_completed: true,
     });
+    if (approvalId !== approvalPreviewId) {
+      throw invalidParams('approval_id drifted while creating A5 request', {
+        expected: approvalPreviewId,
+        actual: approvalId,
+      });
+    }
+  } catch (error) {
+    fs.writeFileSync(computationResultPath, originalComputationResultText, 'utf-8');
+    fs.rmSync(path.dirname(path.join(projectRoot, packet.packetJsonPath)), { recursive: true, force: true });
+    throw error;
   }
   return {
     status: 'requires_approval',
