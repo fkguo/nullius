@@ -107,11 +107,27 @@ export async function runPreparedManifest(
         prepared,
         computationResult,
       });
-      await recordComputationResultToMemoryGraph({
+      const memoryGraph = await recordComputationResultToMemoryGraph({
         projectRoot,
         manifest: prepared.manifest,
         computationResult,
       });
+      if (memoryGraph.repairProposalPath) {
+        const state = stateManager.readState();
+        state.artifacts = {
+          ...state.artifacts,
+          mutation_proposal_repair_v1: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
+        };
+        stateManager.saveState(state);
+        stateManager.appendLedger('repair_mutation_proposed', {
+          run_id: prepared.runId,
+          workflow_id: 'computation',
+          details: {
+            proposal_id: memoryGraph.repairProposalId,
+            proposal_path: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
+          },
+        });
+      }
       return {
         status: 'failed',
         ok: false,
@@ -155,11 +171,27 @@ export async function runPreparedManifest(
     prepared,
     computationResult,
   });
-  await recordComputationResultToMemoryGraph({
+  const memoryGraph = await recordComputationResultToMemoryGraph({
     projectRoot,
     manifest: prepared.manifest,
     computationResult,
   });
+  if (memoryGraph.repairProposalPath) {
+    const state = stateManager.readState();
+    state.artifacts = {
+      ...state.artifacts,
+      mutation_proposal_repair_v1: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
+    };
+    stateManager.saveState(state);
+    stateManager.appendLedger('repair_mutation_proposed', {
+      run_id: prepared.runId,
+      workflow_id: 'computation',
+      details: {
+        proposal_id: memoryGraph.repairProposalId,
+        proposal_path: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
+      },
+    });
+  }
   return {
     status: 'completed',
     ok: true,

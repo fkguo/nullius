@@ -5,6 +5,7 @@ import {
   createMemoryGraph,
 } from '@autoresearch/shared';
 import { makeRunArtifactUri } from './artifact-refs.js';
+import { maybeGenerateRepairProposal } from './repair-gene-library.js';
 
 function memoryGraphDbPath(projectRoot: string): string {
   return path.join(projectRoot, '.autoresearch', 'memory-graph.sqlite');
@@ -53,7 +54,10 @@ export async function recordComputationResultToMemoryGraph(params: {
   projectRoot: string;
   manifest: ComputationManifestV1;
   computationResult: ComputationResultV1;
-}): Promise<void> {
+}): Promise<{
+  repairProposalPath: string | null;
+  repairProposalId: string | null;
+}> {
   const result = params.computationResult;
   const signals = [
     'boundary:compute_result',
@@ -75,6 +79,18 @@ export async function recordComputationResultToMemoryGraph(params: {
     detailsArtifactUri: makeRunArtifactUri(result.run_id, 'artifacts/computation_result_v1.json'),
     qualityScore: result.execution_status === 'completed' ? 1 : 0,
   });
+  const signalKey = computeSignalKey(signals);
+  const proposal = await maybeGenerateRepairProposal({
+    projectRoot: params.projectRoot,
+    runId: result.run_id,
+    signalKey,
+    signals,
+    computationResult: result,
+  });
+  return {
+    repairProposalPath: proposal?.proposalPath ?? null,
+    repairProposalId: proposal?.proposal.proposal_id ?? null,
+  };
 }
 
 export async function recordVerificationToMemoryGraph(params: {

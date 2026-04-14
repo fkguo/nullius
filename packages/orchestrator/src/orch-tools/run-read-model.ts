@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { invalidParams } from '@autoresearch/shared';
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
+import { readRepairProposalView } from './repair-proposal.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
@@ -36,6 +37,7 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const paused = fs.existsSync(pauseFilePath(projectRoot));
   const finalConclusions = readFinalConclusionsView(projectRoot, state);
   const researchOutcomeProjection = readResearchOutcomeProjectionView(projectRoot, state);
+  const repairProposal = readRepairProposalView(projectRoot, state);
   return {
     run_id: state.run_id,
     run_status: paused ? 'paused' : state.run_status,
@@ -57,6 +59,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     final_conclusions_error: finalConclusions.final_conclusions_error,
     research_outcome_projection: researchOutcomeProjection.research_outcome_projection,
     research_outcome_projection_error: researchOutcomeProjection.research_outcome_projection_error,
+    repair_mutation_proposal: repairProposal.repair_mutation_proposal,
+    repair_mutation_proposal_error: repairProposal.repair_mutation_proposal_error,
   };
 }
 

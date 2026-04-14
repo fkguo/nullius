@@ -6,7 +6,9 @@ import { createMemoryGraph } from '@autoresearch/shared';
 import { runCli } from '../src/cli.js';
 import { executeComputationManifest } from '../src/computation/index.js';
 import { handleOrchRunApprove } from '../src/orch-tools/approval.js';
+import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
+import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { handleOrchRunRecordVerification } from '../src/orch-tools/verification.js';
 import { StateManager } from '../src/state-manager.js';
 
@@ -164,6 +166,8 @@ describe('memory-graph hookup', () => {
       expect.objectContaining({ signal: 'execution_status:failed' }),
       expect.objectContaining({ signal: 'package:python:sympy' }),
     ]));
+    const proposalPath = path.join(projectRoot, 'artifacts', 'runs', runId, 'mutation_proposal_repair_v1.json');
+    expect(fs.existsSync(proposalPath)).toBe(false);
   });
 
   it('records decisive verification and final conclusions closeout into the same memory graph', async () => {
@@ -215,5 +219,61 @@ describe('memory-graph hookup', () => {
       check_run_refs: [expect.objectContaining({ uri: verification.check_run_uri })],
     });
     expect(approval.final_conclusions_uri).toBe('orch://runs/run-memory-a5/artifact/final_conclusions_v1.json');
+  });
+
+  it('emits a local repair mutation proposal after the same failed signal repeats and surfaces it via status/export', async () => {
+    const projectRoot = makeTempProjectRoot();
+    for (const runId of ['run-memory-repeat-a', 'run-memory-repeat-b']) {
+      const manager = new StateManager(projectRoot);
+      manager.ensureDirs();
+      const state = manager.readState();
+      state.run_id = runId;
+      state.workflow_id = 'computation';
+      state.run_status = 'running';
+      state.gate_satisfied.A3 = 'A3-0001';
+      manager.saveState(state);
+
+      const { runDir, manifestPath } = createFailedFixture(projectRoot, runId);
+      const result = await executeComputationManifest({
+        projectRoot,
+        runId,
+        runDir,
+        manifestPath,
+      });
+      expect(result.status).toBe('failed');
+    }
+
+    const proposalPath = path.join(projectRoot, 'artifacts', 'runs', 'run-memory-repeat-b', 'mutation_proposal_repair_v1.json');
+    expect(fs.existsSync(proposalPath)).toBe(true);
+    const proposal = readJson<Record<string, unknown>>(proposalPath);
+    expect(proposal).toMatchObject({
+      mutation_type: 'repair',
+      gate_level: 'A1',
+      status: 'proposed',
+      run_id: 'run-memory-repeat-b',
+    });
+
+    const manager = new StateManager(projectRoot);
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.repair_mutation_proposal).toMatchObject({
+      mutation_type: 'repair',
+      status: 'proposed',
+      run_id: 'run-memory-repeat-b',
+    });
+    expect(statusView.repair_mutation_proposal_error).toBeNull();
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+    expect(exportView.current_run_repair_mutation_proposal).toMatchObject({
+      mutation_type: 'repair',
+      status: 'proposed',
+      run_id: 'run-memory-repeat-b',
+    });
+    expect(exportView.current_run_repair_mutation_proposal_error).toBeNull();
+    expect(manager.readState().artifacts.mutation_proposal_repair_v1).toBe('artifacts/runs/run-memory-repeat-b/mutation_proposal_repair_v1.json');
   });
 });
