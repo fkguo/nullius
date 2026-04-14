@@ -71,6 +71,8 @@ function createComputationFixture(projectRoot: string, runId: string): { runDir:
   return { runDir, manifestPath };
 }
 
+const EXISTING_EVIDENCE_PATH = 'artifacts/computation_result_v1.json';
+
 function makeAwaitingApprovalState(): { projectRoot: string; approvalId: string } {
   const projectRoot = makeTempProjectRoot();
   const manager = new StateManager(projectRoot);
@@ -139,6 +141,45 @@ describe('autoresearch CLI', () => {
     expect(surface.surface_kind).toBe('cli_command_inventory');
     expect(surface.exact_inventory_source).toBe('packages/orchestrator/src/cli-command-inventory.ts');
     expect(surface.commands).toEqual([...AUTORESEARCH_PUBLIC_COMMAND_INVENTORY]);
+  });
+
+  it('records decisive verification through the canonical public CLI inventory', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const runId = 'M-VERIFY-1';
+    const state = manager.readState();
+    state.run_id = runId;
+    state.workflow_id = 'computation';
+    state.run_status = 'running';
+    state.gate_satisfied.A3 = 'A3-0001';
+    manager.saveState(state);
+    const { runDir, manifestPath } = createComputationFixture(projectRoot, runId);
+
+    await expect(runCli([
+      'run',
+      '--workflow-id', 'computation',
+      '--run-id', runId,
+      '--run-dir', runDir,
+      '--manifest', manifestPath,
+    ], makeIo(projectRoot).io)).resolves.toBe(0);
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli([
+      'verify',
+      '--run-id', runId,
+      '--status', 'passed',
+      '--summary', 'Decisive verification completed successfully.',
+      '--evidence-path', EXISTING_EVIDENCE_PATH,
+      '--confidence-level', 'high',
+    ], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      recorded: true,
+      run_id: runId,
+      status: 'passed',
+    });
   });
 
   it('resolves public stateful workflow plans through the canonical autoresearch front door', async () => {

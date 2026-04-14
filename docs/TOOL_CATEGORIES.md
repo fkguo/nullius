@@ -73,6 +73,7 @@
 **generic lifecycle / staging / execution 已迁回 orchestrator**
 - HEP 包不再默认暴露 idea staging / computation planning / manifest execution 入口
 - 需要这类流程时，先用 HEP 领域能力创建或读取 run，再使用 orchestrator 的 `orch_run_stage_idea` / `orch_run_stage_content` / `orch_run_plan_computation` / `orch_run_execute_manifest` / `orch_run_progress_followups`
+- 当 canonical `computation_result_v1` 尚未具备 decisive verification truth 时，先通过 `autoresearch verify` 或 `orch_run_record_verification` 记录一次 decisive verification 结果
 - 当 canonical `computation_result_v1` 已经具备 decisive verification truth 时，再通过 `autoresearch final-conclusions` 或 `orch_run_request_final_conclusions` 请求 A5；`hold` / `block` / `unavailable` 都不会创建 pending approval
 - `hep_run_stage_content` 仍保留，但它只是 HEP run-artifact substrate adapter，不再代表 generic 写作/评审 staging authority
 - `orch_run_progress_followups` 是 generic follow-up continuation front door：它最多推进一个 computation-generated follow-up task；当前会接续 delegated `idea`/`literature` feedback 与 writer/reviewer 路径，只消费 computation result / handoff 中已有的显式 authority

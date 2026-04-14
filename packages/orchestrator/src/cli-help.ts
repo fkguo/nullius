@@ -57,6 +57,29 @@ Behavior:
 Output:
   JSON execution result is written to stdout.
 `,
+  verify: `autoresearch verify --run-id <id> --status <passed|failed|blocked> --summary "..." --evidence-path <path> [options]
+
+Record one decisive verification result for an existing computation run.
+
+Options:
+  --run-id <id>                 Required run identifier whose canonical computation_result_v1 should be updated
+  --status <passed|failed|blocked>
+                                Required decisive verification result to record
+  --summary "..."               Required human-readable verification summary
+  --evidence-path <path>        Required; repeatable evidence file path(s) within the run dir
+  --check-kind <kind>           Optional check kind; defaults to decisive_verification
+  --confidence-level <level>    Optional low|medium|high; defaults to medium
+  --confidence-score <0..1>     Optional confidence score
+  --notes "..."                 Optional operator note recorded into the verification check artifact
+
+Behavior:
+  Requires an initialized external project root (\`autoresearch init\`).
+  Materializes \`verification_check_run_v1\`, refreshes verdict/coverage truth, and enriches \`computation_result_v1.verification_refs.check_run_refs\`.
+  This is a local single-user verification front door, not a REP / multi-agent interaction surface.
+
+Output:
+  JSON verification result summary is written to stdout.
+`,
   'final-conclusions': `autoresearch final-conclusions --run-id <id> [options]
 
 Evaluate whether a completed run is ready for the higher-conclusion A5 boundary.

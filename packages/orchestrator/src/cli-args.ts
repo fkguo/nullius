@@ -12,6 +12,18 @@ export type ParsedCliArgs =
     manifestPath: string | null;
     dryRun: boolean;
   }
+  | {
+    command: 'verify';
+    projectRoot: string | null;
+    runId: string;
+    status: 'passed' | 'failed' | 'blocked';
+    summary: string;
+    evidencePaths: string[];
+    checkKind: string;
+    confidenceLevel: 'low' | 'medium' | 'high';
+    confidenceScore: number | null;
+    notes: string | null;
+  }
   | { command: 'final-conclusions'; projectRoot: string | null; runId: string; note: string | null }
   | { command: 'status'; projectRoot: string | null; json: boolean }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
@@ -156,6 +168,97 @@ function parseFinalConclusionsArgs(args: string[]): { runId: string; note: strin
   return { runId, note };
 }
 
+function parseVerifyArgs(args: string[]): {
+  runId: string;
+  status: 'passed' | 'failed' | 'blocked';
+  summary: string;
+  evidencePaths: string[];
+  checkKind: string;
+  confidenceLevel: 'low' | 'medium' | 'high';
+  confidenceScore: number | null;
+  notes: string | null;
+} {
+  let runId: string | null = null;
+  let status: 'passed' | 'failed' | 'blocked' | null = null;
+  let summary: string | null = null;
+  const evidencePaths: string[] = [];
+  let checkKind = 'decisive_verification';
+  let confidenceLevel: 'low' | 'medium' | 'high' = 'medium';
+  let confidenceScore: number | null = null;
+  let notes: string | null = null;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--run-id') {
+      runId = readOptionValue(args, index, '--run-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--status') {
+      const raw = readOptionValue(args, index, '--status');
+      if (raw !== 'passed' && raw !== 'failed' && raw !== 'blocked') {
+        throw new Error(`verify requires --status passed|failed|blocked, got: ${raw}`);
+      }
+      status = raw;
+      index += 1;
+      continue;
+    }
+    if (arg === '--summary') {
+      summary = readOptionValue(args, index, '--summary');
+      index += 1;
+      continue;
+    }
+    if (arg === '--evidence-path') {
+      evidencePaths.push(readOptionValue(args, index, '--evidence-path'));
+      index += 1;
+      continue;
+    }
+    if (arg === '--check-kind') {
+      checkKind = readOptionValue(args, index, '--check-kind');
+      index += 1;
+      continue;
+    }
+    if (arg === '--confidence-level') {
+      const raw = readOptionValue(args, index, '--confidence-level');
+      if (raw !== 'low' && raw !== 'medium' && raw !== 'high') {
+        throw new Error(`verify requires --confidence-level low|medium|high, got: ${raw}`);
+      }
+      confidenceLevel = raw;
+      index += 1;
+      continue;
+    }
+    if (arg === '--confidence-score') {
+      const raw = readOptionValue(args, index, '--confidence-score');
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+        throw new Error(`verify requires --confidence-score between 0 and 1, got: ${raw}`);
+      }
+      confidenceScore = parsed;
+      index += 1;
+      continue;
+    }
+    if (arg === '--notes') {
+      notes = readOptionValue(args, index, '--notes');
+      index += 1;
+      continue;
+    }
+    throw new Error(`unknown verify argument: ${arg}`);
+  }
+  if (!runId) throw new Error('verify requires --run-id <id>');
+  if (!status) throw new Error('verify requires --status <passed|failed|blocked>');
+  if (!summary) throw new Error('verify requires --summary "..."');
+  if (evidencePaths.length === 0) throw new Error('verify requires at least one --evidence-path <path>');
+  return {
+    runId,
+    status,
+    summary,
+    evidencePaths,
+    checkKind,
+    confidenceLevel,
+    confidenceScore,
+    notes,
+  };
+}
+
 function parseRunArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 'run' }>, 'command' | 'projectRoot'> {
   let workflowId: string | null = null;
   let runId: string | null = null;
@@ -291,6 +394,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'init', projectRoot, passthrough: rest };
     case 'run':
       return { command: 'run', projectRoot, ...parseRunArgs(rest) };
+    case 'verify':
+      return { command: 'verify', projectRoot, ...parseVerifyArgs(rest) };
     case 'final-conclusions':
       return { command: 'final-conclusions', projectRoot, ...parseFinalConclusionsArgs(rest) };
     case 'export':

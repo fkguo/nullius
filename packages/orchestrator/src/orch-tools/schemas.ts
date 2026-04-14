@@ -150,6 +150,18 @@ export const OrchRunRequestFinalConclusionsSchema = z.object({
   note: z.string().optional().describe('Optional operator note recorded with the A5 approval request when one is created.'),
 });
 
+export const OrchRunRecordVerificationSchema = z.object({
+  project_root: ProjectRootSchema,
+  run_id: RunIdSchema.describe('Run identifier whose canonical computation_result_v1 should receive a decisive verification result update.'),
+  status: z.enum(['passed', 'failed', 'blocked']).describe('Decisive verification result to record.'),
+  summary: z.string().min(1).describe('Human-readable summary of the decisive verification outcome.'),
+  evidence_paths: z.array(z.string().min(1)).min(1).describe('One or more evidence file paths, each absolute or relative within the run dir. Every path must resolve inside the current run directory.'),
+  check_kind: z.string().min(1).optional().default('decisive_verification').describe('Verification check kind. Defaults to decisive_verification.'),
+  confidence_level: z.enum(['low', 'medium', 'high']).optional().default('medium').describe('Operator-reported confidence level for the recorded verification result.'),
+  confidence_score: z.number().min(0).max(1).optional().describe('Optional confidence score paired with confidence_level.'),
+  notes: z.string().optional().describe('Optional operator note recorded into the verification check artifact.'),
+});
+
 export const OrchRunStatusSchema = z.object({
   project_root: ProjectRootSchema,
 });

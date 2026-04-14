@@ -4,8 +4,10 @@ import * as path from 'node:path';
 import { handleOrchRunApprove } from './orch-tools/approval.js';
 import { createStateManager, requireState } from './orch-tools/common.js';
 import { handleOrchRunRequestFinalConclusions } from './orch-tools/final-conclusions.js';
+import { handleOrchRunRecordVerification } from './orch-tools/verification.js';
 import { handleOrchRunPause, handleOrchRunResume } from './orch-tools/control.js';
 import { handleOrchRunStatus } from './orch-tools/create-status-list.js';
+import type { ParsedCliArgs } from './cli-args.js';
 
 export type CliIo = {
   cwd: string;
@@ -106,6 +108,25 @@ export async function runFinalConclusionsCommand(
     project_root: projectRoot,
     run_id: runId,
     ...(note ? { note } : {}),
+  });
+  writeJson(io, payload);
+}
+
+export async function runVerifyCommand(
+  projectRoot: string,
+  parsed: Extract<ParsedCliArgs, { command: 'verify' }>,
+  io: CliIo,
+): Promise<void> {
+  const payload = await handleOrchRunRecordVerification({
+    project_root: projectRoot,
+    run_id: parsed.runId,
+    status: parsed.status,
+    summary: parsed.summary,
+    evidence_paths: parsed.evidencePaths,
+    check_kind: parsed.checkKind,
+    confidence_level: parsed.confidenceLevel,
+    ...(parsed.confidenceScore !== null ? { confidence_score: parsed.confidenceScore } : {}),
+    ...(parsed.notes ? { notes: parsed.notes } : {}),
   });
   writeJson(io, payload);
 }

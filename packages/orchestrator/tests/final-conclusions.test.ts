@@ -6,6 +6,7 @@ import { runCli } from '../src/cli.js';
 import { handleOrchRunApprove, handleOrchRunApprovalsList } from '../src/orch-tools/approval.js';
 import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
+import { handleOrchRunRecordVerification } from '../src/orch-tools/verification.js';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { readRunListView } from '../src/orch-tools/run-read-model.js';
@@ -71,6 +72,8 @@ function writeJson(filePath: string, payload: unknown): void {
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
 }
 
+const EXISTING_EVIDENCE_PATH = 'artifacts/computation_result_v1.json';
+
 async function prepareCompletedRun(): Promise<{
   manager: StateManager;
   projectRoot: string;
@@ -125,6 +128,17 @@ function setVerificationPass(runDir: string): void {
   };
   coverage.missing_decisive_checks = [];
   writeJson(coveragePath, coverage);
+}
+
+async function recordVerificationPass(projectRoot: string, runId: string): Promise<Record<string, unknown>> {
+  return handleOrchRunRecordVerification({
+    project_root: projectRoot,
+    run_id: runId,
+    status: 'passed',
+    summary: 'Decisive verification completed successfully.',
+    evidence_paths: [EXISTING_EVIDENCE_PATH],
+    confidence_level: 'high',
+  }) as Promise<Record<string, unknown>>;
 }
 
 function setVerificationBlock(runDir: string): void {
@@ -227,6 +241,111 @@ describe('final conclusions consumer', () => {
     expect(first.approval_id).toBe('A5-0001');
     expect(second.approval_id).toBe('A5-0001');
     expect(manager.readState().approval_seq.A5).toBe(1);
+  });
+
+  it('records a decisive verification pass and makes A5 request runtime-reachable', async () => {
+    const { manager, projectRoot, runId } = await prepareCompletedRun();
+
+    const verification = await handleOrchRunRecordVerification({
+      project_root: projectRoot,
+      run_id: runId,
+      status: 'passed',
+      summary: 'Decisive verification completed successfully.',
+      evidence_paths: [EXISTING_EVIDENCE_PATH],
+      confidence_level: 'high',
+      check_kind: 'decisive_verification',
+    }) as Record<string, unknown>;
+
+    expect(verification).toMatchObject({
+      recorded: true,
+      run_id: runId,
+      status: 'passed',
+    });
+
+    const result = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'computation_result_v1.json'));
+    expect(result.verification_refs).toMatchObject({
+      check_run_refs: [expect.objectContaining({ kind: 'verification_check_run' })],
+    });
+
+    const verdict = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'verification_subject_verdict_computation_result_v1.json'));
+    expect(verdict).toMatchObject({
+      status: 'verified',
+      summary: 'Decisive verification completed successfully.',
+      missing_decisive_checks: [],
+    });
+    expect(verdict.check_run_refs).toEqual([expect.objectContaining({ kind: 'verification_check_run' })]);
+
+    const coverage = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'verification_coverage_v1.json'));
+    expect(coverage).toMatchObject({
+      summary: {
+        subjects_verified: 1,
+        subjects_failed: 0,
+        subjects_blocked: 0,
+        subjects_not_attempted: 0,
+      },
+      missing_decisive_checks: [],
+    });
+
+    const finalConclusionsRequest = await handleOrchRunRequestFinalConclusions({
+      project_root: projectRoot,
+      run_id: runId,
+    }) as Record<string, unknown>;
+    expect(finalConclusionsRequest).toMatchObject({
+      status: 'requires_approval',
+      gate_id: 'A5',
+      gate_decision: 'pass',
+    });
+    expect(manager.readState().pending_approval?.category).toBe('A5');
+  });
+
+  it('fails closed after decisive verification is recorded as failed', async () => {
+    const { manager, projectRoot, runId } = await prepareCompletedRun();
+
+    const verification = await handleOrchRunRecordVerification({
+      project_root: projectRoot,
+      run_id: runId,
+      status: 'failed',
+      summary: 'Decisive verification found a mismatch.',
+      evidence_paths: [EXISTING_EVIDENCE_PATH],
+      confidence_level: 'medium',
+    }) as Record<string, unknown>;
+
+    expect(verification.status).toBe('failed');
+    const request = await handleOrchRunRequestFinalConclusions({
+      project_root: projectRoot,
+      run_id: runId,
+    }) as Record<string, unknown>;
+    expect(request).toMatchObject({
+      status: 'blocked',
+      gate_decision: 'block',
+      ready_for_final_conclusions: false,
+    });
+    expect(manager.readState().pending_approval).toBeNull();
+  });
+
+  it('fails closed after decisive verification is recorded as blocked', async () => {
+    const { manager, projectRoot, runId } = await prepareCompletedRun();
+
+    const verification = await handleOrchRunRecordVerification({
+      project_root: projectRoot,
+      run_id: runId,
+      status: 'blocked',
+      summary: 'Verification is blocked by missing prerequisite evidence.',
+      evidence_paths: [EXISTING_EVIDENCE_PATH],
+      confidence_level: 'low',
+    }) as Record<string, unknown>;
+
+    expect(verification.status).toBe('blocked');
+    const request = await handleOrchRunRequestFinalConclusions({
+      project_root: projectRoot,
+      run_id: runId,
+    }) as Record<string, unknown>;
+    expect(request).toMatchObject({
+      status: 'blocked',
+      gate_decision: 'block',
+      ready_for_final_conclusions: false,
+    });
+    expect(manager.readState().pending_approval).toBeNull();
   });
 
   it('approves A5 into a final_conclusions_v1 artifact and keeps run truth completed', async () => {
@@ -426,5 +545,27 @@ describe('final conclusions consumer', () => {
     expect(text).toContain('final_conclusions_path: artifacts/runs/M-A5-1/final_conclusions_v1.json');
     expect(text).toContain('final_conclusions_uri: orch://runs/M-A5-1/artifact/final_conclusions_v1.json');
     expect(manager.readState().run_status).toBe('completed');
+  });
+
+  it('records decisive verification through the CLI front door', async () => {
+    const { projectRoot, runId } = await prepareCompletedRun();
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCli([
+      'verify',
+      '--run-id', runId,
+      '--status', 'passed',
+      '--summary', 'Decisive verification completed successfully.',
+      '--evidence-path', EXISTING_EVIDENCE_PATH,
+      '--confidence-level', 'high',
+    ], io);
+
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout.join('')) as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      recorded: true,
+      run_id: runId,
+      status: 'passed',
+    });
   });
 });

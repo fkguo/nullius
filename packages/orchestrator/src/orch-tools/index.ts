@@ -4,6 +4,7 @@ import {
   ORCH_RUN_EXECUTE_MANIFEST,
   ORCH_RUN_PLAN_COMPUTATION,
   ORCH_RUN_PROGRESS_FOLLOWUPS,
+  ORCH_RUN_RECORD_VERIFICATION,
   ORCH_RUN_REQUEST_FINAL_CONCLUSIONS,
   ORCH_POLICY_QUERY,
   ORCH_RUN_APPROVE,
@@ -24,6 +25,7 @@ import {
   handleOrchRunReject,
 } from './approval.js';
 import { handleOrchRunRequestFinalConclusions } from './final-conclusions.js';
+import { handleOrchRunRecordVerification } from './verification.js';
 import { handleOrchRunExecuteAgent, type AgentToolHandlerContext } from './agent-runtime.js';
 import {
   handleOrchPolicyQuery,
@@ -52,6 +54,7 @@ import {
   OrchRunCreateSchema,
   OrchRunExecuteManifestSchema,
   OrchRunProgressFollowupsSchema,
+  OrchRunRecordVerificationSchema,
   OrchRunRequestFinalConclusionsSchema,
   OrchRunExportSchema,
   OrchRunListSchema,
@@ -133,6 +136,14 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     description: 'Evaluate the canonical computation_result_v1 verification truth for a completed run and, only when higher-conclusion readiness is a decisive pass, create an A5 final-conclusions approval request under the existing generic approval substrate (local-only).',
     zodSchema: OrchRunRequestFinalConclusionsSchema,
     handler: async params => handleOrchRunRequestFinalConclusions(params as z.output<typeof OrchRunRequestFinalConclusionsSchema>),
+  },
+  {
+    name: ORCH_RUN_RECORD_VERIFICATION,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Record one decisive verification result for the canonical computation_result_v1 of an existing run, materializing verification_check_run_v1 plus refreshed verdict/coverage/check_run_refs (local-only).',
+    zodSchema: OrchRunRecordVerificationSchema,
+    handler: async params => handleOrchRunRecordVerification(params as z.output<typeof OrchRunRecordVerificationSchema>),
   },
   {
     name: ORCH_RUN_CREATE,

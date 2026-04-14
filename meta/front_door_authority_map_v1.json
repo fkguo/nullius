@@ -17,6 +17,10 @@
           "usage": "autoresearch run --workflow-id <id> [options]"
         },
         {
+          "command": "verify",
+          "usage": "autoresearch verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> [--evidence-path <path> ...]"
+        },
+        {
           "command": "final-conclusions",
           "usage": "autoresearch final-conclusions --run-id <id> [--note \"...\"]"
         },

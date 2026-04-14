@@ -1,6 +1,7 @@
 export const AUTORESEARCH_PUBLIC_COMMAND_INVENTORY = [
   { command: 'init', usage: 'autoresearch init [options]' },
   { command: 'run', usage: 'autoresearch run --workflow-id <id> [options]' },
+  { command: 'verify', usage: 'autoresearch verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> [--evidence-path <path> ...]' },
   { command: 'final-conclusions', usage: 'autoresearch final-conclusions --run-id <id> [--note "..."]' },
   { command: 'status', usage: 'autoresearch status [--json]' },
   { command: 'approve', usage: 'autoresearch approve <approval_id> [--note "..."]' },

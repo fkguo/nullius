@@ -12,6 +12,7 @@ import {
   runPauseCommand,
   runResumeCommand,
   runStatusCommand,
+  runVerifyCommand,
 } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 import { runCommand } from './cli-run.js';
@@ -48,6 +49,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
   }
 
   const projectRoot = resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd);
+  if (parsed.command === 'verify') {
+    await runVerifyCommand(projectRoot, parsed, io);
+    return 0;
+  }
   if (parsed.command === 'final-conclusions') {
     await runFinalConclusionsCommand(projectRoot, parsed.runId, parsed.note, io);
     return 0;
