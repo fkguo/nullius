@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { StateManager } from '../state-manager.js';
+import { maybeQueueIdeaEngineComputationFeedback } from './idea-engine-feedback.js';
 import { utcNowIso } from '../util.js';
 import { ensureDir, toPosixRelative, writeJsonAtomic } from './io.js';
 import { writeComputationResultArtifact } from './result.js';
@@ -101,6 +102,10 @@ export function runPreparedManifest(
         producedOutputs: prepared.steps.flatMap(currentStep => currentStep.expectedOutputPaths.filter(filePath => fs.existsSync(filePath))),
         failureReason,
       });
+      maybeQueueIdeaEngineComputationFeedback({
+        prepared,
+        computationResult,
+      });
       return {
         status: 'failed',
         ok: false,
@@ -139,6 +144,10 @@ export function runPreparedManifest(
     statusPath,
     logsDir,
     producedOutputs,
+  });
+  maybeQueueIdeaEngineComputationFeedback({
+    prepared,
+    computationResult,
   });
   return {
     status: 'completed',

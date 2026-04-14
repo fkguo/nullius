@@ -5,6 +5,7 @@ import { writeJsonFileAtomic } from '../store/file-io.js';
 import { budgetSnapshot, exhaustedDimensions } from './budget-snapshot.js';
 import { buildEligibleDistributorActions, buildDistributorActionId, validateDistributorActionSpace } from './distributor-action-space.js';
 import { loadDistributorPolicyConfig } from './distributor-config.js';
+import { drainPendingComputationFeedback } from './computation-feedback.js';
 import { advanceDiscountedUcbState, recordDiscountedUcbOutcome, selectDiscountedUcbAction } from './distributor-discounted-ucb-v.js';
 import { appendDistributorEvent } from './distributor-events.js';
 import { computeDistributorReward } from './distributor-reward.js';
@@ -59,6 +60,12 @@ export function executeSearchStep(options: {
     const runtime = (plannedCampaign.search_runtime as Record<string, unknown> | undefined) ?? {};
     plannedCampaign.search_runtime = runtime;
     const nodes = options.store.loadNodes<Record<string, unknown>>(campaignId);
+    drainPendingComputationFeedback({
+      campaign: plannedCampaign,
+      contracts: options.contracts,
+      createId: options.createId,
+      store: options.store,
+    });
     refreshIslandPopulationSizes(plannedCampaign, nodes);
     const failureAvoidance = prepareFailureAvoidance({ campaign: plannedCampaign, contracts: options.contracts, now: options.now(), store: options.store });
     const distributor = loadDistributorPolicyConfig({ campaign: plannedCampaign, contracts: options.contracts, store: options.store });

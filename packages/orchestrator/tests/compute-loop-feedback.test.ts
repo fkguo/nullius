@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { executeComputationManifest } from '../src/computation/index.js';
@@ -7,6 +8,7 @@ import { compileExecutionPlan } from '../src/computation/execution-plan.js';
 import { executionPlanArtifactPath, materializeExecutionPlan } from '../src/computation/materialize-execution-plan.js';
 import { deriveNextIdeaLoopState } from '../src/computation/loop-feedback.js';
 import { assertComputationResultValid } from '../src/computation/result-schema.js';
+import { stageIdeaArtifactsIntoRun } from '../src/computation/staged-idea-artifacts.js';
 import {
   cleanupRegisteredDirs,
   initRunState,
@@ -68,6 +70,50 @@ function createBridgeRun(runId: string, projectRoot: string) {
   writeJson(executionPlanArtifactPath(runDir), executionPlan);
   const { manifestPath } = materializeExecutionPlan(runDir, executionPlan);
   return { runDir, manifestPath };
+}
+
+function createIdeaOriginBridgeRun(runId: string, projectRoot: string) {
+  const runDir = path.join(projectRoot, runId);
+  const campaignId = '11111111-1111-4111-8111-111111111111';
+  const nodeId = '22222222-2222-4222-8222-222222222222';
+  const ideaId = '33333333-3333-4333-8333-333333333333';
+  const handoffPath = path.join(projectRoot, 'idea-store', 'campaigns', campaignId, 'artifacts', 'handoff', `handoff-${nodeId}.json`);
+  fs.mkdirSync(path.dirname(handoffPath), { recursive: true });
+  const handoffRecord = {
+    campaign_id: campaignId,
+    node_id: nodeId,
+    idea_id: ideaId,
+    promoted_at: '2026-03-25T00:00:00Z',
+    idea_card: {
+      thesis_statement: 'Idea-originated execution failure should queue feedback back into idea-engine.',
+      claims: [{ claim_text: 'Claim A' }],
+      testable_hypotheses: ['Hypothesis A'],
+      candidate_formalisms: ['lagrangian'],
+      required_observables: ['sigma_total'],
+    },
+    grounding_audit: {
+      status: 'pass',
+      folklore_risk_score: 0.1,
+      failures: [],
+      timestamp: '2026-03-25T00:00:00Z',
+    },
+  };
+  writeJson(handoffPath, handoffRecord);
+
+  fs.mkdirSync(runDir, { recursive: true });
+  const staged = stageIdeaArtifactsIntoRun({
+    handoffRecord,
+    handoffUri: pathToFileURL(handoffPath).href,
+    runDir,
+  });
+  const executionPlan = compileExecutionPlan(runId, {
+    outline_seed_path: 'artifacts/outline_seed_v1.json',
+    outline: staged.outlineSeed,
+    hints: staged.hintsSnapshot.hints,
+  });
+  writeJson(executionPlanArtifactPath(runDir), executionPlan);
+  const { manifestPath } = materializeExecutionPlan(runDir, executionPlan);
+  return { campaignId, handoffPath, manifestPath, runDir };
 }
 
 function writeFeedbackSignalRunner(runDir: string, feedbackSignal: 'success' | 'weak_signal'): void {
@@ -189,6 +235,49 @@ describe('compute-loop failure lowering', () => {
       reason: 'Decisive verification is blocked by execution failure.',
       priority: 'high',
     });
+  });
+
+  it('queues idea-engine pending feedback for an idea-originated failed run without changing the canonical result contract', async () => {
+    const projectRoot = makeTmpDir();
+    const runId = 'run-loop-failure-idea-origin';
+    registerCleanup(projectRoot);
+
+    const { campaignId, manifestPath, runDir } = createIdeaOriginBridgeRun(runId, projectRoot);
+    fs.writeFileSync(
+      path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'),
+      "raise SystemExit(1)\n",
+      'utf-8',
+    );
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+
+    const result = await executeComputationManifest({
+      manifestPath,
+      projectRoot,
+      runDir,
+      runId,
+    });
+
+    expect(result.status).toBe('failed');
+    expect(fs.existsSync(result.artifact_paths.computation_result)).toBe(true);
+
+    const pendingPath = path.join(
+      projectRoot,
+      'idea-store',
+      'campaigns',
+      campaignId,
+      'artifacts',
+      'computation_feedback_pending',
+      `${runId}.json`,
+    );
+    expect(fs.existsSync(pendingPath)).toBe(true);
+
+    const pending = JSON.parse(fs.readFileSync(pendingPath, 'utf-8')) as Record<string, unknown>;
+    expect(pending.schema_version).toBe(1);
+    expect(pending.campaign_id).toBe(campaignId);
+    expect(pending.feedback_signal).toBe('failure');
+    expect(pending.decision_kind).toBe('downgrade_idea');
+    expect(pending.computation_result_uri).toBe(`rep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('artifacts/computation_result_v1.json')}`);
   });
 
   it('re-ingests a completed weak-signal computation_result_v1 into the same provider-neutral idea-branch lowering', async () => {
