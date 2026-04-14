@@ -498,6 +498,73 @@ export function readFinalConclusionsView(projectRoot: string, state: RunState): 
   }
 }
 
+export function readResearchOutcomeProjectionView(projectRoot: string, state: RunState): {
+  research_outcome_projection: Record<string, unknown> | null;
+  research_outcome_projection_error: Record<string, unknown> | null;
+} {
+  const pointer = readFinalConclusionsPointer(state);
+  if (!pointer || !state.run_id) {
+    return { research_outcome_projection: null, research_outcome_projection_error: null };
+  }
+  try {
+    const filePath = resolveFinalConclusionsPath(projectRoot, pointer);
+    if (!fs.existsSync(filePath)) {
+      return {
+        research_outcome_projection: null,
+        research_outcome_projection_error: {
+          code: 'RESEARCH_OUTCOME_PROJECTION_UNAVAILABLE',
+          message: `Cannot build research outcome projection because final_conclusions_v1 is missing at ${pointer}.`,
+        },
+      };
+    }
+
+    const finalConclusions = assertFinalConclusionsValid(
+      readJsonFile<unknown>(filePath, 'final_conclusions_v1.json'),
+    ) as FinalConclusionsV1 & {
+      objective_title?: string;
+      source_result_summary?: string;
+      produced_artifact_refs?: ArtifactRefV1[];
+      verification_check_run_refs?: ArtifactRefV1[];
+    };
+
+    return {
+      research_outcome_projection: {
+        projection_status: 'partial',
+        source_final_conclusions_path: pointer,
+        source_final_conclusions_uri: makeScopedArtifactUri({
+          scheme: 'orch',
+          scope: 'runs',
+          scopeId: state.run_id,
+          artifactName: 'final_conclusions_v1.json',
+        }),
+        objective_title: finalConclusions.objective_title ?? null,
+        summary: finalConclusions.summary,
+        candidate_artifacts: finalConclusions.produced_artifact_refs ?? [],
+        candidate_produced_by: {
+          agent_id: finalConclusions.provenance.orchestrator_component,
+          run_id: finalConclusions.run_id,
+        },
+        missing_for_research_outcome_v1: [
+          'lineage_id',
+          'strategy_ref',
+          'metrics',
+          'rdi_scores',
+        ],
+        reason: 'Local outcome seam is ready, but research_outcome_v1 remains deferred until strategy identity and richer outcome metrics are introduced.',
+      },
+      research_outcome_projection_error: null,
+    };
+  } catch (error) {
+    return {
+      research_outcome_projection: null,
+      research_outcome_projection_error: {
+        code: 'RESEARCH_OUTCOME_PROJECTION_INVALID',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
 export async function handleOrchRunRequestFinalConclusions(
   params: z.output<typeof OrchRunRequestFinalConclusionsSchema>,
 ): Promise<unknown> {

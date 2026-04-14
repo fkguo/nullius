@@ -423,6 +423,14 @@ describe('final conclusions consumer', () => {
         },
       },
       final_conclusions_error: null,
+      research_outcome_projection: {
+        projection_status: 'partial',
+        source_final_conclusions_path: 'artifacts/runs/M-A5-1/final_conclusions_v1.json',
+        objective_title: 'Approved computation for M-A5-1',
+        summary: expect.stringContaining('A5 final conclusions were approved'),
+        missing_for_research_outcome_v1: ['lineage_id', 'strategy_ref', 'metrics', 'rdi_scores'],
+      },
+      research_outcome_projection_error: null,
     });
 
     const exportView = await handleOrchRunExport({
@@ -437,6 +445,12 @@ describe('final conclusions consumer', () => {
       objective_title: 'Approved computation for M-A5-1',
     });
     expect(exportView.current_run_final_conclusions_error).toBeNull();
+    expect(exportView.current_run_research_outcome_projection).toMatchObject({
+      projection_status: 'partial',
+      source_final_conclusions_path: 'artifacts/runs/M-A5-1/final_conclusions_v1.json',
+      objective_title: 'Approved computation for M-A5-1',
+    });
+    expect(exportView.current_run_research_outcome_projection_error).toBeNull();
 
     const approvalsView = await handleOrchRunApprovalsList({
       project_root: projectRoot,
@@ -511,6 +525,10 @@ describe('final conclusions consumer', () => {
     expect(exportView.current_run_final_conclusions).toBeNull();
     expect(exportView.current_run_final_conclusions_error).toMatchObject({
       code: 'FINAL_CONCLUSIONS_MISSING',
+    });
+    expect(exportView.current_run_research_outcome_projection).toBeNull();
+    expect(exportView.current_run_research_outcome_projection_error).toMatchObject({
+      code: 'RESEARCH_OUTCOME_PROJECTION_UNAVAILABLE',
     });
 
     // keep state pointer untouched; this path is meant to surface drift, not heal it silently

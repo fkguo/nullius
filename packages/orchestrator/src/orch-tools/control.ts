@@ -10,7 +10,7 @@ import {
   createStateManager,
   requireState,
 } from './common.js';
-import { readFinalConclusionsView } from './final-conclusions.js';
+import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
 import {
   OrchPolicyQuerySchema,
   OrchRunExportSchema,
@@ -45,8 +45,11 @@ export async function handleOrchRunExport(
     }
     if (state && state.run_id) {
       const finalConclusions = readFinalConclusionsView(projectRoot, state);
+      const researchOutcomeProjection = readResearchOutcomeProjectionView(projectRoot, state);
       result.current_run_final_conclusions = finalConclusions.final_conclusions;
       result.current_run_final_conclusions_error = finalConclusions.final_conclusions_error;
+      result.current_run_research_outcome_projection = researchOutcomeProjection.research_outcome_projection;
+      result.current_run_research_outcome_projection_error = researchOutcomeProjection.research_outcome_projection_error;
     }
   }
   return {
