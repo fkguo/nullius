@@ -55,8 +55,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build literature workflow TS dependencies
-        run: pnpm --filter @autoresearch/literature-workflows... build
+      - name: Build TS dependencies for source-run orchestrator paths
+        run: |
+          pnpm --filter @autoresearch/rep-sdk build
+          pnpm --filter @autoresearch/literature-workflows... build
 
       - uses: actions/setup-python@v6
         with:

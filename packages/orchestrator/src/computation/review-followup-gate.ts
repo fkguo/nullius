@@ -10,14 +10,14 @@ import type {
 import {
   deriveReproducibilityProjection,
   evaluateRdiGate,
-} from '../../../rep-sdk/dist/validation/index.js';
+} from '@autoresearch/rep-sdk/validation';
 import type {
   ArtifactRef,
   ResearchOutcome,
   VerificationCoverage,
   VerificationSubject,
   VerificationSubjectVerdict,
-} from '../../../rep-sdk/dist/model/index.js';
+} from '@autoresearch/rep-sdk';
 
 export type ReviewFollowupGateDecision = 'pass' | 'block' | 'advisory_only' | 'unavailable';
 
