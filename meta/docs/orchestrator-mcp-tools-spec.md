@@ -1,6 +1,6 @@
 # Orchestrator MCP Tools Architecture Specification
 
-> **Status**: live inventory sync for `main` on 2026-04-07
+> **Status**: live inventory sync for `main` on 2026-04-14
 > **Scope**: exact `orch_*` tool surface, run-infra vs strategy boundary, approval/fleet semantics, and URI ownership.
 > **Classification anchor**: this document is the `canonical_public` exact `orch_*` inventory surface referenced by `meta/front_door_authority_map_v1.json`; it does not own CLI command taxonomies.
 
@@ -35,6 +35,7 @@
 | `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and a run-local `computation/manifest.json`, preferring provider-backed materialization when the staged surface carries an explicit method bundle |
 | `orch_run_execute_manifest` | `destructive` | Execute an approved run-local `computation_manifest_v1` from an existing run directory |
 | `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
+| `orch_run_request_final_conclusions` | `write` | Evaluate canonical computation-result verification truth and create an A5 final-conclusions approval request only when higher-conclusion readiness is a decisive pass |
 | `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json` |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
 | `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification |
@@ -44,10 +45,6 @@
 | `orch_run_approvals_list` | `read` | Inspect pending and historical approvals for a run |
 | `orch_run_export` | `destructive` | Export run summary/artifact listing |
 | `orch_run_execute_agent` | `destructive` | Execute an orchestrator agent runtime with persisted checkpoints |
-| `orch_run_stage_idea` | `write` | Stage an IdeaHandoffC2 artifact into a domain-owned run directory |
-| `orch_run_plan_computation` | `write` | Compile staged idea artifacts from a run directory into execution_plan_v1 and a run-local `computation/manifest.json`, preferring provider-backed materialization when available |
-| `orch_run_execute_manifest` | `destructive` | Execute an approved run-local `computation_manifest_v1` plan from an existing run directory |
-| `orch_run_progress_followups` | `destructive` | Advance exactly one pending feedback or writing/review follow-up task from a run directory without inventing scheduler semantics |
 
 #### Policy surface
 
@@ -121,6 +118,7 @@ Agent / operator
   ├──► orch_run_plan_computation(...)                   → compile staged idea into execution plan + run-local manifest
   ├──► orch_run_execute_manifest(...)                   → execute approved run-local computation manifest
   ├──► orch_run_progress_followups(...)                 → advance one feedback/literature or writing/review continuation
+  ├──► orch_run_request_final_conclusions(...)          → request A5 only when canonical verification truth decisively passes
   ├──► orch_run_status(project_root)                    → lifecycle snapshot
   ├──► hep_run_* / hep_project_* / inspire_* ...        → strategy/domain work
   ├──► orch_run_approvals_list(project_root, run_id)    → inspect pending gates
@@ -183,6 +181,10 @@ Current live approval flow is intentionally split into creation, inspection, and
 1. A run-scoped orchestrator write path produces a pending approval packet under the project root.
 2. Operators inspect state via `orch_run_status` and `orch_run_approvals_list`.
 3. Resolution happens via `orch_run_approve` or `orch_run_reject`.
+
+Current live approval producers include:
+- `orch_run_execute_manifest` for A3 compute execution
+- `orch_run_request_final_conclusions` for the first A5 higher-conclusion boundary consumer
 
 This keeps approval state on the control plane even when the underlying need for approval originated in computation, writing, or delegated runtime execution.
 

@@ -57,6 +57,23 @@ Behavior:
 Output:
   JSON execution result is written to stdout.
 `,
+  'final-conclusions': `autoresearch final-conclusions --run-id <id> [options]
+
+Evaluate whether a completed run is ready for the higher-conclusion A5 boundary.
+
+Options:
+  --run-id <id>         Required run identifier whose canonical computation_result_v1 should be checked
+  --note "..."          Optional operator note recorded if an A5 approval request is created
+
+Behavior:
+  Requires an initialized external project root (\`autoresearch init\`).
+  Reads the canonical \`artifacts/computation_result_v1.json\` and its typed verification refs.
+  Only a decisive gate \`pass\` creates a pending A5 approval request.
+  \`hold\`, \`block\`, and \`unavailable\` fail closed and do not create pending approval state.
+
+Output:
+  JSON readiness or approval-request result is written to stdout.
+`,
   status: `autoresearch status
 
 Show the current lifecycle state for the nearest project root.

@@ -17,6 +17,10 @@
           "usage": "autoresearch run --workflow-id <id> [options]"
         },
         {
+          "command": "final-conclusions",
+          "usage": "autoresearch final-conclusions --run-id <id> [--note \"...\"]"
+        },
+        {
           "command": "status",
           "usage": "autoresearch status [--json]"
         },

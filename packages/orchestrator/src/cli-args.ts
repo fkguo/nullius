@@ -12,6 +12,7 @@ export type ParsedCliArgs =
     manifestPath: string | null;
     dryRun: boolean;
   }
+  | { command: 'final-conclusions'; projectRoot: string | null; runId: string; note: string | null }
   | { command: 'status'; projectRoot: string | null; json: boolean }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
@@ -130,6 +131,29 @@ function parseApproveArgs(args: string[]): { approvalId: string; note: string | 
     throw new Error('approve requires an approval_id');
   }
   return { approvalId, note };
+}
+
+function parseFinalConclusionsArgs(args: string[]): { runId: string; note: string | null } {
+  let runId: string | null = null;
+  let note: string | null = null;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--run-id') {
+      runId = readOptionValue(args, index, '--run-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--note') {
+      note = readOptionValue(args, index, '--note');
+      index += 1;
+      continue;
+    }
+    throw new Error(`unknown final-conclusions argument: ${arg}`);
+  }
+  if (!runId) {
+    throw new Error('final-conclusions requires --run-id <id>');
+  }
+  return { runId, note };
 }
 
 function parseRunArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 'run' }>, 'command' | 'projectRoot'> {
@@ -267,6 +291,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'init', projectRoot, passthrough: rest };
     case 'run':
       return { command: 'run', projectRoot, ...parseRunArgs(rest) };
+    case 'final-conclusions':
+      return { command: 'final-conclusions', projectRoot, ...parseFinalConclusionsArgs(rest) };
     case 'export':
       return { command: 'export', projectRoot, passthrough: rest };
     case 'status':

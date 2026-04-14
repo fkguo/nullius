@@ -8,6 +8,7 @@ import { runInitCommand } from './cli-init.js';
 import {
   type CliIo,
   runApproveCommand,
+  runFinalConclusionsCommand,
   runPauseCommand,
   runResumeCommand,
   runStatusCommand,
@@ -47,6 +48,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
   }
 
   const projectRoot = resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd);
+  if (parsed.command === 'final-conclusions') {
+    await runFinalConclusionsCommand(projectRoot, parsed.runId, parsed.note, io);
+    return 0;
+  }
   if (parsed.command === 'status') {
     await runStatusCommand(projectRoot, parsed.json, io);
     return 0;

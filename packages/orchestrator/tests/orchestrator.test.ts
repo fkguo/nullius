@@ -870,6 +870,24 @@ describe('requestApproval (Stage 3a)', () => {
     ).toThrow(/expected 'running'/);
   });
 
+  it('allows an explicit A5 request from completed status', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'computation',
+      run_status: 'completed',
+    });
+
+    const approvalId = sm.requestApproval(state, 'A5', {
+      packet_path: 'approvals/A5-0001/packet.md',
+      allow_completed: true,
+    });
+
+    expect(approvalId).toBe('A5-0001');
+    expect(state.run_status).toBe('awaiting_approval');
+    expect(state.pending_approval?.category).toBe('A5');
+  });
+
   it('falls back to current_step.step_id when no plan_step_ids provided', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({

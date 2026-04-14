@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { handleOrchRunApprove } from './orch-tools/approval.js';
 import { createStateManager, requireState } from './orch-tools/common.js';
+import { handleOrchRunRequestFinalConclusions } from './orch-tools/final-conclusions.js';
 import { handleOrchRunPause, handleOrchRunResume } from './orch-tools/control.js';
 import { handleOrchRunStatus } from './orch-tools/create-status-list.js';
 
@@ -87,4 +88,18 @@ export async function runApproveCommand(
     ...(note ? { note } : {}),
   }) as Record<string, unknown>;
   io.stdout(`approved: ${String(payload.approval_id ?? approvalId)}\n`);
+}
+
+export async function runFinalConclusionsCommand(
+  projectRoot: string,
+  runId: string,
+  note: string | null,
+  io: CliIo,
+): Promise<void> {
+  const payload = await handleOrchRunRequestFinalConclusions({
+    project_root: projectRoot,
+    run_id: runId,
+    ...(note ? { note } : {}),
+  });
+  writeJson(io, payload);
 }

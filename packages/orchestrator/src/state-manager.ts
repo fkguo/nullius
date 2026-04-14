@@ -381,7 +381,7 @@ const VALID_TRANSITIONS: Record<string, RunStatus[]> = {
   awaiting_approval: ['running', 'paused', 'rejected', 'blocked', 'needs_recovery'],
   blocked: ['running', 'paused', 'failed'],
   needs_recovery: ['running', 'paused', 'failed'],
-  completed: [],
+  completed: ['awaiting_approval'],
   failed: [],
   rejected: [],
 };
@@ -827,6 +827,7 @@ export class StateManager {
       packet_path: string;
       note?: string;
       force?: boolean;
+      allow_completed?: boolean;
     },
   ): string {
     if (state.pending_approval && !opts.force) {
@@ -834,7 +835,8 @@ export class StateManager {
         `already awaiting approval: ${state.pending_approval.approval_id}`,
       );
     }
-    if (state.run_status !== 'running') {
+    const allowCompleted = opts.allow_completed === true && state.run_status === 'completed';
+    if (state.run_status !== 'running' && !allowCompleted) {
       throw new Error(
         `cannot request approval: current status is '${state.run_status}', expected 'running'`,
       );

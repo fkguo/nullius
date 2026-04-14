@@ -144,6 +144,12 @@ export const OrchRunProgressFollowupsSchema = z.object({
   run_dir: RunDirSchema,
 });
 
+export const OrchRunRequestFinalConclusionsSchema = z.object({
+  project_root: ProjectRootSchema,
+  run_id: RunIdSchema.describe('Run identifier whose canonical computation_result_v1 should be evaluated for A5 final-conclusions readiness.'),
+  note: z.string().optional().describe('Optional operator note recorded with the A5 approval request when one is created.'),
+});
+
 export const OrchRunStatusSchema = z.object({
   project_root: ProjectRootSchema,
 });

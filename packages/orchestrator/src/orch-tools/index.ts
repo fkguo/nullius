@@ -4,6 +4,7 @@ import {
   ORCH_RUN_EXECUTE_MANIFEST,
   ORCH_RUN_PLAN_COMPUTATION,
   ORCH_RUN_PROGRESS_FOLLOWUPS,
+  ORCH_RUN_REQUEST_FINAL_CONCLUSIONS,
   ORCH_POLICY_QUERY,
   ORCH_RUN_APPROVE,
   ORCH_RUN_APPROVALS_LIST,
@@ -22,6 +23,7 @@ import {
   handleOrchRunApprovalsList,
   handleOrchRunReject,
 } from './approval.js';
+import { handleOrchRunRequestFinalConclusions } from './final-conclusions.js';
 import { handleOrchRunExecuteAgent, type AgentToolHandlerContext } from './agent-runtime.js';
 import {
   handleOrchPolicyQuery,
@@ -50,6 +52,7 @@ import {
   OrchRunCreateSchema,
   OrchRunExecuteManifestSchema,
   OrchRunProgressFollowupsSchema,
+  OrchRunRequestFinalConclusionsSchema,
   OrchRunExportSchema,
   OrchRunListSchema,
   OrchRunPlanComputationSchema,
@@ -122,6 +125,14 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
       params as z.output<typeof OrchRunProgressFollowupsSchema>,
       ctx,
     ),
+  },
+  {
+    name: ORCH_RUN_REQUEST_FINAL_CONCLUSIONS,
+    tier: 'core',
+    exposure: 'full',
+    description: 'Evaluate the canonical computation_result_v1 verification truth for a completed run and, only when higher-conclusion readiness is a decisive pass, create an A5 final-conclusions approval request under the existing generic approval substrate (local-only).',
+    zodSchema: OrchRunRequestFinalConclusionsSchema,
+    handler: async params => handleOrchRunRequestFinalConclusions(params as z.output<typeof OrchRunRequestFinalConclusionsSchema>),
   },
   {
     name: ORCH_RUN_CREATE,
