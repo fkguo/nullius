@@ -8,16 +8,8 @@ import type {
   WritingReviewBridgeV1,
 } from '@autoresearch/shared';
 import {
-  deriveReproducibilityProjection,
-  evaluateRdiGate,
-} from '@autoresearch/rep-sdk/validation';
-import type {
-  ArtifactRef,
-  ResearchOutcome,
-  VerificationCoverage,
-  VerificationSubject,
-  VerificationSubjectVerdict,
-} from '@autoresearch/rep-sdk';
+  evaluateVerificationKernelGateV1,
+} from '@autoresearch/shared';
 
 export type ReviewFollowupGateDecision = 'pass' | 'block' | 'advisory_only' | 'unavailable';
 
@@ -51,35 +43,6 @@ function loadJsonArtifact<T>(runDir: string, ref: ArtifactRefV1): T {
   return JSON.parse(fs.readFileSync(runArtifactPathFromUri(runDir, ref.uri), 'utf-8')) as T;
 }
 
-function toRepArtifactRef(ref: ArtifactRefV1): ArtifactRef {
-  return {
-    uri: ref.uri,
-    kind: ref.kind,
-    sha256: ref.sha256,
-    size_bytes: ref.size_bytes,
-    produced_by: ref.produced_by,
-    created_at: ref.created_at,
-  };
-}
-
-function buildGateOutcome(runId: string): ResearchOutcome {
-  return {
-    schema_version: 1,
-    outcome_id: `outcome:${runId}:review_followup_gate`,
-    lineage_id: `lineage:${runId}:review_followup_gate`,
-    version: 1,
-    strategy_ref: `strategy:${runId}:review_followup_gate`,
-    status: 'pending',
-    metrics: {},
-    artifacts: [],
-    produced_by: {
-      agent_id: '@autoresearch/orchestrator',
-      run_id: runId,
-    },
-    created_at: new Date().toISOString(),
-  };
-}
-
 export function evaluateReviewFollowupGate(params: {
   bridge: WritingReviewBridgeV1;
   runDir: string;
@@ -95,38 +58,35 @@ export function evaluateReviewFollowupGate(params: {
 
   try {
     const subjectRef = refs.subject_refs[0]!;
-    const verdictRef = refs.subject_verdict_refs[0]!;
-    const coverageRef = refs.coverage_refs[0]!;
     const subject = loadJsonArtifact<VerificationSubjectV1>(params.runDir, subjectRef);
-    const verdict = loadJsonArtifact<VerificationSubjectVerdictV1>(params.runDir, verdictRef);
-    const coverage = loadJsonArtifact<VerificationCoverageV1>(params.runDir, coverageRef);
-
-    const projection = deriveReproducibilityProjection({
-      subject: subject as unknown as VerificationSubject,
-      subjectRef: toRepArtifactRef(subjectRef),
-      verdict: verdict as unknown as VerificationSubjectVerdict,
-      verdictRef: toRepArtifactRef(verdictRef),
-      coverage: coverage as unknown as VerificationCoverage,
-      coverageRef: toRepArtifactRef(coverageRef),
-    });
-    const gate = evaluateRdiGate({
-      outcome: buildGateOutcome(params.bridge.run_id),
-      reproducibilityProjection: projection,
+    const verdict = loadJsonArtifact<VerificationSubjectVerdictV1>(params.runDir, refs.subject_verdict_refs[0]!);
+    const coverage = loadJsonArtifact<VerificationCoverageV1>(params.runDir, refs.coverage_refs[0]!);
+    const gate = evaluateVerificationKernelGateV1({
+      expected_run_id: params.bridge.run_id,
+      subject,
+      verdict,
+      coverage,
     });
 
-    if (projection.integrity.gate_decision === 'block') {
+    if (gate.decision === 'block') {
       return {
         decision: 'block',
-        reason: projection.integrity.summary,
+        reason: gate.summary,
       };
     }
-    if (projection.integrity.gate_decision === 'hold' || !gate.passed) {
+    if (gate.decision === 'hold') {
       return {
         decision: 'advisory_only',
-        reason: projection.integrity.summary,
+        reason: gate.summary,
       };
     }
-    return { decision: 'pass' };
+    if (gate.decision === 'pass') {
+      return { decision: 'pass' };
+    }
+    return {
+      decision: 'unavailable',
+      reason: gate.summary,
+    };
   } catch (error) {
     return {
       decision: 'unavailable',

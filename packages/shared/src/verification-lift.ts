@@ -1,4 +1,5 @@
 import type {
+  VerificationSubjectV1,
   VerificationCoverageV1,
   VerificationSubjectVerdictV1,
 } from './generated/index.js';
@@ -28,10 +29,26 @@ export type VerificationCoverageMetaV1 = {
   }>;
 };
 
+export type VerificationSubjectMetaV1 = {
+  subject_id: string;
+  run_id: string;
+  subject_kind: VerificationSubjectV1['subject_kind'];
+  title: string;
+};
+
+export type VerificationKernelGateDecision = 'pass' | 'hold' | 'block' | 'unavailable';
+
+export type VerificationKernelGateResult = {
+  decision: VerificationKernelGateDecision;
+  summary: string;
+};
+
 type VerdictSuccess = { ok: true; value: VerificationSubjectVerdictMetaV1 };
 type VerdictFailure = { ok: false; issues: VerificationLiftParseIssue[] };
 type CoverageSuccess = { ok: true; value: VerificationCoverageMetaV1 };
 type CoverageFailure = { ok: false; issues: VerificationLiftParseIssue[] };
+type SubjectSuccess = { ok: true; value: VerificationSubjectMetaV1 };
+type SubjectFailure = { ok: false; issues: VerificationLiftParseIssue[] };
 
 function issue(path: string, message: string): VerificationLiftParseIssue {
   return { path, message };
@@ -151,6 +168,40 @@ export function safeParseVerificationSubjectVerdictMetaV1(value: unknown): Verdi
   };
 }
 
+export function safeParseVerificationSubjectMetaV1(value: unknown): SubjectSuccess | SubjectFailure {
+  const issues: VerificationLiftParseIssue[] = [];
+  if (!isObject(value)) {
+    return { ok: false, issues: [issue('', 'must be a JSON object')] };
+  }
+  if (value.schema_version !== 1) {
+    issues.push(issue('schema_version', 'must equal 1'));
+  }
+  if (typeof value.subject_id !== 'string' || value.subject_id.length === 0) {
+    issues.push(issue('subject_id', 'must be a non-empty string'));
+  }
+  if (typeof value.run_id !== 'string' || value.run_id.length === 0) {
+    issues.push(issue('run_id', 'must be a non-empty string'));
+  }
+  if (typeof value.subject_kind !== 'string' || value.subject_kind.length === 0) {
+    issues.push(issue('subject_kind', 'must be a non-empty string'));
+  }
+  if (typeof value.title !== 'string' || value.title.length === 0) {
+    issues.push(issue('title', 'must be a non-empty string'));
+  }
+  if (issues.length > 0) {
+    return { ok: false, issues };
+  }
+  return {
+    ok: true,
+    value: {
+      subject_id: value.subject_id as string,
+      run_id: value.run_id as string,
+      subject_kind: value.subject_kind as VerificationSubjectV1['subject_kind'],
+      title: value.title as string,
+    },
+  };
+}
+
 export function safeParseVerificationCoverageMetaV1(value: unknown): CoverageSuccess | CoverageFailure {
   const issues: VerificationLiftParseIssue[] = [];
   if (!isObject(value)) {
@@ -204,4 +255,63 @@ export function safeParseVerificationCoverageMetaV1(value: unknown): CoverageSuc
       })),
     },
   };
+}
+
+export function evaluateVerificationKernelGateV1(input: {
+  expected_run_id?: string;
+  subject: unknown;
+  verdict: unknown;
+  coverage: unknown;
+}): VerificationKernelGateResult {
+  const subjectParsed = safeParseVerificationSubjectMetaV1(input.subject);
+  if (!subjectParsed.ok) {
+    return { decision: 'unavailable', summary: 'Verification subject is unavailable or malformed.' };
+  }
+  const verdictParsed = safeParseVerificationSubjectVerdictMetaV1(input.verdict);
+  if (!verdictParsed.ok) {
+    return { decision: 'unavailable', summary: 'Verification verdict is unavailable or malformed.' };
+  }
+  const coverageParsed = safeParseVerificationCoverageMetaV1(input.coverage);
+  if (!coverageParsed.ok) {
+    return { decision: 'unavailable', summary: 'Verification coverage is unavailable or malformed.' };
+  }
+
+  const subject = subjectParsed.value;
+  const verdict = verdictParsed.value;
+  const coverage = coverageParsed.value;
+
+  if (input.expected_run_id && subject.run_id !== input.expected_run_id) {
+    return { decision: 'unavailable', summary: 'Verification truth does not match the expected run provenance.' };
+  }
+  if (subject.subject_id !== verdict.subject_id) {
+    return { decision: 'unavailable', summary: 'Verification subject and verdict are not aligned.' };
+  }
+  if (coverage.missing_decisive_checks.some(check => check.subject_id !== subject.subject_id)) {
+    return { decision: 'unavailable', summary: 'Verification coverage does not match the expected subject.' };
+  }
+
+  switch (verdict.status) {
+    case 'blocked':
+      return { decision: 'block', summary: 'Execution failed before decisive verification completed.' };
+    case 'failed':
+      if (verdict.missing_decisive_checks.length > 0 || coverage.missing_decisive_checks.length > 0) {
+        return { decision: 'unavailable', summary: 'Decisive verification failed but still reports unresolved decisive gaps.' };
+      }
+      return { decision: 'block', summary: 'Decisive verification found a mismatch.' };
+    case 'verified':
+      if (verdict.missing_decisive_checks.length > 0 || coverage.missing_decisive_checks.length > 0) {
+        return { decision: 'hold', summary: 'Verification passed partially, but decisive verification is still pending.' };
+      }
+      return { decision: 'pass', summary: 'Decisive verification completed successfully.' };
+    case 'partial':
+    case 'not_attempted':
+      return {
+        decision: 'hold',
+        summary: typeof (input.verdict as Record<string, unknown>).summary === 'string'
+          ? String((input.verdict as Record<string, unknown>).summary)
+          : 'Decisive verification is still pending.',
+      };
+    default:
+      return { decision: 'unavailable', summary: 'Verification verdict status is unavailable.' };
+  }
 }
