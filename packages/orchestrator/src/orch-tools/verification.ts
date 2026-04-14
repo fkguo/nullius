@@ -11,6 +11,7 @@ import { invalidParams } from '@autoresearch/shared';
 import { z } from 'zod';
 import { createRunArtifactRef } from '../computation/artifact-refs.js';
 import { writeJsonAtomic } from '../computation/io.js';
+import { recordVerificationToMemoryGraph } from '../computation/memory-graph-hookup.js';
 import { attachVerificationBoundaryToWorkspaceFeedback } from '../computation/workspace-feedback-boundaries.js';
 import { assertComputationResultValid } from '../computation/result-schema.js';
 import { createStateManager, requireState } from './common.js';
@@ -187,6 +188,13 @@ export async function handleOrchRunRecordVerification(
     coverage_uri: coverageRef.uri,
   });
   writeJsonAtomic(computationResultPath, assertComputationResultValid(nextComputationResult));
+  await recordVerificationToMemoryGraph({
+    projectRoot,
+    runId: params.run_id,
+    status: params.status,
+    summary: params.summary,
+    checkRunUri: checkRunRef.uri,
+  });
 
   return {
     recorded: true,

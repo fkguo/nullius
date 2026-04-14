@@ -28,6 +28,7 @@ import {
   attachFinalConclusionsApprovalToWorkspaceFeedback,
   attachFinalConclusionsRequestToWorkspaceFeedback,
 } from '../computation/workspace-feedback-boundaries.js';
+import { recordFinalConclusionsToMemoryGraph } from '../computation/memory-graph-hookup.js';
 import { createStateManager, requireState } from './common.js';
 import { OrchRunRequestFinalConclusionsSchema } from './schemas.js';
 import type { RunState } from '../types.js';
@@ -333,7 +334,7 @@ function existingPendingA5(projectRoot: string, state: RunState, runId: string) 
   };
 }
 
-export function consumeApprovedFinalConclusions(params: {
+export async function consumeApprovedFinalConclusions(params: {
   approvalId: string;
   note?: string;
   packetJsonPath: string;
@@ -341,11 +342,11 @@ export function consumeApprovedFinalConclusions(params: {
   packetSha256: string;
   projectRoot: string;
   state: RunState;
-}): {
+}): Promise<{
   final_conclusions_path: string;
   final_conclusions_uri: string;
   cleanup: () => void;
-} {
+}> {
   const pending = params.state.pending_approval;
   if (!pending || pending.category !== 'A5' || pending.approval_id !== params.approvalId) {
     throw invalidParams('final conclusions consumer requires a matching pending A5 approval.', {
@@ -376,6 +377,12 @@ export function consumeApprovedFinalConclusions(params: {
   }
 
   const finalConclusionsPath = finalConclusionsArtifactPath(params.projectRoot, runId);
+  const finalConclusionsUri = makeScopedArtifactUri({
+    scheme: 'orch',
+    scope: 'runs',
+    scopeId: runId,
+    artifactName: 'final_conclusions_v1.json',
+  });
   const originalComputationResultText = fs.readFileSync(computationResultPath, 'utf-8');
   const sourceResultRef = createRunArtifactRef(runId, runDir, computationResultPath, 'computation_result');
   const approvalPacketRef = createControlPlaneArtifactRef({
@@ -415,14 +422,16 @@ export function consumeApprovedFinalConclusions(params: {
     const nextComputationResult = attachFinalConclusionsApprovalToWorkspaceFeedback(computationResult, {
       approval_id: params.approvalId,
       final_conclusions_path: path.relative(params.projectRoot, finalConclusionsPath).split(path.sep).join('/'),
-      final_conclusions_uri: makeScopedArtifactUri({
-        scheme: 'orch',
-        scope: 'runs',
-        scopeId: runId,
-        artifactName: 'final_conclusions_v1.json',
-      }),
+      final_conclusions_uri: finalConclusionsUri,
     });
     writeJsonAtomic(computationResultPath, assertComputationResultValid(nextComputationResult));
+    await recordFinalConclusionsToMemoryGraph({
+      projectRoot: params.projectRoot,
+      runId,
+      approvalId: params.approvalId,
+      finalConclusionsUri,
+      summary: payload.summary,
+    });
   } catch (error) {
     try {
       if (fs.existsSync(finalConclusionsPath)) {
@@ -436,12 +445,7 @@ export function consumeApprovedFinalConclusions(params: {
   }
   return {
     final_conclusions_path: path.relative(params.projectRoot, finalConclusionsPath).split(path.sep).join('/'),
-    final_conclusions_uri: makeScopedArtifactUri({
-      scheme: 'orch',
-      scope: 'runs',
-      scopeId: runId,
-      artifactName: 'final_conclusions_v1.json',
-    }),
+    final_conclusions_uri: finalConclusionsUri,
     cleanup: () => {
       try {
         if (fs.existsSync(finalConclusionsPath)) {

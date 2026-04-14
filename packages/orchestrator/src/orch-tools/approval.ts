@@ -56,7 +56,7 @@ export async function handleOrchRunApprove(
 
   const category = typeof pending.category === 'string' ? pending.category : null;
   if (category === 'A5') {
-    const finalConclusions = consumeApprovedFinalConclusions({
+    const finalConclusions = await consumeApprovedFinalConclusions({
       approvalId: params.approval_id,
       note: params.note,
       packetJsonPath,

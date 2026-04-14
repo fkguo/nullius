@@ -5,6 +5,7 @@ import { StateManager } from '../state-manager.js';
 import { maybeQueueIdeaEngineComputationFeedback } from './idea-engine-feedback.js';
 import { utcNowIso } from '../util.js';
 import { ensureDir, toPosixRelative, writeJsonAtomic } from './io.js';
+import { recordComputationResultToMemoryGraph } from './memory-graph-hookup.js';
 import { writeComputationResultArtifact } from './result.js';
 import type {
   CompletedExecutionResult,
@@ -51,10 +52,10 @@ function writeStepLogs(logDir: string, step: StepCommandPlan, output: ReturnType
   });
 }
 
-export function runPreparedManifest(
+export async function runPreparedManifest(
   projectRoot: string,
   prepared: PreparedManifest,
-): CompletedExecutionResult | FailedExecutionResult {
+): Promise<CompletedExecutionResult | FailedExecutionResult> {
   const stateManager = new StateManager(projectRoot);
   const logsDir = path.join(prepared.workspaceDir, 'logs');
   const statusPath = path.join(prepared.workspaceDir, 'execution_status.json');
@@ -106,6 +107,11 @@ export function runPreparedManifest(
         prepared,
         computationResult,
       });
+      await recordComputationResultToMemoryGraph({
+        projectRoot,
+        manifest: prepared.manifest,
+        computationResult,
+      });
       return {
         status: 'failed',
         ok: false,
@@ -147,6 +153,11 @@ export function runPreparedManifest(
   });
   maybeQueueIdeaEngineComputationFeedback({
     prepared,
+    computationResult,
+  });
+  await recordComputationResultToMemoryGraph({
+    projectRoot,
+    manifest: prepared.manifest,
     computationResult,
   });
   return {
