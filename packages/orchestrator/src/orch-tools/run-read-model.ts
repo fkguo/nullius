@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { invalidParams } from '@autoresearch/shared';
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
-import { readRepairProposalView } from './repair-proposal.js';
+import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
 import { readSkillProposalView } from './skill-proposal.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import type { RunState } from '../types.js';
@@ -39,6 +39,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const finalConclusions = readFinalConclusionsView(projectRoot, state);
   const researchOutcomeProjection = readResearchOutcomeProjectionView(projectRoot, state);
   const repairProposal = readRepairProposalView(projectRoot, state);
+  const optimizeProposal = readOptimizeProposalView(projectRoot, state);
+  const innovateProposal = readInnovateProposalView(projectRoot, state);
   const skillProposal = readSkillProposalView(projectRoot, state);
   return {
     run_id: state.run_id,
@@ -63,6 +65,10 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     research_outcome_projection_error: researchOutcomeProjection.research_outcome_projection_error,
     repair_mutation_proposal: repairProposal.repair_mutation_proposal,
     repair_mutation_proposal_error: repairProposal.repair_mutation_proposal_error,
+    optimize_mutation_proposal: optimizeProposal.optimize_mutation_proposal,
+    optimize_mutation_proposal_error: optimizeProposal.optimize_mutation_proposal_error,
+    innovate_mutation_proposal: innovateProposal.innovate_mutation_proposal,
+    innovate_mutation_proposal_error: innovateProposal.innovate_mutation_proposal_error,
     skill_proposal: skillProposal.skill_proposal,
     skill_proposal_error: skillProposal.skill_proposal_error,
   };

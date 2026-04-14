@@ -325,4 +325,62 @@ describe('memory-graph hookup', () => {
     });
     expect(exportView.current_run_skill_proposal_error).toBeNull();
   });
+
+  it('emits local optimize/innovate mutation proposals after repeated successful workflows and surfaces them via status/export', async () => {
+    const projectRoot = makeTempProjectRoot();
+    for (const runId of ['run-opportunity-a', 'run-opportunity-b', 'run-opportunity-c', 'run-opportunity-d']) {
+      await prepareCompletedRun(projectRoot, runId);
+    }
+
+    const optimizePath = path.join(projectRoot, 'artifacts', 'runs', 'run-opportunity-d', 'mutation_proposal_optimize_v1.json');
+    const innovatePath = path.join(projectRoot, 'artifacts', 'runs', 'run-opportunity-d', 'mutation_proposal_innovate_v1.json');
+    expect(fs.existsSync(optimizePath)).toBe(true);
+    expect(fs.existsSync(innovatePath)).toBe(true);
+
+    const optimize = readJson<Record<string, unknown>>(optimizePath);
+    const innovate = readJson<Record<string, unknown>>(innovatePath);
+    expect(optimize).toMatchObject({
+      mutation_type: 'optimize',
+      gate_level: 'A0',
+      status: 'proposed',
+      run_id: 'run-opportunity-d',
+    });
+    expect(innovate).toMatchObject({
+      mutation_type: 'innovate',
+      gate_level: 'A2',
+      status: 'proposed',
+      run_id: 'run-opportunity-d',
+    });
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.optimize_mutation_proposal).toMatchObject({
+      mutation_type: 'optimize',
+      gate_level: 'A0',
+      status: 'proposed',
+    });
+    expect(statusView.innovate_mutation_proposal).toMatchObject({
+      mutation_type: 'innovate',
+      gate_level: 'A2',
+      status: 'proposed',
+    });
+    expect(statusView.optimize_mutation_proposal_error).toBeNull();
+    expect(statusView.innovate_mutation_proposal_error).toBeNull();
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+    expect(exportView.current_run_optimize_mutation_proposal).toMatchObject({
+      mutation_type: 'optimize',
+      gate_level: 'A0',
+      status: 'proposed',
+    });
+    expect(exportView.current_run_innovate_mutation_proposal).toMatchObject({
+      mutation_type: 'innovate',
+      gate_level: 'A2',
+      status: 'proposed',
+    });
+  });
 });

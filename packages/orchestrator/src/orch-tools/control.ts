@@ -11,7 +11,7 @@ import {
   requireState,
 } from './common.js';
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
-import { readRepairProposalView } from './repair-proposal.js';
+import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
 import { readSkillProposalView } from './skill-proposal.js';
 import {
   OrchPolicyQuerySchema,
@@ -49,6 +49,8 @@ export async function handleOrchRunExport(
       const finalConclusions = readFinalConclusionsView(projectRoot, state);
       const researchOutcomeProjection = readResearchOutcomeProjectionView(projectRoot, state);
       const repairProposal = readRepairProposalView(projectRoot, state);
+      const optimizeProposal = readOptimizeProposalView(projectRoot, state);
+      const innovateProposal = readInnovateProposalView(projectRoot, state);
       const skillProposal = readSkillProposalView(projectRoot, state);
       result.current_run_final_conclusions = finalConclusions.final_conclusions;
       result.current_run_final_conclusions_error = finalConclusions.final_conclusions_error;
@@ -56,6 +58,10 @@ export async function handleOrchRunExport(
       result.current_run_research_outcome_projection_error = researchOutcomeProjection.research_outcome_projection_error;
       result.current_run_repair_mutation_proposal = repairProposal.repair_mutation_proposal;
       result.current_run_repair_mutation_proposal_error = repairProposal.repair_mutation_proposal_error;
+      result.current_run_optimize_mutation_proposal = optimizeProposal.optimize_mutation_proposal;
+      result.current_run_optimize_mutation_proposal_error = optimizeProposal.optimize_mutation_proposal_error;
+      result.current_run_innovate_mutation_proposal = innovateProposal.innovate_mutation_proposal;
+      result.current_run_innovate_mutation_proposal_error = innovateProposal.innovate_mutation_proposal_error;
       result.current_run_skill_proposal = skillProposal.skill_proposal;
       result.current_run_skill_proposal_error = skillProposal.skill_proposal_error;
     }

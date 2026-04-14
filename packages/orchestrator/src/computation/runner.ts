@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { StateManager } from '../state-manager.js';
 import { maybeQueueIdeaEngineComputationFeedback } from './idea-engine-feedback.js';
 import { maybeGenerateSkillProposal } from './skill-proposal-genesis.js';
+import { maybeGenerateOpportunityProposals } from './opportunity-proposal-genesis.js';
 import { utcNowIso } from '../util.js';
 import { ensureDir, toPosixRelative, writeJsonAtomic } from './io.js';
 import { recordComputationResultToMemoryGraph } from './memory-graph-hookup.js';
@@ -151,6 +152,21 @@ export async function runPreparedManifest(
           },
         });
       }
+      const opportunityProposals = maybeGenerateOpportunityProposals({
+        projectRoot,
+        runId: prepared.runId,
+        manifest: prepared.manifest,
+        computationResult,
+      });
+      if (opportunityProposals.optimize || opportunityProposals.innovate) {
+        const state = stateManager.readState();
+        state.artifacts = {
+          ...state.artifacts,
+          ...(opportunityProposals.optimize ? { mutation_proposal_optimize_v1: toPosixRelative(projectRoot, opportunityProposals.optimize.proposalPath) } : {}),
+          ...(opportunityProposals.innovate ? { mutation_proposal_innovate_v1: toPosixRelative(projectRoot, opportunityProposals.innovate.proposalPath) } : {}),
+        };
+        stateManager.saveState(state);
+      }
       return {
         status: 'failed',
         ok: false,
@@ -236,6 +252,21 @@ export async function runPreparedManifest(
         proposal_path: toPosixRelative(projectRoot, skillProposal.proposalPath),
       },
     });
+  }
+  const opportunityProposals = maybeGenerateOpportunityProposals({
+    projectRoot,
+    runId: prepared.runId,
+    manifest: prepared.manifest,
+    computationResult,
+  });
+  if (opportunityProposals.optimize || opportunityProposals.innovate) {
+    const state = stateManager.readState();
+    state.artifacts = {
+      ...state.artifacts,
+      ...(opportunityProposals.optimize ? { mutation_proposal_optimize_v1: toPosixRelative(projectRoot, opportunityProposals.optimize.proposalPath) } : {}),
+      ...(opportunityProposals.innovate ? { mutation_proposal_innovate_v1: toPosixRelative(projectRoot, opportunityProposals.innovate.proposalPath) } : {}),
+    };
+    stateManager.saveState(state);
   }
   return {
     status: 'completed',
