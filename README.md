@@ -23,7 +23,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 1. Native TS computation workflow
    - `autoresearch run --workflow-id computation` executes a prepared `computation/manifest.json` on an initialized external project root; approval handling stays on `autoresearch status/approve`.
 1. Higher-conclusion boundary workflow
-   - `autoresearch final-conclusions --run-id <id>` and `orch_run_request_final_conclusions` evaluate the canonical `computation_result_v1` verification refs and create an A5 approval request only when higher-conclusion readiness is an explicit `pass`.
+   - `autoresearch final-conclusions --run-id <id>` and `orch_run_request_final_conclusions` evaluate the canonical `computation_result_v1` verification refs and create an A5 approval request only when higher-conclusion readiness is an explicit `pass`; approving that A5 request now materializes a local generic `final_conclusions_v1` artifact and leaves the run `completed`.
 1. Experimental idea campaign workflow
    - `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` exposed through `idea-mcp`. This remains an experimental TS-hosted runtime surface, not a root front door. The current MCP surface is intentionally narrower than the full `idea-engine` runtime contract; do not assume every runtime RPC is exposed as an MCP tool.
 1. Project/Run evidence workflow
@@ -193,6 +193,7 @@ If you want the generic lifecycle/control-plane smoke path first:
 1. `autoresearch init --project-root /absolute/path/to/external-project`
 1. `autoresearch status --project-root /absolute/path/to/external-project`
 1. After a completed run has decisive verification truth, `autoresearch final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>`
+1. Resolve the pending A5 with `autoresearch approve <approval_id>` to write `artifacts/runs/<run_id>/final_conclusions_v1.json`
 
 If you want the current strongest domain-pack smoke path next, connect your MCP client to `packages/hep-mcp/dist/index.js` and run:
 

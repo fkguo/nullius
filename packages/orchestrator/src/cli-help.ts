@@ -70,6 +70,7 @@ Behavior:
   Reads the canonical \`artifacts/computation_result_v1.json\` and its typed verification refs.
   Only a decisive gate \`pass\` creates a pending A5 approval request.
   \`hold\`, \`block\`, and \`unavailable\` fail closed and do not create pending approval state.
+  After the request exists, \`autoresearch approve <approval_id>\` consumes A5 into a local \`final_conclusions_v1\` artifact instead of resuming the run.
 
 Output:
   JSON readiness or approval-request result is written to stdout.
@@ -81,12 +82,16 @@ Show the current lifecycle state for the nearest project root.
 Options:
   --json   Emit machine-readable JSON.
 `,
-  approve: `autoresearch approve <approval_id>
+approve: `autoresearch approve <approval_id>
 
 Approve the pending gate for the current project root.
 
 Options:
   --note "..."   Record a ledger note with the approval.
+
+Behavior:
+  Non-A5 approvals resume the run as before.
+  An A5 approval consumes the first post-A5 higher-conclusion consumer, writes \`artifacts/runs/<run_id>/final_conclusions_v1.json\`, and leaves the run \`completed\`.
 `,
   pause: `autoresearch pause
 

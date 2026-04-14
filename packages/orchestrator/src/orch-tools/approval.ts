@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { invalidParams, notFound } from '@autoresearch/shared';
 import { z } from 'zod';
 import { createStateManager, requireState } from './common.js';
+import { consumeApprovedFinalConclusions } from './final-conclusions.js';
 import { readApprovalsView } from './run-read-model.js';
 import {
   OrchRunApproveSchema,
@@ -54,6 +55,44 @@ export async function handleOrchRunApprove(
   }
 
   const category = typeof pending.category === 'string' ? pending.category : null;
+  if (category === 'A5') {
+    const finalConclusions = consumeApprovedFinalConclusions({
+      approvalId: params.approval_id,
+      note: params.note,
+      packetJsonPath,
+      packetPathRel,
+      packetSha256: actualSha256,
+      projectRoot,
+      state,
+    });
+    try {
+      manager.approveRun(state, params.approval_id, params.note, {
+        final_status: 'completed',
+        state_note: `final conclusions ${params.approval_id} granted`,
+        details: {
+          final_conclusions_path: finalConclusions.final_conclusions_path,
+          final_conclusions_uri: finalConclusions.final_conclusions_uri,
+        },
+        artifact_updates: {
+          final_conclusions_v1: finalConclusions.final_conclusions_path,
+        },
+      });
+    } catch (error) {
+      finalConclusions.cleanup();
+      throw error;
+    }
+    return {
+      approved: true,
+      approval_id: params.approval_id,
+      category,
+      run_status: 'completed',
+      uri: `orch://runs/${state.run_id}`,
+      final_conclusions_path: finalConclusions.final_conclusions_path,
+      final_conclusions_uri: finalConclusions.final_conclusions_uri,
+      message: `Approved: ${params.approval_id}`,
+    };
+  }
+
   manager.approveRun(state, params.approval_id, params.note);
   return {
     approved: true,

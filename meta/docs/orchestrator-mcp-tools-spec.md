@@ -38,7 +38,7 @@
 | `orch_run_request_final_conclusions` | `write` | Evaluate canonical computation-result verification truth and create an A5 final-conclusions approval request only when higher-conclusion readiness is a decisive pass |
 | `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json` |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
-| `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification |
+| `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification; A5 approvals consume into a local `final_conclusions_v1` artifact instead of resuming execution |
 | `orch_run_reject` | `destructive` | Reject a pending gate and pause the run |
 | `orch_run_pause` | `write` | Pause the current run |
 | `orch_run_resume` | `write` | Resume a paused run |
@@ -181,6 +181,10 @@ Current live approval flow is intentionally split into creation, inspection, and
 1. A run-scoped orchestrator write path produces a pending approval packet under the project root.
 2. Operators inspect state via `orch_run_status` and `orch_run_approvals_list`.
 3. Resolution happens via `orch_run_approve` or `orch_run_reject`.
+
+For the higher-conclusion boundary:
+- `orch_run_request_final_conclusions` only creates the pending A5 request.
+- `orch_run_approve` consumes that A5 request into `artifacts/runs/<run_id>/final_conclusions_v1.json`, records `gate_satisfied.A5`, and leaves the run `completed`.
 
 Current live approval producers include:
 - `orch_run_execute_manifest` for A3 compute execution

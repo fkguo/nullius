@@ -88,6 +88,12 @@ export async function runApproveCommand(
     ...(note ? { note } : {}),
   }) as Record<string, unknown>;
   io.stdout(`approved: ${String(payload.approval_id ?? approvalId)}\n`);
+  if (payload.final_conclusions_path) {
+    io.stdout(`final_conclusions_path: ${String(payload.final_conclusions_path)}\n`);
+  }
+  if (payload.final_conclusions_uri) {
+    io.stdout(`final_conclusions_uri: ${String(payload.final_conclusions_uri)}\n`);
+  }
 }
 
 export async function runFinalConclusionsCommand(

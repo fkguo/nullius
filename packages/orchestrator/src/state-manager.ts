@@ -378,7 +378,7 @@ const VALID_TRANSITIONS: Record<string, RunStatus[]> = {
   idle: ['running'],
   running: ['paused', 'awaiting_approval', 'completed', 'failed', 'needs_recovery', 'blocked'],
   paused: ['running', 'blocked', 'needs_recovery'],
-  awaiting_approval: ['running', 'paused', 'rejected', 'blocked', 'needs_recovery'],
+  awaiting_approval: ['running', 'paused', 'rejected', 'blocked', 'needs_recovery', 'completed'],
   blocked: ['running', 'paused', 'failed'],
   needs_recovery: ['running', 'paused', 'failed'],
   completed: ['awaiting_approval'],
@@ -661,6 +661,12 @@ export class StateManager {
     state: RunState,
     approvalId: string,
     note?: string,
+    opts?: {
+      final_status?: RunStatus;
+      state_note?: string;
+      details?: Record<string, unknown>;
+      artifact_updates?: Record<string, string>;
+    },
   ): void {
     if (state.run_status !== 'awaiting_approval') {
       throw new Error(
@@ -687,10 +693,21 @@ export class StateManager {
     state.pending_approval = null;
     // Checkpoint heartbeat on approve (matching Python cmd_approve)
     state.checkpoints.last_checkpoint_at = utcNowIso();
+    if (opts?.artifact_updates) {
+      state.artifacts = {
+        ...state.artifacts,
+        ...opts.artifact_updates,
+      };
+    }
 
-    this.transitionStatus(state, 'running', {
-      notes: `approval ${approvalId} granted`,
-      details: { approval_id: approvalId, category: pending.category, note: note ?? '' },
+    this.transitionStatus(state, opts?.final_status ?? 'running', {
+      notes: opts?.state_note ?? `approval ${approvalId} granted`,
+      details: {
+        approval_id: approvalId,
+        category: pending.category,
+        note: note ?? '',
+        ...(opts?.details ?? {}),
+      },
       eventType: 'approval_approved',
     });
   }

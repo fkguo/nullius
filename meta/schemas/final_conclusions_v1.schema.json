@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autoresearch.dev/schemas/final_conclusions_v1.schema.json",
+  "title": "FinalConclusions V1",
+  "description": "Minimal generic higher-conclusion closeout artifact created after an A5 approval is granted on canonical verification truth. This is a local control-plane artifact, not a REP publish payload.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "approval_id",
+    "gate_id",
+    "source_result_ref",
+    "approval_packet_ref",
+    "verification_summary",
+    "summary",
+    "created_at",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "approval_id": {
+      "type": "string"
+    },
+    "gate_id": {
+      "const": "A5"
+    },
+    "source_result_ref": {
+      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+    },
+    "approval_packet_ref": {
+      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+    },
+    "verification_summary": {
+      "type": "object",
+      "required": [
+        "decision",
+        "summary"
+      ],
+      "properties": {
+        "decision": {
+          "const": "pass"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "orchestrator_component",
+        "trigger_surface",
+        "approved_via"
+      ],
+      "properties": {
+        "orchestrator_component": {
+          "type": "string"
+        },
+        "trigger_surface": {
+          "type": "string"
+        },
+        "approved_via": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

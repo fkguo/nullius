@@ -109,8 +109,14 @@ export function deriveLedgerStatusFromOperatorEvent(
   previous: string,
 ): { status: string; unmappedEvent: string | null } {
   if (eventType === 'initialized') return { status: 'idle', unmappedEvent: null };
-  if (eventType === 'run_started' || eventType === 'approval_approved' || eventType === 'resumed') {
+  if (eventType === 'run_started' || eventType === 'resumed') {
     return { status: 'running', unmappedEvent: null };
+  }
+  if (eventType === 'approval_approved') {
+    return {
+      status: details.category === 'A5' ? 'completed' : 'running',
+      unmappedEvent: null,
+    };
   }
   if (eventType === 'approval_requested') return { status: 'awaiting_approval', unmappedEvent: null };
   if (eventType === 'approval_rejected' || eventType === 'paused') return { status: 'paused', unmappedEvent: null };

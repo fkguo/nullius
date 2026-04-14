@@ -507,6 +507,40 @@ describe('StateManager write operations (Stage 2)', () => {
     expect(state.gate_satisfied['A1']).toBe('A1-0001');
   });
 
+  it('approveRun can close out A5 without resuming execution', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({
+      run_id: 'r1',
+      workflow_id: 'computation',
+      run_status: 'awaiting_approval',
+      pending_approval: {
+        approval_id: 'A5-0001',
+        category: 'A5',
+        plan_step_ids: [],
+        requested_at: '2026-02-24T00:00:00Z',
+        timeout_at: '2099-01-01T00:00:00Z',
+        on_timeout: 'block',
+        packet_path: 'artifacts/runs/r1/approvals/A5-0001/packet.md',
+      },
+    });
+
+    sm.approveRun(state, 'A5-0001', 'looks final', {
+      final_status: 'completed',
+      artifact_updates: {
+        final_conclusions_v1: 'artifacts/runs/r1/final_conclusions_v1.json',
+      },
+      details: {
+        final_conclusions_path: 'artifacts/runs/r1/final_conclusions_v1.json',
+        final_conclusions_uri: 'orch://runs/r1/artifact/final_conclusions_v1.json',
+      },
+    });
+
+    expect(state.run_status).toBe('completed');
+    expect(state.pending_approval).toBeNull();
+    expect(state.gate_satisfied.A5).toBe('A5-0001');
+    expect(state.artifacts.final_conclusions_v1).toBe('artifacts/runs/r1/final_conclusions_v1.json');
+  });
+
   it('approveRun rejects wrong approval_id', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({
@@ -2236,6 +2270,36 @@ describe('orch approval/query read models', () => {
     expect(readRunListView(manager, { limit: 10, status_filter: 'rejected' }).runs.map(run => run.run_id)).toEqual([
       'run-timeout-reject',
     ]);
+  });
+
+  it('maps A5 approval_approved events to completed while keeping other approvals running', () => {
+    const manager = new StateManager(tmpDir);
+    manager.ensureDirs();
+    fs.writeFileSync(manager.ledgerPath, [
+      JSON.stringify({
+        ts: '2026-04-14T00:00:00Z',
+        event_type: 'approval_approved',
+        run_id: 'run-a5',
+        workflow_id: 'computation',
+        step_id: null,
+        details: { category: 'A5' },
+      }),
+      JSON.stringify({
+        ts: '2026-04-14T00:00:01Z',
+        event_type: 'approval_approved',
+        run_id: 'run-a1',
+        workflow_id: 'ingest',
+        step_id: null,
+        details: { category: 'A1' },
+      }),
+    ].join('\n') + '\n');
+
+    const runList = readRunListView(manager, { limit: 10, status_filter: 'all' });
+    const statusByRun = Object.fromEntries(runList.runs.map(run => [run.run_id, run.last_status]));
+    expect(statusByRun).toMatchObject({
+      'run-a5': 'completed',
+      'run-a1': 'running',
+    });
   });
 });
 

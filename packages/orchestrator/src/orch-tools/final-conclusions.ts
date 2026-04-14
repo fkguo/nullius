@@ -5,23 +5,51 @@ import type {
   ApprovalPacketV1,
   ArtifactRefV1,
   ComputationResultV1,
+  FinalConclusionsV1,
   VerificationCoverageV1,
   VerificationSubjectV1,
   VerificationSubjectVerdictV1,
 } from '@autoresearch/shared';
 import {
+  createArtifactRefV1,
   evaluateVerificationKernelGateV1,
   invalidParams,
+  makeScopedArtifactUri,
   notFound,
 } from '@autoresearch/shared';
+import Ajv2020 from 'ajv/dist/2020.js';
 import { z } from 'zod';
+import { createRunArtifactRef } from '../computation/artifact-refs.js';
 import { assertComputationResultValid } from '../computation/result-schema.js';
+import artifactRefSchema from '../../../../meta/schemas/artifact_ref_v1.schema.json' with { type: 'json' };
+import finalConclusionsSchema from '../../../../meta/schemas/final_conclusions_v1.schema.json' with { type: 'json' };
 import { sha256Text, writeJsonAtomic, writeTextAtomic } from '../computation/io.js';
 import { createStateManager, requireState } from './common.js';
 import { OrchRunRequestFinalConclusionsSchema } from './schemas.js';
 import type { RunState } from '../types.js';
 
 type GateOutcome = ReturnType<typeof evaluateVerificationKernelGateV1>;
+
+type AjvConstructor = new (options: Record<string, unknown>) => {
+  addSchema?: (schema: Record<string, unknown>, key?: string) => void;
+  compile: (schema: Record<string, unknown>) => {
+    (value: unknown): boolean;
+    errors?: unknown[];
+  };
+};
+
+const ajv = new (Ajv2020 as unknown as AjvConstructor)({
+  allErrors: true,
+  strict: false,
+  validateFormats: false,
+});
+
+ajv.addSchema?.(
+  artifactRefSchema as Record<string, unknown>,
+  'https://autoresearch.dev/schemas/artifact_ref_v1.schema.json',
+);
+
+const finalConclusionsValidator = ajv.compile(finalConclusionsSchema as Record<string, unknown>);
 
 function runDirFromProjectRoot(projectRoot: string, runId: string): string {
   return path.join(projectRoot, runId);
@@ -35,6 +63,10 @@ function approvalArtifacts(projectRoot: string, runId: string, approvalId: strin
     packetFullPath: path.join(approvalDir, 'packet.md'),
     packetJsonPath: path.join(approvalDir, 'approval_packet_v1.json'),
   };
+}
+
+function finalConclusionsArtifactPath(projectRoot: string, runId: string): string {
+  return path.join(projectRoot, 'artifacts', 'runs', runId, 'final_conclusions_v1.json');
 }
 
 function readJsonFile<T>(filePath: string, label: string): T {
@@ -67,6 +99,16 @@ function runArtifactPathFromUri(runDir: string, uri: string): string {
 
 function loadJsonArtifact<T>(runDir: string, ref: ArtifactRefV1): T {
   return JSON.parse(fs.readFileSync(runArtifactPathFromUri(runDir, ref.uri), 'utf-8')) as T;
+}
+
+function assertFinalConclusionsValid(raw: unknown): FinalConclusionsV1 {
+  if (!finalConclusionsValidator(raw)) {
+    throw invalidParams('final_conclusions_v1 validation failed', {
+      validation_layer: 'final_conclusions',
+      issues: finalConclusionsValidator.errors ?? [],
+    });
+  }
+  return raw as FinalConclusionsV1;
 }
 
 function loadComputationResult(projectRoot: string, runId: string): {
@@ -124,6 +166,27 @@ function evaluateFinalConclusionsGate(projectRoot: string, runId: string): {
 
 function pendingPacketJsonPath(projectRoot: string, packetPathRel: string): string {
   return path.join(projectRoot, path.dirname(packetPathRel), 'approval_packet_v1.json');
+}
+
+function createControlPlaneArtifactRef(params: {
+  artifactName: string;
+  filePath: string;
+  kind: string;
+  runId: string;
+}): ArtifactRefV1 {
+  const stat = fs.statSync(params.filePath);
+  return createArtifactRefV1({
+    uri: makeScopedArtifactUri({
+      scheme: 'orch',
+      scope: 'runs',
+      scopeId: params.runId,
+      artifactName: params.artifactName,
+    }),
+    sha256: createHash('sha256').update(fs.readFileSync(params.filePath)).digest('hex'),
+    kind: params.kind,
+    size_bytes: stat.size,
+    produced_by: '@autoresearch/orchestrator',
+  });
 }
 
 function artifactRelativePathFromUri(uri: string): string | null {
@@ -263,6 +326,99 @@ function existingPendingA5(projectRoot: string, state: RunState, runId: string) 
     packet_json_path: path.relative(projectRoot, packetJsonPath).split(path.sep).join('/'),
     uri: `orch://runs/${runId}`,
     message: `Approval required: ${pending.approval_id}`,
+  };
+}
+
+export function consumeApprovedFinalConclusions(params: {
+  approvalId: string;
+  note?: string;
+  packetJsonPath: string;
+  packetPathRel: string;
+  packetSha256: string;
+  projectRoot: string;
+  state: RunState;
+}): {
+  final_conclusions_path: string;
+  final_conclusions_uri: string;
+  cleanup: () => void;
+} {
+  const pending = params.state.pending_approval;
+  if (!pending || pending.category !== 'A5' || pending.approval_id !== params.approvalId) {
+    throw invalidParams('final conclusions consumer requires a matching pending A5 approval.', {
+      approval_id: params.approvalId,
+      pending_approval_id: pending?.approval_id ?? null,
+      pending_category: pending?.category ?? null,
+    });
+  }
+  const runId = params.state.run_id;
+  if (!runId) {
+    throw invalidParams('final conclusions consumer requires an active run_id in state.', {});
+  }
+
+  const packet = readJsonFile<ApprovalPacketV1>(params.packetJsonPath, 'approval_packet_v1.json');
+  if (packet.gate_id !== 'A5') {
+    throw invalidParams('final conclusions consumer requires an A5 approval packet.', {
+      gate_id: packet.gate_id,
+    });
+  }
+
+  const { gate, computationResult, computationResultPath, runDir } = evaluateFinalConclusionsGate(params.projectRoot, runId);
+  if (gate.decision !== 'pass') {
+    throw invalidParams('A5 approval cannot complete because higher-conclusion readiness is no longer a decisive pass.', {
+      gate_decision: gate.decision,
+      gate_summary: gate.summary,
+      run_id: runId,
+    });
+  }
+
+  const finalConclusionsPath = finalConclusionsArtifactPath(params.projectRoot, runId);
+  const sourceResultRef = createRunArtifactRef(runId, runDir, computationResultPath, 'computation_result');
+  const approvalPacketRef = createControlPlaneArtifactRef({
+    artifactName: `approvals/${params.approvalId}/approval_packet_v1.json`,
+    filePath: params.packetJsonPath,
+    kind: 'approval_packet',
+    runId,
+  });
+  const createdAt = new Date().toISOString();
+  const payload = assertFinalConclusionsValid({
+    schema_version: 1,
+    run_id: runId,
+    approval_id: params.approvalId,
+    gate_id: 'A5',
+    source_result_ref: sourceResultRef,
+    approval_packet_ref: approvalPacketRef,
+    verification_summary: {
+      decision: 'pass',
+      summary: gate.summary,
+    },
+    summary: `A5 final conclusions were approved for ${runId}: ${computationResult.summary}`,
+    created_at: createdAt,
+    provenance: {
+      orchestrator_component: '@autoresearch/orchestrator',
+      trigger_surface: 'post_a5_approval_consumer',
+      approved_via: 'orch_run_approve',
+      ...(params.note ? { note: params.note } : {}),
+    },
+  });
+
+  writeJsonAtomic(finalConclusionsPath, payload);
+  return {
+    final_conclusions_path: path.relative(params.projectRoot, finalConclusionsPath).split(path.sep).join('/'),
+    final_conclusions_uri: makeScopedArtifactUri({
+      scheme: 'orch',
+      scope: 'runs',
+      scopeId: runId,
+      artifactName: 'final_conclusions_v1.json',
+    }),
+    cleanup: () => {
+      try {
+        if (fs.existsSync(finalConclusionsPath)) {
+          fs.unlinkSync(finalConclusionsPath);
+        }
+      } catch {
+        // best-effort cleanup only; fail-closed state preservation matters more than cleanup reporting
+      }
+    },
   };
 }
 

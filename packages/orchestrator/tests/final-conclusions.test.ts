@@ -3,11 +3,12 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { runCli } from '../src/cli.js';
-import { handleOrchRunApprovalsList } from '../src/orch-tools/approval.js';
+import { handleOrchRunApprove, handleOrchRunApprovalsList } from '../src/orch-tools/approval.js';
 import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
+import { readRunListView } from '../src/orch-tools/run-read-model.js';
 
 function makeTempProjectRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-final-conclusions-'));
@@ -157,6 +158,14 @@ function setVerificationUnavailable(runDir: string): void {
   writeJson(resultPath, result);
 }
 
+async function requestA5(projectRoot: string, runId: string): Promise<Record<string, unknown>> {
+  return handleOrchRunRequestFinalConclusions({
+    project_root: projectRoot,
+    run_id: runId,
+    note: 'ready for A5',
+  }) as Promise<Record<string, unknown>>;
+}
+
 describe('final conclusions consumer', () => {
   it('creates an A5 pending approval from a completed run when decisive verification passes', async () => {
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
@@ -218,6 +227,112 @@ describe('final conclusions consumer', () => {
     expect(first.approval_id).toBe('A5-0001');
     expect(second.approval_id).toBe('A5-0001');
     expect(manager.readState().approval_seq.A5).toBe(1);
+  });
+
+  it('approves A5 into a final_conclusions_v1 artifact and keeps run truth completed', async () => {
+    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
+    setVerificationPass(runDir);
+    const request = await requestA5(projectRoot, runId);
+
+    const approval = await handleOrchRunApprove({
+      _confirm: true,
+      approval_id: String(request.approval_id),
+      approval_packet_sha256: String(request.approval_packet_sha256),
+      project_root: projectRoot,
+      note: 'ship final conclusions',
+    }) as Record<string, unknown>;
+
+    expect(approval).toMatchObject({
+      approved: true,
+      approval_id: 'A5-0001',
+      category: 'A5',
+      run_status: 'completed',
+      final_conclusions_path: 'artifacts/runs/M-A5-1/final_conclusions_v1.json',
+      final_conclusions_uri: 'orch://runs/M-A5-1/artifact/final_conclusions_v1.json',
+    });
+
+    const state = manager.readState();
+    expect(state.run_status).toBe('completed');
+    expect(state.pending_approval).toBeNull();
+    expect(state.gate_satisfied.A5).toBe('A5-0001');
+    expect(state.approval_history).toEqual([
+      expect.objectContaining({
+        approval_id: 'A5-0001',
+        category: 'A5',
+        decision: 'approved',
+      }),
+    ]);
+    expect(state.artifacts.final_conclusions_v1).toBe('artifacts/runs/M-A5-1/final_conclusions_v1.json');
+
+    const artifactPath = path.join(projectRoot, String(approval.final_conclusions_path));
+    const artifact = readJson<Record<string, unknown>>(artifactPath);
+    expect(artifact).toMatchObject({
+      schema_version: 1,
+      run_id: runId,
+      approval_id: 'A5-0001',
+      gate_id: 'A5',
+      verification_summary: {
+        decision: 'pass',
+      },
+      provenance: {
+        orchestrator_component: '@autoresearch/orchestrator',
+        trigger_surface: 'post_a5_approval_consumer',
+        approved_via: 'orch_run_approve',
+      },
+    });
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView).toMatchObject({
+      run_id: runId,
+      run_status: 'completed',
+      pending_approval: null,
+      gate_satisfied: {
+        A5: 'A5-0001',
+      },
+    });
+
+    const approvalsView = await handleOrchRunApprovalsList({
+      project_root: projectRoot,
+      run_id: runId,
+      gate_filter: 'all',
+      include_history: true,
+    }) as { approvals: Array<Record<string, unknown>> };
+    expect(approvalsView.approvals).toEqual([
+      expect.objectContaining({
+        approval_id: 'A5-0001',
+        gate_id: 'A5',
+        status: 'approved',
+      }),
+    ]);
+
+    const runList = readRunListView(manager, { limit: 10, status_filter: 'all' });
+    expect(runList.runs.find(run => run.run_id === runId)).toMatchObject({
+      last_status: 'completed',
+    });
+  });
+
+  it('fails closed when A5 approve loses canonical source truth after request time', async () => {
+    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
+    setVerificationPass(runDir);
+    const request = await requestA5(projectRoot, runId);
+    fs.unlinkSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'));
+
+    await expect(handleOrchRunApprove({
+      _confirm: true,
+      approval_id: String(request.approval_id),
+      approval_packet_sha256: String(request.approval_packet_sha256),
+      project_root: projectRoot,
+      note: 'try approve anyway',
+    })).rejects.toThrow();
+
+    const state = manager.readState();
+    expect(state.run_status).toBe('awaiting_approval');
+    expect(state.pending_approval).toMatchObject({
+      approval_id: 'A5-0001',
+      category: 'A5',
+    });
+    expect(state.approval_history).toHaveLength(0);
+    expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'final_conclusions_v1.json'))).toBe(false);
   });
 
   it('does not create an approval when verification is still on hold', async () => {
@@ -295,5 +410,21 @@ describe('final conclusions consumer', () => {
     });
     const state = manager.readState() as RunState;
     expect(state.pending_approval?.category).toBe('A5');
+  });
+
+  it('prints final-conclusions pointers when CLI approve consumes A5', async () => {
+    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
+    setVerificationPass(runDir);
+    await requestA5(projectRoot, runId);
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCli(['approve', 'A5-0001', '--note', 'approve via cli'], io);
+
+    expect(code).toBe(0);
+    const text = stdout.join('');
+    expect(text).toContain('approved: A5-0001');
+    expect(text).toContain('final_conclusions_path: artifacts/runs/M-A5-1/final_conclusions_v1.json');
+    expect(text).toContain('final_conclusions_uri: orch://runs/M-A5-1/artifact/final_conclusions_v1.json');
+    expect(manager.readState().run_status).toBe('completed');
   });
 });

@@ -33,6 +33,7 @@ export type {
   PdfLocatorV1,
 } from "./evidence-catalog-item-v1.js";
 export * from "./execution-plan-v1.js";
+export type { FinalConclusionsV1 } from "./final-conclusions-v1.js";
 export * from "./fleet-queue-v1.js";
 export * from "./fleet-workers-v1.js";
 export * from "./gate-spec-v1.js";

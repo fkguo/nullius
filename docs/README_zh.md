@@ -23,7 +23,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 1. 原生 TS computation 工作流
    - `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。
 1. 更高结论边界工作流
-   - `autoresearch final-conclusions --run-id <id>` 与 `orch_run_request_final_conclusions` 会读取 canonical `computation_result_v1` 的 verification refs；只有 higher-conclusion readiness 明确为 `pass` 时才创建 A5 approval request。
+   - `autoresearch final-conclusions --run-id <id>` 与 `orch_run_request_final_conclusions` 会读取 canonical `computation_result_v1` 的 verification refs；只有 higher-conclusion readiness 明确为 `pass` 时才创建 A5 approval request。随后批准该 A5 request 会落一个本地 generic `final_conclusions_v1` artifact，并保持 run 为 `completed`。
 1. 实验性 idea campaign 工作流
    - 通过 `idea-mcp` 暴露 `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`，并支持 `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete`。这仍是实验性的 TS hosted runtime surface，不是 root front door。当前 MCP 面故意比完整 `idea-engine` runtime contract 更窄，不应假设每个 runtime RPC 都已经映射成 MCP tool。
 1. Project/Run 证据工作流
@@ -193,6 +193,7 @@ pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 1. `autoresearch init --project-root /absolute/path/to/external-project`
 1. `autoresearch status --project-root /absolute/path/to/external-project`
 1. 当某个 run 已经拿到 decisive verification truth 后，执行 `autoresearch final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>`
+1. 再通过 `autoresearch approve <approval_id>` 消费 A5 request，并写出 `artifacts/runs/<run_id>/final_conclusions_v1.json`
 
 如果你接着想走当前最强的 domain-pack 烟测路径，再把 MCP client 接到 `packages/hep-mcp/dist/index.js` 并执行：
 
