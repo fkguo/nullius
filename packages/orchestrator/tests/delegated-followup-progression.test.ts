@@ -6,6 +6,7 @@ import {
   progressDelegatedComputationFollowups,
   type DelegatedComputationFollowupLaunchResult,
   type DelegatedComputationFollowupTask,
+  stageContentInRunDir,
 } from '../src/computation/index.js';
 import { makeRunArtifactUri } from '../src/computation/artifact-refs.js';
 import { cleanupRegisteredDirs, makeTmpDir, registerCleanup } from './executeManifestTestUtils.js';
@@ -481,5 +482,153 @@ describe('delegated followup progression', () => {
       task_id: 'review-1',
       task_kind: 'review',
     });
+  });
+
+  it('blocks review launch when refreshed review verification truth is decisively failed', async () => {
+    const projectRoot = makeTmpDir('orch-followup-progression-');
+    registerCleanup(projectRoot);
+    const runId = 'run-review-gate-blocked';
+    const runDir = path.join(projectRoot, runId);
+    fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
+
+    const reviewBridgeUri = makeRunArtifactUri(runId, 'artifacts/review_followup_bridge_v1.json');
+    const subjectUri = makeRunArtifactUri(runId, 'artifacts/verification_subject_computation_result_v1.json');
+    const verdictUri = makeRunArtifactUri(runId, 'artifacts/verification_subject_verdict_computation_result_v1.json');
+    const coverageUri = makeRunArtifactUri(runId, 'artifacts/verification_coverage_v1.json');
+
+    writeJson(path.join(runDir, 'artifacts', 'verification_subject_computation_result_v1.json'), {
+      schema_version: 1,
+      subject_id: `result:${runId}:computation_result`,
+      subject_kind: 'result',
+      run_id: runId,
+      title: 'Blocked result',
+      source_refs: [{ uri: makeRunArtifactUri(runId, 'artifacts/computation_result_v1.json'), sha256: 'a'.repeat(64) }],
+    });
+    writeJson(path.join(runDir, 'artifacts', 'verification_subject_verdict_computation_result_v1.json'), {
+      schema_version: 1,
+      verdict_id: `verdict:${runId}:computation_result`,
+      run_id: runId,
+      subject_id: `result:${runId}:computation_result`,
+      subject_ref: { uri: subjectUri, sha256: 'b'.repeat(64) },
+      status: 'failed',
+      summary: 'Decisive verification found a mismatch.',
+      check_run_refs: [{ uri: makeRunArtifactUri(runId, 'artifacts/verification_check_run_result.json'), sha256: 'c'.repeat(64) }],
+      missing_decisive_checks: [],
+    });
+    writeJson(path.join(runDir, 'artifacts', 'verification_coverage_v1.json'), {
+      schema_version: 1,
+      coverage_id: `coverage:${runId}:computation_result`,
+      run_id: runId,
+      generated_at: '2026-03-13T00:00:20Z',
+      subject_refs: [{ uri: subjectUri, sha256: 'b'.repeat(64) }],
+      subject_verdict_refs: [{ uri: verdictUri, sha256: 'd'.repeat(64) }],
+      summary: {
+        subjects_total: 1,
+        subjects_verified: 0,
+        subjects_partial: 0,
+        subjects_failed: 1,
+        subjects_blocked: 0,
+        subjects_not_attempted: 0,
+      },
+      missing_decisive_checks: [],
+    });
+    writeJson(path.join(runDir, 'artifacts', 'review_followup_bridge_v1.json'), {
+      schema_version: 1,
+      bridge_kind: 'review',
+      run_id: runId,
+      objective_title: 'Review gate block',
+      feedback_signal: 'success',
+      decision_kind: 'capture_finding',
+      summary: 'Review should be blocked by verification truth.',
+      computation_result_uri: makeRunArtifactUri(runId, 'artifacts/computation_result_v1.json'),
+      manifest_ref: { uri: makeRunArtifactUri(runId, 'computation/manifest.json'), sha256: 'e'.repeat(64) },
+      produced_artifact_refs: [{ uri: makeRunArtifactUri(runId, 'artifacts/out.json'), sha256: 'f'.repeat(64) }],
+      verification_refs: {
+        subject_refs: [{ uri: subjectUri, sha256: 'b'.repeat(64) }],
+        subject_verdict_refs: [{ uri: verdictUri, sha256: 'd'.repeat(64) }],
+        coverage_refs: [{ uri: coverageUri, sha256: 'g'.repeat(64) }],
+      },
+      target: {
+        task_kind: 'review',
+        title: 'Review draft',
+        target_node_id: 'review-node',
+        suggested_content_type: 'reviewer_report',
+        seed_payload: {
+          computation_result_uri: makeRunArtifactUri(runId, 'artifacts/computation_result_v1.json'),
+          manifest_uri: makeRunArtifactUri(runId, 'computation/manifest.json'),
+          summary: 'Review should be blocked by verification truth.',
+          produced_artifact_uris: [makeRunArtifactUri(runId, 'artifacts/out.json')],
+          issue_node_id: 'review-node',
+          target_draft_node_id: 'draft-node',
+          source_artifact_name: 'staged_section_output_draft-1.json',
+          source_content_type: 'section_output',
+        },
+      },
+      handoff: {
+        handoff_kind: 'review',
+        target_node_id: 'review-node',
+        payload: {
+          issue_node_id: 'review-node',
+          target_draft_node_id: 'draft-node',
+        },
+      },
+      context: {
+        draft_context_mode: 'existing_draft',
+        draft_source_artifact_name: 'staged_section_output_draft-1.json',
+        draft_source_content_type: 'section_output',
+      },
+    });
+
+    const launchTask = vi.fn(async ({ task }): Promise<{
+      launchResult: DelegatedComputationFollowupLaunchResult;
+      teamState: { delegate_assignments: Array<Record<string, unknown>> } | null;
+    }> => {
+      if ((task as DelegatedComputationFollowupTask).kind === 'draft_update') {
+        stageContentInRunDir({
+          runId,
+          runDir,
+          contentType: 'section_output',
+          content: '{"title":"draft"}',
+          artifactSuffix: 'draft-1',
+          taskId: 'draft-1',
+          taskKind: 'draft_update',
+        });
+        return {
+          launchResult: {
+            status: 'launched',
+            task_id: 'draft-1',
+            task_kind: 'draft_update',
+            assignment_id: 'assign-draft-1',
+          },
+          teamState: {
+            delegate_assignments: [
+              { assignment_id: 'assign-draft-1', task_id: 'draft-1', task_kind: 'draft_update', status: 'completed' },
+            ],
+          },
+        };
+      }
+      throw new Error('review should be blocked by gate');
+    });
+
+    const launched = await progressDelegatedComputationFollowups({
+      computationResult: delegatedComputationResult(runId, [
+        delegatedFollowupTask({ taskId: 'draft-1', kind: 'draft_update' }),
+        delegatedFollowupTask({ taskId: 'review-1', kind: 'review', sourceTaskId: 'draft-1' }),
+      ], [
+        { uri: reviewBridgeUri, sha256: 'old-review-bridge', kind: 'writing_review_bridge' },
+      ]),
+      projectRoot,
+      runId,
+      runDir,
+      launchTask,
+    });
+
+    expect(launchTask).toHaveBeenCalledTimes(1);
+    expect(launched).toMatchObject({
+      status: 'blocked_by_gate',
+      task_id: 'review-1',
+      task_kind: 'review',
+    });
+    expect(String(launched.error)).toContain('Decisive verification found a mismatch');
   });
 });

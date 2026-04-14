@@ -21,6 +21,7 @@ import {
 
 export type ProgressFollowupsStatus =
   | 'launched'
+  | 'blocked_by_gate'
   | 'skipped_no_pending_task'
   | 'skipped_invalid_team_execution'
   | 'launch_failed';
@@ -69,6 +70,15 @@ function toWritingBranchResult(result: DelegatedComputationFollowupLaunchResult)
   if (result.status === 'skipped_invalid_team_execution') {
     return {
       status: 'skipped_invalid_team_execution',
+      branch: 'writing_review',
+      ...(result.task_id ? { task_id: result.task_id } : {}),
+      ...(result.task_kind ? { task_kind: result.task_kind } : {}),
+      ...(result.error ? { error: result.error } : {}),
+    };
+  }
+  if (result.status === 'blocked_by_gate') {
+    return {
+      status: 'blocked_by_gate',
       branch: 'writing_review',
       ...(result.task_id ? { task_id: result.task_id } : {}),
       ...(result.task_kind ? { task_kind: result.task_kind } : {}),

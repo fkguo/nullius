@@ -228,7 +228,7 @@ export function refreshReviewFollowupBridge(params: {
   computationResult: ComputationResultV1;
   reviewTaskId: string;
   upstreamDraftTaskId: string;
-}): ArtifactRefV1 | null {
+}): { status: 'refreshed'; ref: ArtifactRefV1 } | { status: 'already_current'; ref: ArtifactRefV1 } | { status: 'missing_task_scoped_output' } | null {
   const bridgePath = path.join(params.runDir, 'artifacts', 'review_followup_bridge_v1.json');
   if (!params.computationResult.followup_bridge_refs || !params.computationResult.workspace_feedback) {
     return null;
@@ -259,7 +259,10 @@ export function refreshReviewFollowupBridge(params: {
   const seedAlreadyBoundToLatestDraft = currentBridge.target.seed_payload.source_artifact_name === latestDraft.artifactName
     && currentBridge.target.seed_payload.source_content_type === latestDraft.contentType;
   if (draftSourceUnchanged && seedAlreadyBoundToLatestDraft && !currentBridge.context.review_source_artifact_name) {
-    return null;
+    return {
+      status: 'already_current',
+      ref: createRunArtifactRef(params.runId, params.runDir, bridgePath, 'writing_review_bridge'),
+    };
   }
 
   const refreshedBridge: WritingReviewBridgeV1 = {
@@ -290,5 +293,8 @@ export function refreshReviewFollowupBridge(params: {
       params.computationResult,
     );
   }
-  return refreshedRef;
+  return {
+    status: 'refreshed',
+    ref: refreshedRef,
+  };
 }

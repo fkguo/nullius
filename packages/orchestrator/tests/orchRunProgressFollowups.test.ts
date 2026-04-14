@@ -207,6 +207,9 @@ describe('orch_run_progress_followups', () => {
     const computationResult = assertComputationResultValid(
       JSON.parse(fs.readFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), 'utf-8')) as unknown,
     );
+    expect(computationResult.verification_refs?.subject_refs).toHaveLength(1);
+    expect(computationResult.verification_refs?.subject_verdict_refs).toHaveLength(1);
+    expect(computationResult.verification_refs?.coverage_refs).toHaveLength(1);
     const draftTask = computationResult.workspace_feedback.tasks.find(task => task.kind === 'draft_update')!;
     const reviewTask = computationResult.workspace_feedback.tasks.find(task => task.kind === 'review')!;
     const responseQueue = [

@@ -112,6 +112,11 @@ export type {
   DelegatedComputationFollowupLaunchStatus,
 } from './delegated-followup-progression.js';
 export {
+  evaluateReviewFollowupGate,
+  type ReviewFollowupGateDecision,
+  type ReviewFollowupGateResult,
+} from './review-followup-gate.js';
+export {
   buildFollowupRuntimePrompt,
   DEFAULT_FOLLOWUP_RUNTIME_MODEL,
   FEEDBACK_FOLLOWUP_RUNTIME_TOOLS,

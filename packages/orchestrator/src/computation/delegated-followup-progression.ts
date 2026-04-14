@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { ComputationResultV1 } from '@autoresearch/shared';
 import { createTeamExecutionState } from '../team-execution-state.js';
 import type { TeamExecutionState } from '../team-execution-types.js';
@@ -14,9 +16,12 @@ import {
   type DelegatedComputationFollowupTask,
 } from './delegated-followup-selection.js';
 import { refreshReviewFollowupBridge } from './followup-bridges.js';
+import { evaluateReviewFollowupGate } from './review-followup-gate.js';
+import type { WritingReviewBridgeV1 } from '@autoresearch/shared';
 
 export type DelegatedComputationFollowupLaunchStatus =
   | 'launched'
+  | 'blocked_by_gate'
   | 'skipped_no_pending_task'
   | 'skipped_missing_task_scoped_output'
   | 'skipped_missing_host_context'
@@ -194,12 +199,28 @@ export async function progressDelegatedComputationFollowups(params: {
     reviewTaskId: nextTask.task_id,
     upstreamDraftTaskId,
   });
-  if (!refreshedReviewBridge) {
+  if (!refreshedReviewBridge || refreshedReviewBridge.status === 'missing_task_scoped_output') {
     return {
       status: 'skipped_missing_task_scoped_output',
       task_id: nextTask.task_id,
       task_kind: nextTask.kind,
       error: 'no task-scoped staged draft output found for the upstream draft_update task',
+    };
+  }
+
+  const refreshedBridge = JSON.parse(
+    fs.readFileSync(path.join(params.runDir, 'artifacts', 'review_followup_bridge_v1.json'), 'utf-8'),
+  ) as WritingReviewBridgeV1;
+  const gateResult = evaluateReviewFollowupGate({
+    bridge: refreshedBridge,
+    runDir: params.runDir,
+  });
+  if (gateResult.decision === 'block') {
+    return {
+      status: 'blocked_by_gate',
+      task_id: nextTask.task_id,
+      task_kind: nextTask.kind,
+      error: gateResult.reason ?? 'review follow-up is blocked by verification or integrity truth',
     };
   }
 
