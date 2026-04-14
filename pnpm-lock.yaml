@@ -251,6 +251,9 @@ importers:
       '@autoresearch/literature-workflows':
         specifier: workspace:^
         version: link:../literature-workflows
+      '@autoresearch/rep-sdk':
+        specifier: workspace:^
+        version: link:../rep-sdk
       '@autoresearch/shared':
         specifier: workspace:^
         version: link:../shared
