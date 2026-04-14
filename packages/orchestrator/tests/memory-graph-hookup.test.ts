@@ -276,4 +276,53 @@ describe('memory-graph hookup', () => {
     expect(exportView.current_run_repair_mutation_proposal_error).toBeNull();
     expect(manager.readState().artifacts.mutation_proposal_repair_v1).toBe('artifacts/runs/run-memory-repeat-b/mutation_proposal_repair_v1.json');
   });
+
+  it('emits a local skill proposal after repeated successful package-usage workflows and surfaces it via status/export', async () => {
+    const projectRoot = makeTempProjectRoot();
+    for (const runId of ['run-skill-a', 'run-skill-b']) {
+      await prepareCompletedRun(projectRoot, runId);
+    }
+
+    const proposalPath = path.join(projectRoot, 'artifacts', 'runs', 'run-skill-b', 'skill_proposal_v2.json');
+    expect(fs.existsSync(proposalPath)).toBe(true);
+    const proposal = readJson<Record<string, unknown>>(proposalPath);
+    expect(proposal).toMatchObject({
+      proposal_type: 'new_skill',
+      origin: 'agent_trace',
+      gate_level: 'A1',
+      status: 'pending_review',
+      trigger: expect.objectContaining({
+        pattern_kind: 'package_usage_pattern',
+        package_names: ['julia:LoopTools', 'python:sympy'],
+      }),
+      action: expect.objectContaining({
+        type: 'package_playbook',
+      }),
+    });
+    expect((proposal.evidence_traces as unknown[]).length).toBeGreaterThanOrEqual(3);
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.skill_proposal).toMatchObject({
+      proposal_type: 'new_skill',
+      origin: 'agent_trace',
+      gate_level: 'A1',
+      status: 'pending_review',
+      action: expect.objectContaining({ type: 'package_playbook' }),
+    });
+    expect(statusView.skill_proposal_error).toBeNull();
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+    expect(exportView.current_run_skill_proposal).toMatchObject({
+      proposal_type: 'new_skill',
+      origin: 'agent_trace',
+      gate_level: 'A1',
+      status: 'pending_review',
+    });
+    expect(exportView.current_run_skill_proposal_error).toBeNull();
+  });
 });

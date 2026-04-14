@@ -84,9 +84,25 @@ export interface SkillTrigger {
    */
   description: string;
   /**
+   * What kind of repeatable pattern triggered this proposal.
+   */
+  pattern_kind?: "fix_pattern" | "methodology_pattern" | "package_usage_pattern";
+  /**
    * File extensions this skill applies to
    */
   file_types?: string[];
+  /**
+   * Tools that repeatedly appear in the triggering pattern.
+   */
+  tool_names?: string[];
+  /**
+   * Scientific or runtime packages that repeatedly appear in the triggering pattern.
+   */
+  package_names?: string[];
+  /**
+   * Normalized workflow or package signature for recurring process patterns.
+   */
+  workflow_signature?: string;
   /**
    * Signal pattern that activates this skill
    */
@@ -107,7 +123,10 @@ export interface SkillAction {
     | "reorder_lines"
     | "add_annotation"
     | "remove_pattern"
-    | "restructure";
+    | "restructure"
+    | "workflow_recipe"
+    | "tool_sequence"
+    | "package_playbook";
   /**
    * Generalized rule definition
    */

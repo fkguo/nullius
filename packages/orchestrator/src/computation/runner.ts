@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { StateManager } from '../state-manager.js';
 import { maybeQueueIdeaEngineComputationFeedback } from './idea-engine-feedback.js';
+import { maybeGenerateSkillProposal } from './skill-proposal-genesis.js';
 import { utcNowIso } from '../util.js';
 import { ensureDir, toPosixRelative, writeJsonAtomic } from './io.js';
 import { recordComputationResultToMemoryGraph } from './memory-graph-hookup.js';
@@ -128,6 +129,28 @@ export async function runPreparedManifest(
           },
         });
       }
+      const skillProposal = maybeGenerateSkillProposal({
+        projectRoot,
+        runId: prepared.runId,
+        manifest: prepared.manifest,
+        computationResult,
+      });
+      if (skillProposal) {
+        const state = stateManager.readState();
+        state.artifacts = {
+          ...state.artifacts,
+          skill_proposal_v2: toPosixRelative(projectRoot, skillProposal.proposalPath),
+        };
+        stateManager.saveState(state);
+        stateManager.appendLedger('skill_proposal_generated', {
+          run_id: prepared.runId,
+          workflow_id: 'computation',
+          details: {
+            proposal_id: skillProposal.proposal.proposal_id,
+            proposal_path: toPosixRelative(projectRoot, skillProposal.proposalPath),
+          },
+        });
+      }
       return {
         status: 'failed',
         ok: false,
@@ -189,6 +212,28 @@ export async function runPreparedManifest(
       details: {
         proposal_id: memoryGraph.repairProposalId,
         proposal_path: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
+      },
+    });
+  }
+  const skillProposal = maybeGenerateSkillProposal({
+    projectRoot,
+    runId: prepared.runId,
+    manifest: prepared.manifest,
+    computationResult,
+  });
+  if (skillProposal) {
+    const state = stateManager.readState();
+    state.artifacts = {
+      ...state.artifacts,
+      skill_proposal_v2: toPosixRelative(projectRoot, skillProposal.proposalPath),
+    };
+    stateManager.saveState(state);
+    stateManager.appendLedger('skill_proposal_generated', {
+      run_id: prepared.runId,
+      workflow_id: 'computation',
+      details: {
+        proposal_id: skillProposal.proposal.proposal_id,
+        proposal_path: toPosixRelative(projectRoot, skillProposal.proposalPath),
       },
     });
   }

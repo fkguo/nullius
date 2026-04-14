@@ -121,10 +121,29 @@
           "type": "string",
           "description": "Human-readable trigger description"
         },
+        "pattern_kind": {
+          "type": "string",
+          "enum": ["fix_pattern", "methodology_pattern", "package_usage_pattern"],
+          "description": "What kind of repeatable pattern triggered this proposal."
+        },
         "file_types": {
           "type": "array",
           "items": { "type": "string" },
           "description": "File extensions this skill applies to"
+        },
+        "tool_names": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tools that repeatedly appear in the triggering pattern."
+        },
+        "package_names": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Scientific or runtime packages that repeatedly appear in the triggering pattern."
+        },
+        "workflow_signature": {
+          "type": "string",
+          "description": "Normalized workflow or package signature for recurring process patterns."
         },
         "signal_pattern": {
           "type": "string",
@@ -139,7 +158,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["replace_regex", "insert_guard", "wrap_block", "reorder_lines", "add_annotation", "remove_pattern", "restructure"],
+          "enum": ["replace_regex", "insert_guard", "wrap_block", "reorder_lines", "add_annotation", "remove_pattern", "restructure", "workflow_recipe", "tool_sequence", "package_playbook"],
           "description": "Edit pattern class"
         },
         "rule": {
