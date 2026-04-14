@@ -475,6 +475,28 @@ describe('Tool Handlers (current exposure)', () => {
     expect(api.getByArxiv).toHaveBeenCalledWith('arXiv:2301.00001');
   });
 
+  it('inspire_literature(lookup_by_id) should fail-fast on size misuse with a clear issue', async () => {
+    const result = await handleToolCall('inspire_literature', {
+      mode: 'lookup_by_id',
+      identifier: '2109.01038',
+      size: 1,
+    } as any);
+
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse(readTextBlock(result)) as {
+      error?: { code?: string; data?: { issues?: Array<Record<string, unknown>> } };
+    };
+    expect(payload.error?.code).toBe('INVALID_PARAMS');
+    expect(payload.error?.data?.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ['size'],
+          message: "mode='lookup_by_id' accepts only identifier; remove size.",
+        }),
+      ]),
+    );
+  });
+
   it('inspire_literature(get_references) should call api.getReferences', async () => {
     vi.mocked(api.getReferences).mockResolvedValueOnce([]);
     await handleToolCall('inspire_literature', { mode: 'get_references', recid: '1', size: 10 });

@@ -413,6 +413,7 @@ EOF
 
 - 返回单篇论文的结构化元信息
 - `get_paper` 不需要 `size`
+- `lookup_by_id` 只传 `identifier`；不要附带 `size`
 
 ### 5.3 `inspire_topic_analysis`
 

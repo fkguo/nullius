@@ -103,11 +103,13 @@ describe('Tool registry contracts (M2)', () => {
     expect((tool?.inputSchema as any).properties.max_results.default).toBe(100);
   });
 
-  it('inspire_literature metadata explicitly tells agents not to send size for get_paper', () => {
+  it('inspire_literature metadata explicitly distinguishes get_paper compatibility from strict lookup_by_id usage', () => {
     const tool = getTools('standard').find(t => t.name === 'inspire_literature');
     expect(tool).toBeDefined();
     expect(tool?.description).toContain('get_paper: { recid } only. Do not pass size, page, or options.');
-    expect((tool?.inputSchema as any).properties.size.description).toContain("Do not provide when mode='get_paper'");
+    expect(tool?.description).toContain('lookup_by_id: { identifier } only. Do not pass size, sort, page, or options.');
+    expect((tool?.inputSchema as any).properties.size.description).toContain("Do not provide for lookup_by_id");
+    expect((tool?.inputSchema as any).properties.identifier.description).toContain('For lookup_by_id, pass identifier only');
   });
 
   it('inspire_search falls back to defaults for invalid max_results budgets', () => {
