@@ -17,6 +17,12 @@ import type {
   StepCommandPlan,
 } from './types.js';
 
+function generatedProposal<T extends { proposalPath: string }>(
+  proposal: T | { suppressed: true; proposalFingerprint: string; decision: string } | null,
+): proposal is T {
+  return Boolean(proposal && 'proposalPath' in proposal);
+}
+
 function buildStatus(prepared: PreparedManifest): ExecutionStatusFile {
   return {
     schema_version: 1,
@@ -129,6 +135,16 @@ export async function runPreparedManifest(
             proposal_path: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
           },
         });
+      } else if (memoryGraph.repairProposalSuppressed) {
+        stateManager.appendLedger('proposal_suppressed', {
+          run_id: prepared.runId,
+          workflow_id: 'computation',
+          details: {
+            proposal_kind: 'repair',
+            proposal_fingerprint: memoryGraph.repairProposalFingerprint,
+            suppression_decision: memoryGraph.repairSuppressionDecision,
+          },
+        });
       }
       const skillProposal = maybeGenerateSkillProposal({
         projectRoot,
@@ -136,7 +152,7 @@ export async function runPreparedManifest(
         manifest: prepared.manifest,
         computationResult,
       });
-      if (skillProposal) {
+      if (skillProposal && !skillProposal.suppressed) {
         const state = stateManager.readState();
         state.artifacts = {
           ...state.artifacts,
@@ -151,6 +167,16 @@ export async function runPreparedManifest(
             proposal_path: toPosixRelative(projectRoot, skillProposal.proposalPath),
           },
         });
+      } else if (skillProposal?.suppressed) {
+        stateManager.appendLedger('proposal_suppressed', {
+          run_id: prepared.runId,
+          workflow_id: 'computation',
+          details: {
+            proposal_kind: 'skill',
+            proposal_fingerprint: skillProposal.proposalFingerprint,
+            suppression_decision: skillProposal.decision,
+          },
+        });
       }
       const opportunityProposals = maybeGenerateOpportunityProposals({
         projectRoot,
@@ -162,10 +188,23 @@ export async function runPreparedManifest(
         const state = stateManager.readState();
         state.artifacts = {
           ...state.artifacts,
-          ...(opportunityProposals.optimize ? { mutation_proposal_optimize_v1: toPosixRelative(projectRoot, opportunityProposals.optimize.proposalPath) } : {}),
-          ...(opportunityProposals.innovate ? { mutation_proposal_innovate_v1: toPosixRelative(projectRoot, opportunityProposals.innovate.proposalPath) } : {}),
+          ...(generatedProposal(opportunityProposals.optimize) ? { mutation_proposal_optimize_v1: toPosixRelative(projectRoot, opportunityProposals.optimize.proposalPath) } : {}),
+          ...(generatedProposal(opportunityProposals.innovate) ? { mutation_proposal_innovate_v1: toPosixRelative(projectRoot, opportunityProposals.innovate.proposalPath) } : {}),
         };
         stateManager.saveState(state);
+        for (const [proposalKind, proposal] of [['optimize', opportunityProposals.optimize], ['innovate', opportunityProposals.innovate]] as const) {
+          if (proposal && !('proposalPath' in proposal)) {
+            stateManager.appendLedger('proposal_suppressed', {
+              run_id: prepared.runId,
+              workflow_id: 'computation',
+              details: {
+                proposal_kind: proposalKind,
+                proposal_fingerprint: proposal.proposalFingerprint,
+                suppression_decision: proposal.decision,
+              },
+            });
+          }
+        }
       }
       return {
         status: 'failed',
@@ -230,6 +269,16 @@ export async function runPreparedManifest(
         proposal_path: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
       },
     });
+  } else if (memoryGraph.repairProposalSuppressed) {
+    stateManager.appendLedger('proposal_suppressed', {
+      run_id: prepared.runId,
+      workflow_id: 'computation',
+      details: {
+        proposal_kind: 'repair',
+        proposal_fingerprint: memoryGraph.repairProposalFingerprint,
+        suppression_decision: memoryGraph.repairSuppressionDecision,
+      },
+    });
   }
   const skillProposal = maybeGenerateSkillProposal({
     projectRoot,
@@ -237,7 +286,7 @@ export async function runPreparedManifest(
     manifest: prepared.manifest,
     computationResult,
   });
-  if (skillProposal) {
+  if (skillProposal && !skillProposal.suppressed) {
     const state = stateManager.readState();
     state.artifacts = {
       ...state.artifacts,
@@ -252,6 +301,16 @@ export async function runPreparedManifest(
         proposal_path: toPosixRelative(projectRoot, skillProposal.proposalPath),
       },
     });
+  } else if (skillProposal?.suppressed) {
+    stateManager.appendLedger('proposal_suppressed', {
+      run_id: prepared.runId,
+      workflow_id: 'computation',
+      details: {
+        proposal_kind: 'skill',
+        proposal_fingerprint: skillProposal.proposalFingerprint,
+        suppression_decision: skillProposal.decision,
+      },
+    });
   }
   const opportunityProposals = maybeGenerateOpportunityProposals({
     projectRoot,
@@ -263,10 +322,23 @@ export async function runPreparedManifest(
     const state = stateManager.readState();
     state.artifacts = {
       ...state.artifacts,
-      ...(opportunityProposals.optimize ? { mutation_proposal_optimize_v1: toPosixRelative(projectRoot, opportunityProposals.optimize.proposalPath) } : {}),
-      ...(opportunityProposals.innovate ? { mutation_proposal_innovate_v1: toPosixRelative(projectRoot, opportunityProposals.innovate.proposalPath) } : {}),
+      ...(generatedProposal(opportunityProposals.optimize) ? { mutation_proposal_optimize_v1: toPosixRelative(projectRoot, opportunityProposals.optimize.proposalPath) } : {}),
+      ...(generatedProposal(opportunityProposals.innovate) ? { mutation_proposal_innovate_v1: toPosixRelative(projectRoot, opportunityProposals.innovate.proposalPath) } : {}),
     };
     stateManager.saveState(state);
+    for (const [proposalKind, proposal] of [['optimize', opportunityProposals.optimize], ['innovate', opportunityProposals.innovate]] as const) {
+      if (proposal && !('proposalPath' in proposal)) {
+        stateManager.appendLedger('proposal_suppressed', {
+          run_id: prepared.runId,
+          workflow_id: 'computation',
+          details: {
+            proposal_kind: proposalKind,
+            proposal_fingerprint: proposal.proposalFingerprint,
+            suppression_decision: proposal.decision,
+          },
+        });
+      }
+    }
   }
   return {
     status: 'completed',

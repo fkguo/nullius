@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { MutationProposalV1 } from '@autoresearch/shared';
 import { invalidParams } from '@autoresearch/shared';
 import type { RunState } from '../types.js';
+import { decisionOverlayForFingerprint, mutationProposalFingerprint } from '../proposal-decisions.js';
 
 function readMutationProposalPointer(state: RunState, artifactKey: string): string | null {
   const pointer = state.artifacts?.[artifactKey];
@@ -52,6 +53,15 @@ function readMutationProposalView(params: {
       };
     }
     const proposal = readJsonFile<MutationProposalV1>(filePath);
+    const overlay = decisionOverlayForFingerprint({
+      projectRoot: params.projectRoot,
+      proposalKind: params.artifactKey === 'mutation_proposal_repair_v1'
+        ? 'repair'
+        : params.artifactKey === 'mutation_proposal_optimize_v1'
+          ? 'optimize'
+          : 'innovate',
+      proposalFingerprint: mutationProposalFingerprint(proposal),
+    });
     return {
       proposal: {
         artifact_path: pointer,
@@ -64,8 +74,12 @@ function readMutationProposalView(params: {
         signals: proposal.signals,
         blast_severity: proposal.blast_severity ?? null,
         created_at: proposal.created_at,
+        decision: overlay.decision,
+        decision_note: overlay.decision_note,
+        decision_ts: overlay.decision_ts,
+        duplicates_suppressed: overlay.duplicates_suppressed,
       },
-      error: null,
+      error: overlay.error,
     };
   } catch (error) {
     return {

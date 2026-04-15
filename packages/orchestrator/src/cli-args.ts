@@ -25,6 +25,14 @@ export type ParsedCliArgs =
     notes: string | null;
   }
   | { command: 'final-conclusions'; projectRoot: string | null; runId: string; note: string | null }
+  | {
+    command: 'proposal-decision';
+    projectRoot: string | null;
+    proposalKind: 'repair' | 'skill' | 'optimize' | 'innovate';
+    proposalId: string;
+    decision: 'accepted_for_later' | 'dismissed' | 'already_captured';
+    note: string | null;
+  }
   | { command: 'status'; projectRoot: string | null; json: boolean }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
@@ -166,6 +174,54 @@ function parseFinalConclusionsArgs(args: string[]): { runId: string; note: strin
     throw new Error('final-conclusions requires --run-id <id>');
   }
   return { runId, note };
+}
+
+function parseProposalDecisionArgs(args: string[]): {
+  proposalKind: 'repair' | 'skill' | 'optimize' | 'innovate';
+  proposalId: string;
+  decision: 'accepted_for_later' | 'dismissed' | 'already_captured';
+  note: string | null;
+} {
+  let proposalKind: 'repair' | 'skill' | 'optimize' | 'innovate' | null = null;
+  let proposalId: string | null = null;
+  let decision: 'accepted_for_later' | 'dismissed' | 'already_captured' | null = null;
+  let note: string | null = null;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--proposal-kind') {
+      const raw = readOptionValue(args, index, '--proposal-kind');
+      if (raw !== 'repair' && raw !== 'skill' && raw !== 'optimize' && raw !== 'innovate') {
+        throw new Error(`proposal-decision requires --proposal-kind repair|skill|optimize|innovate, got: ${raw}`);
+      }
+      proposalKind = raw;
+      index += 1;
+      continue;
+    }
+    if (arg === '--proposal-id') {
+      proposalId = readOptionValue(args, index, '--proposal-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--decision') {
+      const raw = readOptionValue(args, index, '--decision');
+      if (raw !== 'accepted_for_later' && raw !== 'dismissed' && raw !== 'already_captured') {
+        throw new Error(`proposal-decision requires --decision accepted_for_later|dismissed|already_captured, got: ${raw}`);
+      }
+      decision = raw;
+      index += 1;
+      continue;
+    }
+    if (arg === '--note') {
+      note = readOptionValue(args, index, '--note');
+      index += 1;
+      continue;
+    }
+    throw new Error(`unknown proposal-decision argument: ${arg}`);
+  }
+  if (!proposalKind) throw new Error('proposal-decision requires --proposal-kind <repair|skill|optimize|innovate>');
+  if (!proposalId) throw new Error('proposal-decision requires --proposal-id <id>');
+  if (!decision) throw new Error('proposal-decision requires --decision <accepted_for_later|dismissed|already_captured>');
+  return { proposalKind, proposalId, decision, note };
 }
 
 function parseVerifyArgs(args: string[]): {
@@ -398,6 +454,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'verify', projectRoot, ...parseVerifyArgs(rest) };
     case 'final-conclusions':
       return { command: 'final-conclusions', projectRoot, ...parseFinalConclusionsArgs(rest) };
+    case 'proposal-decision':
+      return { command: 'proposal-decision', projectRoot, ...parseProposalDecisionArgs(rest) };
     case 'export':
       return { command: 'export', projectRoot, passthrough: rest };
     case 'status':

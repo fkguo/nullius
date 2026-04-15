@@ -6,6 +6,7 @@ import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './f
 import { readLearningSummaryView } from './learning-summary.js';
 import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
 import { readSkillProposalView } from './skill-proposal.js';
+import { readTeamSummaryView } from './team-summary.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
@@ -44,6 +45,7 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const innovateProposal = readInnovateProposalView(projectRoot, state);
   const skillProposal = readSkillProposalView(projectRoot, state);
   const learningSummary = readLearningSummaryView(projectRoot, state);
+  const teamSummary = readTeamSummaryView(projectRoot, state);
   return {
     run_id: state.run_id,
     run_status: paused ? 'paused' : state.run_status,
@@ -75,6 +77,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     skill_proposal_error: skillProposal.skill_proposal_error,
     learning_summary: learningSummary.learning_summary,
     learning_summary_error: learningSummary.learning_summary_error,
+    team_summary: teamSummary.team_summary,
+    team_summary_error: teamSummary.team_summary_error,
   };
 }
 

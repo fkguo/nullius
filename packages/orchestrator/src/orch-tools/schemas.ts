@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { type StagedContentType } from '@autoresearch/shared';
 import { type ApprovalGateFilter } from './common.js';
 import { APPROVAL_GATE_FILTER_VALUES, isApprovalGateFilter } from './common.js';
+import { ProposalDecisionSchema, ProposalKindSchema } from './proposal-decision.js';
 import { TeamExecutionConfigSchema } from './team-schemas.js';
 
 const ProjectRootSchema = z
@@ -160,6 +161,14 @@ export const OrchRunRecordVerificationSchema = z.object({
   confidence_level: z.enum(['low', 'medium', 'high']).optional().default('medium').describe('Operator-reported confidence level for the recorded verification result.'),
   confidence_score: z.number().min(0).max(1).optional().describe('Optional confidence score paired with confidence_level.'),
   notes: z.string().optional().describe('Optional operator note recorded into the verification check artifact.'),
+});
+
+export const OrchRunRecordProposalDecisionSchema = z.object({
+  project_root: ProjectRootSchema,
+  proposal_kind: ProposalKindSchema.describe('Current proposal family to record a local decision for.'),
+  proposal_id: z.string().min(1).describe('Proposal id that must match the current proposal artifact for the requested kind.'),
+  decision: ProposalDecisionSchema.describe('Local operator decision to record.'),
+  note: z.string().optional().describe('Optional operator note recorded into the local decision store.'),
 });
 
 export const OrchRunStatusSchema = z.object({

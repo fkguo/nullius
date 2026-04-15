@@ -10,6 +10,7 @@ import {
   runApproveCommand,
   runFinalConclusionsCommand,
   runPauseCommand,
+  runProposalDecisionCommand,
   runResumeCommand,
   runStatusCommand,
   runVerifyCommand,
@@ -55,6 +56,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
   }
   if (parsed.command === 'final-conclusions') {
     await runFinalConclusionsCommand(projectRoot, parsed.runId, parsed.note, io);
+    return 0;
+  }
+  if (parsed.command === 'proposal-decision') {
+    await runProposalDecisionCommand(projectRoot, parsed, io);
     return 0;
   }
   if (parsed.command === 'status') {

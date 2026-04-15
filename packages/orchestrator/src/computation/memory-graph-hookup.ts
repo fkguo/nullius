@@ -57,6 +57,9 @@ export async function recordComputationResultToMemoryGraph(params: {
 }): Promise<{
   repairProposalPath: string | null;
   repairProposalId: string | null;
+  repairProposalSuppressed: boolean;
+  repairSuppressionDecision: string | null;
+  repairProposalFingerprint: string | null;
 }> {
   const result = params.computationResult;
   const signals = [
@@ -87,9 +90,13 @@ export async function recordComputationResultToMemoryGraph(params: {
     signals,
     computationResult: result,
   });
+  const suppressedProposal = proposal && !('proposalPath' in proposal) ? proposal : null;
   return {
-    repairProposalPath: proposal?.proposalPath ?? null,
-    repairProposalId: proposal?.proposal.proposal_id ?? null,
+    repairProposalPath: proposal && 'proposalPath' in proposal ? proposal.proposalPath : null,
+    repairProposalId: proposal && 'proposal' in proposal ? proposal.proposal.proposal_id : null,
+    repairProposalSuppressed: Boolean(suppressedProposal?.suppressed),
+    repairSuppressionDecision: suppressedProposal?.decision ?? null,
+    repairProposalFingerprint: suppressedProposal?.proposalFingerprint ?? null,
   };
 }
 

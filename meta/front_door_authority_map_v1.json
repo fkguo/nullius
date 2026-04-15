@@ -25,6 +25,10 @@
           "usage": "autoresearch final-conclusions --run-id <id> [--note \"...\"]"
         },
         {
+          "command": "proposal-decision",
+          "usage": "autoresearch proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [--note \"...\"]"
+        },
+        {
           "command": "status",
           "usage": "autoresearch status [--json]"
         },

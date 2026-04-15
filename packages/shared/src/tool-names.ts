@@ -85,6 +85,7 @@ export const ORCH_RUN_EXECUTE_MANIFEST = 'orch_run_execute_manifest' as const;
 export const ORCH_RUN_PROGRESS_FOLLOWUPS = 'orch_run_progress_followups' as const;
 export const ORCH_RUN_REQUEST_FINAL_CONCLUSIONS = 'orch_run_request_final_conclusions' as const;
 export const ORCH_RUN_RECORD_VERIFICATION = 'orch_run_record_verification' as const;
+export const ORCH_RUN_RECORD_PROPOSAL_DECISION = 'orch_run_record_proposal_decision' as const;
 export const ORCH_POLICY_QUERY = 'orch_policy_query' as const;
 export const ORCH_FLEET_STATUS = 'orch_fleet_status' as const;
 export const ORCH_FLEET_ENQUEUE = 'orch_fleet_enqueue' as const;

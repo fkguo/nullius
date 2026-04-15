@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ComputationManifestV1, ComputationResultV1, MutationProposalV1 } from '@autoresearch/shared';
 import { writeJsonAtomic } from './io.js';
+import { mutationProposalFingerprint, shouldSuppressProposal } from '../proposal-decisions.js';
 
 function packageSignature(manifest: ComputationManifestV1): { workflowSignature: string; packageNames: string[]; toolNames: string[]; ecosystems: string[] } | null {
   const packageNames = [
@@ -95,8 +96,8 @@ export function maybeGenerateOpportunityProposals(params: {
   manifest: ComputationManifestV1;
   computationResult: ComputationResultV1;
 }): {
-  optimize: { proposalPath: string; proposal: MutationProposalV1 } | null;
-  innovate: { proposalPath: string; proposal: MutationProposalV1 } | null;
+  optimize: { proposalPath: string; proposal: MutationProposalV1 } | { suppressed: true; proposalFingerprint: string; decision: string } | null;
+  innovate: { proposalPath: string; proposal: MutationProposalV1 } | { suppressed: true; proposalFingerprint: string; decision: string } | null;
 } {
   if (params.computationResult.execution_status !== 'completed') {
     return { optimize: null, innovate: null };
@@ -110,7 +111,7 @@ export function maybeGenerateOpportunityProposals(params: {
     workflowSignature: signature.workflowSignature,
   });
 
-  let optimize: { proposalPath: string; proposal: MutationProposalV1 } | null = null;
+  let optimize: { proposalPath: string; proposal: MutationProposalV1 } | { suppressed: true; proposalFingerprint: string; decision: string } | null = null;
   if (stats.exactMatches.length >= 3) {
     const proposal = buildProposal({
       kind: 'optimize',
@@ -122,12 +123,26 @@ export function maybeGenerateOpportunityProposals(params: {
         ...signature.packageNames,
       ],
     });
-    const proposalPath = mutationArtifactPath(params.projectRoot, params.runId, 'optimize');
-    writeJsonAtomic(proposalPath, proposal);
-    optimize = { proposalPath, proposal };
+    const proposalFingerprint = mutationProposalFingerprint(proposal);
+    const suppression = shouldSuppressProposal({
+      projectRoot: params.projectRoot,
+      proposalKind: 'optimize',
+      proposalFingerprint,
+    });
+    if (suppression.suppressed) {
+      optimize = {
+        suppressed: true,
+        proposalFingerprint,
+        decision: suppression.decision?.decision ?? 'dismissed',
+      };
+    } else {
+      const proposalPath = mutationArtifactPath(params.projectRoot, params.runId, 'optimize');
+      writeJsonAtomic(proposalPath, proposal);
+      optimize = { proposalPath, proposal };
+    }
   }
 
-  let innovate: { proposalPath: string; proposal: MutationProposalV1 } | null = null;
+  let innovate: { proposalPath: string; proposal: MutationProposalV1 } | { suppressed: true; proposalFingerprint: string; decision: string } | null = null;
   if (stats.exactMatches.length >= 4 && signature.ecosystems.length >= 2) {
     const proposal = buildProposal({
       kind: 'innovate',
@@ -140,9 +155,23 @@ export function maybeGenerateOpportunityProposals(params: {
         ...signature.toolNames,
       ],
     });
-    const proposalPath = mutationArtifactPath(params.projectRoot, params.runId, 'innovate');
-    writeJsonAtomic(proposalPath, proposal);
-    innovate = { proposalPath, proposal };
+    const proposalFingerprint = mutationProposalFingerprint(proposal);
+    const suppression = shouldSuppressProposal({
+      projectRoot: params.projectRoot,
+      proposalKind: 'innovate',
+      proposalFingerprint,
+    });
+    if (suppression.suppressed) {
+      innovate = {
+        suppressed: true,
+        proposalFingerprint,
+        decision: suppression.decision?.decision ?? 'dismissed',
+      };
+    } else {
+      const proposalPath = mutationArtifactPath(params.projectRoot, params.runId, 'innovate');
+      writeJsonAtomic(proposalPath, proposal);
+      innovate = { proposalPath, proposal };
+    }
   }
 
   return { optimize, innovate };

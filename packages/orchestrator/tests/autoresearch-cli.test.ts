@@ -182,6 +182,84 @@ describe('autoresearch CLI', () => {
     });
   });
 
+  it('records a proposal decision through the canonical public CLI inventory', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+
+    for (const runId of ['M-PROP-1', 'M-PROP-2']) {
+      const state = manager.readState();
+      state.run_id = runId;
+      state.workflow_id = 'computation';
+      state.run_status = 'running';
+      state.gate_satisfied.A3 = 'A3-0001';
+      manager.saveState(state);
+      const runDir = path.join(projectRoot, runId);
+      const scriptPath = path.join(runDir, 'computation', 'scripts', 'fail.py');
+      const manifestPath = path.join(runDir, 'computation', 'manifest.json');
+      fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+      fs.writeFileSync(scriptPath, "raise SystemExit(1)\n", 'utf-8');
+      fs.writeFileSync(
+        manifestPath,
+        JSON.stringify(
+          {
+            schema_version: 1,
+            entry_point: { script: 'scripts/fail.py', tool: 'python' },
+            steps: [
+              {
+                id: 'fail_step',
+                tool: 'python',
+                script: 'scripts/fail.py',
+                expected_outputs: [],
+              },
+            ],
+            environment: { python_version: '3.11', platform: 'any' },
+            dependencies: { python_packages: ['sympy'] },
+          },
+          null,
+          2,
+        ) + '\n',
+        'utf-8',
+      );
+      await expect(runCli([
+        'run',
+        '--workflow-id', 'computation',
+        '--run-id', runId,
+        '--run-dir', runDir,
+        '--manifest', manifestPath,
+      ], makeIo(projectRoot).io)).resolves.toBe(1);
+    }
+    const current = manager.readState();
+    current.run_id = 'M-PROP-2';
+    current.workflow_id = 'computation';
+    current.run_status = 'failed';
+    const proposalPath = path.join(projectRoot, 'artifacts', 'runs', 'M-PROP-2', 'mutation_proposal_repair_v1.json');
+    const proposal = JSON.parse(fs.readFileSync(proposalPath, 'utf-8')) as { proposal_id: string };
+    current.artifacts = {
+      ...current.artifacts,
+      mutation_proposal_repair_v1: path.join('artifacts', 'runs', 'M-PROP-2', 'mutation_proposal_repair_v1.json'),
+    };
+    manager.saveState(current);
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli([
+      'proposal-decision',
+      '--proposal-kind', 'repair',
+      '--proposal-id', proposal.proposal_id,
+      '--decision', 'dismissed',
+      '--note', 'too noisy',
+    ], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      recorded: true,
+      proposal_kind: 'repair',
+      proposal_id: proposal.proposal_id,
+      decision: 'dismissed',
+      suppress_duplicates: true,
+    });
+  });
+
   it('resolves public stateful workflow plans through the canonical autoresearch front door', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);

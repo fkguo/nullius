@@ -5,6 +5,7 @@ import type { GeneV1, MutationProposalV1 } from '@autoresearch/shared';
 import { createMemoryGraph } from '@autoresearch/shared';
 import type { ComputationResultV1 } from '@autoresearch/shared';
 import { writeJsonAtomic } from './io.js';
+import { mutationProposalFingerprint, shouldSuppressProposal } from '../proposal-decisions.js';
 
 interface GeneLibraryV1 {
   schema_version: 1;
@@ -88,6 +89,11 @@ export async function maybeGenerateRepairProposal(params: {
 }): Promise<{
   proposalPath: string;
   proposal: MutationProposalV1;
+  suppressed?: false;
+} | {
+  suppressed: true;
+  proposalFingerprint: string;
+  decision: string;
 } | null> {
   if (params.computationResult.execution_status !== 'failed') {
     return null;
@@ -148,6 +154,19 @@ export async function maybeGenerateRepairProposal(params: {
     run_id: params.runId,
     created_at: new Date().toISOString(),
   };
+  const proposalFingerprint = mutationProposalFingerprint(proposal);
+  const suppression = shouldSuppressProposal({
+    projectRoot: params.projectRoot,
+    proposalKind: 'repair',
+    proposalFingerprint,
+  });
+  if (suppression.suppressed) {
+    return {
+      suppressed: true,
+      proposalFingerprint,
+      decision: suppression.decision?.decision ?? 'dismissed',
+    };
+  }
 
   const artifactPath = proposalArtifactPath(params.projectRoot, params.runId);
   writeJsonAtomic(artifactPath, proposal);

@@ -3,6 +3,7 @@ export const AUTORESEARCH_PUBLIC_COMMAND_INVENTORY = [
   { command: 'run', usage: 'autoresearch run --workflow-id <id> [options]' },
   { command: 'verify', usage: 'autoresearch verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> [--evidence-path <path> ...]' },
   { command: 'final-conclusions', usage: 'autoresearch final-conclusions --run-id <id> [--note "..."]' },
+  { command: 'proposal-decision', usage: 'autoresearch proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [--note "..."]' },
   { command: 'status', usage: 'autoresearch status [--json]' },
   { command: 'approve', usage: 'autoresearch approve <approval_id> [--note "..."]' },
   { command: 'pause', usage: 'autoresearch pause [--note "..."]' },

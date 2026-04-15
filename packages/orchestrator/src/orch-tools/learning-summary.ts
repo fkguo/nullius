@@ -8,6 +8,10 @@ type LearningSummaryEntry = {
   proposal_id: unknown;
   status: unknown;
   summary: string | null;
+  decision?: unknown;
+  decision_note?: unknown;
+  decision_ts?: unknown;
+  duplicates_suppressed?: boolean;
   top_signals?: string[];
   pattern_kind?: unknown;
 };
@@ -57,6 +61,10 @@ export function readLearningSummaryView(projectRoot: string, state: RunState): {
           proposal_id: repair.repair_mutation_proposal.proposal_id,
           status: repair.repair_mutation_proposal.status,
           summary: whySuggested('repair', repair.repair_mutation_proposal),
+          decision: repair.repair_mutation_proposal.decision ?? null,
+          decision_note: repair.repair_mutation_proposal.decision_note ?? null,
+          decision_ts: repair.repair_mutation_proposal.decision_ts ?? null,
+          duplicates_suppressed: Boolean(repair.repair_mutation_proposal.duplicates_suppressed),
           top_signals: firstSignals(repair.repair_mutation_proposal),
         }
       : null,
@@ -66,6 +74,10 @@ export function readLearningSummaryView(projectRoot: string, state: RunState): {
           proposal_id: skill.skill_proposal.proposal_id,
           status: skill.skill_proposal.status,
           summary: whySuggested('skill', skill.skill_proposal),
+          decision: skill.skill_proposal.decision ?? null,
+          decision_note: skill.skill_proposal.decision_note ?? null,
+          decision_ts: skill.skill_proposal.decision_ts ?? null,
+          duplicates_suppressed: Boolean(skill.skill_proposal.duplicates_suppressed),
           pattern_kind: skill.skill_proposal.trigger && typeof skill.skill_proposal.trigger === 'object'
             ? (skill.skill_proposal.trigger as Record<string, unknown>).pattern_kind ?? null
             : null,
@@ -77,6 +89,10 @@ export function readLearningSummaryView(projectRoot: string, state: RunState): {
           proposal_id: optimize.optimize_mutation_proposal.proposal_id,
           status: optimize.optimize_mutation_proposal.status,
           summary: whySuggested('optimize', optimize.optimize_mutation_proposal),
+          decision: optimize.optimize_mutation_proposal.decision ?? null,
+          decision_note: optimize.optimize_mutation_proposal.decision_note ?? null,
+          decision_ts: optimize.optimize_mutation_proposal.decision_ts ?? null,
+          duplicates_suppressed: Boolean(optimize.optimize_mutation_proposal.duplicates_suppressed),
           top_signals: firstSignals(optimize.optimize_mutation_proposal),
         }
       : null,
@@ -86,6 +102,10 @@ export function readLearningSummaryView(projectRoot: string, state: RunState): {
           proposal_id: innovate.innovate_mutation_proposal.proposal_id,
           status: innovate.innovate_mutation_proposal.status,
           summary: whySuggested('innovate', innovate.innovate_mutation_proposal),
+          decision: innovate.innovate_mutation_proposal.decision ?? null,
+          decision_note: innovate.innovate_mutation_proposal.decision_note ?? null,
+          decision_ts: innovate.innovate_mutation_proposal.decision_ts ?? null,
+          duplicates_suppressed: Boolean(innovate.innovate_mutation_proposal.duplicates_suppressed),
           top_signals: firstSignals(innovate.innovate_mutation_proposal),
         }
       : null,

@@ -26,6 +26,8 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
    - `autoresearch verify --run-id <id>` 与 `orch_run_record_verification` 会为已有 computation run 记录一次 decisive verification 结果，并 materialize `verification_check_run_v1` 与刷新后的 verdict/coverage/check-run refs，让 A5 `pass` 路径在运行时可达。
 1. 更高结论边界工作流
    - `autoresearch final-conclusions --run-id <id>` 与 `orch_run_request_final_conclusions` 会读取 canonical `computation_result_v1` 的 verification refs；只有 higher-conclusion readiness 明确为 `pass` 时才创建 A5 approval request。随后批准该 A5 request 会落一个本地 generic `final_conclusions_v1` artifact，并保持 run 为 `completed`。
+1. 本地 proposal lifecycle 工作流
+   - `autoresearch proposal-decision ...` 与 `orch_run_record_proposal_decision` 会为当前 run 的当前 repair/skill/optimize/innovate proposal 记录一个最小本地决策，用来抑制重复建议，而不引入第二套 approval/runtime 家族。
 1. 本地 outcome 读取工作流
    - `orch_run_status` 与 `orch_run_export` 现在会把当前 run 的 `final_conclusions_v1` 暴露为 local outcome-facing SSOT，而不新增新的 read tool，也不进入 REP surface。
 1. 实验性 idea campaign 工作流

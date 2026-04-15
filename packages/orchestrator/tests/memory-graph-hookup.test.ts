@@ -8,9 +8,13 @@ import { executeComputationManifest } from '../src/computation/index.js';
 import { handleOrchRunApprove } from '../src/orch-tools/approval.js';
 import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
+import { handleOrchRunRecordProposalDecision } from '../src/orch-tools/proposal-decision.js';
 import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { handleOrchRunRecordVerification } from '../src/orch-tools/verification.js';
 import { StateManager } from '../src/state-manager.js';
+import { createTeamExecutionState } from '../src/team-execution-state.js';
+import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
+import type { TeamPermissionMatrix } from '../src/team-execution-types.js';
 
 function makeTempProjectRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-memory-graph-'));
@@ -36,6 +40,11 @@ function makeIo(cwd: string) {
 
 function readJson<T>(filePath: string): T {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
+}
+
+function writeJson(filePath: string, payload: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
 }
 
 function createCompletedFixture(projectRoot: string, runId: string): { runDir: string; manifestPath: string } {
@@ -131,6 +140,24 @@ async function prepareCompletedRun(projectRoot: string, runId: string) {
   expect(JSON.parse(stdout.join(''))).toMatchObject({ status: 'completed', run_id: runId });
   return { manager, runDir, runId };
 }
+
+const TEAM_PERMISSIONS: TeamPermissionMatrix = {
+  delegation: [
+    {
+      from_role: 'lead',
+      to_role: 'delegate',
+      allowed_task_kinds: ['compute', 'review'],
+      allowed_handoff_kinds: ['compute', 'review'],
+    },
+  ],
+  interventions: [
+    {
+      actor_role: 'lead',
+      allowed_scopes: ['task', 'team'],
+      allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
+    },
+  ],
+};
 
 describe('memory-graph hookup', () => {
   it('records compute failure and dependency/package signals into the control-plane memory graph', async () => {
@@ -277,6 +304,103 @@ describe('memory-graph hookup', () => {
     expect(manager.readState().artifacts.mutation_proposal_repair_v1).toBe('artifacts/runs/run-memory-repeat-b/mutation_proposal_repair_v1.json');
   });
 
+  it.each([
+    'accepted_for_later',
+    'dismissed',
+    'already_captured',
+  ] as const)('records repair proposal decision %s and suppresses future duplicates', async (decision) => {
+    const projectRoot = makeTempProjectRoot();
+    for (const runId of ['run-decision-a', 'run-decision-b']) {
+      const manager = new StateManager(projectRoot);
+      manager.ensureDirs();
+      const state = manager.readState();
+      state.run_id = runId;
+      state.workflow_id = 'computation';
+      state.run_status = 'running';
+      state.gate_satisfied.A3 = 'A3-0001';
+      manager.saveState(state);
+      const { runDir, manifestPath } = createFailedFixture(projectRoot, runId);
+      const result = await executeComputationManifest({ projectRoot, runId, runDir, manifestPath });
+      expect(result.status).toBe('failed');
+    }
+
+    const proposalPath = path.join(projectRoot, 'artifacts', 'runs', 'run-decision-b', 'mutation_proposal_repair_v1.json');
+    const proposal = readJson<Record<string, unknown>>(proposalPath);
+    const payload = await handleOrchRunRecordProposalDecision({
+      project_root: projectRoot,
+      proposal_kind: 'repair',
+      proposal_id: String(proposal.proposal_id),
+      decision,
+      note: 'operator choice',
+    }) as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      recorded: true,
+      proposal_kind: 'repair',
+      proposal_id: proposal.proposal_id,
+      decision,
+      suppress_duplicates: true,
+    });
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.repair_mutation_proposal).toMatchObject({
+      decision,
+      decision_note: 'operator choice',
+      duplicates_suppressed: true,
+    });
+    expect(statusView.learning_summary).toMatchObject({
+      entries: expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'repair',
+          decision,
+          duplicates_suppressed: true,
+        }),
+      ]),
+    });
+
+    const manager = new StateManager(projectRoot);
+    const state = manager.readState();
+    state.run_id = 'run-decision-c';
+    state.workflow_id = 'computation';
+    state.run_status = 'running';
+    state.gate_satisfied.A3 = 'A3-0001';
+    manager.saveState(state);
+    const { runDir, manifestPath } = createFailedFixture(projectRoot, 'run-decision-c');
+    const result = await executeComputationManifest({
+      projectRoot,
+      runId: 'run-decision-c',
+      runDir,
+      manifestPath,
+    });
+    expect(result.status).toBe('failed');
+    expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', 'run-decision-c', 'mutation_proposal_repair_v1.json'))).toBe(false);
+
+    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    expect(ledger).toContain('"event_type":"proposal_suppressed"');
+    expect(ledger).toContain(`"suppression_decision":"${decision}"`);
+  });
+
+  it('fails closed when proposal-decision proposal_id does not match the current proposal pointer', async () => {
+    const projectRoot = makeTempProjectRoot();
+    for (const runId of ['run-decision-x', 'run-decision-y']) {
+      const manager = new StateManager(projectRoot);
+      manager.ensureDirs();
+      const state = manager.readState();
+      state.run_id = runId;
+      state.workflow_id = 'computation';
+      state.run_status = 'running';
+      state.gate_satisfied.A3 = 'A3-0001';
+      manager.saveState(state);
+      const { runDir, manifestPath } = createFailedFixture(projectRoot, runId);
+      await executeComputationManifest({ projectRoot, runId, runDir, manifestPath });
+    }
+    await expect(handleOrchRunRecordProposalDecision({
+      project_root: projectRoot,
+      proposal_kind: 'repair',
+      proposal_id: 'mp_wrong',
+      decision: 'dismissed',
+    })).rejects.toThrow(/proposal_id does not match/i);
+  });
+
   it('emits a local skill proposal after repeated successful package-usage workflows and surfaces it via status/export', async () => {
     const projectRoot = makeTempProjectRoot();
     for (const runId of ['run-skill-a', 'run-skill-b']) {
@@ -408,6 +532,82 @@ describe('memory-graph hookup', () => {
           summary: expect.stringContaining('innovation opportunity'),
         }),
       ]),
+    });
+  });
+
+  it('adds a compact team summary when team state exists for the current run', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const runId = 'run-team-summary';
+    const { manager } = await prepareCompletedRun(projectRoot, runId);
+    const teamState = createTeamExecutionState({
+      workspace_id: `ws-${runId}`,
+      coordination_policy: 'supervised_delegate',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-1',
+        task_kind: 'compute',
+        handoff_kind: 'compute',
+      },
+      permissions: TEAM_PERMISSIONS,
+    }, runId);
+    teamState.delegate_assignments[0]!.status = 'running';
+    teamState.checkpoints.push({
+      checkpoint_id: 'cp-1',
+      assignment_id: teamState.delegate_assignments[0]!.assignment_id,
+      task_id: 'task-1',
+      handoff_id: null,
+      last_completed_step: null,
+      resume_from: null,
+      updated_at: new Date().toISOString(),
+    });
+    new TeamExecutionStateManager(projectRoot).save(teamState);
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.team_summary).toMatchObject({
+      workspace_id: `ws-${runId}`,
+      coordination_policy: 'supervised_delegate',
+      active_assignment_count: 1,
+      checkpoint_count: 1,
+      active_assignments: [
+        expect.objectContaining({
+          task_id: 'task-1',
+          task_kind: 'compute',
+          status: 'running',
+          delegate_id: 'delegate-1',
+        }),
+      ],
+    });
+    expect(statusView.team_summary_error).toBeNull();
+  });
+
+  it('returns a structured team summary error when delegated-team trace exists but team state is missing', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const runId = 'run-team-missing';
+    const { runDir } = await prepareCompletedRun(projectRoot, runId);
+    const resultPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
+    const result = readJson<Record<string, unknown>>(resultPath);
+    const workspaceFeedback = result.workspace_feedback as Record<string, unknown>;
+    const tasks = workspaceFeedback.tasks as Array<Record<string, unknown>>;
+    tasks[0] = {
+      ...tasks[0],
+      metadata: {
+        ...((tasks[0]?.metadata as Record<string, unknown> | undefined) ?? {}),
+        team_execution: {
+          assignment_id: 'assign-1',
+          delegate_id: 'delegate-1',
+          handoff_kind: 'compute',
+        },
+      },
+    };
+    result.workspace_feedback = workspaceFeedback;
+    writeJson(resultPath, result);
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.team_summary).toBeNull();
+    expect(statusView.team_summary_error).toMatchObject({
+      code: 'TEAM_SUMMARY_MISSING',
     });
   });
 });

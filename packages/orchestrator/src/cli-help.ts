@@ -98,6 +98,22 @@ Behavior:
 Output:
   JSON readiness or approval-request result is written to stdout.
 `,
+  'proposal-decision': `autoresearch proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [options]
+
+Record one local decision for the current run's current proposal.
+
+Options:
+  --proposal-kind <repair|skill|optimize|innovate>
+  --proposal-id <id>
+  --decision <accepted_for_later|dismissed|already_captured>
+  --note "..."          Optional operator note
+
+Behavior:
+  Requires an initialized external project root (\`autoresearch init\`).
+  Validates that the current run has a matching current proposal artifact for the requested kind.
+  Writes local decision memory into \`.autoresearch/proposal_decisions_v1.json\`.
+  Does not mutate the proposal artifact itself.
+`,
   status: `autoresearch status
 
 Show the current lifecycle state for the nearest project root.

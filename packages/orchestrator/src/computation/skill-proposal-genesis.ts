@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ComputationManifestV1, ComputationResultV1, SkillProposalV2 } from '@autoresearch/shared';
 import { writeJsonAtomic } from './io.js';
+import { shouldSuppressProposal, skillProposalFingerprint } from '../proposal-decisions.js';
 
 function proposalArtifactPath(projectRoot: string, runId: string): string {
   return path.join(projectRoot, 'artifacts', 'runs', runId, 'skill_proposal_v2.json');
@@ -76,6 +77,11 @@ export function maybeGenerateSkillProposal(params: {
 }): {
   proposalPath: string;
   proposal: SkillProposalV2;
+  suppressed?: false;
+} | {
+  suppressed: true;
+  proposalFingerprint: string;
+  decision: string;
 } | null {
   if (params.computationResult.execution_status !== 'completed') {
     return null;
@@ -147,6 +153,19 @@ export function maybeGenerateSkillProposal(params: {
     status: 'pending_review',
     created_at: new Date().toISOString(),
   };
+  const proposalFingerprint = skillProposalFingerprint(proposal);
+  const suppression = shouldSuppressProposal({
+    projectRoot: params.projectRoot,
+    proposalKind: 'skill',
+    proposalFingerprint,
+  });
+  if (suppression.suppressed) {
+    return {
+      suppressed: true,
+      proposalFingerprint,
+      decision: suppression.decision?.decision ?? 'dismissed',
+    };
+  }
 
   const artifactPath = proposalArtifactPath(params.projectRoot, params.runId);
   writeJsonAtomic(artifactPath, proposal);

@@ -4,6 +4,7 @@ import {
   ORCH_RUN_EXECUTE_MANIFEST,
   ORCH_RUN_PLAN_COMPUTATION,
   ORCH_RUN_PROGRESS_FOLLOWUPS,
+  ORCH_RUN_RECORD_PROPOSAL_DECISION,
   ORCH_RUN_RECORD_VERIFICATION,
   ORCH_RUN_REQUEST_FINAL_CONCLUSIONS,
   ORCH_POLICY_QUERY,
@@ -25,6 +26,7 @@ import {
   handleOrchRunReject,
 } from './approval.js';
 import { handleOrchRunRequestFinalConclusions } from './final-conclusions.js';
+import { handleOrchRunRecordProposalDecision } from './proposal-decision.js';
 import { handleOrchRunRecordVerification } from './verification.js';
 import { handleOrchRunExecuteAgent, type AgentToolHandlerContext } from './agent-runtime.js';
 import {
@@ -54,6 +56,7 @@ import {
   OrchRunCreateSchema,
   OrchRunExecuteManifestSchema,
   OrchRunProgressFollowupsSchema,
+  OrchRunRecordProposalDecisionSchema,
   OrchRunRecordVerificationSchema,
   OrchRunRequestFinalConclusionsSchema,
   OrchRunExportSchema,
@@ -136,6 +139,14 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     description: 'Evaluate the canonical computation_result_v1 verification truth for a completed run and, only when higher-conclusion readiness is a decisive pass, create an A5 final-conclusions approval request under the existing generic approval substrate (local-only).',
     zodSchema: OrchRunRequestFinalConclusionsSchema,
     handler: async params => handleOrchRunRequestFinalConclusions(params as z.output<typeof OrchRunRequestFinalConclusionsSchema>),
+  },
+  {
+    name: ORCH_RUN_RECORD_PROPOSAL_DECISION,
+    tier: 'core',
+    exposure: 'full',
+    description: "Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into .autoresearch/proposal_decisions_v1.json (local-only).",
+    zodSchema: OrchRunRecordProposalDecisionSchema,
+    handler: async params => handleOrchRunRecordProposalDecision(params as z.output<typeof OrchRunRecordProposalDecisionSchema>),
   },
   {
     name: ORCH_RUN_RECORD_VERIFICATION,

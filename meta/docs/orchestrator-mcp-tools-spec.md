@@ -35,6 +35,7 @@
 | `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and a run-local `computation/manifest.json`, preferring provider-backed materialization when the staged surface carries an explicit method bundle |
 | `orch_run_execute_manifest` | `destructive` | Execute an approved run-local `computation_manifest_v1` from an existing run directory |
 | `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
+| `orch_run_record_proposal_decision` | `write` | Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into `.autoresearch/proposal_decisions_v1.json` |
 | `orch_run_record_verification` | `write` | Record one decisive verification result for an existing computation run, materializing `verification_check_run_v1` plus refreshed verdict/coverage/check-run refs |
 | `orch_run_request_final_conclusions` | `write` | Evaluate canonical computation-result verification truth and create an A5 final-conclusions approval request only when higher-conclusion readiness is a decisive pass |
 | `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json`, including current-run `final_conclusions_v1` summary when present |
@@ -119,6 +120,7 @@ Agent / operator
   ├──► orch_run_plan_computation(...)                   → compile staged idea into execution plan + run-local manifest
   ├──► orch_run_execute_manifest(...)                   → execute approved run-local computation manifest
   ├──► orch_run_progress_followups(...)                 → advance one feedback/literature or writing/review continuation
+  ├──► orch_run_record_proposal_decision(...)           → record local decision memory for the current proposal
   ├──► orch_run_record_verification(...)                → record decisive verification truth for the canonical computation result
   ├──► orch_run_request_final_conclusions(...)          → request A5 only when canonical verification truth decisively passes
   ├──► orch_run_status(project_root)                    → lifecycle snapshot
@@ -191,6 +193,7 @@ For the higher-conclusion boundary:
 
 Current live approval producers include:
 - `orch_run_execute_manifest` for A3 compute execution
+- `orch_run_record_proposal_decision` for local proposal lifecycle closure without a second approval family
 - `orch_run_record_verification` for runtime decisive verification truth that can unlock A5 pass
 - `orch_run_request_final_conclusions` for the first A5 higher-conclusion boundary consumer
 

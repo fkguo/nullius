@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { handleOrchRunApprove } from './orch-tools/approval.js';
 import { createStateManager, requireState } from './orch-tools/common.js';
 import { handleOrchRunRequestFinalConclusions } from './orch-tools/final-conclusions.js';
+import { handleOrchRunRecordProposalDecision } from './orch-tools/proposal-decision.js';
 import { handleOrchRunRecordVerification } from './orch-tools/verification.js';
 import { handleOrchRunPause, handleOrchRunResume } from './orch-tools/control.js';
 import { handleOrchRunStatus } from './orch-tools/create-status-list.js';
@@ -108,6 +109,21 @@ export async function runFinalConclusionsCommand(
     project_root: projectRoot,
     run_id: runId,
     ...(note ? { note } : {}),
+  });
+  writeJson(io, payload);
+}
+
+export async function runProposalDecisionCommand(
+  projectRoot: string,
+  parsed: Extract<ParsedCliArgs, { command: 'proposal-decision' }>,
+  io: CliIo,
+): Promise<void> {
+  const payload = await handleOrchRunRecordProposalDecision({
+    project_root: projectRoot,
+    proposal_kind: parsed.proposalKind,
+    proposal_id: parsed.proposalId,
+    decision: parsed.decision,
+    ...(parsed.note ? { note: parsed.note } : {}),
   });
   writeJson(io, payload);
 }

@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { RunState } from '../types.js';
 import type { SkillProposalV2 } from '@autoresearch/shared';
 import { invalidParams } from '@autoresearch/shared';
+import { decisionOverlayForFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
 
 function readSkillProposalPointer(state: RunState): string | null {
   const pointer = state.artifacts?.skill_proposal_v2;
@@ -42,6 +43,11 @@ export function readSkillProposalView(projectRoot: string, state: RunState): {
       };
     }
     const proposal = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as SkillProposalV2;
+    const overlay = decisionOverlayForFingerprint({
+      projectRoot,
+      proposalKind: 'skill',
+      proposalFingerprint: skillProposalFingerprint(proposal),
+    });
     return {
       skill_proposal: {
         artifact_path: pointer,
@@ -54,8 +60,12 @@ export function readSkillProposalView(projectRoot: string, state: RunState): {
         trigger: proposal.trigger,
         action: proposal.action,
         created_at: proposal.created_at,
+        decision: overlay.decision,
+        decision_note: overlay.decision_note,
+        decision_ts: overlay.decision_ts,
+        duplicates_suppressed: overlay.duplicates_suppressed,
       },
-      skill_proposal_error: null,
+      skill_proposal_error: overlay.error,
     };
   } catch (error) {
     return {
