@@ -324,6 +324,16 @@ describe('memory-graph hookup', () => {
       status: 'pending_review',
     });
     expect(exportView.current_run_skill_proposal_error).toBeNull();
+    expect(exportView.current_run_learning_summary).toMatchObject({
+      proposal_count: 1,
+      entries: [
+        expect.objectContaining({
+          kind: 'skill',
+          summary: expect.stringContaining('package/workflow pattern'),
+          pattern_kind: 'package_usage_pattern',
+        }),
+      ],
+    });
   });
 
   it('emits local optimize/innovate mutation proposals after repeated successful workflows and surfaces them via status/export', async () => {
@@ -381,6 +391,23 @@ describe('memory-graph hookup', () => {
       mutation_type: 'innovate',
       gate_level: 'A2',
       status: 'proposed',
+    });
+    expect(exportView.current_run_learning_summary).toMatchObject({
+      proposal_count: 3,
+      entries: expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'skill',
+          summary: expect.stringContaining('package/workflow pattern'),
+        }),
+        expect.objectContaining({
+          kind: 'optimize',
+          summary: expect.stringContaining('optimization opportunity'),
+        }),
+        expect.objectContaining({
+          kind: 'innovate',
+          summary: expect.stringContaining('innovation opportunity'),
+        }),
+      ]),
     });
   });
 });

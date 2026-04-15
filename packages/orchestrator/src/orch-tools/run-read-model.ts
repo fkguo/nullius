@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { invalidParams } from '@autoresearch/shared';
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
+import { readLearningSummaryView } from './learning-summary.js';
 import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
 import { readSkillProposalView } from './skill-proposal.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
@@ -42,6 +43,7 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const optimizeProposal = readOptimizeProposalView(projectRoot, state);
   const innovateProposal = readInnovateProposalView(projectRoot, state);
   const skillProposal = readSkillProposalView(projectRoot, state);
+  const learningSummary = readLearningSummaryView(projectRoot, state);
   return {
     run_id: state.run_id,
     run_status: paused ? 'paused' : state.run_status,
@@ -71,6 +73,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     innovate_mutation_proposal_error: innovateProposal.innovate_mutation_proposal_error,
     skill_proposal: skillProposal.skill_proposal,
     skill_proposal_error: skillProposal.skill_proposal_error,
+    learning_summary: learningSummary.learning_summary,
+    learning_summary_error: learningSummary.learning_summary_error,
   };
 }
 

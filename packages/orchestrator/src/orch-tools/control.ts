@@ -11,6 +11,7 @@ import {
   requireState,
 } from './common.js';
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
+import { readLearningSummaryView } from './learning-summary.js';
 import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
 import { readSkillProposalView } from './skill-proposal.js';
 import {
@@ -52,6 +53,7 @@ export async function handleOrchRunExport(
       const optimizeProposal = readOptimizeProposalView(projectRoot, state);
       const innovateProposal = readInnovateProposalView(projectRoot, state);
       const skillProposal = readSkillProposalView(projectRoot, state);
+      const learningSummary = readLearningSummaryView(projectRoot, state);
       result.current_run_final_conclusions = finalConclusions.final_conclusions;
       result.current_run_final_conclusions_error = finalConclusions.final_conclusions_error;
       result.current_run_research_outcome_projection = researchOutcomeProjection.research_outcome_projection;
@@ -64,6 +66,8 @@ export async function handleOrchRunExport(
       result.current_run_innovate_mutation_proposal_error = innovateProposal.innovate_mutation_proposal_error;
       result.current_run_skill_proposal = skillProposal.skill_proposal;
       result.current_run_skill_proposal_error = skillProposal.skill_proposal_error;
+      result.current_run_learning_summary = learningSummary.learning_summary;
+      result.current_run_learning_summary_error = learningSummary.learning_summary_error;
     }
   }
   return {
