@@ -64,9 +64,11 @@ export {
 export {
   SemanticAssessmentBackendSchema,
   SemanticAssessmentStatusSchema,
+  SemanticAssessmentAuthoritySchema,
   SemanticAssessmentProvenanceSchema,
   type SemanticAssessmentBackend,
   type SemanticAssessmentStatus,
+  type SemanticAssessmentAuthority,
   type SemanticAssessmentProvenance,
 } from './semantic-assessment.js';
 

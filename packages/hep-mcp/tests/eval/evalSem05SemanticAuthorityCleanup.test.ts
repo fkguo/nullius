@@ -57,11 +57,11 @@ async function runSem05Case(input: Sem05Input): Promise<Sem05Actual> {
       return {
         paper_type: result.paper_type,
         paper_type_reason_code: result.paper_type_provenance.reason_code,
-        paper_type_used_fallback: result.paper_type_provenance.used_fallback,
+        paper_type_authority: result.paper_type_provenance.authority,
         review_decision: result.review_classification.decision,
         conference_decision: result.conference_classification.decision,
         conference_reason_code: result.conference_classification.provenance.reason_code,
-        used_fallback: result.review_classification.provenance.used_fallback,
+        authority: result.review_classification.provenance.authority,
         reason_code: result.review_classification.provenance.reason_code,
       };
     }
@@ -69,7 +69,7 @@ async function runSem05Case(input: Sem05Input): Promise<Sem05Actual> {
       const result = classifyContentType(makePaper(input.paper));
       return {
         content_type: result.content_type,
-        used_fallback: result.provenance.used_fallback,
+        authority: result.provenance.authority,
         reason_code: result.provenance.reason_code,
       };
     }
@@ -80,7 +80,7 @@ async function runSem05Case(input: Sem05Input): Promise<Sem05Actual> {
         paper_type: result.paper_type,
         reliability_score: result.reliability_score,
         red_flag_types: result.red_flags.map(flag => flag.type),
-        used_fallback: result.provenance.used_fallback,
+        authority: result.provenance.authority,
         reason_code: result.provenance.reason_code,
       };
     }
@@ -90,7 +90,7 @@ async function runSem05Case(input: Sem05Input): Promise<Sem05Actual> {
       return {
         fragility_score: result.analysis?.fragility_score ?? null,
         risk_level: result.risk_assessment?.level ?? null,
-        used_fallback: result.provenance?.used_fallback ?? null,
+        authority: result.provenance?.authority ?? null,
         reason_code: result.provenance?.reason_code ?? null,
       };
     }

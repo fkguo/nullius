@@ -11,7 +11,7 @@ describe('SemanticAssessmentProvenanceSchema', () => {
     const result = SemanticAssessmentProvenanceSchema.parse({
       backend: 'mcp_sampling',
       status: 'applied',
-      used_fallback: false,
+      authority: 'semantic_conclusion',
       reason_code: 'semantic_assessment',
       prompt_version: 'sem05_review_authority_v2',
       input_hash: 'abc123',
@@ -23,24 +23,24 @@ describe('SemanticAssessmentProvenanceSchema', () => {
     expect(result.signals).toEqual(['document_type']);
   });
 
-  it('accepts unavailable fallback provenance', () => {
+  it('accepts unavailable diagnostic provenance', () => {
     const result = SemanticAssessmentProvenanceSchema.parse({
-      backend: 'diagnostic_fallback',
+      backend: 'diagnostic',
       status: 'unavailable',
-      used_fallback: true,
+      authority: 'unavailable',
       reason_code: 'sampling_unavailable',
     });
 
     expect(result.status).toBe('unavailable');
-    expect(result.used_fallback).toBe(true);
+    expect(result.authority).toBe('unavailable');
   });
 
   it('rejects empty reason codes', () => {
     expect(() =>
       SemanticAssessmentProvenanceSchema.parse({
         backend: 'metadata',
-        status: 'metadata',
-        used_fallback: false,
+        status: 'diagnostic',
+        authority: 'diagnostic_prior',
         reason_code: '',
       }),
     ).toThrow();

@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { runCommand, type RunCommandInput } from '../src/cli-run.js';
+import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { StateManager } from '../src/state-manager.js';
 
 function makeTempProjectRoot(): string {
@@ -170,6 +171,65 @@ describe('workflow run consumer', () => {
     const steps = ((manager.readState().plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
     expect(steps[0]).toMatchObject({ step_id: 'critical_review', status: 'completed' });
     expect(steps[1]).toMatchObject({ step_id: 'export_project', status: 'completed' });
+  });
+
+  it('projects bounded workflow outputs into run status even when no artifact uri is returned', async () => {
+    const projectRoot = makeTempProjectRoot();
+    persistWorkflowPlan(projectRoot);
+    const callTool = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        isError: false,
+        rawText: '{"paper_recid":"1234","success":true}',
+        json: {
+          paper_recid: '1234',
+          success: true,
+          integrated_assessment: { verdict: 'RELIABLE' },
+        },
+        errorCode: null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        isError: false,
+        rawText: '{"uri":"hep://runs/M-WF-1/artifact/research_pack.zip"}',
+        json: { uri: 'hep://runs/M-WF-1/artifact/research_pack.zip' },
+        errorCode: null,
+      });
+
+    const { io } = makeIo(projectRoot);
+    const code = await runCommand(
+      makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'),
+      io,
+      { workflowToolCaller: { callTool } },
+    );
+
+    expect(code).toBe(0);
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView).toMatchObject({
+      artifacts: {
+        research_pack: 'hep://runs/M-WF-1/artifact/research_pack.zip',
+      },
+      workflow_outputs: {
+        critical_analysis: {
+          step_id: 'critical_review',
+          tool: 'inspire_critical_analysis',
+          runtime_status: 'completed',
+          artifact_uri: null,
+          payload_truncated: false,
+          payload: {
+            paper_recid: '1234',
+            success: true,
+            integrated_assessment: { verdict: 'RELIABLE' },
+          },
+        },
+        research_pack: {
+          step_id: 'export_project',
+          tool: 'hep_export_project',
+          runtime_status: 'completed',
+          artifact_uri: 'hep://runs/M-WF-1/artifact/research_pack.zip',
+        },
+      },
+    });
   });
 
   it('fails closed when a later pending step becomes dependency-blocked during bounded progression', async () => {

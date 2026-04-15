@@ -37,6 +37,7 @@ export function baseState(overrides: Partial<RunState> = {}): RunState {
     gate_satisfied: {},
     approval_history: [],
     artifacts: {},
+    workflow_outputs: {},
     notes: '',
     ...overrides,
   };

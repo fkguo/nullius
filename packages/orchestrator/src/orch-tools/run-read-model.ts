@@ -328,6 +328,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
         }
       : null,
     gate_satisfied: state.gate_satisfied ?? {},
+    artifacts: state.artifacts ?? {},
+    workflow_outputs: state.workflow_outputs ?? {},
     notes: state.notes ?? '',
     uri: state.run_id ? `orch://runs/${state.run_id}` : null,
     is_paused: paused,

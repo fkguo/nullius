@@ -18,6 +18,13 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Approval gates A1–A5 stay active unless the project owner explicitly changes policy in `docs/APPROVAL_GATES.md`.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 
+## Markdown and links
+
+- Prefer Markdown links over bare URLs in project docs and agent notes.
+- Use relative Markdown links for files inside the project so the scaffold remains portable across machines.
+- Keep link labels semantic and stable; avoid dumping raw paths inline when a short label is clearer.
+- When citing artifacts or outputs in Markdown, point to the canonical project-relative path or artifact URI instead of prose-only references.
+
 ## Restart trigger
 
 When this project also has research-team host surfaces, run one deterministic preflight before the next team cycle:

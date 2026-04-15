@@ -59,7 +59,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(classified.review_classification.decision).toBe('uncertain');
     expect(classified.paper_type).toBe('uncertain');
     expect(classified.review_classification.provenance.reason_code).toBe('review_metadata_prior');
-    expect(classified.review_classification.provenance.used_fallback).toBe(true);
+    expect(classified.review_classification.provenance.authority).toBe('diagnostic_prior');
   });
 
   it('keeps explicit conference metadata as a diagnostic prior instead of final authority', () => {
@@ -73,7 +73,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(classified.paper_type).toBe('uncertain');
     expect(classified.conference_classification.provenance.reason_code).toBe('conference_metadata_prior');
     expect(classified.paper_type_provenance.reason_code).toBe('conference_metadata_prior');
-    expect(classified.conference_classification.provenance.used_fallback).toBe(true);
+    expect(classified.conference_classification.provenance.authority).toBe('diagnostic_prior');
   });
 
   it('keeps arxiv category content labels as priors only', () => {
@@ -86,7 +86,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(content.content_type).toBe('uncertain');
     expect(content.theoretical_score).toBe(1);
     expect(content.provenance.reason_code).toBe('theoretical_arxiv_prior');
-    expect(content.provenance.used_fallback).toBe(true);
+    expect(content.provenance.authority).toBe('diagnostic_prior');
   });
 
   it('returns unavailable review records instead of dropping fetch failures', async () => {
@@ -103,7 +103,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.classifications[0]?.provenance.status).toBe('unavailable');
   });
 
-  it('marks review sampling errors as unavailable fallback provenance', async () => {
+  it('marks review sampling errors as unavailable semantic provenance', async () => {
     vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({
       recid: '3003',
       title: 'Explicit review metadata',
@@ -133,7 +133,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.reliability_score).toBeNull();
     expect(result.red_flags.some(flag => flag.type === 'excessive_claims')).toBe(false);
     expect(result.provenance.reason_code).toBe('sampling_required');
-    expect(result.provenance.used_fallback).toBe(false);
+    expect(result.provenance.authority).toBe('unavailable');
   });
 
   it('returns unavailable provenance when critical-question sampling fails', async () => {
@@ -179,6 +179,6 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.success).toBe(false);
     expect(result.analysis).toBeNull();
     expect(result.provenance?.reason_code).toBe('sampling_required');
-    expect(result.provenance?.used_fallback).toBe(false);
+    expect(result.provenance?.authority).toBe('unavailable');
   });
 });

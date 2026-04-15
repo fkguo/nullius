@@ -167,7 +167,7 @@ export async function traceToOriginal(
       provenance: {
         backend: firstReviewClassification.provenance.backend,
         status: 'applied',
-        used_fallback: false,
+        authority: 'semantic_conclusion',
         reason_code: 'review_article_not_traceable',
         prompt_version: firstReviewClassification.provenance.prompt_version,
         input_hash: firstReviewClassification.provenance.input_hash,
@@ -186,9 +186,9 @@ export async function traceToOriginal(
       paper,
       reason: 'Semantic provenance adjudication requires MCP sampling support.',
       provenance: {
-        backend: 'diagnostic_fallback',
+        backend: 'diagnostic',
         status: 'unavailable',
-        used_fallback: true,
+        authority: 'unavailable',
         reason_code: 'sampling_unavailable',
       },
       candidate_count: Math.min(searchResult.papers.length, max_candidates),
@@ -208,9 +208,9 @@ export async function traceToOriginal(
       paper,
       reason: 'No bounded provenance candidates were found.',
       provenance: {
-        backend: 'diagnostic_fallback',
-        status: 'fallback',
-        used_fallback: true,
+        backend: 'diagnostic',
+        status: 'unavailable',
+        authority: 'unavailable',
         reason_code: 'no_candidates_found',
       },
       candidate_count: 0,
@@ -237,9 +237,9 @@ export async function traceToOriginal(
       paper,
       reason: 'Semantic provenance adjudication requires MCP sampling support.',
       provenance: {
-        backend: 'diagnostic_fallback',
+        backend: 'diagnostic',
         status: 'unavailable',
-        used_fallback: true,
+        authority: 'unavailable',
         reason_code: 'sampling_unavailable',
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -300,7 +300,7 @@ export async function traceToOriginal(
       provenance: {
         backend: 'mcp_sampling',
         status: 'unavailable',
-        used_fallback: true,
+        authority: 'unavailable',
         reason_code: 'sampling_error',
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -319,7 +319,7 @@ export async function traceToOriginal(
       provenance: {
         backend: 'mcp_sampling',
         status: 'invalid',
-        used_fallback: true,
+        authority: 'unavailable',
         reason_code: 'invalid_response',
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -341,7 +341,7 @@ export async function traceToOriginal(
       provenance: {
         backend: 'mcp_sampling',
         status: 'invalid',
-        used_fallback: true,
+        authority: 'unavailable',
         reason_code: 'candidate_not_in_set',
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -362,7 +362,7 @@ export async function traceToOriginal(
     provenance: {
       backend: 'mcp_sampling',
       status: 'applied',
-      used_fallback: false,
+      authority: 'semantic_conclusion',
       reason_code: parsed.reason_code,
       prompt_version: promptVersion,
       input_hash: inputHash,

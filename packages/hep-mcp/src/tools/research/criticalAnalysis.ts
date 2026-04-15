@@ -313,7 +313,7 @@ function extractStrengths(
       strengths.push('Large collaboration enhances credibility');
     }
 
-    if (questions.red_flags.length === 0 && questions.provenance.used_fallback === false) {
+    if (questions.red_flags.length === 0 && questions.provenance.authority === 'semantic_conclusion') {
       strengths.push('No red flags detected');
     }
   }

@@ -32,6 +32,7 @@ import {
   type Table,
   type BibEntry,
 } from './latex/index.js';
+import type { SemanticAssessmentProvenance } from './semantic/semanticProvenance.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -97,16 +98,7 @@ export interface ParseLatexContentResult {
     selection_status: 'selected' | 'uncertain' | 'abstained' | 'unavailable';
     reason_code: string;
     selection_rationale?: string;
-    provenance: {
-      backend: 'mcp_sampling' | 'metadata' | 'diagnostic_fallback';
-      status: 'applied' | 'metadata' | 'fallback' | 'abstained' | 'invalid' | 'unavailable';
-      used_fallback: boolean;
-      reason_code: string;
-      prompt_version?: string;
-      input_hash?: string;
-      model?: string;
-      signals?: string[];
-    };
+    provenance: SemanticAssessmentProvenance;
     reference_count: number;
     section?: string;
   }>;

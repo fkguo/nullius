@@ -60,3 +60,10 @@ class TestScaffoldContract(unittest.TestCase):
             ensure_project_scaffold(repo_root=repo_root, project_name="Repo Internal")
         with self.assertRaisesRegex(ValueError, "must resolve outside the autoresearch-lab dev repo"):
             sync_research_contract(repo_root=repo_root, create_missing=False)
+
+    def test_scaffold_agents_template_includes_markdown_link_rules(self) -> None:
+        template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+
+        self.assertIn("## Markdown and links", template)
+        self.assertIn("Prefer Markdown links over bare URLs", template)
+        self.assertIn("Use relative Markdown links for files inside the project", template)

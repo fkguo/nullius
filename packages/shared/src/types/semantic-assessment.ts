@@ -3,22 +3,27 @@ import { z } from 'zod';
 export const SemanticAssessmentBackendSchema = z.enum([
   'mcp_sampling',
   'metadata',
-  'diagnostic_fallback',
+  'diagnostic',
 ]);
 
 export const SemanticAssessmentStatusSchema = z.enum([
   'applied',
-  'metadata',
-  'fallback',
+  'diagnostic',
   'abstained',
   'invalid',
+  'unavailable',
+]);
+
+export const SemanticAssessmentAuthoritySchema = z.enum([
+  'semantic_conclusion',
+  'diagnostic_prior',
   'unavailable',
 ]);
 
 export const SemanticAssessmentProvenanceSchema = z.object({
   backend: SemanticAssessmentBackendSchema,
   status: SemanticAssessmentStatusSchema,
-  used_fallback: z.boolean(),
+  authority: SemanticAssessmentAuthoritySchema,
   reason_code: z.string().min(1),
   prompt_version: z.string().min(1).optional(),
   input_hash: z.string().min(1).optional(),
@@ -31,6 +36,9 @@ export type SemanticAssessmentBackend = z.infer<
 >;
 export type SemanticAssessmentStatus = z.infer<
   typeof SemanticAssessmentStatusSchema
+>;
+export type SemanticAssessmentAuthority = z.infer<
+  typeof SemanticAssessmentAuthoritySchema
 >;
 export type SemanticAssessmentProvenance = z.infer<
   typeof SemanticAssessmentProvenanceSchema

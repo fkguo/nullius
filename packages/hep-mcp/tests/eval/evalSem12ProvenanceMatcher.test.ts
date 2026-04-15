@@ -46,7 +46,7 @@ async function runSem12Case(input: Sem12Input) {
         provenance: {
           backend: 'mcp_sampling',
           status: 'applied',
-          used_fallback: false,
+          authority: 'semantic_conclusion',
           reason_code: 'review_semantics',
           prompt_version: 'sem05',
           input_hash: 'mock',
@@ -65,9 +65,9 @@ async function runSem12Case(input: Sem12Input) {
         is_authoritative_source: null,
         classification_confidence: 'low',
         provenance: {
-          backend: 'diagnostic_fallback',
+          backend: 'diagnostic',
           status: 'unavailable',
-          used_fallback: true,
+          authority: 'unavailable',
           reason_code: 'sampling_unavailable',
         },
       }],

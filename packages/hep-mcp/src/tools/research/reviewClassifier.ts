@@ -87,7 +87,7 @@ async function classifySingleReview(
   const unavailable = (
     reasonCode: string,
     status: 'invalid' | 'abstained' | 'unavailable',
-    backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback',
+    backend: 'mcp_sampling' | 'diagnostic' = 'diagnostic',
     model?: string,
   ): ReviewClassification => ({
     recid,
@@ -107,7 +107,7 @@ async function classifySingleReview(
     provenance: {
       backend,
       status,
-      used_fallback: false,
+      authority: 'unavailable',
       reason_code: reasonCode,
       model,
     },
@@ -136,7 +136,7 @@ async function classifySingleReview(
     const unavailableForPaper = (
       reasonCode: string,
       status: 'invalid' | 'abstained' | 'unavailable',
-      backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback',
+      backend: 'mcp_sampling' | 'diagnostic' = 'diagnostic',
       model?: string,
     ): ReviewClassification => ({
       recid,
@@ -156,7 +156,7 @@ async function classifySingleReview(
       provenance: {
         backend,
         status,
-        used_fallback: false,
+        authority: 'unavailable',
         reason_code: reasonCode,
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -224,7 +224,7 @@ async function classifySingleReview(
       provenance: {
         backend: 'mcp_sampling',
         status: 'applied',
-        used_fallback: false,
+        authority: 'semantic_conclusion',
         reason_code: parsed.reason || 'semantic_assessment',
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -244,7 +244,7 @@ function buildRecommendation(classifications: ReviewClassification[]): string | 
   const authoritative = classifications.filter(item => item.is_authoritative_source === true && (item.authority_score ?? 0) >= 0.7);
   if (authoritative.length > 0) return `Use the ${authoritative.length} review(s) with explicit authority judgments first, and inspect uncertain cases manually.`;
   const uncertain = classifications.filter(item => item.review_type === 'uncertain').length;
-  if (uncertain === classifications.length) return 'Only fallback diagnostics are available for these reviews; inspect them manually before treating any as authoritative.';
+  if (uncertain === classifications.length) return 'Only diagnostic priors or unavailable records are available for these reviews; inspect them manually before treating any as authoritative.';
   return 'Use high-confidence review classifications first and keep uncertain cases in manual review.';
 }
 

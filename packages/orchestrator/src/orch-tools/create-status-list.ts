@@ -27,6 +27,7 @@ function buildIdleState(runId: string, workflowId?: string) {
     gate_satisfied: {},
     approval_history: [],
     artifacts: {},
+    workflow_outputs: {},
     notes: '',
   };
 }

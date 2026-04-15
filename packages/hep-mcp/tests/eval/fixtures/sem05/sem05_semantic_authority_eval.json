@@ -17,7 +17,7 @@
       "expected": {
         "paper_type": "uncertain",
         "review_decision": "uncertain",
-        "used_fallback": true,
+        "authority": "unavailable",
         "reason_code": "insufficient_metadata"
       },
       "tags": ["paper", "keyword_authority", "ood"]
@@ -34,7 +34,7 @@
       "expected": {
         "paper_type": "uncertain",
         "review_decision": "uncertain",
-        "used_fallback": true,
+        "authority": "diagnostic_prior",
         "reason_code": "review_metadata_prior"
       },
       "tags": ["paper", "metadata_prior", "authority_cleanup"]
@@ -52,7 +52,7 @@
         "paper_type": "uncertain",
         "conference_decision": "uncertain",
         "conference_reason_code": "conference_metadata_prior",
-        "paper_type_used_fallback": true,
+        "paper_type_authority": "diagnostic_prior",
         "paper_type_reason_code": "conference_metadata_prior"
       },
       "tags": ["paper", "conference_prior", "authority_cleanup"]
@@ -67,7 +67,7 @@
       },
       "expected": {
         "paper_type": "uncertain",
-        "paper_type_used_fallback": true,
+        "paper_type_authority": "diagnostic_prior",
         "paper_type_reason_code": "thesis_metadata_prior"
       },
       "tags": ["paper", "metadata_prior", "authority_cleanup"]
@@ -82,7 +82,7 @@
       },
       "expected": {
         "paper_type": "uncertain",
-        "paper_type_used_fallback": true,
+        "paper_type_authority": "diagnostic_prior",
         "paper_type_reason_code": "lecture_metadata_prior"
       },
       "tags": ["paper", "metadata_prior", "authority_cleanup"]
@@ -98,7 +98,7 @@
       },
       "expected": {
         "paper_type": "uncertain",
-        "paper_type_used_fallback": true,
+        "paper_type_authority": "diagnostic_prior",
         "paper_type_reason_code": "article_metadata_prior"
       },
       "tags": ["paper", "metadata_prior", "authority_cleanup"]
@@ -115,7 +115,7 @@
       },
       "expected": {
         "content_type": "uncertain",
-        "used_fallback": true,
+        "authority": "diagnostic_prior",
         "reason_code": "theoretical_arxiv_prior"
       },
       "tags": ["content", "arxiv_prior", "authority_cleanup"]
@@ -132,7 +132,7 @@
       },
       "expected": {
         "content_type": "uncertain",
-        "used_fallback": true,
+        "authority": "diagnostic_prior",
         "reason_code": "experimental_arxiv_prior"
       },
       "tags": ["content", "arxiv_prior", "authority_cleanup"]
@@ -149,7 +149,7 @@
       },
       "expected": {
         "content_type": "uncertain",
-        "used_fallback": true,
+        "authority": "diagnostic_prior",
         "reason_code": "mixed_arxiv_prior"
       },
       "tags": ["content", "arxiv_prior", "authority_cleanup"]
@@ -170,7 +170,7 @@
       "expected": {
         "paper_type": "uncertain",
         "reliability_score": null,
-        "used_fallback": false,
+        "authority": "unavailable",
         "reason_code": "sampling_required",
         "forbidden_red_flags": ["excessive_claims"]
       },

@@ -145,7 +145,7 @@ export async function generateCriticalQuestions(
       red_flags: [],
       reliability_score: null,
       metrics: { citation_count: 0, author_count: 0, has_comments: false, paper_age_years: 0 },
-      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: false, reason_code: 'invalid_recid' },
+      provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'invalid_recid' },
     };
   }
 
@@ -181,7 +181,7 @@ export async function generateCriticalQuestions(
     const unavailable = (
       reasonCode: string,
       status: 'invalid' | 'abstained' | 'unavailable',
-      backend: 'mcp_sampling' | 'diagnostic_fallback' = 'diagnostic_fallback',
+      backend: 'mcp_sampling' | 'diagnostic' = 'diagnostic',
       model?: string,
     ): CriticalQuestionsResult => ({
       paper_recid: params.recid,
@@ -203,7 +203,7 @@ export async function generateCriticalQuestions(
       provenance: {
         backend,
         status,
-        used_fallback: false,
+        authority: 'unavailable',
         reason_code: reasonCode,
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -271,7 +271,7 @@ export async function generateCriticalQuestions(
       provenance: {
         backend: 'mcp_sampling',
         status: 'applied',
-        used_fallback: false,
+        authority: 'semantic_conclusion',
         reason_code: parsed.reason || 'semantic_questions',
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -289,7 +289,7 @@ export async function generateCriticalQuestions(
       red_flags: [],
       reliability_score: null,
       metrics: { author_count: 0, citation_count: 0, has_comments: false, paper_age_years: 0 },
-      provenance: { backend: 'diagnostic_fallback', status: 'unavailable', used_fallback: false, reason_code: 'upstream_error' },
+      provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'upstream_error' },
     };
   }
 }

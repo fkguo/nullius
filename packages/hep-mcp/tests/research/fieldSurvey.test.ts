@@ -55,7 +55,7 @@ describe('fieldSurvey provenance conservatism', () => {
       original_paper: null,
       relationship: 'unknown',
       confidence: 0.33,
-      provenance: { backend: 'mcp_sampling', status: 'applied', used_fallback: false, reason_code: 'multiple_plausible_candidates' },
+      provenance: { backend: 'mcp_sampling', status: 'applied', authority: 'semantic_conclusion', reason_code: 'multiple_plausible_candidates' },
       candidate_count: 2,
       candidate_diagnostics: [],
     } as any);

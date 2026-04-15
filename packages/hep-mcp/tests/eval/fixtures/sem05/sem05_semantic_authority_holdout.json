@@ -17,7 +17,7 @@
       "expected": {
         "fragility_score": null,
         "risk_level": null,
-        "used_fallback": false,
+        "authority": "unavailable",
         "reason_code": "sampling_required"
       },
       "tags": ["assumptions", "holdout", "fail_closed"]

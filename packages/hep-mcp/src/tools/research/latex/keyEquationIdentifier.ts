@@ -142,10 +142,11 @@ function importanceScore(status: KeyEquationSelectionStatus, band?: KeyEquationI
   return 35;
 }
 
-function fallbackCandidates(
+function unavailableCandidates(
   candidates: KeyEquationCandidate[],
   selectionStatus: KeyEquationSelectionStatus,
   provenanceStatus: SemanticAssessmentProvenance['status'],
+  authority: SemanticAssessmentProvenance['authority'],
   reasonCode: string,
   promptVersion: string,
   inputHash: string,
@@ -164,9 +165,9 @@ function fallbackCandidates(
     context_keywords: candidate.context_keywords,
     selection_rationale: reasonCode,
     provenance: {
-      backend: selectionStatus === 'unavailable' ? 'diagnostic_fallback' : 'mcp_sampling',
+      backend: selectionStatus === 'unavailable' ? 'diagnostic' : 'mcp_sampling',
       status: provenanceStatus,
-      used_fallback: true,
+      authority,
       reason_code: reasonCode,
       prompt_version: promptVersion,
       input_hash: inputHash,
@@ -236,7 +237,7 @@ export async function identifyKeyEquations(
   }));
 
   if (!createMessage) {
-    return fallbackCandidates(candidates, 'unavailable', 'unavailable', 'sampling_unavailable', promptVersion, inputHash);
+    return unavailableCandidates(candidates, 'unavailable', 'unavailable', 'unavailable', 'sampling_unavailable', promptVersion, inputHash);
   }
 
   let response: CreateMessageResult;
@@ -271,15 +272,15 @@ export async function identifyKeyEquations(
       }),
     });
   } catch {
-    return fallbackCandidates(candidates, 'unavailable', 'unavailable', 'sampling_error', promptVersion, inputHash);
+    return unavailableCandidates(candidates, 'unavailable', 'unavailable', 'unavailable', 'sampling_error', promptVersion, inputHash);
   }
 
   const parsed = parseKeyEquationSamplingResponse(extractSamplingText(response.content));
   if (!parsed) {
-    return fallbackCandidates(candidates, 'unavailable', 'invalid', 'invalid_response', promptVersion, inputHash, response.model);
+    return unavailableCandidates(candidates, 'unavailable', 'invalid', 'unavailable', 'invalid_response', promptVersion, inputHash, response.model);
   }
   if (parsed.overall_status === 'abstained') {
-    return fallbackCandidates(candidates, 'abstained', 'abstained', 'model_abstained', promptVersion, inputHash, response.model);
+    return unavailableCandidates(candidates, 'abstained', 'abstained', 'unavailable', 'model_abstained', promptVersion, inputHash, response.model);
   }
 
   const evaluations = new Map(parsed.evaluations.map(item => [item.candidate_key, item]));
@@ -291,7 +292,7 @@ export async function identifyKeyEquations(
       const provenance: SemanticAssessmentProvenance = {
         backend: 'mcp_sampling',
         status: 'applied',
-        used_fallback: false,
+        authority: 'semantic_conclusion',
         reason_code: evaluation?.reason_code ?? 'not_selected',
         prompt_version: promptVersion,
         input_hash: inputHash,

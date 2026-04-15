@@ -5,7 +5,7 @@ import type { CliIo } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 import { resolveUserPath } from './project-policy.js';
 import { StateManager } from './state-manager.js';
-import type { RunState } from './types.js';
+import type { RunState, WorkflowOutputView } from './types.js';
 import { utcNowIso } from './util.js';
 import {
   compileWorkflowRuntimeRequest,
@@ -53,6 +53,41 @@ function classifyWorkflowCompileDiagnostic(message: string): 'malformed_executio
   if (/requires project_root\b/.test(message)) return 'project_required_missing';
   if (/requires run_id\b/.test(message)) return 'run_required_missing';
   return 'malformed_execution';
+}
+
+function buildWorkflowOutputView(params: {
+  stepId: string;
+  tool: string;
+  runtimeStatus: 'completed' | 'partial';
+  artifactUri: string | null;
+  additionalArtifactUris: string[];
+  summaryText: string;
+  payload: unknown;
+}): WorkflowOutputView {
+  let payload: unknown | null = params.payload ?? null;
+  let payloadTruncated = false;
+  if (payload !== null) {
+    try {
+      const serialized = JSON.stringify(payload);
+      if (serialized.length > 40000) {
+        payload = null;
+        payloadTruncated = true;
+      }
+    } catch {
+      payload = null;
+      payloadTruncated = true;
+    }
+  }
+  return {
+    step_id: params.stepId,
+    tool: params.tool,
+    runtime_status: params.runtimeStatus,
+    artifact_uri: params.artifactUri,
+    additional_artifact_uris: params.additionalArtifactUris,
+    summary_text: params.summaryText.slice(0, 4000),
+    payload,
+    payload_truncated: payloadTruncated,
+  };
 }
 
 function isWithinPath(basePath: string, candidatePath: string): boolean {
@@ -504,6 +539,15 @@ async function runWorkflowCommand(
       if (artifactUri) {
         persisted.artifacts[artifactKey] = artifactUri;
       }
+      persisted.workflow_outputs[artifactKey] = buildWorkflowOutputView({
+        stepId: step.step_id,
+        tool: step.execution?.tool ?? runtimeRequest.tool,
+        runtimeStatus: runtimeResult.status,
+        artifactUri,
+        additionalArtifactUris: runtimeResult.additional_artifact_uris,
+        summaryText: runtimeResult.summary_text,
+        payload: runtimeResult.payload,
+      });
       persisted.notes = runtimeResult.summary_text.slice(0, 2000);
       manager.saveStateWithLedger(persisted, 'workflow_step_completed', {
         step_id: step.step_id,

@@ -40,6 +40,17 @@ export interface CurrentStep {
   started_at: string;
 }
 
+export interface WorkflowOutputView {
+  step_id: string;
+  tool: string;
+  runtime_status: 'completed' | 'partial';
+  artifact_uri: string | null;
+  additional_artifact_uris: string[];
+  summary_text: string;
+  payload: unknown | null;
+  payload_truncated: boolean;
+}
+
 export interface RunState {
   schema_version: 1;
   run_id: string | null;
@@ -55,6 +66,7 @@ export interface RunState {
   gate_satisfied: Record<string, string | boolean>;
   approval_history: ApprovalHistoryEntry[];
   artifacts: Record<string, string>;
+  workflow_outputs: Record<string, WorkflowOutputView>;
   notes: string;
   /** Saved before pause so resume can restore the original status.
    *  Python uses pop/setdefault pattern; TS uses optional field. */
