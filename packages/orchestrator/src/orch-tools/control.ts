@@ -13,7 +13,7 @@ import {
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
 import { readLearningSummaryView } from './learning-summary.js';
 import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
-import { buildRunStatusView, readProjectRecentDigestView } from './run-read-model.js';
+import { buildRunStatusView, readProjectRecentDigestView, readProjectSurfaceDriftView } from './run-read-model.js';
 import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import {
@@ -29,6 +29,9 @@ export async function handleOrchRunExport(
   const { manager, projectRoot } = createStateManager(params.project_root);
   const result: Record<string, unknown> = { project_root: projectRoot };
   const state = fs.existsSync(manager.statePath) ? manager.readState() : null;
+  const projectSurfaceDrift = readProjectSurfaceDriftView(projectRoot);
+  result.project_surface_drift = projectSurfaceDrift.project_surface_drift;
+  result.project_surface_drift_error = projectSurfaceDrift.project_surface_drift_error;
   if (params.include_state) {
     result.state = state;
     if (result.state === null) {

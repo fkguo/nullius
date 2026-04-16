@@ -119,6 +119,84 @@ function makeAwaitingApprovalState(): { projectRoot: string; approvalId: string 
   return { approvalId, projectRoot };
 }
 
+function writeProjectSurfaceGuidanceFiles(
+  projectRoot: string,
+  options: {
+    includeOptionalHostMentions?: boolean;
+    includeResearchContractResidue?: boolean;
+  } = {},
+): void {
+  const optionalHostText = options.includeOptionalHostMentions
+    ? 'Use prompts/ and team/ only after wiring research_team_config.json for the host layer.'
+    : 'Host-local support layers are optional and do not replace the project read order.';
+  const researchContractHeader = options.includeResearchContractResidue
+    ? '# research_contract.md (Template)'
+    : '# research_contract.md';
+  const researchContractLegacyText = options.includeResearchContractResidue
+    ? [
+        '- If research-team host surfaces exist, run `run_team_cycle.sh --preflight-only` once to catch missing gates early.',
+        '> If doubled backslashes appear inside math, fix them with `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`.',
+        'This section is checked by the knowledge layers gate when `knowledge_layers_gate=true` (via [research_team_config.json](research_team_config.json)).',
+      ].join('\n')
+    : 'Host-local automation may add extra support layers, but this contract and `.autoresearch/` state remain the durable restart truth.';
+
+  fs.writeFileSync(
+    path.join(projectRoot, 'AGENTS.md'),
+    [
+      '# AGENTS.md',
+      '',
+      '## Reconnect discipline',
+      '',
+      '- If `.autoresearch/` exists, run `autoresearch status --json` before continuing.',
+      `- ${optionalHostText}`,
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'project_index.md'),
+    [
+      '# project_index.md',
+      '',
+      '## Optional expansions',
+      '',
+      options.includeOptionalHostMentions
+        ? '- prompts/, team/, and research_team_config.json are host-local support surfaces.'
+        : '- Host-local team or automation surfaces are opt-in support layers.',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'research_plan.md'),
+    [
+      '# research_plan.md',
+      '',
+      '## Restart checklist',
+      '',
+      '- Read `AGENTS.md`, then `project_charter.md`, then this file.',
+      '- Keep `research_plan.md` and `.autoresearch/state.json` current enough for the next reconnect.',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'research_contract.md'),
+    [
+      researchContractHeader,
+      '',
+      '<!-- RESEARCH_NOTEBOOK_SYNC_START -->',
+      '- Source notebook: [research_notebook.md](research_notebook.md)',
+      '- Notebook sha256: `(refresh to populate)`',
+      '<!-- RESEARCH_NOTEBOOK_SYNC_END -->',
+      '',
+      researchContractLegacyText,
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+}
+
 describe('autoresearch CLI', () => {
   it('renders top-level help with the canonical lifecycle scope', async () => {
     const { io, stdout } = makeIo(process.cwd());
@@ -1025,6 +1103,164 @@ describe('autoresearch CLI', () => {
     const payload = JSON.parse(stdout.join(''));
     expect(payload.resume_context.recommended_files).not.toContain('research_notebook.md');
     expect(payload.recovery_context.recommended_files).not.toContain('research_notebook.md');
+  });
+
+  it('reports a clean project_surface_drift block for a minimal root without stale optional surfaces', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-DRIFT-CLEAN';
+    state.run_status = 'idle';
+    manager.saveState(state);
+    writeProjectSurfaceGuidanceFiles(projectRoot);
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      project_surface_drift: {
+        status: 'clean',
+        canonical_scaffold_variant: 'minimal',
+        warning_count: 0,
+        issues: [],
+      },
+      project_surface_drift_error: null,
+    });
+  });
+
+  it('warns when a legacy .mcp.template.json exists without an active .mcp.json', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-DRIFT-MCP';
+    state.run_status = 'idle';
+    manager.saveState(state);
+    writeProjectSurfaceGuidanceFiles(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, '.mcp.template.json'), '{\"mcpServers\":{}}\n', 'utf-8');
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      project_surface_drift: {
+        status: 'warning_only',
+        warning_count: 1,
+        issues: [
+          {
+            code: 'LEGACY_MCP_TEMPLATE_NO_ACTIVE_CONFIG',
+            path: '.mcp.template.json',
+          },
+        ],
+      },
+    });
+  });
+
+  it('warns when a legacy root plan schema appears in a minimal-style project root', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-DRIFT-SCHEMA';
+    state.run_status = 'idle';
+    manager.saveState(state);
+    writeProjectSurfaceGuidanceFiles(projectRoot);
+    fs.mkdirSync(path.join(projectRoot, 'specs'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'specs', 'plan.schema.json'), '{}\n', 'utf-8');
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      project_surface_drift: {
+        status: 'warning_only',
+        warning_count: 1,
+        issues: [
+          {
+            code: 'LEGACY_PLAN_SCHEMA_IN_MINIMAL_ROOT',
+            path: 'specs/plan.schema.json',
+          },
+        ],
+      },
+    });
+  });
+
+  it('warns on missing optional host surfaces only while guidance still mentions them', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-DRIFT-HOST';
+    state.run_status = 'idle';
+    manager.saveState(state);
+    writeProjectSurfaceGuidanceFiles(projectRoot, { includeOptionalHostMentions: true });
+
+    const first = makeIo(projectRoot);
+    const firstCode = await runCli(['status', '--json'], first.io);
+    expect(firstCode).toBe(0);
+    expect(JSON.parse(first.stdout.join(''))).toMatchObject({
+      project_surface_drift: {
+        status: 'warning_only',
+        warning_count: 1,
+        issues: [
+          {
+            code: 'OPTIONAL_HOST_SURFACE_MENTION_MISSING',
+            evidence: {
+              missing_paths: ['prompts/', 'team/', 'research_team_config.json'],
+            },
+          },
+        ],
+      },
+    });
+
+    fs.mkdirSync(path.join(projectRoot, 'prompts'), { recursive: true });
+    fs.mkdirSync(path.join(projectRoot, 'team'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'research_team_config.json'), '{}\n', 'utf-8');
+
+    const second = makeIo(projectRoot);
+    const secondCode = await runCli(['status', '--json'], second.io);
+    expect(secondCode).toBe(0);
+    expect(JSON.parse(second.stdout.join(''))).toMatchObject({
+      project_surface_drift: {
+        status: 'clean',
+        warning_count: 0,
+        issues: [],
+      },
+    });
+  });
+
+  it('reports research_contract template residue as warning-only drift', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-DRIFT-CONTRACT';
+    state.run_status = 'idle';
+    manager.saveState(state);
+    writeProjectSurfaceGuidanceFiles(projectRoot, { includeResearchContractResidue: true });
+    fs.mkdirSync(path.join(projectRoot, 'team'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'research_team_config.json'), '{}\n', 'utf-8');
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      project_surface_drift: {
+        status: 'warning_only',
+        warning_count: 1,
+        issues: [
+          {
+            code: 'RESEARCH_CONTRACT_TEMPLATE_RESIDUE',
+            path: 'research_contract.md',
+          },
+        ],
+      },
+    });
   });
 
   it('reports current_run_workflow_outputs_error when a curated workflow output is malformed', async () => {

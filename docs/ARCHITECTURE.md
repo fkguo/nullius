@@ -40,6 +40,11 @@ Autoresearch Lab currently combines:
 - Resource and artifact paths are constrained under their allowed roots.
 - Binary artifacts are not inlined into MCP results by default.
 
+### 2.5 Project-local durable memory
+
+- For initialized external project roots, `.autoresearch/` state plus project-local durable memory files such as `research_plan.md`, `research_contract.md`, and substantive `research_notebook.md` are the enduring reconnect truth.
+- Optional support surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` are opt-in layers, not the default project front door.
+
 ## 3. Current front-door surfaces
 
 ### 3.1 Root capability map

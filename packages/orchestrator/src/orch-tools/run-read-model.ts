@@ -61,6 +61,28 @@ const RECOVERY_RECOMMENDED_FILES = [
   'research_notebook.md',
 ] as const;
 const PLAN_STEP_TERMINAL_STATUSES = new Set(['completed', 'skipped']);
+const FULL_SCAFFOLD_ONLY_ROOT_FILES = [
+  'research_preflight.md',
+  'project_brief.md',
+  'idea_log.md',
+] as const;
+const OPTIONAL_HOST_SURFACE_GUIDANCE_FILES = [
+  'AGENTS.md',
+  'project_index.md',
+  'research_plan.md',
+  'research_contract.md',
+] as const;
+const OPTIONAL_HOST_SURFACE_PATTERNS = [
+  { path: 'prompts/', marker: 'prompts/' },
+  { path: 'team/', marker: 'team/' },
+  { path: 'research_team_config.json', marker: 'research_team_config.json' },
+] as const;
+const RESEARCH_CONTRACT_RESIDUE_MARKERS = [
+  '# research_contract.md (Template)',
+  'run_team_cycle.sh --preflight-only',
+  'fix_markdown_double_backslash_math.py --notes research_contract.md --in-place',
+  'via [research_team_config.json](research_team_config.json)',
+] as const;
 const RESEARCH_NOTEBOOK_TEMPLATE_LINES = new Set([
   '# research_notebook.md',
   'This file is the human-facing research notebook.',
@@ -443,6 +465,109 @@ function readResumeContextView(projectRoot: string, state: RunState): Record<str
   };
 }
 
+function projectHasExpandedScaffoldRoot(projectRoot: string): boolean {
+  return FULL_SCAFFOLD_ONLY_ROOT_FILES.some(relativePath => fs.existsSync(path.join(projectRoot, relativePath)));
+}
+
+export function readProjectSurfaceDriftView(projectRoot: string): {
+  project_surface_drift: Record<string, unknown> | null;
+  project_surface_drift_error: Record<string, unknown> | null;
+} {
+  try {
+    const issues: Record<string, unknown>[] = [];
+    const isExpandedRoot = projectHasExpandedScaffoldRoot(projectRoot);
+    const mcpTemplatePath = path.join(projectRoot, '.mcp.template.json');
+    const mcpConfigPath = path.join(projectRoot, '.mcp.json');
+    if (!isExpandedRoot && fs.existsSync(mcpTemplatePath) && !fs.existsSync(mcpConfigPath)) {
+      issues.push({
+        code: 'LEGACY_MCP_TEMPLATE_NO_ACTIVE_CONFIG',
+        path: '.mcp.template.json',
+        message: 'Found legacy .mcp.template.json without an active .mcp.json in a minimal-style project root.',
+        recommended_action: 'review_and_remove_if_unused',
+        evidence: {
+          active_config_present: false,
+          inferred_scaffold_style: 'minimal',
+        },
+      });
+    }
+
+    const planSchemaPath = path.join(projectRoot, 'specs', 'plan.schema.json');
+    if (!isExpandedRoot && fs.existsSync(planSchemaPath)) {
+      issues.push({
+        code: 'LEGACY_PLAN_SCHEMA_IN_MINIMAL_ROOT',
+        path: 'specs/plan.schema.json',
+        message: 'Found legacy plan schema in a minimal-style project root.',
+        recommended_action: 'review_and_remove_if_unused',
+        evidence: {
+          inferred_scaffold_style: 'minimal',
+        },
+      });
+    }
+
+    const optionalHostEvidence = OPTIONAL_HOST_SURFACE_GUIDANCE_FILES.flatMap((relativePath) => {
+      const absolutePath = path.join(projectRoot, relativePath);
+      if (!fs.existsSync(absolutePath)) return [];
+      const text = fs.readFileSync(absolutePath, 'utf-8');
+      return OPTIONAL_HOST_SURFACE_PATTERNS
+        .filter(surface => text.includes(surface.marker) && !fs.existsSync(path.join(projectRoot, surface.path)))
+        .map(surface => ({
+          guidance_file: relativePath,
+          missing_path: surface.path,
+        }));
+    });
+    if (optionalHostEvidence.length > 0) {
+      const missingPaths = [...new Set(optionalHostEvidence.map(item => item.missing_path))];
+      issues.push({
+        code: 'OPTIONAL_HOST_SURFACE_MENTION_MISSING',
+        path: '.',
+        message: 'Top-level guidance still points to optional host-local surfaces that are not present in this project root.',
+        recommended_action: 'trim_stale_guidance_or_add_host_surface',
+        evidence: {
+          missing_paths: missingPaths,
+          matched_files: [...new Set(optionalHostEvidence.map(item => item.guidance_file))],
+        },
+      });
+    }
+
+    const researchContractPath = path.join(projectRoot, 'research_contract.md');
+    if (fs.existsSync(researchContractPath)) {
+      const text = fs.readFileSync(researchContractPath, 'utf-8');
+      const markers = RESEARCH_CONTRACT_RESIDUE_MARKERS.filter(marker => text.includes(marker));
+      if (markers.length > 0) {
+        issues.push({
+          code: 'RESEARCH_CONTRACT_TEMPLATE_RESIDUE',
+          path: 'research_contract.md',
+          message: 'research_contract.md still contains legacy scaffold residue that no longer belongs to the minimal default truth.',
+          recommended_action: 'specialize_or_trim',
+          evidence: {
+            residue_markers: markers,
+          },
+        });
+      }
+    }
+
+    return {
+      project_surface_drift: {
+        status: issues.length > 0 ? 'warning_only' : 'clean',
+        canonical_scaffold_variant: 'minimal',
+        warning_count: issues.length,
+        issues,
+      },
+      project_surface_drift_error: null,
+    };
+  } catch (error) {
+    return {
+      project_surface_drift: null,
+      project_surface_drift_error: {
+        code: 'PROJECT_SURFACE_DRIFT_READ_ERROR',
+        message: error instanceof Error
+          ? `Failed to build project_surface_drift: ${error.message}`
+          : 'Failed to build project_surface_drift.',
+      },
+    };
+  }
+}
+
 function readPlanView(projectRoot: string, state: RunState): {
   plan_view: Record<string, unknown> | null;
   plan_view_warning: Record<string, unknown> | null;
@@ -709,6 +834,7 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const learningSummary = readLearningSummaryView(projectRoot, state);
   const teamSummary = readTeamSummaryView(projectRoot, state);
   const projectRecentDigest = readProjectRecentDigestView(projectRoot);
+  const projectSurfaceDrift = readProjectSurfaceDriftView(projectRoot);
   return {
     run_id: state.run_id,
     run_status: paused ? 'paused' : state.run_status,
@@ -762,6 +888,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     team_summary_error: teamSummary.team_summary_error,
     project_recent_digest: projectRecentDigest.project_recent_digest,
     project_recent_digest_error: projectRecentDigest.project_recent_digest_error,
+    project_surface_drift: projectSurfaceDrift.project_surface_drift,
+    project_surface_drift_error: projectSurfaceDrift.project_surface_drift_error,
   };
 }
 

@@ -31,7 +31,7 @@ Treat that status output as the authoritative recovery briefing, then continue t
 - [.mcp.template.json](.mcp.template.json) and `specs/plan.schema.json` are added only in the fuller scaffold or when a project explicitly needs provider config / schema tooling.
 - [research_preflight.md](research_preflight.md), [project_brief.md](project_brief.md), and [idea_log.md](idea_log.md) are added only when the scaffold expands beyond the minimal root.
 - [knowledge_base/](knowledge_base/) and [references/](references/) are optional support surfaces, not required at project creation time.
-- [prompts/](prompts/), [team/](team/), and [research_team_config.json](research_team_config.json) are host-local research-team surfaces, not canonical root files.
+- Host-local team or automation surfaces are opt-in support layers, not canonical root files.
 - [.hep/](.hep/) is provider-local and should only appear when a provider or host layer explicitly needs it.
 
 ---

@@ -1,4 +1,4 @@
-# research_contract.md (Template)
+# research_contract.md
 
 Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
@@ -28,10 +28,10 @@ Resume / restart rule:
 - If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
 - Treat that status output as the authoritative recovery briefing.
 - Then re-read `project_index.md`, `AGENTS.md`, `project_charter.md`, `research_plan.md`, and this file before resuming, and only add `research_notebook.md` when it already contains substantive content.
-- If research-team host surfaces already exist and you are intentionally resuming that host-managed flow, run `run_team_cycle.sh --preflight-only` once to catch missing gates early.
+- Host-local automation or team layers are optional support surfaces. Use them only when this project already includes them; this contract and `.autoresearch/` state remain the durable restart truth.
 
 > Rule: In Markdown math, use single backslashes (e.g. $\Delta\kappa$). Avoid doubled backslashes (a common TOC-escape artifact).
-> If doubled backslashes appear inside math (e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`), fix deterministically (math regions only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`
+> If doubled backslashes appear inside math (e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`), fix the math-only regions deterministically before continuing.
 > Math delimiter rule: use `$...$` / `$$...$$` (do NOT use `\(\)` / `\[\]`).
 > Rendering rule: inside `$$...$$`, do not start a new line with `+`, `-`, or `=` (move operators to the previous line).
 > Table rule (important): in Markdown tables, do NOT use literal `|` inside `$...$` (it can break table parsing). Prefer `\lvert ... \rvert` (or `\lVert ... \rVert`; for conditional bars use `\mid`).
@@ -184,7 +184,7 @@ Optional (recommended for floating-point numerics):
 
 ### I) Knowledge base references (MANDATORY when enabled)
 
-This section is checked by the knowledge layers gate when `knowledge_layers_gate=true` (via [research_team_config.json](research_team_config.json)).
+This section is checked when the project explicitly enables the knowledge layers gate in its host configuration.
 Keep it domain-neutral: cite literature evidence, methodology traces, and priors you relied on or updated for this milestone.
 
 Literature:

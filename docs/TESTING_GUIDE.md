@@ -17,6 +17,8 @@
 - `autoresearch` = generic lifecycle + workflow-plan front door
 - `@autoresearch/hep-mcp` = 当前最成熟的 domain MCP front door
 - legacy Python CLI 不再属于公开 front-door；如仍需覆盖，只作为 maintainer/eval/regression-only 内部路径测试
+- `autoresearch init` 的默认 scaffold 是 minimal；不要默认期待 `.mcp.template.json`、根级 `specs/plan.schema.json`、`prompts/`、`team/` 或 `research_team_config.json`
+- reconnect 时应优先读取 `.autoresearch/` state 与 project-local durable memory，例如 `research_plan.md`、`research_contract.md`、以及已有实质内容的 `research_notebook.md`
 
 ### 0.1 构建与计数检查
 

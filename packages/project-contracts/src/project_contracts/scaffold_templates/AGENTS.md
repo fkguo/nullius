@@ -39,22 +39,12 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Plain Markdown prose lines are not subject to the `+/-/=` rule above.
 - `arXiv`, `INSPIRE`, and `DOI` references must use clickable links.
 
-## Optional Host Preflight
+## Optional host layers
 
-Only when this project already includes research-team host surfaces and you are intentionally resuming that host-managed flow, run one deterministic preflight before the next team cycle:
-
-```bash
-bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
-  --tag M0-r1 \
-  --notes research_contract.md \
-  --out-dir team \
-  --member-a-system prompts/_system_member_a.txt \
-  --member-b-system prompts/_system_member_b.txt \
-  --auto-tag \
-  --preflight-only
-```
-
-If the project does not yet include `prompts/` or `team/`, skip this preflight and continue with the checked-in recovery flow above.
+Some projects add extra host-local team or automation layers on top of this root.
+Treat those as opt-in support layers, not the default front door.
+If this project already has host-local team surfaces, follow the host's local preflight instructions before the next team cycle.
+If it does not, keep using the read order above and update `research_plan.md` directly.
 
 ## Minimal checkpoints
 

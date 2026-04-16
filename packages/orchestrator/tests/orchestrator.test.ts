@@ -9,7 +9,7 @@ import {
 } from '@autoresearch/shared';
 import { StateManager, LedgerWriter, ApprovalGate, approvalPacketSha256 } from '../src/index.js';
 import type { RunState } from '../src/index.js';
-import { handleOrchPolicyQuery } from '../src/orch-tools/control.js';
+import { handleOrchPolicyQuery, handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
 import { buildRunStatusView, readApprovalsView, readRunListView } from '../src/orch-tools/run-read-model.js';
 import { OrchRunApprovalsListSchema } from '../src/orch-tools/schemas.js';
@@ -56,6 +56,41 @@ function baseState(overrides?: Partial<RunState>): RunState {
     notes: '',
     ...overrides,
   };
+}
+
+function writeProjectSurfaceFiles(
+  repoRoot: string,
+  options: {
+    includeOptionalHostMentions?: boolean;
+    includeResearchContractResidue?: boolean;
+    includeExpandedScaffoldMarkers?: boolean;
+  } = {},
+): void {
+  const optionalHostText = options.includeOptionalHostMentions
+    ? 'Use prompts/ and team/ only after wiring research_team_config.json for the host layer.'
+    : 'Host-local support layers are optional and do not replace the project read order.';
+  const contractText = options.includeResearchContractResidue
+    ? [
+        '# research_contract.md (Template)',
+        '',
+        'Use `run_team_cycle.sh --preflight-only` before the next milestone.',
+        'This section is checked via [research_team_config.json](research_team_config.json).',
+      ].join('\n')
+    : [
+        '# research_contract.md',
+        '',
+        'Keep machine-facing checkpoints here and treat `.autoresearch/` state as durable restart truth.',
+      ].join('\n');
+
+  fs.writeFileSync(path.join(repoRoot, 'AGENTS.md'), ['# AGENTS.md', '', optionalHostText, ''].join('\n'), 'utf-8');
+  fs.writeFileSync(path.join(repoRoot, 'research_plan.md'), '# research_plan.md\n\n- Keep the task board current.\n', 'utf-8');
+  fs.writeFileSync(path.join(repoRoot, 'research_contract.md'), `${contractText}\n`, 'utf-8');
+
+  if (options.includeExpandedScaffoldMarkers) {
+    fs.writeFileSync(path.join(repoRoot, 'research_preflight.md'), '# research_preflight.md\n', 'utf-8');
+    fs.writeFileSync(path.join(repoRoot, 'project_brief.md'), '# project_brief.md\n', 'utf-8');
+    fs.writeFileSync(path.join(repoRoot, 'idea_log.md'), '# idea_log.md\n', 'utf-8');
+  }
 }
 
 describe('StateManager', () => {
@@ -295,6 +330,53 @@ describe('StateManager', () => {
         derived_run_status: 'running',
       },
     });
+  });
+
+  it('keeps project_surface_drift clean for expanded scaffold roots that intentionally keep full-only files', () => {
+    const state = baseState({
+      run_id: 'test-run-expanded',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    writeProjectSurfaceFiles(tmpDir, { includeExpandedScaffoldMarkers: true });
+    fs.writeFileSync(path.join(tmpDir, '.mcp.template.json'), '{"mcpServers":{}}\n', 'utf-8');
+    fs.mkdirSync(path.join(tmpDir, 'specs'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, 'specs', 'plan.schema.json'), '{}\n', 'utf-8');
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    expect(view.project_surface_drift).toMatchObject({
+      status: 'clean',
+      warning_count: 0,
+      issues: [],
+    });
+    expect(view.project_surface_drift_error).toBeNull();
+  });
+
+  it('mirrors project_surface_drift through export summaries', async () => {
+    const state = baseState({
+      run_id: 'test-run-export-drift',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    writeProjectSurfaceFiles(tmpDir, { includeResearchContractResidue: true });
+    fs.writeFileSync(path.join(tmpDir, '.mcp.template.json'), '{"mcpServers":{}}\n', 'utf-8');
+
+    const statusView = buildRunStatusView(tmpDir, sm.readState());
+    const exportView = await handleOrchRunExport({
+      project_root: tmpDir,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+
+    expect(statusView.project_surface_drift).toMatchObject({
+      status: 'warning_only',
+      warning_count: 3,
+    });
+    expect(exportView.project_surface_drift).toEqual(statusView.project_surface_drift);
+    expect(exportView.project_surface_drift_error).toEqual(statusView.project_surface_drift_error);
   });
 
   it('reads awaiting_approval status (Python SSOT)', () => {

@@ -53,6 +53,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("Source notebook: [research_notebook.md](research_notebook.md)", contract_text)
         self.assertIn("- Goal", contract_text)
         self.assertIn("- [DemoRef](knowledge_base/literature/demo.md)", contract_text)
+        self.assertNotIn("(refresh to populate)", contract_text)
 
     def test_scaffold_and_contract_sync_default_to_real_project_policy(self) -> None:
         repo_root = Path(__file__).resolve().parents[3]
@@ -75,6 +76,10 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("autoresearch status --json", template)
         self.assertIn("1) [project_index.md](project_index.md)", template)
         self.assertIn("2) [AGENTS.md](AGENTS.md)", template)
+        self.assertIn("opt-in support layers", template)
+        self.assertNotIn("run_team_cycle.sh", template)
+        self.assertNotIn("prompts/_system_member_a.txt", template)
+        self.assertNotIn("research_team_config.json", template)
 
     def test_minimal_scaffold_does_not_create_mcp_template_or_plan_schema(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -129,6 +134,18 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("2) [AGENTS.md](AGENTS.md) — workflow anchor, reconnect discipline, and output rules", index_template)
         self.assertIn("If `.autoresearch/` exists, start by running `autoresearch status --json`", index_template)
         self.assertIn("If `.autoresearch/` exists, run `autoresearch status --json` first", plan_template)
-        self.assertIn("Only when this project already includes research-team host surfaces", agents_template)
-        self.assertIn("If [prompts/](prompts/) and [team/](team/) already exist and you are intentionally resuming that host-managed flow", plan_template)
-        self.assertIn("If research-team host surfaces already exist and you are intentionally resuming that host-managed flow", contract_template)
+        self.assertIn("opt-in support layers", index_template)
+        self.assertNotIn("[prompts/](prompts/)", index_template)
+        self.assertNotIn("[team/](team/)", index_template)
+        self.assertIn("opt-in support layers", plan_template)
+        self.assertNotIn("[prompts/](prompts/)", plan_template)
+        self.assertNotIn("[team/](team/)", plan_template)
+
+    def test_research_contract_template_drops_legacy_host_surface_residue(self) -> None:
+        template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
+
+        self.assertNotIn("# research_contract.md (Template)", template)
+        self.assertNotIn("run_team_cycle.sh --preflight-only", template)
+        self.assertNotIn("fix_markdown_double_backslash_math.py --notes research_contract.md --in-place", template)
+        self.assertNotIn("[research_team_config.json](research_team_config.json)", template)
+        self.assertIn("durable restart truth", template)
