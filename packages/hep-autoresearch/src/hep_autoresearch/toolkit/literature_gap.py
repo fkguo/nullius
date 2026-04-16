@@ -444,7 +444,7 @@ def run_literature_gap_discover(repo_root: Path, inputs: LiteratureGapDiscoverIn
         repo_root,
         cfg.env,
         hep_data_dir_override=inputs.hep_data_dir,
-        create_data_dir=True,
+        create_data_dir=False,
         project_policy=PROJECT_POLICY_REAL_PROJECT,
     )
 
@@ -668,7 +668,7 @@ def run_literature_gap_analyze(repo_root: Path, inputs: LiteratureGapAnalyzeInpu
         repo_root,
         cfg.env,
         hep_data_dir_override=inputs.hep_data_dir,
-        create_data_dir=True,
+        create_data_dir=False,
         project_policy=PROJECT_POLICY_REAL_PROJECT,
     )
 
@@ -811,6 +811,24 @@ def run_literature_gap_analyze(repo_root: Path, inputs: LiteratureGapAnalyzeInpu
                     }
                 elif step_id == "connection_scan":
                     step_args["recids"] = recids
+                    if not recids:
+                        connection_json = {
+                            "schema_version": 1,
+                            "created_at": created_at,
+                            "workflow_step": step_id,
+                            "status": "skipped",
+                            "reason": "no_input_recids",
+                            "summary": "No recids were available, so connection analysis was skipped.",
+                            "inputs": {"recids": []},
+                        }
+                        record(
+                            tool_name,
+                            "skipped",
+                            workflow_step=step_id,
+                            provider=str(step.get("provider") or "") or None,
+                            reason="no_input_recids",
+                        )
+                        continue
                 result = client.call_tool_json(tool_name=tool_name, arguments=step_args, timeout_seconds=300.0)
                 extras: dict[str, Any] = {
                     "workflow_step": step_id,

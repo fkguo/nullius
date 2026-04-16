@@ -270,6 +270,101 @@ describe('workflow run consumer', () => {
     expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'skipped' });
   });
 
+  it('skips connection_scan with empty recids, writes a placeholder artifact, and continues later steps', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-WF-EMPTY';
+    state.workflow_id = 'literature_gap_analysis';
+    state.run_status = 'idle';
+    state.plan = {
+      schema_version: 1,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      plan_id: 'M-WF-EMPTY:literature_gap_analysis',
+      run_id: 'M-WF-EMPTY',
+      workflow_id: 'literature_gap_analysis',
+      current_step_id: 'connection_scan',
+      steps: [
+        {
+          step_id: 'connection_scan',
+          description: 'Connection scan',
+          status: 'pending',
+          expected_approvals: [],
+          expected_outputs: ['connection_scan'],
+          recovery_notes: '',
+          execution: {
+            action: 'analyze.paper_connections',
+            tool: 'inspire_find_connections',
+            provider: 'inspire',
+            depends_on: [],
+            params: { recids: [], include_external: true, max_external_depth: 1 },
+            required_capabilities: ['analysis.paper_set_connections'],
+            degrade_mode: 'fail_closed',
+            consumer_hints: { artifact: 'connection_scan' },
+          },
+        },
+        {
+          step_id: 'export_project',
+          description: 'Export project',
+          status: 'pending',
+          expected_approvals: [],
+          expected_outputs: ['research_pack'],
+          recovery_notes: '',
+          execution: {
+            action: 'export.project',
+            tool: 'hep_export_project',
+            provider: 'hep',
+            depends_on: ['connection_scan'],
+            params: { run_id: 'M-WF-EMPTY' },
+            required_capabilities: [],
+            degrade_mode: 'fail_closed',
+            consumer_hints: { artifact: 'research_pack' },
+          },
+        },
+      ],
+      notes: '',
+    };
+    manager.saveState(state);
+
+    const callTool = vi.fn(async () => ({
+      ok: true,
+      isError: false,
+      rawText: JSON.stringify({ uri: 'hep://runs/M-WF-EMPTY/artifact/research_pack.json' }),
+      json: { uri: 'hep://runs/M-WF-EMPTY/artifact/research_pack.json' },
+      errorCode: null,
+    }));
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCommand(
+      makeRunInput(projectRoot, 'literature_gap_analysis', 'M-WF-EMPTY'),
+      io,
+      { workflowToolCaller: { callTool } },
+    );
+
+    expect(code).toBe(0);
+    expect(callTool).toHaveBeenCalledTimes(1);
+    expect(callTool).toHaveBeenCalledWith('hep_export_project', { run_id: 'M-WF-EMPTY' });
+    const payload = JSON.parse(stdout.join('')) as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      status: 'completed',
+      ok: true,
+      executed_step_ids: ['connection_scan', 'export_project'],
+    });
+
+    const persisted = manager.readState();
+    expect(persisted.artifacts.connection_scan).toBe('orch://runs/M-WF-EMPTY/artifact/workflow_steps/connection_scan.json');
+    const placeholderPath = path.join(projectRoot, 'artifacts', 'runs', 'M-WF-EMPTY', 'workflow_steps', 'connection_scan.json');
+    expect(JSON.parse(fs.readFileSync(placeholderPath, 'utf-8'))).toMatchObject({
+      status: 'skipped',
+      reason: 'no_input_recids',
+    });
+    const persistedSteps = (((persisted.plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
+    expect(persistedSteps[0]).toMatchObject({ step_id: 'connection_scan', status: 'skipped' });
+    expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'completed' });
+  });
+
   it('surfaces partial_result through the existing completed envelope plus diagnostics', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = persistWorkflowPlan(projectRoot, {

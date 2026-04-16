@@ -18,6 +18,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 1. 通用 lifecycle 工作流
    - `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。
+   - 只要任务需要持久化 run state、bounded execution、verification、proposal/read-model 或 current-run team visibility，就应从这里进入；是否涉及 approval gate 不影响这一点。
 1. Stateful 文献工作流家族
    - `autoresearch workflow-plan` 是推荐的公开 stateful 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。
 1. 原生 TS computation 工作流
@@ -29,13 +30,19 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 1. 本地 proposal lifecycle 工作流
    - `autoresearch proposal-decision ...` 与 `orch_run_record_proposal_decision` 会为当前 run 的当前 repair/skill/optimize/innovate proposal 记录一个最小本地决策，用来抑制重复建议，而不引入第二套 approval/runtime 家族。
 1. 本地 outcome 读取工作流
-   - `orch_run_status` 与 `orch_run_export` 现在会把当前 run 的 `final_conclusions_v1` 暴露为 local outcome-facing SSOT，而不新增新的 read tool，也不进入 REP surface。
+   - `orch_run_status` 与 `orch_run_export` 现在会把当前 run 的 `final_conclusions_v1` 暴露为 local outcome-facing SSOT，并额外给出一个项目级 `project_recent_digest`，汇总最近 run、最新 final conclusions、最新 proposals 与当前活跃 team 摘要，而不新增新的 read tool，也不进入 REP surface。
 1. 实验性 idea campaign 工作流
    - 通过 `idea-mcp` 暴露 `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`，并支持 `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete`。这仍是实验性的 TS hosted runtime surface，不是 root front door。当前 MCP 面故意比完整 `idea-engine` runtime contract 更窄，不应假设每个 runtime RPC 都已经映射成 MCP tool。
 1. Project/Run 证据工作流
    - `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> export/import。
 1. 文献与数据导航工作流
    - 直接使用 `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 等 provider 工具。
+
+入口选择原则：
+
+- `autoresearch` / `orch_*` 承担 generic stateful control plane：run 级状态、bounded workflow progression、verification、proposal lifecycle 与 read-model 可见性都在这层统一承载。
+- provider tools 更适合纯无状态查询，以及文献、数据、证据等 provider-local 能力调用。
+- 任务一旦需要 project/run 持久状态或跨步骤推进，应优先进入 generic control plane，再按需要调用 provider tools。
 
 ## 3. 当前主要入口是什么
 

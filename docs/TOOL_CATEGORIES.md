@@ -22,7 +22,7 @@
 | 物理学家式文献调研 | `autoresearch workflow-plan --recipe literature_gap_analysis` | 不再通过 provider-specific high-level MCP facade |
 | 主题时间线/趋势/新兴方向 | `inspire_topic_analysis` | 模式: `timeline/evolution/emerging/all` |
 | 引用/合作网络分析 | `inspire_network_analysis` | 模式: `citation/collaboration` |
-| 发现跨论文关联 | `inspire_find_connections` | 输入 `recids`；可选 external hubs |
+| 发现跨论文关联 | `inspire_find_connections` | 输入 `recids`；可选 external hubs。若上游 workflow 的 paper set 为空，高层 consumer 会跳过该步并写出结构化 no-op 结果，而不会放宽原子工具契约 |
 | 追溯原始来源链 | `inspire_trace_original_source` | 输入 `recid` |
 | 证据质量/冲突分析 | `inspire_grade_evidence` / `inspire_detect_measurement_conflicts` / `inspire_critical_analysis` / `inspire_classify_reviews` / `inspire_theoretical_conflicts` | 原子 surface；不再通过 mode bag 混装 |
 | 下载论文源码 (LaTeX/PDF) | `inspire_paper_source` (`mode=content`) | |

@@ -38,14 +38,14 @@
 | `orch_run_record_proposal_decision` | `write` | Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into `.autoresearch/proposal_decisions_v1.json` |
 | `orch_run_record_verification` | `write` | Record one decisive verification result for an existing computation run, materializing `verification_check_run_v1` plus refreshed verdict/coverage/check-run refs |
 | `orch_run_request_final_conclusions` | `write` | Evaluate canonical computation-result verification truth and create an A5 final-conclusions approval request only when higher-conclusion readiness is a decisive pass |
-| `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json`, including current-run `final_conclusions_v1` summary when present |
+| `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json`, including current-run `final_conclusions_v1`, a thin project-level `project_recent_digest`, and a plan view rebuilt from `state.json#/plan` when derived `plan.md` is missing or stale |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
 | `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification; A5 approvals consume into a local `final_conclusions_v1` artifact instead of resuming execution |
 | `orch_run_reject` | `destructive` | Reject a pending gate and pause the run |
 | `orch_run_pause` | `write` | Pause the current run |
 | `orch_run_resume` | `write` | Resume a paused run |
 | `orch_run_approvals_list` | `read` | Inspect pending and historical approvals for a run |
-| `orch_run_export` | `destructive` | Export run summary/artifact listing, including current-run `final_conclusions_v1` summary when present |
+| `orch_run_export` | `destructive` | Export run summary/artifact listing, including current-run `final_conclusions_v1` summary and the same thin project-level `project_recent_digest` when readable |
 | `orch_run_execute_agent` | `destructive` | Execute an orchestrator agent runtime with persisted checkpoints |
 
 #### Policy surface

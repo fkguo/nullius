@@ -10,6 +10,7 @@ import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
 import { handleOrchRunRecordProposalDecision } from '../src/orch-tools/proposal-decision.js';
 import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
+import { readRunListView } from '../src/orch-tools/run-read-model.js';
 import { handleOrchRunRecordVerification } from '../src/orch-tools/verification.js';
 import { StateManager } from '../src/state-manager.js';
 import { createTeamExecutionState } from '../src/team-execution-state.js';
@@ -609,5 +610,130 @@ describe('memory-graph hookup', () => {
     expect(statusView.team_summary_error).toMatchObject({
       code: 'TEAM_SUMMARY_MISSING',
     });
+  });
+
+  it('builds a project recent digest on status/export without widening run_list', async () => {
+    const projectRoot = makeTempProjectRoot();
+
+    const { manager: a5Manager } = await prepareCompletedRun(projectRoot, 'run-digest-a5');
+    await handleOrchRunRecordVerification({
+      project_root: projectRoot,
+      run_id: 'run-digest-a5',
+      status: 'passed',
+      summary: 'Decisive verification completed successfully.',
+      evidence_paths: ['artifacts/computation_result_v1.json'],
+      confidence_level: 'high',
+    });
+    const request = await handleOrchRunRequestFinalConclusions({
+      project_root: projectRoot,
+      run_id: 'run-digest-a5',
+      note: 'ready for digest',
+    }) as Record<string, unknown>;
+    await handleOrchRunApprove({
+      _confirm: true,
+      approval_id: String(request.approval_id),
+      approval_packet_sha256: String(request.approval_packet_sha256),
+      project_root: projectRoot,
+      note: 'approve for digest',
+    });
+
+    for (const runId of ['run-digest-s1', 'run-digest-s2', 'run-digest-s3', 'run-digest-s4']) {
+      await prepareCompletedRun(projectRoot, runId);
+    }
+
+    for (const runId of ['run-digest-r1', 'run-digest-r2']) {
+      const manager = new StateManager(projectRoot);
+      manager.ensureDirs();
+      const state = manager.readState();
+      state.run_id = runId;
+      state.workflow_id = 'computation';
+      state.run_status = 'running';
+      state.gate_satisfied.A3 = 'A3-0001';
+      manager.saveState(state);
+      const { runDir, manifestPath } = createFailedFixture(projectRoot, runId);
+      const result = await executeComputationManifest({ projectRoot, runId, runDir, manifestPath });
+      expect(result.status).toBe('failed');
+    }
+
+    const activeRunId = 'run-digest-team';
+    const activeManager = new StateManager(projectRoot);
+    activeManager.ensureDirs();
+    const activeState = activeManager.readState();
+    activeState.run_id = activeRunId;
+    activeState.workflow_id = 'computation';
+    activeState.run_status = 'running';
+    activeState.gate_satisfied.A3 = 'A3-0001';
+    activeManager.saveState(activeState);
+    activeManager.appendLedger('run_started', {
+      run_id: activeRunId,
+      workflow_id: 'computation',
+      details: { source: 'project_recent_digest_test' },
+    });
+    const teamState = createTeamExecutionState({
+      workspace_id: `ws-${activeRunId}`,
+      coordination_policy: 'supervised_delegate',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-team',
+        task_kind: 'compute',
+        handoff_kind: 'compute',
+      },
+      permissions: TEAM_PERMISSIONS,
+    }, activeRunId);
+    teamState.delegate_assignments[0]!.status = 'running';
+    new TeamExecutionStateManager(projectRoot).save(teamState);
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.project_recent_digest).toMatchObject({
+      latest_final_conclusions: expect.objectContaining({
+        run_id: 'run-digest-a5',
+        artifact_uri: 'orch://runs/run-digest-a5/artifact/final_conclusions_v1.json',
+      }),
+      latest_proposals: expect.objectContaining({
+        repair: expect.objectContaining({
+          run_id: 'run-digest-r2',
+          summary: expect.stringContaining('repair-worthy pattern'),
+        }),
+        skill: expect.objectContaining({
+          summary: expect.stringContaining('package/workflow pattern'),
+        }),
+        optimize: expect.objectContaining({
+          summary: expect.stringContaining('optimization opportunity'),
+        }),
+        innovate: expect.objectContaining({
+          summary: expect.stringContaining('innovation opportunity'),
+        }),
+      }),
+      active_team_run: expect.objectContaining({
+        run_id: activeRunId,
+        run_status: 'running',
+        active_assignment_count: 1,
+        pending_approval_count: 0,
+      }),
+    });
+    expect((statusView.project_recent_digest as Record<string, unknown>).recent_runs).toHaveLength(5);
+    expect(statusView.project_recent_digest_error).toBeNull();
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+    expect(exportView.project_recent_digest).toMatchObject({
+      latest_final_conclusions: expect.objectContaining({
+        run_id: 'run-digest-a5',
+      }),
+      active_team_run: expect.objectContaining({
+        run_id: activeRunId,
+      }),
+    });
+    expect(exportView.project_recent_digest_error).toBeNull();
+
+    const listView = readRunListView(a5Manager, { limit: 20, status_filter: 'all' });
+    expect(listView.runs[0]).not.toHaveProperty('latest_final_conclusions');
+    expect(listView.runs[0]).not.toHaveProperty('latest_proposals');
   });
 });

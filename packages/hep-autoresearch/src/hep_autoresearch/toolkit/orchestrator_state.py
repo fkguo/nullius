@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from ._json import read_json
 from ._time import utc_now_iso
@@ -544,7 +545,7 @@ def _persist_state_with_ledger_event_locked(
     ensure_runtime_dirs(repo_root)
 
     final_state = state_path(repo_root)
-    staged = final_state.with_suffix(final_state.suffix + ".next")
+    staged = final_state.with_name(f"{final_state.name}.{uuid4().hex}.next")
     _write_json_atomic(staged, state)
     try:
         append_ledger_event(

@@ -51,6 +51,7 @@ Behavior:
   Requires an initialized external project root (\`autoresearch init\`).
   Computation requests A3 approval when gate_satisfied.A3 is absent.
   Persisted workflow-plan steps advance in a bounded loop until completion or a blocking failure is reached.
+  A \`connection_scan\` step with an empty \`recids\` paper set is skipped with a structured no-input result instead of being reported as a tool failure.
   Workflow-step execution requires a configured local MCP stdio server via \`AUTORESEARCH_RUN_MCP_COMMAND\`
   plus optional \`AUTORESEARCH_RUN_MCP_ARGS_JSON\` / \`AUTORESEARCH_RUN_MCP_ENV_JSON\`.
 
@@ -120,6 +121,11 @@ Show the current lifecycle state for the nearest project root.
 
 Options:
   --json   Emit machine-readable JSON.
+
+Behavior:
+  Includes current-run lifecycle truth plus a thin project-level recent digest for recent runs,
+  latest final conclusions, latest proposals, and the latest active team summary when readable.
+  When \`state.json#/plan\` exists but derived \`.autoresearch/plan.md\` is missing or stale, status rebuilds the plan view from state and reports a structured warning instead of showing an empty plan.
 `,
 approve: `autoresearch approve <approval_id>
 
@@ -155,6 +161,10 @@ Pass-through options:
   --run-id <id>
   --out <zip-path>
   --include-kb-profile
+
+Behavior:
+  Export summary output includes the same project-level recent digest carried by status/export read models
+  when ledger and recent artifacts are readable.
 `,
   'workflow-plan': `autoresearch workflow-plan --recipe <recipe_id> [options]
 

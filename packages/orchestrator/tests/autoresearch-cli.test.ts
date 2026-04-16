@@ -7,6 +7,9 @@ import {
   AUTORESEARCH_PUBLIC_COMMAND_INVENTORY,
 } from '../src/cli-command-inventory.js';
 import { StateManager } from '../src/state-manager.js';
+import { createTeamExecutionState } from '../src/team-execution-state.js';
+import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
+import type { TeamPermissionMatrix } from '../src/team-execution-types.js';
 import type { RunState } from '../src/types.js';
 import { runCli } from '../src/cli.js';
 import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
@@ -72,6 +75,24 @@ function createComputationFixture(projectRoot: string, runId: string): { runDir:
 }
 
 const EXISTING_EVIDENCE_PATH = 'artifacts/computation_result_v1.json';
+
+const TEAM_PERMISSIONS: TeamPermissionMatrix = {
+  delegation: [
+    {
+      from_role: 'lead',
+      to_role: 'delegate',
+      allowed_task_kinds: ['compute', 'review'],
+      allowed_handoff_kinds: ['compute', 'review'],
+    },
+  ],
+  interventions: [
+    {
+      actor_role: 'lead',
+      allowed_scopes: ['task', 'team'],
+      allowed_kinds: ['pause', 'resume', 'cancel', 'cascade_stop'],
+    },
+  ],
+};
 
 function makeAwaitingApprovalState(): { projectRoot: string; approvalId: string } {
   const projectRoot = makeTempProjectRoot();
@@ -441,6 +462,54 @@ describe('autoresearch CLI', () => {
     expect(planMd).toContain('execution_tool: inspire_topic_analysis');
   });
 
+  it('persists literature gap analysis plans even when connection_scan starts from an empty recid set', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli([
+      'workflow-plan',
+      '--recipe', 'literature_gap_analysis',
+      '--phase', 'analyze',
+      '--run-id', 'M-LIT-GAP-EMPTY-1',
+      '--topic', 'bootstrap amplitudes',
+      '--analysis-seed', '1234',
+      '--available-tool', 'inspire_topic_analysis',
+      '--available-tool', 'inspire_critical_analysis',
+      '--available-tool', 'inspire_network_analysis',
+      '--available-tool', 'inspire_find_connections',
+    ], io);
+
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout.join('')) as {
+      recipe_id: string;
+      phase?: string;
+      resolved_steps: Array<Record<string, unknown>>;
+    };
+    expect(payload).toMatchObject({
+      recipe_id: 'literature_gap_analysis',
+      phase: 'analyze',
+    });
+    expect(payload.resolved_steps[3]).toMatchObject({
+      id: 'connection_scan',
+      params: {
+        recids: [],
+      },
+    });
+
+    const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Record<string, unknown>[];
+    expect(persistedSteps[3]).toMatchObject({
+      step_id: 'connection_scan',
+      execution: {
+        tool: 'inspire_find_connections',
+        params: {
+          recids: [],
+        },
+      },
+    });
+  });
+
   it('keeps task_intent provider-neutral when a recipe step has no explicit action', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
@@ -610,6 +679,140 @@ describe('autoresearch CLI', () => {
       run_status: 'idle',
       workflow_id: 'ingest',
     });
+  });
+
+  it('rebuilds plan view from state when derived plan.md is missing without faking current_step', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-PLAN-1';
+    state.workflow_id = 'review_cycle';
+    state.run_status = 'idle';
+    state.current_step = null;
+    state.plan = {
+      schema_version: 1,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      plan_id: 'M-PLAN-1:review_cycle',
+      run_id: 'M-PLAN-1',
+      workflow_id: 'review_cycle',
+      current_step_id: 'export_project',
+      steps: [
+        {
+          step_id: 'critical_review',
+          description: 'Critical review',
+          status: 'completed',
+          expected_approvals: [],
+          expected_outputs: ['critical_analysis'],
+          recovery_notes: '',
+        },
+        {
+          step_id: 'export_project',
+          description: 'Export project',
+          status: 'pending',
+          expected_approvals: [],
+          expected_outputs: ['research_pack'],
+          recovery_notes: '',
+        },
+      ],
+    };
+    manager.saveState(state);
+    fs.unlinkSync(path.join(projectRoot, '.autoresearch', 'plan.md'));
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      run_id: 'M-PLAN-1',
+      current_step: null,
+      plan_view: {
+        plan_current_step_id: 'export_project',
+        step_count: 2,
+      },
+      plan_view_warning: {
+        code: 'PLAN_VIEW_REBUILT_FROM_STATE',
+      },
+    });
+  });
+
+  it('prints a compact recent digest in non-JSON status output', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-CURRENT';
+    state.workflow_id = 'computation';
+    state.run_status = 'running';
+    manager.saveState(state);
+
+    manager.appendLedger('approval_approved', {
+      run_id: 'M-FINAL',
+      details: { category: 'A5' },
+    });
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'M-FINAL'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, 'artifacts', 'runs', 'M-FINAL', 'final_conclusions_v1.json'),
+      JSON.stringify({
+        approval_id: 'A5-0001',
+        summary: 'A5 final conclusions were approved for M-FINAL',
+        created_at: '2026-04-15T00:00:00Z',
+      }, null, 2) + '\n',
+      'utf-8',
+    );
+
+    manager.appendLedger('status_failed', {
+      run_id: 'M-REPAIR',
+      details: {},
+    });
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'M-REPAIR'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, 'artifacts', 'runs', 'M-REPAIR', 'mutation_proposal_repair_v1.json'),
+      JSON.stringify({
+        schema_version: 1,
+        proposal_id: 'mp-repair-1',
+        mutation_type: 'repair',
+        gene_id: 'gene:repair:test',
+        gate_level: 'A1',
+        status: 'proposed',
+        run_id: 'M-REPAIR',
+        signals: ['boundary:compute_result', 'execution_status:failed'],
+        created_at: '2026-04-15T00:00:01Z',
+      }, null, 2) + '\n',
+      'utf-8',
+    );
+
+    manager.appendLedger('run_started', {
+      run_id: 'M-TEAM',
+      workflow_id: 'computation',
+      details: { source: 'status-text-test' },
+    });
+    const teamState = createTeamExecutionState({
+      workspace_id: 'ws-M-TEAM',
+      coordination_policy: 'supervised_delegate',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-1',
+        task_kind: 'compute',
+        handoff_kind: 'compute',
+      },
+      permissions: TEAM_PERMISSIONS,
+    }, 'M-TEAM');
+    teamState.delegate_assignments[0]!.status = 'running';
+    new TeamExecutionStateManager(projectRoot).save(teamState);
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status'], io);
+
+    expect(code).toBe(0);
+    const text = stdout.join('');
+    expect(text).toContain('recent_digest:');
+    expect(text).toContain('latest_final_conclusions: M-FINAL');
+    expect(text).toContain('latest_repair_proposal: M-REPAIR');
+    expect(text).toContain('active_team_run: M-TEAM status=running');
   });
 
   it('approves a pending gate without requiring the operator to pass a SHA', async () => {

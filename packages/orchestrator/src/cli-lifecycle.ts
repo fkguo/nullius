@@ -34,6 +34,62 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
   if (payload.notes) {
     io.stdout(`notes: ${String(payload.notes)}\n`);
   }
+  if (payload.plan_view_warning) {
+    io.stdout(`plan_view_warning: ${JSON.stringify(payload.plan_view_warning)}\n`);
+  }
+  if (payload.plan_view && typeof payload.plan_view === 'object') {
+    const planView = payload.plan_view as Record<string, unknown>;
+    if (planView.plan_md_path) {
+      io.stdout(`plan_md_path: ${String(planView.plan_md_path)}\n`);
+    }
+    if (planView.plan_current_step_id) {
+      io.stdout(`plan_current_step: ${String(planView.plan_current_step_id)}\n`);
+    }
+    const steps = Array.isArray(planView.steps) ? planView.steps : [];
+    if (steps.length > 0) {
+      io.stdout('plan_steps:\n');
+      for (const rawStep of steps) {
+        if (!rawStep || typeof rawStep !== 'object') continue;
+        const step = rawStep as Record<string, unknown>;
+        io.stdout(`  - ${String(step.step_id ?? '')} [${String(step.status ?? '')}]: ${String(step.description ?? '')}\n`);
+      }
+    }
+  }
+  const digestError = payload.project_recent_digest_error;
+  if (digestError && typeof digestError === 'object') {
+    io.stdout(`project_recent_digest_error: ${JSON.stringify(digestError)}\n`);
+  }
+  const digest = payload.project_recent_digest;
+  if (!digest || typeof digest !== 'object') {
+    return;
+  }
+  io.stdout('recent_digest:\n');
+  const latestFinalConclusions = (digest as Record<string, unknown>).latest_final_conclusions;
+  if (latestFinalConclusions && typeof latestFinalConclusions === 'object') {
+    const entry = latestFinalConclusions as Record<string, unknown>;
+    io.stdout(
+      `  latest_final_conclusions: ${String(entry.run_id ?? '')} @ ${String(entry.created_at ?? '')} :: ${String(entry.summary ?? '')}\n`,
+    );
+  }
+  const latestProposals = (digest as Record<string, unknown>).latest_proposals;
+  if (latestProposals && typeof latestProposals === 'object') {
+    for (const kind of ['repair', 'skill', 'optimize', 'innovate'] as const) {
+      const entry = (latestProposals as Record<string, unknown>)[kind];
+      if (!entry || typeof entry !== 'object') continue;
+      const proposal = entry as Record<string, unknown>;
+      const decision = typeof proposal.decision === 'string' ? ` [decision=${proposal.decision}]` : '';
+      io.stdout(
+        `  latest_${kind}_proposal: ${String(proposal.run_id ?? '')} :: ${String(proposal.summary ?? '')}${decision}\n`,
+      );
+    }
+  }
+  const activeTeamRun = (digest as Record<string, unknown>).active_team_run;
+  if (activeTeamRun && typeof activeTeamRun === 'object') {
+    const entry = activeTeamRun as Record<string, unknown>;
+    io.stdout(
+      `  active_team_run: ${String(entry.run_id ?? '')} status=${String(entry.run_status ?? '')} active_assignments=${String(entry.active_assignment_count ?? '')} pending_approvals=${String(entry.pending_approval_count ?? '')}\n`,
+    );
+  }
 }
 
 function pendingApprovalPacketSha(projectRoot: string, approvalId: string): string {

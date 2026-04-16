@@ -2,6 +2,7 @@
 // Read/write/enforcement helpers for the .autoresearch control plane.
 // Atomic writes: .tmp → rename.
 
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
@@ -360,6 +361,37 @@ function writeJsonAtomic(filePath: string, payload: Record<string, unknown>): vo
   fs.renameSync(tmp, filePath);
 }
 
+function uniqueSiblingPath(filePath: string, suffix: string): string {
+  return `${filePath}.${randomUUID()}.${suffix}`;
+}
+
+function isRetryableCommitError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = String((error as NodeJS.ErrnoException).code ?? '');
+  return code === 'ENOENT' || code === 'EEXIST' || code === 'EBUSY' || code === 'EPERM';
+}
+
+function commitStagedFileWithRetry(params: {
+  stagedPath: string;
+  finalPath: string;
+  label: string;
+  maxAttempts?: number;
+}): void {
+  const maxAttempts = params.maxAttempts ?? 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      fs.renameSync(params.stagedPath, params.finalPath);
+      return;
+    } catch (error) {
+      if (!isRetryableCommitError(error) || attempt === maxAttempts) {
+        throw new Error(
+          `concurrent_state_write_failed: failed to commit ${params.label}; staged=${params.stagedPath}; target=${params.finalPath}; attempts=${attempt}; error=${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+}
+
 /** Append a ledger event line. */
 function appendLedgerLine(
   ledgerFilePath: string,
@@ -541,13 +573,15 @@ export class StateManager {
 
     // 0. Plan validation + plan_md_path (Stage 3c)
     const plan = state.plan;
+    let renderedPlanMd: string | null = null;
     if (isDict(plan)) {
       this.validatePlan(plan);
       state.plan_md_path = this.planMdRelativePath;
+      renderedPlanMd = this.renderPlanMd(plan);
     }
 
-    // 1. Stage state to .next
-    const staged = this.statePath + '.next';
+    // 1. Stage state to a unique .next
+    const staged = uniqueSiblingPath(this.statePath, 'next');
     writeJsonAtomic(staged, state as unknown as Record<string, unknown>);
 
     // 2. Append ledger
@@ -567,17 +601,15 @@ export class StateManager {
     }
 
     // 3. Commit: rename staged → final
-    try {
-      fs.renameSync(staged, this.statePath);
-    } catch (e) {
-      throw new Error(
-        `failed to commit state after ledger write; staged=${staged}; error=${e}`,
-      );
-    }
+    commitStagedFileWithRetry({
+      stagedPath: staged,
+      finalPath: this.statePath,
+      label: 'state',
+    });
 
     // 4. Derive plan.md (after state is safely persisted — SSOT-first)
     if (isDict(plan)) {
-      this.writePlanMd(plan);
+      this.writePlanMd(plan, renderedPlanMd ?? undefined);
     }
   }
 
@@ -1361,15 +1393,19 @@ export class StateManager {
   /** Validate plan, render to Markdown, and atomically write to .autoresearch/plan.md.
    *  Matches Python write_plan_md (orchestrator_state.py L478-495).
    *  Returns relative path. */
-  writePlanMd(plan: Record<string, unknown>): string {
+  writePlanMd(plan: Record<string, unknown>, preRenderedContent?: string): string {
     this.validatePlan(plan);
     this.ensureDirs();
-    const content = this.renderPlanMd(plan);
+    const content = preRenderedContent ?? this.renderPlanMd(plan);
     const p = this.planMdPath;
-    const tmp = p + '.tmp';
+    const tmp = uniqueSiblingPath(p, 'tmp');
     fs.writeFileSync(tmp, content, 'utf-8');
     try {
-      fs.renameSync(tmp, p);
+      commitStagedFileWithRetry({
+        stagedPath: tmp,
+        finalPath: p,
+        label: 'plan_md',
+      });
     } catch (e) {
       try { fs.unlinkSync(tmp); } catch { /* best-effort cleanup */ }
       throw e;

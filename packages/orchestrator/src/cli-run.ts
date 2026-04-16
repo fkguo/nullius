@@ -568,6 +568,9 @@ async function runWorkflowCommand(
     } else if (!nextSelection.blockedReason && nextSelection.nextStepId === null) {
       persisted.run_status = 'completed';
     }
+    if (terminalStatus === 'skipped' && runtimeResult.canonical_artifact_uri) {
+      persisted.artifacts[runtimeRequest.artifact_key] = runtimeResult.canonical_artifact_uri;
+    }
     manager.saveStateWithLedger(persisted, terminalStatus === 'skipped' ? 'workflow_step_skipped' : 'workflow_step_failed', {
       step_id: step.step_id,
       details: {
@@ -576,6 +579,12 @@ async function runWorkflowCommand(
         degrade_mode: runtimeRequest.degrade_mode,
         error: message,
         next_step_id: nextSelection.nextStepId,
+        ...(terminalStatus === 'skipped' && runtimeResult.canonical_artifact_uri
+          ? {
+              artifact_key: runtimeRequest.artifact_key,
+              artifact_uri: runtimeResult.canonical_artifact_uri,
+            }
+          : {}),
         diagnostics: runtimeResult.diagnostics,
       },
     });

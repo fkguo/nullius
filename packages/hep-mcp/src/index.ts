@@ -62,20 +62,25 @@ const TOOL_MODE: ToolExposureMode = parseToolMode();
 function validateEnvironment(): void {
   const errors: string[] = [];
 
-  // Validate data dir exists and is writable
+  // Validate data dir only when it already exists; do not materialize provider-owned
+  // directories during server startup for workflows that never write provider data.
   try {
     const dataDir = getDataDir();
-    ensureDir(dataDir);
-    fs.accessSync(dataDir, fs.constants.W_OK);
+    if (fs.existsSync(dataDir)) {
+      ensureDir(dataDir);
+      fs.accessSync(dataDir, fs.constants.W_OK);
+    }
   } catch (err) {
     errors.push(`HEP_DATA_DIR not writable: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Validate downloads dir exists and is writable (must be within data dir)
+  // Validate downloads dir only when it already exists; real downloads create it on demand.
   try {
     const downloadsDir = getDownloadsDir();
-    ensureDir(downloadsDir);
-    fs.accessSync(downloadsDir, fs.constants.W_OK);
+    if (fs.existsSync(downloadsDir)) {
+      ensureDir(downloadsDir);
+      fs.accessSync(downloadsDir, fs.constants.W_OK);
+    }
   } catch (err) {
     errors.push(`Downloads dir not writable: ${err instanceof Error ? err.message : String(err)}`);
   }

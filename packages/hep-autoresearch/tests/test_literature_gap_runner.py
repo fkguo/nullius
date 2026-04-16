@@ -16,10 +16,12 @@ if SRC_ROOT not in sys.path:
 from hep_autoresearch.toolkit.literature_gap import (  # noqa: E402
     LiteratureGapAnalyzeInputs,
     LiteratureGapDiscoverInputs,
+    _mcp_env,
     extract_seed_search_candidates,
     run_literature_gap_analyze,
     run_literature_gap_discover,
 )
+from hep_autoresearch.toolkit.mcp_config import default_hep_data_dir  # noqa: E402
 
 
 def _stub_server_path() -> Path:
@@ -94,6 +96,7 @@ class TestLiteratureGapRunner(unittest.TestCase):
             self.assertTrue(isinstance(papers, list) and papers)
             recids = [str((paper or {}).get("recid") or "") for paper in papers]
             self.assertEqual(recids, ["2001", "1001", "1002", "3001"], msg=str(recids))
+            self.assertFalse(default_hep_data_dir(repo_root=repo_root).exists())
 
     def test_literature_gap_analyze_round_trip_with_seed_selection(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -149,6 +152,20 @@ class TestLiteratureGapRunner(unittest.TestCase):
             self.assertTrue(
                 str((((gap.get("results") or {}).get("critical_analysis") or {}).get("path") or "")).endswith("/critical_analysis.json")
             )
+            self.assertFalse(default_hep_data_dir(repo_root=repo_root).exists())
+
+    def test_literature_gap_mcp_env_does_not_create_default_hep_data_dir_when_create_is_false(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo_root = Path(td)
+            env = _mcp_env(
+                repo_root,
+                {},
+                hep_data_dir_override=None,
+                create_data_dir=False,
+                project_policy=None,
+            )
+            self.assertIn("HEP_DATA_DIR", env)
+            self.assertFalse(default_hep_data_dir(repo_root=repo_root).exists())
 
     def test_literature_gap_analyze_rejects_external_recids_without_allow_flag(self) -> None:
         with tempfile.TemporaryDirectory() as td:

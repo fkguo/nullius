@@ -18,6 +18,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 
 1. Generic lifecycle workflow
    - `autoresearch init/status/approve/pause/resume/export` for `.autoresearch/` project state outside the development repo.
+   - Use this front door whenever you need persistent run state, bounded execution, verification, proposal/read-model handling, or current-run team visibility, regardless of whether an approval gate is involved.
 1. Stateful literature workflow family
    - `autoresearch workflow-plan` is the recommended public stateful front door for literature workflows on an initialized external project root; it resolves checked-in workflow recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`.
 1. Native TS computation workflow
@@ -29,7 +30,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 1. Local proposal lifecycle workflow
    - `autoresearch proposal-decision ...` and `orch_run_record_proposal_decision` record a minimal local operator decision for the current run's current repair/skill/optimize/innovate proposal so duplicate suggestions can be suppressed without introducing a second approval/runtime family.
 1. Local outcome read workflow
-   - `orch_run_status` and `orch_run_export` now expose the current run's `final_conclusions_v1` as the local outcome-facing SSOT after A5 closeout, without introducing a new read tool or REP surface.
+   - `orch_run_status` and `orch_run_export` now expose the current run's `final_conclusions_v1` as the local outcome-facing SSOT after A5 closeout, and also surface a project-level `project_recent_digest` with recent runs, latest final conclusions, latest proposals, and active team summary without introducing a new read tool or REP surface.
 1. Experimental idea campaign workflow
    - `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` exposed through `idea-mcp`. This remains an experimental TS-hosted runtime surface, not a root front door. The current MCP surface is intentionally narrower than the full `idea-engine` runtime contract; do not assume every runtime RPC is exposed as an MCP tool.
 1. Project/Run evidence workflow

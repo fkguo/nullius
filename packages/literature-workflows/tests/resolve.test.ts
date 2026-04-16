@@ -100,6 +100,32 @@ describe('literature workflow resolver', () => {
     ]);
   });
 
+  it('keeps connection_scan in the resolved analyze plan even when recids is empty', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'literature_gap_analysis',
+      phase: 'analyze',
+      inputs: { topic: 'nonlinear sigma model', recids: [], analysis_seed: '1001' },
+      available_tools: [
+        'inspire_topic_analysis',
+        'inspire_critical_analysis',
+        'inspire_network_analysis',
+        'inspire_find_connections',
+      ],
+    });
+
+    const connectionScan = plan.resolved_steps.find(step => step.id === 'connection_scan');
+    expect(connectionScan).toMatchObject({
+      id: 'connection_scan',
+      tool: 'inspire_find_connections',
+      params: {
+        recids: [],
+        include_external: true,
+        max_external_depth: 1,
+      },
+      degrade_mode: 'fail_closed',
+    });
+  });
+
   it('does not let provider preference overrule current analysis-capability maturity', () => {
     const plan = resolveWorkflowRecipe({
       recipe_id: 'literature_gap_analysis',

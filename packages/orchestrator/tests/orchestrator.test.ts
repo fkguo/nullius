@@ -93,6 +93,55 @@ describe('StateManager', () => {
     expect(read.current_step?.started_at).toBe('2026-02-24T00:00:00Z');
   });
 
+  it('rebuilds a plan view from state when derived plan.md is missing without inventing current_step', () => {
+    const state = baseState({
+      run_id: 'test-run-1',
+      workflow_id: 'review_cycle',
+      run_status: 'idle',
+      current_step: null,
+      plan: {
+        schema_version: 1,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        plan_id: 'test-run-1:review_cycle',
+        run_id: 'test-run-1',
+        workflow_id: 'review_cycle',
+        current_step_id: 'export_project',
+        steps: [
+          {
+            step_id: 'critical_review',
+            description: 'Critical review',
+            status: 'completed',
+            expected_approvals: [],
+            expected_outputs: ['critical_analysis'],
+            recovery_notes: '',
+          },
+          {
+            step_id: 'export_project',
+            description: 'Export project',
+            status: 'pending',
+            expected_approvals: [],
+            expected_outputs: ['research_pack'],
+            recovery_notes: '',
+          },
+        ],
+      },
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    fs.unlinkSync(path.join(tmpDir, '.autoresearch', 'plan.md'));
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    expect(view.current_step).toBeNull();
+    expect(view.plan_view).toMatchObject({
+      plan_current_step_id: 'export_project',
+      step_count: 2,
+    });
+    expect(view.plan_view_warning).toMatchObject({
+      code: 'PLAN_VIEW_REBUILT_FROM_STATE',
+    });
+  });
+
   it('reads awaiting_approval status (Python SSOT)', () => {
     const state = baseState({
       run_id: 'test-run-1',
@@ -427,6 +476,22 @@ describe('StateManager write operations (Stage 2)', () => {
     // No staged files left
     const files = fs.readdirSync(path.join(tmpDir, '.autoresearch'));
     expect(files.filter(f => f.includes('.next'))).toHaveLength(0);
+  });
+
+  it('saveStateWithLedger ignores a stale fixed state.json.next path and still appends exactly one ledger event', () => {
+    const sm = new StateManager(tmpDir);
+    const state = baseState({ run_id: 'r1', run_status: 'running' });
+    fs.mkdirSync(path.join(tmpDir, '.autoresearch', 'state.json.next'), { recursive: true });
+    sm.saveStateWithLedger(state, 'test_persist_retry', {
+      details: { key: 'value' },
+    });
+
+    const rawLines = fs.readFileSync(sm.ledgerPath, 'utf-8').trim().split('\n').filter(Boolean);
+    expect(rawLines).toHaveLength(1);
+    expect(JSON.parse(rawLines[0]!).event_type).toBe('test_persist_retry');
+    const files = fs.readdirSync(path.join(tmpDir, '.autoresearch'));
+    expect(files).toContain('state.json.next');
+    expect(files.filter(f => f.endsWith('.next') && f !== 'state.json.next')).toHaveLength(0);
   });
 
   it('transitionStatus enforces valid transitions', () => {

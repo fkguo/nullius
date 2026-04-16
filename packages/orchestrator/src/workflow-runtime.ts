@@ -1,4 +1,6 @@
 import { McpClient, type McpToolResult, type ToolCaller } from './mcp-client.js';
+import * as path from 'node:path';
+import { writeJsonAtomic } from './computation/io.js';
 
 export type PersistedWorkflowExecution = {
   action: string | null;
@@ -77,11 +79,11 @@ export type WorkflowRuntimeResult =
     }
   | {
       status: 'skipped';
-      payload: null;
+      payload: unknown;
       raw_text: string;
       summary_text: string;
-      canonical_artifact_uri: null;
-      additional_artifact_uris: [];
+      canonical_artifact_uri: string | null;
+      additional_artifact_uris: string[];
       diagnostics: WorkflowRuntimeDiagnostic[];
     }
   | {
@@ -115,6 +117,37 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function normalizeDegradeMode(raw: string | null): WorkflowRuntimeRequest['degrade_mode'] {
   if (raw === 'skip_with_reason' || raw === 'partial_result') return raw;
   return 'fail_closed';
+}
+
+function isConnectionScanWithoutRecids(request: WorkflowRuntimeRequest): boolean {
+  return request.step_id === 'connection_scan'
+    && Array.isArray(request.params.recids)
+    && request.params.recids.length === 0;
+}
+
+function skippedConnectionScanArtifact(request: WorkflowRuntimeRequest): {
+  payload: Record<string, unknown>;
+  artifact_uri: string;
+} {
+  const relativeArtifactPath = ['artifacts', 'runs', request.run_id, 'workflow_steps', `${request.step_id}.json`].join('/');
+  const artifactPath = path.join(request.project_root, ...relativeArtifactPath.split('/'));
+  const payload = {
+    schema_version: 1,
+    workflow_id: request.workflow_id,
+    run_id: request.run_id,
+    step_id: request.step_id,
+    status: 'skipped',
+    reason: 'no_input_recids',
+    summary: 'No recids were available, so connection analysis was skipped.',
+    inputs: {
+      recids: [],
+    },
+  };
+  writeJsonAtomic(artifactPath, payload);
+  return {
+    payload,
+    artifact_uri: `orch://runs/${request.run_id}/artifact/workflow_steps/${request.step_id}.json`,
+  };
 }
 
 function isInfrastructureDiagnosticCode(code: WorkflowRuntimeDiagnosticCode): boolean {
@@ -208,11 +241,11 @@ function makeTerminalResult(
   if (request.degrade_mode === 'skip_with_reason') {
     return {
       status: 'skipped',
-      payload: null,
+      payload: base.payload,
       raw_text: base.raw_text,
       summary_text: base.summary_text,
-      canonical_artifact_uri: null,
-      additional_artifact_uris: [],
+      canonical_artifact_uri: artifacts.canonical_artifact_uri,
+      additional_artifact_uris: artifacts.additional_artifact_uris,
       diagnostics: allDiagnostics.some(diagnostic => diagnostic.code === 'skip_with_reason')
         ? allDiagnostics
         : [{ code: 'skip_with_reason', message: base.summary_text }, ...allDiagnostics],
@@ -398,6 +431,26 @@ export async function executeWorkflowRuntimeRequest(
   request: WorkflowRuntimeRequest,
   deps: WorkflowRuntimeDeps = {},
 ): Promise<WorkflowRuntimeResult> {
+  if (isConnectionScanWithoutRecids(request)) {
+    const skipped = skippedConnectionScanArtifact(request);
+    return {
+      status: 'skipped',
+      payload: skipped.payload,
+      raw_text: 'skipped because no_input_recids',
+      summary_text: 'skipped because no_input_recids',
+      canonical_artifact_uri: skipped.artifact_uri,
+      additional_artifact_uris: [],
+      diagnostics: [{
+        code: 'skip_with_reason',
+        message: 'skipped because no_input_recids',
+        details: {
+          reason: 'no_input_recids',
+          step_id: request.step_id,
+          artifact_uri: skipped.artifact_uri,
+        },
+      }],
+    };
+  }
   try {
     const toolResult = await withWorkflowToolCaller(deps, toolCaller => toolCaller.callTool(request.tool, request.params));
     return normalizeWorkflowRuntimeResult(request, toolResult);

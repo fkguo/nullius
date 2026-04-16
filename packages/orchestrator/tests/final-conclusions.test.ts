@@ -70,6 +70,7 @@ function readJson<T>(filePath: string): T {
 }
 
 function writeJson(filePath: string, payload: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
 }
 
@@ -714,6 +715,66 @@ describe('final conclusions consumer', () => {
       recorded: true,
       run_id: runId,
       status: 'passed',
+    });
+  });
+
+  it('returns a structured project_recent_digest error when the ledger is missing', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-DIGEST-LEDGER';
+    state.workflow_id = 'computation';
+    manager.saveState(state);
+    fs.unlinkSync(manager.ledgerPath);
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.project_recent_digest).toBeNull();
+    expect(statusView.project_recent_digest_error).toMatchObject({
+      code: 'PROJECT_RECENT_DIGEST_LEDGER_MISSING',
+    });
+  });
+
+  it('keeps project_recent_digest readable when a newer historical artifact is invalid', async () => {
+    const { manager, projectRoot, runId } = await prepareCompletedRun();
+    await recordVerificationPass(projectRoot, runId);
+    const request = await requestA5(projectRoot, runId);
+    await handleOrchRunApprove({
+      _confirm: true,
+      approval_id: String(request.approval_id),
+      approval_packet_sha256: String(request.approval_packet_sha256),
+      project_root: projectRoot,
+      note: 'approve valid digest source',
+    });
+
+    manager.appendLedger('approval_approved', {
+      run_id: 'M-DIGEST-BAD',
+      details: { category: 'A5' },
+    });
+    writeJson(
+      path.join(projectRoot, 'artifacts', 'runs', 'M-DIGEST-BAD', 'final_conclusions_v1.json'),
+      { created_at: 'not-enough-fields' },
+    );
+    const state = manager.readState();
+    state.run_id = 'M-DIGEST-BAD';
+    state.workflow_id = 'computation';
+    state.run_status = 'completed';
+    manager.saveState(state);
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView.project_recent_digest).toMatchObject({
+      latest_final_conclusions: expect.objectContaining({
+        run_id: runId,
+      }),
+    });
+    expect(statusView.project_recent_digest_error).toMatchObject({
+      code: 'PROJECT_RECENT_DIGEST_PARTIAL',
+      read_errors: expect.arrayContaining([
+        expect.objectContaining({
+          code: 'FINAL_CONCLUSIONS_INVALID',
+          run_id: 'M-DIGEST-BAD',
+        }),
+      ]),
     });
   });
 });

@@ -13,6 +13,7 @@ import {
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
 import { readLearningSummaryView } from './learning-summary.js';
 import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
+import { buildRunStatusView, readProjectRecentDigestView } from './run-read-model.js';
 import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import {
@@ -35,6 +36,7 @@ export async function handleOrchRunExport(
     }
   }
   if (params.include_artifacts) {
+    const projectRecentDigest = readProjectRecentDigestView(projectRoot);
     const runsDir = path.join(projectRoot, 'artifacts', 'runs');
     if (fs.existsSync(runsDir)) {
       result.artifact_runs = fs.readdirSync(runsDir)
@@ -47,7 +49,10 @@ export async function handleOrchRunExport(
     } else {
       result.artifact_runs = [];
     }
+    result.project_recent_digest = projectRecentDigest.project_recent_digest;
+    result.project_recent_digest_error = projectRecentDigest.project_recent_digest_error;
     if (state && state.run_id) {
+      const statusView = buildRunStatusView(projectRoot, state);
       const finalConclusions = readFinalConclusionsView(projectRoot, state);
       const researchOutcomeProjection = readResearchOutcomeProjectionView(projectRoot, state);
       const repairProposal = readRepairProposalView(projectRoot, state);
@@ -72,6 +77,8 @@ export async function handleOrchRunExport(
       result.current_run_learning_summary_error = learningSummary.learning_summary_error;
       result.current_run_team_summary = teamSummary.team_summary;
       result.current_run_team_summary_error = teamSummary.team_summary_error;
+      result.current_run_plan_view = statusView.plan_view ?? null;
+      result.current_run_plan_view_warning = statusView.plan_view_warning ?? null;
     }
   }
   return {
