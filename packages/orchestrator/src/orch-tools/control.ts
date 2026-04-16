@@ -79,6 +79,9 @@ export async function handleOrchRunExport(
       result.current_run_team_summary_error = teamSummary.team_summary_error;
       result.current_run_plan_view = statusView.plan_view ?? null;
       result.current_run_plan_view_warning = statusView.plan_view_warning ?? null;
+      result.current_run_workflow_outputs = statusView.current_run_workflow_outputs ?? null;
+      result.current_run_workflow_outputs_error = statusView.current_run_workflow_outputs_error ?? null;
+      result.current_run_resume_context = statusView.resume_context ?? null;
     }
   }
   return {

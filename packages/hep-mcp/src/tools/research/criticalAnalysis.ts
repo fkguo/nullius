@@ -52,6 +52,29 @@ export interface CriticalAnalysisResult {
   paper_title: string;
   success: boolean;
   error?: string;
+  component_status: {
+    evidence: {
+      requested: boolean;
+      status: 'completed' | 'unavailable' | 'invalid' | 'abstained' | 'not_requested';
+      reason_code: string | null;
+      error: string | null;
+      available_output: boolean;
+    };
+    questions: {
+      requested: boolean;
+      status: 'completed' | 'unavailable' | 'invalid' | 'abstained' | 'not_requested';
+      reason_code: string | null;
+      error: string | null;
+      available_output: boolean;
+    };
+    assumptions: {
+      requested: boolean;
+      status: 'completed' | 'unavailable' | 'invalid' | 'abstained' | 'not_requested';
+      reason_code: string | null;
+      error: string | null;
+      available_output: boolean;
+    };
+  };
 
   /** Evidence grading results */
   evidence?: EvidenceGradingResult;
@@ -82,6 +105,76 @@ export interface CriticalAnalysisResult {
 type CriticalAnalysisContext = {
   createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
 };
+
+type CriticalAnalysisComponentStatus = CriticalAnalysisResult['component_status']['evidence'];
+
+function hasAvailableEvidenceOutput(result: EvidenceGradingResult | undefined): boolean {
+  return Boolean(result && (
+    result.success
+    || (Array.isArray(result.main_claims) && result.main_claims.length > 0)
+    || (Array.isArray(result.warnings) && result.warnings.length > 0)
+  ));
+}
+
+function hasAvailableQuestionsOutput(result: CriticalQuestionsResult | undefined): boolean {
+  return Boolean(result && (
+    result.success
+    || (Array.isArray(result.red_flags) && result.red_flags.length > 0)
+    || result.reliability_score !== null
+  ));
+}
+
+function hasAvailableAssumptionsOutput(result: AssumptionTrackerResult | undefined): boolean {
+  return Boolean(result && (
+    result.success
+    || result.analysis !== null
+    || Boolean(result.risk_assessment)
+  ));
+}
+
+function unavailableComponentStatus(requested: boolean) {
+  return {
+    requested,
+    status: requested ? 'unavailable' as const : 'not_requested' as const,
+    reason_code: null,
+    error: null,
+    available_output: false,
+  };
+}
+
+function componentStatus(params: {
+  requested: boolean;
+  result: EvidenceGradingResult | CriticalQuestionsResult | AssumptionTrackerResult | undefined;
+  availableOutput: boolean;
+}): CriticalAnalysisComponentStatus {
+  if (!params.requested) return unavailableComponentStatus(false);
+  if (!params.result) return unavailableComponentStatus(true);
+  const result = params.result;
+  if (result.success === true) {
+    return {
+      requested: true,
+      status: 'completed' as const,
+      reason_code: null,
+      error: null,
+      available_output: params.availableOutput,
+    };
+  }
+  const provenance = 'provenance' in result && result.provenance && typeof result.provenance === 'object'
+    ? result.provenance
+    : null;
+  const rawStatus = provenance?.status ?? 'unavailable';
+  const normalizedStatus: CriticalAnalysisComponentStatus['status'] =
+    rawStatus === 'invalid' || rawStatus === 'abstained' || rawStatus === 'unavailable'
+    ? rawStatus
+    : 'unavailable';
+  return {
+    requested: true,
+    status: normalizedStatus,
+    reason_code: provenance?.reason_code ?? null,
+    error: result.error ?? null,
+    available_output: params.availableOutput,
+  };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
@@ -507,6 +600,23 @@ export async function performCriticalAnalysis(
         paper_title: paperTitle,
         success: false,
         error: `Critical analysis failed closed because semantic sub-analyses did not complete: ${componentFailures.join('; ')}`,
+        component_status: {
+          evidence: componentStatus({
+            requested: include_evidence,
+            result: evidence,
+            availableOutput: hasAvailableEvidenceOutput(evidence),
+          }),
+          questions: componentStatus({
+            requested: include_questions,
+            result: questions,
+            availableOutput: hasAvailableQuestionsOutput(questions),
+          }),
+          assumptions: componentStatus({
+            requested: include_assumptions,
+            result: assumptions,
+            availableOutput: hasAvailableAssumptionsOutput(assumptions),
+          }),
+        },
         evidence,
         questions,
         assumptions,
@@ -533,6 +643,23 @@ export async function performCriticalAnalysis(
       paper_recid: recid,
       paper_title: paperTitle,
       success: true,
+      component_status: {
+        evidence: componentStatus({
+          requested: include_evidence,
+          result: evidence,
+          availableOutput: hasAvailableEvidenceOutput(evidence),
+        }),
+        questions: componentStatus({
+          requested: include_questions,
+          result: questions,
+          availableOutput: hasAvailableQuestionsOutput(questions),
+        }),
+        assumptions: componentStatus({
+          requested: include_assumptions,
+          result: assumptions,
+          availableOutput: hasAvailableAssumptionsOutput(assumptions),
+        }),
+      },
       evidence,
       questions,
       assumptions,
@@ -552,6 +679,11 @@ export async function performCriticalAnalysis(
       paper_title: paperTitle,
       success: false,
       error: error instanceof Error ? error.message : String(error),
+      component_status: {
+        evidence: unavailableComponentStatus(include_evidence),
+        questions: unavailableComponentStatus(include_questions),
+        assumptions: unavailableComponentStatus(include_assumptions),
+      },
       integrated_assessment: {
         reliability_score: 0,
         risk_level: 'high',

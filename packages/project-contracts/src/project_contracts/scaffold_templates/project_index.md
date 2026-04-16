@@ -8,22 +8,24 @@ Use it to find the human notebook, the machine contract, and the current plan wi
 
 ## Read first (in order)
 
-1) [project_charter.md](project_charter.md) — goals, constraints, and declared profile
-2) [research_plan.md](research_plan.md) — task board, milestones, and progress log
-3) [research_notebook.md](research_notebook.md) — human-readable derivations, interpretation, and figures
+1) [AGENTS.md](AGENTS.md) — workflow anchor, reconnect discipline, and output rules
+2) [project_charter.md](project_charter.md) — goals, constraints, and declared profile
+3) [research_plan.md](research_plan.md) — task board, milestones, and progress log
 4) [research_contract.md](research_contract.md) — machine-stable contract for gates, packets, and revision
-5) [AGENTS.md](AGENTS.md) — workflow anchor for agents and restart discipline
+5) [research_notebook.md](research_notebook.md) — human-readable derivations, interpretation, and figures, when it already contains substantive content
+
+If `.autoresearch/` exists, start by running `autoresearch status --json` before continuing work.
 
 ## Core working surfaces
 
 - Human primary file: [research_notebook.md](research_notebook.md)
 - Machine contract: [research_contract.md](research_contract.md)
 - Artifact root: `artifacts/runs/<TAG>/`
-- Local MCP config template: [.mcp.template.json](.mcp.template.json)
 - Shared docs: [docs/APPROVAL_GATES.md](docs/APPROVAL_GATES.md), [docs/ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md), [docs/EVAL_GATE_CONTRACT.md](docs/EVAL_GATE_CONTRACT.md)
 
 ## Optional expansions
 
+- [.mcp.template.json](.mcp.template.json) and `specs/plan.schema.json` are added only in the fuller scaffold or when a project explicitly needs provider config / schema tooling.
 - [research_preflight.md](research_preflight.md), [project_brief.md](project_brief.md), and [idea_log.md](idea_log.md) are added only when the scaffold expands beyond the minimal root.
 - [knowledge_base/](knowledge_base/) and [references/](references/) are optional support surfaces, not required at project creation time.
 - [prompts/](prompts/), [team/](team/), and [research_team_config.json](research_team_config.json) are host-local research-team surfaces, not canonical root files.

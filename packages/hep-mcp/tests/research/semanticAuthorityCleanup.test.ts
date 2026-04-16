@@ -13,6 +13,7 @@ const { classifyContentType } = await import('../../src/tools/research/paperClas
 const { classifyReviews } = await import('../../src/tools/research/reviewClassifier.js');
 const { generateCriticalQuestions } = await import('../../src/tools/research/criticalQuestions.js');
 const { trackAssumptions } = await import('../../src/tools/research/assumptionTracker.js');
+const { performCriticalAnalysis } = await import('../../src/tools/research/criticalAnalysis.js');
 const { traceOriginalSource } = await import('../../src/tools/research/traceSource.js');
 
 function makePaper(overrides: Record<string, unknown> = {}) {
@@ -180,5 +181,37 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.analysis).toBeNull();
     expect(result.provenance?.reason_code).toBe('sampling_required');
     expect(result.provenance?.authority).toBe('unavailable');
+  });
+
+  it('exposes component_status when critical analysis fails closed on sampling-unavailable components', async () => {
+    vi.mocked(api.getPaper).mockResolvedValue(makePaper({ recid: '9009' }) as never);
+
+    const result = await performCriticalAnalysis({
+      recid: '9009',
+      include_evidence: false,
+      include_questions: true,
+      include_assumptions: true,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.component_status).toMatchObject({
+      evidence: {
+        requested: false,
+        status: 'not_requested',
+        available_output: false,
+      },
+      questions: {
+        requested: true,
+        status: 'unavailable',
+        reason_code: 'sampling_required',
+        available_output: true,
+      },
+      assumptions: {
+        requested: true,
+        status: 'unavailable',
+        reason_code: 'sampling_required',
+        available_output: false,
+      },
+    });
   });
 });

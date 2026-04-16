@@ -724,15 +724,212 @@ describe('autoresearch CLI', () => {
     const code = await runCli(['status', '--json'], io);
 
     expect(code).toBe(0);
-    expect(JSON.parse(stdout.join(''))).toMatchObject({
+    const payload = JSON.parse(stdout.join(''));
+    expect(payload).toMatchObject({
       run_id: 'M-PLAN-1',
       current_step: null,
+      resume_context: {
+        status_command: 'autoresearch status --json',
+        current_run_id: 'M-PLAN-1',
+        run_status: 'idle',
+        recommended_files: expect.arrayContaining(['AGENTS.md', 'project_charter.md', 'research_plan.md', 'research_contract.md']),
+      },
       plan_view: {
         plan_current_step_id: 'export_project',
         step_count: 2,
       },
       plan_view_warning: {
         code: 'PLAN_VIEW_REBUILT_FROM_STATE',
+      },
+    });
+    expect(payload.resume_context.recommended_files).not.toContain('research_notebook.md');
+  });
+
+  it('shows current_run_workflow_outputs in JSON status when bounded workflow results already exist', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-OUT-1';
+    state.workflow_id = 'literature_gap_analysis';
+    state.run_status = 'completed';
+    state.workflow_outputs = {
+      topic_analysis: {
+        step_id: 'topic_scan',
+        tool: 'inspire_topic_analysis',
+        runtime_status: 'completed',
+        artifact_uri: 'hep://runs/M-OUT-1/artifact/topic_analysis.json',
+        additional_artifact_uris: [],
+        summary_text: 'Topic timeline completed successfully.',
+        payload: { topic: 'bootstrap amplitudes' },
+        payload_truncated: false,
+      },
+      connection_scan: {
+        step_id: 'connection_scan',
+        tool: 'inspire_find_connections',
+        runtime_status: 'skipped' as never,
+        artifact_uri: 'orch://runs/M-OUT-1/artifact/workflow_steps/connection_scan.json',
+        additional_artifact_uris: [],
+        summary_text: 'skipped because no_input_recids',
+        payload: { status: 'skipped', reason: 'no_input_recids' },
+        payload_truncated: false,
+      },
+    } as any;
+    manager.saveState(state);
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      current_run_workflow_outputs: {
+        topic_analysis: {
+          status: 'completed',
+          artifact_uri: 'hep://runs/M-OUT-1/artifact/topic_analysis.json',
+          summary: 'Topic timeline completed successfully.',
+        },
+        connection_scan: {
+          status: 'skipped',
+          artifact_uri: 'orch://runs/M-OUT-1/artifact/workflow_steps/connection_scan.json',
+          summary: 'skipped because no_input_recids',
+        },
+      },
+      resume_context: {
+        status_command: 'autoresearch status --json',
+        current_run_id: 'M-OUT-1',
+        run_status: 'completed',
+        curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
+        workflow_output_keys: expect.arrayContaining(['topic_analysis', 'connection_scan']),
+      },
+    });
+  });
+
+  it('includes research_notebook.md in recommended_files only when the notebook has substantive content', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-NOTE-1';
+    state.run_status = 'idle';
+    manager.saveState(state);
+
+    fs.writeFileSync(
+      path.join(projectRoot, 'research_notebook.md'),
+      [
+        '# research_notebook.md',
+        '',
+        'Project: Demo',
+        'Last updated: 2026-04-16',
+        '',
+        '## Goal',
+        '',
+        '- One-sentence objective:',
+        '- Why it matters:',
+        '',
+        '## Results',
+        '',
+        '- Main takeaways:',
+        '- The bootstrap scan already falsified the small-coupling prior.',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join('')).resume_context.recommended_files).toContain('research_notebook.md');
+  });
+
+  it('keeps research_notebook.md out of recommended_files when only the scaffold notebook skeleton exists', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-NOTE-0';
+    state.run_status = 'idle';
+    manager.saveState(state);
+
+    fs.writeFileSync(
+      path.join(projectRoot, 'research_notebook.md'),
+      [
+        '# research_notebook.md',
+        '',
+        'Project: Demo',
+        'Last updated: 2026-04-16',
+        '',
+        'This file is the human-facing research notebook.',
+        'Write narrative derivations, interpretation, figures, and references here.',
+        'Keep machine-stable gate structure in [research_contract.md](research_contract.md).',
+        '',
+        '## Goal',
+        '',
+        '- One-sentence objective:',
+        '- Why it matters:',
+        '',
+        '## Derivation Notes',
+        '',
+        '- State assumptions explicitly.',
+        '- Keep the reasoning readable; move machine-checkable pointers to [research_contract.md](research_contract.md).',
+        '',
+        '## Results',
+        '',
+        '- Key figures/tables:',
+        '- Main takeaways:',
+        '',
+        '## Open Questions',
+        '',
+        '- What is still uncertain?',
+        '- What would falsify the current direction?',
+        '',
+        '## References',
+        '',
+        '- Add stable links and local note pointers here as the project grows.',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join('')).resume_context.recommended_files).not.toContain('research_notebook.md');
+  });
+
+  it('reports current_run_workflow_outputs_error when a curated workflow output is malformed', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-BAD-1';
+    state.run_status = 'running';
+    state.workflow_outputs = {
+      topic_analysis: {
+        step_id: 'topic_scan',
+        tool: 'inspire_topic_analysis',
+        artifact_uri: 'hep://runs/M-BAD-1/artifact/topic_analysis.json',
+        summary_text: 'missing runtime status',
+      },
+    } as any;
+    manager.saveState(state);
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      current_run_workflow_outputs: null,
+      current_run_workflow_outputs_error: {
+        code: 'CURRENT_RUN_WORKFLOW_OUTPUTS_PARTIAL',
+        curated_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
+        output_errors: [
+          {
+            code: 'WORKFLOW_OUTPUT_INVALID',
+            output_key: 'topic_analysis',
+          },
+        ],
       },
     });
   });

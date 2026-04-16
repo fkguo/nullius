@@ -55,6 +55,33 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
       }
     }
   }
+  if (payload.resume_context && typeof payload.resume_context === 'object') {
+    const resumeContext = payload.resume_context as Record<string, unknown>;
+    io.stdout(`resume_status_command: ${String(resumeContext.status_command ?? '')}\n`);
+    io.stdout(`resume_current_run_id: ${String(resumeContext.current_run_id ?? '')}\n`);
+    io.stdout(`resume_run_status: ${String(resumeContext.run_status ?? '')}\n`);
+    io.stdout(`resume_plan_md_path: ${String(resumeContext.plan_md_path ?? '')}\n`);
+    const recommendedFiles = Array.isArray(resumeContext.recommended_files) ? resumeContext.recommended_files : [];
+    if (recommendedFiles.length > 0) {
+      io.stdout('resume_recommended_files:\n');
+      for (const file of recommendedFiles) {
+        io.stdout(`  - ${String(file)}\n`);
+      }
+    }
+  }
+  if (payload.current_run_workflow_outputs_error) {
+    io.stdout(`current_run_workflow_outputs_error: ${JSON.stringify(payload.current_run_workflow_outputs_error)}\n`);
+  }
+  if (payload.current_run_workflow_outputs && typeof payload.current_run_workflow_outputs === 'object') {
+    io.stdout('workflow_outputs:\n');
+    for (const [key, rawEntry] of Object.entries(payload.current_run_workflow_outputs as Record<string, unknown>)) {
+      if (!rawEntry || typeof rawEntry !== 'object') continue;
+      const entry = rawEntry as Record<string, unknown>;
+      io.stdout(
+        `  - ${key}: ${String(entry.status ?? '')} :: ${String(entry.summary ?? '')}${entry.artifact_uri ? ` (${String(entry.artifact_uri)})` : ''}\n`,
+      );
+    }
+  }
   const digestError = payload.project_recent_digest_error;
   if (digestError && typeof digestError === 'object') {
     io.stdout(`project_recent_digest_error: ${JSON.stringify(digestError)}\n`);

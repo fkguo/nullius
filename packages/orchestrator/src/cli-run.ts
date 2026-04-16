@@ -58,7 +58,7 @@ function classifyWorkflowCompileDiagnostic(message: string): 'malformed_executio
 function buildWorkflowOutputView(params: {
   stepId: string;
   tool: string;
-  runtimeStatus: 'completed' | 'partial';
+  runtimeStatus: 'completed' | 'partial' | 'skipped' | 'failed';
   artifactUri: string | null;
   additionalArtifactUris: string[];
   summaryText: string;
@@ -612,6 +612,15 @@ async function runWorkflowCommand(
     } else if (!nextSelection.blockedReason && nextSelection.nextStepId === null) {
       persisted.run_status = 'completed';
     }
+    persisted.workflow_outputs[runtimeRequest.artifact_key] = buildWorkflowOutputView({
+      stepId: step.step_id,
+      tool: step.execution?.tool ?? runtimeRequest.tool,
+      runtimeStatus: terminalStatus,
+      artifactUri: runtimeResult.canonical_artifact_uri,
+      additionalArtifactUris: runtimeResult.additional_artifact_uris,
+      summaryText: runtimeResult.summary_text,
+      payload: runtimeResult.payload,
+    });
     if (terminalStatus === 'skipped' && runtimeResult.canonical_artifact_uri) {
       persisted.artifacts[runtimeRequest.artifact_key] = runtimeResult.canonical_artifact_uri;
     }

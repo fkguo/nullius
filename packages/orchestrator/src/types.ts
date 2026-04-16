@@ -43,7 +43,7 @@ export interface CurrentStep {
 export interface WorkflowOutputView {
   step_id: string;
   tool: string;
-  runtime_status: 'completed' | 'partial';
+  runtime_status: 'completed' | 'partial' | 'skipped' | 'failed';
   artifact_uri: string | null;
   additional_artifact_uris: string[];
   summary_text: string;

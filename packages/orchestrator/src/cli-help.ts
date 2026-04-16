@@ -126,6 +126,7 @@ Behavior:
   Includes current-run lifecycle truth plus a thin project-level recent digest for recent runs,
   latest final conclusions, latest proposals, and the latest active team summary when readable.
   When \`state.json#/plan\` exists but derived \`.autoresearch/plan.md\` is missing or stale, status rebuilds the plan view from state and reports a structured warning instead of showing an empty plan.
+  Status JSON also includes \`resume_context\` and \`current_run_workflow_outputs\` so a reconnecting agent can recover the current run and reuse bounded workflow outputs without rerunning atomic tools.
 `,
 approve: `autoresearch approve <approval_id>
 
@@ -165,6 +166,7 @@ Pass-through options:
 Behavior:
   Export summary output includes the same project-level recent digest carried by status/export read models
   when ledger and recent artifacts are readable.
+  Current-run export also includes \`current_run_workflow_outputs\` and \`current_run_resume_context\` when a run is active.
 `,
   'workflow-plan': `autoresearch workflow-plan --recipe <recipe_id> [options]
 

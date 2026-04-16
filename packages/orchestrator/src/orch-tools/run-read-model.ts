@@ -50,6 +50,127 @@ const ACTIVE_DIGEST_RUN_STATUSES = new Set([
 ]);
 
 type DigestProposalKind = 'repair' | 'skill' | 'optimize' | 'innovate';
+const CURATED_WORKFLOW_OUTPUT_KEYS = ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'] as const;
+const RESEARCH_NOTEBOOK_TEMPLATE_LINES = new Set([
+  '# research_notebook.md',
+  'This file is the human-facing research notebook.',
+  'Write narrative derivations, interpretation, figures, and references here.',
+  'Keep machine-stable gate structure in [research_contract.md](research_contract.md).',
+  '## Goal',
+  '- One-sentence objective:',
+  '- Why it matters:',
+  '## Derivation Notes',
+  '- State assumptions explicitly.',
+  '- Keep the reasoning readable; move machine-checkable pointers to [research_contract.md](research_contract.md).',
+  '## Results',
+  '- Key figures/tables:',
+  '- Main takeaways:',
+  '## Open Questions',
+  '- What is still uncertain?',
+  '- What would falsify the current direction?',
+  '## References',
+  '- Add stable links and local note pointers here as the project grows.',
+]);
+
+function artifactPathFromUri(uri: string): string | null {
+  const marker = '/artifact/';
+  const index = uri.indexOf(marker);
+  if (index < 0) return null;
+  return decodeURIComponent(uri.slice(index + marker.length));
+}
+
+function hasSubstantiveResearchNotebook(projectRoot: string): boolean {
+  const notebookPath = path.join(projectRoot, 'research_notebook.md');
+  if (!fs.existsSync(notebookPath)) return false;
+  try {
+    const content = fs.readFileSync(notebookPath, 'utf-8');
+    const lines = content
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .filter(line => !line.startsWith('Project: '))
+      .filter(line => !line.startsWith('Last updated: '))
+      .filter(line => !RESEARCH_NOTEBOOK_TEMPLATE_LINES.has(line));
+    return lines.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function readCurrentRunWorkflowOutputsView(state: RunState): {
+  current_run_workflow_outputs: Record<string, unknown> | null;
+  current_run_workflow_outputs_error: Record<string, unknown> | null;
+} {
+  const outputs = state.workflow_outputs ?? {};
+  const entries = Object.entries(outputs);
+  if (entries.length === 0) {
+    return {
+      current_run_workflow_outputs: null,
+      current_run_workflow_outputs_error: null,
+    };
+  }
+
+  const picked: Record<string, unknown> = {};
+  const errors: Record<string, unknown>[] = [];
+  // Keep this view intentionally narrow and agent-oriented; the raw inventory remains in state.workflow_outputs.
+  for (const key of CURATED_WORKFLOW_OUTPUT_KEYS) {
+    const output = outputs[key];
+    if (!output) continue;
+    const runtimeStatus = typeof output.runtime_status === 'string' ? output.runtime_status : null;
+    const artifactUri = typeof output.artifact_uri === 'string' ? output.artifact_uri : null;
+    const summaryText = typeof output.summary_text === 'string' ? output.summary_text : null;
+    if (!runtimeStatus) {
+      errors.push({
+        code: 'WORKFLOW_OUTPUT_INVALID',
+        output_key: key,
+        message: `workflow output ${key} is missing runtime_status`,
+      });
+      continue;
+    }
+    picked[key] = {
+      status: runtimeStatus,
+      artifact_path: artifactUri ? artifactPathFromUri(artifactUri) : null,
+      artifact_uri: artifactUri,
+      summary: summaryText,
+    };
+  }
+
+  return {
+    current_run_workflow_outputs: Object.keys(picked).length > 0 ? picked : null,
+    current_run_workflow_outputs_error: errors.length > 0
+      ? {
+          code: 'CURRENT_RUN_WORKFLOW_OUTPUTS_PARTIAL',
+          message: `Built current_run_workflow_outputs with ${errors.length} invalid output entr${errors.length === 1 ? 'y' : 'ies'}.`,
+          curated_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
+          output_errors: errors,
+        }
+      : null,
+  };
+}
+
+function readResumeContextView(projectRoot: string, state: RunState): Record<string, unknown> {
+  const readOrder = [
+    'AGENTS.md',
+    'project_charter.md',
+    'research_plan.md',
+    'research_contract.md',
+    'research_notebook.md',
+  ];
+  const recommendedFiles = readOrder.filter((file) => {
+    if (file !== 'research_notebook.md') return true;
+    return hasSubstantiveResearchNotebook(projectRoot);
+  });
+  return {
+    read_order: readOrder,
+    status_command: 'autoresearch status --json',
+    current_run_id: state.run_id,
+    run_status: state.run_status,
+    plan_md_path: state.plan_md_path,
+    workflow_output_keys: Object.keys(state.workflow_outputs ?? {}),
+    curated_workflow_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
+    recommended_files: recommendedFiles,
+  };
+}
 
 function readPlanView(projectRoot: string, state: RunState): {
   plan_view: Record<string, unknown> | null;
@@ -307,6 +428,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const finalConclusions = readFinalConclusionsView(projectRoot, state);
   const researchOutcomeProjection = readResearchOutcomeProjectionView(projectRoot, state);
   const planView = readPlanView(projectRoot, state);
+  const workflowOutputs = readCurrentRunWorkflowOutputsView(state);
+  const resumeContext = readResumeContextView(projectRoot, state);
   const repairProposal = readRepairProposalView(projectRoot, state);
   const optimizeProposal = readOptimizeProposalView(projectRoot, state);
   const innovateProposal = readInnovateProposalView(projectRoot, state);
@@ -330,6 +453,9 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     gate_satisfied: state.gate_satisfied ?? {},
     artifacts: state.artifacts ?? {},
     workflow_outputs: state.workflow_outputs ?? {},
+    current_run_workflow_outputs: workflowOutputs.current_run_workflow_outputs,
+    current_run_workflow_outputs_error: workflowOutputs.current_run_workflow_outputs_error,
+    resume_context: resumeContext,
     notes: state.notes ?? '',
     uri: state.run_id ? `orch://runs/${state.run_id}` : null,
     is_paused: paused,

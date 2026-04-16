@@ -67,3 +67,50 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("## Markdown and links", template)
         self.assertIn("Prefer Markdown links over bare URLs", template)
         self.assertIn("Use relative Markdown links for files inside the project", template)
+        self.assertIn("Inline math must use `$...$`.", template)
+        self.assertIn("Display math must use fenced `$$ ... $$`.", template)
+        self.assertIn("Only inside multi-line display math blocks", template)
+        self.assertIn("`arXiv`, `INSPIRE`, and `DOI` references must use clickable links.", template)
+        self.assertIn("new session", template)
+        self.assertIn("autoresearch status --json", template)
+        self.assertIn("1) [AGENTS.md](AGENTS.md)", template)
+        self.assertIn("2) [project_charter.md](project_charter.md)", template)
+
+    def test_minimal_scaffold_does_not_create_mcp_template_or_plan_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            result = ensure_project_scaffold(
+                repo_root=root,
+                project_name="Minimal Noise",
+                profile="mixed",
+                variant="minimal",
+                project_policy="real_project",
+            )
+
+            self.assertFalse((root / ".mcp.template.json").exists())
+            self.assertFalse((root / "specs" / "plan.schema.json").exists())
+            self.assertNotIn(".mcp.template.json", result["created"])
+            self.assertNotIn("specs/plan.schema.json", result["created"])
+
+    def test_full_scaffold_keeps_mcp_template_and_plan_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            result = ensure_project_scaffold(
+                repo_root=root,
+                project_name="Full Noise",
+                profile="mixed",
+                variant="full",
+                project_policy="real_project",
+            )
+
+            self.assertTrue((root / ".mcp.template.json").exists())
+            self.assertTrue((root / "specs" / "plan.schema.json").exists())
+            self.assertIn(".mcp.template.json", result["created"])
+            self.assertIn("specs/plan.schema.json", result["created"])
+
+    def test_project_index_and_research_plan_repeat_reconnect_discipline(self) -> None:
+        index_template = (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8")
+        plan_template = (scaffold_template_dir() / "research_plan.md").read_text(encoding="utf-8")
+
+        self.assertIn("If `.autoresearch/` exists, start by running `autoresearch status --json`", index_template)
+        self.assertIn("If `.autoresearch/` exists, run `autoresearch status --json` first", plan_template)

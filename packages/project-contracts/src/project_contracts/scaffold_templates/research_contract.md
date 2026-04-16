@@ -24,7 +24,9 @@ Skepticism rule (real research):
 - For any statement used in a core derivation or headline number: either re-derive it here, reproduce a discriminant check from artifacts, or explicitly mark it as unverified (with a concrete plan + kill criterion recorded in [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/)).
 
 Resume / restart rule:
-- Before starting a new milestone (or after an interruption), run `run_team_cycle.sh --preflight-only` once to catch missing gates early.
+- If `.autoresearch/` exists, run `autoresearch status --json` before continuing after a new session, reconnect, interruption, context reset, or handoff.
+- Then re-read `AGENTS.md`, `project_charter.md`, `research_plan.md`, and this file before resuming.
+- If research-team host surfaces exist, run `run_team_cycle.sh --preflight-only` once to catch missing gates early.
 
 > Rule: In Markdown math, use single backslashes (e.g. $\Delta\kappa$). Avoid doubled backslashes (a common TOC-escape artifact).
 > If doubled backslashes appear inside math (e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`), fix deterministically (math regions only): `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`

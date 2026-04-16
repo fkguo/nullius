@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { runCommand, type RunCommandInput } from '../src/cli-run.js';
+import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { StateManager } from '../src/state-manager.js';
 
@@ -228,6 +229,38 @@ describe('workflow run consumer', () => {
           runtime_status: 'completed',
           artifact_uri: 'hep://runs/M-WF-1/artifact/research_pack.zip',
         },
+      },
+      current_run_workflow_outputs: {
+        critical_analysis: {
+          status: 'completed',
+          artifact_uri: null,
+          summary: expect.stringContaining('RELIABLE'),
+        },
+      },
+      resume_context: {
+        status_command: 'autoresearch status --json',
+        current_run_id: 'M-WF-1',
+        run_status: 'completed',
+        curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
+        workflow_output_keys: ['critical_analysis', 'research_pack'],
+      },
+    });
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+    expect(exportView).toMatchObject({
+      current_run_workflow_outputs: {
+        critical_analysis: {
+          status: 'completed',
+        },
+      },
+      current_run_resume_context: {
+        status_command: 'autoresearch status --json',
+        current_run_id: 'M-WF-1',
       },
     });
   });

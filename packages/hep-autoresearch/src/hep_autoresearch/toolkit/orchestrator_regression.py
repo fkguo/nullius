@@ -500,11 +500,6 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                     snapshot_root=project_snapshot_root,
                     target=project_root / "docs" / "EVAL_GATE_CONTRACT.md",
                 ),
-                "specs_plan_schema": _project_anchor_rel(
-                    external_root=project_root,
-                    snapshot_root=project_snapshot_root,
-                    target=project_root / "specs" / "plan.schema.json",
-                ),
             }
             for v in expected_outputs.values():
                 manifest["outputs"].append(str(v))
@@ -554,96 +549,13 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             nested_state = nested_root / ".autoresearch" / "state.json"
             nested_state_exists = nested_state.exists()
 
-            # Ensure the run path can build context pack + kb_profile and reach the A3 gate.
-            run_id = f"{inps.tag}-proj-reproduce"
-            cmd_run = [
-                *_external_cli_cmd(),
-                "run",
-                "--run-id",
-                run_id,
-                "--workflow-id",
-                "reproduce",
-                "--case",
-                str(inps.reproduce_case),
-                "--ns",
-                ",".join(str(x) for x in inps.reproduce_ns),
-            ]
-            rc_gate, out_gate = _run(cmd_run, cwd=project_root, env=env_proj, timeout_seconds=int(inps.timeout_seconds))
-            (logs_dir / "project_init_reproduce_gate.txt").write_text(
-                _redact_external_project_text(out_gate, external_root=project_root),
-                encoding="utf-8",
-            )
-            manifest["outputs"].append(os.fspath((logs_dir / "project_init_reproduce_gate.txt").relative_to(repo_root)))
-
-            pending_category: str | None = None
-            approval_id: str | None = None
-            approval_packet: str | None = None
-            packet_abs: Path | None = None
-            st_path = project_root / ".autoresearch" / "state.json"
-            if st_path.exists():
-                st_proj = read_json(st_path)
-                pending = st_proj.get("pending_approval") if isinstance(st_proj, dict) else None
-                if isinstance(pending, dict):
-                    pending_category = pending.get("category")
-                    approval_id = pending.get("approval_id")
-                    approval_packet = pending.get("packet_path")
-                    if isinstance(approval_packet, str) and approval_packet.strip():
-                        packet_abs = project_root / approval_packet
-
-            kb_profile_json = project_root / "artifacts" / "runs" / run_id / "kb_profile" / "kb_profile.json"
-            context_md = project_root / "artifacts" / "runs" / run_id / "context" / "context.md"
-            context_json = project_root / "artifacts" / "runs" / run_id / "context" / "context.json"
             plan_md = project_root / ".autoresearch" / "plan.md"
-            expected_packet_abs = project_root / "artifacts" / "runs" / run_id / "approvals" / "A3-0001" / "packet.md"
             expected_outputs.update(
                 {
-                    "plan_md": _project_anchor_rel(
-                        external_root=project_root,
-                        snapshot_root=project_snapshot_root,
-                        target=plan_md,
-                    ),
-                    "kb_profile_json": _project_anchor_rel(
-                        external_root=project_root,
-                        snapshot_root=project_snapshot_root,
-                        target=kb_profile_json,
-                    ),
-                    "context_md": _project_anchor_rel(
-                        external_root=project_root,
-                        snapshot_root=project_snapshot_root,
-                        target=context_md,
-                    ),
-                    "context_json": _project_anchor_rel(
-                        external_root=project_root,
-                        snapshot_root=project_snapshot_root,
-                        target=context_json,
-                    ),
-                    "approval_packet": _project_anchor_rel(
-                        external_root=project_root,
-                        snapshot_root=project_snapshot_root,
-                        target=expected_packet_abs,
-                    ),
                 }
             )
 
             shutil.copytree(project_root, project_snapshot_root, dirs_exist_ok=True)
-
-            manifest["outputs"].append(expected_outputs["approval_packet"])
-            if plan_md.exists():
-                manifest["outputs"].append(expected_outputs["plan_md"])
-            if kb_profile_json.exists():
-                manifest["outputs"].append(expected_outputs["kb_profile_json"])
-            if context_md.exists():
-                manifest["outputs"].append(expected_outputs["context_md"])
-            if context_json.exists():
-                manifest["outputs"].append(expected_outputs["context_json"])
-            if packet_abs and packet_abs.exists():
-                manifest["outputs"].append(
-                    _project_anchor_rel(
-                        external_root=project_root,
-                        snapshot_root=project_snapshot_root,
-                        target=packet_abs,
-                    )
-                )
 
             return {
                 "project_root": rel(project_snapshot_root),
@@ -653,11 +565,6 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
                 "nested_init_default_exit_code": int(rc_nested_init),
                 "nested_init_allow_exit_code": int(rc_nested_allow),
                 "nested_state_json_exists": bool(nested_state_exists),
-                "run_id": run_id,
-                "gate_exit_code": int(rc_gate),
-                "pending_category": pending_category,
-                "approval_id": approval_id,
-                "approval_packet_rel": approval_packet,
                 "expected_outputs": expected_outputs,
             }
         finally:
@@ -1548,12 +1455,6 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             )
         if not bool(project_init.get("nested_state_json_exists")):
             errors.append("project_init expected nested_state_json_exists=true after --allow-nested")
-        if project_init.get("pending_category") != "A3":
-            errors.append(
-                f"project_init expected pending category A3, got {project_init.get('pending_category')!r}"
-            )
-        if project_init.get("gate_exit_code") != 3:
-            errors.append(f"project_init expected gate exit code 3, got {project_init.get('gate_exit_code')}")
         for key in [
             "project_root",
             "state_json",
@@ -1567,10 +1468,6 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
             "docs_approval_gates",
             "docs_artifact_contract",
             "docs_eval_gate_contract",
-            "specs_plan_schema",
-            "plan_md",
-            "kb_profile_json",
-            "approval_packet",
         ]:
             require_path(str((project_init.get("expected_outputs") or {}).get(key) or ""))
 

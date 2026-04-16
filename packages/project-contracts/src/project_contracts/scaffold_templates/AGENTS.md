@@ -5,10 +5,11 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 
 ## Read order
 
-1) [project_index.md](project_index.md)
+1) [AGENTS.md](AGENTS.md)
 2) [project_charter.md](project_charter.md)
 3) [research_plan.md](research_plan.md)
 4) [research_contract.md](research_contract.md)
+5) [research_notebook.md](research_notebook.md) (when it already contains substantive content)
 
 ## Quick rules
 
@@ -18,12 +19,23 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Approval gates A1–A5 stay active unless the project owner explicitly changes policy in `docs/APPROVAL_GATES.md`.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 
+## Reconnect discipline
+
+- On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.autoresearch/` exists, run `autoresearch status --json` before taking any new action.
+- After reading status, re-read the project in the order above before continuing.
+- Treat `autoresearch status --json` as the authoritative restart briefing for the current run, plan view, and bounded workflow outputs.
+
 ## Markdown and links
 
 - Prefer Markdown links over bare URLs in project docs and agent notes.
 - Use relative Markdown links for files inside the project so the scaffold remains portable across machines.
 - Keep link labels semantic and stable; avoid dumping raw paths inline when a short label is clearer.
 - When citing artifacts or outputs in Markdown, point to the canonical project-relative path or artifact URI instead of prose-only references.
+- Inline math must use `$...$`.
+- Display math must use fenced `$$ ... $$`.
+- Only inside multi-line display math blocks, do not start a continuation line with `+`, `-`, or `=`.
+- Plain Markdown prose lines are not subject to the `+/-/=` rule above.
+- `arXiv`, `INSPIRE`, and `DOI` references must use clickable links.
 
 ## Restart trigger
 

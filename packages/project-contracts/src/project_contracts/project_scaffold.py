@@ -80,7 +80,10 @@ def ensure_project_scaffold(
     project = (project_name or repo_root.name or "Research Project").strip() or "Research Project"
     profile_name = (profile or "mixed").strip() or "mixed"
 
-    for rel in ("artifacts/runs", "docs", "specs"):
+    scaffold_dirs = ["artifacts/runs", "docs"]
+    if variant == "full":
+        scaffold_dirs.append("specs")
+    for rel in scaffold_dirs:
         (repo_root / rel).mkdir(parents=True, exist_ok=True)
 
     template_files = FULL_TEMPLATE_FILES if variant == "full" else MINIMAL_TEMPLATE_FILES
@@ -98,36 +101,37 @@ def ensure_project_scaffold(
             skipped=skipped,
             force=force,
         )
-    mcp_path = repo_root / MCP_CONFIG_TEMPLATE
-    if not mcp_path.exists() or force:
-        mcp_path.write_text(
-            json.dumps(
-                {
-                    "_comment": "Rename this file to .mcp.json and replace the placeholder entry with the provider-local MCP server(s) your project actually uses.",
-                    "mcpServers": {
-                        "example-provider": {
-                            "command": "node",
-                            "args": ["<path-to-provider-entrypoint.js>"],
-                            "env": {"PROVIDER_DATA_DIR": "<provider-local-data-dir>"},
-                        }
+    if variant == "full":
+        mcp_path = repo_root / MCP_CONFIG_TEMPLATE
+        if not mcp_path.exists() or force:
+            mcp_path.write_text(
+                json.dumps(
+                    {
+                        "_comment": "Rename this file to .mcp.json and replace the placeholder entry with the provider-local MCP server(s) your project actually uses.",
+                        "mcpServers": {
+                            "example-provider": {
+                                "command": "node",
+                                "args": ["<path-to-provider-entrypoint.js>"],
+                                "env": {"PROVIDER_DATA_DIR": "<provider-local-data-dir>"},
+                            }
+                        },
                     },
-                },
-                indent=2,
-                sort_keys=True,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
             )
-            + "\n",
-            encoding="utf-8",
-        )
-        created.append(_safe_rel(repo_root, mcp_path))
-    else:
-        skipped.append(_safe_rel(repo_root, mcp_path))
+            created.append(_safe_rel(repo_root, mcp_path))
+        else:
+            skipped.append(_safe_rel(repo_root, mcp_path))
 
-    schema_path = repo_root / "specs" / "plan.schema.json"
-    if not schema_path.exists() or force:
-        schema_path.write_text(json.dumps(_load_plan_schema_template(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        created.append(_safe_rel(repo_root, schema_path))
-    else:
-        skipped.append(_safe_rel(repo_root, schema_path))
+        schema_path = repo_root / "specs" / "plan.schema.json"
+        if not schema_path.exists() or force:
+            schema_path.write_text(json.dumps(_load_plan_schema_template(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            created.append(_safe_rel(repo_root, schema_path))
+        else:
+            skipped.append(_safe_rel(repo_root, schema_path))
 
     sync_research_contract(repo_root=repo_root, create_missing=False, project_policy=project_policy)
     return {
