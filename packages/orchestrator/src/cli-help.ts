@@ -28,6 +28,11 @@ const COMMAND_HELP: Record<string, string> = {
 
 Bootstrap a real external project root and initialize .autoresearch state.
 
+Behavior:
+  Always writes the project-local fallback launcher at \`.autoresearch/bin/autoresearch\`.
+  That wrapper keeps \`autoresearch status --json\` as the canonical recovery command even when
+  \`autoresearch\` is unavailable on PATH for a fresh external project.
+
 Pass-through options:
   --force
   --allow-nested
@@ -126,7 +131,10 @@ Behavior:
   Includes current-run lifecycle truth plus a thin project-level recent digest for recent runs,
   latest final conclusions, latest proposals, and the latest active team summary when readable.
   When \`state.json#/plan\` exists but derived \`.autoresearch/plan.md\` is missing or stale, status rebuilds the plan view from state and reports a structured warning instead of showing an empty plan.
-  Status JSON also includes \`resume_context\` and \`current_run_workflow_outputs\` so a reconnecting agent can recover the current run and reuse bounded workflow outputs without rerunning atomic tools.
+  Status JSON also includes the legacy-stable \`resume_context\`, the richer \`recovery_context\`,
+  and \`current_run_workflow_outputs\` so a reconnecting agent can recover the current run,
+  reuse bounded workflow outputs, and fall back to \`.autoresearch/bin/autoresearch status --json\`
+  when the canonical \`autoresearch\` command is not available on PATH.
 `,
 approve: `autoresearch approve <approval_id>
 
@@ -166,7 +174,8 @@ Pass-through options:
 Behavior:
   Export summary output includes the same project-level recent digest carried by status/export read models
   when ledger and recent artifacts are readable.
-  Current-run export also includes \`current_run_workflow_outputs\` and \`current_run_resume_context\` when a run is active.
+  Current-run export also includes \`current_run_workflow_outputs\`, \`current_run_resume_context\`,
+  and \`current_run_recovery_context\` when a run is active.
 `,
   'workflow-plan': `autoresearch workflow-plan --recipe <recipe_id> [options]
 

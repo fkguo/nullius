@@ -5,11 +5,12 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 
 ## Read order
 
-1) [AGENTS.md](AGENTS.md)
-2) [project_charter.md](project_charter.md)
-3) [research_plan.md](research_plan.md)
-4) [research_contract.md](research_contract.md)
-5) [research_notebook.md](research_notebook.md) (when it already contains substantive content)
+1) [project_index.md](project_index.md)
+2) [AGENTS.md](AGENTS.md)
+3) [project_charter.md](project_charter.md)
+4) [research_plan.md](research_plan.md)
+5) [research_contract.md](research_contract.md)
+6) [research_notebook.md](research_notebook.md) (when it already contains substantive content)
 
 ## Quick rules
 
@@ -22,8 +23,9 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 ## Reconnect discipline
 
 - On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.autoresearch/` exists, run `autoresearch status --json` before taking any new action.
-- After reading status, re-read the project in the order above before continuing.
-- Treat `autoresearch status --json` as the authoritative restart briefing for the current run, plan view, and bounded workflow outputs.
+- If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
+- Treat that status output as the authoritative recovery briefing for the current run, recovery context, plan view, and bounded workflow outputs.
+- After reading status, continue through the checked-in files in the order above, and read [research_notebook.md](research_notebook.md) only when it already contains substantive content.
 
 ## Markdown and links
 
@@ -37,9 +39,9 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Plain Markdown prose lines are not subject to the `+/-/=` rule above.
 - `arXiv`, `INSPIRE`, and `DOI` references must use clickable links.
 
-## Restart trigger
+## Optional Host Preflight
 
-When this project also has research-team host surfaces, run one deterministic preflight before the next team cycle:
+Only when this project already includes research-team host surfaces and you are intentionally resuming that host-managed flow, run one deterministic preflight before the next team cycle:
 
 ```bash
 bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
@@ -52,7 +54,7 @@ bash ~/.codex/skills/research-team/scripts/bin/run_team_cycle.sh \
   --preflight-only
 ```
 
-If the project does not yet include `prompts/` or `team/`, use the same read order and update `research_plan.md` manually until the host layer is added.
+If the project does not yet include `prompts/` or `team/`, skip this preflight and continue with the checked-in recovery flow above.
 
 ## Minimal checkpoints
 

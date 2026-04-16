@@ -73,8 +73,8 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("`arXiv`, `INSPIRE`, and `DOI` references must use clickable links.", template)
         self.assertIn("new session", template)
         self.assertIn("autoresearch status --json", template)
-        self.assertIn("1) [AGENTS.md](AGENTS.md)", template)
-        self.assertIn("2) [project_charter.md](project_charter.md)", template)
+        self.assertIn("1) [project_index.md](project_index.md)", template)
+        self.assertIn("2) [AGENTS.md](AGENTS.md)", template)
 
     def test_minimal_scaffold_does_not_create_mcp_template_or_plan_schema(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -109,8 +109,26 @@ class TestScaffoldContract(unittest.TestCase):
             self.assertIn("specs/plan.schema.json", result["created"])
 
     def test_project_index_and_research_plan_repeat_reconnect_discipline(self) -> None:
+        agents_template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
         index_template = (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8")
         plan_template = (scaffold_template_dir() / "research_plan.md").read_text(encoding="utf-8")
+        contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
+        templates = [
+            agents_template,
+            index_template,
+            plan_template,
+            contract_template,
+        ]
+        for template in templates:
+            self.assertIn("autoresearch status --json", template)
+            self.assertIn(".autoresearch/bin/autoresearch status --json", template)
+            self.assertIn("authoritative recovery briefing", template)
+            self.assertIn("research_notebook.md", template)
+        self.assertIn("1) [project_index.md](project_index.md) — checked-in front door for restart and navigation", index_template)
+        self.assertIn("2) [AGENTS.md](AGENTS.md) — workflow anchor, reconnect discipline, and output rules", index_template)
         self.assertIn("If `.autoresearch/` exists, start by running `autoresearch status --json`", index_template)
         self.assertIn("If `.autoresearch/` exists, run `autoresearch status --json` first", plan_template)
+        self.assertIn("Only when this project already includes research-team host surfaces", agents_template)
+        self.assertIn("If [prompts/](prompts/) and [team/](team/) already exist and you are intentionally resuming that host-managed flow", plan_template)
+        self.assertIn("If research-team host surfaces already exist and you are intentionally resuming that host-managed flow", contract_template)

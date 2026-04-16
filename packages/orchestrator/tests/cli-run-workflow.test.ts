@@ -262,6 +262,15 @@ describe('workflow run consumer', () => {
         status_command: 'autoresearch status --json',
         current_run_id: 'M-WF-1',
       },
+      current_run_recovery_context: {
+        current_run: {
+          run_id: 'M-WF-1',
+          run_status: 'completed',
+        },
+        status_commands: {
+          canonical: 'autoresearch status --json',
+        },
+      },
     });
   });
 

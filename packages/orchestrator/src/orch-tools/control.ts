@@ -82,6 +82,7 @@ export async function handleOrchRunExport(
       result.current_run_workflow_outputs = statusView.current_run_workflow_outputs ?? null;
       result.current_run_workflow_outputs_error = statusView.current_run_workflow_outputs_error ?? null;
       result.current_run_resume_context = statusView.resume_context ?? null;
+      result.current_run_recovery_context = statusView.recovery_context ?? null;
     }
   }
   return {

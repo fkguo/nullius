@@ -10,6 +10,7 @@ import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import { decisionOverlayForFingerprint, mutationProposalFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
+import { projectLocalAutoresearchRelativePath } from '../project-local-autoresearch.js';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
 import { pauseFilePath, readJson, type ApprovalGateFilter } from './common.js';
@@ -51,6 +52,15 @@ const ACTIVE_DIGEST_RUN_STATUSES = new Set([
 
 type DigestProposalKind = 'repair' | 'skill' | 'optimize' | 'innovate';
 const CURATED_WORKFLOW_OUTPUT_KEYS = ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'] as const;
+const RECOVERY_RECOMMENDED_FILES = [
+  'project_index.md',
+  'AGENTS.md',
+  'project_charter.md',
+  'research_plan.md',
+  'research_contract.md',
+  'research_notebook.md',
+] as const;
+const PLAN_STEP_TERMINAL_STATUSES = new Set(['completed', 'skipped']);
 const RESEARCH_NOTEBOOK_TEMPLATE_LINES = new Set([
   '# research_notebook.md',
   'This file is the human-facing research notebook.',
@@ -95,6 +105,267 @@ function hasSubstantiveResearchNotebook(projectRoot: string): boolean {
   } catch {
     return false;
   }
+}
+
+type RecoveryPlanFocus = {
+  step_id: string | null;
+  status: string | null;
+  description: string | null;
+  source: 'state.plan' | 'plan.md';
+};
+
+type RecoveryLedgerEvent = {
+  event_type: string;
+  timestamp_utc: string;
+  derived_run_status: string;
+  run_id: string | null;
+  workflow_id: string | null;
+};
+
+function stateRecord(state: RunState): Record<string, unknown> {
+  return state as unknown as Record<string, unknown>;
+}
+
+function readRecoveryRecommendedFiles(projectRoot: string): string[] {
+  return RECOVERY_RECOMMENDED_FILES.filter((file) => {
+    const filePath = path.join(projectRoot, file);
+    if (file !== 'research_notebook.md') return fs.existsSync(filePath);
+    return fs.existsSync(filePath) && hasSubstantiveResearchNotebook(projectRoot);
+  });
+}
+
+function selectPlanFocusFromStatePlan(plan: Record<string, unknown>): RecoveryPlanFocus | null {
+  const steps = Array.isArray(plan.steps)
+    ? (plan.steps as unknown[])
+      .filter((step): step is Record<string, unknown> => Boolean(step) && typeof step === 'object' && !Array.isArray(step))
+    : [];
+  if (steps.length === 0) {
+    return null;
+  }
+
+  const currentStepId = typeof plan.current_step_id === 'string' && plan.current_step_id.length > 0
+    ? plan.current_step_id
+    : null;
+  const focusedStep = (currentStepId
+    ? steps.find(step => step.step_id === currentStepId)
+    : null)
+    ?? steps.find((step) => {
+      const status = typeof step.status === 'string' ? step.status : null;
+      return status === null || !PLAN_STEP_TERMINAL_STATUSES.has(status);
+    })
+    ?? steps[0]
+    ?? null;
+  if (!focusedStep) return null;
+  return {
+    step_id: typeof focusedStep.step_id === 'string' ? focusedStep.step_id : null,
+    status: typeof focusedStep.status === 'string' ? focusedStep.status : null,
+    description: typeof focusedStep.description === 'string' ? focusedStep.description : null,
+    source: 'state.plan',
+  };
+}
+
+function selectPlanFocusFromPlanMd(projectRoot: string): RecoveryPlanFocus | null {
+  const planMdPath = path.join(projectRoot, '.autoresearch', 'plan.md');
+  if (!fs.existsSync(planMdPath)) return null;
+  const stepPattern = /^\d+\.\s+\[([^\]]+)\]\s+(.+?)\s+[—-]\s+(.*)$/u;
+  try {
+    const lines = fs.readFileSync(planMdPath, 'utf-8').split(/\r?\n/);
+    const steps = lines
+      .map((line) => line.match(stepPattern))
+      .filter((match): match is RegExpMatchArray => match !== null)
+      .map((match) => ({
+        status: match[1]?.trim() || null,
+        step_id: match[2]?.trim() || null,
+        description: match[3]?.trim() || null,
+      }));
+    if (steps.length === 0) {
+      return null;
+    }
+    const focusedStep = steps.find((step) => {
+      const status = step.status;
+      return status === null || !PLAN_STEP_TERMINAL_STATUSES.has(status);
+    }) ?? steps[0] ?? null;
+    if (!focusedStep) return null;
+    return {
+      ...focusedStep,
+      source: 'plan.md',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | null): {
+  latest_event: RecoveryLedgerEvent | null;
+  warnings: Record<string, unknown>[];
+} {
+  const ledgerPath = path.join(projectRoot, '.autoresearch', 'ledger.jsonl');
+  if (!fs.existsSync(ledgerPath)) {
+    return { latest_event: null, warnings: [] };
+  }
+
+  const warnings: Record<string, unknown>[] = [];
+  const runStatuses = new Map<string, string>();
+  let invalidLines = 0;
+  let latestEventOverall: RecoveryLedgerEvent | null = null;
+  let latestEventForRun: RecoveryLedgerEvent | null = null;
+  const lines = fs.readFileSync(ledgerPath, 'utf-8').split('\n').filter(line => line.trim().length > 0);
+  for (const line of lines) {
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      invalidLines += 1;
+      continue;
+    }
+    const eventType = typeof event.event_type === 'string' ? event.event_type : null;
+    const runId = typeof event.run_id === 'string' ? event.run_id : null;
+    if (!eventType) continue;
+    const details = event.details && typeof event.details === 'object'
+      ? event.details as Record<string, unknown>
+      : {};
+    const previousStatus = runId ? (runStatuses.get(runId) ?? 'unknown') : 'unknown';
+    const { status } = deriveLedgerStatusFromOperatorEvent(eventType, details, previousStatus);
+    if (runId) {
+      runStatuses.set(runId, status);
+    }
+    const normalizedEvent = {
+      event_type: eventType,
+      timestamp_utc: typeof event.ts === 'string'
+        ? event.ts
+        : (typeof event.timestamp_utc === 'string' ? event.timestamp_utc : ''),
+      derived_run_status: status,
+      run_id: runId,
+      workflow_id: typeof event.workflow_id === 'string' ? event.workflow_id : null,
+    };
+    latestEventOverall = normalizedEvent;
+    if (preferredRunId && runId === preferredRunId) {
+      latestEventForRun = normalizedEvent;
+    }
+  }
+
+  if (invalidLines > 0) {
+    warnings.push({
+      code: 'RECOVERY_LEDGER_PARSE_ERROR',
+      message: `Skipped ${invalidLines} invalid ledger line(s) while deriving recovery_context.`,
+      ledger_path: path.join('.autoresearch', 'ledger.jsonl'),
+    });
+  }
+  return {
+    latest_event: latestEventForRun ?? latestEventOverall,
+    warnings,
+  };
+}
+
+function readRecoveryContextView(projectRoot: string, state: RunState): Record<string, unknown> {
+  const rawState = stateRecord(state);
+  const launcherRelativePath = projectLocalAutoresearchRelativePath().split(path.sep).join('/');
+  const controlFiles = {
+    state_json: {
+      path: path.join('.autoresearch', 'state.json').split(path.sep).join('/'),
+      exists: fs.existsSync(path.join(projectRoot, '.autoresearch', 'state.json')),
+    },
+    plan_md: {
+      path: path.join('.autoresearch', 'plan.md').split(path.sep).join('/'),
+      exists: fs.existsSync(path.join(projectRoot, '.autoresearch', 'plan.md')),
+    },
+    ledger_jsonl: {
+      path: path.join('.autoresearch', 'ledger.jsonl').split(path.sep).join('/'),
+      exists: fs.existsSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl')),
+    },
+    project_local_launcher: {
+      path: launcherRelativePath,
+      exists: fs.existsSync(path.join(projectRoot, launcherRelativePath)),
+    },
+  };
+  const warnings: Record<string, unknown>[] = [];
+  const stateRunId = typeof rawState.run_id === 'string' ? rawState.run_id : null;
+  const stateWorkflowId = typeof rawState.workflow_id === 'string' ? rawState.workflow_id : null;
+  const stateRunStatus = typeof rawState.run_status === 'string' ? rawState.run_status : null;
+  const stateCurrentStep = rawState.current_step && typeof rawState.current_step === 'object' && !Array.isArray(rawState.current_step)
+    ? rawState.current_step
+    : null;
+  const statePendingApproval = rawState.pending_approval && typeof rawState.pending_approval === 'object' && !Array.isArray(rawState.pending_approval)
+    ? rawState.pending_approval
+    : null;
+  const stateNotes = typeof rawState.notes === 'string' ? rawState.notes : null;
+  const ledger = readLatestLedgerEvent(projectRoot, stateRunId);
+  warnings.push(...ledger.warnings);
+
+  let currentRunSource: 'state' | 'state+ledger' | 'ledger' | 'unavailable' = 'state';
+  const currentRun = {
+    run_id: stateRunId ?? ledger.latest_event?.run_id ?? null,
+    workflow_id: stateWorkflowId ?? ledger.latest_event?.workflow_id ?? null,
+    run_status: stateRunStatus ?? ledger.latest_event?.derived_run_status ?? null,
+    current_step: stateCurrentStep,
+    pending_approval: statePendingApproval,
+    notes: stateNotes,
+    source: 'state' as string,
+  };
+  if (!stateRunStatus && ledger.latest_event?.derived_run_status) {
+    currentRunSource = stateRunId || stateWorkflowId || stateCurrentStep || statePendingApproval || stateNotes ? 'state+ledger' : 'ledger';
+    warnings.push({
+      code: 'RECOVERY_RUN_STATUS_FROM_LEDGER',
+      message: 'recovery_context.current_run.run_status was derived from the latest ledger event because state.run_status is unavailable.',
+      ledger_event_type: ledger.latest_event.event_type,
+    });
+  }
+  if (!stateRunId && ledger.latest_event?.run_id) {
+    currentRunSource = currentRunSource === 'state' ? 'state+ledger' : currentRunSource;
+    warnings.push({
+      code: 'RECOVERY_RUN_ID_FROM_LEDGER',
+      message: 'recovery_context.current_run.run_id was derived from the latest ledger event because state.run_id is unavailable.',
+      ledger_event_type: ledger.latest_event.event_type,
+    });
+  }
+  if (!currentRun.run_id && !currentRun.workflow_id && !currentRun.run_status && !currentRun.current_step && !currentRun.pending_approval && !currentRun.notes) {
+    currentRunSource = 'unavailable';
+    warnings.push({
+      code: 'RECOVERY_CURRENT_RUN_UNAVAILABLE',
+      message: 'recovery_context.current_run could not derive any runtime fields from state.json or ledger.jsonl.',
+    });
+  }
+  currentRun.source = currentRunSource;
+
+  const statePlan = rawState.plan && typeof rawState.plan === 'object' && !Array.isArray(rawState.plan)
+    ? rawState.plan as Record<string, unknown>
+    : null;
+  let planFocus = statePlan ? selectPlanFocusFromStatePlan(statePlan) : null;
+  if (!planFocus) {
+    planFocus = selectPlanFocusFromPlanMd(projectRoot);
+    if (planFocus) {
+      warnings.push({
+        code: 'RECOVERY_PLAN_FOCUS_FROM_PLAN_MD',
+        message: 'recovery_context.plan_focus was derived from .autoresearch/plan.md because state.plan is unavailable or incomplete.',
+        plan_md_path: controlFiles.plan_md.path,
+      });
+    } else if (!statePlan) {
+      warnings.push({
+        code: 'RECOVERY_PLAN_FOCUS_UNAVAILABLE',
+        message: 'recovery_context.plan_focus could not be derived from state.plan or .autoresearch/plan.md.',
+      });
+    }
+  }
+  const recommendedFiles = readRecoveryRecommendedFiles(projectRoot);
+  if (recommendedFiles.length === 0) {
+    warnings.push({
+      code: 'RECOVERY_GUIDANCE_FILES_UNAVAILABLE',
+      message: 'recovery_context.recommended_files is empty because no checked-in recovery documents are currently present in this project root.',
+    });
+  }
+
+  return {
+    status_commands: {
+      canonical: 'autoresearch status --json',
+      project_local_fallback: controlFiles.project_local_launcher.exists ? `${launcherRelativePath} status --json` : null,
+    },
+    control_files: controlFiles,
+    current_run: currentRun,
+    plan_focus: planFocus,
+    latest_ledger_event: ledger.latest_event,
+    recommended_files: recommendedFiles,
+    derivation_warnings: warnings,
+  };
 }
 
 function readCurrentRunWorkflowOutputsView(state: RunState): {
@@ -430,6 +701,7 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const planView = readPlanView(projectRoot, state);
   const workflowOutputs = readCurrentRunWorkflowOutputsView(state);
   const resumeContext = readResumeContextView(projectRoot, state);
+  const recoveryContext = readRecoveryContextView(projectRoot, state);
   const repairProposal = readRepairProposalView(projectRoot, state);
   const optimizeProposal = readOptimizeProposalView(projectRoot, state);
   const innovateProposal = readInnovateProposalView(projectRoot, state);
@@ -456,6 +728,17 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     current_run_workflow_outputs: workflowOutputs.current_run_workflow_outputs,
     current_run_workflow_outputs_error: workflowOutputs.current_run_workflow_outputs_error,
     resume_context: resumeContext,
+    recovery_context: {
+      ...recoveryContext,
+      current_run: recoveryContext.current_run && typeof recoveryContext.current_run === 'object'
+        ? {
+            ...(recoveryContext.current_run as Record<string, unknown>),
+            run_status: paused
+              ? 'paused'
+              : (recoveryContext.current_run as Record<string, unknown>).run_status ?? null,
+          }
+        : recoveryContext.current_run,
+    },
     notes: state.notes ?? '',
     uri: state.run_id ? `orch://runs/${state.run_id}` : null,
     is_paused: paused,

@@ -741,8 +741,126 @@ describe('autoresearch CLI', () => {
       plan_view_warning: {
         code: 'PLAN_VIEW_REBUILT_FROM_STATE',
       },
+      recovery_context: {
+        status_commands: {
+          canonical: 'autoresearch status --json',
+          project_local_fallback: null,
+        },
+        current_run: {
+          run_id: 'M-PLAN-1',
+          run_status: 'idle',
+          source: 'state',
+        },
+        plan_focus: {
+          step_id: 'export_project',
+          status: 'pending',
+          source: 'state.plan',
+        },
+      },
     });
+    expect(payload.recovery_context.recommended_files).not.toContain('research_notebook.md');
     expect(payload.resume_context.recommended_files).not.toContain('research_notebook.md');
+  });
+
+  it('reconstructs recovery_context from legacy state, plan.md, and ledger.jsonl without changing resume_context', async () => {
+    const projectRoot = makeTempProjectRoot();
+    fs.mkdirSync(path.join(projectRoot, '.autoresearch'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, '.autoresearch', 'state.json'),
+      JSON.stringify({
+        schema_version: 1,
+        run_id: 'M-LEGACY-1',
+        workflow_id: 'legacy_review',
+        current_step: null,
+        notes: 'legacy reconnect note',
+      }, null, 2) + '\n',
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(projectRoot, '.autoresearch', 'plan.md'),
+      [
+        '# Plan (derived view)',
+        '',
+        '- Run: M-LEGACY-1',
+        '- Workflow: legacy_review',
+        '',
+        'SSOT: `.autoresearch/state.json#/plan`',
+        '',
+        '## Steps',
+        '',
+        '1. [completed] gather_sources — Gather sources',
+        '   - expected_approvals: -',
+        '2. [pending] export_project — Export project',
+        '   - expected_approvals: -',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(projectRoot, '.autoresearch', 'ledger.jsonl'),
+      [
+        JSON.stringify({
+          ts: '2026-04-15T00:00:00Z',
+          event_type: 'initialized',
+          run_id: 'M-LEGACY-1',
+          workflow_id: 'legacy_review',
+          details: {},
+        }),
+        JSON.stringify({
+          ts: '2026-04-15T00:05:00Z',
+          event_type: 'run_started',
+          run_id: 'M-LEGACY-1',
+          workflow_id: 'legacy_review',
+          details: {},
+        }),
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout.join(''));
+    expect(payload.resume_context).toMatchObject({
+      status_command: 'autoresearch status --json',
+      current_run_id: 'M-LEGACY-1',
+    });
+    expect(payload.recovery_context).toMatchObject({
+      status_commands: {
+        canonical: 'autoresearch status --json',
+        project_local_fallback: null,
+      },
+      control_files: {
+        state_json: { path: '.autoresearch/state.json', exists: true },
+        plan_md: { path: '.autoresearch/plan.md', exists: true },
+        ledger_jsonl: { path: '.autoresearch/ledger.jsonl', exists: true },
+        project_local_launcher: { path: '.autoresearch/bin/autoresearch', exists: false },
+      },
+      current_run: {
+        run_id: 'M-LEGACY-1',
+        workflow_id: 'legacy_review',
+        run_status: 'running',
+        notes: 'legacy reconnect note',
+        source: 'state+ledger',
+      },
+      plan_focus: {
+        step_id: 'export_project',
+        status: 'pending',
+        description: 'Export project',
+        source: 'plan.md',
+      },
+      latest_ledger_event: {
+        event_type: 'run_started',
+        timestamp_utc: '2026-04-15T00:05:00Z',
+        derived_run_status: 'running',
+        run_id: 'M-LEGACY-1',
+      },
+    });
+    expect(payload.recovery_context.derivation_warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'RECOVERY_RUN_STATUS_FROM_LEDGER' }),
+      expect.objectContaining({ code: 'RECOVERY_PLAN_FOCUS_FROM_PLAN_MD' }),
+    ]));
   });
 
   it('shows current_run_workflow_outputs in JSON status when bounded workflow results already exist', async () => {
@@ -801,6 +919,13 @@ describe('autoresearch CLI', () => {
         curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
         workflow_output_keys: expect.arrayContaining(['topic_analysis', 'connection_scan']),
       },
+      recovery_context: {
+        current_run: {
+          run_id: 'M-OUT-1',
+          run_status: 'completed',
+          source: 'state',
+        },
+      },
     });
   });
 
@@ -839,7 +964,9 @@ describe('autoresearch CLI', () => {
     const code = await runCli(['status', '--json'], io);
 
     expect(code).toBe(0);
-    expect(JSON.parse(stdout.join('')).resume_context.recommended_files).toContain('research_notebook.md');
+    const payload = JSON.parse(stdout.join(''));
+    expect(payload.resume_context.recommended_files).toContain('research_notebook.md');
+    expect(payload.recovery_context.recommended_files).toContain('research_notebook.md');
   });
 
   it('keeps research_notebook.md out of recommended_files when only the scaffold notebook skeleton exists', async () => {
@@ -895,7 +1022,9 @@ describe('autoresearch CLI', () => {
     const code = await runCli(['status', '--json'], io);
 
     expect(code).toBe(0);
-    expect(JSON.parse(stdout.join('')).resume_context.recommended_files).not.toContain('research_notebook.md');
+    const payload = JSON.parse(stdout.join(''));
+    expect(payload.resume_context.recommended_files).not.toContain('research_notebook.md');
+    expect(payload.recovery_context.recommended_files).not.toContain('research_notebook.md');
   });
 
   it('reports current_run_workflow_outputs_error when a curated workflow output is malformed', async () => {

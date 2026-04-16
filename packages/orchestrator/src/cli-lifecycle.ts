@@ -69,6 +69,50 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
       }
     }
   }
+  if (payload.recovery_context && typeof payload.recovery_context === 'object') {
+    const recoveryContext = payload.recovery_context as Record<string, unknown>;
+    const statusCommands = recoveryContext.status_commands && typeof recoveryContext.status_commands === 'object'
+      ? recoveryContext.status_commands as Record<string, unknown>
+      : {};
+    io.stdout(`recovery_status_command: ${String(statusCommands.canonical ?? '')}\n`);
+    io.stdout(`recovery_status_command_fallback: ${String(statusCommands.project_local_fallback ?? '')}\n`);
+    const currentRun = recoveryContext.current_run && typeof recoveryContext.current_run === 'object'
+      ? recoveryContext.current_run as Record<string, unknown>
+      : {};
+    io.stdout(`recovery_current_run_id: ${String(currentRun.run_id ?? '')}\n`);
+    io.stdout(`recovery_current_run_status: ${String(currentRun.run_status ?? '')}\n`);
+    io.stdout(`recovery_current_run_source: ${String(currentRun.source ?? '')}\n`);
+    const planFocus = recoveryContext.plan_focus && typeof recoveryContext.plan_focus === 'object'
+      ? recoveryContext.plan_focus as Record<string, unknown>
+      : null;
+    if (planFocus) {
+      io.stdout(
+        `recovery_plan_focus: ${String(planFocus.step_id ?? '')} [${String(planFocus.status ?? '')}] ${String(planFocus.description ?? '')} (source=${String(planFocus.source ?? '')})\n`,
+      );
+    }
+    const latestLedgerEvent = recoveryContext.latest_ledger_event && typeof recoveryContext.latest_ledger_event === 'object'
+      ? recoveryContext.latest_ledger_event as Record<string, unknown>
+      : null;
+    if (latestLedgerEvent) {
+      io.stdout(
+        `recovery_latest_ledger_event: ${String(latestLedgerEvent.event_type ?? '')} @ ${String(latestLedgerEvent.timestamp_utc ?? '')} => ${String(latestLedgerEvent.derived_run_status ?? '')}\n`,
+      );
+    }
+    const recommendedFiles = Array.isArray(recoveryContext.recommended_files) ? recoveryContext.recommended_files : [];
+    if (recommendedFiles.length > 0) {
+      io.stdout('recovery_recommended_files:\n');
+      for (const file of recommendedFiles) {
+        io.stdout(`  - ${String(file)}\n`);
+      }
+    }
+    const derivationWarnings = Array.isArray(recoveryContext.derivation_warnings) ? recoveryContext.derivation_warnings : [];
+    if (derivationWarnings.length > 0) {
+      io.stdout('recovery_derivation_warnings:\n');
+      for (const warning of derivationWarnings) {
+        io.stdout(`  - ${JSON.stringify(warning)}\n`);
+      }
+    }
+  }
   if (payload.current_run_workflow_outputs_error) {
     io.stdout(`current_run_workflow_outputs_error: ${JSON.stringify(payload.current_run_workflow_outputs_error)}\n`);
   }

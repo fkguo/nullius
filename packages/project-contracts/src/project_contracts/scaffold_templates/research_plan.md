@@ -34,6 +34,8 @@ Keep the current milestone, next steps, and restart notes updated enough that a 
 ## Restart checklist
 
 - If `.autoresearch/` exists, run `autoresearch status --json` first and inspect the current run/plan/output state before starting new work.
-- Read [AGENTS.md](AGENTS.md), then [project_charter.md](project_charter.md), then this file, then [research_contract.md](research_contract.md), then [research_notebook.md](research_notebook.md) if it already contains substantive content.
+- If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
+- Treat that status output as the authoritative recovery briefing.
+- Read [project_index.md](project_index.md), then [AGENTS.md](AGENTS.md), then [project_charter.md](project_charter.md), then this file, then [research_contract.md](research_contract.md), then [research_notebook.md](research_notebook.md) if it already contains substantive content.
 - Update the task board before handing work to another run.
-- If [prompts/](prompts/) and [team/](team/) exist, run the host preflight before the next team cycle.
+- If [prompts/](prompts/) and [team/](team/) already exist and you are intentionally resuming that host-managed flow, run the host preflight before the next team cycle.

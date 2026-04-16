@@ -141,6 +141,160 @@ describe('StateManager', () => {
     expect(view.plan_view_warning).toMatchObject({
       code: 'PLAN_VIEW_REBUILT_FROM_STATE',
     });
+    expect(view.recovery_context).toMatchObject({
+      current_run: {
+        run_id: 'test-run-1',
+        run_status: 'idle',
+        source: 'state',
+      },
+      plan_focus: {
+        step_id: 'export_project',
+        status: 'pending',
+        source: 'state.plan',
+      },
+      status_commands: {
+        canonical: 'autoresearch status --json',
+        project_local_fallback: null,
+      },
+    });
+  });
+
+  it('derives recovery_context from legacy plan.md and ledger.jsonl when state is sparse', () => {
+    fs.mkdirSync(path.join(tmpDir, '.autoresearch'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, '.autoresearch', 'state.json'),
+      JSON.stringify({
+        schema_version: 1,
+        run_id: 'legacy-run-1',
+        workflow_id: 'legacy_review',
+        notes: 'legacy notes',
+      }, null, 2),
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, '.autoresearch', 'plan.md'),
+      [
+        '# Plan (derived view)',
+        '',
+        '- Run: legacy-run-1',
+        '- Workflow: legacy_review',
+        '',
+        'SSOT: `.autoresearch/state.json#/plan`',
+        '',
+        '## Steps',
+        '',
+        '1. [completed] gather_sources — Gather sources',
+        '   - expected_approvals: -',
+        '2. [pending] export_project — Export project',
+        '   - expected_approvals: -',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, '.autoresearch', 'ledger.jsonl'),
+      [
+        JSON.stringify({
+          ts: '2026-04-15T00:00:00Z',
+          event_type: 'initialized',
+          run_id: 'legacy-run-1',
+          workflow_id: 'legacy_review',
+          details: {},
+        }),
+        'not-json',
+        JSON.stringify({
+          ts: '2026-04-15T00:02:00Z',
+          event_type: 'run_started',
+          run_id: 'legacy-run-1',
+          workflow_id: 'legacy_review',
+          details: {},
+        }),
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+
+    const sm = new StateManager(tmpDir);
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    expect(view.recovery_context).toMatchObject({
+      control_files: {
+        state_json: { exists: true },
+        plan_md: { exists: true },
+        ledger_jsonl: { exists: true },
+        project_local_launcher: { exists: false },
+      },
+      current_run: {
+        run_id: 'legacy-run-1',
+        workflow_id: 'legacy_review',
+        run_status: 'running',
+        notes: 'legacy notes',
+        source: 'state+ledger',
+      },
+      plan_focus: {
+        step_id: 'export_project',
+        status: 'pending',
+        description: 'Export project',
+        source: 'plan.md',
+      },
+      latest_ledger_event: {
+        event_type: 'run_started',
+        timestamp_utc: '2026-04-15T00:02:00Z',
+        derived_run_status: 'running',
+      },
+    });
+    expect((view.recovery_context as Record<string, unknown>).derivation_warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'RECOVERY_LEDGER_PARSE_ERROR' }),
+      expect.objectContaining({ code: 'RECOVERY_RUN_STATUS_FROM_LEDGER' }),
+      expect.objectContaining({ code: 'RECOVERY_PLAN_FOCUS_FROM_PLAN_MD' }),
+      expect.objectContaining({ code: 'RECOVERY_GUIDANCE_FILES_UNAVAILABLE' }),
+    ]));
+  });
+
+  it('scopes recovery_context ledger fallback to the active state.run_id instead of the newest project-wide event', () => {
+    fs.mkdirSync(path.join(tmpDir, '.autoresearch'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, '.autoresearch', 'state.json'),
+      JSON.stringify({
+        schema_version: 1,
+        run_id: 'legacy-run-1',
+        workflow_id: 'legacy_review',
+      }, null, 2),
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, '.autoresearch', 'ledger.jsonl'),
+      [
+        JSON.stringify({
+          ts: '2026-04-15T00:00:00Z',
+          event_type: 'run_started',
+          run_id: 'legacy-run-1',
+          workflow_id: 'legacy_review',
+          details: {},
+        }),
+        JSON.stringify({
+          ts: '2026-04-15T00:05:00Z',
+          event_type: 'approval_approved',
+          run_id: 'other-run-2',
+          workflow_id: 'other_review',
+          details: { category: 'A5' },
+        }),
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+
+    const sm = new StateManager(tmpDir);
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    expect(view.recovery_context).toMatchObject({
+      current_run: {
+        run_id: 'legacy-run-1',
+        workflow_id: 'legacy_review',
+        run_status: 'running',
+        source: 'state+ledger',
+      },
+      latest_ledger_event: {
+        event_type: 'run_started',
+        run_id: 'legacy-run-1',
+        workflow_id: 'legacy_review',
+        derived_run_status: 'running',
+      },
+    });
   });
 
   it('reads awaiting_approval status (Python SSOT)', () => {

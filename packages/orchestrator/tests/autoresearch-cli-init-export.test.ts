@@ -38,12 +38,76 @@ describe('autoresearch CLI init/export', () => {
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'state.json'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', '.initialized'))).toBe(true);
+    const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
+    expect(fs.existsSync(launcherPath)).toBe(true);
+    expect((fs.statSync(launcherPath).mode & 0o111) !== 0).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, 'research_contract.md'))).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, '.mcp.template.json'))).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, '.mcp.template.json'))).toBe(false);
     expect(fs.existsSync(path.join(projectRoot, 'docs', 'APPROVAL_GATES.md'))).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, 'specs', 'plan.schema.json'))).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, 'specs', 'plan.schema.json'))).toBe(false);
     expect(fs.readFileSync(path.join(projectRoot, 'research_contract.md'), 'utf-8')).toContain('Source notebook: [research_notebook.md](research_notebook.md)');
+
+    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      env: {
+        ...process.env,
+        PATH: '/usr/bin:/bin',
+      },
+    });
+    expect(JSON.parse(statusJson)).toMatchObject({
+      run_status: 'idle',
+      recovery_context: {
+        status_commands: {
+          canonical: 'autoresearch status --json',
+          project_local_fallback: '.autoresearch/bin/autoresearch status --json',
+        },
+        recommended_files: [
+          'project_index.md',
+          'AGENTS.md',
+          'project_charter.md',
+          'research_plan.md',
+          'research_contract.md',
+        ],
+      },
+    });
+  });
+
+  it('writes the project-local fallback launcher even for runtime-only init', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-runtime-only-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    const { io } = makeIo(parentDir);
+
+    const code = await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], io);
+
+    expect(code).toBe(0);
+    const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
+    expect(fs.existsSync(launcherPath)).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(false);
+
+    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      env: {
+        ...process.env,
+        PATH: '/usr/bin:/bin',
+      },
+    });
+    const payload = JSON.parse(statusJson);
+    expect(payload).toMatchObject({
+      run_status: 'idle',
+      recovery_context: {
+        status_commands: {
+          canonical: 'autoresearch status --json',
+          project_local_fallback: '.autoresearch/bin/autoresearch status --json',
+        },
+        recommended_files: [],
+      },
+    });
+    expect(payload.recovery_context.derivation_warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'RECOVERY_GUIDANCE_FILES_UNAVAILABLE' }),
+    ]));
   });
 
   it('exports run artifacts and optional kb profile files into a zip bundle', async () => {

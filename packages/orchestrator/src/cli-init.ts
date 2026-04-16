@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
+import { ensureProjectLocalAutoresearchLauncher, projectLocalAutoresearchRelativePath } from './project-local-autoresearch.js';
 import { ensureProjectScaffold } from './project-scaffold.js';
 import { type CliIo } from './cli-lifecycle.js';
 import { StateManager } from './state-manager.js';
@@ -92,8 +93,11 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   if (!fs.existsSync(markerPath)) {
     fs.writeFileSync(markerPath, `${new Date().toISOString()}\n`, 'utf-8');
   }
+  const launcher = ensureProjectLocalAutoresearchLauncher(repoRoot);
+  io.stdout(`[ok] wrote: ${launcher.launcher_path}\n`);
   io.stdout(`[ok] runtime dir: ${runtimeDir}\n`);
   if (options.runtimeOnly) {
+    io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalAutoresearchRelativePath()} (${launcher.launcher_mode})\n`);
     io.stdout('[ok] project scaffold skipped (--runtime-only)\n');
     return;
   }
@@ -106,4 +110,5 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
       io.stdout(`- ... (${scaffold.created.length - 50} more)\n`);
     }
   }
+  io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalAutoresearchRelativePath()} (${launcher.launcher_mode})\n`);
 }
