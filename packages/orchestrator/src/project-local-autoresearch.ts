@@ -36,7 +36,17 @@ export function resolveProjectLocalAutoresearchLauncher(): ProjectLocalAutoresea
     const require = createRequire(import.meta.url);
     let tsxCliPath: string | null = null;
     try {
-      tsxCliPath = require.resolve('tsx/dist/cli.mjs');
+      const tsxPackageJsonPath = require.resolve('tsx/package.json');
+      const tsxPackageRoot = path.dirname(tsxPackageJsonPath);
+      const packageJson = JSON.parse(fs.readFileSync(tsxPackageJsonPath, 'utf-8')) as {
+        bin?: string | Record<string, string>;
+      };
+      const relativeBin = typeof packageJson.bin === 'string'
+        ? packageJson.bin
+        : packageJson.bin && typeof packageJson.bin === 'object'
+          ? packageJson.bin.tsx
+          : null;
+      tsxCliPath = relativeBin ? path.join(tsxPackageRoot, relativeBin) : null;
     } catch {
       tsxCliPath = null;
     }
