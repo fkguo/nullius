@@ -65,7 +65,7 @@ function buildWorkflowTaskProjection(step: ResolvedWorkflowStep): Record<string,
 
 function buildPersistedPlan(input: WorkflowPlanCommandInput, resolvedPlan: ResolvedWorkflowPlan, runId: string): Record<string, unknown> {
   const now = utcNowIso();
-  const steps = resolvedPlan.resolved_steps.map(step => {
+  const steps = resolvedPlan.resolved_steps.map((step: ResolvedWorkflowStep) => {
     return {
       step_id: step.id,
       description: step.purpose,

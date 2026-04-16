@@ -247,7 +247,7 @@ describe('workflow run consumer', () => {
         current_run_id: 'M-WF-1',
         run_status: 'completed',
         curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
-        workflow_output_keys: ['critical_analysis', 'research_pack'],
+        workflow_output_keys: ['critical_analysis'],
       },
     });
 
