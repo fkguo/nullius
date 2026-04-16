@@ -121,6 +121,17 @@ export function deriveLedgerStatusFromOperatorEvent(
   if (eventType === 'approval_requested') return { status: 'awaiting_approval', unmappedEvent: null };
   if (eventType === 'approval_rejected' || eventType === 'paused') return { status: 'paused', unmappedEvent: null };
   if (eventType === 'approval_budget_exhausted') return { status: 'blocked', unmappedEvent: null };
+  if (eventType === 'workflow_step_started') return { status: 'running', unmappedEvent: null };
+  if (eventType === 'workflow_step_completed' || eventType === 'workflow_step_skipped') {
+    return {
+      status: details.next_step_id ? 'running' : 'completed',
+      unmappedEvent: null,
+    };
+  }
+  if (eventType === 'workflow_step_failed' || eventType === 'workflow_step_selection_failed') {
+    return { status: 'failed', unmappedEvent: null };
+  }
+  if (eventType === 'workflow_plan_completed') return { status: 'completed', unmappedEvent: null };
   if (eventType === 'approval_timeout') {
     const policyAction = typeof details.policy_action === 'string' ? details.policy_action : '';
     if (policyAction === 'reject') return { status: 'rejected', unmappedEvent: null };

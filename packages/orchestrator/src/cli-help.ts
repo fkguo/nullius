@@ -136,6 +136,7 @@ Behavior:
   reuse bounded workflow outputs, and fall back to \`.autoresearch/bin/autoresearch status --json\`
   when the canonical \`autoresearch\` command is not available on PATH.
   Status JSON also includes \`project_surface_drift\`, a diagnostic-only warning block for stale legacy scaffold surfaces or optional host-local guidance noise in the current project root.
+  When durable workflow outputs are missing for an older run, status rebuilds a best-effort legacy workflow projection from ledger/artifact conventions and reports the projection source.
 `,
 approve: `autoresearch approve <approval_id>
 
@@ -178,6 +179,10 @@ Behavior:
   Current-run export also includes \`current_run_workflow_outputs\`, \`current_run_resume_context\`,
   and \`current_run_recovery_context\` when a run is active.
   Export summary also includes \`project_surface_drift\`, mirroring the status read model's diagnostic-only project-root warnings.
+  Current-run export also includes \`current_run_workflow_outputs\`, \`current_run_workflow_outputs_source\`, \`current_run_resume_context\`,
+  and \`current_run_recovery_context\` when a run is active.
+  Export summary also includes \`project_surface_drift\`, mirroring the status read model's diagnostic-only project-root warnings.
+  Export fails closed when no substantive payload is available, instead of reporting a hollow success.
 `,
   'workflow-plan': `autoresearch workflow-plan --recipe <recipe_id> [options]
 

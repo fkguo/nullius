@@ -52,6 +52,8 @@ const ACTIVE_DIGEST_RUN_STATUSES = new Set([
 
 type DigestProposalKind = 'repair' | 'skill' | 'optimize' | 'innovate';
 const CURATED_WORKFLOW_OUTPUT_KEYS = ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'] as const;
+type CuratedWorkflowOutputKey = typeof CURATED_WORKFLOW_OUTPUT_KEYS[number];
+type WorkflowOutputSource = 'state' | 'legacy_workflow_projection';
 const RECOVERY_RECOMMENDED_FILES = [
   'project_index.md',
   'AGENTS.md',
@@ -118,11 +120,11 @@ function hasSubstantiveResearchNotebook(projectRoot: string): boolean {
     const content = fs.readFileSync(notebookPath, 'utf-8');
     const lines = content
       .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .filter(line => !line.startsWith('Project: '))
-      .filter(line => !line.startsWith('Last updated: '))
-      .filter(line => !RESEARCH_NOTEBOOK_TEMPLATE_LINES.has(line));
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.length > 0)
+      .filter((line: string) => !line.startsWith('Project: '))
+      .filter((line: string) => !line.startsWith('Last updated: '))
+      .filter((line: string) => !RESEARCH_NOTEBOOK_TEMPLATE_LINES.has(line));
     return lines.length > 0;
   } catch {
     return false;
@@ -390,17 +392,16 @@ function readRecoveryContextView(projectRoot: string, state: RunState): Record<s
   };
 }
 
-function readCurrentRunWorkflowOutputsView(state: RunState): {
+function readCurrentRunWorkflowOutputsView(projectRoot: string, state: RunState): {
   current_run_workflow_outputs: Record<string, unknown> | null;
   current_run_workflow_outputs_error: Record<string, unknown> | null;
+  current_run_workflow_outputs_source: WorkflowOutputSource | null;
+  legacy_workflow_projection: Record<string, unknown> | null;
 } {
   const outputs = state.workflow_outputs ?? {};
   const entries = Object.entries(outputs);
   if (entries.length === 0) {
-    return {
-      current_run_workflow_outputs: null,
-      current_run_workflow_outputs_error: null,
-    };
+    return readLegacyWorkflowOutputsView(projectRoot, state);
   }
 
   const picked: Record<string, unknown> = {};
@@ -425,23 +426,250 @@ function readCurrentRunWorkflowOutputsView(state: RunState): {
       artifact_path: artifactUri ? artifactPathFromUri(artifactUri) : null,
       artifact_uri: artifactUri,
       summary: summaryText,
+      reason_code: typeof output.reason_code === 'string' ? output.reason_code : null,
+      recoverable: output.recoverable === true,
+    };
+  }
+
+  const stateError = errors.length > 0
+    ? {
+        code: 'CURRENT_RUN_WORKFLOW_OUTPUTS_PARTIAL',
+        message: `Built current_run_workflow_outputs with ${errors.length} invalid output entr${errors.length === 1 ? 'y' : 'ies'}.`,
+        curated_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
+        output_errors: errors,
+      }
+    : null;
+  if (Object.keys(picked).length > 0) {
+    return {
+      current_run_workflow_outputs: picked,
+      current_run_workflow_outputs_error: stateError,
+      current_run_workflow_outputs_source: 'state',
+      legacy_workflow_projection: null,
+    };
+  }
+
+  const legacy = readLegacyWorkflowOutputsView(projectRoot, state);
+  if (legacy.current_run_workflow_outputs) {
+    const mergedErrors = [
+      ...(stateError?.output_errors as Record<string, unknown>[] | undefined ?? []),
+      ...(legacy.current_run_workflow_outputs_error && Array.isArray((legacy.current_run_workflow_outputs_error as Record<string, unknown>).output_errors)
+        ? (legacy.current_run_workflow_outputs_error as Record<string, unknown>).output_errors as Record<string, unknown>[]
+        : []),
+    ];
+    return {
+      current_run_workflow_outputs: legacy.current_run_workflow_outputs,
+      current_run_workflow_outputs_error: mergedErrors.length > 0
+        ? {
+            code: 'CURRENT_RUN_WORKFLOW_OUTPUTS_PARTIAL',
+            message: `Fell back to legacy workflow projection after ${mergedErrors.length} workflow output issue(s).`,
+            curated_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
+            output_errors: mergedErrors,
+            fallback_source: 'legacy_workflow_projection',
+          }
+        : stateError,
+      current_run_workflow_outputs_source: legacy.current_run_workflow_outputs_source,
+      legacy_workflow_projection: legacy.legacy_workflow_projection,
     };
   }
 
   return {
-    current_run_workflow_outputs: Object.keys(picked).length > 0 ? picked : null,
-    current_run_workflow_outputs_error: errors.length > 0
-      ? {
-          code: 'CURRENT_RUN_WORKFLOW_OUTPUTS_PARTIAL',
-          message: `Built current_run_workflow_outputs with ${errors.length} invalid output entr${errors.length === 1 ? 'y' : 'ies'}.`,
-          curated_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
-          output_errors: errors,
-        }
-      : null,
+    current_run_workflow_outputs: null,
+    current_run_workflow_outputs_error: stateError ?? legacy.current_run_workflow_outputs_error,
+    current_run_workflow_outputs_source: null,
+    legacy_workflow_projection: null,
   };
 }
 
-function readResumeContextView(projectRoot: string, state: RunState): Record<string, unknown> {
+function readWorkflowArtifactRecord(filePath: string): {
+  summary: string | null;
+  reasonCode: string | null;
+  recoverable: boolean;
+  error: Record<string, unknown> | null;
+} {
+  try {
+    const parsed = readJson(filePath) as Record<string, unknown>;
+    const summary = typeof parsed.summary === 'string'
+      ? parsed.summary
+      : (typeof parsed.message === 'string' ? parsed.message : null);
+    const reasonCode = typeof parsed.reason === 'string' ? parsed.reason : null;
+    const status = typeof parsed.status === 'string' ? parsed.status : null;
+    return {
+      summary,
+      reasonCode,
+      recoverable: status === 'skipped' && reasonCode === 'no_input_recids',
+      error: null,
+    };
+  } catch (error) {
+    return {
+      summary: null,
+      reasonCode: null,
+      recoverable: false,
+      error: {
+        code: 'LEGACY_WORKFLOW_ARTIFACT_INVALID',
+        message: error instanceof Error ? error.message : String(error),
+        artifact_path: filePath,
+      },
+    };
+  }
+}
+
+function workflowArtifactPathCandidates(projectRoot: string, runId: string, key: CuratedWorkflowOutputKey, state: RunState): string[] {
+  const candidates = new Set<string>();
+  const stateArtifact = state.artifacts?.[key];
+  if (typeof stateArtifact === 'string' && stateArtifact.trim()) {
+    const artifactPath = artifactPathFromUri(stateArtifact);
+    if (artifactPath) {
+      candidates.add(path.join(projectRoot, 'artifacts', 'runs', runId, artifactPath));
+    } else {
+      candidates.add(path.resolve(projectRoot, stateArtifact));
+    }
+  }
+  if (key === 'connection_scan') {
+    candidates.add(path.join(projectRoot, 'artifacts', 'runs', runId, 'workflow_steps', `${key}.json`));
+  }
+  candidates.add(path.join(projectRoot, 'artifacts', 'runs', runId, `${key}.json`));
+  return [...candidates];
+}
+
+function stepArtifactKeyMap(state: RunState): Map<string, string> {
+  const map = new Map<string, string>();
+  const steps = Array.isArray(state.plan?.steps) ? state.plan.steps : [];
+  for (const rawStep of steps) {
+    if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) continue;
+    const step = rawStep as Record<string, unknown>;
+    const stepId = typeof step.step_id === 'string' ? step.step_id : null;
+    const execution = step.execution && typeof step.execution === 'object' && !Array.isArray(step.execution)
+      ? step.execution as Record<string, unknown>
+      : null;
+    const consumerHints = execution?.consumer_hints && typeof execution.consumer_hints === 'object' && !Array.isArray(execution.consumer_hints)
+      ? execution.consumer_hints as Record<string, unknown>
+      : null;
+    const artifactKey = typeof consumerHints?.artifact === 'string' && consumerHints.artifact.trim()
+      ? consumerHints.artifact.trim()
+      : stepId;
+    if (stepId && artifactKey) {
+      map.set(stepId, artifactKey);
+    }
+  }
+  return map;
+}
+
+function readLegacyWorkflowOutputsView(projectRoot: string, state: RunState): {
+  current_run_workflow_outputs: Record<string, unknown> | null;
+  current_run_workflow_outputs_error: Record<string, unknown> | null;
+  current_run_workflow_outputs_source: WorkflowOutputSource | null;
+  legacy_workflow_projection: Record<string, unknown> | null;
+} {
+  const runId = typeof state.run_id === 'string' ? state.run_id : null;
+  if (!runId) {
+    return {
+      current_run_workflow_outputs: null,
+      current_run_workflow_outputs_error: null,
+      current_run_workflow_outputs_source: null,
+      legacy_workflow_projection: null,
+    };
+  }
+
+  const artifactKeyByStepId = stepArtifactKeyMap(state);
+  const legacyOutputs = new Map<string, Record<string, unknown>>();
+  const errors: Record<string, unknown>[] = [];
+  const lines = fs.existsSync(new StateManager(projectRoot).ledgerPath)
+    ? fs.readFileSync(new StateManager(projectRoot).ledgerPath, 'utf-8').split('\n').filter((line: string) => line.trim())
+    : [];
+
+  for (const line of lines) {
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (event.run_id !== runId) continue;
+    const eventType = typeof event.event_type === 'string' ? event.event_type : '';
+    if (!['workflow_step_completed', 'workflow_step_skipped', 'workflow_step_failed'].includes(eventType)) continue;
+    const details = event.details && typeof event.details === 'object' && !Array.isArray(event.details)
+      ? event.details as Record<string, unknown>
+      : {};
+    const stepId = typeof event.step_id === 'string' ? event.step_id : null;
+    const artifactKey = typeof details.artifact_key === 'string'
+      ? details.artifact_key
+      : (stepId ? artifactKeyByStepId.get(stepId) ?? stepId : null);
+    if (!artifactKey || !CURATED_WORKFLOW_OUTPUT_KEYS.includes(artifactKey as CuratedWorkflowOutputKey)) continue;
+
+    const runtimeStatus = typeof details.runtime_status === 'string'
+      ? details.runtime_status
+      : (eventType === 'workflow_step_completed'
+        ? 'completed'
+        : (eventType === 'workflow_step_skipped' ? 'skipped' : 'failed'));
+    let artifactUri = typeof details.artifact_uri === 'string' ? details.artifact_uri : null;
+    let artifactPath = artifactUri ? artifactPathFromUri(artifactUri) : null;
+    let summary = typeof details.error === 'string'
+      ? details.error
+      : `legacy projection rebuilt from ${eventType}`;
+    let reasonCode = typeof details.reason_code === 'string' ? details.reason_code : null;
+    let recoverable = details.recoverable === true;
+
+    const artifactCandidates = workflowArtifactPathCandidates(projectRoot, runId, artifactKey as CuratedWorkflowOutputKey, state);
+    const existingArtifactPath = artifactCandidates.find(candidate => fs.existsSync(candidate)) ?? null;
+    if (!artifactUri && existingArtifactPath) {
+      artifactPath = relativeArtifactPathForRun(projectRoot, runId, existingArtifactPath);
+      artifactUri = `orch://runs/${runId}/artifact/${artifactPath}`;
+    }
+    if (existingArtifactPath && existingArtifactPath.endsWith('.json')) {
+      const artifactRecord = readWorkflowArtifactRecord(existingArtifactPath);
+      if (artifactRecord.summary) summary = artifactRecord.summary;
+      if (artifactRecord.reasonCode) reasonCode = artifactRecord.reasonCode;
+      if (artifactRecord.recoverable) recoverable = true;
+      if (artifactRecord.error) errors.push(artifactRecord.error);
+    }
+    legacyOutputs.set(artifactKey, {
+      status: runtimeStatus,
+      artifact_path: artifactPath,
+      artifact_uri: artifactUri,
+      summary,
+      reason_code: reasonCode,
+      recoverable,
+    });
+  }
+
+  const outputs = Object.fromEntries([...legacyOutputs.entries()].filter(([key]) => CURATED_WORKFLOW_OUTPUT_KEYS.includes(key as CuratedWorkflowOutputKey)));
+  if (Object.keys(outputs).length === 0) {
+    return {
+      current_run_workflow_outputs: null,
+      current_run_workflow_outputs_error: errors.length > 0
+        ? {
+            code: 'LEGACY_WORKFLOW_PROJECTION_PARTIAL',
+            message: `Legacy workflow projection encountered ${errors.length} artifact read error(s).`,
+            output_errors: errors,
+          }
+        : null,
+      current_run_workflow_outputs_source: null,
+      legacy_workflow_projection: null,
+    };
+  }
+  return {
+    current_run_workflow_outputs: outputs,
+    current_run_workflow_outputs_error: errors.length > 0
+      ? {
+          code: 'LEGACY_WORKFLOW_PROJECTION_PARTIAL',
+          message: `Legacy workflow projection encountered ${errors.length} artifact read error(s).`,
+          output_errors: errors,
+        }
+      : null,
+    current_run_workflow_outputs_source: 'legacy_workflow_projection',
+    legacy_workflow_projection: {
+      run_id: runId,
+      rebuilt_from: ['ledger', 'state.artifacts', 'artifacts/runs/<run_id>'],
+      outputs,
+    },
+  };
+}
+
+function relativeArtifactPathForRun(projectRoot: string, runId: string, filePath: string): string {
+  return path.relative(path.join(projectRoot, 'artifacts', 'runs', runId), filePath).split(path.sep).join('/');
+}
+
+function readResumeContextView(projectRoot: string, state: RunState, workflowOutputKeys: string[]): Record<string, unknown> {
   const readOrder = [
     'AGENTS.md',
     'project_charter.md',
@@ -459,7 +687,7 @@ function readResumeContextView(projectRoot: string, state: RunState): Record<str
     current_run_id: state.run_id,
     run_status: state.run_status,
     plan_md_path: state.plan_md_path,
-    workflow_output_keys: Object.keys(state.workflow_outputs ?? {}),
+    workflow_output_keys: workflowOutputKeys,
     curated_workflow_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
     recommended_files: recommendedFiles,
   };
@@ -824,8 +1052,12 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const finalConclusions = readFinalConclusionsView(projectRoot, state);
   const researchOutcomeProjection = readResearchOutcomeProjectionView(projectRoot, state);
   const planView = readPlanView(projectRoot, state);
-  const workflowOutputs = readCurrentRunWorkflowOutputsView(state);
-  const resumeContext = readResumeContextView(projectRoot, state);
+  const workflowOutputs = readCurrentRunWorkflowOutputsView(projectRoot, state);
+  const resumeContext = readResumeContextView(
+    projectRoot,
+    state,
+    workflowOutputs.current_run_workflow_outputs ? Object.keys(workflowOutputs.current_run_workflow_outputs) : [],
+  );
   const recoveryContext = readRecoveryContextView(projectRoot, state);
   const repairProposal = readRepairProposalView(projectRoot, state);
   const optimizeProposal = readOptimizeProposalView(projectRoot, state);
@@ -853,6 +1085,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     workflow_outputs: state.workflow_outputs ?? {},
     current_run_workflow_outputs: workflowOutputs.current_run_workflow_outputs,
     current_run_workflow_outputs_error: workflowOutputs.current_run_workflow_outputs_error,
+    current_run_workflow_outputs_source: workflowOutputs.current_run_workflow_outputs_source,
+    legacy_workflow_projection: workflowOutputs.legacy_workflow_projection,
     resume_context: resumeContext,
     recovery_context: {
       ...recoveryContext,
@@ -909,7 +1143,7 @@ export function readRunListView(
   const runMap = new Map<string, RunListEntry>();
   let invalidLines = 0;
   const unmappedEvents = new Map<string, number>();
-  const lines = fs.readFileSync(manager.ledgerPath, 'utf-8').split('\n').filter(line => line.trim());
+  const lines = fs.readFileSync(manager.ledgerPath, 'utf-8').split('\n').filter((line: string) => line.trim());
   for (const line of lines) {
     let event: Record<string, unknown>;
     try {

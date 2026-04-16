@@ -23,6 +23,43 @@ import {
   OrchRunResumeSchema,
 } from './schemas.js';
 
+function hasSubstantiveProjectRecentDigest(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const digest = value as Record<string, unknown>;
+  return Boolean(
+    (Array.isArray(digest.recent_runs) && digest.recent_runs.length > 0)
+    || digest.latest_final_conclusions !== null
+    || (digest.latest_proposals && typeof digest.latest_proposals === 'object'
+      && Object.values(digest.latest_proposals as Record<string, unknown>).some(entry => entry !== null))
+    || digest.active_team_run !== null
+  );
+}
+
+function hasSubstantiveExportPayload(result: Record<string, unknown>): boolean {
+  if (Array.isArray(result.artifact_runs)) {
+    const hasFiles = result.artifact_runs.some((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+      const files = (entry as Record<string, unknown>).files;
+      return Array.isArray(files) && files.length > 0;
+    });
+    if (hasFiles) return true;
+  }
+  if (result.current_run_workflow_outputs && typeof result.current_run_workflow_outputs === 'object') return true;
+  for (const key of [
+    'current_run_final_conclusions',
+    'current_run_research_outcome_projection',
+    'current_run_repair_mutation_proposal',
+    'current_run_optimize_mutation_proposal',
+    'current_run_innovate_mutation_proposal',
+    'current_run_skill_proposal',
+    'current_run_learning_summary',
+    'current_run_team_summary',
+  ] as const) {
+    if (result[key] && typeof result[key] === 'object') return true;
+  }
+  return hasSubstantiveProjectRecentDigest(result.project_recent_digest);
+}
+
 export async function handleOrchRunExport(
   params: z.output<typeof OrchRunExportSchema>,
 ): Promise<unknown> {
@@ -43,10 +80,10 @@ export async function handleOrchRunExport(
     const runsDir = path.join(projectRoot, 'artifacts', 'runs');
     if (fs.existsSync(runsDir)) {
       result.artifact_runs = fs.readdirSync(runsDir)
-        .filter(runDir => fs.statSync(path.join(runsDir, runDir)).isDirectory())
-        .map(runDir => ({
+        .filter((runDir: string) => fs.statSync(path.join(runsDir, runDir)).isDirectory())
+        .map((runDir: string) => ({
           run_id: runDir,
-          files: fs.readdirSync(path.join(runsDir, runDir)).map(file => path.join('artifacts', 'runs', runDir, file)).slice(0, 50),
+          files: fs.readdirSync(path.join(runsDir, runDir)).map((file: string) => path.join('artifacts', 'runs', runDir, file)).slice(0, 50),
           uri: `orch://runs/${runDir}`,
         }));
     } else {
@@ -84,9 +121,22 @@ export async function handleOrchRunExport(
       result.current_run_plan_view_warning = statusView.plan_view_warning ?? null;
       result.current_run_workflow_outputs = statusView.current_run_workflow_outputs ?? null;
       result.current_run_workflow_outputs_error = statusView.current_run_workflow_outputs_error ?? null;
+      result.current_run_workflow_outputs_source = statusView.current_run_workflow_outputs_source ?? null;
+      result.legacy_workflow_projection = statusView.legacy_workflow_projection ?? null;
       result.current_run_resume_context = statusView.resume_context ?? null;
       result.current_run_recovery_context = statusView.recovery_context ?? null;
     }
+  }
+  if (!hasSubstantiveExportPayload(result)) {
+    return {
+      exported: false,
+      ...result,
+      uri: 'orch://runs/export',
+      error: {
+        code: 'EXPORT_PAYLOAD_UNAVAILABLE',
+        message: 'No substantive export payload is available for this project root.',
+      },
+    };
   }
   return {
     exported: true,

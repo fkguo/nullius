@@ -12,6 +12,7 @@ import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
 import type { TeamPermissionMatrix } from '../src/team-execution-types.js';
 import type { RunState } from '../src/types.js';
 import { runCli } from '../src/cli.js';
+import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
 
 function makeTempProjectRoot(): string {
@@ -957,6 +958,8 @@ describe('autoresearch CLI', () => {
         artifact_uri: 'hep://runs/M-OUT-1/artifact/topic_analysis.json',
         additional_artifact_uris: [],
         summary_text: 'Topic timeline completed successfully.',
+        reason_code: null,
+        recoverable: false,
         payload: { topic: 'bootstrap amplitudes' },
         payload_truncated: false,
       },
@@ -967,6 +970,8 @@ describe('autoresearch CLI', () => {
         artifact_uri: 'orch://runs/M-OUT-1/artifact/workflow_steps/connection_scan.json',
         additional_artifact_uris: [],
         summary_text: 'skipped because no_input_recids',
+        reason_code: 'no_input_recids',
+        recoverable: true,
         payload: { status: 'skipped', reason: 'no_input_recids' },
         payload_truncated: false,
       },
@@ -988,8 +993,11 @@ describe('autoresearch CLI', () => {
           status: 'skipped',
           artifact_uri: 'orch://runs/M-OUT-1/artifact/workflow_steps/connection_scan.json',
           summary: 'skipped because no_input_recids',
+          reason_code: 'no_input_recids',
+          recoverable: true,
         },
       },
+      current_run_workflow_outputs_source: 'state',
       resume_context: {
         status_command: 'autoresearch status --json',
         current_run_id: 'M-OUT-1',
@@ -1003,6 +1011,221 @@ describe('autoresearch CLI', () => {
           run_status: 'completed',
           source: 'state',
         },
+      },
+    });
+  });
+
+  it('rebuilds current_run_workflow_outputs from legacy workflow projection when durable state is empty', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-LEGACY-1';
+    state.workflow_id = 'literature_gap_analysis';
+    state.run_status = 'completed';
+    state.plan = {
+      schema_version: 1,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      plan_id: 'M-LEGACY-1:literature_gap_analysis',
+      run_id: 'M-LEGACY-1',
+      workflow_id: 'literature_gap_analysis',
+      steps: [
+        {
+          step_id: 'topic_scan',
+          description: 'Topic analysis',
+          status: 'completed',
+          expected_approvals: [],
+          expected_outputs: ['topic_analysis'],
+          recovery_notes: '',
+          execution: {
+            tool: 'inspire_topic_analysis',
+            depends_on: [],
+            params: {},
+            required_capabilities: [],
+            consumer_hints: { artifact: 'topic_analysis' },
+          },
+        },
+        {
+          step_id: 'connection_scan',
+          description: 'Connection scan',
+          status: 'skipped',
+          expected_approvals: [],
+          expected_outputs: ['connection_scan'],
+          recovery_notes: '',
+          execution: {
+            tool: 'inspire_find_connections',
+            depends_on: [],
+            params: {},
+            required_capabilities: [],
+            consumer_hints: { artifact: 'connection_scan' },
+          },
+        },
+      ],
+      notes: '',
+    } as Record<string, unknown>;
+    state.workflow_outputs = {};
+    manager.saveState(state);
+
+    manager.appendLedger('workflow_step_completed', {
+      run_id: 'M-LEGACY-1',
+      workflow_id: 'literature_gap_analysis',
+      step_id: 'topic_scan',
+      details: {
+        artifact_key: 'topic_analysis',
+        artifact_uri: 'orch://runs/M-LEGACY-1/artifact/topic_analysis.json',
+        runtime_status: 'completed',
+        next_step_id: null,
+      },
+    });
+    manager.appendLedger('workflow_step_skipped', {
+      run_id: 'M-LEGACY-1',
+      workflow_id: 'literature_gap_analysis',
+      step_id: 'connection_scan',
+      details: {
+        artifact_key: 'connection_scan',
+        artifact_uri: 'orch://runs/M-LEGACY-1/artifact/workflow_steps/connection_scan.json',
+        error: 'skipped because no_input_recids',
+        reason_code: 'no_input_recids',
+        recoverable: true,
+        next_step_id: null,
+      },
+    });
+
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'M-LEGACY-1', 'workflow_steps'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, 'artifacts', 'runs', 'M-LEGACY-1', 'workflow_steps', 'connection_scan.json'),
+      JSON.stringify({
+        status: 'skipped',
+        reason: 'no_input_recids',
+        summary: 'No recids were available, so connection analysis was skipped.',
+      }, null, 2),
+      'utf-8',
+    );
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      current_run_workflow_outputs_source: 'legacy_workflow_projection',
+      current_run_workflow_outputs: {
+        topic_analysis: {
+          status: 'completed',
+        },
+        connection_scan: {
+          status: 'skipped',
+          artifact_uri: 'orch://runs/M-LEGACY-1/artifact/workflow_steps/connection_scan.json',
+          reason_code: 'no_input_recids',
+          recoverable: true,
+        },
+      },
+      legacy_workflow_projection: {
+        run_id: 'M-LEGACY-1',
+        outputs: {
+          connection_scan: {
+            reason_code: 'no_input_recids',
+            recoverable: true,
+          },
+        },
+      },
+      resume_context: {
+        workflow_output_keys: expect.arrayContaining(['topic_analysis', 'connection_scan']),
+      },
+    });
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+    expect(exportView).toMatchObject({
+      exported: true,
+      current_run_workflow_outputs_source: 'legacy_workflow_projection',
+      current_run_workflow_outputs: {
+        connection_scan: {
+          reason_code: 'no_input_recids',
+          recoverable: true,
+        },
+      },
+      legacy_workflow_projection: {
+        run_id: 'M-LEGACY-1',
+      },
+    });
+  });
+
+  it('fails closed when summary export has no substantive payload', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-EMPTY-EXPORT';
+    state.workflow_id = 'review_cycle';
+    state.run_status = 'idle';
+    manager.saveState(state);
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: false,
+      include_artifacts: true,
+    }) as Record<string, unknown>;
+
+    expect(exportView).toMatchObject({
+      exported: false,
+      error: {
+        code: 'EXPORT_PAYLOAD_UNAVAILABLE',
+      },
+    });
+  });
+
+  it('reports structured legacy workflow projection errors when a fallback artifact is malformed', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-LEGACY-BAD';
+    state.workflow_id = 'literature_gap_analysis';
+    state.run_status = 'completed';
+    state.workflow_outputs = {};
+    manager.saveState(state);
+
+    manager.appendLedger('workflow_step_skipped', {
+      run_id: 'M-LEGACY-BAD',
+      workflow_id: 'literature_gap_analysis',
+      step_id: 'connection_scan',
+      details: {
+        artifact_key: 'connection_scan',
+        artifact_uri: 'orch://runs/M-LEGACY-BAD/artifact/workflow_steps/connection_scan.json',
+        error: 'skipped because no_input_recids',
+      },
+    });
+
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'M-LEGACY-BAD', 'workflow_steps'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, 'artifacts', 'runs', 'M-LEGACY-BAD', 'workflow_steps', 'connection_scan.json'),
+      '{not-json',
+      'utf-8',
+    );
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      current_run_workflow_outputs: {
+        connection_scan: {
+          status: 'skipped',
+        },
+      },
+      current_run_workflow_outputs_error: {
+        code: 'LEGACY_WORKFLOW_PROJECTION_PARTIAL',
+        output_errors: [
+          {
+            code: 'LEGACY_WORKFLOW_ARTIFACT_INVALID',
+          },
+        ],
       },
     });
   });
@@ -1293,6 +1516,74 @@ describe('autoresearch CLI', () => {
           {
             code: 'WORKFLOW_OUTPUT_INVALID',
             output_key: 'topic_analysis',
+          },
+        ],
+      },
+    });
+  });
+
+  it('falls back to legacy workflow projection when curated durable outputs are malformed but legacy evidence exists', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-BAD-LEGACY-1';
+    state.workflow_id = 'literature_gap_analysis';
+    state.run_status = 'completed';
+    state.workflow_outputs = {
+      connection_scan: {
+        step_id: 'connection_scan',
+        tool: 'inspire_find_connections',
+        artifact_uri: 'orch://runs/M-BAD-LEGACY-1/artifact/workflow_steps/connection_scan.json',
+        summary_text: 'missing runtime status',
+      },
+    } as any;
+    manager.saveState(state);
+
+    manager.appendLedger('workflow_step_skipped', {
+      run_id: 'M-BAD-LEGACY-1',
+      workflow_id: 'literature_gap_analysis',
+      step_id: 'connection_scan',
+      details: {
+        artifact_key: 'connection_scan',
+        artifact_uri: 'orch://runs/M-BAD-LEGACY-1/artifact/workflow_steps/connection_scan.json',
+        error: 'skipped because no_input_recids',
+        reason_code: 'no_input_recids',
+        recoverable: true,
+      },
+    });
+
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'M-BAD-LEGACY-1', 'workflow_steps'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, 'artifacts', 'runs', 'M-BAD-LEGACY-1', 'workflow_steps', 'connection_scan.json'),
+      JSON.stringify({
+        status: 'skipped',
+        reason: 'no_input_recids',
+        summary: 'No recids were available, so connection analysis was skipped.',
+      }, null, 2),
+      'utf-8',
+    );
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      current_run_workflow_outputs_source: 'legacy_workflow_projection',
+      current_run_workflow_outputs: {
+        connection_scan: {
+          status: 'skipped',
+          reason_code: 'no_input_recids',
+          recoverable: true,
+        },
+      },
+      current_run_workflow_outputs_error: {
+        code: 'CURRENT_RUN_WORKFLOW_OUTPUTS_PARTIAL',
+        fallback_source: 'legacy_workflow_projection',
+        output_errors: [
+          {
+            code: 'WORKFLOW_OUTPUT_INVALID',
+            output_key: 'connection_scan',
           },
         ],
       },

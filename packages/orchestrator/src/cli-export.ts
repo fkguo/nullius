@@ -42,10 +42,6 @@ function safeKbFile(projectRoot: string, candidatePath: string): string {
   return resolved;
 }
 
-function writeEmptyZip(outPath: string): void {
-  fs.writeFileSync(outPath, Buffer.from([0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
-}
-
 export async function runExportCommand(projectRoot: string, cwd: string, args: string[], io: CliIo): Promise<void> {
   const options = parseExportArgs(args);
   const state = new StateManager(projectRoot).readState();
@@ -86,10 +82,10 @@ export async function runExportCommand(projectRoot: string, cwd: string, args: s
 
   fs.rmSync(outPath, { force: true });
   const archiveEntries = [...files].map(filePath => relativePath(projectRoot, filePath)).sort();
-  if (archiveEntries.length === 0) writeEmptyZip(outPath);
-  else {
-    const result = spawnSync('zip', ['-q', outPath, '-@'], { cwd: projectRoot, encoding: 'utf-8', input: `${archiveEntries.join('\n')}\n` });
-    if (result.status !== 0) throw new Error(result.stderr?.trim() || `zip failed with status ${String(result.status)}`);
+  if (archiveEntries.length === 0) {
+    throw new Error(`EXPORT_PAYLOAD_UNAVAILABLE: no exportable files were found for run ${runId}`);
   }
+  const result = spawnSync('zip', ['-q', outPath, '-@'], { cwd: projectRoot, encoding: 'utf-8', input: `${archiveEntries.join('\n')}\n` });
+  if (result.status !== 0) throw new Error(result.stderr?.trim() || `zip failed with status ${String(result.status)}`);
   io.stdout(`[ok] wrote: ${outPath}\n`);
 }

@@ -47,6 +47,8 @@ export interface WorkflowOutputView {
   artifact_uri: string | null;
   additional_artifact_uris: string[];
   summary_text: string;
+  reason_code: string | null;
+  recoverable: boolean;
   payload: unknown | null;
   payload_truncated: boolean;
 }

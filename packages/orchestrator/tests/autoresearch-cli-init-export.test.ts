@@ -147,4 +147,21 @@ describe('autoresearch CLI init/export', () => {
     expect(archiveListing).toContain('team/runs/M1/summary.md');
     expect(archiveListing).toContain('knowledge_base/literature/paper.md');
   });
+
+  it('fails closed when no exportable files exist for the requested run', async () => {
+    const projectRoot = makeTempDir('autoresearch-cli-export-empty-');
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-EMPTY';
+    state.workflow_id = 'ingest';
+    manager.saveState(state);
+
+    const outPath = path.join(projectRoot, 'exports', 'empty.zip');
+
+    await expect(runCli(['export', '--out', outPath], makeIo(projectRoot).io)).rejects.toThrow(
+      'EXPORT_PAYLOAD_UNAVAILABLE: no exportable files were found for run M-EMPTY',
+    );
+    expect(fs.existsSync(outPath)).toBe(false);
+  });
 });

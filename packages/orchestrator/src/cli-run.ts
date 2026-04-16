@@ -62,6 +62,8 @@ function buildWorkflowOutputView(params: {
   artifactUri: string | null;
   additionalArtifactUris: string[];
   summaryText: string;
+  reasonCode: string | null;
+  recoverable: boolean;
   payload: unknown;
 }): WorkflowOutputView {
   let payload: unknown | null = params.payload ?? null;
@@ -85,9 +87,79 @@ function buildWorkflowOutputView(params: {
     artifact_uri: params.artifactUri,
     additional_artifact_uris: params.additionalArtifactUris,
     summary_text: params.summaryText.slice(0, 4000),
+    reason_code: params.reasonCode,
+    recoverable: params.recoverable,
     payload,
     payload_truncated: payloadTruncated,
   };
+}
+
+function artifactKeyForWorkflowStep(step: PersistedWorkflowPlanStep): string {
+  const artifactHint = typeof step.execution?.consumer_hints?.artifact === 'string'
+    ? step.execution.consumer_hints.artifact.trim()
+    : '';
+  return artifactHint || step.step_id;
+}
+
+function deriveWorkflowOutputRecoveryMetadata(params: {
+  runtimeStatus: 'completed' | 'partial' | 'skipped' | 'failed';
+  payload: unknown;
+  summaryText: string;
+  diagnostics?: Array<{ code?: string; details?: Record<string, unknown> | undefined }>;
+}): { reasonCode: string | null; recoverable: boolean } {
+  const candidates: Array<string | null> = [];
+  for (const diagnostic of params.diagnostics ?? []) {
+    const reason = typeof diagnostic.details?.reason === 'string' ? diagnostic.details.reason : null;
+    candidates.push(reason);
+  }
+  if (params.payload && typeof params.payload === 'object' && !Array.isArray(params.payload)) {
+    const payloadRecord = params.payload as Record<string, unknown>;
+    candidates.push(typeof payloadRecord.reason === 'string' ? payloadRecord.reason : null);
+  }
+  if (params.summaryText.includes('no_input_recids')) {
+    candidates.push('no_input_recids');
+  }
+  const reasonCode = candidates.find((candidate): candidate is string => Boolean(candidate && candidate.trim())) ?? null;
+  return {
+    reasonCode,
+    recoverable: params.runtimeStatus === 'skipped' && reasonCode === 'no_input_recids',
+  };
+}
+
+function projectWorkflowTerminalStep(params: {
+  state: RunState;
+  step: PersistedWorkflowPlanStep;
+  tool: string;
+  artifactKey: string;
+  runtimeStatus: 'completed' | 'partial' | 'skipped' | 'failed';
+  artifactUri: string | null;
+  additionalArtifactUris: string[];
+  summaryText: string;
+  payload: unknown;
+  diagnostics?: Array<{ code?: string; details?: Record<string, unknown> | undefined }>;
+}): { reasonCode: string | null; recoverable: boolean } {
+  const recovery = deriveWorkflowOutputRecoveryMetadata({
+    runtimeStatus: params.runtimeStatus,
+    payload: params.payload,
+    summaryText: params.summaryText,
+    diagnostics: params.diagnostics,
+  });
+  if (params.artifactUri) {
+    params.state.artifacts[params.artifactKey] = params.artifactUri;
+  }
+  params.state.workflow_outputs[params.artifactKey] = buildWorkflowOutputView({
+    stepId: params.step.step_id,
+    tool: params.tool,
+    runtimeStatus: params.runtimeStatus,
+    artifactUri: params.artifactUri,
+    additionalArtifactUris: params.additionalArtifactUris,
+    summaryText: params.summaryText,
+    reasonCode: recovery.reasonCode,
+    recoverable: recovery.recoverable,
+    payload: params.payload,
+  });
+  params.state.notes = params.summaryText.slice(0, 2000);
+  return recovery;
 }
 
 function isWithinPath(basePath: string, candidatePath: string): boolean {
@@ -499,16 +571,31 @@ async function runWorkflowCommand(
       manager.syncPlanTerminal(persisted, step.step_id, step.description, 'failed');
       persisted.current_step = null;
       persisted.run_status = 'failed';
-      persisted.notes = message;
       setPlanCurrentStepId(persisted, null);
+      const artifactKey = artifactKeyForWorkflowStep(step);
+      const recovery = projectWorkflowTerminalStep({
+        state: persisted,
+        step,
+        tool: step.execution?.tool ?? artifactKey,
+        artifactKey,
+        runtimeStatus: 'failed',
+        artifactUri: null,
+        additionalArtifactUris: [],
+        summaryText: message,
+        payload: null,
+        diagnostics: [{ code: diagnosticCode, details: { reason: null } }],
+      });
       manager.saveStateWithLedger(persisted, 'workflow_step_failed', {
         step_id: step.step_id,
         details: {
           workflow_id: resolved.workflowId,
           tool: step.execution?.tool ?? null,
           degrade_mode: step.execution?.degrade_mode ?? 'fail_closed',
+          artifact_key: artifactKey,
           error: message,
           next_step_id: null,
+          reason_code: recovery.reasonCode,
+          recoverable: recovery.recoverable,
           diagnostics: [{ code: diagnosticCode, message }],
         },
       });
@@ -536,19 +623,18 @@ async function runWorkflowCommand(
       }
       const artifactKey = runtimeRequest.artifact_key;
       const artifactUri = runtimeResult.canonical_artifact_uri;
-      if (artifactUri) {
-        persisted.artifacts[artifactKey] = artifactUri;
-      }
-      persisted.workflow_outputs[artifactKey] = buildWorkflowOutputView({
-        stepId: step.step_id,
+      const recovery = projectWorkflowTerminalStep({
+        state: persisted,
+        step,
         tool: step.execution?.tool ?? runtimeRequest.tool,
+        artifactKey,
         runtimeStatus: runtimeResult.status,
         artifactUri,
         additionalArtifactUris: runtimeResult.additional_artifact_uris,
         summaryText: runtimeResult.summary_text,
         payload: runtimeResult.payload,
+        diagnostics: runtimeResult.diagnostics,
       });
-      persisted.notes = runtimeResult.summary_text.slice(0, 2000);
       manager.saveStateWithLedger(persisted, 'workflow_step_completed', {
         step_id: step.step_id,
         details: {
@@ -558,6 +644,8 @@ async function runWorkflowCommand(
           artifact_key: artifactKey,
           artifact_uri: artifactUri,
           runtime_status: runtimeResult.status,
+          reason_code: recovery.reasonCode,
+          recoverable: recovery.recoverable,
         },
       });
       executedStepIds.push(step.step_id);
@@ -612,32 +700,34 @@ async function runWorkflowCommand(
     } else if (!nextSelection.blockedReason && nextSelection.nextStepId === null) {
       persisted.run_status = 'completed';
     }
-    persisted.workflow_outputs[runtimeRequest.artifact_key] = buildWorkflowOutputView({
-      stepId: step.step_id,
+    const recovery = projectWorkflowTerminalStep({
+      state: persisted,
+      step,
       tool: step.execution?.tool ?? runtimeRequest.tool,
+      artifactKey: runtimeRequest.artifact_key,
       runtimeStatus: terminalStatus,
       artifactUri: runtimeResult.canonical_artifact_uri,
       additionalArtifactUris: runtimeResult.additional_artifact_uris,
       summaryText: runtimeResult.summary_text,
       payload: runtimeResult.payload,
+      diagnostics: runtimeResult.diagnostics,
     });
-    if (terminalStatus === 'skipped' && runtimeResult.canonical_artifact_uri) {
-      persisted.artifacts[runtimeRequest.artifact_key] = runtimeResult.canonical_artifact_uri;
-    }
     manager.saveStateWithLedger(persisted, terminalStatus === 'skipped' ? 'workflow_step_skipped' : 'workflow_step_failed', {
       step_id: step.step_id,
       details: {
         workflow_id: resolved.workflowId,
         tool: step.execution?.tool ?? null,
         degrade_mode: runtimeRequest.degrade_mode,
+        artifact_key: runtimeRequest.artifact_key,
         error: message,
         next_step_id: nextSelection.nextStepId,
-        ...(terminalStatus === 'skipped' && runtimeResult.canonical_artifact_uri
+        ...(runtimeResult.canonical_artifact_uri
           ? {
-              artifact_key: runtimeRequest.artifact_key,
               artifact_uri: runtimeResult.canonical_artifact_uri,
             }
           : {}),
+        reason_code: recovery.reasonCode,
+        recoverable: recovery.recoverable,
         diagnostics: runtimeResult.diagnostics,
       },
     });

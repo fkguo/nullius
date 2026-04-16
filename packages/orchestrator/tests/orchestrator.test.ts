@@ -2603,6 +2603,80 @@ describe('orch approval/query read models', () => {
       'run-a1': 'running',
     });
   });
+
+  it('maps workflow ledger terminal events into visible run statuses', () => {
+    const manager = new StateManager(tmpDir);
+    manager.ensureDirs();
+    fs.writeFileSync(manager.ledgerPath, [
+      JSON.stringify({
+        ts: '2026-04-14T00:00:00Z',
+        event_type: 'workflow_step_started',
+        run_id: 'run-workflow-running',
+        workflow_id: 'review_cycle',
+        step_id: 'critical_review',
+        details: {},
+      }),
+      JSON.stringify({
+        ts: '2026-04-14T00:00:01Z',
+        event_type: 'workflow_step_completed',
+        run_id: 'run-workflow-running',
+        workflow_id: 'review_cycle',
+        step_id: 'critical_review',
+        details: { next_step_id: 'export_project', artifact_key: 'critical_analysis' },
+      }),
+      JSON.stringify({
+        ts: '2026-04-14T00:00:02Z',
+        event_type: 'workflow_step_completed',
+        run_id: 'run-workflow-complete',
+        workflow_id: 'review_cycle',
+        step_id: 'export_project',
+        details: { next_step_id: null, artifact_key: 'research_pack' },
+      }),
+      JSON.stringify({
+        ts: '2026-04-14T00:00:03Z',
+        event_type: 'workflow_step_skipped',
+        run_id: 'run-workflow-skipped-terminal',
+        workflow_id: 'literature_gap_analysis',
+        step_id: 'connection_scan',
+        details: { next_step_id: null, artifact_key: 'connection_scan', reason_code: 'no_input_recids', recoverable: true },
+      }),
+      JSON.stringify({
+        ts: '2026-04-14T00:00:04Z',
+        event_type: 'workflow_step_failed',
+        run_id: 'run-workflow-failed',
+        workflow_id: 'review_cycle',
+        step_id: 'export_project',
+        details: { artifact_key: 'research_pack', error: 'export failed' },
+      }),
+      JSON.stringify({
+        ts: '2026-04-14T00:00:05Z',
+        event_type: 'workflow_step_selection_failed',
+        run_id: 'run-workflow-selection-failed',
+        workflow_id: 'review_cycle',
+        step_id: null,
+        details: { reason: 'dependency blocked' },
+      }),
+      JSON.stringify({
+        ts: '2026-04-14T00:00:06Z',
+        event_type: 'workflow_plan_completed',
+        run_id: 'run-workflow-plan-complete',
+        workflow_id: 'review_cycle',
+        step_id: null,
+        details: {},
+      }),
+    ].join('\n') + '\n');
+
+    const runList = readRunListView(manager, { limit: 20, status_filter: 'all' });
+    const statusByRun = Object.fromEntries(runList.runs.map(run => [run.run_id, run.last_status]));
+    expect(statusByRun).toMatchObject({
+      'run-workflow-running': 'running',
+      'run-workflow-complete': 'completed',
+      'run-workflow-skipped-terminal': 'completed',
+      'run-workflow-failed': 'failed',
+      'run-workflow-selection-failed': 'failed',
+      'run-workflow-plan-complete': 'completed',
+    });
+  });
 });
 
 describe('Stage 3c: renderPlanMd', () => {

@@ -216,6 +216,8 @@ describe('workflow run consumer', () => {
           tool: 'inspire_critical_analysis',
           runtime_status: 'completed',
           artifact_uri: null,
+          reason_code: null,
+          recoverable: false,
           payload_truncated: false,
           payload: {
             paper_recid: '1234',
@@ -235,8 +237,11 @@ describe('workflow run consumer', () => {
           status: 'completed',
           artifact_uri: null,
           summary: expect.stringContaining('RELIABLE'),
+          reason_code: null,
+          recoverable: false,
         },
       },
+      current_run_workflow_outputs_source: 'state',
       resume_context: {
         status_command: 'autoresearch status --json',
         current_run_id: 'M-WF-1',
@@ -258,6 +263,7 @@ describe('workflow run consumer', () => {
           status: 'completed',
         },
       },
+      current_run_workflow_outputs_source: 'state',
       current_run_resume_context: {
         status_command: 'autoresearch status --json',
         current_run_id: 'M-WF-1',
@@ -462,9 +468,90 @@ describe('workflow run consumer', () => {
       status: 'skipped',
       reason: 'no_input_recids',
     });
+    expect(persisted.workflow_outputs.connection_scan).toMatchObject({
+      runtime_status: 'skipped',
+      artifact_uri: 'orch://runs/M-WF-EMPTY/artifact/workflow_steps/connection_scan.json',
+      reason_code: 'no_input_recids',
+      recoverable: true,
+    });
     const persistedSteps = (((persisted.plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
     expect(persistedSteps[0]).toMatchObject({ step_id: 'connection_scan', status: 'skipped' });
     expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'completed' });
+  });
+
+  it('projects durable failed workflow outputs when runtime execution fails closed', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = persistWorkflowPlan(projectRoot);
+    const { io, stdout } = makeIo(projectRoot);
+
+    await withEnv({
+      AUTORESEARCH_RUN_MCP_COMMAND: undefined,
+      AUTORESEARCH_RUN_MCP_ARGS_JSON: undefined,
+      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+    }, async () => {
+      await expect(runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io)).resolves.toBe(1);
+    });
+
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'failed',
+      ok: false,
+      step_id: 'critical_review',
+    });
+    expect(manager.readState().workflow_outputs.critical_analysis).toMatchObject({
+      step_id: 'critical_review',
+      tool: 'inspire_critical_analysis',
+      runtime_status: 'failed',
+      artifact_uri: null,
+      reason_code: null,
+      recoverable: false,
+    });
+    expect(manager.readState().artifacts.critical_analysis).toBeUndefined();
+  });
+
+  it('projects durable failed workflow outputs when request compilation throws before runtime execution', async () => {
+    const projectRoot = makeTempProjectRoot();
+    persistWorkflowPlan(projectRoot);
+
+    vi.resetModules();
+    vi.doMock('../src/workflow-runtime.js', async () => {
+      const actual = await vi.importActual<typeof import('../src/workflow-runtime.js')>('../src/workflow-runtime.js');
+      return {
+        ...actual,
+        compileWorkflowRuntimeRequest: vi.fn(() => {
+          throw new Error('synthetic compile failure');
+        }),
+      };
+    });
+
+    try {
+      const { runCommand: mockedRunCommand } = await import('../src/cli-run.js');
+      const { io, stdout } = makeIo(projectRoot);
+      const code = await mockedRunCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io, {
+        workflowToolCaller: { callTool: vi.fn() },
+      });
+
+      expect(code).toBe(1);
+      expect(JSON.parse(stdout.join(''))).toMatchObject({
+        status: 'failed',
+        ok: false,
+        step_id: 'critical_review',
+        error: 'synthetic compile failure',
+      });
+
+      const manager = new StateManager(projectRoot);
+      expect(manager.readState().workflow_outputs.critical_analysis).toMatchObject({
+        step_id: 'critical_review',
+        tool: 'inspire_critical_analysis',
+        runtime_status: 'failed',
+        artifact_uri: null,
+        reason_code: null,
+        recoverable: false,
+      });
+      expect(manager.readState().artifacts.critical_analysis).toBeUndefined();
+    } finally {
+      vi.doUnmock('../src/workflow-runtime.js');
+      vi.resetModules();
+    }
   });
 
   it('surfaces partial_result through the existing completed envelope plus diagnostics', async () => {

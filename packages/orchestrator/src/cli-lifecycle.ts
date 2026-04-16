@@ -116,15 +116,21 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
   if (payload.current_run_workflow_outputs_error) {
     io.stdout(`current_run_workflow_outputs_error: ${JSON.stringify(payload.current_run_workflow_outputs_error)}\n`);
   }
+  if (payload.current_run_workflow_outputs_source) {
+    io.stdout(`current_run_workflow_outputs_source: ${String(payload.current_run_workflow_outputs_source)}\n`);
+  }
   if (payload.current_run_workflow_outputs && typeof payload.current_run_workflow_outputs === 'object') {
     io.stdout('workflow_outputs:\n');
     for (const [key, rawEntry] of Object.entries(payload.current_run_workflow_outputs as Record<string, unknown>)) {
       if (!rawEntry || typeof rawEntry !== 'object') continue;
       const entry = rawEntry as Record<string, unknown>;
       io.stdout(
-        `  - ${key}: ${String(entry.status ?? '')} :: ${String(entry.summary ?? '')}${entry.artifact_uri ? ` (${String(entry.artifact_uri)})` : ''}\n`,
+        `  - ${key}: ${String(entry.status ?? '')}${entry.reason_code ? ` [reason=${String(entry.reason_code)}]` : ''}${entry.recoverable === true ? ' [recoverable]' : ''} :: ${String(entry.summary ?? '')}${entry.artifact_uri ? ` (${String(entry.artifact_uri)})` : ''}\n`,
       );
     }
+  }
+  if (payload.legacy_workflow_projection && typeof payload.legacy_workflow_projection === 'object') {
+    io.stdout(`legacy_workflow_projection: ${JSON.stringify(payload.legacy_workflow_projection)}\n`);
   }
   const digestError = payload.project_recent_digest_error;
   if (digestError && typeof digestError === 'object') {
