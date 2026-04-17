@@ -97,7 +97,7 @@ function syncReadmeZh(source: string, counts: ToolCounts): string {
   out = replaceOrThrow(
     out,
     /工具数量：\s*\*\*`standard`\s*模式\s*\d+\s*个\*\*[\s\S]*?\*\*`full`\s*模式\s*\d+\s*个\*\*[^\n]*/m,
-    `工具数量：**\`standard\` 模式 ${counts.standard} 个**（默认：收敛后的紧凑工具面）与 **\`full\` 模式 ${counts.full} 个**（额外暴露 advanced 工具）。`,
+    `工具数量：**\`standard\` 模式 ${counts.standard} 个**（默认、紧凑 surface）与 **\`full\` 模式 ${counts.full} 个**（增加 advanced tools）。`,
     'README_zh summary'
   );
   out = replaceTableRow(out, 'standard', counts.standard, 'README_zh standard row');
