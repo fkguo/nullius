@@ -1,11 +1,15 @@
 {
   "version": 1,
-  "note": "Classification and docs/tests consumption layer only. Exact inventories remain owned by their source surfaces and must be kept in sync by fail-closed tests.",
+  "note": "Classification and docs/tests consumption layer only. `autoresearch` stays the stateful CLI front door, `orch_*` stays the control-plane MCP/operator counterpart, and provider surfaces stay bounded atomic MCP operators. Exact inventories remain owned by their source surfaces and must be kept in sync by fail-closed tests.",
   "surfaces": {
     "autoresearch_cli": {
       "classification": "canonical_public",
       "surface_kind": "cli_command_inventory",
       "owner": "@autoresearch/orchestrator",
+      "notes": [
+        "Canonical stateful CLI front door for initialized external project roots.",
+        "Owns lifecycle state, workflow-plan, bounded execution, verification, higher-conclusion gating, and proposal decisions."
+      ],
       "exact_inventory_source": "packages/orchestrator/src/cli-command-inventory.ts",
       "commands": [
         {
@@ -111,6 +115,10 @@
       "classification": "canonical_public",
       "surface_kind": "exact_doc_inventory",
       "owner": "@autoresearch/orchestrator",
+      "notes": [
+        "Canonical MCP/operator counterpart of the same control plane surfaced by `autoresearch`.",
+        "Not a competing root product identity and not a provider-local workflow shell."
+      ],
       "exact_inventory_source": "meta/docs/orchestrator-mcp-tools-spec.md",
       "live_registry_source": "packages/orchestrator/src/orch-tools/index.ts / @autoresearch/orchestrator exported ORCH_TOOL_SPECS",
       "namespace_families": [
@@ -123,6 +131,10 @@
       "classification": "canonical_public",
       "surface_kind": "mcp_tool_inventory",
       "owner": "@autoresearch/idea-mcp",
+      "notes": [
+        "Experimental runtime bridge for idea search/eval loops.",
+        "Not a root front door and intentionally narrower than the full `idea-engine` runtime contract."
+      ],
       "exact_inventory_source": "packages/idea-mcp/src/tool-registry.ts",
       "tools": [
         {

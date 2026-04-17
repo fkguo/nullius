@@ -4,198 +4,47 @@ This document explains the current front-door architecture of the monorepo. It i
 
 ---
 
-## 1. Current architecture in one sentence
+## 1. Stable Layer Model
 
-Autoresearch Lab currently combines:
+| Layer | Current authority | Boundary |
+| --- | --- | --- |
+| Workflow authority | checked-in recipes consumed by `autoresearch workflow-plan` | High-level workflow meaning stays above provider packs |
+| Stateful control plane | `autoresearch` plus `orch_*` | One shared authority for lifecycle state, approvals, bounded execution, verification, proposal decisions, and read models |
+| Experimental runtime bridge | `@autoresearch/idea-engine`, `@autoresearch/idea-mcp` | Explicit runtime bridge, narrower than the full engine contract, not a root front door |
+| Domain workflow pack | `@autoresearch/hep-mcp`, `hep_*`, `hep://...` | Current strongest end-to-end example without becoming the root identity |
+| Atomic provider operators | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded schema-driven MCP atoms that stay MCP-first |
+| Project-local reconnect truth | `.autoresearch/` plus durable memory files | The external project root, not the development repo, holds the long-lived truth |
 
-- a generic lifecycle/control-plane package (`@autoresearch/orchestrator`)
-- an experimental TS idea campaign runtime plus MCP bridge (`@autoresearch/idea-engine`, `@autoresearch/idea-mcp`)
-- a current most mature domain MCP front door with the strongest end-to-end workflow family today (`@autoresearch/hep-mcp`)
-- additional provider packages (`openalex-mcp`, `arxiv-mcp`, `hepdata-mcp`, `pdg-mcp`, `zotero-mcp`)
-- checked-in workflow recipes that can be consumed by generic workflow-plan consumers or agent clients
+## 2. Design Invariants
 
-## 2. Design invariants
+- The root architecture is domain-neutral. Provider-specific worldview and workflow bias stay in provider packages or workflow recipes.
+- `autoresearch` remains the stateful CLI front door. `orch_*` remains the MCP/operator counterpart of that same control plane.
+- Provider MCP surfaces stay MCP-first. We do not mass-convert provider MCP into CLI because those surfaces are bounded atoms, not stateful workflow shells.
+- `idea-mcp` remains experimental and must not reclaim root workflow authority.
+- Large outputs are written to disk as artifacts; MCP results return compact summaries plus stable URIs.
+- Missing or unauthorized writing citations fail hard at render time; resource and artifact paths stay constrained under allowed roots.
+- For initialized external project roots, `.autoresearch/` state plus project-local durable memory such as `research_plan.md`, `research_contract.md`, and substantive `research_notebook.md` remain the enduring reconnect truth.
+- Optional support surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` remain opt-in layers rather than the default front door.
 
-### 2.1 Domain-neutral root
+## 3. Current Public Surfaces
 
-- The root architecture is domain-neutral.
-- Provider-specific worldview and workflow bias should stay in provider packages or workflow recipes.
-- HEP belongs at the root only as the current most mature provider family and provider example.
+| Surface | Current authority | Notes |
+| --- | --- | --- |
+| Stateful CLI front door | `autoresearch` | Generic lifecycle state, `workflow-plan`, bounded native TS computation, verification, higher-conclusion gating, and proposal decisions |
+| Control-plane MCP/operator surface | `orch_*` | Canonical public MCP/operator counterpart of the same control plane |
+| Experimental runtime bridge | `idea_mcp` | `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots |
+| Current most mature domain MCP front door | `@autoresearch/hep-mcp` | Project/Run, evidence, writing/export, provider-local composition, `hep://...` and `pdg://...` resources |
+| Provider-local atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded provider operators that remain MCP-first |
 
-### 2.2 Evidence-first I/O
+Front-door surface classification lives in `meta/front_door_authority_map_v1.json`; exact inventories remain owned by their source surfaces.
 
-- Large outputs are written to disk as artifacts.
-- MCP tool results return compact summaries plus stable URIs.
-- Clients read concrete payloads back through MCP resources such as `hep://runs/{run_id}/manifest`.
+## 4. Why Provider MCP Stays MCP
 
-### 2.3 Local-first transport
-
-- The current MCP front door is local stdio.
-- There is no root HTTP transport/server surface for the current front door.
-- Zotero integration is local-only (`http://127.0.0.1:23119`).
-
-### 2.4 Fail-fast, fail-closed boundaries
-
-- Missing or unauthorized writing citations fail hard at render time.
-- Resource and artifact paths are constrained under their allowed roots.
-- Binary artifacts are not inlined into MCP results by default.
-
-### 2.5 Project-local durable memory
-
-- For initialized external project roots, `.autoresearch/` state plus project-local durable memory files such as `research_plan.md`, `research_contract.md`, and substantive `research_notebook.md` are the enduring reconnect truth.
-- Optional support surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` are opt-in layers, not the default project front door.
-
-## 3. Current front-door surfaces
-
-### 3.1 Root capability map
-
-```text
-repo root
-├── @autoresearch/orchestrator
-│   └── generic lifecycle/control-plane + native TS computation package + `autoresearch` CLI
-├── @autoresearch/hep-mcp
-│   └── current most mature domain MCP front door and strongest end-to-end workflow family
-├── provider packages
-│   └── openalex-mcp / arxiv-mcp / hepdata-mcp / pdg-mcp / zotero-mcp
-└── checked-in workflow recipes + consumers
-    └── `literature_fetch.py workflow-plan` (lower-level consumer driven by `autoresearch workflow-plan`)
-```
-
-### 3.2 `@autoresearch/hep-mcp`
-
-Current responsibilities:
-
-- Project/Run creation and audited run manifests
-- Evidence build/query/playback
-- Writing/render/export/import flows
-- Direct provider tool families (`inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*`)
-- `hep://...` and `pdg://...` MCP resource surfaces
-
-Current registry authority is centered on:
-
-- `packages/hep-mcp/src/tools/registry/shared.ts`
-- `packages/hep-mcp/src/core/projects.ts`
-- `packages/hep-mcp/src/core/runs.ts`
-- `packages/hep-mcp/src/core/resources.ts`
-- `packages/hep-mcp/src/core/paths.ts`
-
-### 3.3 `@autoresearch/orchestrator`
-
-Current responsibilities:
-
-- generic lifecycle state and approval handling
-- external project-root initialization via `autoresearch init`
-- native TS computation manifest execution via `autoresearch run --workflow-id computation`
-- status / pause / resume / export CLI flows
-- full-surface orchestrator tool specs (`orch_*`) for host integrations
-
-The current user-facing generic lifecycle + computation + workflow-plan entrypoint is the `autoresearch` CLI, not the root MCP server. The same control plane also exposes a canonical public `orch_*` MCP/operator surface; what does not exist yet is a separate monolithic root MCP server binary that would replace the current CLI-first entrypoint.
-
-### 3.3b `@autoresearch/idea-engine` / `@autoresearch/idea-mcp`
-
-Current responsibilities:
-
-- TS-hosted idea campaign runtime for campaign state, bounded search/eval loops, and package-local contract validation
-- MCP bridge exposing `idea_campaign_init/status/topup/pause/resume/complete`, `idea_search_step`, and `idea_eval_run`
-- explicit external data-root enforcement via `IDEA_MCP_DATA_DIR`; repo-local default data roots are forbidden
-
-Current boundary:
-
-- this is an experimental runtime surface for generic idea search/eval loops
-- it is not yet a root front door or a replacement for `autoresearch` lifecycle/control-plane authority
-
-### 3.4 Stateful workflow consumers
-
-High-level literature workflows are meant to enter through the public stateful `autoresearch workflow-plan`, which requires an initialized external project root and resolves checked-in workflow authority directly via `@autoresearch/literature-workflows`:
-
-- `autoresearch workflow-plan` → native TS front door using `@autoresearch/literature-workflows`, persisting `.autoresearch/state.json#/plan` and deriving `.autoresearch/plan.md`
-- other checked-in consumers remain internal-only validation seams and do not define public workflow authority
-
-The workflow-pack authority sits above current provider maturity. Some bounded steps under that workflow layer still resolve through current HEP-backed seams; that is acceptable current truth, but it must not be narrated as provider-parity across the whole pack.
-
-These workflow-plan consumers are not the root identity of the repo; they are one layer above checked-in recipe authority.
-
-Current execution boundary:
-
-- `workflow-plan` is currently a public stateful literature front door with stable typed `plan.execution` metadata persisted in `.autoresearch/state.json#/plan`.
-- `autoresearch run` is now the canonical bounded consumer for that seam: it advances dependency-satisfied persisted workflow steps through the generic MCP tool-caller path until completion or a blocking failure while remaining the only execution front door.
-- This is still not a canonical closed-loop literature execution runtime: there is no full scheduler, autonomous multi-step orchestration layer, or end-to-end closed loop in this slice.
-
-## 4. Current workflow families
-
-### 4.1 Project/Run evidence workflow
-
-```text
-hep_project_create
-  -> hep_run_create
-  -> evidence build/query
-  -> hep_render_latex
-  -> hep_export_project / hep_export_paper_scaffold / hep_import_paper_bundle
-```
-
-Representative tools:
-
-- `hep_project_create`
-- `hep_run_create`
-- `hep_project_build_evidence`
-- `hep_run_build_writing_evidence`
-- `hep_project_query_evidence`
-- `hep_project_playback_evidence`
-- `hep_render_latex`
-- `hep_export_project`
-
-### 4.2 Literature and data navigation workflow
-
-Representative tools:
-
-- `inspire_search`, `inspire_literature`, `inspire_topic_analysis`, `inspire_network_analysis`, `inspire_find_connections`
-- `openalex_search`, `openalex_get`, `openalex_references`
-- `arxiv_search`, `arxiv_get_metadata`, `arxiv_paper_source`
-- `hepdata_search`, `hepdata_get_record`, `hepdata_get_table`
-
-These tools can often be called directly without a Project/Run. Project/Run becomes important when the workflow needs artifact persistence, evidence reuse, or writing/export.
-
-### 4.3 Writing and export workflow
-
-Representative tools:
-
-- `hep_run_build_citation_mapping`
-- `hep_run_build_measurements`
-- `hep_project_compare_measurements`
-- `hep_render_latex`
-- `hep_export_project`
-- `hep_export_paper_scaffold`
-- `hep_import_paper_bundle`
-
-### 4.4 Generic lifecycle + bounded computation execution
-
-Current CLI path:
-
-```bash
-autoresearch init --project-root /abs/path/to/project
-autoresearch run --workflow-id computation --run-id <run_id> [--manifest /abs/path/to/project/<run_id>/computation/manifest.json] --project-root /abs/path/to/project
-autoresearch status --project-root /abs/path/to/project
-autoresearch approve <approval_id> --project-root /abs/path/to/project
-autoresearch pause --project-root /abs/path/to/project
-autoresearch resume --project-root /abs/path/to/project
-autoresearch export --project-root /abs/path/to/project
-```
-
-Current bounded computation note:
-
-- `autoresearch run --workflow-id computation` is the native TS computation entrypoint in this slice.
-- It requires an initialized external project root plus a prepared `computation/manifest.json`.
-- Gate handling stays on `autoresearch status/approve`.
-- Parser-level `run-card validate/render` wrappers are deleted; remaining run-card semantics live only in lower-level toolkit/computation paths.
-- Residual non-computation Pipeline A `run` workflows remain internal-only parser residue and must not reclaim the front door or masquerade as installable public entrypoints.
-- Front-door surface classification now lives in `meta/front_door_authority_map_v1.json`; exact inventories still remain owned by their source surfaces.
-
-Current tool-surface families inside the package:
-
-- run lifecycle / approvals / bounded agent runtime: `orch_run_*`
-- policy inspection: `orch_policy_query`
-- fleet queue / worker coordination: `orch_fleet_*`
-- For the exact live `orch_*` inventory and semantics, read `meta/docs/orchestrator-mcp-tools-spec.md`.
+- Provider surfaces are naturally schema-driven and agent-composable.
+- Many provider calls pair with stable resource readback or structured artifact output.
+- A provider-local CLI mirror would add another surface to document and test without clarifying where workflow authority lives.
+- Stateful workflow entry remains above provider packs: `autoresearch workflow-plan` owns checked-in workflow authority, and `autoresearch run` remains the only execution front door.
+- This is also why HEP can stay the strongest end-to-end example without being rewritten into the root product identity.
 
 ## 5. State, artifacts, and resources
 

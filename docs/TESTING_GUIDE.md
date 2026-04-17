@@ -15,6 +15,7 @@
 ### 0.0 先确认 front-door 角色
 
 - `autoresearch` = generic lifecycle + workflow-plan front door
+- `orch_*` = 同一 control plane 的 MCP/operator counterpart，不是第二个产品前门
 - `@autoresearch/hep-mcp` = 当前最成熟的 domain MCP front door
 - legacy Python CLI 不再属于公开 front-door；如仍需覆盖，只作为 maintainer/eval/regression-only 内部路径测试
 - `autoresearch init` 的默认 scaffold 是 minimal；不要默认期待 `.mcp.template.json`、根级 `specs/plan.schema.json`、`prompts/`、`team/` 或 `research_team_config.json`
@@ -108,8 +109,8 @@ EOF
 
 **预期**
 
-- `standard` 模式工具数为 `72`
-- `full` 模式工具数为 `101`
+- `standard` 模式工具数为 `70`
+- `full` 模式工具数为 `77`
 - `bad` 为空数组
 
 ### 0.5 可选依赖：Zotero / PDG

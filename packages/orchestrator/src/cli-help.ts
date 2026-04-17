@@ -16,6 +16,8 @@ Global options:
   -h, --help              Show help.
 
 Notes:
+  - \`autoresearch\` is the stateful CLI front door; \`orch_*\` is the MCP/operator counterpart of the same control plane.
+  - Provider MCP surfaces stay bounded atomic operators instead of being mirrored into provider-local CLI shells.
   - workflow-plan resolves checked-in literature workflow recipes into bounded steps.
   - workflow-plan persists executable planning metadata into \`.autoresearch/state.json#/plan\`.
   - \`run\` remains the only execution front door: computation manifests run natively, while persisted workflow-plan steps execute through a configured MCP tool caller.
@@ -176,9 +178,6 @@ Pass-through options:
 Behavior:
   Export summary output includes the same project-level recent digest carried by status/export read models
   when ledger and recent artifacts are readable.
-  Current-run export also includes \`current_run_workflow_outputs\`, \`current_run_resume_context\`,
-  and \`current_run_recovery_context\` when a run is active.
-  Export summary also includes \`project_surface_drift\`, mirroring the status read model's diagnostic-only project-root warnings.
   Current-run export also includes \`current_run_workflow_outputs\`, \`current_run_workflow_outputs_source\`, \`current_run_resume_context\`,
   and \`current_run_recovery_context\` when a run is active.
   Export summary also includes \`project_surface_drift\`, mirroring the status read model's diagnostic-only project-root warnings.

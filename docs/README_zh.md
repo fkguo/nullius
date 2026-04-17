@@ -4,73 +4,43 @@
 
 Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first monorepo。当前仓库把通用 lifecycle/control-plane 包、本地 MCP provider 包，以及可被 agent client 或 shell 入口消费的 checked-in workflow recipes 放在同一个工作台里。HEP 是目前最成熟的 provider family，也是当前最强的端到端 workflow 示例，但它不是 root 产品身份本身。
 
-## 1. 这个 Monorepo 今天能做什么
+## 1. Surface Policy
 
-- 通过 `@autoresearch/orchestrator` 与 `autoresearch` CLI 管理真实外部 project root 的通用 lifecycle state。
-- 通过 `autoresearch workflow-plan` 解析 checked-in workflow recipes，并把 plan state 持久化到 `.autoresearch/`。
-- 通过 `@autoresearch/idea-engine` 与 `idea-mcp` bridge 运行实验性的 TS hosted idea campaign runtime，用于 search/eval loops，并要求显式的外部数据根。
-- 运行本地优先的 MCP providers，覆盖文献、数据、参考资料与证据工作流。
-- 创建可审计的 Project/Run 工作空间，把 artifacts 落盘，并通过 `hep://...` resources 暴露给客户端。
-- 从 LaTeX、Zotero 附件以及受限网络 provider 构建证据，再把这些证据用于写作、回放与评审。
-- 导出研究资产包与投稿脚手架，并把最终论文 bundle 回灌回 run artifacts。
+- `autoresearch` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate，以及 proposal decisions 都从这里进入。
+- `orch_*` 继续作为同一 control plane 的 MCP/operator counterpart。它是 control plane 的 host-facing bridge，不是另一个产品身份，也不是对 CLI 的替代。
+- `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。
+- `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。
+- `@autoresearch/hep-mcp` 继续是当前最成熟的 domain pack 与最强的端到端示例，但 HEP 不定义 root 产品身份。
+- strict fail-closed research quality 继续成立。project-local durable memory 加 `.autoresearch/` state 仍是 reconnect truth；可选 support surfaces 继续只是 opt-in layers。
 
-## 2. 当前主要工作流是什么
+## 2. 当前公开 Surface
 
-1. 通用 lifecycle 工作流
-   - `autoresearch init/status/approve/pause/resume/export` 用于开发仓外 `.autoresearch/` project state。
-   - 只要任务需要持久化 run state、bounded execution、verification、proposal/read-model 或 current-run team visibility，就应从这里进入；是否涉及 approval gate 不影响这一点。
-1. Stateful 文献工作流家族
-   - `autoresearch workflow-plan` 是推荐的公开 stateful 前门，面向已经初始化好的外部 project root；它会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。
-1. 原生 TS computation 工作流
-   - `autoresearch run --workflow-id computation` 会在已初始化的外部 project root 上执行准备好的 `computation/manifest.json`；审批仍通过 `autoresearch status/approve` 处理。
-1. 运行时 verification 工作流
-   - `autoresearch verify --run-id <id>` 与 `orch_run_record_verification` 会为已有 computation run 记录一次 decisive verification 结果，并 materialize `verification_check_run_v1` 与刷新后的 verdict/coverage/check-run refs，让 A5 `pass` 路径在运行时可达。
-1. 更高结论边界工作流
-   - `autoresearch final-conclusions --run-id <id>` 与 `orch_run_request_final_conclusions` 会读取 canonical `computation_result_v1` 的 verification refs；只有 higher-conclusion readiness 明确为 `pass` 时才创建 A5 approval request。随后批准该 A5 request 会落一个本地 generic `final_conclusions_v1` artifact，并保持 run 为 `completed`。
-1. 本地 proposal lifecycle 工作流
-   - `autoresearch proposal-decision ...` 与 `orch_run_record_proposal_decision` 会为当前 run 的当前 repair/skill/optimize/innovate proposal 记录一个最小本地决策，用来抑制重复建议，而不引入第二套 approval/runtime 家族。
-1. 本地 outcome 读取工作流
-   - `orch_run_status` 与 `orch_run_export` 现在会把当前 run 的 `final_conclusions_v1` 暴露为 local outcome-facing SSOT，并额外给出一个项目级 `project_recent_digest`，汇总最近 run、最新 final conclusions、最新 proposals 与当前活跃 team 摘要，而不新增新的 read tool，也不进入 REP surface。
-1. 实验性 idea campaign 工作流
-   - 通过 `idea-mcp` 暴露 `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`，并支持 `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete`。这仍是实验性的 TS hosted runtime surface，不是 root front door。当前 MCP 面故意比完整 `idea-engine` runtime contract 更窄，不应假设每个 runtime RPC 都已经映射成 MCP tool。
-1. Project/Run 证据工作流
-   - `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> export/import。
-1. 文献与数据导航工作流
-   - 直接使用 `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 等 provider 工具。
-
-入口选择原则：
-
-- `autoresearch` / `orch_*` 承担 generic stateful control plane：run 级状态、bounded workflow progression、verification、proposal lifecycle 与 read-model 可见性都在这层统一承载。
-- provider tools 更适合纯无状态查询，以及文献、数据、证据等 provider-local 能力调用。
-- 任务一旦需要 project/run 持久状态或跨步骤推进，应优先进入 generic control plane，再按需要调用 provider tools。
-
-## 3. 当前主要入口是什么
-
-| Surface | 当前入口 | 用途 |
+| Surface | Canonical 入口 | 用途 |
 | --- | --- | --- |
-| 通用 lifecycle + computation + workflow-plan front door | `autoresearch` | 外部 project root 的 lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful workflow-plan 持久化 |
-| 高层文献工作流入口 | `autoresearch workflow-plan` | 推荐的公开 stateful 前门，面向已初始化的外部 project root；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` |
-| 实验性 idea campaign MCP surface | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted idea campaign runtime bridge，覆盖 `idea_campaign_init/status/topup/pause/resume/complete`、`idea_search_step`、`idea_eval_run` |
-| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究导航 / 证据 / 导出的 HEP 领域 MCP server `(70 std / 77)` |
-| 叶子 provider 包 | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 可组合进客户端工作流的 provider-specific capabilities |
+| Stateful CLI front door | `autoresearch` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful `workflow-plan` 持久化 |
+| Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |
+| Stateful 文献规划入口 | `autoresearch workflow-plan` | 通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` |
+| 实验性 idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted campaign runtime bridge，覆盖 `idea_campaign_*`、`idea_search_step`、`idea_eval_run` |
+| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究、证据、写作、导出与 provider-local 组合的 HEP 领域 MCP server `(70 std / 77)` |
+| Bounded provider MCP operators | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 保持 MCP-first 的原子化文献、数据、参考与证据 operators |
 
-工具数量：**`standard` 模式 70 个**（默认：收敛后的紧凑工具面）与 **`full` 模式 77 个**（额外暴露 advanced 工具）。
+工具数量：**`standard` 模式 70 个**（默认、紧凑 surface）与 **`full` 模式 77 个**（增加 advanced tools）。
 
 | 模式 | 工具数 | 适用场景 |
 | --- | --- | --- |
-| `standard` | 70 | 日常客户端使用的紧凑 front door |
+| `standard` | 70 | 紧凑的客户端 surface |
 | `full` | 77 | 额外暴露 advanced 与 lifecycle-adjacent slices |
 
-按 capability 而不是按产品身份理解当前包面：
+## 3. Layer Model
 
-| 能力家族 | 当前 surface | 备注 |
+| 层 | 当前 authority | 为什么留在这里 |
 | --- | --- | --- |
-| 通用 lifecycle、computation 与 approvals | `@autoresearch/orchestrator`、`autoresearch` | 当前 front door 上覆盖 lifecycle state、审批，以及受限原生 TS computation run slice |
-| 实验性 idea campaign runtime | `@autoresearch/idea-engine`、`@autoresearch/idea-mcp` | 用于迭代式 idea search/eval loops 的 TS hosted runtime 与 MCP bridge；要求显式外部 `IDEA_MCP_DATA_DIR`，不是 root front door |
-| Evidence-first Project/Run 工作流 | `@autoresearch/hep-mcp`、`hep_*`、`hep://...` | 当前最强的端到端 workflow family |
-| 文献与数据 providers | `inspire_*`、`openalex_*`、`arxiv_*`、`hepdata_*` | 直接搜索、下载、导出、受限分析的组合面 |
-| 本地参考 providers | `zotero_*`、`pdg_*` | 可选的本地输入与查验工具 |
-| Workflow shells | `workflow-plan` | checked-in workflow authority pack，由 `autoresearch workflow-plan` 直接消费 |
+| Workflow authority | 由 `autoresearch workflow-plan` 消费的 checked-in recipes | 高层 workflow 语义继续位于 provider packs 之上 |
+| Stateful control plane | `autoresearch` 加 `orch_*` | 持久 project/run state、审批、bounded execution、verification 与 read models 继续归于同一个 control plane |
+| Experimental runtime bridge | `idea-mcp` | runtime bridge 继续显式存在，并保持比完整 engine contract 更窄 |
+| Domain workflow pack | `@autoresearch/hep-mcp`、`hep_*`、`hep://...` | 当前最强的端到端示例，但不升级成 root identity |
+| Provider atoms | `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` | bounded、schema-driven MCP operators 比 provider-local CLI mirrors 更易组合 |
+| Project-local truth | `.autoresearch/` 加 durable memory 文件 | reconnect truth 继续位于外部 project root，而不是开发仓本身 |
 
 Skill 源码面与分发面是分离的：
 

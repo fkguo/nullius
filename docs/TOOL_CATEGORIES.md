@@ -1,6 +1,12 @@
 # Tool Categories（standard=70 / full=77）
 
-本文件把 `hep-mcp` 的 **standard 暴露**工具按“场景/闭环”分组，目的是让你不必理解全部工具，也能快速完成闭环。它描述的是当前 HEP 领域工具面，不是仓库的 root 产品身份；generic lifecycle/control-plane 入口仍是 `autoresearch`。
+本文件把 `hep-mcp` 的 **standard 暴露**工具按“场景/闭环”分组，目的是让你不必理解全部工具，也能快速完成闭环。它描述的是当前 HEP 领域工具面，不是仓库的 root 产品身份。
+
+先选对层，再选工具：
+
+- `autoresearch` = stateful CLI front door
+- `orch_*` = 同一 control plane 的 MCP/operator counterpart
+- provider tools = bounded atomic MCP operators，而不是一套待补齐的 provider CLI
 
 > SSOT：工具名/工具数以代码为准（`pnpm -r build` 后）：
 >
@@ -71,14 +77,12 @@
 - `hep_run_stage_content`
 
 **generic lifecycle / staging / execution 已迁回 orchestrator**
-- HEP 包不再默认暴露 idea staging / computation planning / manifest execution 入口
-- 需要这类流程时，先用 HEP 领域能力创建或读取 run，再使用 orchestrator 的 `orch_run_stage_idea` / `orch_run_stage_content` / `orch_run_plan_computation` / `orch_run_execute_manifest` / `orch_run_progress_followups`
-- 当 canonical `computation_result_v1` 尚未具备 decisive verification truth 时，先通过 `autoresearch verify` 或 `orch_run_record_verification` 记录一次 decisive verification 结果
-- 当 canonical `computation_result_v1` 已经具备 decisive verification truth 时，再通过 `autoresearch final-conclusions` 或 `orch_run_request_final_conclusions` 请求 A5；`hold` / `block` / `unavailable` 都不会创建 pending approval
-- 当当前 run 已产生 repair / skill / optimize / innovate proposal，而你想记录“先保留 / 忽略 / 已沉淀”的最小处理结果时，通过 `autoresearch proposal-decision` 或 `orch_run_record_proposal_decision` 写入本地 decision memory
-- 当 workflow 已经跑出 bounded analysis 结果时，优先通过 `autoresearch status --json` / `orch_run_status` / `orch_run_export` 读取 `current_run_workflow_outputs`；如果旧 run 缺少 durable `state.workflow_outputs`，这些读面会尽力从 ledger + run artifact 约定重建 legacy projection，而不是提示你手动重跑 `inspire_topic_analysis` / `inspire_critical_analysis` / `inspire_network_analysis` / `inspire_find_connections`
-- `hep_run_stage_content` 仍保留，但它只是 HEP run-artifact substrate adapter，不再代表 generic 写作/评审 staging authority
-- `orch_run_progress_followups` 是 generic follow-up continuation front door：它最多推进一个 computation-generated follow-up task；当前会接续 delegated `idea`/`literature` feedback 与 writer/reviewer 路径，只消费 computation result / handoff 中已有的显式 authority
+- HEP 包不再默认暴露 generic staging / computation planning / manifest execution authority。
+- 需要 stateful control-plane 流程时，先用 HEP 领域能力创建或读取 run，再切回 `autoresearch` / `orch_*`：
+  - staging / planning / execution: `orch_run_stage_idea` / `orch_run_stage_content` / `orch_run_plan_computation` / `orch_run_execute_manifest` / `orch_run_progress_followups`
+  - verification / higher-conclusion gate: `autoresearch verify` / `orch_run_record_verification`，以及 `autoresearch final-conclusions` / `orch_run_request_final_conclusions`
+  - proposal decisions / read models: `autoresearch proposal-decision`、`autoresearch status --json`、`orch_run_status`、`orch_run_export`
+- `hep_run_stage_content` 仍保留，但它只是 HEP run-artifact substrate adapter，不代表 generic 写作/评审 staging authority。
 
 ## B) Evidence 构建（写作/检索/回放的输入资产）
 
