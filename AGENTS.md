@@ -33,6 +33,8 @@
 - 若本轮使用 Serena MCP，先在当前 worktree `activate_project`，随后 `check_onboarding_performed`；未激活前不要把 Serena 输出当 authority。
 - 架构、LLM 能力、retrieval/reranking/evidence 策略或“某功能是否仍值得保留”的判断，应优先基于最新论文、benchmark、最佳实践和竞品实现，而不是旧记忆。
 - 若需要参考外部 agent/assistant 的真实实现，可审查相邻本地仓，如 `../codex`、`../claude-code-sourcemap`，但只吸收与当前架构判断直接相关的源码级结论。
+- 不要给非最佳建议。若存在多个可行动路径，默认只推荐当前阶段最收敛、最小风险、最符合既定约束的一条主路径；其余方案仅在最佳路径被证据阻塞、或用户明确要求比较时，才作为降级备选简短说明。
+- 如果给出多于一个选项，必须同时分析各选项的适用条件、主要优点、主要缺点，以及为什么它不是当前最佳建议；不要把多个解释不充分的选项并列为等价路线。
 - 对 public/front-door surface 的改动，必须同步检查根 README、中文 README、Quickstart、Testing Guide、Architecture、Project Status、URI registry、相关 package README，以及对应 drift/CLI tests。
 - review 必须 source-grounded。可以使用多模型/多 reviewer，但 verdict 必须基于真实源码、调用链与验收证据，而不是 packet 摘要或 diff-only 判断。
 
