@@ -70,6 +70,8 @@ class TestPublicCliSurface(unittest.TestCase):
         self.assertIn("前门是 `autoresearch`", self._read_repo_file("packages/hep-autoresearch/README.zh.md"))
         self.assertIn("do not expect an installable `hepar` / `hep-autoresearch` public shell", self._read_repo_file("packages/hep-autoresearch/README.md"))
         self.assertIn("不要期待安装态 `hepar` / `hep-autoresearch` public shell 继续存在", self._read_repo_file("packages/hep-autoresearch/README.zh.md"))
+        self.assertIn("maintainer-only internal residue", self._read_repo_file("packages/hep-autoresearch/README.md"))
+        self.assertIn("内部残余入口", self._read_repo_file("packages/hep-autoresearch/README.zh.md"))
 
     def test_authority_map_no_longer_exposes_hepar_public_shell(self) -> None:
         authority_map = self._read_front_door_authority_map()
@@ -82,6 +84,13 @@ class TestPublicCliSurface(unittest.TestCase):
 
         self.assertEqual(surface["classification"], "internal_only")
         self.assertEqual(surface["surface_kind"], "internal_full_parser")
+        self.assertEqual(
+            surface["notes"],
+            [
+                "Maintainer/source-run compatibility residue only; not a normal front door for fresh external projects.",
+                "Public lifecycle and workflow front doors remain rooted at `autoresearch`.",
+            ],
+        )
         self.assertEqual(
             surface["exact_inventory_source"],
             "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main",

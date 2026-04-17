@@ -58,6 +58,10 @@
       "classification": "internal_only",
       "surface_kind": "internal_full_parser",
       "owner": "packages/hep-autoresearch",
+      "notes": [
+        "Maintainer/source-run compatibility residue only; not a normal front door for fresh external projects.",
+        "Public lifecycle and workflow front doors remain rooted at `autoresearch`."
+      ],
       "exact_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main",
       "command_groups": [
         {

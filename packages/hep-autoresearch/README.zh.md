@@ -21,4 +21,5 @@
 - 前门是 `autoresearch`
 - 不要把 `hep-autoresearch` / `hepar` 当成产品主身份
 - 不要期待安装态 `hepar` / `hep-autoresearch` public shell 继续存在
+- 把 `hep-autoresearch-internal` / `python -m hep_autoresearch.orchestrator_cli` 视为 maintainer-only 的内部残余入口，而不是普通客户端前门
 - 剩余已退役的 provider-local Python 内部实现只会继续收缩，不会重新扩张

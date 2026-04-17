@@ -240,7 +240,11 @@ def _schema_validate(payload: Any, schema: dict[str, Any], path: str, *, root_sc
 def validate_plan(repo_root: Path, *, plan: dict[str, Any]) -> None:
     schema_path = repo_root / "specs" / "plan.schema.json"
     if not schema_path.exists():
-        raise FileNotFoundError(f"missing plan schema: {schema_path}")
+        packaged_schema = Path(__file__).resolve().parents[3] / "specs" / "plan.schema.json"
+        if packaged_schema.exists():
+            schema_path = packaged_schema
+        else:
+            raise FileNotFoundError(f"missing plan schema: {schema_path}")
     schema = read_json(schema_path)
     if not isinstance(schema, dict):
         raise ValueError("plan schema must be a JSON object")

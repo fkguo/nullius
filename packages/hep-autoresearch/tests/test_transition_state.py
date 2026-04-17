@@ -143,6 +143,36 @@ class TestTransitionState(unittest.TestCase):
             self.assertEqual(last_event["details"]["from"], "running")
             self.assertEqual(last_event["details"]["to"], "paused")
 
+    def test_save_state_falls_back_to_packaged_plan_schema(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            state = default_state()
+            state["run_id"] = "run_001"
+            state["workflow_id"] = "custom"
+            state["plan"] = {
+                "schema_version": 1,
+                "created_at": "2026-04-17T00:00:00Z",
+                "run_id": "run_001",
+                "workflow_id": "custom",
+                "updated_at": "2026-04-17T00:00:00Z",
+                "steps": [
+                    {
+                        "step_id": "s1",
+                        "description": "compatibility save",
+                        "status": "pending",
+                        "expected_approvals": [],
+                        "expected_outputs": [],
+                        "recovery_notes": "",
+                    }
+                ],
+            }
+
+            save_state(root, state)
+
+            persisted = json.loads((root / ".autoresearch" / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(persisted["plan"]["run_id"], "run_001")
+            self.assertTrue((root / ".autoresearch" / "plan.md").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
