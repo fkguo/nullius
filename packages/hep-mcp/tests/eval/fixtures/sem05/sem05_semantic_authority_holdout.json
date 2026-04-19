@@ -1,7 +1,7 @@
 {
   "name": "sem05_semantic_authority_holdout",
   "version": 1,
-  "description": "Batch B holdout cases for unavailable semantic authority paths after fail-closed cleanup.",
+  "description": "Batch B holdout cases for unavailable semantic provenance paths after fail-closed cleanup.",
   "module": "SEM-05",
   "cases": [
     {
@@ -17,7 +17,7 @@
       "expected": {
         "fragility_score": null,
         "risk_level": null,
-        "authority": "unavailable",
+        "provenance_status": "unavailable",
         "reason_code": "sampling_required"
       },
       "tags": ["assumptions", "holdout", "fail_closed"]

@@ -143,7 +143,7 @@ export async function generateCriticalQuestions(
       questions: UNAVAILABLE_QUESTIONS,
       red_flags: [],
       metrics: { citation_count: 0, author_count: 0, has_comments: false, paper_age_years: 0 },
-      provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'invalid_recid' },
+      provenance: { backend: 'diagnostic', status: 'unavailable', reason_code: 'invalid_recid' },
     };
   }
 
@@ -200,7 +200,6 @@ export async function generateCriticalQuestions(
       provenance: {
         backend,
         status,
-        authority: 'unavailable',
         reason_code: reasonCode,
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -267,7 +266,6 @@ export async function generateCriticalQuestions(
       provenance: {
         backend: 'mcp_sampling',
         status: 'applied',
-        authority: 'semantic_conclusion',
         reason_code: parsed.reason || 'semantic_questions',
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -284,7 +282,7 @@ export async function generateCriticalQuestions(
       questions: UNAVAILABLE_QUESTIONS,
       red_flags: [],
       metrics: { author_count: 0, citation_count: 0, has_comments: false, paper_age_years: 0 },
-      provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'upstream_error' },
+      provenance: { backend: 'diagnostic', status: 'unavailable', reason_code: 'upstream_error' },
     };
   }
 }

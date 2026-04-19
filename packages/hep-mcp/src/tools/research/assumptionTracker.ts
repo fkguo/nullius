@@ -159,7 +159,6 @@ export async function trackAssumptions(
         provenance: {
           backend: 'mcp_sampling',
           status: 'unavailable',
-          authority: 'unavailable',
           reason_code: 'sampling_required',
           prompt_version: promptVersion,
           input_hash: inputHash,
@@ -199,7 +198,6 @@ export async function trackAssumptions(
         provenance: {
           backend: 'mcp_sampling',
           status: 'unavailable',
-          authority: 'unavailable',
           reason_code: 'sampling_error',
           prompt_version: promptVersion,
           input_hash: inputHash,
@@ -218,7 +216,6 @@ export async function trackAssumptions(
         provenance: {
           backend: 'mcp_sampling',
           status: parsed?.abstain ? 'abstained' : 'invalid',
-          authority: 'unavailable',
           reason_code: parsed?.abstain ? 'model_abstained' : 'invalid_response',
           prompt_version: promptVersion,
           input_hash: inputHash,
@@ -237,7 +234,6 @@ export async function trackAssumptions(
       provenance: {
         backend: 'mcp_sampling',
         status: 'applied',
-        authority: 'semantic_conclusion',
         reason_code: parsed.reason || 'semantic_assumption_extraction',
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -247,7 +243,6 @@ export async function trackAssumptions(
     const provenance: SemanticAssessmentProvenance = assumptions[0]?.provenance ?? {
       backend: 'mcp_sampling',
       status: 'applied',
-      authority: 'semantic_conclusion',
       reason_code: parsed.reason || 'semantic_assumption_extraction',
       prompt_version: promptVersion,
       input_hash: inputHash,
@@ -287,7 +282,7 @@ export async function trackAssumptions(
       success: false,
       error: error instanceof Error ? error.message : String(error),
       analysis: null,
-      provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'upstream_error' },
+      provenance: { backend: 'diagnostic', status: 'unavailable', reason_code: 'upstream_error' },
     };
   }
 }

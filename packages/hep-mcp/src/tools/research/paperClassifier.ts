@@ -45,7 +45,7 @@ const LECTURE_MARKERS = ['lecture', 'lectures'];
 const ARTICLE_MARKERS = ['article'];
 
 // Provider-local arXiv metadata prior for hep-mcp content hints only; this is not a
-// generic semantic taxonomy and it does not decide final paper/review authority paths.
+// generic semantic taxonomy and it does not decide final paper/review classifications.
 const ARXIV_EXPERIMENTAL_CATEGORIES = ['hep-ex', 'nucl-ex', 'physics.ins-det', 'astro-ph.im', 'astro-ph.he'];
 const ARXIV_THEORETICAL_CATEGORIES = ['hep-th', 'hep-ph', 'nucl-th', 'gr-qc', 'astro-ph.co', 'quant-ph', 'cond-mat.str-el', 'math-ph'];
 const ARXIV_MIXED_CATEGORIES = ['hep-lat', 'astro-ph.ga', 'astro-ph.sr'];
@@ -81,7 +81,7 @@ export function isConferencePaper(paper: PaperSummary): ConferencePaperAssessmen
       isConference: false,
       confidence: 0,
       decision: 'uncertain',
-      provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'conference_metadata_prior', signals: conferenceSignals },
+      provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'conference_metadata_prior', signals: conferenceSignals },
     };
   }
 
@@ -96,7 +96,7 @@ export function isConferencePaper(paper: PaperSummary): ConferencePaperAssessmen
       isConference: false,
       confidence: 0,
       decision: 'uncertain',
-      provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'nonconference_metadata_prior', signals: negativeSignals },
+      provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'nonconference_metadata_prior', signals: negativeSignals },
     };
   }
 
@@ -104,7 +104,7 @@ export function isConferencePaper(paper: PaperSummary): ConferencePaperAssessmen
     isConference: false,
     confidence: 0,
     decision: 'uncertain',
-    provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'insufficient_metadata' },
+    provenance: { backend: 'diagnostic', status: 'unavailable', reason_code: 'insufficient_metadata' },
   };
 }
 
@@ -118,7 +118,7 @@ export function isReviewPaper(paper: PaperSummary): ReviewPaperAssessment {
       isReview: false,
       confidence: 0,
       decision: 'uncertain',
-      provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'review_metadata_prior', signals: reviewSignals },
+      provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'review_metadata_prior', signals: reviewSignals },
     };
   }
 
@@ -134,7 +134,7 @@ export function isReviewPaper(paper: PaperSummary): ReviewPaperAssessment {
       isReview: false,
       confidence: 0,
       decision: 'uncertain',
-      provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'nonreview_metadata_prior', signals: negativeSignals },
+      provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'nonreview_metadata_prior', signals: negativeSignals },
     };
   }
 
@@ -142,7 +142,7 @@ export function isReviewPaper(paper: PaperSummary): ReviewPaperAssessment {
     isReview: false,
     confidence: 0,
     decision: 'uncertain',
-    provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'insufficient_metadata' },
+    provenance: { backend: 'diagnostic', status: 'unavailable', reason_code: 'insufficient_metadata' },
   };
 }
 
@@ -164,7 +164,7 @@ function classifyDocumentRole(paper: PaperSummary): { paper_type: PaperType; con
     ...includesMarker(documentTypes, THESIS_MARKERS),
   ];
   if (thesisSignals.length > 0) {
-    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'thesis_metadata_prior', signals: thesisSignals } };
+    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'thesis_metadata_prior', signals: thesisSignals } };
   }
 
   const lectureSignals = [
@@ -172,20 +172,20 @@ function classifyDocumentRole(paper: PaperSummary): { paper_type: PaperType; con
     ...includesMarker(documentTypes, LECTURE_MARKERS),
   ];
   if (lectureSignals.length > 0) {
-    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'lecture_metadata_prior', signals: lectureSignals } };
+    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'lecture_metadata_prior', signals: lectureSignals } };
   }
 
   const originalSignals = articleLikeMetadata(paper);
   if (review.provenance.reason_code === 'nonreview_metadata_prior'
     && conference.provenance.reason_code === 'nonconference_metadata_prior'
     && originalSignals.length > 0) {
-    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'article_metadata_prior', signals: originalSignals } };
+    return { paper_type: 'uncertain', confidence: 0, provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'article_metadata_prior', signals: originalSignals } };
   }
 
   return {
     paper_type: 'uncertain',
     confidence: 0,
-    provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'insufficient_metadata' },
+    provenance: { backend: 'diagnostic', status: 'unavailable', reason_code: 'insufficient_metadata' },
   };
 }
 
@@ -232,7 +232,7 @@ export function classifyContentType(paper: PaperSummary): ContentClassification 
       experimental_score: 0,
       theoretical_score: 0,
       method: 'default',
-      provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'missing_arxiv_categories' },
+      provenance: { backend: 'diagnostic', status: 'unavailable', reason_code: 'missing_arxiv_categories' },
     };
   }
 
@@ -248,7 +248,7 @@ export function classifyContentType(paper: PaperSummary): ContentClassification 
       experimental_score: total > 0 ? experimental / total : 0.5,
       theoretical_score: total > 0 ? theoretical / total : 0.5,
       method: 'arxiv',
-      provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'mixed_arxiv_prior', signals: withSignals(categories) },
+      provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'mixed_arxiv_prior', signals: withSignals(categories) },
     };
   }
   if (experimental > 0) {
@@ -258,7 +258,7 @@ export function classifyContentType(paper: PaperSummary): ContentClassification 
       experimental_score: 1,
       theoretical_score: 0,
       method: 'arxiv',
-      provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'experimental_arxiv_prior', signals: withSignals(categories) },
+      provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'experimental_arxiv_prior', signals: withSignals(categories) },
     };
   }
   if (theoretical > 0) {
@@ -268,7 +268,7 @@ export function classifyContentType(paper: PaperSummary): ContentClassification 
       experimental_score: 0,
       theoretical_score: 1,
       method: 'arxiv',
-      provenance: { backend: 'metadata', status: 'diagnostic', authority: 'diagnostic_prior', reason_code: 'theoretical_arxiv_prior', signals: withSignals(categories) },
+      provenance: { backend: 'metadata', status: 'diagnostic', reason_code: 'theoretical_arxiv_prior', signals: withSignals(categories) },
     };
   }
 
@@ -278,6 +278,6 @@ export function classifyContentType(paper: PaperSummary): ContentClassification 
     experimental_score: 0,
     theoretical_score: 0,
     method: 'default',
-    provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'noncanonical_arxiv_categories', signals: withSignals(categories) },
+    provenance: { backend: 'diagnostic', status: 'unavailable', reason_code: 'noncanonical_arxiv_categories', signals: withSignals(categories) },
   };
 }

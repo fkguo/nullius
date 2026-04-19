@@ -54,42 +54,48 @@ async function runSem05Case(input: Sem05Input): Promise<Sem05Actual> {
   switch (input.kind) {
     case 'paper_classifier': {
       const result = classifyPaper(makePaper(input.paper));
+      expect(result.paper_type_provenance).not.toHaveProperty('authority');
+      expect(result.review_classification.provenance).not.toHaveProperty('authority');
+      expect(result.conference_classification.provenance).not.toHaveProperty('authority');
       return {
         paper_type: result.paper_type,
         paper_type_reason_code: result.paper_type_provenance.reason_code,
-        paper_type_authority: result.paper_type_provenance.authority,
+        paper_type_status: result.paper_type_provenance.status,
         review_decision: result.review_classification.decision,
         conference_decision: result.conference_classification.decision,
         conference_reason_code: result.conference_classification.provenance.reason_code,
-        authority: result.review_classification.provenance.authority,
+        review_status: result.review_classification.provenance.status,
         reason_code: result.review_classification.provenance.reason_code,
       };
     }
     case 'content_classifier': {
       const result = classifyContentType(makePaper(input.paper));
+      expect(result.provenance).not.toHaveProperty('authority');
       return {
         content_type: result.content_type,
-        authority: result.provenance.authority,
+        provenance_status: result.provenance.status,
         reason_code: result.provenance.reason_code,
       };
     }
     case 'critical_questions': {
       vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({ recid: input.recid, ...input.paper }) as never);
       const result = await generateCriticalQuestions({ recid: input.recid });
+      expect(result.provenance).not.toHaveProperty('authority');
       return {
         paper_type: result.paper_type,
         red_flag_types: result.red_flags.map(flag => flag.type),
-        authority: result.provenance.authority,
+        provenance_status: result.provenance.status,
         reason_code: result.provenance.reason_code,
       };
     }
     case 'assumption_tracker': {
       vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({ recid: input.recid, ...input.paper }) as never);
       const result = await trackAssumptions({ recid: input.recid });
+      expect(result.provenance).not.toHaveProperty('authority');
       return {
         fragility_score: result.analysis?.fragility_score ?? null,
         risk_level: result.risk_assessment?.level ?? null,
-        authority: result.provenance?.authority ?? null,
+        provenance_status: result.provenance?.status ?? null,
         reason_code: result.provenance?.reason_code ?? null,
       };
     }
@@ -124,7 +130,7 @@ function assertSem05Case(actual: Sem05Actual, expected: Record<string, unknown>)
   }
 }
 
-describe('eval: sem05 semantic authority cleanup', () => {
+describe('eval: sem05 semantic provenance cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

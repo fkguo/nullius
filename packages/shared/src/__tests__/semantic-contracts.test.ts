@@ -11,7 +11,6 @@ describe('SemanticAssessmentProvenanceSchema', () => {
     const result = SemanticAssessmentProvenanceSchema.parse({
       backend: 'mcp_sampling',
       status: 'applied',
-      authority: 'semantic_conclusion',
       reason_code: 'semantic_assessment',
       prompt_version: 'sem05_review_authority_v2',
       input_hash: 'abc123',
@@ -27,12 +26,11 @@ describe('SemanticAssessmentProvenanceSchema', () => {
     const result = SemanticAssessmentProvenanceSchema.parse({
       backend: 'diagnostic',
       status: 'unavailable',
-      authority: 'unavailable',
       reason_code: 'sampling_unavailable',
     });
 
     expect(result.status).toBe('unavailable');
-    expect(result.authority).toBe('unavailable');
+    expect(result).not.toHaveProperty('authority');
   });
 
   it('rejects empty reason codes', () => {
@@ -40,8 +38,18 @@ describe('SemanticAssessmentProvenanceSchema', () => {
       SemanticAssessmentProvenanceSchema.parse({
         backend: 'metadata',
         status: 'diagnostic',
-        authority: 'diagnostic_prior',
         reason_code: '',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects authority residue fields', () => {
+    expect(() =>
+      SemanticAssessmentProvenanceSchema.parse({
+        backend: 'mcp_sampling',
+        status: 'applied',
+        authority: 'semantic_conclusion',
+        reason_code: 'semantic_assessment',
       }),
     ).toThrow();
   });

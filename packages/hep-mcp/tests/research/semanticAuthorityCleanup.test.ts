@@ -34,23 +34,24 @@ function makePaper(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('semantic authority cleanup regressions', () => {
+describe('semantic provenance cleanup regressions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.getReferences).mockResolvedValue([]);
     vi.mocked(api.search).mockResolvedValue({ total: 0, papers: [], has_more: false } as never);
   });
 
-  it('does not treat title keywords as review authority without explicit metadata', () => {
+  it('does not treat title keywords as review provenance proof without explicit metadata', () => {
     const classified = classifyPaper(makePaper());
 
     expect(() => SemanticAssessmentProvenanceSchema.parse(classified.review_classification.provenance)).not.toThrow();
     expect(classified.review_classification.decision).toBe('uncertain');
     expect(classified.paper_type).toBe('uncertain');
     expect(classified.review_classification.provenance.reason_code).toBe('insufficient_metadata');
+    expect(classified.review_classification.provenance).not.toHaveProperty('authority');
   });
 
-  it('keeps explicit review metadata as a diagnostic prior instead of final authority', () => {
+  it('keeps explicit review metadata as diagnostic-only provenance', () => {
     const classified = classifyPaper(makePaper({
       publication_type: ['review'],
       document_type: ['article'],
@@ -59,11 +60,12 @@ describe('semantic authority cleanup regressions', () => {
     expect(classified.is_review).toBe(false);
     expect(classified.review_classification.decision).toBe('uncertain');
     expect(classified.paper_type).toBe('uncertain');
+    expect(classified.review_classification.provenance.status).toBe('diagnostic');
     expect(classified.review_classification.provenance.reason_code).toBe('review_metadata_prior');
-    expect(classified.review_classification.provenance.authority).toBe('diagnostic_prior');
+    expect(classified.review_classification.provenance).not.toHaveProperty('authority');
   });
 
-  it('keeps explicit conference metadata as a diagnostic prior instead of final authority', () => {
+  it('keeps explicit conference metadata as diagnostic-only provenance', () => {
     const classified = classifyPaper(makePaper({
       publication_type: ['conference paper'],
       document_type: ['article'],
@@ -74,7 +76,8 @@ describe('semantic authority cleanup regressions', () => {
     expect(classified.paper_type).toBe('uncertain');
     expect(classified.conference_classification.provenance.reason_code).toBe('conference_metadata_prior');
     expect(classified.paper_type_provenance.reason_code).toBe('conference_metadata_prior');
-    expect(classified.conference_classification.provenance.authority).toBe('diagnostic_prior');
+    expect(classified.conference_classification.provenance.status).toBe('diagnostic');
+    expect(classified.conference_classification.provenance).not.toHaveProperty('authority');
   });
 
   it('keeps arxiv category content labels as priors only', () => {
@@ -86,8 +89,9 @@ describe('semantic authority cleanup regressions', () => {
 
     expect(content.content_type).toBe('uncertain');
     expect(content.theoretical_score).toBe(1);
+    expect(content.provenance.status).toBe('diagnostic');
     expect(content.provenance.reason_code).toBe('theoretical_arxiv_prior');
-    expect(content.provenance.authority).toBe('diagnostic_prior');
+    expect(content.provenance).not.toHaveProperty('authority');
   });
 
   it('returns unavailable review records instead of dropping fetch failures', async () => {
@@ -106,6 +110,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.summary).not.toHaveProperty('average_authority_score');
     expect(result.classifications[0]?.provenance.reason_code).toBe('paper_fetch_failed');
     expect(result.classifications[0]?.provenance.status).toBe('unavailable');
+    expect(result.classifications[0]?.provenance).not.toHaveProperty('authority');
   });
 
   it('marks review sampling errors as unavailable semantic provenance', async () => {
@@ -126,6 +131,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.classifications[0]?.provenance.backend).toBe('mcp_sampling');
     expect(result.classifications[0]?.provenance.status).toBe('unavailable');
     expect(result.classifications[0]?.provenance.reason_code).toBe('sampling_error');
+    expect(result.classifications[0]?.provenance).not.toHaveProperty('authority');
   });
 
   it('fails closed when critical-question sampling is unavailable', async () => {
@@ -138,7 +144,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(result).not.toHaveProperty('reliability_score');
     expect(result.red_flags.some(flag => flag.type === 'excessive_claims')).toBe(false);
     expect(result.provenance.reason_code).toBe('sampling_required');
-    expect(result.provenance.authority).toBe('unavailable');
+    expect(result.provenance).not.toHaveProperty('authority');
   });
 
   it('returns unavailable provenance when critical-question sampling fails', async () => {
@@ -155,6 +161,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.provenance.backend).toBe('mcp_sampling');
     expect(result.provenance.status).toBe('unavailable');
     expect(result.provenance.reason_code).toBe('sampling_error');
+    expect(result.provenance).not.toHaveProperty('authority');
   });
 
   it('does not convert metadata-only review priors into trace-source confidence bonuses', async () => {
@@ -184,7 +191,7 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.success).toBe(false);
     expect(result.analysis).toBeNull();
     expect(result.provenance?.reason_code).toBe('sampling_required');
-    expect(result.provenance?.authority).toBe('unavailable');
+    expect(result.provenance).not.toHaveProperty('authority');
   });
 
   it('exposes component_status when critical analysis fails closed on sampling-unavailable components', async () => {

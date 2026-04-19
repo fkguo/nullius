@@ -44,7 +44,6 @@ async function runSem12Case(input: Sem12Input) {
         provenance: {
           backend: 'mcp_sampling',
           status: 'applied',
-          authority: 'semantic_conclusion',
           reason_code: 'review_semantics',
           prompt_version: 'sem05',
           input_hash: 'mock',
@@ -63,7 +62,6 @@ async function runSem12Case(input: Sem12Input) {
         provenance: {
           backend: 'diagnostic',
           status: 'unavailable',
-          authority: 'unavailable',
           reason_code: 'sampling_unavailable',
         },
       }],
@@ -82,6 +80,8 @@ async function runSem12Case(input: Sem12Input) {
       }
       : {},
   );
+
+  expect(result.provenance).not.toHaveProperty('authority');
 
   return {
     status: result.status,

@@ -101,7 +101,6 @@ async function classifySingleReview(
     provenance: {
       backend,
       status,
-      authority: 'unavailable',
       reason_code: reasonCode,
       model,
     },
@@ -112,7 +111,7 @@ async function classifySingleReview(
     const currentYear = new Date().getFullYear();
     const authorCount = paper.author_count ?? paper.authors?.length ?? 0;
     const ageYears = currentYear - (paper.year || currentYear);
-    const promptVersion = 'sem05_review_authority_v2';
+    const promptVersion = 'sem05_review_classifier_v2';
     const inputHash = sha256Hex(JSON.stringify({
       recid,
       title: paper.title,
@@ -148,7 +147,6 @@ async function classifySingleReview(
       provenance: {
         backend,
         status,
-        authority: 'unavailable',
         reason_code: reasonCode,
         prompt_version: promptVersion,
         input_hash: inputHash,
@@ -185,7 +183,7 @@ async function classifySingleReview(
         maxTokens: 700,
         metadata: buildToolSamplingMetadata({
           tool: INSPIRE_CLASSIFY_REVIEWS,
-          module: 'sem05_review_authority',
+          module: 'sem05_review_classifier',
           promptVersion,
           costClass: 'high',
         }),
@@ -214,7 +212,6 @@ async function classifySingleReview(
       provenance: {
         backend: 'mcp_sampling',
         status: 'applied',
-        authority: 'semantic_conclusion',
         reason_code: parsed.reason || 'semantic_assessment',
         prompt_version: promptVersion,
         input_hash: inputHash,
