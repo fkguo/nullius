@@ -28,7 +28,6 @@ const PUBLIC_AUTHORITY_LABELS = new Set([
   'effective_field_theory',
   'lattice_nonperturbative',
   'mixed_methods',
-  'heuristic_fallback',
 ]);
 
 function canonicalText(label: string): string {

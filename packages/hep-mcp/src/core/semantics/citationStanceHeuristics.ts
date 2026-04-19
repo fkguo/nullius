@@ -1,16 +1,11 @@
 import { cleanMathML } from '../../tools/research/preprocess/utils.js';
-import { DEFAULT_CRITICAL_RESEARCH_CONFIG, DEFAULT_STANCE_DETECTION, getConfig } from '../../tools/research/config.js';
+import { DEFAULT_CRITICAL_RESEARCH_CONFIG, getConfig } from '../../tools/research/config.js';
 import type { CitationStance, ConfidenceLevel, EvidenceLevel } from './claimTypes.js';
 
 const CLAIM_KEYWORDS = ['discover', 'observe', 'measure', 'find', 'detect', 'evidence', 'show', 'confirm', 'report', 'identify', 'constrain', 'determine'];
 const THEORETICAL_KEYWORDS = ['predict', 'theoretical', 'model', 'suggest', 'imply', 'consistent with', 'expect', 'calculate'];
 const HINT_KEYWORDS = ['hint', 'possible', 'potential', 'tentative', 'preliminary', 'indication', 'excess', 'anomaly'];
 const SIGMA_PATTERNS = [/(-?\d+\.?\d*)\s*[σ\\sigma]/i, /(-?\d+\.?\d*)\s*sigma/i, /significance\s+of\s+(-?\d+\.?\d*)/i];
-const STANCE_PATTERNS = {
-  confirming: DEFAULT_STANCE_DETECTION.confirmingPatterns,
-  contradicting: DEFAULT_STANCE_DETECTION.contradictingPatterns,
-} as const;
-const NEGATION_WORDS = DEFAULT_STANCE_DETECTION.negationWords;
 
 export interface StanceResult {
   stance: CitationStance;
@@ -19,46 +14,9 @@ export interface StanceResult {
   needs_llm_review?: boolean;
 }
 
-function hasNegationBefore(text: string, patternIndex: number): boolean {
-  const context = text.slice(Math.max(0, patternIndex - 15), patternIndex);
-  return NEGATION_WORDS.some(word => context.includes(word));
-}
-
-function findRelevantContextWindows(text: string, claimKeywords: string[]): string[] {
-  const windows: string[] = [];
-  const windowSize = DEFAULT_STANCE_DETECTION.contextWindowSize;
-  for (const keyword of claimKeywords) {
-    let index = 0;
-    while ((index = text.indexOf(keyword.toLowerCase(), index)) !== -1) {
-      windows.push(text.slice(Math.max(0, index - windowSize), Math.min(text.length, index + keyword.length + windowSize)));
-      index += keyword.length;
-    }
-  }
-  return windows;
-}
-
 export function analyzeCitationStance(abstract: string, claimKeywords: string[]): StanceResult {
-  if (!abstract) return { stance: 'neutral', confidence: 'low', needs_llm_review: true };
-  const lowered = abstract.toLowerCase();
-  const windows = findRelevantContextWindows(lowered, claimKeywords);
-  const texts = windows.length > 0 ? windows : [lowered];
-  const confidence = windows.length > 0 ? 'high' : 'medium';
-
-  for (const text of texts) {
-    for (const pattern of STANCE_PATTERNS.contradicting) {
-      const index = text.indexOf(pattern);
-      if (index === -1) continue;
-      if (hasNegationBefore(text, index)) return { stance: 'confirming', confidence, matched_pattern: `NOT ${pattern}` };
-      return { stance: 'contradicting', confidence, matched_pattern: pattern };
-    }
-    for (const pattern of STANCE_PATTERNS.confirming) {
-      const index = text.indexOf(pattern);
-      if (index === -1) continue;
-      if (hasNegationBefore(text, index)) return { stance: 'contradicting', confidence, matched_pattern: `NOT ${pattern}` };
-      return { stance: 'confirming', confidence, matched_pattern: pattern };
-    }
-  }
-
+  void abstract;
+  void claimKeywords;
   return { stance: 'neutral', confidence: 'low', needs_llm_review: true };
 }
 

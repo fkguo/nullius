@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { groupCollectionSemantics } from '../../src/tools/research/synthesis/collectionSemanticGrouping.js';
 
 describe('groupCollectionSemantics', () => {
-  it('keeps terminology-bridging fallback as diagnostic while public keywords stay evidence-first', () => {
+  it('does not promote terminology bridges into heuristic topic authority', () => {
     const grouping = groupCollectionSemantics([
       {
         recid: '1',
@@ -21,20 +21,14 @@ describe('groupCollectionSemantics', () => {
     ]);
 
     expect(() => CollectionSemanticGroupingSchema.parse(grouping)).not.toThrow();
-    expect(grouping.topic_assignments['1']).toBe(grouping.topic_assignments['2']);
-    expect(grouping.topic_assignments['1']).toMatch(/^fallback_cluster_\d+$/);
-    expect(grouping.topic_assignment_details['1'].provenance.mode).toBe('heuristic_fallback');
-    expect(grouping.topic_assignment_details['1'].provenance.canonical_hint).toBe('heavy_neutral_lepton');
-    expect(grouping.topic_assignment_details['1'].label).toBe(grouping.topic_assignments['1']);
-    const sharedTopicGroup = grouping.topic_groups.find(group => group.paper_ids.includes('1') && group.paper_ids.includes('2'));
-    expect(sharedTopicGroup?.label).toMatch(/^fallback_cluster_\d+$/);
-    expect(sharedTopicGroup?.keywords).toBeDefined();
-    expect(sharedTopicGroup?.label).not.toBe('heavy_neutral_lepton');
-    expect(sharedTopicGroup?.keywords).not.toContain('heavy_neutral_lepton');
-    expect(sharedTopicGroup?.keywords).not.toContain('heuristic_fallback');
+    expect(grouping.topic_fallback_rate).toBe(0);
+    expect(grouping.topic_assignment_details['1'].provenance.mode).not.toBe('heuristic_fallback');
+    expect(grouping.topic_assignment_details['2'].provenance.mode).not.toBe('heuristic_fallback');
+    expect(grouping.topic_assignments['1']).not.toBe('heavy_neutral_lepton');
+    expect(grouping.topic_assignments['2']).not.toBe('heavy_neutral_lepton');
   });
 
-  it('keeps mixed-method fallback as diagnostic while public method keywords stay evidence-first', () => {
+  it('does not convert mixed-method hinting into authoritative method clusters', () => {
     const grouping = groupCollectionSemantics([
       {
         recid: 'p9',
@@ -51,20 +45,14 @@ describe('groupCollectionSemantics', () => {
     ]);
 
     expect(() => CollectionSemanticGroupingSchema.parse(grouping)).not.toThrow();
-    expect(grouping.method_assignments['p9']).toBe(grouping.method_assignments['p10']);
-    expect(grouping.method_assignments['p9']).toMatch(/^fallback_cluster_\d+$/);
-    expect(grouping.method_assignment_details['p9'].provenance.reason_code).toBe('combined_method_signals');
-    expect(grouping.method_assignment_details['p9'].provenance.canonical_hint).toBe('mixed_methods');
-    expect(grouping.method_assignment_details['p9'].label).toBe(grouping.method_assignments['p9']);
-    const mixedMethodGroup = grouping.method_groups.find(group => group.paper_ids.includes('p9') && group.paper_ids.includes('p10'));
-    expect(mixedMethodGroup?.label).toMatch(/^fallback_cluster_\d+$/);
-    expect(mixedMethodGroup?.keywords).toBeDefined();
-    expect(mixedMethodGroup?.label).not.toBe('mixed_methods');
-    expect(mixedMethodGroup?.keywords).not.toContain('mixed_methods');
-    expect(mixedMethodGroup?.keywords).not.toContain('heuristic_fallback');
+    expect(grouping.method_fallback_rate).toBe(0);
+    expect(grouping.method_assignment_details['p9'].provenance.mode).not.toBe('heuristic_fallback');
+    expect(grouping.method_assignment_details['p10'].provenance.mode).not.toBe('heuristic_fallback');
+    expect(grouping.method_assignments['p9']).not.toBe('mixed_methods');
+    expect(grouping.method_assignments['p10']).not.toBe('mixed_methods');
   });
 
-  it('keeps cross-topic and mixed-method membership aligned for the SEM-10 holdout bridge paper', () => {
+  it('keeps bridge papers in non-authoritative generic buckets when shared evidence is too weak', () => {
     const grouping = groupCollectionSemantics([
       {
         recid: 'h4',
@@ -86,11 +74,9 @@ describe('groupCollectionSemantics', () => {
       },
     ]);
 
-    expect(grouping.topic_assignments['h4']).toBe(grouping.topic_assignments['h6']);
-    expect(grouping.topic_assignments['h4']).not.toBe(grouping.topic_assignments['h5']);
-    expect(grouping.method_assignments['h4']).not.toBe(grouping.method_assignments['h6']);
-    expect(grouping.method_assignments['h5']).not.toBe(grouping.method_assignments['h6']);
-    expect(grouping.method_assignment_details['h6'].provenance.canonical_hint).toBe('mixed_methods');
-    expect(grouping.method_assignment_details['h6'].provenance.reason_code).toBe('combined_method_signals');
+    expect(grouping.topic_groups.every(group => group.provenance.mode !== 'heuristic_fallback')).toBe(true);
+    expect(grouping.method_groups.every(group => group.provenance.mode !== 'heuristic_fallback')).toBe(true);
+    expect(grouping.method_assignment_details['h6'].provenance.mode).toBe('uncertain');
+    expect(grouping.method_assignment_details['h6'].provenance.used_fallback).toBe(false);
   });
 });

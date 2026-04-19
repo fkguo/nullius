@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const MethodologyChallengeModeSchema = z.enum([
   'open_text',
-  'heuristic_fallback',
   'uncertain',
   'no_challenge',
 ]);

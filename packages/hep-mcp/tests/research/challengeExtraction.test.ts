@@ -5,7 +5,7 @@ import { extractMethodologyChallenges, renderMethodologyChallenges } from '../..
 import { generateNarrativeSections } from '../../src/tools/research/synthesis/narrative.js';
 
 describe('challenge extraction', () => {
-  it('extracts structured methodological challenges from text and critical signals without narrative taxonomy authority', () => {
+  it('extracts structured methodological challenges from open-text evidence without narrative taxonomy authority', () => {
     const result = extractMethodologyChallenges(
       [{ recid: '1', title: 'Combined fit', success: true, methodology: 'The combined fit suffers from background subtraction issues.' }],
       [{
@@ -26,14 +26,16 @@ describe('challenge extraction', () => {
     expect(rendered).not.toContain('background control');
   });
 
-  it('keeps fallback narrative anchored to matched source phrases instead of closed taxonomy wording', () => {
+  it('fails closed when only normalization hints remain and no open challenge sentence is available', () => {
     const result = extractMethodologyChallenges(
       [{ recid: '2', title: 'Coverage study', success: true, methodology: 'Control region modelling and detector acceptance set the dominant systematic budget.' }],
     );
 
-    expect(result.provenance.mode).toBe('heuristic_fallback');
+    expect(result.status).toBe('uncertain');
+    expect(result.challenge_types).toEqual([]);
+    expect(result.provenance.mode).toBe('uncertain');
     const rendered = renderMethodologyChallenges(result);
-    expect(rendered).toContain('"Control region modelling and detector acceptance set the dominant systematic budget"');
+    expect(rendered).toContain('too underspecified');
     expect(rendered).not.toContain('acceptance or coverage limits');
   });
 

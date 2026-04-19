@@ -2,7 +2,6 @@ import { createHash } from 'crypto';
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
 import { HEP_PROJECT_COMPARE_MEASUREMENTS } from '../../tool-names.js';
 import { canonicalQuantityKey } from './quantityCanonical.js';
-import { heuristicAdjudicateQuantityPair } from './quantityHeuristicModel.js';
 import { normalizeUnitsForPair, unitPairIncompatible } from './quantityUnits.js';
 import {
   buildQuantityAdjudicationPrompt,
@@ -21,7 +20,7 @@ export type QuantityAdjudicationV1 = {
   confidence: number;
   reason_code: QuantityReasonCodeV1;
   provenance: {
-    backend: 'mcp_sampling' | 'heuristic';
+    backend: 'mcp_sampling' | 'diagnostic';
     used_fallback: boolean;
     prompt_version: string;
     input_hash: string;
@@ -38,6 +37,30 @@ function sha256Hex(input: string): string {
 }
 
 const cache = new Map<string, QuantityAdjudicationV1>();
+
+function unavailableAdjudication(params: {
+  inputHash: string;
+  promptVersion: string;
+  unitNormalization: UnitNormalizationV1;
+  backend: QuantityAdjudicationV1['provenance']['backend'];
+  model?: string;
+}): QuantityAdjudicationV1 {
+  return {
+    version: 1,
+    decision: 'uncertain',
+    canonical_quantity: 'unknown',
+    unit_normalization: params.unitNormalization,
+    confidence: 0,
+    reason_code: 'sampling_unavailable',
+    provenance: {
+      backend: params.backend,
+      used_fallback: false,
+      prompt_version: params.promptVersion,
+      input_hash: params.inputHash,
+      model: params.model,
+    },
+  };
+}
 
 export async function adjudicateQuantityPair(
   left: QuantityMentionV1,
@@ -61,8 +84,8 @@ export async function adjudicateQuantityPair(
       confidence: 0.99,
       reason_code: 'unit_incompatible',
       provenance: {
-        backend: 'heuristic',
-        used_fallback: true,
+        backend: 'diagnostic',
+        used_fallback: false,
         prompt_version: promptVersion,
         input_hash: inputHash,
       },
@@ -72,23 +95,12 @@ export async function adjudicateQuantityPair(
   }
 
   if (!ctx.createMessage) {
-    const heuristic = heuristicAdjudicateQuantityPair(left, right);
-    const payload: QuantityAdjudicationV1 = {
-      version: 1,
-      decision: heuristic.decision,
-      canonical_quantity: heuristic.canonical_quantity,
-      unit_normalization: heuristic.unit_normalization,
-      confidence: clamp01(heuristic.confidence),
-      reason_code: heuristic.reason_code,
-      provenance: {
-        backend: 'heuristic',
-        used_fallback: true,
-        prompt_version: promptVersion,
-        input_hash: inputHash,
-      },
-    };
-    cache.set(inputHash, payload);
-    return payload;
+    return unavailableAdjudication({
+      inputHash,
+      promptVersion,
+      unitNormalization,
+      backend: 'diagnostic',
+    });
   }
 
   const prompt = buildQuantityAdjudicationPrompt({
@@ -122,7 +134,7 @@ export async function adjudicateQuantityPair(
         reason_code: 'invalid_response',
         provenance: {
           backend: 'mcp_sampling',
-          used_fallback: true,
+          used_fallback: false,
           prompt_version: promptVersion,
           input_hash: inputHash,
           model: response.model,
@@ -158,22 +170,11 @@ export async function adjudicateQuantityPair(
     cache.set(inputHash, payload);
     return payload;
   } catch {
-    const heuristic = heuristicAdjudicateQuantityPair(left, right);
-    const payload: QuantityAdjudicationV1 = {
-      version: 1,
-      decision: heuristic.decision,
-      canonical_quantity: heuristic.canonical_quantity,
-      unit_normalization: heuristic.unit_normalization,
-      confidence: clamp01(heuristic.confidence),
-      reason_code: 'sampling_unavailable',
-      provenance: {
-        backend: 'heuristic',
-        used_fallback: true,
-        prompt_version: promptVersion,
-        input_hash: inputHash,
-      },
-    };
-    cache.set(inputHash, payload);
-    return payload;
+    return unavailableAdjudication({
+      inputHash,
+      promptVersion,
+      unitNormalization,
+      backend: 'mcp_sampling',
+    });
   }
 }

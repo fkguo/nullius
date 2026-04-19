@@ -52,9 +52,7 @@ function extractGroupInsights(cluster: SemanticCluster, papers: DeepPaperAnalysi
   if (evidence.length > 0) {
     const modeLabel = cluster.provenance.mode === 'open_cluster'
       ? 'Open-text overlap evidence'
-      : cluster.provenance.mode === 'heuristic_fallback'
-        ? 'Provider-local fallback evidence'
-        : 'Underspecified grouping evidence';
+      : 'Manual-review-only grouping evidence';
     insights.push(`${modeLabel}: ${evidence.join(', ')}`);
   }
 
@@ -119,9 +117,7 @@ export function groupByMethodology(
       : 'Evidence terms remain underspecified.';
     const description = cluster.provenance.mode === 'open_cluster'
       ? `Papers grouped by recurring open-text methodological overlap. ${evidenceSentence}`
-      : cluster.provenance.mode === 'heuristic_fallback'
-        ? `Papers grouped by provider-local fallback signals rather than authoritative method categories. ${evidenceSentence} Manual review remains advisable.`
-        : `Papers with insufficient shared methodological signal for a stronger grouping. ${evidenceSentence}`;
+      : `Papers remain in a manual-review-only bucket because shared methodological evidence is too weak for a stronger grouping. ${evidenceSentence}`;
     return {
       name: `Method cluster ${index + 1}`,
       description,

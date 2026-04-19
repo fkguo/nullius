@@ -1,12 +1,12 @@
 import { MethodologyChallengeExtractionResultSchema } from '@autoresearch/shared';
 import { describe, expect, it } from 'vitest';
-import { loadBaseline, runEvalSet } from '../../src/eval/index.js';
+import { runEvalSet } from '../../src/eval/index.js';
 import {
   extractMethodologyChallenges,
   renderMethodologyChallenges,
   type ChallengeExtractionResult,
 } from '../../src/tools/research/synthesis/challengeExtraction.js';
-import { BASELINES_DIR, readEvalSetFixture } from './evalSnapshots.js';
+import { readEvalSetFixture } from './evalSnapshots.js';
 import {
   aggregateSem13,
   evaluateSem13,
@@ -16,12 +16,27 @@ import {
 } from './sem13EvalSupport.js';
 
 describe('eval: SEM-13 challenge extractor', () => {
-  it('locks challenge extraction to evidence-backed summaries rather than taxonomy wording', async () => {
+  it('fails closed when only taxonomy hints remain without open-text challenge evidence', () => {
+    const result = MethodologyChallengeExtractionResultSchema.parse(
+      extractMethodologyChallenges([
+        {
+          recid: 'c-local',
+          title: 'Coverage study',
+          methodology:
+            'Control region modelling and detector acceptance set the dominant systematic budget.',
+        } as never,
+      ]),
+    );
+
+    expect(result.status).toBe('uncertain');
+    expect(result.challenge_types).toEqual([]);
+    expect(result.provenance.mode).toBe('uncertain');
+    expect(result.provenance.used_fallback).toBe(false);
+    expect(renderMethodologyChallenges(result)).toContain('too underspecified');
+  });
+
+  it('keeps challenge extraction on evidence-backed, local-proof-only surfaces', async () => {
     const evalSet = readEvalSetFixture('sem13/sem13_challenge_extractor_eval.json');
-    const lockedBaseline = loadBaseline(evalSet.name, BASELINES_DIR);
-    if (!lockedBaseline) {
-      throw new Error(`Missing locked baseline for ${evalSet.name}`);
-    }
 
     const improved = await runEvalSet<Sem13Input, Sem13Actual>(evalSet, {
       run: async input => {
@@ -46,27 +61,15 @@ describe('eval: SEM-13 challenge extractor', () => {
       aggregate: aggregateSem13,
     });
 
-    expect(
-      improved.aggregateMetrics.challenge_marker_coverage ?? 0,
-    ).toBeGreaterThanOrEqual(
-      lockedBaseline.metrics.challenge_marker_coverage ?? 0,
-    );
-    expect(improved.aggregateMetrics.status_accuracy ?? 0).toBeGreaterThanOrEqual(
-      lockedBaseline.metrics.status_accuracy ?? 0,
-    );
-    expect(
-      improved.aggregateMetrics.no_challenge_uncertain_accuracy ?? 0,
-    ).toBeGreaterThanOrEqual(
-      lockedBaseline.metrics.no_challenge_uncertain_accuracy ?? 0,
-    );
+    expect(improved.aggregateMetrics.challenge_marker_coverage ?? 0).toBeGreaterThanOrEqual(0.75);
+    expect(improved.aggregateMetrics.status_accuracy ?? 0).toBeGreaterThanOrEqual(0.8);
+    expect(improved.aggregateMetrics.no_challenge_uncertain_accuracy ?? 0).toBeGreaterThanOrEqual(0.9);
     expect(improved.aggregateMetrics.false_positive_rate ?? 1).toBeLessThanOrEqual(
-      lockedBaseline.metrics.false_positive_rate ?? 1,
+      0,
     );
     expect(
       improved.aggregateMetrics.taxonomy_wording_leak_rate ?? 1,
-    ).toBeLessThanOrEqual(
-      lockedBaseline.metrics.taxonomy_wording_leak_rate ?? 0,
-    );
+    ).toBe(0);
   });
 
   const holdoutIt = process.env.EVAL_INCLUDE_HOLDOUT === '1' ? it : it.skip;

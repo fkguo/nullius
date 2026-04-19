@@ -77,21 +77,6 @@ function openChallenges(texts: TextRecord[]): ExtractedChallenge[] {
   return [...deduped.values()].slice(0, 5);
 }
 
-function fallbackChallenges(texts: TextRecord[]): ExtractedChallenge[] {
-  const challenges = CHALLENGE_NORMALIZATION_HINTS.flatMap(hint => {
-    const evidence = texts.filter(text => [...hint.strong, ...(hint.weak ?? [])].some(term => text.normalized.includes(normalize(term)))).map(text => text.original).slice(0, 2);
-    if (evidence.length === 0) return [];
-    return [{
-      type: hint.type,
-      summary: evidence[0],
-      confidence: Math.min(0.5 + evidence.length * 0.15, 0.8),
-      evidence,
-      provenance: { mode: 'heuristic_fallback' as const, used_fallback: true, reason_code: 'normalization_hint_match' as const },
-    }];
-  });
-  return challenges.slice(0, 4);
-}
-
 function finalizeDetected(challenges: ExtractedChallenge[], mode: ChallengeExtractionProvenance['mode']): ChallengeExtractionResult {
   const types = [...new Set(challenges.map(challenge => challenge.type).filter((type): type is string => !!type))];
   if (types.length >= 2) types.push('cross_cutting_methodology');
@@ -101,8 +86,8 @@ function finalizeDetected(challenges: ExtractedChallenge[], mode: ChallengeExtra
     challenges,
     provenance: {
       mode,
-      used_fallback: mode === 'heuristic_fallback',
-      reason_code: mode === 'open_text' ? 'open_text_challenge_sentences' : 'fallback_normalization_hints',
+      used_fallback: false,
+      reason_code: 'open_text_challenge_sentences',
       evidence_count: challenges.length,
     },
   };
@@ -112,10 +97,11 @@ export function extractMethodologyChallenges(papers: DeepPaperAnalysis[], critic
   const texts = collectTexts(papers.slice(0, 5), criticalResults);
   const open = openChallenges(texts);
   if (open.length > 0) return finalizeDetected(open, 'open_text');
-  const fallback = fallbackChallenges(texts);
-  if (fallback.length > 0) return finalizeDetected(fallback, 'heuristic_fallback');
   if (texts.some(text => EXPLICIT_NO_CHALLENGE.some(term => text.normalized.includes(normalize(term))) || NON_METHODOLOGY_CUES.some(term => text.normalized.includes(normalize(term))))) {
     return { status: 'no_challenge_detected', challenge_types: [], challenges: [], provenance: { mode: 'no_challenge', used_fallback: false, reason_code: 'explicit_no_challenge_signal', evidence_count: 0 } };
+  }
+  if (texts.some(text => normalizeChallengeTypes(text.normalized).length > 0)) {
+    return { status: 'uncertain', challenge_types: [], challenges: [], provenance: { mode: 'uncertain', used_fallback: false, reason_code: 'challenge_hints_without_open_evidence', evidence_count: 0 } };
   }
   if (texts.some(text => UNCERTAIN_CUES.some(term => text.normalized.includes(normalize(term))))) {
     return { status: 'uncertain', challenge_types: [], challenges: [], provenance: { mode: 'uncertain', used_fallback: false, reason_code: 'underspecified_challenge_signal', evidence_count: 0 } };
@@ -134,8 +120,5 @@ export function renderMethodologyChallenges(result: ChallengeExtractionResult): 
   }
   const descriptions = [...new Set(result.challenges.map(describeChallenge))].slice(0, 3);
   if (descriptions.length === 0) return undefined;
-  if (result.provenance.mode === 'heuristic_fallback') {
-    return `Provider-local fallback signals point to methodological concerns reflected in ${descriptions.join(', ')}; manual validation is advisable before treating these summaries as authoritative.`;
-  }
   return `Across the collection, the available descriptions repeatedly mention methodological concerns such as ${descriptions.join(', ')}.`;
 }

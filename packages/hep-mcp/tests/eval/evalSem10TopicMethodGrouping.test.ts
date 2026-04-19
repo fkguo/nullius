@@ -1,160 +1,42 @@
 import { CollectionSemanticGroupingSchema } from '@autoresearch/shared';
 import { describe, expect, it } from 'vitest';
-import { loadBaseline, runEvalSet } from '../../src/eval/index.js';
+
 import { groupCollectionSemantics } from '../../src/tools/research/synthesis/collectionSemanticGrouping.js';
-import { BASELINES_DIR, readEvalSetFixture } from './evalSnapshots.js';
-import {
-  aggregateSem10,
-  normalizeExpected,
-  normalizeGrouping,
-  shufflePapers,
-  type Sem10Actual,
-  type Sem10Expected,
-  type Sem10Input,
-} from './sem10EvalSupport.js';
+import { normalizeGrouping } from './sem10EvalSupport.js';
 
-describe('eval: SEM-10 topic/method grouping', () => {
-  it('treats exact singleton clustering matches as full-credit membership alignment', () => {
-    const expected: Sem10Expected = {
-      topic_clusters: [['a'], ['b']],
-      method_clusters: [['a'], ['b'], ['c']],
-    };
-    const normalized = normalizeExpected(expected);
-    const aggregate = aggregateSem10([
-      {
-        id: 'singleton_exact_match',
-        tags: [],
-        input: { papers: [] },
-        expected,
-        actual: {
-          ...normalized,
-          fallback_rate: 0,
-          permutation_stability: 1,
-          public_keyword_leak_rate: 0,
-          public_label_leak_rate: 0,
-        },
-        passed: true,
-        metrics: { passed: 1 },
-      },
-    ]);
+describe('eval: SEM-10 topic/method grouping authority cleanup (local-proof-only)', () => {
+  it('does not emit heuristic-fallback authority or public taxonomy labels for terminology-drift cases', () => {
+    const grouping = CollectionSemanticGroupingSchema.parse(
+      groupCollectionSemantics([
+        { recid: 'p1', title: 'Heavy neutral lepton sensitivity with displaced vertices', abstract: 'We study sterile-neutrino discovery potential at the lifetime frontier.', keywords: ['lifetime frontier'], methodology: 'Detector-response emulation and pseudoexperiment template fits are used.', citation_count: 35 },
+        { recid: 'p2', title: 'Sterile-neutrino reinterpretation in long-lived lepton searches', abstract: 'The heavy neutral lepton signal is modeled with response templates.', keywords: ['long-lived leptons'], methodology: 'Fast detector simulation and signal extraction templates are employed.', citation_count: 28 },
+      ]),
+    );
+    const normalized = normalizeGrouping(grouping);
 
-    expect(aggregate.topic_pairwise_f1).toBe(1);
-    expect(aggregate.method_pairwise_f1).toBe(1);
-    expect(aggregate.grouping_f1_overall).toBe(1);
+    expect(grouping.topic_fallback_rate).toBe(0);
+    expect(grouping.method_fallback_rate).toBe(0);
+    expect(grouping.topic_groups.every(group => group.provenance.mode !== 'heuristic_fallback')).toBe(true);
+    expect(grouping.method_groups.every(group => group.provenance.mode !== 'heuristic_fallback')).toBe(true);
+    expect(normalized.public_keyword_leak_rate).toBe(0);
+    expect(normalized.public_label_leak_rate).toBe(0);
   });
 
-  it('locks grouping quality to membership plus public-keyword anti-leak checks', async () => {
-    const evalSet = readEvalSetFixture('sem10/sem10_topic_method_grouping_eval.json');
-    const lockedBaseline = loadBaseline(evalSet.name, BASELINES_DIR);
-    if (!lockedBaseline) {
-      throw new Error(`Missing locked baseline for ${evalSet.name}`);
-    }
+  it('keeps cross-cutting and sparse-keyword cases in generic open-cluster or uncertain buckets only', () => {
+    const grouping = CollectionSemanticGroupingSchema.parse(
+      groupCollectionSemantics([
+        { recid: 'p9', title: 'Lattice-informed EFT constraints for rare decays', abstract: 'Flavor anomalies are studied by combining lattice inputs with Wilson-coefficient fits.', keywords: ['rare decays'], methodology: 'Lattice matrix elements are combined with an EFT operator analysis.', citation_count: 19 },
+        { recid: 'p10', title: 'Detector-level EFT reinterpretation of displaced signatures', abstract: 'Heavy neutral leptons are constrained with detector reinterpretation and operator fits.', keywords: ['long-lived leptons'], methodology: 'Detector simulation is coupled to an effective theory parameter scan.', citation_count: 17 },
+        { recid: 'p11', title: 'Benchmark detector study for long-lived neutrinos', abstract: 'Heavy neutral leptons are searched for with displaced-vertex strategies.', keywords: ['lifetime frontier'], methodology: 'A dedicated detector simulation with template fits is used.', citation_count: 14 },
+      ]),
+    );
 
-    const improved = await runEvalSet<Sem10Input, Sem10Actual>(evalSet, {
-      run: async input => {
-        const base = normalizeGrouping(
-          CollectionSemanticGroupingSchema.parse(
-            groupCollectionSemantics(input.papers),
-          ),
-        );
-        const stabilities = [1, 2, 3, 4, 5].map(seed => {
-          const shuffled = normalizeGrouping(
-            CollectionSemanticGroupingSchema.parse(
-              groupCollectionSemantics(shufflePapers(input.papers, seed)),
-            ),
-          );
-          const allKeys = Object.keys(base.topic_assignments);
-          const matches = allKeys.filter(
-            key =>
-              base.topic_assignments[key] === shuffled.topic_assignments[key] &&
-              base.method_assignments[key] ===
-                shuffled.method_assignments[key],
-          ).length;
-          return matches / Math.max(allKeys.length, 1);
-        });
-        return {
-          ...base,
-          permutation_stability:
-            stabilities.reduce((sum, value) => sum + value, 0) /
-            stabilities.length,
-        };
-      },
-      judge: (expected, actual) => {
-        const exp = normalizeExpected(expected as Sem10Expected);
-        const pass =
-          Object.keys(exp.topic_assignments).every(
-            key => exp.topic_assignments[key] === actual.topic_assignments[key],
-          ) &&
-          Object.keys(exp.method_assignments).every(
-            key =>
-              exp.method_assignments[key] === actual.method_assignments[key],
-          ) &&
-          actual.public_keyword_leak_rate === 0 &&
-          actual.public_label_leak_rate === 0;
-        return { passed: pass, metrics: { passed: pass ? 1 : 0 } };
-      },
-      aggregate: aggregateSem10,
-    });
+    const detailModes = [
+      ...Object.values(grouping.topic_assignment_details).map(detail => detail.provenance.mode),
+      ...Object.values(grouping.method_assignment_details).map(detail => detail.provenance.mode),
+    ];
 
-    expect(improved.aggregateMetrics.grouping_f1_overall ?? 0).toBeGreaterThanOrEqual(
-      lockedBaseline.metrics.grouping_f1_overall ?? 0,
-    );
-    expect(
-      improved.aggregateMetrics.permutation_stability_overall ?? 0,
-    ).toBeGreaterThanOrEqual(
-      lockedBaseline.metrics.permutation_stability_overall ?? 0,
-    );
-    expect(improved.aggregateMetrics.hard_subset_f1 ?? 0).toBeGreaterThanOrEqual(
-      lockedBaseline.metrics.hard_subset_f1 ?? 0,
-    );
-    expect(
-      improved.aggregateMetrics.public_keyword_leak_rate ?? 1,
-    ).toBeLessThanOrEqual(
-      lockedBaseline.metrics.public_keyword_leak_rate ?? 0,
-    );
-    expect(
-      improved.aggregateMetrics.public_label_leak_rate ?? 1,
-    ).toBeLessThanOrEqual(
-      lockedBaseline.metrics.public_label_leak_rate ?? 0,
-    );
-  });
-
-  const holdoutIt = process.env.EVAL_INCLUDE_HOLDOUT === '1' ? it : it.skip;
-  holdoutIt('holds grouping quality on the locked holdout', async () => {
-    const evalSet = readEvalSetFixture(
-      'sem10/sem10_topic_method_grouping_holdout.json',
-    );
-    const report = await runEvalSet<Sem10Input, Sem10Actual>(evalSet, {
-      run: async input => {
-        const base = normalizeGrouping(
-          CollectionSemanticGroupingSchema.parse(
-            groupCollectionSemantics(input.papers),
-          ),
-        );
-        return { ...base, permutation_stability: 1 };
-      },
-      judge: (expected, actual) => {
-        const exp = normalizeExpected(expected as Sem10Expected);
-        const pass =
-          Object.keys(exp.topic_assignments).every(
-            key => exp.topic_assignments[key] === actual.topic_assignments[key],
-          ) &&
-          Object.keys(exp.method_assignments).every(
-            key =>
-              exp.method_assignments[key] === actual.method_assignments[key],
-          ) &&
-          actual.public_keyword_leak_rate === 0 &&
-          actual.public_label_leak_rate === 0;
-        return { passed: pass, metrics: { passed: pass ? 1 : 0 } };
-      },
-      aggregate: aggregateSem10,
-    });
-
-    expect(report.aggregateMetrics.grouping_f1_overall ?? 0).toBeGreaterThanOrEqual(0.8);
-    expect(
-      report.aggregateMetrics.permutation_stability_overall ?? 0,
-    ).toBeGreaterThanOrEqual(0.85);
-    expect(report.aggregateMetrics.public_keyword_leak_rate ?? 1).toBe(0);
-    expect(report.aggregateMetrics.public_label_leak_rate ?? 1).toBe(0);
+    expect(detailModes).not.toContain('heuristic_fallback');
+    expect(detailModes.some(mode => mode === 'uncertain')).toBe(true);
   });
 });

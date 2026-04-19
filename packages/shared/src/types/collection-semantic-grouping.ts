@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const GroupingProvenanceModeSchema = z.enum([
   'open_cluster',
-  'heuristic_fallback',
   'uncertain',
 ]);
 

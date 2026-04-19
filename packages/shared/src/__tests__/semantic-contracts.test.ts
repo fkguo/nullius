@@ -83,7 +83,7 @@ describe('CollectionSemanticGroupingSchema', () => {
           label: 'uncertain',
           provenance: {
             mode: 'uncertain',
-            used_fallback: true,
+            used_fallback: false,
             reason_code: 'no_semantic_signal',
             confidence: 0,
             evidence: [],
@@ -100,30 +100,20 @@ describe('CollectionSemanticGroupingSchema', () => {
 });
 
 describe('MethodologyChallengeExtractionResultSchema', () => {
-  it('accepts challenge outputs without freezing provider-local taxonomy', () => {
+  it('accepts fail-closed challenge outputs without requiring heuristic fallback authority', () => {
     const result = MethodologyChallengeExtractionResultSchema.parse({
-      status: 'detected',
-      challenge_types: ['systematic_uncertainty', 'instrument_drift'],
-      challenges: [{
-        type: 'instrument_drift',
-        summary: 'Calibration drift dominates the uncertainty budget.',
-        confidence: 0.8,
-        evidence: ['Calibration drift dominates the uncertainty budget.'],
-        provenance: {
-          mode: 'heuristic_fallback',
-          used_fallback: true,
-          reason_code: 'normalization_hint_match',
-        },
-      }],
+      status: 'uncertain',
+      challenge_types: [],
+      challenges: [],
       provenance: {
-        mode: 'heuristic_fallback',
-        used_fallback: true,
-        reason_code: 'fallback_normalization_hints',
-        evidence_count: 1,
+        mode: 'uncertain',
+        used_fallback: false,
+        reason_code: 'challenge_hints_without_open_evidence',
+        evidence_count: 0,
       },
     });
 
-    expect(result.challenge_types).toContain('instrument_drift');
-    expect(result.challenges[0]?.provenance.mode).toBe('heuristic_fallback');
+    expect(result.challenge_types).toEqual([]);
+    expect(result.provenance.mode).toBe('uncertain');
   });
 });
