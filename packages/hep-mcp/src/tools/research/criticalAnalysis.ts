@@ -87,8 +87,6 @@ export interface CriticalAnalysisResult {
 
   /** Integrated assessment */
   integrated_assessment: {
-    /** Overall reliability score (0-1) */
-    reliability_score: number;
     /** Overall risk level */
     risk_level: 'low' | 'medium' | 'high';
     /** Key concerns identified */
@@ -97,8 +95,6 @@ export interface CriticalAnalysisResult {
     strengths: string[];
     /** Recommended actions */
     recommendations: string[];
-    /** One-line verdict */
-    verdict: string;
   };
 }
 
@@ -120,7 +116,7 @@ function hasAvailableQuestionsOutput(result: CriticalQuestionsResult | undefined
   return Boolean(result && (
     result.success
     || (Array.isArray(result.red_flags) && result.red_flags.length > 0)
-    || result.reliability_score !== null
+    || Object.values(result.questions ?? {}).some(group => Array.isArray(group) && group.length > 0)
   ));
 }
 
@@ -179,107 +175,6 @@ function componentStatus(params: {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Get reliability score weights from config.
- *
- * Scientific Reliability Philosophy:
- * In physics research, reliability stems from three pillars: empirical evidence,
- * methodological rigor, and theoretical foundations. These weights reflect the
- * relative importance of each pillar in assessing whether claims can be trusted.
- *
- * Weight Rationale:
- *
- * 1. Evidence (40%): Highest weight
- *    - Represents empirical support for claims (citations, confirmations, experimental data)
- *    - In experimental physics, "extraordinary claims require extraordinary evidence"
- *    - Direct empirical validation is the gold standard for scientific reliability
- *    - Independent confirmations from different research groups are the strongest indicator
- *
- * 2. Critical Questions (30%): Second priority
- *    - Captures methodological soundness and procedural red flags
- *    - Includes: statistical validity, self-citation bias, retractions, comments/errata
- *    - A paper with strong evidence but methodological flaws has limited reliability
- *    - Red flags (e.g., retracted work, excessive self-citation) can invalidate strong evidence
- *
- * 3. Assumptions (30%): Equal to questions
- *    - Measures foundational stability and dependency risks
- *    - Tracks which theoretical assumptions underpin the conclusions
- *    - If core assumptions are challenged, conclusions become fragile
- *    - In theoretical physics, assumption validity is as critical as methodology
- *
- * Why Equal Weighting (30-30) for Questions & Assumptions:
- * - Questions assess "how" (methodology), assumptions assess "why" (foundations)
- * - Both are complementary aspects of rigor: one checks process, one checks basis
- * - A paper can fail on either dimension: flawed methods OR invalid assumptions
- *
- * Total: 40% + 30% + 30% = 100% of weighted contributions
- *
- * Note: Base score (0.5) provides neutral starting point when data is limited,
- * preventing extreme scores from partial information.
- */
-function getReliabilityWeights() {
-  const config = getConfig().criticalResearch;
-  return {
-    evidence: config?.integrationWeightEvidence ?? 0.4,
-    questions: config?.integrationWeightQuestions ?? 0.3,
-    assumptions: config?.integrationWeightAssumptions ?? 0.3,
-    baseScore: config?.integrationBaseScore ?? 0.5,
-  };
-}
-
-/**
- * Calculate integrated reliability score from all analysis components.
- *
- * The score combines evidence grading, critical questions, and assumption tracking
- * using weighted averaging. Each component contributes to the final score based on
- * RELIABILITY_WEIGHTS, reflecting its importance in scientific reliability assessment.
- *
- * Scoring Logic:
- * - Starts with neutral base (0.5) to avoid extreme scores from partial data
- * - Each available component adds its weighted contribution
- * - Final normalization accounts for missing components to maintain score range
- *
- * @param evidence - Evidence grading results (40% weight if available)
- * @param questions - Critical questions results (30% weight if available)
- * @param assumptions - Assumption tracking results (30% weight if available)
- * @returns Reliability score in range [0, 1], where:
- *          - 0.7+: High reliability (well-supported, minimal concerns)
- *          - 0.4-0.7: Moderate reliability (mixed signals)
- *          - <0.4: Low reliability (significant concerns)
- */
-function calculateIntegratedScore(
-  evidence?: EvidenceGradingResult,
-  questions?: CriticalQuestionsResult,
-  assumptions?: AssumptionTrackerResult
-): number {
-  const weights = getReliabilityWeights();
-  let score = weights.baseScore; // Base score: neutral starting point for partial data
-  let weight = 0;
-
-  if (evidence?.success && evidence.overall_reliability !== undefined) {
-    score += evidence.overall_reliability * weights.evidence;
-    weight += weights.evidence;
-  }
-
-  if (questions?.success && questions.reliability_score !== null && questions.reliability_score !== undefined) {
-    score += questions.reliability_score * weights.questions;
-    weight += weights.questions;
-  }
-
-  if (assumptions?.success && assumptions.analysis) {
-    // Invert fragility to get reliability: high fragility = low reliability
-    const assumptionReliability = 1 - assumptions.analysis.fragility_score;
-    score += assumptionReliability * weights.assumptions;
-    weight += weights.assumptions;
-  }
-
-  // If no components available, return neutral base score
-  if (weight === 0) return weights.baseScore;
-
-  // Normalize by total weight + base, keeping score near baseScore when data is limited
-  return score / (weight + weights.baseScore);
-}
 
 /**
  * Determine overall risk level
@@ -406,7 +301,7 @@ function extractStrengths(
       strengths.push('Large collaboration enhances credibility');
     }
 
-    if (questions.red_flags.length === 0 && questions.provenance.authority === 'semantic_conclusion') {
+    if (questions.red_flags.length === 0) {
       strengths.push('No red flags detected');
     }
   }
@@ -477,33 +372,6 @@ function generateRecommendations(
   const unique = [...new Set(recommendations)];
   const config = getConfig().criticalResearch;
   return unique.slice(0, config?.maxRecommendations ?? 5);
-}
-
-/**
- * Generate one-line verdict
- */
-function generateVerdict(
-  riskLevel: 'low' | 'medium' | 'high',
-  reliabilityScore: number,
-  concerns: string[],
-  strengths: string[]
-): string {
-  if (riskLevel === 'high') {
-    return 'HIGH RISK: Significant concerns identified. Careful verification recommended before relying on this work.';
-  }
-
-  if (riskLevel === 'medium') {
-    if (strengths.length > concerns.length) {
-      return 'MODERATE: Generally reliable but some concerns warrant attention.';
-    }
-    return 'MODERATE RISK: Mixed signals detected. Review specific concerns before proceeding.';
-  }
-
-  if (reliabilityScore > 0.7) {
-    return 'RELIABLE: Well-supported work with minimal concerns. Suitable for citation and extension.';
-  }
-
-  return 'LOW RISK: No major concerns identified, but limited independent verification available.';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -621,23 +489,18 @@ export async function performCriticalAnalysis(
         questions,
         assumptions,
         integrated_assessment: {
-          reliability_score: 0,
           risk_level: 'high',
           key_concerns: componentFailures,
           strengths: [],
           recommendations: ['Provide MCP client sampling support and rerun the bounded critical analysis.'],
-          verdict: 'Critical analysis unavailable because semantic sub-analyses did not complete.',
         },
       };
     }
 
-    // Calculate integrated metrics
-    const reliabilityScore = calculateIntegratedScore(evidence, questions, assumptions);
     const riskLevel = determineRiskLevel(evidence, questions, assumptions);
     const concerns = extractKeyConcerns(evidence, questions, assumptions);
     const strengths = extractStrengths(evidence, questions, assumptions);
     const recommendations = generateRecommendations(riskLevel, evidence, questions, assumptions);
-    const verdict = generateVerdict(riskLevel, reliabilityScore, concerns, strengths);
 
     return {
       paper_recid: recid,
@@ -664,12 +527,10 @@ export async function performCriticalAnalysis(
       questions,
       assumptions,
       integrated_assessment: {
-        reliability_score: Math.round(reliabilityScore * 100) / 100,
         risk_level: riskLevel,
         key_concerns: concerns,
         strengths,
         recommendations,
-        verdict,
       },
     };
 
@@ -685,12 +546,10 @@ export async function performCriticalAnalysis(
         assumptions: unavailableComponentStatus(include_assumptions),
       },
       integrated_assessment: {
-        reliability_score: 0,
         risk_level: 'high',
         key_concerns: ['Analysis failed - unable to assess'],
         strengths: [],
         recommendations: ['Manual review required'],
-        verdict: 'UNABLE TO ASSESS: Analysis encountered errors.',
       },
     };
   }

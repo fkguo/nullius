@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { clamp01, extractSamplingText } from '../../../core/semantics/quantitySampling.js';
+import { extractSamplingText } from '../../../core/semantics/quantitySampling.js';
 
 const RedFlagSchema = z.object({
   type: z.enum([
@@ -27,7 +27,6 @@ const QuestionGroupsSchema = z.object({
 
 const QuestionResponseSchema = z.object({
   paper_type: z.enum(['experimental', 'theoretical', 'phenomenological', 'review', 'lattice', 'instrumentation', 'mixed', 'uncertain']),
-  reliability_score: z.number().nullable().optional(),
   questions: QuestionGroupsSchema,
   red_flags: z.array(RedFlagSchema).optional().default([]),
   abstain: z.boolean().optional().default(false),
@@ -54,7 +53,6 @@ function parseJsonPayload(input: unknown): unknown {
 
 export interface ParsedQuestionResponse {
   paper_type: 'experimental' | 'theoretical' | 'phenomenological' | 'review' | 'lattice' | 'instrumentation' | 'mixed' | 'uncertain';
-  reliability_score: number | null;
   questions: z.infer<typeof QuestionGroupsSchema>;
   red_flags: z.infer<typeof RedFlagSchema>[];
   abstain: boolean;
@@ -77,9 +75,8 @@ export function buildCriticalQuestionPrompt(params: {
 }): string {
   return [
     'You generate reviewer-style critical questions for a scientific paper.',
-    'Return STRICT JSON ONLY with keys: paper_type, reliability_score, questions, red_flags, abstain, reason.',
+    'Return STRICT JSON ONLY with keys: paper_type, questions, red_flags, abstain, reason.',
     'paper_type must be one of: experimental | theoretical | phenomenological | review | lattice | instrumentation | mixed | uncertain.',
-    'reliability_score must be null when the information is insufficient for a calibrated score.',
     'red_flags must use only the provided enum values and stay grounded in the supplied metadata/abstract.',
     `prompt_version=${params.prompt_version}`,
     `title=${JSON.stringify(params.title)}`,
@@ -102,9 +99,6 @@ export function parseCriticalQuestionResponse(input: unknown): ParsedQuestionRes
   if (!parsed.success) return null;
   return {
     paper_type: parsed.data.paper_type,
-    reliability_score: parsed.data.reliability_score === null || parsed.data.reliability_score === undefined
-      ? null
-      : clamp01(parsed.data.reliability_score),
     questions: parsed.data.questions,
     red_flags: parsed.data.red_flags.slice(0, 5),
     abstain: parsed.data.abstain,

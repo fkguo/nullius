@@ -15,7 +15,6 @@ export interface ReviewClassification {
   recid: string;
   title: string;
   review_type: ReviewType;
-  authority_score: number | null;
   coverage: {
     paper_count: number;
     scope: CoverageScope;
@@ -24,7 +23,6 @@ export interface ReviewClassification {
   potential_biases: string[];
   recency: Recency;
   age_years: number;
-  is_authoritative_source: boolean | null;
   classification_confidence: 'high' | 'medium' | 'low';
   provenance: SemanticAssessmentProvenance;
 }
@@ -41,9 +39,7 @@ export interface ClassifyReviewsResult {
   summary: {
     total: number;
     by_type: Record<ReviewType, number>;
-    authoritative_count: number;
     uncertain_count: number;
-    average_authority_score: number | null;
   };
   recommendation?: string;
 }
@@ -93,7 +89,6 @@ async function classifySingleReview(
     recid,
     title: `Unavailable review (${recid})`,
     review_type: 'uncertain',
-    authority_score: null,
     coverage: {
       paper_count: 0,
       scope: 'uncertain',
@@ -102,7 +97,6 @@ async function classifySingleReview(
     potential_biases: ['Paper metadata unavailable; manual review required.'],
     recency: 'historical',
     age_years: 0,
-    is_authoritative_source: null,
     classification_confidence: 'low',
     provenance: {
       backend,
@@ -142,7 +136,6 @@ async function classifySingleReview(
       recid,
       title: paper.title,
       review_type: 'uncertain',
-      authority_score: null,
       coverage: {
         paper_count: paperCount,
         scope: 'uncertain',
@@ -151,7 +144,6 @@ async function classifySingleReview(
       potential_biases: fallbackBiases(authorCount, paperCount),
       recency: determineRecency(ageYears, currentThresholdYears),
       age_years: ageYears,
-      is_authoritative_source: null,
       classification_confidence: 'low',
       provenance: {
         backend,
@@ -210,7 +202,6 @@ async function classifySingleReview(
       recid,
       title: paper.title,
       review_type: parsed.review_type,
-      authority_score: parsed.authority_score,
       coverage: {
         paper_count: paperCount,
         scope: parsed.scope,
@@ -219,7 +210,6 @@ async function classifySingleReview(
       potential_biases: [...new Set([...fallbackBiases(authorCount, paperCount), ...parsed.potential_biases])].slice(0, 5),
       recency: determineRecency(ageYears, currentThresholdYears),
       age_years: ageYears,
-      is_authoritative_source: parsed.is_authoritative_source,
       classification_confidence: parsed.classification_confidence,
       provenance: {
         backend: 'mcp_sampling',
@@ -241,10 +231,8 @@ function buildRecommendation(classifications: ReviewClassification[]): string | 
   if (classifications.length === 0) return undefined;
   const consensus = classifications.filter(item => item.review_type === 'consensus');
   if (consensus.length > 0) return `Prioritize ${consensus.length} consensus-style review(s); they provide the strongest semantic baseline.`;
-  const authoritative = classifications.filter(item => item.is_authoritative_source === true && (item.authority_score ?? 0) >= 0.7);
-  if (authoritative.length > 0) return `Use the ${authoritative.length} review(s) with explicit authority judgments first, and inspect uncertain cases manually.`;
   const uncertain = classifications.filter(item => item.review_type === 'uncertain').length;
-  if (uncertain === classifications.length) return 'Only diagnostic priors or unavailable records are available for these reviews; inspect them manually before treating any as authoritative.';
+  if (uncertain === classifications.length) return 'Only diagnostic priors or unavailable records are available for these reviews; inspect them manually.';
   return 'Use high-confidence review classifications first and keep uncertain cases in manual review.';
 }
 
@@ -261,9 +249,7 @@ export async function classifyReviews(
       summary: {
         total: 0,
         by_type: { catalog: 0, critical: 0, consensus: 0, uncertain: 0 },
-        authoritative_count: 0,
         uncertain_count: 0,
-        average_authority_score: null,
       },
     };
   }
@@ -275,7 +261,6 @@ export async function classifyReviews(
 
   for (const item of classifications) byType[item.review_type] += 1;
 
-  const authorityScores = classifications.map(item => item.authority_score).filter((score): score is number => score !== null);
   const unavailable = classifications.filter(item => item.provenance.status !== 'applied');
   return {
     success: unavailable.length === 0,
@@ -286,11 +271,7 @@ export async function classifyReviews(
     summary: {
       total: classifications.length,
       by_type: byType,
-      authoritative_count: classifications.filter(item => item.is_authoritative_source === true).length,
       uncertain_count: classifications.filter(item => item.review_type === 'uncertain').length,
-      average_authority_score: authorityScores.length > 0
-        ? Math.round((authorityScores.reduce((sum, score) => sum + score, 0) / authorityScores.length) * 100) / 100
-        : null,
     },
     recommendation: unavailable.length === 0 ? buildRecommendation(classifications) : undefined,
   };

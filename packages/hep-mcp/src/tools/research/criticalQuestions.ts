@@ -49,7 +49,6 @@ export interface CriticalQuestionsResult {
   error?: string;
   questions: CriticalQuestions;
   red_flags: RedFlag[];
-  reliability_score: number | null;
   metrics: {
     author_count: number;
     citation_count: number;
@@ -143,7 +142,6 @@ export async function generateCriticalQuestions(
       error: recidError,
       questions: UNAVAILABLE_QUESTIONS,
       red_flags: [],
-      reliability_score: null,
       metrics: { citation_count: 0, author_count: 0, has_comments: false, paper_age_years: 0 },
       provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'invalid_recid' },
     };
@@ -192,7 +190,6 @@ export async function generateCriticalQuestions(
       error: `Semantic critical-question analysis unavailable: ${reasonCode}`,
       questions: UNAVAILABLE_QUESTIONS,
       red_flags: metricFlags,
-      reliability_score: null,
       metrics: {
         author_count: authorCount,
         citation_count: citationCount,
@@ -260,7 +257,6 @@ export async function generateCriticalQuestions(
       success: true,
       questions: parsed.questions,
       red_flags: mergeRedFlags(metricFlags, parsed.red_flags as RedFlag[]),
-      reliability_score: parsed.reliability_score,
       metrics: {
         author_count: authorCount,
         citation_count: citationCount,
@@ -287,7 +283,6 @@ export async function generateCriticalQuestions(
       error: error instanceof Error ? error.message : String(error),
       questions: UNAVAILABLE_QUESTIONS,
       red_flags: [],
-      reliability_score: null,
       metrics: { author_count: 0, citation_count: 0, has_comments: false, paper_age_years: 0 },
       provenance: { backend: 'diagnostic', status: 'unavailable', authority: 'unavailable', reason_code: 'upstream_error' },
     };

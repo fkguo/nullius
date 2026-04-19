@@ -134,7 +134,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
-    description: 'Run bounded critical analysis for a single paper (network).',
+    description: 'Run bounded critical-analysis checks for a single paper (network).',
     zodSchema: InspireCriticalAnalysisToolSchema,
     handler: async (params, ctx) => {
       const { performCriticalAnalysis } = await import('../research/criticalAnalysis.js');
@@ -146,7 +146,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
-    description: 'Classify review papers by scope and authority using semantic assessment (network).',
+    description: 'Classify review papers by scope and review type using semantic assessment (network).',
     zodSchema: InspireClassifyReviewsToolSchema,
     handler: async (params, ctx) => {
       const { classifyReviews } = await import('../research/reviewClassifier.js');

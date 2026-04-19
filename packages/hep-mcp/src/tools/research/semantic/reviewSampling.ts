@@ -1,10 +1,8 @@
 import { z } from 'zod';
-import { clamp01, extractSamplingText } from '../../../core/semantics/quantitySampling.js';
+import { extractSamplingText } from '../../../core/semantics/quantitySampling.js';
 
 const ReviewResponseSchema = z.object({
   review_type: z.enum(['catalog', 'critical', 'consensus', 'uncertain']),
-  authority_score: z.number().nullable().optional(),
-  is_authoritative_source: z.boolean().nullable().optional(),
   scope: z.enum(['narrow', 'moderate', 'comprehensive', 'uncertain']).optional().default('uncertain'),
   potential_biases: z.array(z.string().min(1)).optional().default([]),
   classification_confidence: z.enum(['high', 'medium', 'low']).optional().default('low'),
@@ -32,8 +30,6 @@ function parseJsonPayload(input: unknown): unknown {
 
 export interface ParsedReviewSemanticResponse {
   review_type: 'catalog' | 'critical' | 'consensus' | 'uncertain';
-  authority_score: number | null;
-  is_authoritative_source: boolean | null;
   scope: 'narrow' | 'moderate' | 'comprehensive' | 'uncertain';
   potential_biases: string[];
   classification_confidence: 'high' | 'medium' | 'low';
@@ -55,11 +51,10 @@ export function buildReviewAssessmentPrompt(params: {
   collaborations?: string[];
 }): string {
   return [
-    'You assess the epistemic role of a scientific review or survey paper.',
-    'Return STRICT JSON ONLY with keys: review_type, authority_score, is_authoritative_source, scope, potential_biases, classification_confidence, abstain, reason.',
+    'You classify the document role and coverage pattern of a scientific review or survey paper.',
+    'Return STRICT JSON ONLY with keys: review_type, scope, potential_biases, classification_confidence, abstain, reason.',
     'review_type must be one of: catalog | critical | consensus | uncertain.',
     'scope must be one of: narrow | moderate | comprehensive | uncertain.',
-    'authority_score must be null when the metadata/abstract is insufficient to justify a numeric score.',
     'Use abstain=true when you cannot responsibly classify the paper from the provided information.',
     `prompt_version=${params.prompt_version}`,
     `title=${JSON.stringify(params.title)}`,
@@ -81,10 +76,6 @@ export function parseReviewAssessmentResponse(input: unknown): ParsedReviewSeman
   if (!parsed.success) return null;
   return {
     review_type: parsed.data.review_type,
-    authority_score: parsed.data.authority_score === null || parsed.data.authority_score === undefined
-      ? null
-      : clamp01(parsed.data.authority_score),
-    is_authoritative_source: parsed.data.is_authoritative_source ?? null,
     scope: parsed.data.scope,
     potential_biases: parsed.data.potential_biases.map(bias => bias.trim()).filter(Boolean).slice(0, 5),
     classification_confidence: parsed.data.classification_confidence,

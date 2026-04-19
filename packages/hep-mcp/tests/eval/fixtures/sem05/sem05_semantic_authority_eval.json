@@ -169,7 +169,6 @@
       },
       "expected": {
         "paper_type": "uncertain",
-        "reliability_score": null,
         "authority": "unavailable",
         "reason_code": "sampling_required",
         "forbidden_red_flags": ["excessive_claims"]

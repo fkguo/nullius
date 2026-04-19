@@ -100,6 +100,10 @@ describe('semantic authority cleanup regressions', () => {
     expect(result.classifications).toHaveLength(1);
     expect(result.summary.total).toBe(1);
     expect(result.classifications[0]?.review_type).toBe('uncertain');
+    expect(result.classifications[0]).not.toHaveProperty('authority_score');
+    expect(result.classifications[0]).not.toHaveProperty('is_authoritative_source');
+    expect(result.summary).not.toHaveProperty('authoritative_count');
+    expect(result.summary).not.toHaveProperty('average_authority_score');
     expect(result.classifications[0]?.provenance.reason_code).toBe('paper_fetch_failed');
     expect(result.classifications[0]?.provenance.status).toBe('unavailable');
   });
@@ -131,7 +135,7 @@ describe('semantic authority cleanup regressions', () => {
 
     expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
     expect(result.success).toBe(false);
-    expect(result.reliability_score).toBeNull();
+    expect(result).not.toHaveProperty('reliability_score');
     expect(result.red_flags.some(flag => flag.type === 'excessive_claims')).toBe(false);
     expect(result.provenance.reason_code).toBe('sampling_required');
     expect(result.provenance.authority).toBe('unavailable');
@@ -147,7 +151,7 @@ describe('semantic authority cleanup regressions', () => {
 
     expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
     expect(result.success).toBe(false);
-    expect(result.reliability_score).toBeNull();
+    expect(result).not.toHaveProperty('reliability_score');
     expect(result.provenance.backend).toBe('mcp_sampling');
     expect(result.provenance.status).toBe('unavailable');
     expect(result.provenance.reason_code).toBe('sampling_error');
@@ -213,5 +217,7 @@ describe('semantic authority cleanup regressions', () => {
         available_output: false,
       },
     });
+    expect(result.integrated_assessment).not.toHaveProperty('reliability_score');
+    expect(result.integrated_assessment).not.toHaveProperty('verdict');
   });
 });

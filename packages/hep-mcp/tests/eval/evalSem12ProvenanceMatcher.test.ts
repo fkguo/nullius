@@ -36,12 +36,10 @@ async function runSem12Case(input: Sem12Input) {
         recid: String(input.paper.recid),
         title: String(input.paper.title),
         review_type: 'critical',
-        authority_score: 0.9,
         coverage: { paper_count: 50, scope: 'moderate', author_diversity: 'single_group' },
         potential_biases: [],
         recency: 'current',
         age_years: 1,
-        is_authoritative_source: true,
         classification_confidence: 'high',
         provenance: {
           backend: 'mcp_sampling',
@@ -57,12 +55,10 @@ async function runSem12Case(input: Sem12Input) {
         recid: String(input.paper.recid),
         title: String(input.paper.title),
         review_type: 'uncertain',
-        authority_score: null,
         coverage: { paper_count: 0, scope: 'uncertain', author_diversity: 'single_group' },
         potential_biases: [],
         recency: 'current',
         age_years: 1,
-        is_authoritative_source: null,
         classification_confidence: 'low',
         provenance: {
           backend: 'diagnostic',
@@ -71,7 +67,7 @@ async function runSem12Case(input: Sem12Input) {
           reason_code: 'sampling_unavailable',
         },
       }],
-    summary: { total: 1, by_type: { catalog: 0, critical: 0, consensus: 0, uncertain: 1 }, authoritative_count: 0, uncertain_count: 1, average_authority_score: null },
+    summary: { total: 1, by_type: { catalog: 0, critical: 0, consensus: 0, uncertain: 1 }, uncertain_count: 1 },
   } as any);
 
   const result = await traceToOriginal(

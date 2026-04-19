@@ -78,7 +78,6 @@ async function runSem05Case(input: Sem05Input): Promise<Sem05Actual> {
       const result = await generateCriticalQuestions({ recid: input.recid });
       return {
         paper_type: result.paper_type,
-        reliability_score: result.reliability_score,
         red_flag_types: result.red_flags.map(flag => flag.type),
         authority: result.provenance.authority,
         reason_code: result.provenance.reason_code,
