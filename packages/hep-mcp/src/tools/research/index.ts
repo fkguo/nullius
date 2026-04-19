@@ -190,17 +190,6 @@ export {
   type SociologyMetrics,
 } from './emergingPapers.js';
 
-export {
-  synthesizeReview,
-  type SynthesizeReviewParams,
-  type SynthesizeOptions,
-  type SynthesizedReview,
-  type SynthesizeReviewResult,
-  type NarrativeStructure,
-  type ReviewStyle,
-  type PaperGroup,
-} from './synthesizeReview.js';
-
 // Phase 9 Critical Deep Research Tools
 export {
   extractMeasurements,
@@ -315,27 +304,6 @@ export type {
   PaperSourceResult,
   SourceMode,
 } from '@autoresearch/arxiv-mcp/tooling';
-
-// Deep Research (2→1): analyze + synthesize
-export {
-  performDeepResearch,
-  type DeepResearchParams,
-  type DeepOptions,
-  type DeepResearchResult,
-  type DeepMode,
-} from './deepResearch.js';
-
-// Field Survey: physicist's literature review workflow
-export {
-  performFieldSurvey,
-  type FieldSurveyParams,
-  type FieldSurveyResult,
-  type ReviewPaper,
-  type SeminalPaper,
-  type CitationCluster as FieldSurveyCitationCluster,
-  type Controversy,
-  type OpenQuestion,
-} from './fieldSurvey.js';
 
 // Stance Detection (Phase 2)
 export {

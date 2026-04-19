@@ -37,11 +37,6 @@ describe('Limits regression guard (P0 silent truncation)', () => {
         forbid: /api\.search\(/,
         reason: 'Evidence grading should use searchAll() so max_search_results can exceed 1000 safely and truncation can be warned.',
       },
-      {
-        file: path.resolve(pkgRoot, 'src/tools/research/fieldSurvey.ts'),
-        forbid: /api\.getReferences\([^)]*,\s*\d+\s*\)/,
-        reason: 'Field survey should not silently probe only the first N references via a numeric literal (use full refs or an explicit option + warnings).',
-      },
     ];
 
     for (const { file, forbid, reason } of checks) {

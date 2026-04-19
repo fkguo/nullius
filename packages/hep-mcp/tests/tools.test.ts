@@ -70,14 +70,6 @@ vi.mock('@autoresearch/arxiv-mcp/tooling', async () => {
   };
 });
 
-vi.mock('../src/tools/research/deepResearch.js', () => ({
-  performDeepResearch: vi.fn(),
-}));
-
-vi.mock('../src/tools/research/fieldSurvey.js', () => ({
-  performFieldSurvey: vi.fn(),
-}));
-
 vi.mock('../src/tools/research/parseLatexContent.js', () => ({
   parseLatexContent: vi.fn(),
 }));
@@ -132,8 +124,6 @@ const criticalAnalysis = await import('../src/tools/research/criticalAnalysis.js
 const reviewClassifier = await import('../src/tools/research/reviewClassifier.js');
 const theoreticalConflicts = await import('../src/tools/research/theoreticalConflicts.js');
 const arxivTooling = await import('@autoresearch/arxiv-mcp/tooling');
-const deepResearch = await import('../src/tools/research/deepResearch.js');
-const fieldSurvey = await import('../src/tools/research/fieldSurvey.js');
 const parseLatexContent = await import('../src/tools/research/parseLatexContent.js');
 const findConnections = await import('../src/tools/research/findConnections.js');
 const traceSource = await import('../src/tools/research/traceSource.js');
