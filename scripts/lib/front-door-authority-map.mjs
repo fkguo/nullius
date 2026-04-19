@@ -124,6 +124,7 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
     relPath: ORCH_EXACT_SPEC_REL_PATH,
     exactInventoryKind: 'exact_spec_doc',
     toolPrefix: 'orch_',
+    driftTestSource: 'packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts',
   }),
   Object.freeze({
     surface: 'idea_mcp',

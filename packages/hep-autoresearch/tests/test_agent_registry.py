@@ -45,6 +45,16 @@ class TestAgentRegistry(unittest.TestCase):
         schema = loaded["load_schema"]("agent_card_v1")
         validator = Draft202012Validator(schema)
         cards_dir = loaded["builtin_agent_cards_dir"]()
+        expected_idea_engine_capabilities = [
+            "campaign.init",
+            "campaign.status",
+            "campaign.topup",
+            "campaign.pause",
+            "campaign.resume",
+            "campaign.complete",
+            "search.step",
+            "eval.run",
+        ]
 
         discovered_ids: set[str] = set()
         for card_path in sorted(cards_dir.glob("*.json")):
@@ -53,6 +63,10 @@ class TestAgentRegistry(unittest.TestCase):
             loaded["validate_agent_card"](payload)
             discovered_ids.add(str(payload["agent_id"]))
             if payload["agent_id"] == "idea-engine":
+                self.assertEqual(
+                    [capability["capability_id"] for capability in payload["capabilities"]],
+                    expected_idea_engine_capabilities,
+                )
                 self.assertEqual(
                     payload["input_contracts"][0]["source_path"],
                     "packages/idea-engine/contracts/idea-runtime-contracts/schemas/idea_runtime_rpc_v1.openrpc.json",

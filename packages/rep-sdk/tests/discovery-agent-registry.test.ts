@@ -24,11 +24,14 @@ describe('agent registry', () => {
     const toolsCards = registry.list({ capabilityId: 'mcp.list_tools' });
     const hepCard = registry.resolveCapability('mcp.list_tools');
     const ideaCard = registry.resolveCapability('campaign.status', { agentId: 'idea-engine' });
+    const ideaMutationCards = registry.list({ capabilityId: 'campaign.topup' });
 
     expect(allCards.map((card) => card.agent_id)).toEqual(['hep-mcp', 'idea-engine']);
     expect(toolsCards.map((card) => card.agent_id)).toEqual(['hep-mcp']);
+    expect(ideaMutationCards.map((card) => card.agent_id)).toEqual(['idea-engine']);
     expect(hepCard.agent_id).toBe('hep-mcp');
     expect(ideaCard.agent_id).toBe('idea-engine');
+    expect(registry.resolveCapability('campaign.complete', { agentId: 'idea-engine' }).agent_id).toBe('idea-engine');
   });
 
   it('keeps capability resolution stable when consumers destructure the helper', async () => {

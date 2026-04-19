@@ -1,8 +1,9 @@
 # Orchestrator MCP Tools Architecture Specification
 
-> **Status**: live inventory sync for `main` on 2026-04-14
+> **Status**: live inventory sync for `main` on 2026-04-19
 > **Scope**: exact `orch_*` tool surface, run-infra vs strategy boundary, approval/fleet semantics, and URI ownership.
 > **Classification anchor**: this document is the `canonical_public` exact `orch_*` inventory surface referenced by `meta/front_door_authority_map_v1.json`; it does not own CLI command taxonomies.
+> **Drift lock**: fail-closed ownership and inventory verification lives in `packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts`.
 
 ---
 
@@ -240,4 +241,4 @@ orch://runs/<run_id>                → lifecycle / control-plane view
 
 1. The old “TS orchestrator is read-only Stage 1” framing is no longer live truth. `@autoresearch/orchestrator` already owns the current `orch_*` surface.
 2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. The retired public `hepar` shell must not reclaim `orch_*` or `autoresearch` authority.
-3. Public documentation or review packets that need the current orchestrator MCP truth should point at this file plus the live tool registry/tests (`packages/hep-mcp/tests/toolContracts.test.ts`, `packages/hep-mcp/tests/docs/docToolDrift.test.ts`) rather than older Stage 1/2 sketches.
+3. Public documentation or review packets that need the current orchestrator MCP truth should point at this file plus the live tool registry/tests (`packages/orchestrator/src/orch-tools/index.ts`, `packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts`) rather than older Stage 1/2 sketches.

@@ -19,6 +19,30 @@
       "output_contract_ids": ["idea_runtime_rpc_v1"]
     },
     {
+      "capability_id": "campaign.topup",
+      "description": "Top up campaign budget.",
+      "input_contract_ids": ["idea_runtime_rpc_v1"],
+      "output_contract_ids": ["idea_runtime_rpc_v1"]
+    },
+    {
+      "capability_id": "campaign.pause",
+      "description": "Pause a campaign.",
+      "input_contract_ids": ["idea_runtime_rpc_v1"],
+      "output_contract_ids": ["idea_runtime_rpc_v1"]
+    },
+    {
+      "capability_id": "campaign.resume",
+      "description": "Resume a paused or early-stopped campaign.",
+      "input_contract_ids": ["idea_runtime_rpc_v1"],
+      "output_contract_ids": ["idea_runtime_rpc_v1"]
+    },
+    {
+      "capability_id": "campaign.complete",
+      "description": "Complete a campaign.",
+      "input_contract_ids": ["idea_runtime_rpc_v1"],
+      "output_contract_ids": ["idea_runtime_rpc_v1"]
+    },
+    {
       "capability_id": "search.step",
       "description": "Advance campaign search by one or more steps.",
       "input_contract_ids": ["idea_runtime_rpc_v1"],

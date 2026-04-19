@@ -2,6 +2,17 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { createHelloPayloadFromCard, validateAgentCard } from '../src/discovery/index.js';
 
+const LIVE_IDEA_ENGINE_DISCOVERY_CAPABILITIES = [
+  'campaign.init',
+  'campaign.status',
+  'campaign.topup',
+  'campaign.pause',
+  'campaign.resume',
+  'campaign.complete',
+  'search.step',
+  'eval.run',
+] as const;
+
 async function loadLiveCard(fileName: 'hep-mcp.json' | 'idea-engine.json') {
   const raw = await readFile(
     new URL(
@@ -75,17 +86,21 @@ describe('agent card discovery helpers', () => {
     });
 
     expect(payload).toEqual({
-      capabilities: [
-        'campaign.init',
-        'campaign.status',
-        'search.step',
-        'eval.run',
-      ],
+      capabilities: [...LIVE_IDEA_ENGINE_DISCOVERY_CAPABILITIES],
       domain: 'theory',
       agent_name: 'Idea Engine',
       agent_version: '0.0.1',
       supported_check_domains: ['ward', 'cross-check'],
     });
+  });
+
+  it('keeps the live idea-engine card aligned to the eight-method runtime discovery surface', async () => {
+    const card = validateAgentCard(await loadLiveCard('idea-engine.json'));
+    expect(card.ok).toBe(true);
+
+    expect(card.data!.capabilities.map((capability) => capability.capability_id)).toEqual([
+      ...LIVE_IDEA_ENGINE_DISCOVERY_CAPABILITIES,
+    ]);
   });
 
   it('keeps the live idea-engine card pointed at TS-owned contract authority', async () => {

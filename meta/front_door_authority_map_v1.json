@@ -121,6 +121,7 @@
       ],
       "exact_inventory_source": "meta/docs/orchestrator-mcp-tools-spec.md",
       "live_registry_source": "packages/orchestrator/src/orch-tools/index.ts / @autoresearch/orchestrator exported ORCH_TOOL_SPECS",
+      "drift_test_source": "packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts",
       "namespace_families": [
         "orch_run_*",
         "orch_policy_*",
