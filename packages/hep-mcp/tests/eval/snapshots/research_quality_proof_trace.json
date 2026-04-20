@@ -1,0 +1,52 @@
+[
+  {
+    "caseId": "sem04_weak_evidence_abstains",
+    "trace": {
+      "surface": "sem04",
+      "verdict": "abstained",
+      "reason_code": "model_abstained",
+      "state": {
+        "decision_status": "abstained",
+        "relation": "unclear"
+      }
+    }
+  },
+  {
+    "caseId": "sem05_keyword_signal_stays_fail_closed",
+    "trace": {
+      "surface": "sem05",
+      "verdict": "unavailable",
+      "reason_code": "sampling_required",
+      "state": {
+        "paper_type": "uncertain",
+        "provenance_status": "unavailable"
+      }
+    }
+  },
+  {
+    "caseId": "sem12_provenance_match_is_sufficient",
+    "trace": {
+      "surface": "sem12",
+      "verdict": "matched",
+      "reason_code": "semantic_content_match",
+      "state": {
+        "matched_recid": "j1",
+        "provenance_status": "applied",
+        "relationship": "same_content"
+      }
+    }
+  },
+  {
+    "caseId": "sem12_missing_sampling_is_visible",
+    "trace": {
+      "surface": "sem12",
+      "verdict": "sampling_unavailable",
+      "reason_code": "sampling_unavailable",
+      "state": {
+        "matched_recid": null,
+        "provenance_status": "unavailable",
+        "relationship": "unknown"
+      }
+    }
+  }
+]

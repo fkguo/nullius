@@ -1,0 +1,275 @@
+{
+  "name": "research_quality_proof",
+  "version": 1,
+  "description": "Minimal fixed-fixture proof harness for research-quality judgment dimensions on cleaned HEP research surfaces.",
+  "module": "QUALITY-PROOF",
+  "cases": [
+    {
+      "id": "sem04_weak_evidence_abstains",
+      "input": {
+        "surface": "sem04",
+        "payload": {
+          "subject_entity": "Zc(3900)",
+          "inputs": ["title"],
+          "sampling_response": {
+            "abstain": true,
+            "reasoning": "The retrieved claims are too weak to support a stable relation."
+          },
+          "papers": [
+            {
+              "recid": "201",
+              "title": "Cusp explanation of Zc(3900)",
+              "year": 2014,
+              "abstract": "A threshold cusp can mimic the observed enhancement."
+            },
+            {
+              "recid": "202",
+              "title": "Triangle-singularity origin of Zc(3900)",
+              "year": 2015,
+              "abstract": "The peak follows from a triangle singularity rather than a genuine resonance."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "abstained",
+        "reason_code": "model_abstained",
+        "state": {
+          "decision_status": "abstained",
+          "relation": "unclear"
+        }
+      },
+      "tags": [
+        "surface:sem04",
+        "proof:evidence_sufficiency",
+        "proof:fail_closed",
+        "proof:trace_conformance"
+      ],
+      "metadata": {
+        "quality_dimension": "evidence_sufficiency",
+        "why_this_is_proof": "The surface is forced to abstain when title-only evidence is too weak to support a stable relation, so success requires explicit insufficiency recognition rather than retrieval success.",
+        "why_not_proxy": "The case does not reward broader candidate recall, taxonomy quality, or successful classification under weak evidence; it only passes when the system refuses to overclaim.",
+        "contamination_risk": "low",
+        "trace_expectation": "baseline_locked_single_trace",
+        "rubric": {
+          "dimension": "evidence_sufficiency",
+          "expected_trace": {
+            "verdict": "abstained",
+            "reason_code": "model_abstained",
+            "state": {
+              "decision_status": "abstained",
+              "relation": "unclear"
+            }
+          },
+          "invariants": [
+            "weak_evidence_requires_abstention",
+            "decision_status_must_stay_abstained",
+            "relation_must_remain_unclear"
+          ]
+        }
+      }
+    },
+    {
+      "id": "sem05_keyword_signal_stays_fail_closed",
+      "input": {
+        "surface": "sem05",
+        "payload": {
+          "kind": "critical_questions",
+          "recid": "4004",
+          "paper": {
+            "title": "A breakthrough discovery",
+            "abstract": "This breakthrough discovery will revolutionize the field and prove a first result.",
+            "author_count": 1,
+            "citation_count": 60,
+            "arxiv_categories": ["hep-th"]
+          },
+          "comments_exist": false
+        }
+      },
+      "expected": {
+        "verdict": "unavailable",
+        "reason_code": "sampling_required",
+        "state": {
+          "paper_type": "uncertain",
+          "provenance_status": "unavailable"
+        }
+      },
+      "tags": [
+        "surface:sem05",
+        "proof:fail_closed",
+        "proof:trace_conformance"
+      ],
+      "metadata": {
+        "quality_dimension": "fail_closed",
+        "why_this_is_proof": "The surface must remain explicitly unavailable under missing semantic sampling even when the text contains strong claim words that could tempt heuristic overreach.",
+        "why_not_proxy": "This case does not award points for keyword detection, red-flag coverage, or convenience classification; it only checks that the system refuses to infer unsupported semantic authority.",
+        "contamination_risk": "low",
+        "trace_expectation": "baseline_locked_single_trace",
+        "rubric": {
+          "dimension": "fail_closed",
+          "expected_trace": {
+            "verdict": "unavailable",
+            "reason_code": "sampling_required",
+            "state": {
+              "paper_type": "uncertain",
+              "provenance_status": "unavailable"
+            }
+          },
+          "invariants": [
+            "missing_sampling_must_stay_unavailable",
+            "claim_words_must_not_create_semantic_authority"
+          ]
+        }
+      }
+    },
+    {
+      "id": "sem12_provenance_match_is_sufficient",
+      "input": {
+        "surface": "sem12",
+        "payload": {
+          "paper": {
+            "recid": "c1",
+            "title": "Proceedings contribution on dual amplitudes",
+            "abstract": "Conference summary of our dual amplitude calculation and the same final formula later published in journal form.",
+            "authors": ["Doe, Alice", "Smith, Bob"],
+            "year": 2022,
+            "publication_type": ["conference paper"],
+            "document_type": ["conference paper"]
+          },
+          "candidates": [
+            {
+              "recid": "j1",
+              "title": "Dual amplitudes in warped backgrounds",
+              "abstract": "Journal article presenting the same calculation and final formula with full details.",
+              "authors": ["Doe, Alice", "Smith, Bob"],
+              "year": 2023,
+              "publication_type": ["article"],
+              "document_type": ["article"]
+            },
+            {
+              "recid": "r1",
+              "title": "Review of warped backgrounds",
+              "abstract": "A broad review article.",
+              "authors": ["Other, Carol"],
+              "year": 2024,
+              "publication_type": ["review"],
+              "document_type": ["article"]
+            }
+          ],
+          "sampling_response": {
+            "status": "matched",
+            "selected_candidate_key": "j1",
+            "relationship": "same_content",
+            "confidence": 0.93,
+            "reason_code": "semantic_content_match",
+            "reason": "The journal article is the same work in fuller publication form."
+          }
+        }
+      },
+      "expected": {
+        "verdict": "matched",
+        "reason_code": "semantic_content_match",
+        "state": {
+          "matched_recid": "j1",
+          "provenance_status": "applied",
+          "relationship": "same_content"
+        }
+      },
+      "tags": [
+        "surface:sem12",
+        "proof:provenance_sufficiency",
+        "proof:trace_conformance"
+      ],
+      "metadata": {
+        "quality_dimension": "provenance_sufficiency",
+        "why_this_is_proof": "The surface only passes when it produces a stable original-paper match with an explicit applied provenance status and a fixed reason code.",
+        "why_not_proxy": "The case does not reward candidate ranking breadth or author-overlap heuristics by themselves; a metadata prior without stable semantic matching would still fail.",
+        "contamination_risk": "low",
+        "trace_expectation": "baseline_locked_single_trace",
+        "rubric": {
+          "dimension": "provenance_sufficiency",
+          "expected_trace": {
+            "verdict": "matched",
+            "reason_code": "semantic_content_match",
+            "state": {
+              "matched_recid": "j1",
+              "provenance_status": "applied",
+              "relationship": "same_content"
+            }
+          },
+          "invariants": [
+            "matched_recid_must_be_present",
+            "provenance_status_must_be_applied",
+            "semantic_match_cannot_be_prior_only"
+          ]
+        }
+      }
+    },
+    {
+      "id": "sem12_missing_sampling_is_visible",
+      "input": {
+        "surface": "sem12",
+        "payload": {
+          "paper": {
+            "recid": "c4",
+            "title": "Conference note on exotic decays",
+            "abstract": "Proceedings summary.",
+            "authors": ["Zed, Uma"],
+            "year": 2022,
+            "publication_type": ["conference paper"],
+            "document_type": ["conference paper"]
+          },
+          "candidates": [
+            {
+              "recid": "j4",
+              "title": "Exotic decays at high luminosity",
+              "abstract": "Possible follow-up article.",
+              "authors": ["Zed, Uma"],
+              "year": 2023,
+              "publication_type": ["article"],
+              "document_type": ["article"]
+            }
+          ],
+          "sampling_response": null
+        }
+      },
+      "expected": {
+        "verdict": "sampling_unavailable",
+        "reason_code": "sampling_unavailable",
+        "state": {
+          "matched_recid": null,
+          "provenance_status": "unavailable",
+          "relationship": "unknown"
+        }
+      },
+      "tags": [
+        "surface:sem12",
+        "proof:fail_closed",
+        "proof:trace_conformance"
+      ],
+      "metadata": {
+        "quality_dimension": "fail_closed",
+        "why_this_is_proof": "The surface must expose missing sampling as an unavailable state instead of manufacturing a provenance conclusion from priors alone.",
+        "why_not_proxy": "The case is not about finding a candidate or measuring retrieval convenience; it proves that absent semantic authority does not silently degrade into a guessed match.",
+        "contamination_risk": "low",
+        "trace_expectation": "baseline_locked_single_trace",
+        "rubric": {
+          "dimension": "fail_closed",
+          "expected_trace": {
+            "verdict": "sampling_unavailable",
+            "reason_code": "sampling_unavailable",
+            "state": {
+              "matched_recid": null,
+              "provenance_status": "unavailable",
+              "relationship": "unknown"
+            }
+          },
+          "invariants": [
+            "missing_sampling_must_not_guess_match",
+            "unavailable_status_must_be_explicit"
+          ]
+        }
+      }
+    }
+  ]
+}

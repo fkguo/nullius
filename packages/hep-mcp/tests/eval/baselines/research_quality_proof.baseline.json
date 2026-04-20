@@ -1,0 +1,22 @@
+{
+  "evalSetName": "research_quality_proof",
+  "module": "QUALITY-PROOF",
+  "timestamp": "2026-04-20T06:17:45.741Z",
+  "metrics": {
+    "evidence_sufficiency": 1,
+    "provenance_sufficiency": 1,
+    "fail_closed": 1,
+    "trace_conformance": 1,
+    "overall_gate_pass_rate": 1
+  },
+  "aggregateOutcome": {
+    "task_success_rate": 1,
+    "partial_progress_mean": 1,
+    "resource_overhead": {
+      "duration_ms_mean": 40.5,
+      "token_usage_mean": null,
+      "cost_usd_mean": null
+    }
+  },
+  "evalSetVersion": 1
+}
