@@ -1,64 +1,41 @@
 # Research-Quality Proof Harness
 
-This harness is a minimal quality gate, not a general eval platform.
-
-As of April 20, 2026, recent agent-eval guidance has moved further toward:
-
-- fixed fixtures and explicit rubrics instead of broad proxy scores
-- trace-level grading and state inspection instead of outcome-only scoring
-- contamination-aware interpretation of benchmark wins
-- explicit treatment of randomness and non-determinism as part of the eval contract
-
-This harness adopts only the smallest subset needed for the current lane:
-
-- fixed fixtures
-- four repo-level judgment dimensions only
-- single-run canonical trace lock on each case
-- explicit proof-vs-proxy metadata per case
-- explicit low-risk contamination posture
-- bounded semantic contract cases rather than open-ended semantic capability claims
+This harness is a minimal validity note for four fixed cases on cleaned HEP research surfaces. It is not a benchmark, a scorecard, or a general eval platform.
 
 What this harness proves:
 
-- weak evidence can force abstention
-- missing semantic authority fails closed
-- sufficient provenance yields a stable verdict and reason code
-- single-run verdict, reason code, and proof-bearing normalized state are locked as a canonical trace artifact
+- on these fixed fixtures, weak evidence can force abstention
+- on these fixed fixtures, missing semantic authority fails closed
+- on these fixed fixtures, sufficient provenance yields a stable verdict, reason code, and proof-bearing normalized state
+- the single-run canonical trace for those bounded cases is locked
 
 What this harness does not prove:
 
 - retrieval coverage
 - taxonomy quality
+- coverage-style scoring
 - benchmark breadth
-- end-to-end research excellence across all tasks
-- robustness under model drift or broader stochasticity regimes
-- variance bounds under stochastic sampling
-- open-ended semantic correctness beyond the bounded sampled-contract cases in this harness
+- end-to-end research quality across tasks
+- robustness under model drift or broader stochasticity
+- variance bounds
+- open-ended semantic correctness beyond these bounded sampled-contract cases
 
-Why this remains intentionally small:
+Why the selected cases are not local capability proxies:
 
-- expanding to broader productized eval coverage would dilute the signal for this lane
-- adding capability-oriented cases would risk turning local success into false quality proof
-- contamination analysis is handled here as a boundary note, not as a new subsystem
+- each case passes only by refusing to overclaim or by emitting explicit proof-bearing provenance state
+- local convenience signals do not pass on their own: keyword strength, candidate breadth, author overlap, ranking quality, or metadata priors
+- the harness is intentionally about bounded judgment validity, not about how broadly the system can retrieve, classify, or cover a domain
 
-SOTA directions adopted here:
+Minimal contamination boundary:
 
-- trace-first evaluation rather than final-answer-only scoring
-- explicit per-case rubric and proof-vs-proxy metadata
-- contamination-aware interpretation of benchmark claims
-- canonical trace locking on fixed fixtures as a narrow regression gate
-- proof-bearing fields only in the locked canonical trace
+- contamination posture is intentionally narrow: fixed in-repo fixtures, low-risk interpretation, and no benchmark-superiority claim
+- contamination is only a boundary note here; this lane does not introduce a contamination-audit subsystem
+- low contamination risk does not upgrade this harness into evidence about general capability or product readiness
 
-SOTA directions intentionally not implemented in this lane:
+This lane must not be used to justify:
 
-- judge-model calibration loops
-- repeated stochastic sampling / variance analysis
-- continuously refreshed benchmark sets
-- broader productized evaluation infrastructure
-
-Reference directions:
-
-- OpenAI trace grading and agent eval guidance
-- OpenAI grader guidance and evaluation best practices
-- `openai/model_spec_evals` as a structural reference for rubric-based policy evals
-- `LiveBench` as a structural reference for contamination-aware benchmark design
+- broader eval platform or productization work
+- front-door expansion
+- retrieval, taxonomy, or coverage metrics
+- fixture growth for "completeness"
+- trace-schema work, contamination-audit expansion, variance analysis, or naming cleanup under this harness

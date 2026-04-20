@@ -88,6 +88,47 @@ type ProofNormalizedActual = {
   state_signature: string;
 };
 
+const PRIMARY_PROOF_TAG_BY_DIMENSION = {
+  evidence_sufficiency: 'proof:evidence_sufficiency',
+  provenance_sufficiency: 'proof:provenance_sufficiency',
+  fail_closed: 'proof:fail_closed',
+} as const;
+
+const ALLOWED_PROOF_TAGS = [
+  'proof:evidence_sufficiency',
+  'proof:fail_closed',
+  'proof:provenance_sufficiency',
+  'proof:trace_conformance',
+] as const;
+
+const ALLOWED_AGGREGATE_METRICS = [
+  'evidence_sufficiency',
+  'fail_closed',
+  'overall_gate_pass_rate',
+  'provenance_sufficiency',
+  'trace_conformance',
+] as const;
+
+const EXPECTED_PROOF_TAGS_BY_CASE = {
+  sem04_weak_evidence_abstains: [
+    'proof:evidence_sufficiency',
+    'proof:fail_closed',
+    'proof:trace_conformance',
+  ],
+  sem05_keyword_signal_stays_fail_closed: [
+    'proof:fail_closed',
+    'proof:trace_conformance',
+  ],
+  sem12_provenance_match_is_sufficient: [
+    'proof:provenance_sufficiency',
+    'proof:trace_conformance',
+  ],
+  sem12_missing_sampling_is_visible: [
+    'proof:fail_closed',
+    'proof:trace_conformance',
+  ],
+} as const;
+
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(item => stableValue(item));
   if (value && typeof value === 'object') {
@@ -409,6 +450,29 @@ function validateMetadata(metadata: unknown): asserts metadata is ProofMetadata 
   expect((record.rubric?.invariants ?? []).every((invariant: unknown) => typeof invariant === 'string' && invariant.length > 0)).toBe(true);
 }
 
+function validateHarnessBoundary(evalSet: {
+  description?: unknown;
+  cases: Array<{ id: string; tags: string[]; metadata: unknown }>;
+}): void {
+  expect(evalSet.description).toBe(
+    'Minimal fixed-fixture validity harness for bounded judgment checks on cleaned HEP research surfaces, not a benchmark, scorecard, or eval platform.',
+  );
+
+  const proofTagUniverse = new Set<string>();
+  for (const evalCase of evalSet.cases) {
+    validateMetadata(evalCase.metadata);
+    const metadata = evalCase.metadata as ProofMetadata;
+    const proofTags = evalCase.tags.filter(tag => tag.startsWith('proof:'));
+    proofTags.forEach(tag => proofTagUniverse.add(tag));
+
+    expect(proofTags).toContain('proof:trace_conformance');
+    expect(proofTags).toEqual(EXPECTED_PROOF_TAGS_BY_CASE[evalCase.id as keyof typeof EXPECTED_PROOF_TAGS_BY_CASE]);
+    expect(proofTags).toContain(PRIMARY_PROOF_TAG_BY_DIMENSION[metadata.quality_dimension]);
+  }
+
+  expect(Array.from(proofTagUniverse).sort()).toEqual([...ALLOWED_PROOF_TAGS].sort());
+}
+
 describe('eval: research-quality proof harness', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -416,6 +480,7 @@ describe('eval: research-quality proof harness', () => {
 
   it('locks a minimal judgment-quality proof on cleaned surfaces', async () => {
     const evalSet = readEvalSetFixture('research_quality_proof_eval.json');
+    validateHarnessBoundary(evalSet as { description?: unknown; cases: Array<{ id: string; tags: string[]; metadata: unknown }> });
     const report = await runEvalSet<ProofInput, ProofNormalizedActual>(evalSet, {
       run: input => runProofCase(input),
       judge: (expected, actual, evalCase) => {
@@ -483,6 +548,7 @@ describe('eval: research-quality proof harness', () => {
     expect(report.aggregateMetrics.fail_closed).toBe(1);
     expect(report.aggregateMetrics.trace_conformance).toBe(1);
     expect(report.aggregateMetrics.overall_gate_pass_rate).toBe(1);
+    expect(Object.keys(report.aggregateMetrics).sort()).toEqual([...ALLOWED_AGGREGATE_METRICS].sort());
     expect(report.aggregateOutcome.task_success_rate).toBe(1);
     expect(report.aggregateOutcome.partial_progress_mean).toBe(1);
 

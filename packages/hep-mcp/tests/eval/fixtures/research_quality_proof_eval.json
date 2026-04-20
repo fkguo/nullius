@@ -1,7 +1,7 @@
 {
   "name": "research_quality_proof",
   "version": 1,
-  "description": "Minimal fixed-fixture proof harness for research-quality judgment dimensions on cleaned HEP research surfaces.",
+  "description": "Minimal fixed-fixture validity harness for bounded judgment checks on cleaned HEP research surfaces, not a benchmark, scorecard, or eval platform.",
   "module": "QUALITY-PROOF",
   "cases": [
     {
@@ -47,8 +47,8 @@
       ],
       "metadata": {
         "quality_dimension": "evidence_sufficiency",
-        "why_this_is_proof": "The surface is forced to abstain when title-only evidence is too weak to support a stable relation, so success requires explicit insufficiency recognition rather than retrieval success.",
-        "why_not_proxy": "The case does not reward broader candidate recall, taxonomy quality, or successful classification under weak evidence; it only passes when the system refuses to overclaim.",
+        "why_this_is_proof": "The case only passes when weak title-only evidence produces an explicit abstention trace instead of a relation claim.",
+        "why_not_proxy": "This is not a recall, taxonomy, or classification proxy; it only passes when the surface refuses to infer a relation from weak evidence.",
         "contamination_risk": "low",
         "trace_expectation": "baseline_locked_single_trace",
         "rubric": {
@@ -101,8 +101,8 @@
       ],
       "metadata": {
         "quality_dimension": "fail_closed",
-        "why_this_is_proof": "The surface must remain explicitly unavailable under missing semantic sampling even when the text contains strong claim words that could tempt heuristic overreach.",
-        "why_not_proxy": "This case does not award points for keyword detection, red-flag coverage, or convenience classification; it only checks that the system refuses to infer unsupported semantic authority.",
+        "why_this_is_proof": "The case only passes when missing semantic sampling stays explicitly unavailable even under strong claim-word temptation.",
+        "why_not_proxy": "This is not a keyword, red-flag, or convenience-classification proxy; claim words alone must not manufacture semantic authority.",
         "contamination_risk": "low",
         "trace_expectation": "baseline_locked_single_trace",
         "rubric": {
@@ -182,8 +182,8 @@
       ],
       "metadata": {
         "quality_dimension": "provenance_sufficiency",
-        "why_this_is_proof": "The surface only passes when it produces a stable original-paper match with an explicit applied provenance status and a fixed reason code.",
-        "why_not_proxy": "The case does not reward candidate ranking breadth or author-overlap heuristics by themselves; a metadata prior without stable semantic matching would still fail.",
+        "why_this_is_proof": "The case only passes when a stable semantic match yields an applied provenance state, matched recid, and fixed reason code.",
+        "why_not_proxy": "This is not a candidate-breadth, ranking, author-overlap, or metadata-prior proxy; those signals alone still fail.",
         "contamination_risk": "low",
         "trace_expectation": "baseline_locked_single_trace",
         "rubric": {
@@ -249,8 +249,8 @@
       ],
       "metadata": {
         "quality_dimension": "fail_closed",
-        "why_this_is_proof": "The surface must expose missing sampling as an unavailable state instead of manufacturing a provenance conclusion from priors alone.",
-        "why_not_proxy": "The case is not about finding a candidate or measuring retrieval convenience; it proves that absent semantic authority does not silently degrade into a guessed match.",
+        "why_this_is_proof": "The case only passes when missing sampling remains visibly unavailable instead of degrading into a guessed provenance match.",
+        "why_not_proxy": "This is not a candidate-finding or retrieval-convenience proxy; absent semantic authority must stay visible and fail closed.",
         "contamination_risk": "low",
         "trace_expectation": "baseline_locked_single_trace",
         "rubric": {
