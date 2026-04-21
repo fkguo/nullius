@@ -13,9 +13,12 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist",
+    "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/arxiv-mcp @autoresearch/openalex-mcp",
+    "build": "tsc --build",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "prelint": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/arxiv-mcp @autoresearch/openalex-mcp",
     "lint": "tsc --noEmit",
+    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/arxiv-mcp @autoresearch/openalex-mcp",
     "test": "vitest run"
   },
   "dependencies": {

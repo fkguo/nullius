@@ -15,13 +15,17 @@ export const WorkflowProviderIdSchema = z.enum([
   'doi',
 ]);
 
-export const WorkflowCapabilityIdSchema = z.enum([
-  ...DiscoveryCapabilityNameSchema.options,
+const AnalysisWorkflowCapabilityIdSchema = z.enum([
   'analysis.topic_evolution',
   'analysis.citation_network',
   'analysis.paper_set_connections',
   'analysis.provenance_trace',
   'analysis.paper_set_critical_review',
+]);
+
+export const WorkflowCapabilityIdSchema = z.union([
+  DiscoveryCapabilityNameSchema,
+  AnalysisWorkflowCapabilityIdSchema,
 ]);
 
 export const WorkflowActionIdSchema = z.enum([

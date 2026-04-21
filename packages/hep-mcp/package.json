@@ -25,8 +25,8 @@
   },
   "scripts": {
     "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/orchestrator @autoresearch/arxiv-mcp @autoresearch/hepdata-mcp @autoresearch/openalex-mcp @autoresearch/pdg-mcp @autoresearch/zotero-mcp",
-    "build": "node ../../scripts/check-orchestrator-package-freshness.mjs && tsc",
-    "clean": "rm -rf dist",
+    "build": "node ../../scripts/check-orchestrator-package-freshness.mjs && tsc --build",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "lint": "tsc --noEmit",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
