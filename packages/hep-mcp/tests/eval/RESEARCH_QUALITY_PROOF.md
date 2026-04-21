@@ -31,6 +31,7 @@ Minimal contamination boundary:
 - contamination posture is intentionally narrow: fixed in-repo fixtures, low-risk interpretation, and no benchmark-superiority claim
 - contamination is only a boundary note here; this lane does not introduce a contamination-audit subsystem
 - low contamination risk does not upgrade this harness into evidence about general capability or product readiness
+- proof-bearing baseline authority lives in the fixed aggregate proof metrics; `timestamp` and `aggregateOutcome.resource_overhead` are retained only as incidental runtime bookkeeping and are not authoritative evidence
 
 This lane must not be used to justify:
 

@@ -562,56 +562,59 @@ describe('eval: research-quality proof harness', () => {
     expect(comparison.deltas.overall_gate_pass_rate?.delta ?? NaN).toBeCloseTo(0, 9);
   });
 
-  it('rejects structurally similar traces that violate dimension-specific rubric invariants', () => {
-    const failClosedMetadata: ProofMetadata = {
-      quality_dimension: 'fail_closed',
-      why_this_is_proof: 'test',
-      why_not_proxy: 'test',
-      contamination_risk: 'low',
-      trace_expectation: 'baseline_locked_single_trace',
-      rubric: {
-        dimension: 'fail_closed',
-        expected_trace: {
-          verdict: 'sampling_unavailable',
-          reason_code: 'sampling_unavailable',
-          state: { matched_recid: null, provenance_status: 'unavailable', relationship: 'unknown' },
-        },
-        invariants: ['no_guessed_match', 'explicit_unavailable_status'],
-      },
-    };
-    const provenanceMetadata: ProofMetadata = {
-      quality_dimension: 'provenance_sufficiency',
-      why_this_is_proof: 'test',
-      why_not_proxy: 'test',
-      contamination_risk: 'low',
-      trace_expectation: 'baseline_locked_single_trace',
-      rubric: {
-        dimension: 'provenance_sufficiency',
-        expected_trace: {
-          verdict: 'matched',
-          reason_code: 'semantic_content_match',
-          state: { matched_recid: 'j1', provenance_status: 'applied', relationship: 'same_content' },
-        },
-        invariants: ['matched_recid_present', 'applied_provenance_required'],
-      },
-    };
+  it('rejects traces by walking the real rubric invariant wiring from the fixed fixture metadata', () => {
+    const evalSet = readEvalSetFixture('research_quality_proof_eval.json');
+    const failClosedCase = evalSet.cases.find(evalCase => evalCase.id === 'sem12_missing_sampling_is_visible');
+    const provenanceCase = evalSet.cases.find(evalCase => evalCase.id === 'sem12_provenance_match_is_sufficient');
 
-    const guessedMatch = buildActual('sem12', 'sampling_unavailable', 'sampling_unavailable', {
-      matched_recid: 'j4',
-      provenance_status: 'unavailable',
+    expect(failClosedCase).toBeTruthy();
+    expect(provenanceCase).toBeTruthy();
+
+    validateMetadata(failClosedCase?.metadata);
+    validateMetadata(provenanceCase?.metadata);
+
+    const failClosedMetadata = failClosedCase?.metadata as ProofMetadata;
+    const provenanceMetadata = provenanceCase?.metadata as ProofMetadata;
+
+    expect(failClosedMetadata.rubric.invariants).toEqual([
+      'missing_sampling_must_not_guess_match',
+      'unavailable_status_must_be_explicit',
+    ]);
+    expect(provenanceMetadata.rubric.invariants).toEqual([
+      'matched_recid_must_be_present',
+      'provenance_status_must_be_applied',
+      'semantic_match_cannot_be_prior_only',
+    ]);
+
+    const failClosedInvariantOnlyBreak = buildActual('sem12', 'sampling_unavailable', 'sampling_unavailable', {
+      matched_recid: null,
+      provenance_status: 'diagnostic',
       relationship: 'unknown',
     });
+    const failClosedWiringMetadata: ProofMetadata = {
+      ...failClosedMetadata,
+      rubric: {
+        ...failClosedMetadata.rubric,
+        expected_trace: {
+          verdict: failClosedInvariantOnlyBreak.verdict,
+          reason_code: failClosedInvariantOnlyBreak.reason_code,
+          state: failClosedInvariantOnlyBreak.state,
+        },
+      },
+    };
     const weakProvenance = buildActual('sem12', 'matched', 'semantic_content_match', {
       matched_recid: null,
       provenance_status: 'diagnostic',
       relationship: 'same_content',
     });
 
-    expect(evaluateRubric(guessedMatch, failClosedMetadata)).toBe(false);
+    expect(matchesExpected(failClosedInvariantOnlyBreak, failClosedWiringMetadata.rubric.expected_trace)).toBe(true);
+    expect(passesFailClosed(failClosedInvariantOnlyBreak)).toBe(true);
+    expect(evaluateInvariant('unavailable_status_must_be_explicit', failClosedInvariantOnlyBreak)).toBe(false);
+    expect(evaluateRubric(failClosedInvariantOnlyBreak, failClosedWiringMetadata)).toBe(false);
+
     expect(evaluateRubric(weakProvenance, provenanceMetadata)).toBe(false);
-    expect(passesFailClosed(guessedMatch)).toBe(false);
     expect(passesProvenanceSufficiency(weakProvenance)).toBe(false);
-    expect(evaluateInvariant('missing_sampling_must_not_guess_match', guessedMatch)).toBe(false);
     expect(evaluateInvariant('matched_recid_must_be_present', weakProvenance)).toBe(false);
   });
 });
