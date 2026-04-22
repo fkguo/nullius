@@ -591,6 +591,11 @@ describe('eval: research-quality proof harness', () => {
       provenance_status: 'diagnostic',
       relationship: 'unknown',
     });
+    const guessedMatch = buildActual('sem12', 'sampling_unavailable', 'sampling_unavailable', {
+      matched_recid: 'j4',
+      provenance_status: 'unavailable',
+      relationship: 'unknown',
+    });
     const failClosedWiringMetadata: ProofMetadata = {
       ...failClosedMetadata,
       rubric: {
@@ -599,6 +604,17 @@ describe('eval: research-quality proof harness', () => {
           verdict: failClosedInvariantOnlyBreak.verdict,
           reason_code: failClosedInvariantOnlyBreak.reason_code,
           state: failClosedInvariantOnlyBreak.state,
+        },
+      },
+    };
+    const failClosedGuessingMetadata: ProofMetadata = {
+      ...failClosedMetadata,
+      rubric: {
+        ...failClosedMetadata.rubric,
+        expected_trace: {
+          verdict: guessedMatch.verdict,
+          reason_code: guessedMatch.reason_code,
+          state: guessedMatch.state,
         },
       },
     };
@@ -612,6 +628,11 @@ describe('eval: research-quality proof harness', () => {
     expect(passesFailClosed(failClosedInvariantOnlyBreak)).toBe(true);
     expect(evaluateInvariant('unavailable_status_must_be_explicit', failClosedInvariantOnlyBreak)).toBe(false);
     expect(evaluateRubric(failClosedInvariantOnlyBreak, failClosedWiringMetadata)).toBe(false);
+
+    expect(matchesExpected(guessedMatch, failClosedGuessingMetadata.rubric.expected_trace)).toBe(true);
+    expect(passesFailClosed(guessedMatch)).toBe(false);
+    expect(evaluateInvariant('missing_sampling_must_not_guess_match', guessedMatch)).toBe(false);
+    expect(evaluateRubric(guessedMatch, failClosedGuessingMetadata)).toBe(false);
 
     expect(evaluateRubric(weakProvenance, provenanceMetadata)).toBe(false);
     expect(passesProvenanceSufficiency(weakProvenance)).toBe(false);
