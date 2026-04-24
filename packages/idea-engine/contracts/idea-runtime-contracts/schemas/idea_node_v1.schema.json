@@ -205,6 +205,11 @@
                 "type": "string"
               },
               "description": "Superset of failure modes (may include free-text diagnostics beyond the fix_suggestions enum). Structured actionable failures should appear in fix_suggestions; this field captures all detected issues including informational ones."
+            },
+            "promotion_scorecards_artifact_ref": {
+              "type": "string",
+              "format": "uri",
+              "description": "Internal node-scoped pointer to the latest grounding-eval scorecards artifact considered by promotion. Promotion uses this instead of campaign-global latest scorecards and still fail-closes if the referenced scorecard is unsupported."
             }
           },
           "additionalProperties": false

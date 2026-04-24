@@ -62,6 +62,70 @@
       },
       "additionalProperties": false
     },
+    "evidence_support": {
+      "type": "object",
+      "required": [
+        "support_status",
+        "scorecard_status",
+        "scorecards_artifact_ref",
+        "supported_dimensions",
+        "unsupported_dimensions",
+        "evidence_uris",
+        "failure_modes"
+      ],
+      "properties": {
+        "support_status": {
+          "enum": [
+            "supported",
+            "partially_supported"
+          ],
+          "description": "Internal carry-through marker for evidence-backed support coverage. This is not a research-quality or authority score."
+        },
+        "scorecard_status": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        },
+        "scorecards_artifact_ref": {
+          "type": "string",
+          "format": "uri"
+        },
+        "supported_dimensions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unsupported_dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence_uris": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "format": "uri",
+            "not": {
+              "const": "https://example.org/reference"
+            }
+          }
+        },
+        "failure_modes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "reduction_report": {
       "oneOf": [
         {

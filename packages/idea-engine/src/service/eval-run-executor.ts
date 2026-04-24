@@ -213,6 +213,10 @@ export function executeEvalRun(options: {
     ensureCampaignRunning(campaign);
 
     const now = options.now();
+    const scorecardsArtifactName = `scorecards-${options.createId()}.json`;
+    const scorecardsArtifactRef = pathToFileURL(
+      options.store.artifactPath(campaignId, 'scorecards', scorecardsArtifactName),
+    ).href;
     const updatedNodes = structuredClone(options.store.loadNodes<Record<string, unknown>>(campaignId));
     const nodeRevisions: Record<string, number> = {};
     const scorecards: Array<Record<string, unknown>> = [];
@@ -230,9 +234,21 @@ export function executeEvalRun(options: {
         nodeId,
         now,
       });
+      const previousEvalInfo = node.eval_info && typeof node.eval_info === 'object' && !Array.isArray(node.eval_info)
+        ? node.eval_info as Record<string, unknown>
+        : {};
+      const previousPromotionSupportRef = previousEvalInfo.promotion_scorecards_artifact_ref;
+      const keepsExistingPromotionSupport = typeof previousPromotionSupportRef === 'string'
+        && !evaluation.failureModes.some(mode => mode === 'missing_evidence' || mode === 'formalization_trace_invalid');
+      const promotionScorecardsArtifactRef = evaluation.groundingAudit
+        ? scorecardsArtifactRef
+        : keepsExistingPromotionSupport
+          ? previousPromotionSupportRef
+          : null;
       node.eval_info = {
         failure_modes: structuredClone(evaluation.failureModes),
         fix_suggestions: structuredClone(evaluation.fixSuggestions),
+        ...(promotionScorecardsArtifactRef ? { promotion_scorecards_artifact_ref: promotionScorecardsArtifactRef } : {}),
         scores: structuredClone(evaluation.scores),
       };
       if (evaluation.groundingAudit) {
@@ -265,11 +281,6 @@ export function executeEvalRun(options: {
       scorecardsPayload,
       `eval.run/scorecards/${campaignId}`,
     );
-
-    const scorecardsArtifactName = `scorecards-${options.createId()}.json`;
-    const scorecardsArtifactRef = pathToFileURL(
-      options.store.artifactPath(campaignId, 'scorecards', scorecardsArtifactName),
-    ).href;
 
     const plannedCampaign = structuredClone(campaign);
     plannedCampaign.last_scorecards_artifact_ref = scorecardsArtifactRef;

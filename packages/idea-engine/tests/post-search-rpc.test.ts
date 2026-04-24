@@ -102,6 +102,88 @@ describe('post-search RPC migration slice', () => {
     );
     expect(handoff.node_id).toBe(nodeId);
     expect(handoff.idea_card).toBeTruthy();
+    expect(handoff.evidence_support).toEqual({
+      evidence_uris: ['https://example.org/seed-1'],
+      failure_modes: [],
+      scorecard_status: 'complete',
+      scorecards_artifact_ref: evalResult.scorecards_artifact_ref,
+      support_status: 'supported',
+      supported_dimensions: ['feasibility', 'grounding'],
+      unsupported_dimensions: [],
+    });
+    expect(handoff.evidence_support).not.toHaveProperty('scores');
+    expect(handoff.evidence_support).not.toHaveProperty('authority_score');
+  });
+
+  it('keeps placeholder evidence out of promoted handoff evidence fields', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-promote-placeholder-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service);
+    const nodeId = firstNodeId(service, campaignId);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[nodeId] as Record<string, unknown>;
+    const ideaCard = node.idea_card as Record<string, unknown>;
+    const firstClaim = (ideaCard.claims as Array<Record<string, unknown>>)[0]!;
+    firstClaim.evidence_uris = ['https://example.org/seed-1', 'https://example.org/reference'];
+    service.read.store.saveNodes(campaignId, nodes);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-placeholder-promote-key',
+      node_ids: [nodeId],
+    });
+    const promoteResult = service.handle('node.promote', {
+      campaign_id: campaignId,
+      idempotency_key: 'promote-placeholder-key',
+      node_id: nodeId,
+    });
+
+    const handoff = service.read.store.loadArtifactFromRef<Record<string, unknown>>(
+      String(promoteResult.handoff_artifact_ref),
+    );
+    const promotedIdeaCard = handoff.idea_card as Record<string, unknown>;
+    const promotedClaim = (promotedIdeaCard.claims as Array<Record<string, unknown>>)[0]!;
+
+    expect((handoff.evidence_support as Record<string, unknown>).evidence_uris).toEqual(['https://example.org/seed-1']);
+    expect(promotedClaim.evidence_uris).toEqual(['https://example.org/seed-1']);
+  });
+
+  it('carries promotion support from the node grounding eval instead of the latest campaign scorecards', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-promote-provenance-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service);
+    const nodeId = firstNodeId(service, campaignId);
+
+    const groundingEval = service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-grounding-provenance-key',
+      node_ids: [nodeId],
+    });
+    const laterEval = service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['novelty'], n_reviewers: 2 },
+      idempotency_key: 'eval-latest-non-grounding-key',
+      node_ids: [nodeId],
+    });
+    expect(laterEval.scorecards_artifact_ref).not.toBe(groundingEval.scorecards_artifact_ref);
+
+    const promoteResult = service.handle('node.promote', {
+      campaign_id: campaignId,
+      idempotency_key: 'promote-provenance-key',
+      node_id: nodeId,
+    });
+    const handoff = service.read.store.loadArtifactFromRef<Record<string, unknown>>(
+      String(promoteResult.handoff_artifact_ref),
+    );
+
+    expect((handoff.evidence_support as Record<string, unknown>).scorecards_artifact_ref)
+      .toBe(groundingEval.scorecards_artifact_ref);
+    expect((handoff.evidence_support as Record<string, unknown>).supported_dimensions)
+      .toEqual(['feasibility', 'grounding']);
   });
 
   it('keeps novelty and impact as supported evidence-gated eval dimensions', () => {
@@ -595,6 +677,113 @@ describe('post-search RPC migration slice', () => {
       const rpcError = error as RpcError;
       expect(rpcError.code).toBe(-32011);
       expect(rpcError.data.reason).toBe('grounding_audit_not_pass');
+    }
+  });
+
+  it('keeps node.promote fail-closed when eval support has no usable evidence', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-promote-missing-evidence-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'seed-without-real-evidence',
+        seed_type: 'text',
+      },
+    ]);
+    const nodeId = firstNodeId(service, campaignId);
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-promote-missing-evidence',
+      node_ids: [nodeId],
+    });
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    nodes[nodeId]!.grounding_audit = {
+      failures: [],
+      folklore_risk_score: 0.15,
+      status: 'pass',
+      timestamp: '2026-03-25T00:00:00Z',
+    };
+    service.read.store.saveNodes(campaignId, nodes);
+
+    expect(() => service.handle('node.promote', {
+      campaign_id: campaignId,
+      idempotency_key: 'promote-missing-evidence',
+      node_id: nodeId,
+    })).toThrowError(RpcError);
+    try {
+      service.handle('node.promote', {
+        campaign_id: campaignId,
+        idempotency_key: 'promote-missing-evidence',
+        node_id: nodeId,
+      });
+    } catch (error) {
+      const rpcError = error as RpcError;
+      expect(rpcError.code).toBe(-32011);
+      expect(rpcError.data.reason).toBe('promotion_support_not_supported');
+    }
+  });
+
+  it('does not fall back to stale successful promotion support after a later failed grounding eval', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-promote-stale-support-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service);
+    const nodeId = firstNodeId(service, campaignId);
+
+    const successfulEval = service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-promote-stale-support-pass',
+      node_ids: [nodeId],
+    });
+    let nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    let node = nodes[nodeId] as Record<string, unknown>;
+    expect((node.eval_info as Record<string, unknown>).promotion_scorecards_artifact_ref)
+      .toBe(successfulEval.scorecards_artifact_ref);
+
+    const operatorTrace = node.operator_trace as Record<string, unknown>;
+    operatorTrace.evidence_uris_used = ['https://example.org/reference'];
+    const ideaCard = node.idea_card as Record<string, unknown>;
+    const firstClaim = (ideaCard.claims as Array<Record<string, unknown>>)[0]!;
+    firstClaim.evidence_uris = ['https://example.org/reference'];
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const failedEval = service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-promote-stale-support-fail',
+      node_ids: [nodeId],
+    });
+    expect(failedEval.scorecards_artifact_ref).not.toBe(successfulEval.scorecards_artifact_ref);
+
+    nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    node = nodes[nodeId] as Record<string, unknown>;
+    expect((node.eval_info as Record<string, unknown>).promotion_scorecards_artifact_ref)
+      .toBe(failedEval.scorecards_artifact_ref);
+    node.grounding_audit = {
+      failures: [],
+      folklore_risk_score: 0.15,
+      status: 'pass',
+      timestamp: '2026-03-25T00:00:00Z',
+    };
+    service.read.store.saveNodes(campaignId, nodes);
+
+    expect(() => service.handle('node.promote', {
+      campaign_id: campaignId,
+      idempotency_key: 'promote-stale-support',
+      node_id: nodeId,
+    })).toThrowError(RpcError);
+    try {
+      service.handle('node.promote', {
+        campaign_id: campaignId,
+        idempotency_key: 'promote-stale-support',
+        node_id: nodeId,
+      });
+    } catch (error) {
+      const rpcError = error as RpcError;
+      expect(rpcError.code).toBe(-32011);
+      expect(rpcError.data.reason).toBe('promotion_support_not_supported');
     }
   });
 
