@@ -17,9 +17,10 @@ describe('memory-graph sqlite store', () => {
   it('tracks top and high-frequency signals across the rolling window', async () => {
     await withTempDb(async dbPath => {
       const store = createSqliteMemoryGraphStore(dbPath);
-      await store.incrementSignalFrequency('sig-1', 'type error in <path>', '2026-03-24T00:00:00.000Z');
-      await store.incrementSignalFrequency('sig-1', 'type error in <path>', '2026-03-24T01:00:00.000Z');
-      await store.incrementSignalFrequency('sig-2', 'missing import after <N> retries', '2026-03-24T02:00:00.000Z');
+      const now = Date.now();
+      await store.incrementSignalFrequency('sig-1', 'type error in <path>', new Date(now - 2 * 60 * 60 * 1000).toISOString());
+      await store.incrementSignalFrequency('sig-1', 'type error in <path>', new Date(now - 60 * 60 * 1000).toISOString());
+      await store.incrementSignalFrequency('sig-2', 'missing import after <N> retries', new Date(now).toISOString());
 
       expect(await store.topSignals(30, 5)).toEqual([
         { signal: 'type error in <path>', count: 2 },
