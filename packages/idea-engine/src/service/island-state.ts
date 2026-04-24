@@ -1,12 +1,30 @@
 const BEST_SCORE_EPSILON = 1e-9;
 const STAGNATION_PATIENCE_STEPS = 2;
 
+function compareStableNodeOrder(left: Record<string, unknown>, right: Record<string, unknown>): number {
+  const leftCreated = String(left.created_at ?? '');
+  const rightCreated = String(right.created_at ?? '');
+  if (leftCreated < rightCreated) return -1;
+  if (leftCreated > rightCreated) return 1;
+  return String(left.node_id).localeCompare(String(right.node_id));
+}
+
 function nodeScore(node: Record<string, unknown>): number | null {
   const scores = (node.eval_info as Record<string, unknown> | undefined)?.scores;
   if (!scores || typeof scores !== 'object') return null;
-  const values = Object.values(scores).filter((value): value is number => typeof value === 'number');
+  const typedScores = scores as Record<string, unknown>;
+  const values = Object.values(typedScores).filter((value): value is number => typeof value === 'number');
   if (values.length === 0) return null;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+  const groundingScored = typeof typedScores.grounding === 'number';
+  const groundingStatus = node.grounding_audit && typeof node.grounding_audit === 'object'
+    ? (node.grounding_audit as Record<string, unknown>).status
+    : undefined;
+  const groundingWeight = groundingScored
+    ? groundingStatus === 'pass' ? 1 : groundingStatus === 'partial' ? 0.5 : groundingStatus === 'fail' ? 0 : 1
+    : 1;
+  const supportedScores = values.filter(value => value > 0);
+  if (supportedScores.length === 0) return null;
+  return (supportedScores.length / values.length) * groundingWeight;
 }
 
 export function refreshIslandPopulationSizes(
@@ -29,13 +47,20 @@ export function markIslandsExhausted(campaign: Record<string, unknown>): void {
 export function pickParentNode(nodes: Record<string, Record<string, unknown>>, islandId: string): Record<string, unknown> | null {
   const islandNodes = Object.values(nodes).filter(node => node.island_id === islandId);
   if (islandNodes.length === 0) return null;
-  islandNodes.sort((left, right) => {
-    const leftCreated = String(left.created_at ?? '');
-    const rightCreated = String(right.created_at ?? '');
-    if (leftCreated < rightCreated) return -1;
-    if (leftCreated > rightCreated) return 1;
-    return String(left.node_id).localeCompare(String(right.node_id));
-  });
+  if (islandNodes.some(node => nodeScore(node) !== null)) {
+    islandNodes.sort((left, right) => {
+      const leftScore = nodeScore(left);
+      const rightScore = nodeScore(right);
+      if (leftScore !== null || rightScore !== null) {
+        if (leftScore === null) return 1;
+        if (rightScore === null) return -1;
+        if (leftScore !== rightScore) return rightScore - leftScore;
+      }
+      return compareStableNodeOrder(left, right);
+    });
+    return islandNodes[0] ?? null;
+  }
+  islandNodes.sort(compareStableNodeOrder);
   return islandNodes[0] ?? null;
 }
 

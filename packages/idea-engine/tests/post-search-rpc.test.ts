@@ -5,7 +5,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { IdeaEngineRpcService } from '../src/service/rpc-service.js';
 import { RpcError } from '../src/service/errors.js';
 
-function initCampaign(service: IdeaEngineRpcService): string {
+function initCampaign(
+  service: IdeaEngineRpcService,
+  seeds: Array<Record<string, unknown>> = [
+    {
+      content: 'seed-one',
+      seed_type: 'text',
+      source_uris: ['https://example.org/seed-1'],
+    },
+  ],
+): string {
   const result = service.handle('campaign.init', {
     budget: {
       max_cost_usd: 100.0,
@@ -22,13 +31,7 @@ function initCampaign(service: IdeaEngineRpcService): string {
     },
     idempotency_key: 'init-key',
     seed_pack: {
-      seeds: [
-        {
-          content: 'seed-one',
-          seed_type: 'text',
-          source_uris: ['https://example.org/seed-1'],
-        },
-      ],
+      seeds,
     },
   });
   return String(result.campaign_id);
@@ -37,6 +40,10 @@ function initCampaign(service: IdeaEngineRpcService): string {
 function firstNodeId(service: IdeaEngineRpcService, campaignId: string): string {
   const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
   return Object.keys(nodes)[0]!;
+}
+
+function allNodeIds(service: IdeaEngineRpcService, campaignId: string): string[] {
+  return Object.keys(service.read.store.loadNodes<Record<string, unknown>>(campaignId));
 }
 
 describe('post-search RPC migration slice', () => {
@@ -57,7 +64,7 @@ describe('post-search RPC migration slice', () => {
 
     const evalResult = service.handle('eval.run', {
       campaign_id: campaignId,
-      evaluator_config: { dimensions: ['novelty', 'grounding'], n_reviewers: 2 },
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
       idempotency_key: 'eval-key',
       node_ids: [nodeId],
     });
@@ -66,7 +73,7 @@ describe('post-search RPC migration slice', () => {
 
     const replay = service.handle('eval.run', {
       campaign_id: campaignId,
-      evaluator_config: { dimensions: ['novelty', 'grounding'], n_reviewers: 2 },
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
       idempotency_key: 'eval-key',
       node_ids: [nodeId],
     });
@@ -95,6 +102,264 @@ describe('post-search RPC migration slice', () => {
     );
     expect(handoff.node_id).toBe(nodeId);
     expect(handoff.idea_card).toBeTruthy();
+  });
+
+  it('keeps novelty and impact as supported evidence-gated eval dimensions', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-novelty-impact-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service);
+    const nodeId = firstNodeId(service, campaignId);
+
+    const evalResult = service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['novelty', 'impact'], n_reviewers: 2 },
+      idempotency_key: 'eval-novelty-impact-key',
+      node_ids: [nodeId],
+    });
+    const node = service.read.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId] as Record<string, unknown>;
+    const scorecards = service.read.store.loadArtifactFromRef<Record<string, unknown>>(
+      String(evalResult.scorecards_artifact_ref),
+    );
+    const scorecard = (scorecards.scorecards as Array<Record<string, unknown>>)[0]!;
+
+    expect(scorecard.status).toBe('complete');
+    expect(scorecard.scores).toEqual({ novelty: 1, impact: 1 });
+    expect((node.eval_info as Record<string, unknown>).scores).toEqual({ novelty: 1, impact: 1 });
+  });
+
+  it('keeps rank.compute fail-closed when eval.run cannot support pareto dimensions from evidence', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-pareto-guard-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'seed-without-grounding-evidence',
+        seed_type: 'text',
+      },
+    ]);
+    const nodeId = firstNodeId(service, campaignId);
+
+    const evalResult = service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-partial-key',
+      node_ids: [nodeId],
+    });
+    const node = service.read.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId] as Record<string, unknown>;
+    const scorecards = service.read.store.loadArtifactFromRef<Record<string, unknown>>(
+      String(evalResult.scorecards_artifact_ref),
+    );
+    const scorecard = (scorecards.scorecards as Array<Record<string, unknown>>)[0]!;
+
+    expect(node.eval_info).toMatchObject({
+      failure_modes: expect.arrayContaining(['missing_evidence']),
+      scores: {},
+    });
+    expect(node.grounding_audit).toMatchObject({ status: 'partial' });
+    expect(scorecard.status).toBe('failed');
+    expect(scorecard.scores).toEqual({});
+    expect(scorecard.evidence_uris).toBeUndefined();
+
+    expect(() => service.handle('rank.compute', {
+      campaign_id: campaignId,
+      idempotency_key: 'rank-insufficient-dimensions',
+      method: 'pareto',
+    })).toThrowError(RpcError);
+    try {
+      service.handle('rank.compute', {
+        campaign_id: campaignId,
+        idempotency_key: 'rank-insufficient-dimensions',
+        method: 'pareto',
+      });
+    } catch (error) {
+      const rpcError = error as RpcError;
+      expect(rpcError.code).toBe(-32013);
+      expect(rpcError.data.reason).toBe('no_scorecards');
+    }
+  });
+
+  it('keeps rank.compute elo fail-closed when only one node has evidence-backed eval signals', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-elo-guard-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'seed-without-grounding-evidence',
+        seed_type: 'text',
+      },
+      {
+        content: 'seed-with-grounding-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-2'],
+      },
+    ]);
+    const [weakNodeId, strongNodeId] = allNodeIds(service, campaignId);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-elo-key',
+      node_ids: [weakNodeId, strongNodeId],
+    });
+
+    expect(() => service.handle('rank.compute', {
+      campaign_id: campaignId,
+      idempotency_key: 'rank-elo-guard',
+      method: 'elo',
+      elo_config: { initial_rating: 1000, k_factor: 16, max_rounds: 4, seed: 7 },
+    })).toThrowError(RpcError);
+    try {
+      service.handle('rank.compute', {
+        campaign_id: campaignId,
+        idempotency_key: 'rank-elo-guard',
+        method: 'elo',
+        elo_config: { initial_rating: 1000, k_factor: 16, max_rounds: 4, seed: 7 },
+      });
+    } catch (error) {
+      const rpcError = error as RpcError;
+      expect(rpcError.code).toBe(-32013);
+      expect(rpcError.data.reason).toBe('insufficient_nodes');
+    }
+  });
+
+  it('prefers the strongest evaluated node as the search frontier parent when eval evidence exists', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-frontier-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'older-seed-with-placeholder-evidence',
+        seed_type: 'text',
+      },
+      {
+        content: 'newer-seed-with-real-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-2'],
+      },
+    ]);
+    const [olderNodeId, strongerNodeId] = allNodeIds(service, campaignId);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-frontier-key',
+      node_ids: [olderNodeId, strongerNodeId],
+    });
+    const evaluatedNodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    expect((evaluatedNodes[olderNodeId]!.eval_info as Record<string, unknown>).scores).toEqual({});
+    expect((evaluatedNodes[strongerNodeId]!.grounding_audit as Record<string, unknown>).status).toBe('pass');
+
+    const searchResult = service.handle('search.step', {
+      campaign_id: campaignId,
+      idempotency_key: 'search-step-frontier-key',
+      n_steps: 1,
+    });
+    const newNodeId = String((searchResult.new_node_ids as string[])[0]);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const newNode = nodes[newNodeId] as Record<string, unknown>;
+
+    expect(newNode.parent_node_ids).toEqual([strongerNodeId]);
+  });
+
+  it('uses coarse support markers without creating false quality differences between passing nodes', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-coarse-support-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'first-seed-with-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-1'],
+      },
+      {
+        content: 'second-seed-with-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-2'],
+      },
+    ]);
+    const [firstNodeId, secondNodeId] = allNodeIds(service, campaignId);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['novelty', 'impact'], n_reviewers: 2 },
+      idempotency_key: 'eval-coarse-support-key',
+      node_ids: [firstNodeId, secondNodeId],
+    });
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+
+    expect((nodes[firstNodeId]!.eval_info as Record<string, unknown>).scores).toEqual({ novelty: 1, impact: 1 });
+    expect((nodes[secondNodeId]!.eval_info as Record<string, unknown>).scores).toEqual({ novelty: 1, impact: 1 });
+
+    const rankResult = service.handle('rank.compute', {
+      campaign_id: campaignId,
+      dimensions: ['novelty', 'impact'],
+      idempotency_key: 'rank-coarse-support-key',
+      method: 'pareto',
+    });
+    const rankedNodes = rankResult.ranked_nodes as Array<Record<string, unknown>>;
+
+    expect(rankedNodes).toHaveLength(2);
+    expect(rankedNodes.map(node => node.pareto_front)).toEqual([true, true]);
+  });
+
+  it('ignores stale grounding failure when ranking on refreshed non-grounding dimensions', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-stale-grounding-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'older-seed-with-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-1'],
+      },
+      {
+        content: 'newer-seed-with-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-2'],
+      },
+    ]);
+    const [firstNodeId, secondNodeId] = allNodeIds(service, campaignId);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const firstNode = nodes[firstNodeId] as Record<string, unknown>;
+    const operatorTrace = firstNode.operator_trace as Record<string, unknown>;
+    const params = operatorTrace.params as Record<string, unknown>;
+    const formalization = params.formalization as Record<string, unknown>;
+    const originalHash = String(formalization.rationale_hash);
+
+    formalization.rationale_hash = `sha256:${'0'.repeat(64)}`;
+    service.read.store.saveNodes(campaignId, nodes);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-stale-grounding-fail',
+      node_ids: [firstNodeId],
+    });
+
+    const failedNodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    expect((failedNodes[firstNodeId]!.grounding_audit as Record<string, unknown>).status).toBe('fail');
+
+    ((failedNodes[firstNodeId]!.operator_trace as Record<string, unknown>).params as Record<string, unknown>).formalization =
+      { ...formalization, rationale_hash: originalHash };
+    service.read.store.saveNodes(campaignId, failedNodes);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility'], n_reviewers: 2 },
+      idempotency_key: 'eval-stale-grounding-refresh',
+      node_ids: [firstNodeId, secondNodeId],
+    });
+
+    const rankResult = service.handle('rank.compute', {
+      campaign_id: campaignId,
+      dimensions: ['feasibility'],
+      elo_config: { initial_rating: 1000, k_factor: 16, max_rounds: 4, seed: 9 },
+      idempotency_key: 'rank-ignore-stale-grounding',
+      method: 'elo',
+    });
+
+    expect(rankResult.ranked_nodes).toHaveLength(2);
   });
 
   it('keeps rank.compute fail-closed when scorecards are unavailable', () => {
@@ -154,7 +419,7 @@ describe('post-search RPC migration slice', () => {
     const nodeId = firstNodeId(service, campaignId);
     service.handle('eval.run', {
       campaign_id: campaignId,
-      evaluator_config: { dimensions: ['novelty', 'grounding'], n_reviewers: 2 },
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
       idempotency_key: 'eval-for-formalization',
       node_ids: [nodeId],
     });

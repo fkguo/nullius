@@ -75,12 +75,6 @@ export function validateFormalizationTrace(options: {
   }
 }
 
-export function deterministicScore(nodeId: string, dimension: string): number {
-  const token = `${nodeId}:${dimension}`;
-  const value = Number.parseInt(sha256Hex(token).slice(0, 8), 16);
-  return Math.round(((value % 1000) / 1000) * 1_000_000) / 1_000_000;
-}
-
 export function orderedDimensions(items: Iterable<string>): string[] {
   const itemSet = new Set(items);
   return DIMENSION_ORDER.filter(dimension => itemSet.has(dimension));

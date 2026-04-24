@@ -97,34 +97,47 @@ export function executeRankCompute(options: {
 
     const usableNodes = resolvedNodes.filter(node => {
       const card = scorecardsByNodeId[String(node.node_id)];
-      return !!card && card.status !== 'failed';
+      const groundingStatus = node.grounding_audit?.status;
+      return !!card && card.status !== 'failed' && (!effectiveDimensions.includes('grounding') || groundingStatus !== 'fail');
     });
     if ((method === 'elo' && usableNodes.length < 2) || (method === 'pareto' && usableNodes.length < 1)) {
       throw insufficientEvalDataError({ campaignId, contracts: options.contracts, reason: 'insufficient_nodes' });
     }
 
-    const scoredRows = usableNodes.map(node => {
+    const initialRating = method === 'elo' && eloConfig && typeof eloConfig === 'object' && !Array.isArray(eloConfig)
+      ? Number((eloConfig as Record<string, unknown>).initial_rating ?? 1500)
+      : 1500;
+    const scoredRows = usableNodes.map((node, index) => {
       const card = scorecardsByNodeId[String(node.node_id)]!;
       const scores = card.scores as Record<string, unknown>;
-      const aggregate = effectiveDimensions.reduce((sum, dimension) => sum + Number(scores[dimension] ?? 0), 0);
+      const supportedScores = effectiveDimensions
+        .map(dimension => scores[dimension])
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+      const coverage = supportedScores.length / effectiveDimensions.length;
+      const aggregate = supportedScores.length === 0 ? 0 : coverage;
       return {
         _aggregate: aggregate,
-        elo_rating: Math.round((1000 + aggregate * 100) * 1_000_000) / 1_000_000,
+        _stableIndex: index,
+        elo_rating: initialRating,
         idea_id: node.idea_id,
         node_id: node.node_id,
       };
     });
-    scoredRows.sort((left, right) => right._aggregate - left._aggregate);
+    scoredRows.sort((left, right) => {
+      if (left._aggregate !== right._aggregate) return right._aggregate - left._aggregate;
+      return left._stableIndex - right._stableIndex;
+    });
+    const topAggregate = scoredRows[0]?._aggregate ?? null;
     const rankedNodes = scoredRows.map((row, index) => {
       const base: Record<string, unknown> = { idea_id: row.idea_id, node_id: row.node_id, rank: index + 1 };
       if (method === 'elo') {
         base.elo_rating = row.elo_rating;
       } else {
-        base.pareto_front = index === 0;
+        base.pareto_front = topAggregate !== null && row._aggregate === topAggregate;
       }
       return base;
     });
-    if (rankedNodes.length === 0) {
+    if (rankedNodes.length === 0 || (method === 'pareto' && effectiveDimensions.length < 2)) {
       throw insufficientEvalDataError({ campaignId, contracts: options.contracts, reason: 'insufficient_nodes' });
     }
 
