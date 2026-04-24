@@ -1,4 +1,5 @@
 const BEST_SCORE_EPSILON = 1e-9;
+const FRONTIER_SUPPORTED_MARKER = 1;
 const STAGNATION_PATIENCE_STEPS = 2;
 
 function compareStableNodeOrder(left: Record<string, unknown>, right: Record<string, unknown>): number {
@@ -9,22 +10,28 @@ function compareStableNodeOrder(left: Record<string, unknown>, right: Record<str
   return String(left.node_id).localeCompare(String(right.node_id));
 }
 
-function nodeScore(node: Record<string, unknown>): number | null {
+function hasDisqualifyingEvalFailure(node: Record<string, unknown>): boolean {
+  const failureModes = (node.eval_info as Record<string, unknown> | undefined)?.failure_modes;
+  if (!Array.isArray(failureModes)) return false;
+  return failureModes.some(mode => mode === 'missing_evidence' || mode === 'formalization_trace_invalid');
+}
+
+function frontierSupportMarker(node: Record<string, unknown>): number | null {
+  if (hasDisqualifyingEvalFailure(node)) return null;
   const scores = (node.eval_info as Record<string, unknown> | undefined)?.scores;
   if (!scores || typeof scores !== 'object') return null;
   const typedScores = scores as Record<string, unknown>;
-  const values = Object.values(typedScores).filter((value): value is number => typeof value === 'number');
-  if (values.length === 0) return null;
+  const hasPositiveSupport = Object.values(typedScores)
+    .some(value => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  if (!hasPositiveSupport) return null;
   const groundingScored = typeof typedScores.grounding === 'number';
-  const groundingStatus = node.grounding_audit && typeof node.grounding_audit === 'object'
-    ? (node.grounding_audit as Record<string, unknown>).status
-    : undefined;
-  const groundingWeight = groundingScored
-    ? groundingStatus === 'pass' ? 1 : groundingStatus === 'partial' ? 0.5 : groundingStatus === 'fail' ? 0 : 1
-    : 1;
-  const supportedScores = values.filter(value => value > 0);
-  if (supportedScores.length === 0) return null;
-  return (supportedScores.length / values.length) * groundingWeight;
+  if (groundingScored) {
+    const groundingStatus = node.grounding_audit && typeof node.grounding_audit === 'object'
+      ? (node.grounding_audit as Record<string, unknown>).status
+      : undefined;
+    if (groundingStatus !== 'pass') return null;
+  }
+  return FRONTIER_SUPPORTED_MARKER;
 }
 
 export function refreshIslandPopulationSizes(
@@ -47,14 +54,13 @@ export function markIslandsExhausted(campaign: Record<string, unknown>): void {
 export function pickParentNode(nodes: Record<string, Record<string, unknown>>, islandId: string): Record<string, unknown> | null {
   const islandNodes = Object.values(nodes).filter(node => node.island_id === islandId);
   if (islandNodes.length === 0) return null;
-  if (islandNodes.some(node => nodeScore(node) !== null)) {
+  if (islandNodes.some(node => frontierSupportMarker(node) !== null)) {
     islandNodes.sort((left, right) => {
-      const leftScore = nodeScore(left);
-      const rightScore = nodeScore(right);
+      const leftScore = frontierSupportMarker(left);
+      const rightScore = frontierSupportMarker(right);
       if (leftScore !== null || rightScore !== null) {
         if (leftScore === null) return 1;
         if (rightScore === null) return -1;
-        if (leftScore !== rightScore) return rightScore - leftScore;
       }
       return compareStableNodeOrder(left, right);
     });
@@ -68,7 +74,7 @@ export function islandBestScore(nodes: Record<string, Record<string, unknown>>, 
   let best: number | null = null;
   for (const node of Object.values(nodes)) {
     if (node.island_id !== islandId) continue;
-    const score = nodeScore(node);
+    const score = frontierSupportMarker(node);
     if (score !== null && (best === null || score > best)) best = score;
   }
   return best;

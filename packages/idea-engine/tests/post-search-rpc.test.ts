@@ -262,6 +262,93 @@ describe('post-search RPC migration slice', () => {
     expect(newNode.parent_node_ids).toEqual([strongerNodeId]);
   });
 
+  it('keeps failed eval nodes in stable fallback instead of boosting them as frontier support', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-frontier-failed-fallback-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'older-stable-fallback-seed',
+        seed_type: 'text',
+      },
+      {
+        content: 'newer-failed-eval-seed',
+        seed_type: 'text',
+      },
+    ]);
+    const [stableFallbackNodeId, failedEvalNodeId] = allNodeIds(service, campaignId);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    nodes[stableFallbackNodeId]!.created_at = '2026-03-25T00:00:00Z';
+    nodes[failedEvalNodeId]!.created_at = '2026-03-25T00:01:00Z';
+    nodes[failedEvalNodeId]!.eval_info = {
+      failure_modes: ['missing_evidence'],
+      fix_suggestions: [],
+      scores: { grounding: 0 },
+    };
+    nodes[failedEvalNodeId]!.grounding_audit = {
+      failures: ['missing_grounding_evidence'],
+      folklore_risk_score: 0.85,
+      status: 'fail',
+      timestamp: '2026-03-25T00:00:00Z',
+    };
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const searchResult = service.handle('search.step', {
+      campaign_id: campaignId,
+      idempotency_key: 'search-step-frontier-failed-fallback-key',
+      n_steps: 1,
+    });
+    const newNodeId = String((searchResult.new_node_ids as string[])[0]);
+    const updatedNodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const newNode = updatedNodes[newNodeId] as Record<string, unknown>;
+
+    expect(newNode.parent_node_ids).toEqual([stableFallbackNodeId]);
+  });
+
+  it('keeps invalid formalization eval nodes in stable fallback instead of boosting them as frontier support', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-frontier-invalid-formalization-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'older-stable-fallback-seed',
+        seed_type: 'text',
+      },
+      {
+        content: 'newer-invalid-formalization-seed',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-2'],
+      },
+    ]);
+    const [stableFallbackNodeId, invalidEvalNodeId] = allNodeIds(service, campaignId);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    nodes[stableFallbackNodeId]!.created_at = '2026-03-25T00:00:00Z';
+    nodes[invalidEvalNodeId]!.created_at = '2026-03-25T00:01:00Z';
+    nodes[invalidEvalNodeId]!.eval_info = {
+      failure_modes: ['formalization_trace_invalid'],
+      fix_suggestions: [],
+      scores: { feasibility: 1 },
+    };
+    nodes[invalidEvalNodeId]!.grounding_audit = {
+      failures: ['formalization_trace_invalid'],
+      folklore_risk_score: 0.85,
+      status: 'fail',
+      timestamp: '2026-03-25T00:00:00Z',
+    };
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const searchResult = service.handle('search.step', {
+      campaign_id: campaignId,
+      idempotency_key: 'search-step-frontier-invalid-formalization-key',
+      n_steps: 1,
+    });
+    const newNodeId = String((searchResult.new_node_ids as string[])[0]);
+    const updatedNodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const newNode = updatedNodes[newNodeId] as Record<string, unknown>;
+
+    expect(newNode.parent_node_ids).toEqual([stableFallbackNodeId]);
+  });
+
   it('uses coarse support markers without creating false quality differences between passing nodes', () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-coarse-support-'));
     tempDirs.push(rootDir);
@@ -301,6 +388,46 @@ describe('post-search RPC migration slice', () => {
 
     expect(rankedNodes).toHaveLength(2);
     expect(rankedNodes.map(node => node.pareto_front)).toEqual([true, true]);
+  });
+
+  it('uses stable tie-breaks between multiple evidence-supported frontier parents', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-frontier-supported-tie-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'first-seed-with-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-1'],
+      },
+      {
+        content: 'second-seed-with-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-2'],
+      },
+    ]);
+    const [firstNodeId, secondNodeId] = allNodeIds(service, campaignId);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    nodes[firstNodeId]!.created_at = '2026-03-25T00:00:00Z';
+    nodes[secondNodeId]!.created_at = '2026-03-25T00:01:00Z';
+    service.read.store.saveNodes(campaignId, nodes);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['novelty', 'impact'], n_reviewers: 2 },
+      idempotency_key: 'eval-frontier-supported-tie-key',
+      node_ids: [firstNodeId, secondNodeId],
+    });
+    const searchResult = service.handle('search.step', {
+      campaign_id: campaignId,
+      idempotency_key: 'search-step-frontier-supported-tie-key',
+      n_steps: 1,
+    });
+    const newNodeId = String((searchResult.new_node_ids as string[])[0]);
+    const updatedNodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const newNode = updatedNodes[newNodeId] as Record<string, unknown>;
+
+    expect(newNode.parent_node_ids).toEqual([firstNodeId]);
   });
 
   it('ignores stale grounding failure when ranking on refreshed non-grounding dimensions', () => {
@@ -360,6 +487,66 @@ describe('post-search RPC migration slice', () => {
     });
 
     expect(rankResult.ranked_nodes).toHaveLength(2);
+  });
+
+  it('ignores stale grounding failure when choosing refreshed non-grounding frontier support', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-post-search-frontier-stale-grounding-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({ rootDir });
+    const campaignId = initCampaign(service, [
+      {
+        content: 'older-seed-with-evidence',
+        seed_type: 'text',
+        source_uris: ['https://example.org/seed-1'],
+      },
+      {
+        content: 'newer-stable-fallback-seed',
+        seed_type: 'text',
+      },
+    ]);
+    const [supportedNodeId, fallbackNodeId] = allNodeIds(service, campaignId);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    nodes[supportedNodeId]!.created_at = '2026-03-25T00:01:00Z';
+    nodes[fallbackNodeId]!.created_at = '2026-03-25T00:00:00Z';
+    const supportedNode = nodes[supportedNodeId] as Record<string, unknown>;
+    const operatorTrace = supportedNode.operator_trace as Record<string, unknown>;
+    const params = operatorTrace.params as Record<string, unknown>;
+    const formalization = params.formalization as Record<string, unknown>;
+    const originalHash = String(formalization.rationale_hash);
+
+    formalization.rationale_hash = `sha256:${'0'.repeat(64)}`;
+    service.read.store.saveNodes(campaignId, nodes);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-frontier-stale-grounding-fail',
+      node_ids: [supportedNodeId],
+    });
+
+    const failedNodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    expect((failedNodes[supportedNodeId]!.grounding_audit as Record<string, unknown>).status).toBe('fail');
+
+    ((failedNodes[supportedNodeId]!.operator_trace as Record<string, unknown>).params as Record<string, unknown>).formalization =
+      { ...formalization, rationale_hash: originalHash };
+    service.read.store.saveNodes(campaignId, failedNodes);
+
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility'], n_reviewers: 2 },
+      idempotency_key: 'eval-frontier-stale-grounding-refresh',
+      node_ids: [supportedNodeId],
+    });
+    const searchResult = service.handle('search.step', {
+      campaign_id: campaignId,
+      idempotency_key: 'search-step-frontier-stale-grounding-key',
+      n_steps: 1,
+    });
+    const newNodeId = String((searchResult.new_node_ids as string[])[0]);
+    const updatedNodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const newNode = updatedNodes[newNodeId] as Record<string, unknown>;
+
+    expect(newNode.parent_node_ids).toEqual([supportedNodeId]);
   });
 
   it('keeps rank.compute fail-closed when scorecards are unavailable', () => {
