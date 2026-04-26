@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { pathToFileURL } from 'url';
 import { ContractRuntimeError, IdeaEngineContractCatalog } from '../contracts/catalog.js';
@@ -32,9 +32,85 @@ interface FailureLibraryIndexEntry {
   line_number: number;
   project_slug: string;
 }
+
+interface FailureLibraryConfig {
+  indexPath: string;
+  queryDoc: Record<string, unknown>;
+  source: 'derived' | 'explicit';
+}
+
+const DEFAULT_FAILURE_LIBRARY_INDEX_PATH = 'global/failure_library_index_v1.json';
+const DEFAULT_FAILURE_LIBRARY_OUTPUT_PATH = 'artifacts/failure_library/failure_library_hits_v1.json';
+
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values.map(value => value.trim()).filter(Boolean))];
 }
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return uniqueStrings(value.filter((item): item is string => typeof item === 'string'));
+}
+
+function tagValues(prefix: string, values: string[]): string[] {
+  return values.map(value => `${prefix}:${value}`);
+}
+
+function actionTagForNode(node: Record<string, unknown>): string | null {
+  const traceInputs = (node.operator_trace as Record<string, unknown> | undefined)?.inputs;
+  if (traceInputs && typeof traceInputs === 'object' && !Array.isArray(traceInputs)) {
+    const selectedActionId = (traceInputs as Record<string, unknown>).selected_action_id;
+    if (typeof selectedActionId === 'string' && selectedActionId.trim()) {
+      return `action:${selectedActionId.trim()}`;
+    }
+  }
+
+  const backendId = typeof (node.origin as Record<string, unknown> | undefined)?.model === 'string'
+    ? String((node.origin as Record<string, unknown>).model).trim()
+    : '';
+  const operatorId = typeof node.operator_id === 'string' ? node.operator_id.trim() : '';
+  const islandId = typeof node.island_id === 'string' ? node.island_id.trim() : '';
+  if (!backendId || !operatorId || !islandId) return null;
+  return `action:${backendId}::${operatorId}::${islandId}`;
+}
+
+function buildDerivedFailureLibraryQueryDoc(options: {
+  node?: Record<string, unknown>;
+  now: string;
+  outputArtifactPath?: string;
+}): Record<string, unknown> | null {
+  const node = options.node;
+  if (!node) return null;
+
+  const ideaCard = node.idea_card && typeof node.idea_card === 'object' && !Array.isArray(node.idea_card)
+    ? node.idea_card as Record<string, unknown>
+    : null;
+  const evalInfo = node.eval_info && typeof node.eval_info === 'object' && !Array.isArray(node.eval_info)
+    ? node.eval_info as Record<string, unknown>
+    : null;
+
+  const actionTag = actionTagForNode(node);
+  const tags = uniqueStrings([
+    ...(actionTag ? [actionTag] : []),
+    ...(typeof node.operator_family === 'string' && node.operator_family.trim()
+      ? [`operator_family:${node.operator_family.trim()}`]
+      : []),
+    ...tagValues('formalism', stringArray(ideaCard?.candidate_formalisms)),
+    ...tagValues('observable', stringArray(ideaCard?.required_observables)),
+  ]);
+  if (tags.length === 0) return null;
+
+  const failureModes = stringArray(evalInfo?.failure_modes);
+  return {
+    version: 1,
+    generated_at_utc: options.now,
+    query: {
+      tags,
+      ...(failureModes.length > 0 ? { failure_modes: failureModes } : {}),
+    },
+    output_artifact_path: options.outputArtifactPath ?? DEFAULT_FAILURE_LIBRARY_OUTPUT_PATH,
+  };
+}
+
 function validateSchema(
   contracts: IdeaEngineContractCatalog,
   ref: string,
@@ -63,12 +139,31 @@ function resolveWithin(baseDir: string, relativePath: string, label: string, cam
   }
   return resolved;
 }
-function loadFailureLibraryConfig(campaign: SearchCampaignRecord, campaignId: string): { indexPath: string; queryDoc: Record<string, unknown> } | null {
+function loadFailureLibraryConfig(options: {
+  campaign: SearchCampaignRecord;
+  campaignId: string;
+  node?: Record<string, unknown>;
+  now: string;
+  outputArtifactPath?: string;
+}): FailureLibraryConfig | null {
+  const { campaign, campaignId } = options;
   const extensions = typeof campaign.charter.extensions === 'object' && campaign.charter.extensions && !Array.isArray(campaign.charter.extensions)
     ? campaign.charter.extensions as Record<string, unknown>
     : {};
   const raw = extensions.failure_library;
-  if (raw === undefined) return null;
+  if (raw === undefined) {
+    const queryDoc = buildDerivedFailureLibraryQueryDoc({
+      node: options.node,
+      now: options.now,
+      outputArtifactPath: options.outputArtifactPath,
+    });
+    if (!queryDoc) return null;
+    return {
+      indexPath: DEFAULT_FAILURE_LIBRARY_INDEX_PATH,
+      queryDoc,
+      source: 'derived',
+    };
+  }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw schemaValidationError('failure_library extension must be an object', { campaign_id: campaignId });
   }
@@ -80,8 +175,9 @@ function loadFailureLibraryConfig(campaign: SearchCampaignRecord, campaignId: st
     throw schemaValidationError('failure_library.index_path must be a non-empty string when provided', { campaign_id: campaignId });
   }
   return {
-    indexPath: typeof config.index_path === 'string' ? config.index_path.trim() : 'global/failure_library_index_v1.json',
+    indexPath: typeof config.index_path === 'string' ? config.index_path.trim() : DEFAULT_FAILURE_LIBRARY_INDEX_PATH,
     queryDoc: structuredClone(config.query as Record<string, unknown>),
+    source: 'explicit',
   };
 }
 function matchesEntry(entry: FailureLibraryIndexEntry, queryDoc: Record<string, unknown>): boolean {
@@ -116,10 +212,18 @@ function matchesEntry(entry: FailureLibraryIndexEntry, queryDoc: Record<string, 
 export function prepareFailureAvoidance(options: {
   campaign: SearchCampaignRecord;
   contracts: IdeaEngineContractCatalog;
+  node?: Record<string, unknown>;
   now: string;
+  outputArtifactPath?: string;
   store: IdeaEngineStore;
 }): PreparedFailureAvoidance | undefined {
-  const config = loadFailureLibraryConfig(options.campaign, options.campaign.campaign_id);
+  const config = loadFailureLibraryConfig({
+    campaign: options.campaign,
+    campaignId: options.campaign.campaign_id,
+    node: options.node,
+    now: options.now,
+    outputArtifactPath: options.outputArtifactPath,
+  });
   if (!config) return undefined;
 
   validateSchema(
@@ -131,6 +235,9 @@ export function prepareFailureAvoidance(options: {
   );
 
   const indexPath = resolveWithin(options.store.rootDir, config.indexPath, 'failure_library.index_path', options.campaign.campaign_id);
+  if (config.source === 'derived' && !existsSync(indexPath)) {
+    return undefined;
+  }
   let indexDoc: Record<string, unknown>;
   try {
     indexDoc = JSON.parse(readFileSync(indexPath, 'utf8')) as Record<string, unknown>;

@@ -13,7 +13,7 @@ import { loadDistributorState, saveDistributorState } from './distributor-state.
 import { loadBuiltinLibrarianRecipeBook, loadBuiltinSearchDomainPackRuntime } from './domain-pack-registry.js';
 import { initialIslandStates } from './domain-pack.js';
 import { RpcError, schemaValidationError } from './errors.js';
-import { prepareFailureAvoidance } from './failure-library.js';
+import { prepareFailureAvoidance, type PreparedFailureAvoidance } from './failure-library.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { advanceIslandStateOneTick, islandBestScore, isScoreImproved, markIslandsExhausted, pickParentNode, refreshIslandPopulationSizes } from './island-state.js';
 import { buildLibrarianEvidencePacket, claimEvidenceUris, type LibrarianRecipeBook } from './librarian-recipes.js';
@@ -67,7 +67,6 @@ export function executeSearchStep(options: {
       store: options.store,
     });
     refreshIslandPopulationSizes(plannedCampaign, nodes);
-    const failureAvoidance = prepareFailureAvoidance({ campaign: plannedCampaign, contracts: options.contracts, now: options.now(), store: options.store });
     const distributor = loadDistributorPolicyConfig({ campaign: plannedCampaign, contracts: options.contracts, store: options.store });
     let distributorState: DistributorStateSnapshot | null = null;
     if (distributor) {
@@ -81,6 +80,7 @@ export function executeSearchStep(options: {
     const operatorEvents: Record<string, unknown>[] = [];
     const operatorTraceArtifacts: Array<[string, Record<string, unknown>]> = [];
     const evidenceArtifacts: Array<[string, Record<string, unknown>]> = [];
+    const failureAvoidanceArtifacts: PreparedFailureAvoidance[] = [];
     const distributorEvents: Record<string, unknown>[] = [];
     const newNodeIds: string[] = [];
     const newNodesPayload: Record<string, unknown>[] = [];
@@ -114,6 +114,15 @@ export function executeSearchStep(options: {
           })()
           : chooseSearchOperator({ islandId, runtime, searchOperators: runtimePack.searchOperators, selectionPolicy: runtimePack.operatorSelectionPolicy });
         const selection = distributor && distributorDecision ? { actionId: distributorDecision.selectedAction.actionId, deterministicPolicy: distributor.config.policy_id, policyId: distributor.config.policy_id } : undefined;
+        const failureAvoidance = prepareFailureAvoidance({
+          campaign: plannedCampaign,
+          contracts: options.contracts,
+          node: parentNode,
+          now: options.now(),
+          outputArtifactPath: `artifacts/failure_library/${stepId}-tick-${String(tick + 1).padStart(3, '0')}-failure_library_hits_v1.json`,
+          store: options.store,
+        });
+        if (failureAvoidance) failureAvoidanceArtifacts.push(failureAvoidance);
         const operatorOutput = operator.run({ campaignId, failureAvoidance: failureAvoidance?.summary, islandId, parentNodeId: String(parentNode.node_id), selection, stepId, tick: tick + 1 }, structuredClone(parentNode));
         const generatedAt = options.now();
         const evidencePacketName = `${stepId}-tick-${String(tick + 1).padStart(3, '0')}-librarian.json`;
@@ -188,7 +197,7 @@ export function executeSearchStep(options: {
     if (newNodeIds.length > 0) options.store.writeArtifact(campaignId, 'search_steps', `${stepId}-new-nodes.json`, { campaign_id: campaignId, step_id: stepId, new_node_ids: newNodeIds, nodes: newNodesPayload, operator_events: operatorEvents, generated_at: options.now() });
     for (const [artifactName, payload] of operatorTraceArtifacts) options.store.writeArtifact(campaignId, 'operator_traces', artifactName, payload);
     for (const [artifactName, payload] of evidenceArtifacts) options.store.writeArtifact(campaignId, 'evidence_packets', artifactName, payload);
-    if (failureAvoidance) writeJsonFileAtomic(failureAvoidance.artifactPath, failureAvoidance.artifactPayload);
+    for (const failureAvoidance of failureAvoidanceArtifacts) writeJsonFileAtomic(failureAvoidance.artifactPath, failureAvoidance.artifactPayload);
     if (distributorState && distributor) {
       for (const event of distributorEvents) appendDistributorEvent({ campaignId, contracts: options.contracts, event, store: options.store });
       saveDistributorState({ config: distributor.config, contracts: options.contracts, snapshot: distributorState, store: options.store });
