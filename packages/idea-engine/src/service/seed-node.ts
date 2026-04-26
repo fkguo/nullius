@@ -110,7 +110,7 @@ export function buildSeedNode(options: SeedNodeOptions): Record<string, unknown>
     claimText: `Seed-derived claim: ${content}`,
     supportType: 'literature',
     computeStep: 'construct toy estimate',
-    computeMethod: 'deterministic scoring stub',
+    computeMethod: 'toy estimate',
   });
   return {
     campaign_id: options.campaignId,

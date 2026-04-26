@@ -3758,7 +3758,7 @@
       "summary": "List IdeaNodes in a campaign (paginated)."
     },
     {
-      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid and grounding_audit.status must be pass. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
+      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid and grounding_audit.status must be pass. Promotion uses node-scoped grounding-eval scorecard / promotion scorecard provenance via promotion_scorecards_artifact_ref, fails closed for missing / unsupported / no usable evidence support, and does not use campaign-global latest scorecards. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
       "errors": [
         {
           "code": -32001,
@@ -3827,7 +3827,7 @@
           "$ref": "#/components/schemas/promotion_result_v1"
         }
       },
-      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding gates) within a campaign scope."
+      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding + evidence-support gates) within a campaign scope."
     },
     {
       "description": "Side-effecting. Only permitted when campaign status is running; otherwise campaign_not_active. Batch size is capped (node_ids maxItems=100) to bound rollback cost. Returns updated_node_ids to indicate which nodes were mutated (eval_info appended) during this operation. Atomicity (MUST): on any error (including budget_exhausted, node_not_found, node_not_in_campaign), the engine MUST perform no partial writes/mutations; if partial work occurs internally it MUST be rolled back before returning (and before storing the idempotency record).",

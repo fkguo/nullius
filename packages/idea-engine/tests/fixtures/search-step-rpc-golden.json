@@ -921,7 +921,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -1002,7 +1002,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -1281,7 +1281,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -1367,7 +1367,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -2282,7 +2282,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -2363,7 +2363,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -2546,7 +2546,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -2632,7 +2632,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -3674,7 +3674,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -3755,7 +3755,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -4034,7 +4034,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -4120,7 +4120,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -5900,7 +5900,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -5981,7 +5981,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -6452,7 +6452,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -6538,7 +6538,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -7907,7 +7907,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -7988,7 +7988,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -8267,7 +8267,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -8353,7 +8353,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -8757,7 +8757,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -8838,7 +8838,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -8925,7 +8925,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -9011,7 +9011,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -9234,7 +9234,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -9315,7 +9315,7 @@
               "minimal_compute_plan": [
                 {
                   "step": "construct toy estimate",
-                  "method": "deterministic scoring stub",
+                  "method": "toy estimate",
                   "estimated_difficulty": "moderate"
                 }
               ],
@@ -9402,7 +9402,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],
@@ -9488,7 +9488,7 @@
                 "minimal_compute_plan": [
                   {
                     "step": "construct toy estimate",
-                    "method": "deterministic scoring stub",
+                    "method": "toy estimate",
                     "estimated_difficulty": "moderate"
                   }
                 ],

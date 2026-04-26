@@ -34,7 +34,7 @@
 - **Single-user compute capability truth**: `orch_run_stage_idea` -> `orch_run_plan_computation` -> `orch_run_execute_manifest` is now the canonical generic lifecycle for staged compute execution; when the staged idea carries an explicit method bundle, planning materializes a provider-backed run-local manifest rather than narrating compute capability through the internal fixture runner
 - **Recommended public stateful literature workflow entrypoint**: `autoresearch workflow-plan` (requires an initialized external project root; resolves recipes directly via `@autoresearch/literature-workflows`; persists `.autoresearch/state.json#/plan` and derives `.autoresearch/plan.md`)
 - **Native TS run slice**: `autoresearch run` (requires an initialized external project root; runs prepared `computation/manifest.json` natively for `--workflow-id computation`, and also advances dependency-satisfied persisted workflow-plan steps through the same front door)
-- **Experimental TS idea runtime surface**: `@autoresearch/idea-engine` + `@autoresearch/idea-mcp` now cover campaign init/status/topup/pause/resume/complete plus bounded search/eval loops on explicit external data roots
+- **Experimental TS idea runtime surface**: `@autoresearch/idea-mcp` remains campaign/search/eval oriented on explicit external data roots; `@autoresearch/idea-engine` also exposes post-search `rank.compute` / `node.promote` in its runtime contract
 - **Current most mature domain MCP front door**: `@autoresearch/hep-mcp` exposed through `packages/hep-mcp/dist/index.js`
 - **Current strongest end-to-end workflow family**: `hep_*` Project/Run + evidence + writing + export
 - **Direct provider families**: `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*`

@@ -472,7 +472,7 @@
     },
     {
       "name": "node.promote",
-      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding gates) within a campaign scope.",
+      "summary": "Promote a node to a C2 handoff artifact (after schema + grounding + evidence-support gates) within a campaign scope.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -500,7 +500,7 @@
           "required": true
         }
       ],
-      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid and grounding_audit.status must be pass. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
+      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): IdeaCard must be schema-valid and grounding_audit.status must be pass. Promotion uses node-scoped grounding-eval scorecard / promotion scorecard provenance via promotion_scorecards_artifact_ref, fails closed for missing / unsupported / no usable evidence support, and does not use campaign-global latest scorecards. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
       "result": {
         "name": "promotion_result",
         "schema": {
