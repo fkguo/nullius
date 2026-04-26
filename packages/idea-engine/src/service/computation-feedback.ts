@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync } from 'fs';
 import { basename, join, relative, resolve } from 'path';
-import { URL } from 'url';
+import { pathToFileURL, URL } from 'url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
@@ -11,6 +11,8 @@ import { appendDistributorEvent } from './distributor-events.js';
 import { recordDiscountedUcbOutcome, type DistributorStateSnapshot } from './distributor-discounted-ucb-v.js';
 import { distributorStatePath, saveDistributorState } from './distributor-state.js';
 import { schemaValidationError } from './errors.js';
+import { validateFormalizationTrace } from './post-search-shared.js';
+import { loadPromotionEvidenceSupport } from './promotion-evidence-support.js';
 import computationFeedbackSchema from './computation_feedback_v1.schema.json' with { type: 'json' };
 
 const PENDING_FEEDBACK_DIR = 'computation_feedback_pending';
@@ -366,6 +368,66 @@ function maxTick(snapshot: DistributorStateSnapshot): number {
   }, 0);
 }
 
+function canonicalHandoffRef(options: {
+  campaignId: string;
+  nodeId: string;
+  store: IdeaEngineStore;
+}): string {
+  return pathToFileURL(options.store.artifactPath(
+    options.campaignId,
+    'handoff',
+    `handoff-${options.nodeId}.json`,
+  )).href;
+}
+
+function hasSupportedPromotionProvenance(options: {
+  contracts: IdeaEngineContractCatalog;
+  feedback: ComputationFeedbackRecord;
+  node: Record<string, unknown>;
+  store: IdeaEngineStore;
+}): boolean {
+  const groundingAudit = options.node.grounding_audit;
+  const groundingAuditRecord = groundingAudit && typeof groundingAudit === 'object' && !Array.isArray(groundingAudit)
+    ? groundingAudit as Record<string, unknown>
+    : null;
+  if (!groundingAuditRecord || groundingAuditRecord.status !== 'pass') {
+    return false;
+  }
+  if (options.feedback.source_handoff_uri !== canonicalHandoffRef({
+    campaignId: options.feedback.campaign_id,
+    nodeId: options.feedback.node_id,
+    store: options.store,
+  })) {
+    return false;
+  }
+
+  try {
+    validateFormalizationTrace({
+      campaignId: options.feedback.campaign_id,
+      node: options.node,
+      nodeId: options.feedback.node_id,
+    });
+    const evidenceSupport = loadPromotionEvidenceSupport({
+      campaignId: options.feedback.campaign_id,
+      contracts: options.contracts,
+      node: options.node,
+      nodeId: options.feedback.node_id,
+      store: options.store,
+    });
+    const handoff = options.store.loadArtifactFromRef<Record<string, unknown>>(options.feedback.source_handoff_uri);
+    const handoffSupport = handoff.evidence_support && typeof handoff.evidence_support === 'object' && !Array.isArray(handoff.evidence_support)
+      ? handoff.evidence_support as Record<string, unknown>
+      : null;
+    return handoff.campaign_id === options.feedback.campaign_id
+      && handoff.node_id === options.feedback.node_id
+      && handoff.idea_id === options.feedback.idea_id
+      && handoffSupport !== null
+      && handoffSupport.scorecards_artifact_ref === evidenceSupport.scorecards_artifact_ref;
+  } catch {
+    return false;
+  }
+}
+
 function applyDistributorFeedback(options: {
   campaign: Record<string, unknown>;
   contracts: IdeaEngineContractCatalog;
@@ -383,6 +445,14 @@ function applyDistributorFeedback(options: {
     store: options.store,
   });
   if (!distributor) {
+    return;
+  }
+  if (!hasSupportedPromotionProvenance({
+    contracts: options.contracts,
+    feedback: options.feedback,
+    node: options.node,
+    store: options.store,
+  })) {
     return;
   }
 
