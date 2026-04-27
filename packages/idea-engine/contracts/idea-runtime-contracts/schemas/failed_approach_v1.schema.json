@@ -24,7 +24,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Multi-label failure modes for retrieval/query. Should include failure_mode as the primary label."
+      "description": "Multi-label failure modes for bounded failure-library matching. Should include failure_mode as the primary label."
     },
     "failure_evidence_uris": {
       "type": "array",
@@ -38,7 +38,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Reusable retrieval keys. Recommended convention: \"key:value\" strings (e.g., \"method:constraint-guided-search\", \"topic:method-fidelity\")."
+      "description": "Reusable bounded matching tags. Recommended convention: \"key:value\" strings (e.g., \"method:constraint-guided-search\", \"topic:method-fidelity\")."
     },
     "created_at": { "type": "string", "format": "date-time" }
   },

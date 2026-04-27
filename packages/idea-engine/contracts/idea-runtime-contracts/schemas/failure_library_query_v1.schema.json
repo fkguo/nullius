@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "failure_library_query_v1.schema.json",
   "title": "FailureLibraryQuery v1",
-  "description": "Project-local query config for the failure library (negative results) to avoid repeating known dead ends.",
+  "description": "Project-local bounded failure-reflection query. Matching is limited to tags and failure_modes; broad text retrieval is not a supported search.step surface.",
   "type": "object",
   "required": ["version", "generated_at_utc", "query", "output_artifact_path"],
   "properties": {
@@ -17,14 +17,19 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 },
-          "description": "Reusable retrieval keys; recommended \"key:value\" strings (e.g., \"method:bootstrap\")."
+          "description": "Bounded matching tags; recommended \"key:value\" strings (e.g., \"method:bootstrap\")."
         },
         "failure_modes": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1 }
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Optional bounded failure-mode labels used with tags for matching."
         },
-        "text": { "type": "string", "minLength": 1 }
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Reserved for future compatibility only. search.step rejects non-empty failure_library.query.text and does not use it for broad retrieval."
+        }
       },
       "additionalProperties": false
     },

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "failure_library_index_v1.schema.json",
   "title": "FailureLibraryIndex v1",
-  "description": "Aggregated index over failed_approach_v1 JSONL records across projects or archived research workspaces.",
+  "description": "Aggregated bounded-matching index over failed_approach_v1 JSONL records across projects or archived research workspaces.",
   "type": "object",
   "required": ["version", "generated_at_utc", "entries", "stats"],
   "properties": {
