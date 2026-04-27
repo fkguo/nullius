@@ -139,6 +139,18 @@ function resolveWithin(baseDir: string, relativePath: string, label: string, cam
   }
   return resolved;
 }
+
+function rejectBroadTextQuery(queryDoc: Record<string, unknown>, campaignId: string): void {
+  const query = queryDoc.query;
+  if (!query || typeof query !== 'object' || Array.isArray(query)) return;
+  const text = (query as Record<string, unknown>).text;
+  if (typeof text === 'string' && text.trim()) {
+    throw schemaValidationError('failure_library.query.text is unsupported for search.step failure reflection; use bounded tags and failure_modes', {
+      campaign_id: campaignId,
+    });
+  }
+}
+
 function loadFailureLibraryConfig(options: {
   campaign: SearchCampaignRecord;
   campaignId: string;
@@ -174,9 +186,11 @@ function loadFailureLibraryConfig(options: {
   if (config.index_path !== undefined && (typeof config.index_path !== 'string' || !config.index_path.trim())) {
     throw schemaValidationError('failure_library.index_path must be a non-empty string when provided', { campaign_id: campaignId });
   }
+  const queryDoc = structuredClone(config.query as Record<string, unknown>);
+  rejectBroadTextQuery(queryDoc, campaignId);
   return {
     indexPath: typeof config.index_path === 'string' ? config.index_path.trim() : DEFAULT_FAILURE_LIBRARY_INDEX_PATH,
-    queryDoc: structuredClone(config.query as Record<string, unknown>),
+    queryDoc,
     source: 'explicit',
   };
 }
@@ -193,17 +207,6 @@ function matchesEntry(entry: FailureLibraryIndexEntry, queryDoc: Record<string, 
       ...(entry.failed_approach.failure_modes ?? []),
     ].map(value => value.toLowerCase())));
     if (!rawFailureModes.some(mode => entryFailureModes.has(mode))) return false;
-  }
-
-  if (typeof query.text === 'string' && query.text.trim()) {
-    const haystack = [
-      entry.failed_approach.approach_summary,
-      ...(entry.failed_approach.lessons ?? []),
-      entry.failed_approach.failure_mode,
-      ...(entry.failed_approach.failure_modes ?? []),
-      ...(entry.failed_approach.tags ?? []),
-    ].join(' ').toLowerCase();
-    if (!haystack.includes(query.text.trim().toLowerCase())) return false;
   }
 
   return true;

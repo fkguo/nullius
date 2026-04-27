@@ -56,6 +56,13 @@ function readJson<T>(filePath: string): T {
   return JSON.parse(readFileSync(filePath, 'utf8')) as T;
 }
 
+function readJsonLines<T>(filePath: string): T[] {
+  return readFileSync(filePath, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map(line => JSON.parse(line) as T);
+}
+
 function writePendingFeedback(rootDir: string, campaignId: string, payload: Record<string, unknown>): void {
   const pendingDir = resolve(rootDir, 'campaigns', campaignId, 'artifacts', 'computation_feedback_pending');
   mkdirSync(pendingDir, { recursive: true });
@@ -135,6 +142,67 @@ describe('search.step failure-library seam', () => {
     const artifact = service.search.store.loadArtifactFromRef<Record<string, unknown>>(hitsRef);
     expect((artifact.hits as unknown[])).toHaveLength(2);
     expect((artifact.index_ref as Record<string, unknown>).path).toBe('global/failure_library_index_v1.json');
+  });
+
+  it('keeps failure-library hits out of evidence support, eval support, and distributor reward signals', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-failure-library-no-proxy-'));
+    tempDirs.push(rootDir);
+    writeFailureIndex(rootDir, [matchingEntry()]);
+
+    const initParams = campaignInitParams({
+      failure_library: {
+        query: {
+          version: 1,
+          generated_at_utc: NOW,
+          query: {
+            tags: ['method:constraint-guided-search', 'topic:method-fidelity'],
+            failure_modes: ['method_drift'],
+          },
+          output_artifact_path: OUTPUT_PATH,
+        },
+      },
+    });
+    (initParams.charter as Record<string, unknown>).distributor = {
+      factorization: 'factorized',
+      policy_id: 'ts.discounted_ucb_v1',
+    };
+
+    const service = createService(rootDir);
+    const init = service.handle('campaign.init', initParams);
+    const campaignId = String(init.campaign_id);
+    const result = service.handle('search.step', searchStepParams(campaignId, 'search-step-no-proxy'));
+    const nodeId = String((result.new_node_ids as string[])[0]);
+    const node = service.search.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!;
+    const operatorTrace = node.operator_trace as Record<string, unknown>;
+    const traceInputs = operatorTrace.inputs as Record<string, unknown>;
+    const hitsRef = String(traceInputs.failure_library_hits_ref);
+    const ideaCard = node.idea_card as Record<string, unknown>;
+    const claims = ideaCard.claims as Array<Record<string, unknown>>;
+    const claimEvidenceUris = claims.flatMap(claim => Array.isArray(claim.evidence_uris) ? claim.evidence_uris as string[] : []);
+    const evidenceUrisUsed = operatorTrace.evidence_uris_used as string[];
+    const events = readJsonLines<Record<string, unknown>>(
+      resolve(rootDir, 'campaigns', campaignId, 'artifacts', 'distributor', 'distributor_events_v1.jsonl'),
+    );
+    const event = events[0]!;
+    const diagnostics = event.diagnostics as Record<string, unknown>;
+
+    expect(traceInputs.failure_avoidance_hit_count).toBe(1);
+    expect(String((node.rationale_draft as Record<string, unknown>).rationale)).toContain('Avoid 1 prior failure hit(s)');
+    expect(evidenceUrisUsed).not.toContain(hitsRef);
+    expect(claimEvidenceUris).not.toContain(hitsRef);
+    expect([...evidenceUrisUsed, ...claimEvidenceUris].some(uri => uri.includes('failure_library'))).toBe(false);
+    expect(node.eval_info).toBeNull();
+    expect(node.grounding_audit).toBeNull();
+    expect(events).toHaveLength(1);
+    expect(event.observed_reward).toBe(1);
+    expect(diagnostics.reward_components).toEqual({
+      island_best_score_improved: 0,
+      node_committed: 1,
+    });
+    expect(diagnostics.failure_avoidance_hit_count).toBe(1);
+    expect(diagnostics).not.toHaveProperty('failure_avoidance_score');
+    expect(diagnostics).not.toHaveProperty('failure_library_score');
+    expect(diagnostics).not.toHaveProperty('quality_score');
   });
 
   it('derives a bounded failure-library query from the current node when failed feedback has entered the index', () => {
@@ -286,6 +354,37 @@ describe('search.step failure-library seam', () => {
     expect(query.tags).toEqual(['method:constraint-guided-search', 'topic:method-fidelity']);
     expect(hits).toHaveLength(1);
     expect(((hits[0]!.failed_approach as Record<string, unknown>).approach_summary)).toBe('Explicit method fidelity query should win.');
+  });
+
+  it('fails closed when explicit failure-library query uses broad text retrieval', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-explicit-failure-library-text-'));
+    tempDirs.push(rootDir);
+    writeFailureIndex(rootDir, [matchingEntry()]);
+
+    const service = createService(rootDir);
+    const init = service.handle('campaign.init', campaignInitParams({
+      failure_library: {
+        query: {
+          version: 1,
+          generated_at_utc: NOW,
+          query: {
+            tags: ['method:constraint-guided-search'],
+            text: 'drifted',
+          },
+          output_artifact_path: OUTPUT_PATH,
+        },
+      },
+    }));
+
+    try {
+      service.handle('search.step', searchStepParams(String(init.campaign_id), 'search-step-explicit-text'));
+      throw new Error('expected search.step to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(RpcError);
+      const rpcError = error as RpcError;
+      expect(rpcError.code).toBe(-32002);
+      expect(rpcError.data.reason).toBe('schema_invalid');
+    }
   });
 
   it('does not generate a broad default query when the parent node has no bounded failure-library signals', () => {
