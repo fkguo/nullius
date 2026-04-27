@@ -10,7 +10,7 @@ This document explains the current front-door architecture of the monorepo. It i
 | --- | --- | --- |
 | Workflow authority | checked-in recipes consumed by `autoresearch workflow-plan` | High-level workflow meaning stays above provider packs |
 | Stateful control plane | `autoresearch` plus `orch_*` | One shared authority for lifecycle state, approvals, bounded execution, verification, proposal decisions, and read models |
-| Experimental runtime bridge | `@autoresearch/idea-engine`, `@autoresearch/idea-mcp` | Explicit runtime bridge, narrower than the full engine contract, not a root front door |
+| Experimental runtime bridge | `@autoresearch/idea-engine`, `@autoresearch/idea-mcp` | Explicit runtime bridge, narrower than the full engine contract, phase closed, not a root front door |
 | Domain workflow pack | `@autoresearch/hep-mcp`, `hep_*`, `hep://...` | Current strongest end-to-end example without becoming the root identity |
 | Atomic provider operators | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded schema-driven MCP atoms that stay MCP-first |
 | Project-local reconnect truth | `.autoresearch/` plus durable memory files | The external project root, not the development repo, holds the long-lived truth |
@@ -20,7 +20,7 @@ This document explains the current front-door architecture of the monorepo. It i
 - The root architecture is domain-neutral. Provider-specific worldview and workflow bias stay in provider packages or workflow recipes.
 - `autoresearch` remains the stateful CLI front door. `orch_*` remains the MCP/operator counterpart of that same control plane.
 - Provider MCP surfaces stay MCP-first. We do not mass-convert provider MCP into CLI because those surfaces are bounded atoms, not stateful workflow shells.
-- `idea-mcp` remains experimental and must not reclaim root workflow authority.
+- `idea-mcp` remains experimental and must not reclaim root workflow authority; the current idea-engine phase is closed rather than a default capability-expansion lane.
 - Large outputs are written to disk as artifacts; MCP results return compact summaries plus stable URIs.
 - Missing or unauthorized writing citations fail hard at render time; resource and artifact paths stay constrained under allowed roots.
 - For initialized external project roots, `.autoresearch/` state plus project-local durable memory such as `research_plan.md`, `research_contract.md`, and substantive `research_notebook.md` remain the enduring reconnect truth.
@@ -32,7 +32,7 @@ This document explains the current front-door architecture of the monorepo. It i
 | --- | --- | --- |
 | Stateful CLI front door | `autoresearch` | Generic lifecycle state, `workflow-plan`, bounded native TS computation, verification, higher-conclusion gating, and proposal decisions |
 | Control-plane MCP/operator surface | `orch_*` | Canonical public MCP/operator counterpart of the same control plane |
-| Experimental runtime bridge | `idea_mcp` | `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots |
+| Experimental runtime bridge | `idea_mcp` | `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search `rank.compute` / `node.promote` and bounded negative failure-library reflection stay inside the `idea-engine` runtime contract |
 | Current most mature domain MCP front door | `@autoresearch/hep-mcp` | Project/Run, evidence, writing/export, provider-local composition, `hep://...` and `pdg://...` resources |
 | Provider-local atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded provider operators that remain MCP-first |
 

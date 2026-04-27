@@ -9,7 +9,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 - `autoresearch` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, and proposal decisions.
 - `orch_*` remains the MCP/operator counterpart of that same control plane. It is a host-facing bridge for the control plane, not a competing product identity and not a replacement for the CLI.
 - `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring.
-- `idea-mcp` remains an experimental runtime bridge. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract.
+- `idea-mcp` remains an experimental runtime bridge. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract. The current idea-engine phase is closed; do not treat it as a default capability-expansion lane.
 - `@autoresearch/hep-mcp` remains the current most mature domain pack and strongest end-to-end example, but HEP does not define the root product identity.
 - Strict fail-closed research quality remains in force. Project-local durable memory plus `.autoresearch/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
 
@@ -20,7 +20,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 | Stateful CLI front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful `workflow-plan` persistence |
 | Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |
 | Stateful literature planning | `autoresearch workflow-plan` | Checked-in workflow authority resolved via `@autoresearch/literature-workflows`, persisted to `.autoresearch/state.json#/plan`, and rendered to `.autoresearch/plan.md` |
-| Experimental idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | TS-hosted campaign runtime bridge for `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots |
+| Experimental idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | TS-hosted campaign runtime bridge for `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search rank/promote and bounded negative failure-library reflection remain `idea-engine` runtime-contract truth, not a root front door |
 | Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research, evidence, writing, export, and provider-local composition `(70 std / 77)` |
 | Bounded provider MCP operators | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Atomic literature, data, reference, and evidence operators that stay MCP-first |
 

@@ -1,6 +1,6 @@
 # Project Status Report (front-door rebaseline)
 
-**Date**: 2026-03-29
+**Date**: 2026-04-27
 **Status**: Active local-first, evidence-first monorepo
 **Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity
 
@@ -8,6 +8,8 @@
 
 ## QA snapshot
 
+- Closeout baseline: `main` at `fc31bdbd`
+- Latest confirmed idea-engine CI: `25000327821` success
 - `pnpm -r build` ✅
 - `pnpm -r test` ✅
 - `pnpm -r lint` ✅
@@ -29,12 +31,11 @@
 - **Project recent digest seam**: `orch_run_status` / `orch_run_export` now also surface a thin project-level `project_recent_digest` with recent runs, the latest readable `final_conclusions_v1`, the latest repair/skill/optimize/innovate proposals, and the latest active team summary without widening `orch_run_list`
 - **Project surface drift seam**: `orch_run_status` / `orch_run_export` now also surface a diagnostic-only `project_surface_drift` block for stale legacy scaffold files and optional host-surface guidance noise; it warns without rewriting external project roots
 - **Plan view fallback seam**: `autoresearch status` / `orch_run_status` now rebuild the plan view from `state.json#/plan` when derived `.autoresearch/plan.md` is missing or stale, instead of surfacing an empty/zeroed plan to agents
-- **Resume / recovery seam**: `orch_run_status` / `orch_run_export` now surface the legacy-stable `resume_context`, the richer `recovery_context`, and `current_run_workflow_outputs`; `autoresearch init` also writes `.autoresearch/bin/autoresearch` so reconnecting agents in external projects can still execute the canonical `autoresearch status --json` front door even when the command is not on `PATH`
 - **Resume / recovery seam**: `orch_run_status` / `orch_run_export` now surface the legacy-stable `resume_context`, the richer `recovery_context`, `current_run_workflow_outputs`, `current_run_workflow_outputs_source`, and `legacy_workflow_projection`; when durable workflow outputs are missing for an older run, they rebuild a best-effort legacy projection from ledger/artifact conventions, and `autoresearch init` also writes `.autoresearch/bin/autoresearch` so reconnecting agents in external projects can still execute the canonical `autoresearch status --json` front door even when the command is not on `PATH`
 - **Single-user compute capability truth**: `orch_run_stage_idea` -> `orch_run_plan_computation` -> `orch_run_execute_manifest` is now the canonical generic lifecycle for staged compute execution; when the staged idea carries an explicit method bundle, planning materializes a provider-backed run-local manifest rather than narrating compute capability through the internal fixture runner
 - **Recommended public stateful literature workflow entrypoint**: `autoresearch workflow-plan` (requires an initialized external project root; resolves recipes directly via `@autoresearch/literature-workflows`; persists `.autoresearch/state.json#/plan` and derives `.autoresearch/plan.md`)
 - **Native TS run slice**: `autoresearch run` (requires an initialized external project root; runs prepared `computation/manifest.json` natively for `--workflow-id computation`, and also advances dependency-satisfied persisted workflow-plan steps through the same front door)
-- **Experimental TS idea runtime surface**: `@autoresearch/idea-mcp` remains campaign/search/eval oriented on explicit external data roots; `@autoresearch/idea-engine` also exposes post-search `rank.compute` / `node.promote` in its runtime contract
+- **Experimental TS idea runtime surface**: the current idea-engine phase is closed; `@autoresearch/idea-mcp` remains campaign/search/eval oriented on explicit external data roots, while `@autoresearch/idea-engine` keeps post-search `rank.compute` / `node.promote` and bounded negative failure-library reflection inside the runtime contract, not as a root front door or a new default capability lane
 - **Current most mature domain MCP front door**: `@autoresearch/hep-mcp` exposed through `packages/hep-mcp/dist/index.js`
 - **Current strongest end-to-end workflow family**: `hep_*` Project/Run + evidence + writing + export
 - **Direct provider families**: `inspire_*`, `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*`
@@ -49,7 +50,7 @@
 - **Generic follow-up continuation workflow**: `orch_run_progress_followups` is the canonical bounded consumer for computation-generated feedback and writing/review follow-ups; it progresses one follow-up task per call, consumes only explicit task/handoff authority, and does not invent scheduler or fallback semantics
 - **Public stateful literature planning workflow**: `autoresearch workflow-plan` resolves literature recipes directly via `@autoresearch/literature-workflows` into bounded executable steps for an initialized external project root, persists the plan substrate into `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`
 - **Native TS run workflow**: `autoresearch run` remains the only execution front door; `--workflow-id computation` executes a prepared `computation/manifest.json`, while persisted workflow-plan steps advance in a bounded loop until completion or a blocking failure is reached
-- **Experimental idea campaign workflow**: `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` on `idea-mcp`
+- **Experimental idea campaign workflow**: `idea_campaign_init` -> `idea_search_step` / `idea_eval_run`, with `idea_campaign_topup` / `idea_campaign_pause` / `idea_campaign_resume` / `idea_campaign_complete` on `idea-mcp`; the closed phase does not reopen idea evolution scoring, memory graph, positive memory retrieval, broad retrieval, generic eval platform, or front-door expansion
 - **Project/Run evidence workflow**: `hep_project_create` -> `hep_run_create` -> evidence build/query -> `hep_render_latex` -> `hep_export_project`
 - **Writing/export workflow**: citation mapping, evidence build, verifier-enforced rendering, research pack export, paper scaffold export/import
 - **Literature/data workflow**: direct provider search, retrieval, export, and bounded analysis operators

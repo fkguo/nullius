@@ -9,7 +9,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 - `autoresearch` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate，以及 proposal decisions 都从这里进入。
 - `orch_*` 继续作为同一 control plane 的 MCP/operator counterpart。它是 control plane 的 host-facing bridge，不是另一个产品身份，也不是对 CLI 的替代。
 - `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。
-- `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。
+- `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。当前 idea-engine phase 已关闭，不应把它当作默认 capability expansion lane。
 - `@autoresearch/hep-mcp` 继续是当前最成熟的 domain pack 与最强的端到端示例，但 HEP 不定义 root 产品身份。
 - strict fail-closed research quality 继续成立。project-local durable memory 加 `.autoresearch/` state 仍是 reconnect truth；可选 support surfaces 继续只是 opt-in layers。
 
@@ -20,7 +20,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | Stateful CLI front door | `autoresearch` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful `workflow-plan` 持久化 |
 | Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |
 | Stateful 文献规划入口 | `autoresearch workflow-plan` | 通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` |
-| 实验性 idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted campaign runtime bridge，覆盖 `idea_campaign_*`、`idea_search_step`、`idea_eval_run` |
+| 实验性 idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted campaign runtime bridge，覆盖 `idea_campaign_*`、`idea_search_step`、`idea_eval_run`；post-search rank/promote 与 bounded negative failure-library reflection 属于 `idea-engine` runtime-contract truth，不是 root front door |
 | 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究、证据、写作、导出与 provider-local 组合的 HEP 领域 MCP server `(70 std / 77)` |
 | Bounded provider MCP operators | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 保持 MCP-first 的原子化文献、数据、参考与证据 operators |
 
