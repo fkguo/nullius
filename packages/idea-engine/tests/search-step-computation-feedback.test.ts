@@ -233,6 +233,73 @@ describe('search.step computation-feedback ingestion', () => {
     expect(existsSync(resolve(rootDir, 'campaigns', campaignId, 'artifacts', 'computation_feedback_ingested', 'run-downstream-success.json'))).toBe(true);
   }, 20000);
 
+  it('does not reward distributor when old handoff feedback targets a node with later unsupported eval support', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-compute-feedback-stale-support-no-reward-'));
+    tempDirs.push(rootDir);
+    const service = createService(rootDir, NOW);
+    const init = service.handle('campaign.init', campaignInitParams({
+      distributor: { factorization: 'factorized', policy_id: 'ts.discounted_ucb_v1' },
+    }));
+    const campaignId = String(init.campaign_id);
+    const firstStep = service.handle('search.step', searchStepParams(campaignId, 'search-step-1'));
+    const nodeId = String((firstStep.new_node_ids as string[])[0]);
+    let nodes = service.search.store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[nodeId]!;
+    const selectedActionId = String(((node.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>).selected_action_id);
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-stale-supported-feedback-node',
+      node_ids: [nodeId],
+    });
+    const promoteResult = service.handle('node.promote', {
+      campaign_id: campaignId,
+      idempotency_key: 'promote-stale-supported-feedback-node',
+      node_id: nodeId,
+    });
+
+    nodes = service.search.store.loadNodes<Record<string, unknown>>(campaignId);
+    const currentNode = nodes[nodeId]!;
+    const operatorTrace = currentNode.operator_trace as Record<string, unknown>;
+    operatorTrace.evidence_uris_used = ['https://example.org/reference'];
+    const ideaCard = currentNode.idea_card as Record<string, unknown>;
+    const firstClaim = (ideaCard.claims as Array<Record<string, unknown>>)[0]!;
+    firstClaim.evidence_uris = ['https://example.org/reference'];
+    service.search.store.saveNodes(campaignId, nodes);
+    service.handle('eval.run', {
+      campaign_id: campaignId,
+      evaluator_config: { dimensions: ['feasibility', 'grounding'], n_reviewers: 2 },
+      idempotency_key: 'eval-stale-unsupported-feedback-node',
+      node_ids: [nodeId],
+    });
+
+    writeSuccessfulFeedback({
+      campaignId,
+      ideaId: String(node.idea_id),
+      nodeId,
+      rootDir,
+      runId: 'run-downstream-success-stale-support',
+      sourceHandoffUri: String(promoteResult.handoff_artifact_ref),
+    });
+
+    const secondService = createService(rootDir, LATER);
+    secondService.handle('search.step', searchStepParams(campaignId, 'search-step-2'));
+
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const events = readJsonLines<Record<string, unknown>>(resolve(campaignDir, 'artifacts', 'distributor', 'distributor_events_v1.jsonl'));
+    const snapshot = readJson<Record<string, Record<string, Record<string, unknown>>>>(
+      resolve(campaignDir, 'artifacts', 'distributor', 'distributor_state_snapshot_v1.json'),
+    );
+    const feedbackEvent = events.find(event => {
+      const diagnostics = event.diagnostics as Record<string, unknown> | undefined;
+      return diagnostics?.source === 'computation_feedback';
+    });
+
+    expect(feedbackEvent).toBeUndefined();
+    expect(Number((snapshot.action_stats[selectedActionId] as Record<string, unknown>).n)).toBe(1);
+    expect(existsSync(resolve(rootDir, 'campaigns', campaignId, 'artifacts', 'computation_feedback_ingested', 'run-downstream-success-stale-support.json'))).toBe(true);
+  }, 20000);
+
   it('does not reward distributor when success feedback targets node with missing_evidence and failing grounding audit', () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-compute-feedback-missing-evidence-no-reward-'));
     tempDirs.push(rootDir);
