@@ -240,6 +240,10 @@ describe('workflow run consumer', () => {
           reason_code: null,
           recoverable: false,
         },
+        research_pack: {
+          status: 'completed',
+          artifact_uri: 'hep://runs/M-WF-1/artifact/research_pack.zip',
+        },
       },
       current_run_workflow_outputs_source: 'state',
       resume_context: {
@@ -247,7 +251,7 @@ describe('workflow run consumer', () => {
         current_run_id: 'M-WF-1',
         run_status: 'completed',
         curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
-        workflow_output_keys: ['critical_analysis'],
+        workflow_output_keys: ['critical_analysis', 'research_pack'],
       },
     });
 
@@ -260,6 +264,9 @@ describe('workflow run consumer', () => {
     expect(exportView).toMatchObject({
       current_run_workflow_outputs: {
         critical_analysis: {
+          status: 'completed',
+        },
+        research_pack: {
           status: 'completed',
         },
       },
@@ -276,6 +283,82 @@ describe('workflow run consumer', () => {
         status_commands: {
           canonical: 'autoresearch status --json',
         },
+      },
+    });
+  });
+
+  it('projects non-curated workflow outputs into run status for generic workflow recovery', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-WF-SEARCH';
+    state.workflow_id = 'literature_to_evidence';
+    state.run_status = 'idle';
+    state.plan = {
+      schema_version: 1,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      plan_id: 'M-WF-SEARCH:literature_to_evidence',
+      run_id: 'M-WF-SEARCH',
+      workflow_id: 'literature_to_evidence',
+      current_step_id: 'search_export',
+      steps: [
+        {
+          step_id: 'search_export',
+          description: 'Run search and write export artifacts',
+          status: 'pending',
+          expected_approvals: [],
+          expected_outputs: ['search_export'],
+          recovery_notes: '',
+          execution: {
+            action: 'discover.seed_search',
+            tool: 'openalex_search',
+            provider: 'openalex',
+            depends_on: [],
+            params: { query: 'axion potential curved spacetime' },
+            required_capabilities: ['supports_keyword_search'],
+            degrade_mode: 'fail_closed',
+            consumer_hints: { artifact: 'search_export' },
+          },
+        },
+      ],
+      notes: '',
+    };
+    manager.saveState(state);
+    const { io } = makeIo(projectRoot);
+
+    const code = await runCommand(
+      makeRunInput(projectRoot, 'literature_to_evidence', 'M-WF-SEARCH'),
+      io,
+      {
+        workflowToolCaller: {
+          callTool: vi.fn(async () => ({
+            ok: true,
+            isError: false,
+            rawText: '{"total_count":2,"returned_count":2}',
+            json: { total_count: 2, returned_count: 2 },
+            errorCode: null,
+          })),
+        },
+      },
+    );
+
+    expect(code).toBe(0);
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    expect(statusView).toMatchObject({
+      current_run_workflow_outputs: {
+        search_export: {
+          status: 'completed',
+          artifact_uri: null,
+          summary: '{"total_count":2,"returned_count":2}',
+          reason_code: null,
+          recoverable: false,
+        },
+      },
+      current_run_workflow_outputs_source: 'state',
+      resume_context: {
+        workflow_output_keys: ['search_export'],
       },
     });
   });

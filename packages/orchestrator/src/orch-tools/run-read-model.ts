@@ -406,8 +406,14 @@ function readCurrentRunWorkflowOutputsView(projectRoot: string, state: RunState)
 
   const picked: Record<string, unknown> = {};
   const errors: Record<string, unknown>[] = [];
-  // Keep this view intentionally narrow and agent-oriented; the raw inventory remains in state.workflow_outputs.
-  for (const key of CURATED_WORKFLOW_OUTPUT_KEYS) {
+  const orderedKeys = [
+    ...CURATED_WORKFLOW_OUTPUT_KEYS.filter(key => outputs[key]),
+    ...entries
+      .map(([key]) => key)
+      .filter(key => !(CURATED_WORKFLOW_OUTPUT_KEYS as readonly string[]).includes(key)),
+  ];
+  // Keep this view compact and agent-oriented; the raw inventory remains in state.workflow_outputs.
+  for (const key of orderedKeys) {
     const output = outputs[key];
     if (!output) continue;
     const runtimeStatus = typeof output.runtime_status === 'string' ? output.runtime_status : null;
@@ -436,6 +442,7 @@ function readCurrentRunWorkflowOutputsView(projectRoot: string, state: RunState)
         code: 'CURRENT_RUN_WORKFLOW_OUTPUTS_PARTIAL',
         message: `Built current_run_workflow_outputs with ${errors.length} invalid output entr${errors.length === 1 ? 'y' : 'ies'}.`,
         curated_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
+        workflow_output_keys: entries.map(([key]) => key),
         output_errors: errors,
       }
     : null;
