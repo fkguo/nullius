@@ -123,7 +123,7 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
       'Follow an INSPIRE `next_url` returned by `inspire_search` with strict same-origin checks (network; avoids arbitrary URL fetch).',
     zodSchema: InspireSearchNextToolSchema,
     handler: async params => {
-      const result = await api.searchByUrl(params.next_url, { max_page_size: 100 });
+      const result = await api.searchByUrl(params.next_url, { max_page_size: 1000 });
 
       if (params.review_mode === 'mixed' || result.papers.length === 0) {
         return result;

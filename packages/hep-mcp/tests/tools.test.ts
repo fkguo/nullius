@@ -402,6 +402,20 @@ describe('Tool Handlers (current exposure)', () => {
     );
   });
 
+  it('inspire_search_next should accept next_url page sizes allowed by inspire_search', async () => {
+    vi.mocked(api.searchByUrl).mockResolvedValueOnce({ total: 0, papers: [], has_more: false });
+
+    const res = await handleToolCall('inspire_search_next', {
+      next_url: 'https://inspirehep.net/api/literature?page=2&size=1000&q=t%3Aqcd',
+    });
+
+    expect(res.isError).not.toBe(true);
+    expect(api.searchByUrl).toHaveBeenCalledWith(
+      'https://inspirehep.net/api/literature?page=2&size=1000&q=t%3Aqcd',
+      { max_page_size: 1000 },
+    );
+  });
+
   it('inspire_search review_mode="exclude" should keep uncertain papers visible', async () => {
     vi.mocked(api.search).mockResolvedValueOnce({
       total: 3,
