@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import importlib.util
 import json
 import pathlib
 import subprocess
 import sys
 import zipfile
+from types import ModuleType, SimpleNamespace
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -146,3 +148,52 @@ def test_non_opt_in_skill_remains_copy_only(tmp_path: pathlib.Path) -> None:
     assert install_dir.is_dir()
     assert not (install_dir / ".venv").exists()
     assert NOTE_START not in (install_dir / "SKILL.md").read_text(encoding="utf-8")
+
+
+def test_research_team_workflow_plan_copy_uses_source_workspace_provenance(monkeypatch, tmp_path: pathlib.Path) -> None:
+    repo_root = ROOT.parents[1]
+    target_root = tmp_path / "target"
+    assert install_main(
+        [
+            "--platform",
+            "codex",
+            "--market-root",
+            str(ROOT),
+            "--source-root",
+            str(repo_root),
+            "--target-root",
+            str(target_root),
+            "--package",
+            "research-team",
+        ]
+    ) == 0
+
+    module_path = target_root / "research-team" / "scripts" / "lib" / "literature_workflow_plan.py"
+    spec = importlib.util.spec_from_file_location("installed_literature_workflow_plan", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    assert isinstance(module, ModuleType)
+    spec.loader.exec_module(module)
+
+    captured: dict[str, object] = {}
+
+    def fake_run(command, *, cwd, input, capture_output, text, check):
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["input"] = input
+        captured["capture_output"] = capture_output
+        captured["text"] = text
+        captured["check"] = check
+        return SimpleNamespace(returncode=0, stdout='{"entry_tool":"literature_workflows.resolve"}\n', stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    payload = module.resolve_workflow_plan(
+        recipe_id="literature_landscape",
+        phase="prework",
+        inputs={"query": "test", "topic": "test"},
+    )
+
+    assert payload["entry_tool"] == "literature_workflows.resolve"
+    assert captured["cwd"] == str(repo_root)
+    assert captured["command"][:3] == ["pnpm", "--dir", str(repo_root)]

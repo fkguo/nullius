@@ -119,17 +119,20 @@ def main(argv: list[str] | None = None) -> int:
                         [str(item) for item in source.get("include", [])],
                         [str(item) for item in source.get("exclude", [])],
                     )
+                    metadata = {
+                        "source_repo": repo,
+                        "source_ref": ref,
+                        "source_subpath": str(pathlib.Path(str(source["subpath"])).as_posix()),
+                        "source_commit": git_head(repo_root_path),
+                    }
+                    if local_source_root is not None and (local_source_root / "pnpm-workspace.yaml").is_file():
+                        metadata["source_workspace_root"] = str(local_source_root)
                     install_payload(
                         package_id=package_id,
                         target_root=target_root,
                         source_dir=source_dir,
                         files=files,
-                        metadata={
-                            "source_repo": repo,
-                            "source_ref": ref,
-                            "source_subpath": str(pathlib.Path(str(source["subpath"])).as_posix()),
-                            "source_commit": git_head(repo_root_path),
-                        },
+                        metadata=metadata,
                         python_runtime=runtime,
                         install_mode="auto_safe" if args.auto_safe else "default",
                         auto_safe_evaluation=package_auto_safe_records.get(package_id),
