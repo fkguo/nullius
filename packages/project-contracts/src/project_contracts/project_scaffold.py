@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from datetime import date
 from pathlib import Path
@@ -12,11 +11,9 @@ from .project_policy import (
 )
 from .project_surface import (
     BOUNDARY_NAMING_AUDIT,
-    FULL_TEMPLATE_FILES,
-    MCP_CONFIG_TEMPLATE,
-    MINIMAL_CONTEXT_FILES,
-    MINIMAL_TEMPLATE_FILES,
+    SCAFFOLD_CONTEXT_FILES,
     SCAFFOLD_TEMPLATE_MAP,
+    SCAFFOLD_TEMPLATE_FILES,
 )
 from .research_contract import sync_research_contract
 from .scaffold_template_loader import load_scaffold_template
@@ -50,30 +47,16 @@ def _render_template(name: str, *, project_name: str, project_root: Path, profil
     )
 
 
-def _load_plan_schema_template() -> dict[str, Any]:
-    pkg_root = Path(__file__).resolve().parent
-    candidate = pkg_root / "specs" / "plan.schema.json"
-    if not candidate.is_file():
-        raise FileNotFoundError(f"project-contracts plan schema template missing: {candidate}")
-    raw = json.loads(candidate.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict) or not raw:
-        raise ValueError(f"project-contracts plan schema template must be a non-empty JSON object: {candidate}")
-    return raw
-
-
 def ensure_project_scaffold(
     *,
     repo_root: Path,
     project_name: str | None = None,
     profile: str | None = None,
-    variant: str = "minimal",
     force: bool = False,
     project_policy: str | None = PROJECT_POLICY_REAL_PROJECT,
 ) -> dict[str, Any]:
     repo_root = repo_root.expanduser().resolve()
     assert_project_root_allowed(repo_root, project_policy=project_policy)
-    if variant not in {"minimal", "full"}:
-        raise ValueError(f"invalid scaffold variant: {variant}")
 
     created: list[str] = []
     skipped: list[str] = []
@@ -81,13 +64,10 @@ def ensure_project_scaffold(
     profile_name = (profile or "mixed").strip() or "mixed"
 
     scaffold_dirs = ["artifacts/runs", "docs"]
-    if variant == "full":
-        scaffold_dirs.append("specs")
     for rel in scaffold_dirs:
         (repo_root / rel).mkdir(parents=True, exist_ok=True)
 
-    template_files = FULL_TEMPLATE_FILES if variant == "full" else MINIMAL_TEMPLATE_FILES
-    for rel in template_files:
+    for rel in SCAFFOLD_TEMPLATE_FILES:
         _write_text_if_missing(
             repo_root=repo_root,
             path=repo_root / rel,
@@ -101,43 +81,12 @@ def ensure_project_scaffold(
             skipped=skipped,
             force=force,
         )
-    if variant == "full":
-        mcp_path = repo_root / MCP_CONFIG_TEMPLATE
-        if not mcp_path.exists() or force:
-            mcp_path.write_text(
-                json.dumps(
-                    {
-                        "_comment": "Rename this file to .mcp.json and replace the placeholder entry with the provider-local MCP server(s) your project actually uses.",
-                        "mcpServers": {
-                            "example-provider": {
-                                "command": "node",
-                                "args": ["<path-to-provider-entrypoint.js>"],
-                                "env": {"PROVIDER_DATA_DIR": "<provider-local-data-dir>"},
-                            }
-                        },
-                    },
-                    indent=2,
-                    sort_keys=True,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            created.append(_safe_rel(repo_root, mcp_path))
-        else:
-            skipped.append(_safe_rel(repo_root, mcp_path))
-
-        schema_path = repo_root / "specs" / "plan.schema.json"
-        if not schema_path.exists() or force:
-            schema_path.write_text(json.dumps(_load_plan_schema_template(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            created.append(_safe_rel(repo_root, schema_path))
-        else:
-            skipped.append(_safe_rel(repo_root, schema_path))
 
     sync_research_contract(repo_root=repo_root, create_missing=False, project_policy=project_policy)
     return {
         "created": sorted(dict.fromkeys(created)),
         "skipped": sorted(dict.fromkeys(skipped)),
-        "context_files": list(MINIMAL_CONTEXT_FILES),
+        "context_files": list(SCAFFOLD_CONTEXT_FILES),
         "naming_audit": [decision.__dict__ for decision in BOUNDARY_NAMING_AUDIT],
-        "variant": variant,
+        "scaffold": "canonical",
     }

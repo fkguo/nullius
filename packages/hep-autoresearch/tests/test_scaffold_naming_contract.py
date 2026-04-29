@@ -11,7 +11,7 @@ def _src_root() -> Path:
 
 
 class TestScaffoldNamingContract(unittest.TestCase):
-    def test_init_uses_current_minimal_surface(self) -> None:
+    def test_init_uses_current_canonical_surface(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             env = dict(os.environ)
@@ -59,10 +59,10 @@ class TestScaffoldNamingContract(unittest.TestCase):
                 ".mcp.template.json",
                 "specs/plan.schema.json",
             ):
-                self.assertNotIn(rel, present_paths, msg=f"minimal init should not scaffold: {rel}")
+                self.assertNotIn(rel, present_paths, msg=f"canonical init should not scaffold: {rel}")
 
             for rel in ("knowledge_base", "prompts", "references", "team", "research_team_config.json"):
-                self.assertFalse((root / rel).exists(), msg=f"minimal init should not precreate optional path: {rel}")
+                self.assertFalse((root / rel).exists(), msg=f"canonical init should not precreate optional path: {rel}")
 
 
 if __name__ == "__main__":

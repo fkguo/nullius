@@ -10,11 +10,10 @@ from .project_scaffold import ensure_project_scaffold
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Render the canonical project scaffold.")
+    ap = argparse.ArgumentParser(description="Render the canonical generic project scaffold.")
     ap.add_argument("--root", type=Path, required=True, help="Project root to scaffold.")
     ap.add_argument("--project", default="", help="Project display name.")
     ap.add_argument("--profile", default="mixed", help="Optional profile hint for scaffold placeholders.")
-    ap.add_argument("--variant", choices=("minimal", "full"), default="minimal", help="Scaffold size policy.")
     ap.add_argument("--project-policy", choices=PROJECT_POLICY_CHOICES, default="real_project", help="Project root policy.")
     ap.add_argument("--force", action="store_true", help="Overwrite scaffold-managed files.")
     args = ap.parse_args()
@@ -23,7 +22,6 @@ def main() -> int:
         repo_root=args.root.expanduser().resolve(),
         project_name=args.project or None,
         profile=args.profile or None,
-        variant=args.variant,
         force=bool(args.force),
         project_policy=args.project_policy,
     )

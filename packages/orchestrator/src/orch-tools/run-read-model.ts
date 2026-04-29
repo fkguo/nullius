@@ -63,11 +63,6 @@ const RECOVERY_RECOMMENDED_FILES = [
   'research_notebook.md',
 ] as const;
 const PLAN_STEP_TERMINAL_STATUSES = new Set(['completed', 'skipped']);
-const FULL_SCAFFOLD_ONLY_ROOT_FILES = [
-  'research_preflight.md',
-  'project_brief.md',
-  'idea_log.md',
-] as const;
 const OPTIONAL_HOST_SURFACE_GUIDANCE_FILES = [
   'AGENTS.md',
   'project_index.md',
@@ -102,21 +97,21 @@ const RESEARCH_NOTEBOOK_TEMPLATE_LINES = new Set([
   '- What is currently believed:',
   '- What is evidence-backed:',
   '- What is still hypothesis:',
-  '## Physical Question Map',
-  '- Main physical questions:',
+  '## Question Map',
+  '- Main questions:',
   '- Subquestions and dependencies:',
   '- What would change the direction:',
-  '## Literature Evidence',
-  '- Core references and what each establishes:',
-  '- Candidate-only references:',
+  '## Evidence Map',
+  '- Core sources and what each establishes:',
+  '- Candidate-only sources:',
   '- Known gaps in source reading:',
-  '## Conventions and Normalizations',
-  '- Variables and units:',
-  '- Sign conventions:',
-  '- Source, field, and normalization choices:',
-  '## Derivation Threads',
+  '## Conventions and Definitions',
+  '- Terms, variables, and units:',
+  '- Naming or representation choices:',
+  '- Assumptions and scope boundaries:',
+  '## Reasoning Threads',
   '- State assumptions explicitly.',
-  '- Keep each derivation thread under a stable conceptual heading.',
+  '- Keep each reasoning thread under a stable conceptual heading.',
   '- Keep the reasoning readable; move machine-checkable pointers to [research_contract.md](research_contract.md).',
   '## Results',
   '- Key figures/tables:',
@@ -733,41 +728,36 @@ function readResumeContextView(projectRoot: string, state: RunState, workflowOut
   };
 }
 
-function projectHasExpandedScaffoldRoot(projectRoot: string): boolean {
-  return FULL_SCAFFOLD_ONLY_ROOT_FILES.some(relativePath => fs.existsSync(path.join(projectRoot, relativePath)));
-}
-
 export function readProjectSurfaceDriftView(projectRoot: string): {
   project_surface_drift: Record<string, unknown> | null;
   project_surface_drift_error: Record<string, unknown> | null;
 } {
   try {
     const issues: Record<string, unknown>[] = [];
-    const isExpandedRoot = projectHasExpandedScaffoldRoot(projectRoot);
     const mcpTemplatePath = path.join(projectRoot, '.mcp.template.json');
     const mcpConfigPath = path.join(projectRoot, '.mcp.json');
-    if (!isExpandedRoot && fs.existsSync(mcpTemplatePath) && !fs.existsSync(mcpConfigPath)) {
+    if (fs.existsSync(mcpTemplatePath) && !fs.existsSync(mcpConfigPath)) {
       issues.push({
         code: 'LEGACY_MCP_TEMPLATE_NO_ACTIVE_CONFIG',
         path: '.mcp.template.json',
-        message: 'Found legacy .mcp.template.json without an active .mcp.json in a minimal-style project root.',
+        message: 'Found stale optional provider config template without an active .mcp.json; the canonical scaffold does not create this support file by default.',
         recommended_action: 'review_and_remove_if_unused',
         evidence: {
           active_config_present: false,
-          inferred_scaffold_style: 'minimal',
+          canonical_scaffold_creates_file: false,
         },
       });
     }
 
     const planSchemaPath = path.join(projectRoot, 'specs', 'plan.schema.json');
-    if (!isExpandedRoot && fs.existsSync(planSchemaPath)) {
+    if (fs.existsSync(planSchemaPath)) {
       issues.push({
-        code: 'LEGACY_PLAN_SCHEMA_IN_MINIMAL_ROOT',
+        code: 'LEGACY_PLAN_SCHEMA_IN_CANONICAL_ROOT',
         path: 'specs/plan.schema.json',
-        message: 'Found legacy plan schema in a minimal-style project root.',
+        message: 'Found stale optional schema file; the canonical scaffold does not create root specs/plan.schema.json by default.',
         recommended_action: 'review_and_remove_if_unused',
         evidence: {
-          inferred_scaffold_style: 'minimal',
+          canonical_scaffold_creates_file: false,
         },
       });
     }
@@ -788,7 +778,7 @@ export function readProjectSurfaceDriftView(projectRoot: string): {
       issues.push({
         code: 'OPTIONAL_HOST_SURFACE_MENTION_MISSING',
         path: '.',
-        message: 'Top-level guidance still points to optional host-local surfaces that are not present in this project root.',
+        message: 'Top-level guidance still points to optional host-local surfaces that are not present in this canonical project root.',
         recommended_action: 'trim_stale_guidance_or_add_host_surface',
         evidence: {
           missing_paths: missingPaths,
@@ -805,7 +795,7 @@ export function readProjectSurfaceDriftView(projectRoot: string): {
         issues.push({
           code: 'RESEARCH_CONTRACT_TEMPLATE_RESIDUE',
           path: 'research_contract.md',
-          message: 'research_contract.md still contains legacy scaffold residue that no longer belongs to the minimal default truth.',
+          message: 'research_contract.md still contains legacy scaffold residue that no longer belongs to the canonical scaffold truth.',
           recommended_action: 'specialize_or_trim',
           evidence: {
             residue_markers: markers,
@@ -817,7 +807,6 @@ export function readProjectSurfaceDriftView(projectRoot: string): {
     return {
       project_surface_drift: {
         status: issues.length > 0 ? 'warning_only' : 'clean',
-        canonical_scaffold_variant: 'minimal',
         warning_count: issues.length,
         issues,
       },

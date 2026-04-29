@@ -6,6 +6,55 @@ import { describe, expect, it } from 'vitest';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { runCli } from '../src/cli.js';
+import { ensureProjectScaffold } from '../src/project-scaffold.js';
+
+const CANONICAL_SCAFFOLD_FILES = [
+  'AGENTS.md',
+  'project_charter.md',
+  'project_index.md',
+  'research_plan.md',
+  'research_notebook.md',
+  'research_contract.md',
+  'docs/APPROVAL_GATES.md',
+  'docs/ARTIFACT_CONTRACT.md',
+  'docs/EVAL_GATE_CONTRACT.md',
+] as const;
+
+const ABSENT_DEFAULT_SURFACES = [
+  '.mcp.template.json',
+  'specs/plan.schema.json',
+  'research_preflight.md',
+  'project_brief.md',
+  'idea_log.md',
+  'prompts',
+  'team',
+  'research_team_config.json',
+  '.hep',
+  'knowledge_base',
+] as const;
+
+const TOO_SPECIFIC_SCAFFOLD_TOKENS = [
+  'INSPIRE recid',
+  'Citekey',
+  'research_team_config.json',
+  'idea_log.md',
+  'Fourier convention',
+  'physical interpretation',
+  'linear response',
+  'path integral',
+  'perturbation theory',
+  'propagators',
+  'vertices',
+  'LO/NLO',
+  'power counting',
+  'Julia',
+  'numpy',
+  'scipy',
+  'KB delta',
+  'knowledge_base/methodology_traces',
+  'team packet',
+  '~/.codex/skills/research-team',
+] as const;
 
 function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -41,12 +90,19 @@ describe('autoresearch CLI init/export', () => {
     const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
     expect(fs.existsSync(launcherPath)).toBe(true);
     expect((fs.statSync(launcherPath).mode & 0o111) !== 0).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, 'research_contract.md'))).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, '.mcp.template.json'))).toBe(false);
-    expect(fs.existsSync(path.join(projectRoot, 'docs', 'APPROVAL_GATES.md'))).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, 'specs', 'plan.schema.json'))).toBe(false);
-    expect(fs.readFileSync(path.join(projectRoot, 'research_contract.md'), 'utf-8')).toContain('Source notebook: [research_notebook.md](research_notebook.md)');
+    for (const rel of CANONICAL_SCAFFOLD_FILES) {
+      expect(fs.existsSync(path.join(projectRoot, rel))).toBe(true);
+    }
+    for (const rel of ABSENT_DEFAULT_SURFACES) {
+      expect(fs.existsSync(path.join(projectRoot, rel))).toBe(false);
+    }
+    const generatedText = CANONICAL_SCAFFOLD_FILES
+      .map(rel => fs.readFileSync(path.join(projectRoot, rel), 'utf-8'))
+      .join('\n');
+    expect(generatedText).toContain('Source notebook: [research_notebook.md](research_notebook.md)');
+    for (const token of TOO_SPECIFIC_SCAFFOLD_TOKENS) {
+      expect(generatedText).not.toContain(token);
+    }
 
     const statusJson = execFileSync(launcherPath, ['status', '--json'], {
       cwd: projectRoot,
@@ -72,6 +128,38 @@ describe('autoresearch CLI init/export', () => {
         ],
       },
     });
+  });
+
+  it('calls the project-contracts scaffold authority without a variant argument', () => {
+    const parentDir = makeTempDir('autoresearch-scaffold-spawn-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    const argvLog = path.join(parentDir, 'argv.log');
+    const fakePython = path.join(parentDir, 'fake-python.sh');
+    fs.writeFileSync(
+      fakePython,
+      [
+        '#!/bin/sh',
+        `printf '%s\\n' "$@" > ${JSON.stringify(argvLog)}`,
+        'printf \'{"created":[],"skipped":[]}\\n\'',
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+    fs.chmodSync(fakePython, 0o755);
+    const previous = process.env.AUTORESEARCH_PYTHON;
+    process.env.AUTORESEARCH_PYTHON = fakePython;
+    try {
+      ensureProjectScaffold(projectRoot);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.AUTORESEARCH_PYTHON;
+      } else {
+        process.env.AUTORESEARCH_PYTHON = previous;
+      }
+    }
+
+    const argv = fs.readFileSync(argvLog, 'utf-8').trim().split('\n');
+    expect(argv).not.toContain('--' + 'variant');
+    expect(argv).not.toContain('minimal');
   });
 
   it('writes the project-local fallback launcher even for runtime-only init', async () => {

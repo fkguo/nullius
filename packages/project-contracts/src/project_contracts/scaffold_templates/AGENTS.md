@@ -38,13 +38,13 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Display math must use fenced `$$ ... $$`.
 - Only inside multi-line display math blocks, do not start a continuation line with `+`, `-`, or `=`.
 - Plain Markdown prose lines are not subject to the `+/-/=` rule above.
-- `arXiv`, `INSPIRE`, and `DOI` references must use clickable links.
+- External references must use clickable stable links when available.
 
 ## Optional host layers
 
 Some projects add extra host-local team or automation layers on top of this root.
 Treat those as opt-in support layers, not the default front door.
-If this project already has host-local team surfaces, follow the host's local preflight instructions before the next team cycle.
+If this project already has host-local support surfaces, follow the host's local instructions before using them.
 If it does not, keep using the read order above and update `research_plan.md` directly.
 
 ## Minimal checkpoints

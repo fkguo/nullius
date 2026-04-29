@@ -118,7 +118,7 @@ Skill 源码面与分发面是分离的：
 - `.autoresearch/` 中的 lifecycle / plan / approval state
 - project-local durable memory，例如 `research_plan.md`、`research_contract.md`，以及已经有实质内容的 `research_notebook.md`
 
-像 `prompts/`、`team/`、`research_team_config.json`、`.mcp.template.json`、根级 `specs/plan.schema.json` 这类 surface 都是 opt-in support layers，不是默认工作前门。
+像 `prompts/`、`team/`、`research_team_config.json`、`.mcp.template.json`、根级 `specs/plan.schema.json` 这类 surface 都是 opt-in support layers，只应由明确项目需要或 host-specific tooling 后续创建，不是默认工作前门。
 
 ## 5. 用户如何从 MCP clients / agent clients 接入
 

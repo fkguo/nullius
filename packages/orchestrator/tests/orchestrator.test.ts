@@ -63,7 +63,6 @@ function writeProjectSurfaceFiles(
   options: {
     includeOptionalHostMentions?: boolean;
     includeResearchContractResidue?: boolean;
-    includeExpandedScaffoldMarkers?: boolean;
   } = {},
 ): void {
   const optionalHostText = options.includeOptionalHostMentions
@@ -85,12 +84,6 @@ function writeProjectSurfaceFiles(
   fs.writeFileSync(path.join(repoRoot, 'AGENTS.md'), ['# AGENTS.md', '', optionalHostText, ''].join('\n'), 'utf-8');
   fs.writeFileSync(path.join(repoRoot, 'research_plan.md'), '# research_plan.md\n\n- Keep the task board current.\n', 'utf-8');
   fs.writeFileSync(path.join(repoRoot, 'research_contract.md'), `${contractText}\n`, 'utf-8');
-
-  if (options.includeExpandedScaffoldMarkers) {
-    fs.writeFileSync(path.join(repoRoot, 'research_preflight.md'), '# research_preflight.md\n', 'utf-8');
-    fs.writeFileSync(path.join(repoRoot, 'project_brief.md'), '# project_brief.md\n', 'utf-8');
-    fs.writeFileSync(path.join(repoRoot, 'idea_log.md'), '# idea_log.md\n', 'utf-8');
-  }
 }
 
 describe('StateManager', () => {
@@ -332,23 +325,35 @@ describe('StateManager', () => {
     });
   });
 
-  it('keeps project_surface_drift clean for expanded scaffold roots that intentionally keep full-only files', () => {
+  it('warns on stale optional support files even when old scaffold residue files are present', () => {
     const state = baseState({
-      run_id: 'test-run-expanded',
+      run_id: 'test-run-stale-support',
       run_status: 'idle',
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    writeProjectSurfaceFiles(tmpDir, { includeExpandedScaffoldMarkers: true });
+    writeProjectSurfaceFiles(tmpDir);
+    fs.writeFileSync(path.join(tmpDir, 'research_preflight.md'), '# research_preflight.md\n', 'utf-8');
+    fs.writeFileSync(path.join(tmpDir, 'project_brief.md'), '# project_brief.md\n', 'utf-8');
+    fs.writeFileSync(path.join(tmpDir, 'idea_log.md'), '# idea_log.md\n', 'utf-8');
     fs.writeFileSync(path.join(tmpDir, '.mcp.template.json'), '{"mcpServers":{}}\n', 'utf-8');
     fs.mkdirSync(path.join(tmpDir, 'specs'), { recursive: true });
     fs.writeFileSync(path.join(tmpDir, 'specs', 'plan.schema.json'), '{}\n', 'utf-8');
 
     const view = buildRunStatusView(tmpDir, sm.readState());
     expect(view.project_surface_drift).toMatchObject({
-      status: 'clean',
-      warning_count: 0,
-      issues: [],
+      status: 'warning_only',
+      warning_count: 2,
+      issues: [
+        {
+          code: 'LEGACY_MCP_TEMPLATE_NO_ACTIVE_CONFIG',
+          path: '.mcp.template.json',
+        },
+        {
+          code: 'LEGACY_PLAN_SCHEMA_IN_CANONICAL_ROOT',
+          path: 'specs/plan.schema.json',
+        },
+      ],
     });
     expect(view.project_surface_drift_error).toBeNull();
   });

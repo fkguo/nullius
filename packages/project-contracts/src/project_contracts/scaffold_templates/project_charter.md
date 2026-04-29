@@ -6,42 +6,39 @@ Root: <PROJECT_ROOT>
 Created: <YYYY-MM-DD>
 Last updated: <YYYY-MM-DD>
 
-## 0. Goal Hierarchy (MANDATORY)
+## 0. Purpose
 
-Primary goal: (fill; the real goal, e.g. "layered knowledge base + reusable toolkit/components")
+One-sentence project purpose:
 
-Validation goal(s): (fill; e.g. "reproduce target figure/table/result X as validation only")
+## 1. Goals
 
-Anti-goals / non-goals (must include at least 1):
-- (fill; e.g. "do NOT optimize for validation-only progress without reusable extraction")
+Primary goal:
 
-## 1. Declared Profile (MANDATORY)
+Validation goals:
+- (fill; checks, reproductions, audits, or benchmark comparisons that validate the main work)
+
+Non-goals / anti-goals:
+- (fill; work that would look productive but should not steer the project)
+
+## 2. Scope And Constraints
 
 Declared profile: <PROFILE>
-Rationale: (fill; why this profile matches the goal hierarchy)
 
-## 2. Reusable Outputs Contract (MANDATORY)
+Constraints:
+- Required approvals before changing scope:
+- Data, compute, privacy, or external access limits:
+- Decisions that must be recorded project-locally:
 
-For every milestone/cycle, the project must produce at least one reusable delta beyond validation-only work:
-- KB delta: at least 1 new/updated note under [knowledge_base/](knowledge_base/) (and referenced from Capsule I and `## References`)
-- Methodology delta: at least 1 new/updated item under [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/) with candidate methods + selection rationale
-- Toolkit delta (if applicable): a reusable module/API/doc index (e.g. [TOOLKIT_API.md](TOOLKIT_API.md), `src/`, `toolkit/`)
+## 3. Evidence And Validation
 
-Project-specific commitments (fill at least 2 bullets; must include at least 1 KB link):
-- (fill; KB: e.g. [recid-XXXX — Authors, Title](knowledge_base/literature/recid-XXXX.md) — normalization audit notes)
-- (fill; Method: e.g. [method choice](knowledge_base/methodology_traces/2026-01-19_method_choice.md) — candidate algorithms + why chosen)
-- (fill; Toolkit: e.g. `toolkit/` module list + entrypoint plan; or [TOOLKIT_API.md](TOOLKIT_API.md))
-- (fill; Numerics language preference, not enforced: prefer Julia when available; if choosing Python, justify and avoid pure-Python slow loops)
+- Stable sources should be cited when they are used.
+- Validation-only work must be labeled as validation and must not be confused with the project's primary goal.
+- Claims need evidence pointers in [research_contract.md](research_contract.md) and supporting artifacts under `artifacts/runs/<TAG>/`.
+- Discovery and method-selection decisions should be recorded in a project-local place chosen for this project.
 
-## 3. Discovery Policy (MANDATORY)
+## 4. Reusable Outputs
 
-- Allowed sources for discovery (project leader only): prefer stable anchors (INSPIRE/arXiv/DOI/GitHub) + official docs/archives/registries (SciPy/Julia/NumPy/PyPI/Zenodo/etc.). General scholarly search may be used for discovery, but MUST be logged and the final citations must be stabilized to stable anchors; if a needed domain is blocked by the References gate, extend allowlist via `research_team_config.json: references.allowed_external_hosts_extra`.
-- Log all queries + selection decisions in [knowledge_base/methodology_traces/literature_queries.md](knowledge_base/methodology_traces/literature_queries.md) (append-only).
-
-## 4. Task Alignment (RECOMMENDED)
-
-To prevent drift, every Task Board entry should clearly state which top-level goal it advances:
-- `[KB]` expands layered knowledge base
-- `[TOOLKIT]` extracts reusable code/API/docs
-- `[VALIDATION]` validates against a target result (must not be the only ongoing work)
-- `[DOC]` narrative/derivation quality and reference hygiene
+Optional reusable outputs, when useful:
+- Project-local notes or indexes:
+- Reusable code, data, or workflow components:
+- Method or decision records:
