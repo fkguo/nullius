@@ -71,16 +71,16 @@ const InspireLiteratureRecidsSchema = z.preprocess(
 export const InspireLiteratureToolSchema = z
   .object({
     mode: InspireLiteratureModeSchema.describe(
-      "Operation to run. Mode contracts are strict: get_paper={recid} (size tolerated only for compatibility), lookup_by_id={identifier} only, get_references={recid,size?}, get_citations={recid,size?,sort?}, search_affiliation={affiliation,size?,sort?}, get_bibtex={recids}, get_author={identifier}."
+      "Operation to run. Mode contracts: get_paper={recid} (size tolerated only for compatibility), lookup_by_id={identifier only; accidental size ignored}, get_references={recid,size?}, get_citations={recid,size?,sort?}, search_affiliation={affiliation,size?,sort?}, get_bibtex={recids}, get_author={identifier}."
     ),
     recid: z.string().min(1).optional().describe(
       "INSPIRE literature record id. Required for get_paper, get_references, and get_citations."
     ),
     size: optionalBudgetInt({ min: 1, max: 1000 }).describe(
-      "Page size / result limit. Only for get_references, get_citations, and search_affiliation. Do not provide for lookup_by_id or get_author. get_paper tolerates size only for backward-compatible callers."
+      "Page size / result limit. Only used by get_references, get_citations, and search_affiliation. Ignored by lookup_by_id and get_paper for agent-call compatibility. Do not provide for get_author."
     ),
     identifier: z.string().min(1).optional().describe(
-      "Lookup identifier for lookup_by_id or get_author. For lookup_by_id, pass identifier only (no size/sort/page). Can be a recid, DOI, or arXiv id. For get_author, identifier can be an INSPIRE BAI, ORCID, or a name query."
+      "Lookup identifier for lookup_by_id or get_author. For lookup_by_id, pass identifier; size is tolerated and ignored, but sort/page/options are not part of this mode. Can be a recid, DOI, or arXiv id. For get_author, identifier can be an INSPIRE BAI, ORCID, or a name query."
     ),
     sort: SortSchema.optional().describe(
       "Optional INSPIRE sort order. Only for get_citations and search_affiliation."
@@ -101,7 +101,7 @@ export const InspireLiteratureToolSchema = z
         case 'get_references':
           return new Set(['recid', 'size']);
         case 'lookup_by_id':
-          return new Set(['identifier']);
+          return new Set(['identifier', 'size']);
         case 'get_citations':
           return new Set(['recid', 'size', 'sort']);
         case 'search_affiliation':
@@ -125,14 +125,6 @@ export const InspireLiteratureToolSchema = z
         code: z.ZodIssueCode.unrecognized_keys,
         keys: extraKeys,
         path: [],
-      });
-    }
-
-    if (v.mode === 'lookup_by_id' && 'size' in v) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['size'],
-        message: "mode='lookup_by_id' accepts only identifier; remove size.",
       });
     }
 

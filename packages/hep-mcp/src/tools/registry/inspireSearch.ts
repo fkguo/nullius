@@ -151,7 +151,7 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
 Modes + required args:
 - get_paper: { recid } only. Do not pass size, page, or options.
 - get_references: { recid, size? }
-- lookup_by_id: { identifier } only. Do not pass size, sort, page, or options. identifier can be a recid, DOI (10.x), or arXiv id; tool auto-routes
+- lookup_by_id: { identifier } only. Do not pass size, sort, page, or options; accidental size is ignored. identifier can be a recid, DOI (10.x), or arXiv id; tool auto-routes
 - get_citations: { recid, size?, sort? } // IMPORTANT: use recid (not identifier); use size (not options.limit)
 - search_affiliation: { affiliation, size?, sort? }
 - get_bibtex: { recids }

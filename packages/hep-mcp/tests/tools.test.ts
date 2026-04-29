@@ -479,26 +479,16 @@ describe('Tool Handlers (current exposure)', () => {
     expect(api.getByArxiv).toHaveBeenCalledWith('arXiv:2301.00001');
   });
 
-  it('inspire_literature(lookup_by_id) should fail-fast on size misuse with a clear issue', async () => {
+  it('inspire_literature(lookup_by_id) should tolerate and ignore size for agent-call compatibility', async () => {
+    vi.mocked(api.getByArxiv).mockResolvedValueOnce({ recid: '2109.01038' } as any);
     const result = await handleToolCall('inspire_literature', {
       mode: 'lookup_by_id',
       identifier: '2109.01038',
       size: 1,
     } as any);
 
-    expect(result.isError).toBe(true);
-    const payload = JSON.parse(readTextBlock(result)) as {
-      error?: { code?: string; data?: { issues?: Array<Record<string, unknown>> } };
-    };
-    expect(payload.error?.code).toBe('INVALID_PARAMS');
-    expect(payload.error?.data?.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          path: ['size'],
-          message: "mode='lookup_by_id' accepts only identifier; remove size.",
-        }),
-      ]),
-    );
+    expect(result.isError).toBeFalsy();
+    expect(api.getByArxiv).toHaveBeenCalledWith('2109.01038');
   });
 
   it('inspire_literature(get_references) should call api.getReferences', async () => {
