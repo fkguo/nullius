@@ -1,4 +1,4 @@
-# project_index.md (Template)
+# project_index.md
 
 Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
@@ -13,7 +13,7 @@ Use it to find the human notebook, the machine contract, and the current plan wi
 3) [project_charter.md](project_charter.md) — goals, constraints, and declared profile
 4) [research_plan.md](research_plan.md) — task board, milestones, and progress log
 5) [research_contract.md](research_contract.md) — machine-stable contract for gates, packets, and revision
-6) [research_notebook.md](research_notebook.md) — human-readable derivations, interpretation, and figures, when it already contains substantive content
+6) [research_notebook.md](research_notebook.md) — human-readable problem logic, derivations, interpretation, and figures, when it already contains substantive content
 
 If `.autoresearch/` exists, start by running `autoresearch status --json` before continuing work.
 If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
@@ -25,6 +25,8 @@ Treat that status output as the authoritative recovery briefing, then continue t
 - Machine contract: [research_contract.md](research_contract.md)
 - Artifact root: `artifacts/runs/<TAG>/`
 - Shared docs: [docs/APPROVAL_GATES.md](docs/APPROVAL_GATES.md), [docs/ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md), [docs/EVAL_GATE_CONTRACT.md](docs/EVAL_GATE_CONTRACT.md)
+
+Keep dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<TAG>/`. Keep [research_notebook.md](research_notebook.md) organized by the research problem's logic so it remains readable as the project grows.
 
 ## Optional expansions
 

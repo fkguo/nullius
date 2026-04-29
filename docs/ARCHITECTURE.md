@@ -24,6 +24,7 @@ This document explains the current front-door architecture of the monorepo. It i
 - Large outputs are written to disk as artifacts; MCP results return compact summaries plus stable URIs.
 - Missing or unauthorized writing citations fail hard at render time; resource and artifact paths stay constrained under allowed roots.
 - For initialized external project roots, `.autoresearch/` state plus project-local durable memory such as `research_plan.md`, `research_contract.md`, and substantive `research_notebook.md` remain the enduring reconnect truth.
+- `research_notebook.md` is the human-facing logical narrative, organized by problem, derivation, claims, and uncertainty rather than by run date; raw dated run logs belong in `research_plan.md` or `artifacts/runs/<TAG>/`.
 - Optional support surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` remain opt-in layers rather than the default front door.
 
 ## 3. Current Public Surfaces

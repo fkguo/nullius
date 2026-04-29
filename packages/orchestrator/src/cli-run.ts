@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { executeComputationManifest } from './computation/index.js';
+import { writeJsonAtomic } from './computation/io.js';
 import type { CliIo } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 import { resolveUserPath } from './project-policy.js';
@@ -126,7 +127,43 @@ function deriveWorkflowOutputRecoveryMetadata(params: {
   };
 }
 
+function workflowStepArtifactUri(runId: string, stepId: string): string {
+  return `orch://runs/${runId}/artifact/workflow_steps/${stepId}.json`;
+}
+
+function materializeWorkflowStepPayloadArtifact(params: {
+  projectRoot: string;
+  state: RunState;
+  step: PersistedWorkflowPlanStep;
+  artifactKey: string;
+  tool: string;
+  runtimeStatus: 'completed' | 'partial' | 'skipped' | 'failed';
+  summaryText: string;
+  payload: unknown;
+}): string | null {
+  if ((params.runtimeStatus !== 'completed' && params.runtimeStatus !== 'partial') || params.payload === null || params.payload === undefined) {
+    return null;
+  }
+  const runId = params.state.run_id;
+  if (!runId) return null;
+  const relativeArtifactPath = ['artifacts', 'runs', runId, 'workflow_steps', `${params.step.step_id}.json`];
+  const artifactPath = path.join(params.projectRoot, ...relativeArtifactPath);
+  writeJsonAtomic(artifactPath, {
+    schema_version: 1,
+    workflow_id: params.state.workflow_id,
+    run_id: runId,
+    step_id: params.step.step_id,
+    artifact_key: params.artifactKey,
+    status: params.runtimeStatus,
+    tool: params.tool,
+    summary: params.summaryText.slice(0, 4000),
+    payload: params.payload,
+  });
+  return workflowStepArtifactUri(runId, params.step.step_id);
+}
+
 function projectWorkflowTerminalStep(params: {
+  projectRoot: string;
   state: RunState;
   step: PersistedWorkflowPlanStep;
   tool: string;
@@ -144,14 +181,24 @@ function projectWorkflowTerminalStep(params: {
     summaryText: params.summaryText,
     diagnostics: params.diagnostics,
   });
-  if (params.artifactUri) {
-    params.state.artifacts[params.artifactKey] = params.artifactUri;
+  const artifactUri = params.artifactUri ?? materializeWorkflowStepPayloadArtifact({
+    projectRoot: params.projectRoot,
+    state: params.state,
+    step: params.step,
+    artifactKey: params.artifactKey,
+    tool: params.tool,
+    runtimeStatus: params.runtimeStatus,
+    summaryText: params.summaryText,
+    payload: params.payload,
+  });
+  if (artifactUri) {
+    params.state.artifacts[params.artifactKey] = artifactUri;
   }
   params.state.workflow_outputs[params.artifactKey] = buildWorkflowOutputView({
     stepId: params.step.step_id,
     tool: params.tool,
     runtimeStatus: params.runtimeStatus,
-    artifactUri: params.artifactUri,
+    artifactUri,
     additionalArtifactUris: params.additionalArtifactUris,
     summaryText: params.summaryText,
     reasonCode: recovery.reasonCode,
@@ -574,6 +621,7 @@ async function runWorkflowCommand(
       setPlanCurrentStepId(persisted, null);
       const artifactKey = artifactKeyForWorkflowStep(step);
       const recovery = projectWorkflowTerminalStep({
+        projectRoot: resolved.projectRoot,
         state: persisted,
         step,
         tool: step.execution?.tool ?? artifactKey,
@@ -624,6 +672,7 @@ async function runWorkflowCommand(
       const artifactKey = runtimeRequest.artifact_key;
       const artifactUri = runtimeResult.canonical_artifact_uri;
       const recovery = projectWorkflowTerminalStep({
+        projectRoot: resolved.projectRoot,
         state: persisted,
         step,
         tool: step.execution?.tool ?? runtimeRequest.tool,
@@ -701,6 +750,7 @@ async function runWorkflowCommand(
       persisted.run_status = 'completed';
     }
     const recovery = projectWorkflowTerminalStep({
+      projectRoot: resolved.projectRoot,
       state: persisted,
       step,
       tool: step.execution?.tool ?? runtimeRequest.tool,

@@ -69,6 +69,7 @@
 - HEP resources surface through `hep://projects`, `hep://runs`, and resource templates for papers, manifests, and artifacts
 - Generic lifecycle state lives in external project roots under `.autoresearch/`
 - Project-local durable memory lives alongside that state in files such as `research_plan.md`, `research_contract.md`, and substantive `research_notebook.md`; reconnecting agents should treat those files plus `.autoresearch/` as the enduring project truth
+- `research_notebook.md` should stay organized by the research problem's logic, not by date; dated execution traces and raw run observations belong in `research_plan.md` or `artifacts/runs/<TAG>/`
 - Approval packets are materialized under `artifacts/runs/<run_id>/approvals/<approval_id>/approval_packet_v1.json`
 - Optional support surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` are opt-in support layers, not the default project front door
 

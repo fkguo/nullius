@@ -19,6 +19,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<TAG>/`.
 - Approval gates A1–A5 stay active unless the project owner explicitly changes policy in `docs/APPROVAL_GATES.md`.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
+- Keep `research_notebook.md` organized by the problem's logic. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`, then fold durable insights into the relevant notebook sections.
 
 ## Reconnect discipline
 

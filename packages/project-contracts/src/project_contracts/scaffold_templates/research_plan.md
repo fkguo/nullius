@@ -1,4 +1,4 @@
-# research_plan.md (Template)
+# research_plan.md
 
 Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
@@ -18,7 +18,7 @@ Keep the current milestone, next steps, and restart notes updated enough that a 
 | ID | Status | Task | Evidence / output | Owner |
 |---|---|---|---|---|
 | M0-01 | todo | Fill [project_charter.md](project_charter.md) with the real goal hierarchy and constraints. | Updated charter | human |
-| M0-02 | todo | Start [research_notebook.md](research_notebook.md) with the first derivation notes or literature summary. | Notebook section + references | human |
+| M0-02 | todo | Start [research_notebook.md](research_notebook.md) by filling the relevant logical sections, not by appending a dated run log. | Notebook section + references | human |
 | M0-03 | todo | Refresh [research_contract.md](research_contract.md) after the notebook gains substantive content. | Synced contract block | agent |
 
 ## Milestones

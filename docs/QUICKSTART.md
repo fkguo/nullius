@@ -21,6 +21,8 @@
 3) `autoresearch workflow-plan --recipe literature_to_evidence`
 - 如需高层 literature planning front door，可先完成这一步；随后再按下方 HEP 路径进入当前最强的 domain-pack workflow family。
 
+研究记录约定：`research_notebook.md` 按问题逻辑、推导、claim 和不确定性组织；带日期的 run log、原始检索摘要和控制面观察写入 `research_plan.md` progress log 或 `artifacts/runs/<TAG>/`，再把稳定理解折回 notebook。
+
 ## Draft Path（最简路径）
 
 1) `hep_project_create`

@@ -174,7 +174,7 @@ describe('workflow run consumer', () => {
     expect(steps[1]).toMatchObject({ step_id: 'export_project', status: 'completed' });
   });
 
-  it('projects bounded workflow outputs into run status even when no artifact uri is returned', async () => {
+  it('materializes bounded workflow outputs into run status when no artifact uri is returned', async () => {
     const projectRoot = makeTempProjectRoot();
     persistWorkflowPlan(projectRoot);
     const callTool = vi.fn()
@@ -205,9 +205,25 @@ describe('workflow run consumer', () => {
     );
 
     expect(code).toBe(0);
+    const fallbackUri = 'orch://runs/M-WF-1/artifact/workflow_steps/critical_review.json';
+    const fallbackPath = path.join(projectRoot, 'artifacts', 'runs', 'M-WF-1', 'workflow_steps', 'critical_review.json');
+    expect(JSON.parse(fs.readFileSync(fallbackPath, 'utf-8'))).toMatchObject({
+      workflow_id: 'review_cycle',
+      run_id: 'M-WF-1',
+      step_id: 'critical_review',
+      artifact_key: 'critical_analysis',
+      status: 'completed',
+      tool: 'inspire_critical_analysis',
+      payload: {
+        paper_recid: '1234',
+        success: true,
+        integrated_assessment: { verdict: 'RELIABLE' },
+      },
+    });
     const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
     expect(statusView).toMatchObject({
       artifacts: {
+        critical_analysis: fallbackUri,
         research_pack: 'hep://runs/M-WF-1/artifact/research_pack.zip',
       },
       workflow_outputs: {
@@ -215,7 +231,7 @@ describe('workflow run consumer', () => {
           step_id: 'critical_review',
           tool: 'inspire_critical_analysis',
           runtime_status: 'completed',
-          artifact_uri: null,
+          artifact_uri: fallbackUri,
           reason_code: null,
           recoverable: false,
           payload_truncated: false,
@@ -235,7 +251,7 @@ describe('workflow run consumer', () => {
       current_run_workflow_outputs: {
         critical_analysis: {
           status: 'completed',
-          artifact_uri: null,
+          artifact_uri: fallbackUri,
           summary: expect.stringContaining('RELIABLE'),
           reason_code: null,
           recoverable: false,
@@ -328,6 +344,7 @@ describe('workflow run consumer', () => {
     manager.saveState(state);
     const { io } = makeIo(projectRoot);
 
+    const largeResult = { total_count: 2, returned_count: 2, records: ['x'.repeat(45000)] };
     const code = await runCommand(
       makeRunInput(projectRoot, 'literature_to_evidence', 'M-WF-SEARCH'),
       io,
@@ -336,8 +353,8 @@ describe('workflow run consumer', () => {
           callTool: vi.fn(async () => ({
             ok: true,
             isError: false,
-            rawText: '{"total_count":2,"returned_count":2}',
-            json: { total_count: 2, returned_count: 2 },
+            rawText: JSON.stringify(largeResult),
+            json: largeResult,
             errorCode: null,
           })),
         },
@@ -345,13 +362,30 @@ describe('workflow run consumer', () => {
     );
 
     expect(code).toBe(0);
+    const fallbackUri = 'orch://runs/M-WF-SEARCH/artifact/workflow_steps/search_export.json';
+    const fallbackPath = path.join(projectRoot, 'artifacts', 'runs', 'M-WF-SEARCH', 'workflow_steps', 'search_export.json');
+    expect(JSON.parse(fs.readFileSync(fallbackPath, 'utf-8'))).toMatchObject({
+      workflow_id: 'literature_to_evidence',
+      run_id: 'M-WF-SEARCH',
+      step_id: 'search_export',
+      artifact_key: 'search_export',
+      status: 'completed',
+      payload: largeResult,
+    });
     const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
     expect(statusView).toMatchObject({
+      workflow_outputs: {
+        search_export: {
+          artifact_uri: fallbackUri,
+          payload: null,
+          payload_truncated: true,
+        },
+      },
       current_run_workflow_outputs: {
         search_export: {
           status: 'completed',
-          artifact_uri: null,
-          summary: '{"total_count":2,"returned_count":2}',
+          artifact_uri: fallbackUri,
+          summary: expect.stringContaining('"total_count":2'),
           reason_code: null,
           recoverable: false,
         },
