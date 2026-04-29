@@ -227,6 +227,8 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertNotIn("fix_markdown_double_backslash_math.py --notes research_contract.md --in-place", template)
         self.assertNotIn("[research_team_config.json](research_team_config.json)", template)
         self.assertIn("durable restart truth", template)
+        self.assertIn("<!-- REPRO_CAPSULE_START -->", template)
+        self.assertIn("<!-- REPRO_CAPSULE_END -->", template)
         self.assertIn("## Reproducibility Capsule", template)
         self.assertIn("## Claims And Results", template)
         self.assertIn("## Final Conclusion Gate", template)

@@ -42,6 +42,7 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 - Prefer machine-readable manifests for structured outputs, with Markdown pointers for human review.
 - When an artifact supports a claim, cite the project-relative path and the relevant field, row, section, or checksum.
 
+<!-- REPRO_CAPSULE_START -->
 ## Reproducibility Capsule
 
 Fill this section for each milestone or tag that is claimed as complete.
@@ -69,6 +70,7 @@ Fill this section for each milestone or tag that is claimed as complete.
   - Command or review method:
   - Result:
   - Tolerance or acceptance rule:
+<!-- REPRO_CAPSULE_END -->
 
 ## Claims And Results
 
