@@ -1302,28 +1302,28 @@ describe('autoresearch CLI', () => {
         '- What is evidence-backed:',
         '- What is still hypothesis:',
         '',
-        '## Physical Question Map',
+        '## Question Map',
         '',
-        '- Main physical questions:',
+        '- Main questions:',
         '- Subquestions and dependencies:',
         '- What would change the direction:',
         '',
-        '## Literature Evidence',
+        '## Evidence Map',
         '',
-        '- Core references and what each establishes:',
-        '- Candidate-only references:',
+        '- Core sources and what each establishes:',
+        '- Candidate-only sources:',
         '- Known gaps in source reading:',
         '',
-        '## Conventions and Normalizations',
+        '## Conventions and Definitions',
         '',
-        '- Variables and units:',
-        '- Sign conventions:',
-        '- Source, field, and normalization choices:',
+        '- Terms, variables, and units:',
+        '- Naming or representation choices:',
+        '- Assumptions and scope boundaries:',
         '',
-        '## Derivation Threads',
+        '## Reasoning Threads',
         '',
         '- State assumptions explicitly.',
-        '- Keep each derivation thread under a stable conceptual heading.',
+        '- Keep each reasoning thread under a stable conceptual heading.',
         '- Keep the reasoning readable; move machine-checkable pointers to [research_contract.md](research_contract.md).',
         '',
         '## Claims and Results',
@@ -1358,7 +1358,7 @@ describe('autoresearch CLI', () => {
     expect(payload.recovery_context.recommended_files).not.toContain('research_notebook.md');
   });
 
-  it('reports a clean project_surface_drift block for a minimal root without stale optional surfaces', async () => {
+  it('reports a clean project_surface_drift block for a canonical root without stale optional surfaces', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
@@ -1375,7 +1375,6 @@ describe('autoresearch CLI', () => {
     expect(JSON.parse(stdout.join(''))).toMatchObject({
       project_surface_drift: {
         status: 'clean',
-        canonical_scaffold_variant: 'minimal',
         warning_count: 0,
         issues: [],
       },
@@ -1412,7 +1411,7 @@ describe('autoresearch CLI', () => {
     });
   });
 
-  it('warns when a legacy root plan schema appears in a minimal-style project root', async () => {
+  it('warns when a legacy root plan schema appears in a canonical project root', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
@@ -1434,7 +1433,7 @@ describe('autoresearch CLI', () => {
         warning_count: 1,
         issues: [
           {
-            code: 'LEGACY_PLAN_SCHEMA_IN_MINIMAL_ROOT',
+            code: 'LEGACY_PLAN_SCHEMA_IN_CANONICAL_ROOT',
             path: 'specs/plan.schema.json',
           },
         ],

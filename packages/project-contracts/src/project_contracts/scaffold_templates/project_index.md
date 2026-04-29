@@ -30,11 +30,9 @@ Keep dated run logs and raw step summaries in [research_plan.md](research_plan.m
 
 ## Optional expansions
 
-- [.mcp.template.json](.mcp.template.json) and `specs/plan.schema.json` are added only in the fuller scaffold or when a project explicitly needs provider config / schema tooling.
-- [research_preflight.md](research_preflight.md), [project_brief.md](project_brief.md), and [idea_log.md](idea_log.md) are added only when the scaffold expands beyond the minimal root.
-- [knowledge_base/](knowledge_base/) and [references/](references/) are optional support surfaces, not required at project creation time.
-- Host-local team or automation surfaces are opt-in support layers, not canonical root files.
-- [.hep/](.hep/) is provider-local and should only appear when a provider or host layer explicitly needs it.
+- Optional provider config, schema files, notes, references, or local automation surfaces are created later by explicit project need or host-specific tooling.
+- Host-local support layers are opt-in support layers, not canonical root files or restart truth.
+- Provider-local state directories should only appear when a provider or host layer explicitly needs them.
 
 ---
 

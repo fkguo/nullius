@@ -32,8 +32,6 @@ export function ensureProjectScaffold(
     projectName,
     '--profile',
     profile,
-    '--variant',
-    'minimal',
     '--project-policy',
     'real_project',
   ];

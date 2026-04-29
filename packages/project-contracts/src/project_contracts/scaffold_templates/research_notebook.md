@@ -20,28 +20,28 @@ Keep machine-stable gate structure in [research_contract.md](research_contract.m
 - What is evidence-backed:
 - What is still hypothesis:
 
-## Physical Question Map
+## Question Map
 
-- Main physical questions:
+- Main questions:
 - Subquestions and dependencies:
 - What would change the direction:
 
-## Literature Evidence
+## Evidence Map
 
-- Core references and what each establishes:
-- Candidate-only references:
+- Core sources and what each establishes:
+- Candidate-only sources:
 - Known gaps in source reading:
 
-## Conventions and Normalizations
+## Conventions and Definitions
 
-- Variables and units:
-- Sign conventions:
-- Source, field, and normalization choices:
+- Terms, variables, and units:
+- Naming or representation choices:
+- Assumptions and scope boundaries:
 
-## Derivation Threads
+## Reasoning Threads
 
 - State assumptions explicitly.
-- Keep each derivation thread under a stable conceptual heading.
+- Keep each reasoning thread under a stable conceptual heading.
 - Keep the reasoning readable; move machine-checkable pointers to [research_contract.md](research_contract.md).
 
 ## Claims and Results

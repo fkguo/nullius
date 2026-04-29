@@ -2,7 +2,7 @@
 
 This document is the centralized registry for URI schemes that are live in the current monorepo. It only records schemes that are emitted or resolved by checked-in code today. It does not redefine runtime semantics, introduce new schemes, or act as a future resolver/artifact-ref redesign spec.
 
-It also does not elevate optional project-root support files into URI authority. Surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` remain opt-in support layers, while reconnect truth stays with project-local durable memory plus `.autoresearch/` state.
+It also does not elevate optional project-root support files into URI authority. Surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` are created later by explicit project need or host-specific tooling, while reconnect truth stays with project-local durable memory plus `.autoresearch/` state.
 
 ## Live Schemes
 
