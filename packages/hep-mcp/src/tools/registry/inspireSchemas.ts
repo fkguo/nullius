@@ -76,7 +76,7 @@ export const InspireLiteratureToolSchema = z
     recid: z.string().min(1).optional().describe(
       "INSPIRE literature record id. Required for get_paper, get_references, and get_citations."
     ),
-    size: optionalBudgetInt({ min: 1 }).describe(
+    size: optionalBudgetInt({ min: 1, max: 1000 }).describe(
       "Page size / result limit. Only for get_references, get_citations, and search_affiliation. Do not provide for lookup_by_id or get_author. get_paper tolerates size only for backward-compatible callers."
     ),
     identifier: z.string().min(1).optional().describe(

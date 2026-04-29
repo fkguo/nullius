@@ -807,10 +807,11 @@ def _inspire_parse_record(meta: dict[str, Any]) -> dict[str, Any]:
 
 
 def inspire_search(query: str, max_results: int) -> list[dict[str, Any]]:
+    page_size = min(1000, max(1, int(max_results)))
     params = urlencode(
         {
             "q": query,
-            "size": int(max_results),
+            "size": page_size,
             "fields": "control_number,titles,authors,publication_info,arxiv_eprints,dois,texkeys,preprint_date,earliest_date,legacy_creation_date",
         }
     )

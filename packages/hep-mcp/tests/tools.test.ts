@@ -513,6 +513,18 @@ describe('Tool Handlers (current exposure)', () => {
     expect(api.getCitations).toHaveBeenCalled();
   });
 
+  it('inspire_literature(get_citations) should not forward oversized size budgets', async () => {
+    vi.mocked(api.getCitations).mockResolvedValueOnce({ total: 0, papers: [], has_more: false } as any);
+    const result = await handleToolCall('inspire_literature', {
+      mode: 'get_citations',
+      recid: '1',
+      size: 5000,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(api.getCitations).toHaveBeenCalledWith('1', expect.objectContaining({ size: 25 }));
+  });
+
   it('inspire_literature(get_citations) should fail-fast on identifier/options misuse', async () => {
     const result = await handleToolCall('inspire_literature', {
       mode: 'get_citations',
@@ -544,6 +556,18 @@ describe('Tool Handlers (current exposure)', () => {
     vi.mocked(api.search).mockResolvedValueOnce({ total: 0, papers: [], has_more: false });
     await handleToolCall('inspire_literature', { mode: 'search_affiliation', affiliation: 'CERN' });
     expect(api.search).toHaveBeenCalledWith('aff:CERN', expect.any(Object));
+  });
+
+  it('inspire_literature(search_affiliation) should not forward oversized size budgets', async () => {
+    vi.mocked(api.search).mockResolvedValueOnce({ total: 0, papers: [], has_more: false });
+    const result = await handleToolCall('inspire_literature', {
+      mode: 'search_affiliation',
+      affiliation: 'CERN',
+      size: 5000,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(api.search).toHaveBeenCalledWith('aff:CERN', expect.objectContaining({ size: 25 }));
   });
 
   it('inspire_literature(get_bibtex) should call api.getBibtex', async () => {
