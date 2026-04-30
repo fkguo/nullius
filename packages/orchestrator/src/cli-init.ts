@@ -5,7 +5,7 @@ import { ensureProjectLocalAutoresearchLauncher, projectLocalAutoresearchRelativ
 import { ensureProjectScaffold } from './project-scaffold.js';
 import { type CliIo } from './cli-lifecycle.js';
 import { StateManager } from './state-manager.js';
-import { resolveUserPath } from './project-policy.js';
+import { assertProjectRootAllowed, resolveUserPath } from './project-policy.js';
 
 type InitOptions = {
   allowNested: boolean;
@@ -44,6 +44,7 @@ function findParentProjectRoot(start: string): string | null {
 export async function runInitCommand(projectRoot: string | null, cwd: string, args: string[], io: CliIo): Promise<void> {
   const options = parseInitArgs(args);
   const repoRoot = projectRoot ? resolveUserPath(projectRoot, cwd) : path.resolve(cwd);
+  assertProjectRootAllowed(repoRoot);
   if (path.basename(repoRoot) === '.autoresearch') {
     throw new Error('refusing init inside .autoresearch/ (run init at the project root, or use --project-root)');
   }

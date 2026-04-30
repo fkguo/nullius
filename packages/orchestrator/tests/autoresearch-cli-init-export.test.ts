@@ -75,6 +75,26 @@ function makeIo(cwd: string) {
 }
 
 describe('autoresearch CLI init/export', () => {
+  it('rejects repo-internal init before writing runtime state', async () => {
+    const projectRoot = path.join(process.cwd(), '.tmp', `repo-internal-init-denied-${Date.now()}`);
+
+    await expect(runCli([`--project-root=${projectRoot}`, 'init'], makeIo(process.cwd()).io)).rejects.toThrow(
+      'project root must resolve outside the autoresearch-lab dev repo for real projects',
+    );
+
+    expect(fs.existsSync(projectRoot)).toBe(false);
+  });
+
+  it('applies real-project policy before runtime-only init writes state', async () => {
+    const projectRoot = path.join(process.cwd(), '.tmp', `repo-internal-runtime-only-denied-${Date.now()}`);
+
+    await expect(runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(process.cwd()).io)).rejects.toThrow(
+      'project root must resolve outside the autoresearch-lab dev repo for real projects',
+    );
+
+    expect(fs.existsSync(projectRoot)).toBe(false);
+  });
+
   it('initializes a real project root with the neutral scaffold', async () => {
     const parentDir = makeTempDir('autoresearch-cli-parent-');
     const projectRoot = path.join(parentDir, 'project-root');
@@ -172,6 +192,9 @@ describe('autoresearch CLI init/export', () => {
     expect(code).toBe(0);
     const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
     expect(fs.existsSync(launcherPath)).toBe(true);
+    const launcherScript = fs.readFileSync(launcherPath, 'utf-8');
+    expect(launcherScript).toContain('project-local autoresearch launcher target is missing');
+    expect(launcherScript).toContain('autoresearch init --runtime-only');
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(false);
 
     const statusJson = execFileSync(launcherPath, ['status', '--json'], {
@@ -229,7 +252,10 @@ describe('autoresearch CLI init/export', () => {
     const code = await runCli(['export', '--out', outPath, '--include-kb-profile'], io);
 
     expect(code).toBe(0);
-    expect(stdout.join('')).toContain(`[ok] wrote: ${outPath}`);
+    const output = stdout.join('');
+    expect(output).toContain(`[ok] wrote: ${outPath}`);
+    expect(output).not.toContain('Export summary generated');
+    expect(output).not.toContain('no files copied');
     const archiveListing = execFileSync('unzip', ['-Z', '-1', outPath], { encoding: 'utf-8' }).trim().split('\n');
     expect(archiveListing).toContain('artifacts/runs/M1/result.txt');
     expect(archiveListing).toContain('team/runs/M1/summary.md');

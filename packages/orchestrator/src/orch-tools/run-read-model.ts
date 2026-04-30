@@ -10,7 +10,7 @@ import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import { decisionOverlayForFingerprint, mutationProposalFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
-import { projectLocalAutoresearchRelativePath } from '../project-local-autoresearch.js';
+import { readProjectLocalAutoresearchLauncherHealth } from '../project-local-autoresearch.js';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
 import { pauseFilePath, readJson, type ApprovalGateFilter } from './common.js';
@@ -311,7 +311,7 @@ function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | nul
 
 function readRecoveryContextView(projectRoot: string, state: RunState): Record<string, unknown> {
   const rawState = stateRecord(state);
-  const launcherRelativePath = projectLocalAutoresearchRelativePath().split(path.sep).join('/');
+  const launcherHealth = readProjectLocalAutoresearchLauncherHealth(projectRoot);
   const controlFiles = {
     state_json: {
       path: path.join('.autoresearch', 'state.json').split(path.sep).join('/'),
@@ -326,11 +326,19 @@ function readRecoveryContextView(projectRoot: string, state: RunState): Record<s
       exists: fs.existsSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl')),
     },
     project_local_launcher: {
-      path: launcherRelativePath,
-      exists: fs.existsSync(path.join(projectRoot, launcherRelativePath)),
+      ...launcherHealth,
     },
   };
   const warnings: Record<string, unknown>[] = [];
+  if (launcherHealth.exists && !launcherHealth.healthy) {
+    warnings.push({
+      code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
+      message: launcherHealth.message,
+      issue_code: launcherHealth.issue_code,
+      repair_command: launcherHealth.repair_command,
+      missing_paths: launcherHealth.missing_paths,
+    });
+  }
   const stateRunId = typeof rawState.run_id === 'string' ? rawState.run_id : null;
   const stateWorkflowId = typeof rawState.workflow_id === 'string' ? rawState.workflow_id : null;
   const stateRunStatus = typeof rawState.run_status === 'string' ? rawState.run_status : null;
@@ -409,7 +417,7 @@ function readRecoveryContextView(projectRoot: string, state: RunState): Record<s
   return {
     status_commands: {
       canonical: 'autoresearch status --json',
-      project_local_fallback: controlFiles.project_local_launcher.exists ? `${launcherRelativePath} status --json` : null,
+      project_local_fallback: launcherHealth.healthy ? `${launcherHealth.path} status --json` : null,
     },
     control_files: controlFiles,
     current_run: currentRun,

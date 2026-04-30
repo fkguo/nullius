@@ -367,6 +367,9 @@ describe('StateManager', () => {
     sm.saveState(state);
     writeProjectSurfaceFiles(tmpDir, { includeResearchContractResidue: true });
     fs.writeFileSync(path.join(tmpDir, '.mcp.template.json'), '{"mcpServers":{}}\n', 'utf-8');
+    const artifactPath = path.join(tmpDir, 'artifacts', 'runs', 'test-run-export-drift', 'summary.txt');
+    fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+    fs.writeFileSync(artifactPath, 'summary\n', 'utf-8');
 
     const statusView = buildRunStatusView(tmpDir, sm.readState());
     const exportView = await handleOrchRunExport({
@@ -382,6 +385,110 @@ describe('StateManager', () => {
     });
     expect(exportView.project_surface_drift).toEqual(statusView.project_surface_drift);
     expect(exportView.project_surface_drift_error).toEqual(statusView.project_surface_drift_error);
+    expect(exportView.message).toContain('Export summary generated');
+    expect(exportView.message).toContain('no files copied');
+    expect(exportView.message).not.toContain('zip');
+    expect(exportView.message).not.toContain('wrote:');
+  });
+
+  it('does not advertise a stale project-local launcher as a healthy status fallback', () => {
+    const state = baseState({
+      run_id: 'test-run-stale-launcher',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+    fs.writeFileSync(
+      launcherPath,
+      [
+        '#!/bin/sh',
+        'set -eu',
+        `PROJECT_ROOT='${tmpDir}'`,
+        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.chmodSync(launcherPath, 0o755);
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const statusCommands = recoveryContext.status_commands as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+
+    expect(statusCommands.project_local_fallback).toBeNull();
+    expect(launcher.exists).toBe(true);
+    expect(launcher.healthy).toBe(false);
+    expect(launcher.repair_command).toBe('autoresearch init --runtime-only');
+    expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
+        repair_command: 'autoresearch init --runtime-only',
+      }),
+    ]));
+  });
+
+  it('does not advertise an unparseable project-local launcher as a healthy status fallback', () => {
+    const state = baseState({
+      run_id: 'test-run-malformed-launcher',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+    fs.writeFileSync(launcherPath, '#!/bin/sh\necho broken launcher\n', 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const statusCommands = recoveryContext.status_commands as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+
+    expect(statusCommands.project_local_fallback).toBeNull();
+    expect(launcher.exists).toBe(true);
+    expect(launcher.executable).toBe(true);
+    expect(launcher.healthy).toBe(false);
+    expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_UNPARSEABLE');
+    expect(launcher.repair_command).toBe('autoresearch init --runtime-only');
+    expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
+        issue_code: 'PROJECT_LOCAL_LAUNCHER_UNPARSEABLE',
+        repair_command: 'autoresearch init --runtime-only',
+      }),
+    ]));
+  });
+
+  it('does not advertise a wrong executable as a healthy project-local status fallback', () => {
+    const state = baseState({
+      run_id: 'test-run-wrong-launcher',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+    fs.writeFileSync(launcherPath, '#!/bin/sh\nexec \'/bin/sh\' "$@"\n', 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const statusCommands = recoveryContext.status_commands as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+
+    expect(statusCommands.project_local_fallback).toBeNull();
+    expect(launcher.exists).toBe(true);
+    expect(launcher.executable).toBe(true);
+    expect(launcher.healthy).toBe(false);
+    expect(launcher.checked_paths).toEqual(['/bin/sh']);
+    expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_UNPARSEABLE');
+    expect(launcher.repair_command).toBe('autoresearch init --runtime-only');
   });
 
   it('reads awaiting_approval status (Python SSOT)', () => {
