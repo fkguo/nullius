@@ -260,7 +260,12 @@ describe('Docs tool drift guard', () => {
     assertContainsAll({
       text: md,
       snippets: [
-        'Live scheme set for this monorepo is exactly `hep://`, `pdg://`, and `orch://`.',
+        'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, and `zotero://`.',
+        '`orch://runs/{run_id}/artifact/{artifact_path}`',
+        '`rep://runs/{run_id}/artifact/{artifact_path}`',
+        '`hepdata://artifacts/submissions/{hepdata_id}/hepdata_submission.zip`',
+        '`openalex://content/{work_id}/{file_name}`',
+        '`zotero://select/library/items/{item_key}`',
         '`hep://` and `orch://` are separate owned namespaces.',
         'There is no implicit `hep://` <-> `orch://` aliasing layer in live authority.',
       ],
@@ -270,6 +275,59 @@ describe('Docs tool drift guard', () => {
       text: md,
       snippets: ['| `hep://corpora` | Live |'],
       label: 'docs/URI_REGISTRY.md',
+    });
+  });
+
+  it('public MCP docs keep the contracted local-stdio capability story narrow', () => {
+    const docs = [
+      {
+        label: 'README.md',
+        text: readText(root, 'README.md'),
+        snippets: ['local stdio', 'inputSchema', 'JSON/text', 'no prompts'],
+      },
+      {
+        label: 'docs/README_zh.md',
+        text: readText(root, 'docs/README_zh.md'),
+        snippets: ['本地 stdio', 'inputSchema', 'JSON/text', '没有 prompts'],
+      },
+      {
+        label: 'docs/TESTING_GUIDE.md',
+        text: readText(root, 'docs/TESTING_GUIDE.md'),
+        snippets: ['本地 stdio', 'inputSchema', 'JSON/text', '没有 prompts'],
+      },
+      {
+        label: 'docs/ARCHITECTURE.md',
+        text: readText(root, 'docs/ARCHITECTURE.md'),
+        snippets: ['local stdio', 'inputSchema', 'JSON/text', 'no prompts'],
+      },
+    ] as const;
+
+    for (const { label, text, snippets } of docs) {
+      assertContainsAll({
+        text,
+        snippets,
+        label,
+      });
+      assertContainsNone({
+        text,
+        snippets: [
+          '"transport": "http"',
+          '"transport": "streamable-http"',
+          '"oauth"',
+        ],
+        label,
+      });
+    }
+
+    expect(Object.keys(JSON.parse(readText(root, 'mcp.template.json')))).toEqual(['mcpServers']);
+
+    assertContainsAll({
+      text: readText(root, 'README.md'),
+      snippets: [
+        '`orch_*` is an operator/tool inventory exposed by the orchestrator package; it is not a separately packaged root MCP server.',
+        'Remote MCP transports, OAuth, and registry publishing remain future deployment work outside the current local-stdio contract.',
+      ],
+      label: 'README.md',
     });
   });
 

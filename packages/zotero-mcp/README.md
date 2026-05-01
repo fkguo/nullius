@@ -6,6 +6,7 @@ Zotero (Local API) MCP server for **local** library management.
 
 - **Local MCP transport only**: stdio (`StdioServerTransport`) only; no HTTP transport/server.
 - **Zotero Local API only**: `http://127.0.0.1:23119` (no Zotero Web API).
+- **Tool-only server**: exposes Zotero tools and `zotero://select/...` result URIs, but does not advertise MCP resources or prompts.
 
 ## Build & Run
 

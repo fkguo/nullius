@@ -1,8 +1,16 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
+
+function packageRootFromThisFile(): string {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, '..');
+}
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -80,6 +88,14 @@ describe('Tool registry contracts', () => {
     });
 
     expect(() => assertToolContracts(specs, defs)).toThrow(/inputSchema drift/);
+  });
+
+  it('does not advertise a resources capability without a real resources surface', () => {
+    const source = fs.readFileSync(path.join(packageRootFromThisFile(), 'src/index.ts'), 'utf-8');
+
+    expect(source).not.toContain('resources: {}');
+    expect(source).not.toContain('ListResourcesRequestSchema');
+    expect(source).not.toContain('ReadResourceRequestSchema');
   });
 
   it('zotero_local falls back to default limit/start for invalid pagination budgets', () => {

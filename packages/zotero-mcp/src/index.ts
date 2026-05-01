@@ -9,8 +9,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { getTools, handleToolCall, type ToolExposureMode } from './tools/index.js';
@@ -25,21 +23,12 @@ const server = new Server(
   {
     capabilities: {
       tools: {},
-      resources: {},
     },
   }
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return { tools: getTools(TOOL_MODE) };
-});
-
-server.setRequestHandler(ListResourcesRequestSchema, async () => {
-  return { resources: [] };
-});
-
-server.setRequestHandler(ReadResourceRequestSchema, async () => {
-  throw new Error('zotero-mcp does not expose resources');
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {

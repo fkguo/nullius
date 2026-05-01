@@ -117,6 +117,8 @@ The orchestrator read model also surfaces approval packet URIs such as `orch://r
 
 The current MCP connection story is local stdio only. There is not yet a single monolithic generic root MCP server binary; today the most mature domain MCP entrypoint is `hep-mcp`, while the generic control plane is split across the `autoresearch` CLI and the canonical public `orch_*` MCP/operator surface described in [`meta/docs/orchestrator-mcp-tools-spec.md`](./meta/docs/orchestrator-mcp-tools-spec.md). In other words, generic lifecycle/control-plane work is no longer CLI-only even though it does not ship as a separate root MCP server process.
 
+Current public MCP contract: local stdio process launch, tool `inputSchema`, compact JSON/text tool results, selected package-owned resources, and no prompts. `orch_*` is an operator/tool inventory exposed by the orchestrator package; it is not a separately packaged root MCP server. Remote MCP transports, OAuth, and registry publishing remain future deployment work outside the current local-stdio contract.
+
 Universal MCP config pattern:
 
 ```json

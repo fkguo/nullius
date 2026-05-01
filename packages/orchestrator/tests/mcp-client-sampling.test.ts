@@ -82,8 +82,8 @@ describe('McpClient sampling support', () => {
       rl.on('line', (line) => {
         const msg = JSON.parse(line);
         if (msg.method === 'initialize') {
-          fs.writeFileSync(resultPath, JSON.stringify({ capabilities: msg.params?.capabilities ?? null }, null, 2));
-          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
+          fs.writeFileSync(resultPath, JSON.stringify({ protocolVersion: msg.params?.protocolVersion ?? null, capabilities: msg.params?.capabilities ?? null }, null, 2));
+          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: '2025-03-26', serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
         }
       });
     `);
@@ -99,7 +99,30 @@ describe('McpClient sampling support', () => {
     const result = JSON.parse(await waitForFile(resultPath));
     await client.close();
 
+    expect(result.protocolVersion).toBe('2025-03-26');
     expect(result.capabilities).toMatchObject({ sampling: {} });
+  });
+
+  it('fails closed when initialize negotiates an unsupported protocol version', async () => {
+    const tmpDir = makeTmpDir();
+    tmpDirs.push(tmpDir);
+    const scriptPath = path.join(tmpDir, 'stub-server.mjs');
+    fs.writeFileSync(scriptPath, `
+      import readline from 'node:readline';
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on('line', (line) => {
+        const msg = JSON.parse(line);
+        if (msg.method === 'initialize') {
+          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: '1999-01-01', serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
+        }
+      });
+    `);
+
+    const client = new McpClient();
+    await expect(client.start(process.execPath, [scriptPath])).rejects.toThrow(
+      'MCP server negotiated unsupported protocol version',
+    );
+    await client.close();
   });
 
   it('blocks bound tool calls before tools/call reaches the server', async () => {
@@ -121,7 +144,7 @@ describe('McpClient sampling support', () => {
           persist();
         }
         if (msg.method === 'initialize') {
-          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
+          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: '2025-03-26', serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
         }
         if (msg.method === 'tools/call') {
           process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { content: [{ type: 'text', text: 'unexpected' }], isError: false } }) + '\\n');
@@ -169,7 +192,7 @@ describe('McpClient sampling support', () => {
           persist();
         }
         if (msg.method === 'initialize') {
-          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
+          process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: '2025-03-26', serverInfo: { name: 'stub', version: '0.0.1' }, capabilities: {} } }) + '\\n');
         }
         if (msg.method === 'tools/call') {
           process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { content: [{ type: 'text', text: 'allowed-result' }], isError: false } }) + '\\n');

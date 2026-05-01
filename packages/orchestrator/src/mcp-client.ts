@@ -42,6 +42,9 @@ export interface McpClientOptions {
   sampling?: McpClientSamplingOptions;
 }
 
+export const MCP_PREFERRED_PROTOCOL_VERSION = '2025-03-26';
+export const MCP_SUPPORTED_PROTOCOL_VERSIONS = [MCP_PREFERRED_PROTOCOL_VERSION, '2024-11-05'] as const;
+
 export class McpClient {
   private proc: ChildProcess | null = null;
   private nextId = 1;
@@ -112,10 +115,20 @@ export class McpClient {
     });
 
     const initResponse = await this.request('initialize', {
-      protocolVersion: '2024-11-05',
+      protocolVersion: MCP_PREFERRED_PROTOCOL_VERSION,
       capabilities: this.sampling ? { sampling: {} } : {},
       clientInfo: { name: '@autoresearch/orchestrator', version: '0.0.1' },
     });
+    const negotiated = (initResponse.result as Record<string, unknown> | undefined)?.protocolVersion;
+    if (typeof negotiated !== 'string' || negotiated.trim() === '') {
+      throw new Error('MCP initialize protocol failure: result missing protocolVersion');
+    }
+    if (!MCP_SUPPORTED_PROTOCOL_VERSIONS.includes(negotiated as typeof MCP_SUPPORTED_PROTOCOL_VERSIONS[number])) {
+      throw new Error(
+        `MCP server negotiated unsupported protocol version: ${JSON.stringify(negotiated)} ` +
+        `(client_supported=${JSON.stringify(MCP_SUPPORTED_PROTOCOL_VERSIONS)})`,
+      );
+    }
     writeJsonRpcMessage(this.proc?.stdin ?? null, { jsonrpc: '2.0', method: 'notifications/initialized' });
     this.initialized = true;
     this.ledger?.log('mcp_client.started', { details: { command, args, serverInfo: initResponse.result } });

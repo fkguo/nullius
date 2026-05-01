@@ -50,6 +50,8 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 
 ### 0.3 在 MCP 客户端里接入当前 domain MCP front door
 
+当前公开 MCP contract 是本地 stdio 进程启动、tool `inputSchema`、紧凑 JSON/text tool result、少量 package-owned resources、没有 prompts。Remote HTTP/OAuth、registry publishing 与独立 root MCP server 不属于当前验收面。
+
 最小配置示例：
 
 ```json

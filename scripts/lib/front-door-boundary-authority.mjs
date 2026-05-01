@@ -247,10 +247,11 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/URI_REGISTRY.md',
     snippets: [
-      'Live scheme set for this monorepo is exactly `hep://`, `pdg://`, and `orch://`.',
+      'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, and `zotero://`.',
       '`hep://` and `orch://` are separate owned namespaces.',
       'There is no implicit `hep://` <-> `orch://` aliasing layer in live authority.',
-      '| `orch://` | `@autoresearch/orchestrator` | `packages/orchestrator/src/orch-tools/{approval,control,create-status-list,run-read-model}.ts` | Tool-return lifecycle/read-model identifiers | `orch://runs/{run_id}`; `orch://runs/{run_id}/approvals/{approval_dir}`; `orch://runs/export` | Orchestrator lifecycle/read-model/export summaries only. This is not the current MCP `resources/list` authority and it does not own research artifact payloads. |',
+      '| `orch://` | `@autoresearch/orchestrator` | `packages/orchestrator/src/orch-tools/{approval,control,create-status-list,run-read-model}.ts`; `packages/orchestrator/src/workflow-runtime.ts`; `packages/orchestrator/src/cli-run.ts` | Tool-return lifecycle/read-model/artifact identifiers | `orch://runs/{run_id}`; `orch://runs/{run_id}/approvals/{approval_dir}`; `orch://runs/{run_id}/artifact/{artifact_path}`; `orch://runs/export` | Orchestrator lifecycle/read-model/export summaries and orchestrator-owned workflow/result artifacts only. This is not the current MCP `resources/list` authority and it does not own HEP research artifact payloads. |',
+      '| `zotero://` | `@autoresearch/zotero-mcp` | `packages/zotero-mcp/src/zotero/tools.ts` | Tool-return Zotero select URI, not MCP resources | `zotero://select/library/items/{item_key}` | Local Zotero item selection/deep-link pointer only. `@autoresearch/zotero-mcp` does not advertise MCP resources. |',
     ],
     forbiddenSnippets: [
       '`hep://corpora` | Live',

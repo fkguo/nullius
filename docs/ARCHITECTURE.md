@@ -144,6 +144,8 @@ Current MCP clients connect to:
 node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js
 ```
 
+The current public MCP contract is intentionally narrow: local stdio process launch, tool `inputSchema`, compact JSON/text tool results, selected package-owned resources, and no prompts. Remote MCP transports, OAuth, registry publishing, and a separately packaged generic root MCP server are future deployment surfaces, not current architecture. `orch_*` is the orchestrator-owned operator/tool inventory for the control plane rather than an independent root MCP server process.
+
 Expected environment knobs at the front door:
 
 - `HEP_DATA_DIR`
