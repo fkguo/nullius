@@ -4,7 +4,7 @@
   "repo": "autoresearch-lab/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Content-first LaTeX paper revision workflow with audit artifacts.",
+  "summary": "Evidence-calibrated LaTeX paper revision workflow with fail-closed latexdiff delivery and response audit artifacts.",
   "platforms": [
     "claude_code",
     "codex",

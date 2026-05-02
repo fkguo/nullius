@@ -1,6 +1,6 @@
 ---
 name: paper-reviser
-description: 面向学术论文（LaTeX 草稿）的内容优先逐句修订（通读理解 → 逐句修订 → 输出干净稿 + diff + tracked changes → 审核与查证清单）。
+description: 面向学术论文（LaTeX 草稿）的内容优先逐句修订（通读理解 -> 逐句修订 -> 输出干净稿 + diff + tracked delivery 合同 -> 审核与查证清单）。
 metadata:
   short-description: 论文逐句修订（LaTeX；干净稿 + diff + tracked）
 ---
@@ -10,7 +10,7 @@ metadata:
 适用场景：
 - 你希望像导师改论文一样，优先关注**表述是否正确/精确**（内容第一），
 - 在尽可能保持原意与写作风格的前提下，改进逻辑结构与英文表达，
-- 同时产出**干净稿**与**保留原文痕迹的修订文件**（diff / tracked changes），
+- 同时产出**干净稿**与**可审计的修订产物**（diff + tracked delivery 合同），
 - 并生成需要**文献查证/进一步确认**的清单。
 
 本 skill **不放进** `research-writer` 的原因：
@@ -22,10 +22,12 @@ metadata:
 对 `draft.tex`，会写入一个输出目录（run dir），常见文件包括：
 - `clean.tex`：干净稿（若是完整文档，会保留原 preamble，只修改正文）
 - `changes.diff`：统一 diff（original → clean）
-- `tracked.tex`：带修订标记的版本（若系统有 `latexdiff` 则使用；否则用可编译的注释标注形式）
+- `tracked.tex`：仅限完整文档，且只有真实 `latexdiff` 成功时才会生成
+- `tracked_fragment_audit.tex`：仅限片段输入的审计视图，不能冒充有效 tracked delivery
 - `changes.md`：逐条修改点 + 为什么改（rationale）
 - `open_questions.md`：需要作者确认/外部查证的问题
 - `audit.md`：独立审稿人视角的意见（含 READY/NOT_READY）
+- `response_revision_audit.md`：简短审计产物，记录作者回复修改声明对应位置、tracked delivery 状态、clean/latexdiff PDF 是否验证，以及 correction-convergence 备注
 - `verification_requests.md`：简单但重要 statement 的查证请求（含建议检索词）
 - `verification_requests.json`：机器可读的查证任务清单（便于工作流编排；schema_version=1）
 - `deep_verification.md`：由 `verification_requests.md` 驱动的“逐步不跳步”推导/数学核验（使用本地 `codex` CLI）
@@ -35,8 +37,8 @@ metadata:
 ## 工作流（模拟人类导师）
 
 1) **整体通读**（不重写）：先理解文章在讲什么、核心 claims、结构、符号与定义。
-2) **逐句修改**：在全局一致性的约束下逐句修订（内容正确性优先，其次是英文，再其次是 LaTeX 排版）。
-3) **独立审核**：指出过度断言、证据不足、缺引用、LaTeX 安全风险，并产出查证清单。
+2) **逐句修改**：在全局一致性的约束下做 evidence-calibrated 修订（内容正确性优先，其次是英文，再其次是 LaTeX 排版）。
+3) **独立审核**：指出过度断言、证据不足、缺引用、LaTeX 安全风险，执行 claim-strength audit、literature/novelty gate 与 response localization 检查，并产出查证清单。
 4) **深度核验（Codex）**：根据 `verification_requests.md` 对关键推导/数学步骤做逐步检查（不跳步）。
    - 可选：通过 `--secondary-deep-verify-*` 再跑一个独立核验（Gemini/Claude）做冗余交叉检查。
 5) **可选修复回合**：根据审核意见（audit + deep verification）小步修补并复审（由 `--max-rounds` 控制）。
@@ -47,8 +49,10 @@ metadata:
 - **完整文档**：存在首个未注释的 `\\begin{document}`。
   - preamble 视为**只读**，只修改正文；
   - `clean.tex = 原 preamble + 修改后的正文`。
+  - `tracked.tex` 只有在真实 `latexdiff` 成功时才算有效；若 `latexdiff` 缺失、失败或输出为空，必须 fail-closed / NOT_READY，不能退回 comment-only success。
 - **片段**：没有 `\\begin{document}`。
   - 直接对片段全文进行修改。
+  - 工具可以生成 `tracked_fragment_audit.tex` 作为审计视图，但它不是 `tracked.tex`，也不是有效 latexdiff delivery。
 
 ## 快速开始
 
@@ -97,6 +101,8 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
 - Gemini 审核器异常输出：会先做一次“严格 marker”重试；若仍失败且启用了 `--fallback-auditor=claude`，会自动回退 Claude 审核。
 - clean-size 检查采用自适应口径：`--min-clean-size-ratio` 同时考虑 raw bytes 与 non-comment bytes（best-effort 去注释），减少注释占比高时的误报。
 - deep verifier 超时可审计：超时且策略为 `stub` / `allow-secondary` 时，`deep_verification.md` 会写入 `VERDICT: NOT_READY` 和超时原因。
+- full document 的 latexdiff delivery 采用 fail-closed：若 `latexdiff` 缺失、失败或空输出，run metadata 会写出 `tracked_delivery.status = not_ready`，`audit.md` 会被强制为 `NOT_READY`，且不会再伪造 `tracked.tex`。
+- latexdiff repair/verification contract：`run.json` 会记录 log-driven repair loop（options / preamble / macros / minimal auditable post-processing）以及 clean / latexdiff PDF 是否真的验证；没有验证就必须显式标注未验证。
 
 ## 查证闭环（推荐）
 
@@ -136,6 +142,14 @@ python3 "$PAPER_REVISER/scripts/bin/build_verification_plan.py" \
 随后（通常在一个 approval gate 下）执行计划中的任务，把核验结论写成证据文件。
 最后用 `--context-file evidence.md` 或 `--context-dir evidence/` 回灌再跑一轮修订。
 
+## 关键合同
+
+- Evidence-calibrated revision contract：不是默认保守，更不是默认加 hedge。证据支持时保留强表述；原文偏弱但证据足够时允许加强；只有证据不足、逻辑过头或文献不符时才削弱。
+- Referee-response mode contract：基于语境/结构识别，不靠文件名；referee comments 默认只读；只改作者回复和稿件修订；`we revised/clarified/added/corrected` 一类声明必须定位到最短且语义充分的位置。
+- Claim-strength audit + literature/novelty gate：novelty claim 需要 full-text 级别证据，不能拿 title/abstract/metadata-only 充数。
+- Author color vs latexdiff color contract：作者颜色保留为独立语义层，diff 颜色必须区分，彩色段落中的新增/删除必须仍然可见。
+- Correction-convergence contract：bounded repair 回合必须以最小充分改动消除 blocker，不能靠 silent fallback success 伪装收敛。
+
 ### HEP 文献核验（INSPIRE/arXiv）
 
 对于高能物理及相关方向，推荐的实践闭环是：
@@ -163,9 +177,9 @@ python3 "$RESEARCH_TEAM/scripts/bin/literature_fetch.py" \
 
 ## 范围与安全说明
 
-- 工具**允许强化/新增 claim**（更像导师的改法），但应避免“无证据却自信地升级断言”；必要时应在 `open_questions.md` / `verification_requests.md` 中明确标注需要查证。
+- 工具**允许强化/新增 claim**，但前提是证据足够；这是 evidence-calibrated workflow，不是默认保守或默认加 caveat 的 workflow。
 - 复杂计算的复现与验证**不在本 skill 范畴**；会以问题/查证请求的方式输出。
 - LaTeX 安全属于 best-effort：工具尽量避免修改 verbatim 类环境（verbatim/lstlisting/minted/comment），但仍建议你最终编译检查。
 - 工具一次只处理**单个 `.tex` 文件**。如果工程使用 `\\input{}`/`\\include{}` 多文件结构，建议逐个文件跑（或先拼接后再跑）；跨文件 label/引用会导致“孤儿引用”警告出现误报。
 - 默认参数（按需覆盖）：`--encoding utf-8`、`--min-clean-size-ratio 0.85`、`--max-rounds 1`、`--codex-timeout-seconds 900`、`--codex-timeout-policy stub`。
-- 只有在系统安装了 `latexdiff` 时，`tracked.tex` 才会是可视化的红线稿；否则是“可编译的注释标注版”（便于 grep 审计，但不追求美观）。
+- 对完整文档，`tracked.tex` 只有在真实 `latexdiff` 成功时才有效；否则整个 run 必须保持 `NOT_READY`，而不是退化成 comment-only fallback success。

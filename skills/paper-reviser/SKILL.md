@@ -1,6 +1,6 @@
 ---
 name: paper-reviser
-description: Content-first revision for academic papers written in LaTeX (read-through → line edit → clean + diff + tracked changes → audit + verification requests).
+description: Content-first revision for academic papers written in LaTeX (read-through -> line edit -> clean + diff + tracked delivery contract -> audit + verification requests).
 metadata:
   short-description: Content-first paper revision for LaTeX drafts (clean + diff + tracked)
 ---
@@ -10,7 +10,7 @@ metadata:
 Use this skill when you want an “advisor-like” pass over a LaTeX draft:
 - prioritize **correctness/precision of statements** (content first),
 - improve structure/flow and English while **preserving the author’s voice**,
-- output both a **clean draft** and **revision artifacts** (diff/tracked),
+- output both a **clean draft** and **auditable revision artifacts** (diff plus tracked-delivery contract),
 - and generate **verification requests** for simple, high-impact statements.
 
 This skill is intentionally **not** part of `research-writer`:
@@ -23,13 +23,15 @@ Given `draft.tex`, the tool writes a run directory containing:
 - `original.tex` (normalized baseline copy)
 - `clean.tex` (edited clean draft; preserves preamble for full documents)
 - `changes.diff` (unified diff: original → clean)
-- `tracked.tex` (tracked changes; uses `latexdiff` if available, else a compile-safe comment-annotated view)
+- `tracked.tex` (full-document only, and only when a real `latexdiff` run succeeds)
+- `tracked_fragment_audit.tex` (fragment-only audit view; never a valid tracked delivery)
 - `changes.md` (detailed list of changes + rationale)
 - `open_questions.md` (items needing author confirmation / external verification)
 - `readthrough.md` (global understanding: what the draft claims + structure/notation inventory)
 - `risk_flags.md` (high-risk statements: overclaims/ambiguity/missing citations)
 - `global_style_notes.md` (style/notation consistency notes)
 - `audit.md` (independent auditor verdict + actionable feedback)
+- `response_revision_audit.md` (brief audit artifact: response-localization mapping, tracked-delivery status, clean/latexdiff PDF verification status, correction-convergence note)
 - `verification_requests.md` (concrete “please verify” items + suggested search queries)
 - `verification_requests.json` (machine-readable form for orchestration; schema_version=1)
 - `deep_verification.md` (step-by-step derivation/maths verification driven by `verification_requests.md`; uses local `codex` CLI)
@@ -39,8 +41,8 @@ Given `draft.tex`, the tool writes a run directory containing:
 ## Workflow (Human-Like)
 
 1) **Read-through (no rewriting)**: understand the draft globally and identify risk points.
-2) **Writer line edit**: produce a conservative-but-smart rewrite with global coherence.
-3) **Auditor pass** (independent): critique correctness/evidence/LaTeX safety; emit verification requests.
+2) **Writer line edit**: produce an evidence-calibrated rewrite with global coherence.
+3) **Auditor pass** (independent): critique correctness/evidence/LaTeX safety; run claim-strength audit, literature/novelty gate, and response-localization checks; emit verification requests.
 4) **Deep verification (Codex)**: step-by-step derivation/maths checks based on `verification_requests.md`.
    - Optional: run a **secondary** deep verifier (Gemini/Claude) for redundancy via `--secondary-deep-verify-*`.
 5) **Optional repair loop**: apply reviewer feedback (audit + deep verification), re-audit and re-verify (bounded by `--max-rounds`).
@@ -51,8 +53,10 @@ The tool auto-detects whether the input is a full LaTeX document:
 - **Full document**: first uncommented `\\begin{document}` exists.
   - The tool treats the preamble as **read-only** and only edits the body.
   - `clean.tex = (original preamble) + (edited body)`.
+  - `tracked.tex` is valid only if `latexdiff` succeeds. Missing/failed/empty `latexdiff` is **fail-closed / NOT_READY**; comment-only fallback is forbidden.
 - **Fragment**: no `\\begin{document}`.
   - The tool edits the entire fragment as-is.
+  - The tool may emit `tracked_fragment_audit.tex`, but that artifact is audit-only and must not be treated as `tracked.tex` or as a real latexdiff delivery.
 
 ## Quick Start
 
@@ -101,6 +105,8 @@ Robustness notes:
 - Gemini auditor malformed/empty output: the tool retries once with a stricter marker reminder; if still bad and `--fallback-auditor=claude` is enabled, it falls back automatically.
 - Clean-size guard is adaptive: `--min-clean-size-ratio` now considers both raw bytes and non-comment bytes (best-effort comment stripping), reducing false positives on comment-heavy drafts.
 - Deep verifier timeout is auditable: on timeout (policy `stub` / `allow-secondary`), `deep_verification.md` is written as `VERDICT: NOT_READY` with timeout cause.
+- Latexdiff delivery is fail-closed for full documents: if `latexdiff` is missing, fails, or returns empty output, the run records `tracked_delivery.status = not_ready`, forces `audit.md` to `NOT_READY`, and does not write a fake `tracked.tex`.
+- Latexdiff repair/verification contract: the tool records a log-driven repair loop (options/preamble/macros/minimal auditable post-processing) and compile verification status in `run.json`; if no clean/latexdiff PDF verification was run, it must stay explicitly unverified rather than pretending success.
 
 ## Verification Loop (Optional, Recommended)
 
@@ -142,6 +148,14 @@ python3 "$PAPER_REVISER/scripts/bin/build_verification_plan.py" \
 Then execute the plan tasks (typically under an approval gate) and write per-item evidence notes.
 Finally re-run `paper-reviser` with either `--context-file evidence.md` or `--context-dir evidence/`.
 
+## Contract Highlights
+
+- Evidence-calibrated revision contract: do not default to hedging. Keep strong supported statements, strengthen underclaimed text when evidence warrants it, and weaken only for genuine evidence/logic/literature gaps.
+- Referee-response mode contract: detected from context/structure rather than file naming; referee comments are read-only, only author responses/manuscript revisions may change, and every `we revised/clarified/added/corrected` declaration must be localized to the shortest sufficient manuscript location.
+- Claim-strength audit + literature/novelty gate: novelty claims require full-text support, not title/abstract/metadata-only checks.
+- Author color versus latexdiff color contract: author color remains an independent semantic layer; diff colors must stay distinct so colored insertions/deletions remain visible.
+- Correction-convergence contract: bounded repair rounds must resolve blockers with the smallest sufficient edit and no silent fallback success.
+
 ### HEP literature checks (INSPIRE/arXiv)
 
 For high-energy physics (and nearby fields), a practical workflow is:
@@ -169,13 +183,13 @@ If you are already running inside an agent environment with `hep-mcp` / `@autore
 
 ## Safety/Scope Notes
 
-- The tool **may strengthen/add claims** if they are supported by the draft’s own results or are clearly flagged for verification; it should avoid “confident but unsupported” upgrades.
+- The tool **may strengthen/add claims** when evidence supports them; this is an evidence-calibrated workflow, not a default-conservative or default-hedging workflow.
 - Complex computation verification is **out of scope**; the tool instead produces `open_questions.md` / `verification_requests.md`.
 - LaTeX safety is best-effort. The tool attempts to prevent edits inside verbatim-like environments (verbatim/lstlisting/minted/comment), but you should still compile-check after edits.
 - If you need preamble changes (packages/macros), the tool will usually propose them in `changes.md`; apply them manually (preamble is preserved in full-document mode).
 - The tool operates on a **single `.tex` file** at a time. For multi-file projects using `\\input{}`/`\\include{}`, run it per file (or on a pre-concatenated version). Orphan-ref warnings may be false positives when labels live in other files.
 - Defaults (override as needed): `--encoding utf-8`, `--min-clean-size-ratio 0.85`, `--max-rounds 1`, `--codex-timeout-seconds 900`, `--codex-timeout-policy stub`.
-- `tracked.tex` is a visual redline only if `latexdiff` is available; otherwise it is a compile-safe, comment-annotated audit trail (greppable, not pretty).
+- For full documents, `tracked.tex` is valid only when produced by real `latexdiff`. If that delivery is unavailable, the run must stay `NOT_READY` instead of substituting a comment-only fallback.
 
 ## Dev Smoke Tests (Local)
 

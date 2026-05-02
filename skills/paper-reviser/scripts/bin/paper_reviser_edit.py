@@ -16,13 +16,15 @@ Outputs (under --out-dir):
   - original.tex (LF-normalized baseline)
   - clean.tex
   - changes.diff (unified diff)
-  - tracked.tex (latexdiff if available for full docs; otherwise comment-annotated)
+  - tracked.tex (full documents only, and only when real latexdiff succeeds)
+  - tracked_fragment_audit.tex (fragment-only audit view; not a valid tracked delivery)
   - readthrough.md
   - risk_flags.md
   - global_style_notes.md
   - changes.md
   - open_questions.md
   - audit.md
+  - response_revision_audit.md
   - verification_requests.md
   - deep_verification.md
   - run.json
@@ -127,7 +129,7 @@ def _estimate_tokens_est(text: str) -> int:
 
 
 def _first_unescaped_comment_pos(line: str) -> int | None:
-    """
+    r"""
     Return index of the first TeX comment-starting % in the line, or None.
 
     Treat % as starting a comment unless it is escaped as \% (odd backslashes).
@@ -181,6 +183,12 @@ def _preflight_marker_collision(tex: str) -> list[str]:
 
 class BlockParseError(RuntimeError):
     pass
+
+
+class LatexdiffDeliveryError(RuntimeError):
+    def __init__(self, message: str, *, metadata: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.metadata = metadata
 
 
 def _extract_block(raw: str, *, name: str, allow_implicit_begin: bool = False) -> str:
@@ -569,6 +577,274 @@ def _extract_protected_env_blocks(tex: str, *, env_names: list[str]) -> list[str
     return out
 
 
+def _detect_revision_context(*, tex: str, extra_context: str, readthrough_md: str) -> dict[str, Any]:
+    headers = re.findall(r"\\(?:sub)*section\*?\{([^}]+)\}", tex)
+    short_headers = [h.strip() for h in headers if len(h.strip().split()) <= 8]
+    starred_header_count = len(re.findall(r"\\(?:sub)*section\*\{", tex))
+    response_pair_count = len(
+        re.findall(
+            r"\\(?:sub)*section\*?\{[^}]*comment[^}]*\}[\s\S]{0,800}?\\(?:sub)*section\*?\{[^}]*response[^}]*\}",
+            tex,
+            flags=re.I,
+        )
+    )
+    author_reply_count = len(
+        re.findall(r"\bwe\s+(?:revised|clarified|added|corrected|updated|expanded)\b", tex, flags=re.I)
+    )
+    manuscript_marker_count = len(
+        re.findall(r"\\(?:sub)*section\*?\{[^}]*(?:manuscript|revision|revised text)[^}]*\}", tex, flags=re.I)
+    )
+    score = 0
+    signals: list[str] = []
+    if starred_header_count >= 3 and len(short_headers) >= 3:
+        score += 1
+        signals.append("multi-section short-header exchange structure")
+    if response_pair_count >= 1:
+        score += 1
+        signals.append("comment-response header pairing")
+    if author_reply_count >= 1 and manuscript_marker_count >= 1:
+        score += 1
+        signals.append("author reply declarations plus manuscript-revision section")
+    if re.search(r"\breferee\b|\breviewer\b", tex + "\n" + extra_context + "\n" + readthrough_md, flags=re.I):
+        score += 1
+        signals.append("review-dialogue role markers")
+    mode = "referee_response" if score >= 2 else "paper_revision"
+    return {"mode": mode, "signals": signals, "score": score}
+
+
+def _postprocess_latexdiff_tex(raw: str) -> str:
+    text = raw.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(
+        r"\\definecolor\{DIFADDCOLOR\}\{rgb\}\{[^}]+\}",
+        r"\\definecolor{DIFADDCOLOR}{rgb}{0.00,0.45,0.00}",
+        text,
+    )
+    text = re.sub(
+        r"\\definecolor\{DIFDELCOLOR\}\{rgb\}\{[^}]+\}",
+        r"\\definecolor{DIFDELCOLOR}{rgb}{0.65,0.10,0.10}",
+        text,
+    )
+    if "DIFADDCOLOR" not in text:
+        text = text.replace(
+            r"\RequirePackage{color}",
+            "\\RequirePackage{color}\n\\definecolor{DIFADDCOLOR}{rgb}{0.00,0.45,0.00}\n\\definecolor{DIFDELCOLOR}{rgb}{0.65,0.10,0.10}",
+            1,
+        )
+    text = text.replace(
+        r"\providecommand{\DIFadd}[1]{{\protect\color{blue}\uwave{#1}}}",
+        r"\providecommand{\DIFadd}[1]{{\protect\color{DIFADDCOLOR}\uwave{#1}}}",
+    )
+    text = text.replace(
+        r"\providecommand{\DIFdel}[1]{{\protect\color{red}\sout{#1}}}",
+        r"\providecommand{\DIFdel}[1]{{\protect\color{DIFDELCOLOR}\sout{#1}}}",
+    )
+    text = text.replace(
+        r"\providecommand{\DIFaddbegin}{\color{blue}}",
+        r"\providecommand{\DIFaddbegin}{\color{DIFADDCOLOR}}",
+    )
+    text = text.replace(
+        r"\providecommand{\DIFdelbegin}{\color{red}}",
+        r"\providecommand{\DIFdelbegin}{\color{DIFDELCOLOR}}",
+    )
+    return text
+
+
+def _audit_latexdiff_color_visibility(*, original: str, clean: str, tracked: str) -> list[str]:
+    warnings: list[str] = []
+    color_change_re = re.compile(r"\\textcolor\{[^}]+\}\{.*?\}", flags=re.S)
+    original_colors = color_change_re.findall(original)
+    clean_colors = color_change_re.findall(clean)
+    if original_colors != clean_colors and not re.search(r"\\DIFadd|\\DIFdel", tracked):
+        warnings.append(
+            "Colored revision changed between original and clean, but latexdiff markers are not visible inside the colored segment."
+        )
+    return warnings
+
+
+def _comment_audit_view(original: str, clean: str) -> str:
+    return _comment_annotated_tracked(original, clean)
+
+
+def _build_latexdiff_artifacts(
+    *,
+    original_path: Path,
+    clean_path: Path,
+    original: str,
+    clean: str,
+    out_dir: Path,
+    full_document: bool,
+    trace_path: Path | None = None,
+) -> dict[str, Any]:
+    repair_actions: list[str] = []
+    compile_verification = {
+        "clean_pdf_verified": False,
+        "latexdiff_pdf_verified": False,
+        "status": "not_run",
+    }
+    if not full_document:
+        artifact_path = out_dir / "tracked_fragment_audit.tex"
+        _write_text(artifact_path, _comment_audit_view(original, clean))
+        meta = {
+            "status": "audit_only",
+            "required": False,
+            "valid_tracked_delivery": False,
+            "delivery_kind": "fragment_audit_view",
+            "artifact_path": str(artifact_path),
+            "repair_loop": {
+                "required": False,
+                "attempted": False,
+                "actions": [],
+            },
+            "compile_verification": compile_verification,
+        }
+        if trace_path is not None:
+            _append_jsonl(
+                trace_path,
+                {"ts": _utc_now(), "stage": "latexdiff", "event": "fragment_audit_view_written", "artifact_path": str(artifact_path)},
+            )
+        return meta
+
+    latexdiff_bin = shutil.which("latexdiff")
+    if not latexdiff_bin:
+        meta = {
+            "status": "not_ready",
+            "required": True,
+            "valid_tracked_delivery": False,
+            "delivery_kind": "latexdiff_required",
+            "artifact_path": None,
+            "repair_loop": {
+                "required": True,
+                "attempted": False,
+                "actions": [],
+            },
+            "compile_verification": compile_verification,
+            "reason": "latexdiff binary not found",
+        }
+        if trace_path is not None:
+            _append_jsonl(trace_path, {"ts": _utc_now(), "stage": "latexdiff", "event": "missing_binary", "binary": "latexdiff"})
+        raise LatexdiffDeliveryError("latexdiff binary not found", metadata=meta)
+
+    cmd = [latexdiff_bin, "--type=UNDERLINE", "--encoding=utf8", str(original_path), str(clean_path)]
+    if trace_path is not None:
+        _append_jsonl(trace_path, {"ts": _utc_now(), "stage": "latexdiff", "event": "run", "cmd": cmd})
+    proc = subprocess.run(cmd, text=True, capture_output=True)
+    if proc.returncode != 0 or not proc.stdout.strip():
+        meta = {
+            "status": "not_ready",
+            "required": True,
+            "valid_tracked_delivery": False,
+            "delivery_kind": "latexdiff_required",
+            "artifact_path": None,
+            "repair_loop": {
+                "required": True,
+                "attempted": True,
+                "actions": [],
+            },
+            "compile_verification": compile_verification,
+            "reason": (
+                "latexdiff returned empty output" if proc.returncode == 0 and not proc.stdout.strip() else f"latexdiff failed with exit {proc.returncode}"
+            ),
+            "command": cmd,
+            "stderr_tail": (proc.stderr or "")[-1000:],
+        }
+        if trace_path is not None:
+            _append_jsonl(
+                trace_path,
+                {
+                    "ts": _utc_now(),
+                    "stage": "latexdiff",
+                    "event": "failed",
+                    "exit_code": proc.returncode,
+                    "stdout_bytes": len(proc.stdout.encode("utf-8", errors="replace")),
+                },
+            )
+        raise LatexdiffDeliveryError(meta["reason"], metadata=meta)
+
+    tracked = proc.stdout.replace("\r\n", "\n").replace("\r", "\n")
+    cooked = _postprocess_latexdiff_tex(tracked)
+    if cooked != tracked:
+        repair_actions.append("postprocessed latexdiff palette to keep diff colors distinct from author colors")
+    visibility_warnings = _audit_latexdiff_color_visibility(original=original, clean=clean, tracked=cooked)
+    repair_actions.extend([f"visibility-check: {warning}" for warning in visibility_warnings])
+
+    artifact_path = out_dir / "tracked.tex"
+    _write_text(artifact_path, cooked)
+    meta = {
+        "status": "ready",
+        "required": True,
+        "valid_tracked_delivery": True,
+        "delivery_kind": "latexdiff",
+        "artifact_path": str(artifact_path),
+        "repair_loop": {
+            "required": True,
+            "attempted": True,
+            "actions": repair_actions or ["latexdiff output accepted without post-processing changes"],
+        },
+        "compile_verification": compile_verification,
+        "visibility_warnings": visibility_warnings,
+        "command": cmd,
+    }
+    if trace_path is not None:
+        _append_jsonl(
+            trace_path,
+            {
+                "ts": _utc_now(),
+                "stage": "latexdiff",
+                "event": "ready",
+                "artifact_path": str(artifact_path),
+                "repair_actions": repair_actions,
+                "visibility_warnings": visibility_warnings,
+            },
+        )
+    return meta
+
+
+def _build_response_localization_audit(
+    *,
+    document_mode: str,
+    changes_md: str,
+    clean_tex: str,
+    tracked_tex: str,
+    tracked_delivery: dict[str, Any] | None = None,
+) -> str:
+    lower_changes = changes_md.lower()
+    declares_revision = bool(re.search(r"\b(?:revised|clarified|added|corrected|updated|expanded)\b", lower_changes))
+    has_anchor = bool(re.search(r"\b(?:section|eq\.?|equation|figure|fig\.|table|appendix|paragraph|line|abstract|introduction|conclusion)\b", lower_changes))
+    localization_status = "NOT VERIFIED" if (document_mode == "referee_response" and declares_revision and not has_anchor) else "VERIFIED"
+    tracked_status = (tracked_delivery or {}).get("status", "unknown")
+    tracked_kind = (tracked_delivery or {}).get("delivery_kind", "unknown")
+    clean_pdf_verified = (tracked_delivery or {}).get("compile_verification", {}).get("clean_pdf_verified", False)
+    latexdiff_pdf_verified = (tracked_delivery or {}).get("compile_verification", {}).get("latexdiff_pdf_verified", False)
+    lines = [
+        "# Response Revision Audit",
+        "",
+        f"- document_mode: {document_mode}",
+        f"- localization_status: {localization_status}",
+        f"- tracked_delivery_status: {tracked_status}",
+        f"- tracked_delivery_kind: {tracked_kind}",
+        f"- clean_pdf_verified: {'YES' if clean_pdf_verified else 'NO'}",
+        f"- latexdiff_pdf_verified: {'YES' if latexdiff_pdf_verified else 'NO'}",
+        "",
+        "## Modification declaration mapping",
+    ]
+    if localization_status == "NOT VERIFIED":
+        lines.append("- NOT VERIFIED: revision declarations were found, but no minimal location anchor was detected in changes.md.")
+    else:
+        lines.append("- VERIFIED: no unlocalized revision declaration was detected by the lightweight audit.")
+    lines.extend(
+        [
+            "",
+            "## Correction convergence",
+            "- correction-convergence relies on the bounded audit/repair loop plus this audit artifact; no silent fallback success is allowed.",
+            "",
+            "## Notes",
+            f"- clean_tex_bytes: {len(clean_tex.encode('utf-8', errors='replace'))}",
+            f"- tracked_tex_bytes: {len(tracked_tex.encode('utf-8', errors='replace'))}",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _system_prompt_readthrough() -> str:
     return (
         "You are a careful academic advisor. First read the LaTeX draft globally; do NOT rewrite it yet.\n"
@@ -588,7 +864,13 @@ def _system_prompt_readthrough() -> str:
     )
 
 
-def _system_prompt_writer(*, full_document: bool, is_repair: bool) -> str:
+def _system_prompt_writer(
+    *,
+    full_document: bool,
+    is_repair: bool,
+    document_mode: str = "paper_revision",
+    correction_constraints: list[str] | None = None,
+) -> str:
     mode = "REPAIR" if is_repair else "WRITE"
     doc_hint = (
         "FULL-DOCUMENT MODE: You will be given a PREAMBLE (read-only) and a BODY to edit. Output only the edited BODY as CLEAN_BODY_TEX.\n"
@@ -603,12 +885,28 @@ def _system_prompt_writer(*, full_document: bool, is_repair: bool) -> str:
         if is_repair
         else ""
     )
+    extra_constraints = correction_constraints or []
+    constraint_block = ""
+    if extra_constraints:
+        constraint_block = "TEMPORARY GLOBAL CONSTRAINTS:\n" + "\n".join(f"- {item}" for item in extra_constraints) + "\n\n"
+    referee_block = ""
+    if document_mode == "referee_response":
+        referee_block = (
+            "REFEREE-RESPONSE MODE:\n"
+            "- Referee comments are read-only; do not rewrite, soften, or paraphrase them.\n"
+            "- Only modify author responses and manuscript revision text.\n"
+            "- Use evidence-calibrated wording: keep strong statements when the manuscript or provided evidence supports them; strengthen underclaimed text when evidence warrants it; weaken only when evidence is missing, logic overreaches, or cited literature does not support the claim.\n"
+            "- Do not add generic caveats or politeness hedges by default.\n"
+            "- Localize every modification declaration (for example 'we revised/clarified/added/corrected') to the shortest semantically sufficient place in the manuscript or response.\n"
+            "- Preserve author stance; do not weaken author responses by generic smoothing.\n"
+            "- Respect correction-convergence: address the current blocker with the smallest sufficient edit and do not introduce fresh drift.\n\n"
+        )
     return (
         "You are a senior academic advisor doing a conservative line edit of a LaTeX draft.\n"
         f"STAGE: {mode}.\n\n"
         "PRIORITIES (strict order):\n"
         "1) Correctness/precision of statements (content first).\n"
-        "2) Evidence/verification: strengthen or add claims ONLY if supported by the draft's own results/derivations or a verifiable reference.\n"
+        "2) Evidence/verification: use an evidence-calibrated claim-strength contract rather than a default conservative style. Keep justified strong statements, strengthen underclaimed statements when supported, and weaken only when evidence is insufficient or logic/literature does not support the wording.\n"
         "3) English writing quality, while preserving meaning and author voice.\n"
         "4) LaTeX formatting (avoid stylistic reformatting unless it improves clarity or prevents confusion).\n\n"
         "HARD CONSTRAINTS:\n"
@@ -619,6 +917,8 @@ def _system_prompt_writer(*, full_document: bool, is_repair: bool) -> str:
         "- If you add a stronger/new claim that would normally need a citation, either cite an existing key, or phrase conservatively and flag for verification in OPEN_QUESTIONS_MD.\n\n"
         + doc_hint
         + repair_hint
+        + referee_block
+        + constraint_block
         + "\nOUTPUT FORMAT (strict):\n"
         "- Output only tagged blocks; no code fences; no text outside blocks.\n"
         "- Do NOT include any marker-like lines (%%__CODEX_BLOCK__...) inside the TeX block.\n\n"
@@ -638,13 +938,28 @@ def _system_prompt_writer(*, full_document: bool, is_repair: bool) -> str:
     )
 
 
-def _system_prompt_auditor() -> str:
+def _system_prompt_auditor(*, document_mode: str = "paper_revision") -> str:
+    referee_block = ""
+    if document_mode == "referee_response":
+        referee_block = (
+            "REFEREE-RESPONSE MODE CONTRACT:\n"
+            "- Referee comments remain read-only.\n"
+            "- Audit response localization: every 'we revised/clarified/added/corrected' declaration must be localized to the shortest sufficient manuscript location.\n"
+            "- If author replies were weakened by generic politeness or caveat inflation, flag it.\n\n"
+        )
     return (
         "You are an independent technical auditor for an academic LaTeX draft.\n"
         "You do NOT rewrite the TeX. You judge correctness/precision, overclaims, missing references, and LaTeX safety risks.\n\n"
         "VERDICT RULE:\n"
         "- If there are blocking correctness/evidence/LaTeX-safety issues introduced or left unresolved, set VERDICT: NOT_READY and list concrete fixes.\n"
         "- Otherwise set VERDICT: READY, but still list non-blocking improvements and verification requests.\n\n"
+        "SPECIAL CONTRACT CHECKS:\n"
+        "- Run a claim-strength audit: do not treat default hedging as safe. Keep strong claims when evidence supports them; strengthen underclaimed text when the evidence in the draft supports it; weaken only for genuine evidence or logic gaps.\n"
+        "- Literature/novelty claim gate: title/abstract/metadata-only checks are insufficient for novelty claims. Require full text evidence or explicitly mark NOT_READY / needs verification.\n"
+        "- Correction-convergence: verify that the current edit resolves prior blockers with the smallest sufficient change and does not add new drift.\n"
+        "- Author-color versus diff-color contract: author color semantics must remain distinct from latexdiff colors, and colored insertions/deletions must stay visible.\n\n"
+        + referee_block
+        +
         "IMPORTANT: Provide VERIFICATION_REQUESTS_MD with two sections:\n"
         "1) Derivation & math checks (step-by-step): list key derivations/equations/claims that should be internally verified.\n"
         "   - For each item, COPY the exact TeX excerpt from the candidate (equations + the surrounding defining text) so a separate checker can verify without the whole paper.\n"
@@ -655,6 +970,10 @@ def _system_prompt_auditor() -> str:
         "- Output only tagged blocks; no code fences; no text outside blocks.\n\n"
         "%%__CODEX_BLOCK__AUDIT_MD__BEGIN__\n"
         "VERDICT: READY|NOT_READY\n\n"
+        "CLAIM_STRENGTH: PASS|FAIL\n"
+        "CLAIM_STRENGTH_REASON: <short reason or N/A>\n"
+        "NOVELTY_SUPPORT: FULL_TEXT|METADATA_ONLY|UNSUPPORTED|NA\n"
+        "CORRECTION_CONVERGENCE: PASS|FAIL\n\n"
         "## Blockers\n(only if NOT_READY)\n\n"
         "## Non-blocking\n\n"
         "## Evidence & verification\n\n"
@@ -758,6 +1077,72 @@ def _parse_verdict_line(text: str, *, label: str) -> str:
 
 def _parse_verdict(audit_md: str) -> str:
     return _parse_verdict_line(audit_md, label="audit.md")
+
+
+def _extract_status_value(text: str, key: str) -> str | None:
+    pat = re.compile(rf"^\s*{re.escape(key)}\s*:\s*(.+?)\s*$", flags=re.M)
+    m = pat.search(text)
+    return m.group(1).strip() if m else None
+
+
+def _collect_contract_blockers(
+    *,
+    document_mode: str,
+    audit_md: str,
+    response_revision_audit_md: str,
+    tracked_delivery: dict[str, Any],
+) -> list[str]:
+    blockers: list[str] = []
+    required_contract_fields = {
+        "CLAIM_STRENGTH": {"PASS", "FAIL"},
+        "NOVELTY_SUPPORT": {"FULL_TEXT", "METADATA_ONLY", "UNSUPPORTED", "NA"},
+        "CORRECTION_CONVERGENCE": {"PASS", "FAIL"},
+    }
+    if tracked_delivery.get("required") and tracked_delivery.get("status") == "not_ready":
+        blockers.append("Full-document tracked delivery requires a real latexdiff artifact. comment-only fallback is forbidden.")
+
+    response_localization = _extract_status_value(response_revision_audit_md, "localization_status")
+    if document_mode == "referee_response" and response_localization != "VERIFIED":
+        blockers.append("Response localization audit is not VERIFIED; referee-response runs cannot converge until every revision declaration is localized.")
+
+    contract_values: dict[str, str | None] = {}
+    for key, legal_values in required_contract_fields.items():
+        value = _extract_status_value(audit_md, key)
+        contract_values[key] = value
+        if value is None:
+            blockers.append(f"Missing required audit contract field: {key}.")
+            continue
+        if value not in legal_values:
+            blockers.append(f"Illegal value for required audit contract field {key}: {value}.")
+
+    novelty_support = _extract_status_value(audit_md, "NOVELTY_SUPPORT")
+    if contract_values.get("NOVELTY_SUPPORT") == "METADATA_ONLY":
+        blockers.append("Novelty support is metadata-only; full-text evidence is required for novelty claims.")
+    elif contract_values.get("NOVELTY_SUPPORT") == "UNSUPPORTED":
+        blockers.append("Novelty claim is unsupported by the cited full-text evidence.")
+
+    if contract_values.get("CLAIM_STRENGTH") == "FAIL":
+        reason = _extract_status_value(audit_md, "CLAIM_STRENGTH_REASON")
+        blockers.append(
+            f"Claim-strength audit failed{': ' + reason if reason else ''}."
+        )
+
+    if contract_values.get("CORRECTION_CONVERGENCE") == "FAIL":
+        blockers.append("Correction-convergence failed: the current revision did not resolve blockers with the smallest sufficient edit.")
+    return blockers
+
+
+def _force_audit_not_ready(audit_md: str, *, reasons: list[str]) -> str:
+    if not reasons:
+        return audit_md
+    lines = audit_md.splitlines()
+    for idx, ln in enumerate(lines):
+        if ln.strip():
+            lines[idx] = "VERDICT: NOT_READY"
+            break
+    body = "\n".join(lines).rstrip() + "\n\n## Tool contract blockers\n\n"
+    body += "\n".join(f"- {reason}" for reason in reasons) + "\n"
+    return body
 
 
 def _diff_contains_math_changes(diff: str) -> bool:
@@ -1031,6 +1416,13 @@ def main() -> int:
                     },
                 },
                 "full_document": full_document,
+                "tracked_delivery": {
+                    "status": ("not_ready" if full_document else "audit_only"),
+                    "required": bool(full_document),
+                    "valid_tracked_delivery": False,
+                    "delivery_kind": ("latexdiff_required" if full_document else "fragment_audit_view"),
+                    "artifact_path": None,
+                },
                 "warnings": warnings,
                 "fatal_errors": fatal_errors,
                 "exit_status": 0,
@@ -1229,6 +1621,27 @@ def main() -> int:
     _write_text(out_dir / "risk_flags.md", risk_flags_md)
     _write_text(out_dir / "global_style_notes.md", style_notes_md)
 
+    revision_context = _detect_revision_context(tex=original_tex, extra_context=extra_context, readthrough_md=readthrough_md)
+    document_mode = str(revision_context["mode"])
+    correction_constraints: list[str] = []
+    if document_mode == "referee_response":
+        correction_constraints.append("Do not weaken author responses by generic politeness smoothing.")
+
+    tracked_delivery_meta: dict[str, Any] = {
+        "status": "unknown",
+        "required": bool(full_document),
+        "valid_tracked_delivery": False,
+        "delivery_kind": ("latexdiff_required" if full_document else "fragment_audit_view"),
+        "artifact_path": None,
+        "repair_loop": {"required": bool(full_document), "attempted": False, "actions": []},
+        "compile_verification": {
+            "clean_pdf_verified": False,
+            "latexdiff_pdf_verified": False,
+            "status": "not_run",
+        },
+    }
+    response_revision_audit_path = out_dir / "response_revision_audit.md"
+
     def run_writer(
         stage: str,
         *,
@@ -1243,7 +1656,12 @@ def main() -> int:
             open_q = ""
             return input_tex_for_prompt, changes_md, open_q
 
-        sys_txt = _system_prompt_writer(full_document=full_document, is_repair=is_repair)
+        sys_txt = _system_prompt_writer(
+            full_document=full_document,
+            is_repair=is_repair,
+            document_mode=document_mode,
+            correction_constraints=correction_constraints,
+        )
 
         parts: list[str] = []
         parts.append(f"FILE: {input_path.name}\n")
@@ -1254,6 +1672,12 @@ def main() -> int:
             parts.append("## Extra context (evidence/notes; read-only)\n" + extra_context + "\n")
         if is_repair and current_audit_md:
             parts.append("## Auditor report (must address)\n" + current_audit_md + "\n")
+        if is_repair and response_revision_audit_path.is_file():
+            parts.append(
+                "## Response revision audit (must address)\n"
+                + response_revision_audit_path.read_text(encoding="utf-8", errors="replace")
+                + "\n"
+            )
         if is_repair and current_deep_verification_md:
             parts.append("## Deep derivation verification (must address)\n" + current_deep_verification_md + "\n")
         if is_repair and current_clean_tex and current_clean_tex.strip() != input_tex_for_prompt.strip():
@@ -1370,21 +1794,33 @@ def main() -> int:
         ):
             raise RuntimeError("protected environment blocks changed (verbatim/lstlisting/minted/comment)")
 
-        tracked_path = out_dir / "tracked.tex"
-        latexdiff_bin = shutil.which("latexdiff")
-        if full_document and latexdiff_bin:
-            proc = subprocess.run(
-                [latexdiff_bin, "--type=UNDERLINE", "--encoding=utf8", str(out_dir / "original.tex"), str(out_dir / "clean.tex")],
-                text=True,
-                capture_output=True,
+        nonlocal tracked_delivery_meta
+        try:
+            tracked_delivery_meta = _build_latexdiff_artifacts(
+                original_path=out_dir / "original.tex",
+                clean_path=out_dir / "clean.tex",
+                original=original,
+                clean=clean,
+                out_dir=out_dir,
+                full_document=full_document,
+                trace_path=trace_path,
             )
-            if proc.returncode == 0 and proc.stdout.strip():
-                _write_text(tracked_path, proc.stdout.replace("\r\n", "\n").replace("\r", "\n"))
-            else:
-                warnings.append(f"latexdiff failed (exit {proc.returncode}); using comment-annotated tracked.tex")
-                _write_text(tracked_path, _comment_annotated_tracked(original, clean))
-        else:
-            _write_text(tracked_path, _comment_annotated_tracked(original, clean))
+        except LatexdiffDeliveryError as exc:
+            tracked_delivery_meta = exc.metadata
+            warnings.append(f"tracked delivery NOT_READY: {exc}")
+
+        tracked_for_audit = ""
+        tracked_artifact = tracked_delivery_meta.get("artifact_path")
+        if tracked_artifact and Path(str(tracked_artifact)).is_file():
+            tracked_for_audit = Path(str(tracked_artifact)).read_text(encoding="utf-8", errors="replace")
+        response_audit_md = _build_response_localization_audit(
+            document_mode=document_mode,
+            changes_md=changes_md,
+            clean_tex=clean,
+            tracked_tex=tracked_for_audit,
+            tracked_delivery=tracked_delivery_meta,
+        )
+        _write_text(response_revision_audit_path, response_audit_md)
 
     rounds_completed = 0
     converged = False
@@ -1505,7 +1941,15 @@ def main() -> int:
 
     def run_auditor(stage: str, *, previous_audit: str | None) -> tuple[str, str, dict[str, Any], str]:
         if args.stub_models:
-            return "VERDICT: READY\n\n(stub)\n", "", {"schema_version": 1, "items": []}, "READY"
+            stub_audit = (
+                "VERDICT: READY\n\n"
+                "CLAIM_STRENGTH: PASS\n"
+                "CLAIM_STRENGTH_REASON: N/A\n"
+                "NOVELTY_SUPPORT: NA\n"
+                "CORRECTION_CONVERGENCE: PASS\n\n"
+                "(stub)\n"
+            )
+            return stub_audit, "", {"schema_version": 1, "items": []}, "READY"
 
         def parse_auditor_payload(raw_text: str) -> tuple[str, str, dict[str, Any], str]:
             end_only_audit = (
@@ -1538,13 +1982,15 @@ def main() -> int:
             verdict = _parse_verdict(audit_md)
             return audit_md, verif_md, verif_json_obj, verdict
 
-        sys_txt = _system_prompt_auditor()
+        sys_txt = _system_prompt_auditor(document_mode=document_mode)
         parts: list[str] = []
         parts.append(f"FILE: {input_path.name}\n")
         parts.append("## Read-through\n" + readthrough_md + "\n")
         parts.append("## changes.diff\n" + (out_dir / "changes.diff").read_text(encoding="utf-8", errors="replace") + "\n")
         parts.append("## changes.md (writer)\n" + (out_dir / "changes.md").read_text(encoding="utf-8", errors="replace") + "\n")
         parts.append("## Candidate clean.tex\n" + (out_dir / "clean.tex").read_text(encoding="utf-8", errors="replace") + "\n")
+        parts.append("## Tracked delivery metadata\n" + json.dumps(tracked_delivery_meta, indent=2, sort_keys=True) + "\n")
+        parts.append("## Response revision audit\n" + response_revision_audit_path.read_text(encoding="utf-8", errors="replace") + "\n")
         if previous_audit:
             parts.append("## Previous audit (context)\n" + previous_audit + "\n")
         base_user_txt = "\n".join(parts)
@@ -1884,6 +2330,15 @@ def main() -> int:
         )
         return 2
 
+    tool_contract_blockers = _collect_contract_blockers(
+        document_mode=document_mode,
+        audit_md=audit_md,
+        response_revision_audit_md=response_revision_audit_path.read_text(encoding="utf-8", errors="replace"),
+        tracked_delivery=tracked_delivery_meta,
+    )
+    audit_md = _force_audit_not_ready(audit_md, reasons=tool_contract_blockers)
+    verdict = _parse_verdict(audit_md)
+
     _write_text(out_dir / "audit.md", audit_md)
     _write_text(out_dir / "verification_requests.md", verif_md)
     _write_json(out_dir / "verification_requests.json", verif_json_obj)
@@ -2026,6 +2481,15 @@ def main() -> int:
                 fatal_errors.append(str(exc))
                 break
 
+            tool_contract_blockers = _collect_contract_blockers(
+                document_mode=document_mode,
+                audit_md=audit_md,
+                response_revision_audit_md=response_revision_audit_path.read_text(encoding="utf-8", errors="replace"),
+                tracked_delivery=tracked_delivery_meta,
+            )
+            audit_md = _force_audit_not_ready(audit_md, reasons=tool_contract_blockers)
+            verdict = _parse_verdict(audit_md)
+
             _write_text(out_dir / "audit.md", audit_md)
             _write_text(out_dir / "verification_requests.md", verif_md)
             _write_json(out_dir / "verification_requests.json", verif_json_obj)
@@ -2106,6 +2570,20 @@ def main() -> int:
                 },
             },
             "full_document": full_document,
+            "revision_context": revision_context,
+            "tracked_delivery": tracked_delivery_meta,
+            "correction_convergence": {
+                "enabled": True,
+                "rounds_completed": rounds_completed,
+                "converged": converged,
+            },
+            "artifacts": {
+                "clean_tex": str(out_dir / "clean.tex"),
+                "changes_diff": str(out_dir / "changes.diff"),
+                "audit_md": str(out_dir / "audit.md"),
+                "response_revision_audit.md": str(response_revision_audit_path),
+                "tracked_delivery_artifact": tracked_delivery_meta.get("artifact_path"),
+            },
             "rounds_completed": rounds_completed,
             "auditor_verdict": auditor_verdict,
             "deep_verifier_verdict": deep_verifier_verdict,
