@@ -106,7 +106,8 @@ Robustness notes:
 - Clean-size guard is adaptive: `--min-clean-size-ratio` now considers both raw bytes and non-comment bytes (best-effort comment stripping), reducing false positives on comment-heavy drafts.
 - Deep verifier timeout is auditable: on timeout (policy `stub` / `allow-secondary`), `deep_verification.md` is written as `VERDICT: NOT_READY` with timeout cause.
 - Latexdiff delivery is fail-closed for full documents: if `latexdiff` is missing, fails, or returns empty output, the run records `tracked_delivery.status = not_ready`, forces `audit.md` to `NOT_READY`, and does not write a fake `tracked.tex`.
-- Latexdiff repair/verification contract: the tool records a log-driven repair loop (options/preamble/macros/minimal auditable post-processing) and compile verification status in `run.json`; if no clean/latexdiff PDF verification was run, it must stay explicitly unverified rather than pretending success.
+- Latexdiff repair/verification contract: this repo tool only records `tracked_delivery`, `repair_loop`, and compile-verification audit state in `run.json`; it does not provide a generic TeX compile/fix runtime. Clean/latexdiff PDF compilation, real log reading, and bounded repair attempts belong to the use-time agent inside the concrete paper project.
+- If the use-time agent did not run clean/latexdiff PDF verification, `run.json` must stay explicitly unverified (`not_run` / `not_ready`) rather than pretending success.
 
 ## Verification Loop (Optional, Recommended)
 
@@ -186,10 +187,12 @@ If you are already running inside an agent environment with `hep-mcp` / `@autore
 - The tool **may strengthen/add claims** when evidence supports them; this is an evidence-calibrated workflow, not a default-conservative or default-hedging workflow.
 - Complex computation verification is **out of scope**; the tool instead produces `open_questions.md` / `verification_requests.md`.
 - LaTeX safety is best-effort. The tool attempts to prevent edits inside verbatim-like environments (verbatim/lstlisting/minted/comment), but you should still compile-check after edits.
+- This repo is **not** a general TeX compile/repair engine. When using the skill in a real paper project, the agent should run LaTeX compilation there, read the actual log, and apply the smallest auditable repair needed (latexdiff options, preamble/macros, or minimal post-processing).
 - If you need preamble changes (packages/macros), the tool will usually propose them in `changes.md`; apply them manually (preamble is preserved in full-document mode).
 - The tool operates on a **single `.tex` file** at a time. For multi-file projects using `\\input{}`/`\\include{}`, run it per file (or on a pre-concatenated version). Orphan-ref warnings may be false positives when labels live in other files.
 - Defaults (override as needed): `--encoding utf-8`, `--min-clean-size-ratio 0.85`, `--max-rounds 1`, `--codex-timeout-seconds 900`, `--codex-timeout-policy stub`.
 - For full documents, `tracked.tex` is valid only when produced by real `latexdiff`. If that delivery is unavailable, the run must stay `NOT_READY` instead of substituting a comment-only fallback.
+- For full documents, if `clean.tex` compiles, the use-time agent should make a real attempt to compile the latexdiff PDF as well. If that diff build fails, read the log and try the smallest auditable fix; do **not** substitute the clean PDF for the diff PDF.
 
 ## Dev Smoke Tests (Local)
 

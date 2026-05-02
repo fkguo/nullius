@@ -277,6 +277,9 @@ class PaperReviserEditTests(unittest.TestCase):
             self.assertIn(r"\textcolor{red}{Author colored", tracked)
             self.assertIn("DIFADDCOLOR", tracked)
             self.assertEqual(audit["status"], "ready")
+            self.assertEqual(audit["compile_verification"]["status"], "not_run")
+            self.assertFalse(audit["compile_verification"]["clean_pdf_verified"])
+            self.assertFalse(audit["compile_verification"]["latexdiff_pdf_verified"])
 
     def test_response_localization_audit_marks_missing_anchor_as_not_verified(self) -> None:
         audit_md = paper_reviser_edit._build_response_localization_audit(
@@ -618,6 +621,10 @@ class PaperReviserEditTests(unittest.TestCase):
         self.assertIn("novelty", combined)
         self.assertIn("correction-convergence", combined)
         self.assertIn("response_revision_audit.md", combined)
+        self.assertIn("does not provide a generic tex compile/fix runtime", md.lower())
+        self.assertIn("substitute the clean pdf for the diff pdf", md.lower())
+        self.assertIn("通用 TeX 编译/修复引擎", zh)
+        self.assertIn("冒充 diff PDF", zh)
 
 
 if __name__ == "__main__":

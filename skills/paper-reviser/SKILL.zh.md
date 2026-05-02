@@ -102,7 +102,8 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
 - clean-size 检查采用自适应口径：`--min-clean-size-ratio` 同时考虑 raw bytes 与 non-comment bytes（best-effort 去注释），减少注释占比高时的误报。
 - deep verifier 超时可审计：超时且策略为 `stub` / `allow-secondary` 时，`deep_verification.md` 会写入 `VERDICT: NOT_READY` 和超时原因。
 - full document 的 latexdiff delivery 采用 fail-closed：若 `latexdiff` 缺失、失败或空输出，run metadata 会写出 `tracked_delivery.status = not_ready`，`audit.md` 会被强制为 `NOT_READY`，且不会再伪造 `tracked.tex`。
-- latexdiff repair/verification contract：`run.json` 会记录 log-driven repair loop（options / preamble / macros / minimal auditable post-processing）以及 clean / latexdiff PDF 是否真的验证；没有验证就必须显式标注未验证。
+- latexdiff repair/verification contract：这个 repo 内的脚本只会在 `run.json` 里记录 `tracked_delivery`、`repair_loop` 和 compile verification 审计状态；它不是通用 TeX 编译/修复 runtime。clean / latexdiff PDF 的实际编译、log 读取与有界修复，属于 use-time agent 在具体论文项目中的执行责任。
+- 如果 use-time agent 没有真正跑 clean / latexdiff PDF 验证，`run.json` 就必须诚实保留为未验证（`not_run` / `not_ready`），不能假装成功。
 
 ## 查证闭环（推荐）
 
@@ -180,6 +181,8 @@ python3 "$RESEARCH_TEAM/scripts/bin/literature_fetch.py" \
 - 工具**允许强化/新增 claim**，但前提是证据足够；这是 evidence-calibrated workflow，不是默认保守或默认加 caveat 的 workflow。
 - 复杂计算的复现与验证**不在本 skill 范畴**；会以问题/查证请求的方式输出。
 - LaTeX 安全属于 best-effort：工具尽量避免修改 verbatim 类环境（verbatim/lstlisting/minted/comment），但仍建议你最终编译检查。
+- 这个 repo **不是**通用 TeX 编译/修复引擎。把 skill 用在真实论文项目时，agent 应该在该项目里实际跑 LaTeX 编译、阅读真实 log，并只做最小且可审计的修补（latexdiff options、preamble/macros、或最小后处理）。
 - 工具一次只处理**单个 `.tex` 文件**。如果工程使用 `\\input{}`/`\\include{}` 多文件结构，建议逐个文件跑（或先拼接后再跑）；跨文件 label/引用会导致“孤儿引用”警告出现误报。
 - 默认参数（按需覆盖）：`--encoding utf-8`、`--min-clean-size-ratio 0.85`、`--max-rounds 1`、`--codex-timeout-seconds 900`、`--codex-timeout-policy stub`。
 - 对完整文档，`tracked.tex` 只有在真实 `latexdiff` 成功时才有效；否则整个 run 必须保持 `NOT_READY`，而不是退化成 comment-only fallback success。
+- 对完整文档，如果 `clean.tex` 能编译，use-time agent 应尽力继续编译 latexdiff PDF；若 diff 编译失败，就读 log 并尝试最小、可审计的修复，不能拿 clean PDF 冒充 diff PDF。
