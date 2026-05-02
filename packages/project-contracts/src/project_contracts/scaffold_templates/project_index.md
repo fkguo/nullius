@@ -27,6 +27,7 @@ Treat that status output as the authoritative recovery briefing, then continue t
 - Shared docs: [docs/APPROVAL_GATES.md](docs/APPROVAL_GATES.md), [docs/ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md), [docs/EVAL_GATE_CONTRACT.md](docs/EVAL_GATE_CONTRACT.md)
 
 Keep dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<TAG>/`. Keep [research_notebook.md](research_notebook.md) organized by the research problem's logic so it remains readable as the project grows.
+If the project creates literature notes, follow [AGENTS.md](AGENTS.md) for full-text/source-first reading, auditable coverage fields, clickable source links, and LaTeX math notation.
 
 ## Optional expansions
 

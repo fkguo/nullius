@@ -35,6 +35,15 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 - Mark unverified assumptions explicitly and record what observation, reproduction, or review would change the conclusion.
 - Do not present a decisive conclusion unless the evidence and verification status below support it.
 
+## Literature Note Quality Rule
+
+- Important or directly related papers require full-text reading before they support central claims; prefer arXiv LaTeX source when available.
+- Record source form read as `latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`.
+- For important sources, record sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining gaps.
+- `abstract_only` and `unavailable` mark reading gaps, not completed evidence for central claims.
+- Literature notes record scientific content only. Put tool-use logs, metadata checks, download attempts, and API/MCP call details in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`.
+- Use clickable Markdown links for source references, and write scientific notation as LaTeX math instead of inline-code backticks.
+
 ## Artifact And Provenance Rule
 
 - Store meaningful run outputs under `artifacts/runs/<TAG>/`.

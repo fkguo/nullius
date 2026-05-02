@@ -44,7 +44,10 @@ ABSENT_DEFAULT_SURFACES = {
 }
 
 TOO_SPECIFIC_SCAFFOLD_TOKENS = (
+    "HEP",
     "INSPIRE recid",
+    "inspire_",
+    "hep_",
     "Citekey",
     "research_team_config.json",
     "idea_log.md",
@@ -136,7 +139,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("actual code, tooling, automation, environments, repository operations, control systems", template)
         for scientific_verb in ("derive", "estimate", "bound", "test", "compare", "constrain", "quantify uncertainty", "relate observables"):
             self.assertIn(scientific_verb, template)
-        self.assertIn("## Literature reading depth", template)
+        self.assertIn("## Literature note quality and reading depth", template)
         self.assertIn("Treat abstracts as triage only", template)
         self.assertIn("Do not use an abstract-only reading as decisive evidence", template)
         self.assertIn("important or directly related papers, read the full text", template)
@@ -145,19 +148,55 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("If the host provides a `crossref` full-text skill or helper", template)
         self.assertIn("for example a local `crossref` skill", template)
         self.assertIn("obtain a full-text PDF", template)
-        for access_level in ("abstract_only", "full_text_pdf", "latex_source", "unavailable"):
+        for access_level in ("abstract_only", "available_full_text", "full_text_pdf", "latex_source", "unavailable"):
             self.assertIn(access_level, template)
         self.assertIn("ask the project owner to provide it before relying on the paper for a central claim", template)
+        self.assertIn("Do not present `abstract_only` or `unavailable` as read evidence for central claims", template)
         self.assertIn("Literature notes should record scientific content, not tool-use logs", template)
         self.assertIn("search traces, metadata checks, download attempts, and API/tool call details", template)
         self.assertIn("research_plan.md` progress entries or `artifacts/runs/<TAG>/", template)
-        self.assertIn("source form read, relevant sections/pages/equations, claims used, limitations, and remaining reading gaps", template)
+        self.assertIn("sections/pages/equations/figures actually read", template)
+        self.assertIn("central equations and assumptions", template)
+        self.assertIn("what was not read and why", template)
+        self.assertIn("project relevance, limitations, and remaining reading gaps", template)
+        self.assertIn('Do not write only "PDF-body read for X"', template)
         self.assertIn("Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links", template)
         self.assertIn("Do not leave bare URLs in literature notes", template)
+        self.assertIn("Do not wrap scientific notation in backticks", template)
+        self.assertIn("physical quantities, formulas, variables, operators, state vectors, cross sections, S-matrix elements, transfer functions, equations, and assumptions", template)
+        self.assertIn("Backticks are only for filenames, commands, literal field or key names, and code identifiers", template)
         self.assertIn("opt-in support layers", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)
         self.assertNotIn("research_team_config.json", template)
+
+    def test_literature_note_quality_contract_is_repeated_on_project_surfaces(self) -> None:
+        template_root = scaffold_template_dir()
+        agents_template = (template_root / "AGENTS.md").read_text(encoding="utf-8")
+        contract_template = (template_root / "research_contract.md").read_text(encoding="utf-8")
+        notebook_template = (template_root / "research_notebook.md").read_text(encoding="utf-8")
+        index_template = (template_root / "project_index.md").read_text(encoding="utf-8")
+        artifact_template = (template_root / "ARTIFACT_CONTRACT.md").read_text(encoding="utf-8")
+
+        for template in (agents_template, contract_template, notebook_template):
+            self.assertIn("latex_source", template)
+            self.assertIn("full_text_pdf", template)
+            self.assertIn("available_full_text", template)
+            self.assertIn("abstract_only", template)
+            self.assertIn("unavailable", template)
+            self.assertIn("sections/pages/equations/figures actually read", template)
+            self.assertIn("central equations and assumptions", template)
+            self.assertIn("what was not read and why", template)
+
+        self.assertIn("prefer arXiv LaTeX source when available", contract_template)
+        self.assertIn("not completed evidence for central claims", contract_template)
+        self.assertIn("Use clickable Markdown links for source references", contract_template)
+        self.assertIn("scientific notation as LaTeX math instead of inline-code backticks", contract_template)
+        self.assertIn("If the project creates literature notes", index_template)
+        self.assertIn("full-text/source-first reading", index_template)
+        self.assertIn("auditable coverage fields", index_template)
+        self.assertIn("Literature access traces, metadata checks, download attempts, and API/tool call logs", artifact_template)
+        self.assertIn("not in literature notes", artifact_template)
 
     def test_canonical_scaffold_creates_only_canonical_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -281,5 +320,9 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("## Claims and Results", template)
         self.assertIn("## Uncertainties and Kill Criteria", template)
         self.assertIn("## Change Log", template)
+        self.assertIn("source form read (`latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`)", template)
+        self.assertIn("sections/pages/equations/figures actually read", template)
+        self.assertIn("Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md)", template)
+        self.assertIn("LaTeX math for scientific notation rather than inline-code backticks", template)
         self.assertNotIn("## Derivation Notes", template)
         self.assertNotIn("## Results", template)

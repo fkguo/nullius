@@ -43,7 +43,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | Provider atoms | `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` | bounded、schema-driven MCP operators 比 provider-local CLI mirrors 更易组合 |
 | Project-local truth | `.autoresearch/` 加 durable memory 文件 | reconnect truth 继续位于外部 project root，而不是开发仓本身 |
 
-在 project-local truth 里，`research_notebook.md` 是给人读的问题逻辑主线：按研究问题、推导、claim 与不确定性组织，而不是按日期堆 run log。带日期的执行记录和原始 workflow 摘要应放在 `research_plan.md` progress log 或 `artifacts/runs/<TAG>/`，再把长期有效的理解折回 notebook。
+在 project-local truth 里，`research_notebook.md` 是给人读的问题逻辑主线：按研究问题、推导、claim 与不确定性组织，而不是按日期堆 run log。重要文献 note 必须全文/source-first 阅读，记录可审查的 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号。带日期的执行记录、原始 workflow 摘要和工具调用过程应放在 `research_plan.md` progress log 或 `artifacts/runs/<TAG>/`，再把长期有效的理解折回 notebook。
 
 Skill 源码面与分发面是分离的：
 

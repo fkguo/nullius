@@ -43,7 +43,7 @@ Tool counts: **70 tools in `standard` mode** (default, compact surface) and **77
 | Provider atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded, schema-driven MCP operators are easier to compose than provider-local CLI mirrors |
 | Project-local truth | `.autoresearch/` plus durable memory files | Reconnect truth stays with the external project root, not the development repo |
 
-Within project-local truth, `research_notebook.md` is the human-facing logical narrative: organize it by the evolving research problem, derivations, claims, and uncertainties. Keep dated run logs and raw workflow summaries in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`, then fold durable insights back into the notebook.
+Within project-local truth, `research_notebook.md` is the human-facing logical narrative: organize it by the evolving research problem, derivations, claims, and uncertainties. Literature notes for important sources must be full-text/source-first with auditable section/page/equation/figure coverage and LaTeX math notation. Keep dated run logs, raw workflow summaries, and tool-use traces in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`, then fold durable insights back into the notebook.
 
 Skill source and distribution are separate surfaces:
 

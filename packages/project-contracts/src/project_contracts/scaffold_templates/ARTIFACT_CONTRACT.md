@@ -13,4 +13,5 @@ The default root is `artifacts/runs/<TAG>/`.
 
 - Reported numbers should be traceable to on-disk files, not only to prose.
 - Human-readable notes may summarize results, but JSON or equivalent machine-readable artifacts remain the source of truth.
+- Literature access traces, metadata checks, download attempts, and API/tool call logs belong in run artifacts or `research_plan.md`, not in literature notes.
 - If a workflow cannot yet produce the full trio, record the gap explicitly in `research_plan.md` and `research_contract.md`.

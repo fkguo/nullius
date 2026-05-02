@@ -28,15 +28,16 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Use those words only when they name a literal domain concept or when the subject is actual code, tooling, automation, environments, repository operations, control systems, or other software-maintenance work.
 - Prefer precise scientific verbs such as derive, estimate, bound, test, compare, constrain, check, identify assumptions, separate regimes, quantify uncertainty, and relate observables.
 
-## Literature reading depth
+## Literature note quality and reading depth
 
 - Treat abstracts as triage only. Do not use an abstract-only reading as decisive evidence for an important or directly related paper.
 - For important or directly related papers, read the full text. If arXiv LaTeX source is available, prefer reading the source; otherwise use available full-text access such as PDF, Zotero, Crossref, library, or browser tools.
 - If the host provides a `crossref` full-text skill or helper, for example a local `crossref` skill, it may be used to obtain a full-text PDF.
-- Record the access level for each core source in project notes or artifacts: `abstract_only`, `full_text_pdf`, `latex_source`, or `unavailable`.
-- If full text cannot be obtained, record the missing source and ask the project owner to provide it before relying on the paper for a central claim.
+- Record the source form read for each core source: `latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`.
+- If full text cannot be obtained, record the missing source and ask the project owner to provide it before relying on the paper for a central claim. Do not present `abstract_only` or `unavailable` as read evidence for central claims.
 - Literature notes should record scientific content, not tool-use logs. Put search traces, metadata checks, download attempts, and API/tool call details in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`.
-- In a literature note, keep only stable reading provenance needed for later scientific use: access level, source form read, relevant sections/pages/equations, claims used, limitations, and remaining reading gaps.
+- Each important-paper literature note must include auditable reading coverage: sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining reading gaps.
+- Do not write only "PDF-body read for X"; include the concrete section/page/equation/figure coverage above.
 - Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links. Do not leave bare URLs in literature notes.
 
 ## Reconnect discipline
@@ -54,6 +55,8 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - When citing artifacts or outputs in Markdown, point to the canonical project-relative path or artifact URI instead of prose-only references.
 - Inline math must use `$...$`.
 - Display math must use fenced `$$ ... $$`.
+- Do not wrap scientific notation in backticks: physical quantities, formulas, variables, operators, state vectors, cross sections, S-matrix elements, transfer functions, equations, and assumptions are LaTeX math.
+- Backticks are only for filenames, commands, literal field or key names, and code identifiers.
 - Only inside multi-line display math blocks, do not start a continuation line with `+`, `-`, or `=`.
 - Plain Markdown prose lines are not subject to the `+/-/=` rule above.
 - External references must use clickable stable links when available.
