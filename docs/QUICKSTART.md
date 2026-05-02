@@ -21,6 +21,14 @@
 3) `autoresearch workflow-plan --recipe literature_to_evidence`
 - 如需高层 literature planning front door，可先完成这一步；随后再按下方 HEP 路径进入当前最强的 domain-pack workflow family。
 
+如果你只想先把一个研究题目收敛成后续 handoff contract，而不启动重流程，可以使用 `research_brainstorm` durable harness：
+
+```bash
+autoresearch workflow-plan --recipe research_brainstorm --run-id <id> --topic "<topic>"
+```
+
+它会持久化 `.autoresearch/state.json#/plan` 并派生 `.autoresearch/plan.md` read model，输出的 `next_contract` 可建议后续 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle`，但不会自动升级到这些 recipe。这个 harness 是 planning-only：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。host-native thinking process 不属于这个 recipe 的 contract；它也不是 idea-engine、不是 full research-team、不是新的 root front door。
+
 研究记录约定：`research_notebook.md` 按问题逻辑、推导、claim 和不确定性组织；带日期的 run log、原始检索摘要和控制面观察写入 `research_plan.md` progress log 或 `artifacts/runs/<TAG>/`，再把稳定理解折回 notebook。
 
 ## Draft Path（最简路径）

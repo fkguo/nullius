@@ -11,6 +11,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 - `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring.
 - `idea-mcp` remains an experimental runtime bridge. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract. The current idea-engine phase is closed; do not treat it as a default capability-expansion lane.
 - `@autoresearch/hep-mcp` remains the current most mature domain pack and strongest end-to-end example, but HEP does not define the root product identity.
+- `research_brainstorm` is a checked-in durable harness recipe under `autoresearch workflow-plan`, not a new top-level CLI command, not the idea-engine, not a full research-team workflow, and not a root front-door expansion.
 - Strict fail-closed research quality remains in force. Project-local durable memory plus `.autoresearch/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
 
 ## 2. Current Public Surfaces
@@ -152,7 +153,7 @@ autoresearch init --project-root /absolute/path/to/external-project
 autoresearch status --project-root /absolute/path/to/external-project
 ```
 
-- For stateful literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. Any checked-in Python workflow consumers remain maintainer/eval proof only and are not a second front-door shell.
+- For stateful literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. `research_brainstorm` is the lightweight planning-only durable harness form: `autoresearch workflow-plan --recipe research_brainstorm --run-id <id> --topic "<topic>"` records brainstorm context, candidate angles, screening, one recommendation, and a `next_contract` handoff. `.autoresearch/plan.md` is a human read model rather than machine orchestration SSOT. The contract may suggest a heavier follow-up recipe such as `literature_landscape`, `literature_gap_analysis`, `derivation_cycle`, or `review_cycle`, but it does not start that recipe automatically and it does not depend on any host-native thinking process. The persisted `research_brainstorm.*` step tools are handoff authority, not built-in runtime tools, unless a future external tool caller explicitly implements them. Any checked-in Python workflow consumers remain maintainer/eval proof only and are not a second front-door shell.
 
 ## 6. Where Are Deeper Architecture / Governance Docs
 

@@ -233,6 +233,94 @@ describe('literature workflow resolver', () => {
     ]);
   });
 
+  it('resolves research_brainstorm as a provider-neutral durable harness', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'research_brainstorm',
+      inputs: { topic: 'cold atom response functions', run_id: 'RB-1' },
+    });
+
+    expect(plan).toMatchObject({
+      recipe_id: 'research_brainstorm',
+      name: 'Research Brainstorm Durable Harness',
+      entry_tool: 'literature_workflows.resolve',
+    });
+    expect(plan.resolved_steps.map(step => step.id)).toEqual([
+      'open_brainstorm_context',
+      'capture_candidate_angles',
+      'screen_and_rank_angles',
+      'converge_single_recommendation',
+      'emit_next_contract',
+    ]);
+    expect(plan.resolved_steps.map(step => step.task_kind)).toEqual([
+      'finding',
+      'finding',
+      'review',
+      'finding',
+      'draft_update',
+    ]);
+    expect(plan.resolved_steps.map(step => step.provider)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(plan.resolved_steps.map(step => step.consumer_hints?.artifact)).toEqual([
+      'brainstorm_context',
+      'candidate_angles',
+      'screening_matrix',
+      'single_recommendation',
+      'next_contract',
+    ]);
+    expect(plan.resolved_steps.map(step => step.depends_on)).toEqual([
+      [],
+      ['open_brainstorm_context'],
+      ['capture_candidate_angles'],
+      ['screen_and_rank_angles'],
+      ['converge_single_recommendation'],
+    ]);
+
+    for (const step of plan.resolved_steps) {
+      expect(step.action).toBeUndefined();
+      expect(step.tool).toMatch(/^research_brainstorm\./);
+      expect(step.required_capabilities).toEqual([]);
+      expect(step.params.execution_contract).toMatchObject({
+        mode: 'planning_only',
+        built_in_runtime: false,
+      });
+    }
+
+    expect(plan.resolved_steps[0]?.params).toMatchObject({
+      topic: 'cold atom response functions',
+      run_id: 'RB-1',
+      artifact_contract: {
+        artifact: 'brainstorm_context',
+        out_of_scope: expect.arrayContaining([
+          'idea-engine execution',
+          'research-team execution',
+          'broad retrieval',
+          'front-door expansion',
+        ]),
+      },
+    });
+    expect(plan.resolved_steps[4]?.params).toMatchObject({
+      topic: 'cold atom response functions',
+      artifact_contract: {
+        artifact: 'next_contract',
+        suggested_next_recipe: [
+          'literature_landscape',
+          'literature_gap_analysis',
+          'derivation_cycle',
+          'review_cycle',
+        ],
+        recommended_lane: 'operator_approved_followup',
+        lane_type: 'workflow_recipe_handoff',
+        research_question: 'cold atom response functions',
+        approval_required: true,
+      },
+    });
+  });
+
   it('fails closed when no allowed provider satisfies the workflow action', () => {
     expect(() => resolveWorkflowRecipe({
       recipe_id: 'literature_gap_analysis',
