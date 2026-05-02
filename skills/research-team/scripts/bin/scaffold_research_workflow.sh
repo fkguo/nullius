@@ -9,6 +9,8 @@ SKIP_PREFLIGHT=0
 VARIANT="minimal"
 WITH_HEP_PROVIDER=0
 PROJECT_POLICY="real_project"
+AGENTS_EXISTED_BEFORE=0
+RESEARCH_PLAN_EXISTED_BEFORE=0
 
 usage() {
   cat <<'EOF'
@@ -80,7 +82,8 @@ esac
 copy_template() {
   local src="$1"
   local dst="$2"
-  if [[ -e "${dst}" && "${FORCE}" -ne 1 ]]; then
+  local overwrite_generated="${3:-0}"
+  if [[ -e "${dst}" && "${FORCE}" -ne 1 && "${overwrite_generated}" -ne 1 ]]; then
     echo "[skip] exists: ${dst}"
     return 0
   fi
@@ -103,12 +106,17 @@ PY
 }
 
 echo "[step] render canonical scaffold (${VARIANT})"
+if [[ -e "${ROOT}/AGENTS.md" ]]; then
+  AGENTS_EXISTED_BEFORE=1
+fi
+if [[ -e "${ROOT}/research_plan.md" ]]; then
+  RESEARCH_PLAN_EXISTED_BEFORE=1
+fi
 if [[ -d "${PROJECT_CONTRACTS_SRC}" ]]; then
   PYTHONPATH="${PROJECT_CONTRACTS_SRC}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m project_contracts.project_scaffold_cli \
     --root "${ROOT}" \
     --project "${PROJECT}" \
     --profile "${PROFILE}" \
-    --variant "${VARIANT}" \
     --project-policy "${PROJECT_POLICY}" \
     $([[ "${FORCE}" -eq 1 ]] && printf '%s' -- '--force')
 else
@@ -116,7 +124,6 @@ else
     --root "${ROOT}" \
     --project "${PROJECT}" \
     --profile "${PROFILE}" \
-    --variant "${VARIANT}" \
     --project-policy "${PROJECT_POLICY}" \
     $([[ "${FORCE}" -eq 1 ]] && printf '%s' -- '--force')
 fi
@@ -130,6 +137,18 @@ mkdir -p "${ROOT}/prompts" "${ROOT}/team/runs" "${ROOT}/artifacts/runs"
 mkdir -p "${ROOT}/references/inspire" "${ROOT}/references/arxiv_src" "${ROOT}/references/github"
 mkdir -p "${ROOT}/knowledge_base/literature" "${ROOT}/knowledge_base/methodology_traces" "${ROOT}/knowledge_base/priors"
 mkdir -p "${ROOT}/knowledge_graph" "${ROOT}/mechanisms"
+
+agents_overwrite_generated=0
+if [[ "${FORCE}" -eq 1 || "${AGENTS_EXISTED_BEFORE}" -eq 0 ]]; then
+  agents_overwrite_generated=1
+fi
+copy_template "${ASSETS_DIR}/AGENTS_template.md" "${ROOT}/AGENTS.md" "${agents_overwrite_generated}"
+
+plan_overwrite_generated=0
+if [[ "${FORCE}" -eq 1 || "${RESEARCH_PLAN_EXISTED_BEFORE}" -eq 0 ]]; then
+  plan_overwrite_generated=1
+fi
+copy_template "${ASSETS_DIR}/research_plan_template.md" "${ROOT}/research_plan.md" "${plan_overwrite_generated}"
 
 if [[ "${WITH_HEP_PROVIDER}" -eq 1 ]]; then
   copy_template "${ASSETS_DIR}/hep_workspace_template.json" "${ROOT}/.hep/workspace.json"

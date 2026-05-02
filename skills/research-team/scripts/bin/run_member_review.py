@@ -131,14 +131,14 @@ def _is_forbidden_path(member_id: str, safe_tag: str, relpath: str) -> bool:
         f"team/runs/{safe_tag}/{other}",
         f"team/runs/{safe_tag}/{other}_evidence.json",
         f"team/runs/{safe_tag}/{safe_tag}_{other}",
-        f"artifacts/{safe_tag}/{other}",
+        f"artifacts/runs/{safe_tag}/research_team/{other}",
     ]
     rp = relpath.replace("\\", "/").lstrip("./")
     return any(rp.startswith(x) for x in bad_prefixes)
 
 
 def _allowed_output_prefixes(member_id: str, safe_tag: str) -> tuple[str, str]:
-    return (f"artifacts/{safe_tag}/{member_id}/", "references/")
+    return (f"artifacts/runs/{safe_tag}/research_team/{member_id}/", "references/")
 
 
 def _output_path_allowed(member_id: str, safe_tag: str, relpath: str) -> bool:
@@ -468,7 +468,11 @@ def main() -> int:
     member_id = str(args.member_id).strip()
     tag = str(args.tag).strip()
     mode = str(args.mode).strip()
-    safe_tag = re.sub(r"[^A-Za-z0-9._-]+", "_", tag)
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", tag) or tag == "." or ".." in tag:
+        raise SystemExit(f"ERROR: tag must be one safe path segment using only [A-Za-z0-9._-], not '.' and no '..': {tag}")
+    if re.fullmatch(r"(?:run_)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", tag):
+        raise SystemExit("ERROR: tag looks like a machine-generated UUID; use a meaningful project-local run_id")
+    safe_tag = tag
 
     project_root = args.project_root.resolve()
     workspace_root = args.workspace_root.resolve()
@@ -566,7 +570,7 @@ def main() -> int:
         f"Limits: files_read<=%d, commands_run<=%d, network_queries<=%d.\n"
         "Important constraints:\n"
         "- Do not request anything from the other member's workspace/artifacts for this run.\n"
-        f"- Prefer producing an independent reproduction script under artifacts/{safe_tag}/{member_id}/independent/ and at least one output file,\n"
+        f"- Prefer producing an independent reproduction script under artifacts/runs/{safe_tag}/research_team/{member_id}/independent/ and at least one output file,\n"
         "  and list those output paths in expected_outputs.\n"
         "\n"
         "Team packet follows.\n"
@@ -795,7 +799,7 @@ def main() -> int:
                 out_bytes = b"TIMEOUT\n"
             _write_text(out_log, out_bytes.decode("utf-8", errors="replace"))
             out_hash = sha256_file(out_log)
-            member_artifacts_ws = workspace_root / "artifacts" / safe_tag / member_id
+            member_artifacts_ws = workspace_root / "artifacts" / "runs" / safe_tag / "research_team" / member_id
             if member_artifacts_ws.exists():
                 sync_workspace_path(
                     member_artifacts_ws,
@@ -837,7 +841,7 @@ def main() -> int:
                         if not _output_path_allowed(member_id, safe_tag, rel):
                             response_lines.append(
                                 f"- (denied) `{rel}` must stay under "
-                                f"`artifacts/{safe_tag}/{member_id}/` or `references/`"
+                                f"`artifacts/runs/{safe_tag}/research_team/{member_id}/` or `references/`"
                             )
                             continue
                         if rel.startswith("references/") and p_abs.exists():

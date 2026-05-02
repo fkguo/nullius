@@ -279,7 +279,7 @@ include/bar.cpp#MyClass
 
 Append new milestone summaries here (do NOT create multiple top-level "Conclusions" sections).
 
-### <TAG> (e.g., M2-r1)
+### <tag> (e.g., 20260502T023000Z-m2-topic-r1)
 
 - Depends: <ROOT | prior tags | Result IDs>
 - Forks (optional): <Parent tag -> what differs>

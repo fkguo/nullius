@@ -4,7 +4,7 @@ Generate a deterministic demo milestone inside a scaffolded project.
 
 This is intended for NEW users to "cold start" quickly:
 - Creates a tiny demo artifact generator under <root>/scripts/
-- Generates <root>/artifacts/<tag>_analysis.json and <tag>_manifest.json
+- Generates <root>/artifacts/runs/<run_id>/analysis.json and manifest.json
 - Replaces the Reproducibility Capsule in <root>/<notes> with a complete, passing example
   (including a minimal Knowledge base references section to satisfy knowledge-layers gate).
 
@@ -55,10 +55,11 @@ def _safe_tag(tag: str) -> str | None:
     t = tag.strip()
     if not t:
         return None
-    # Keep filenames safe: no whitespace or path separators.
-    if any(ch.isspace() for ch in t):
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", t):
         return None
-    if "/" in t or "\\" in t:
+    if t == "." or ".." in t:
+        return None
+    if re.fullmatch(r"(?:run_)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", t):
         return None
     if len(t) > 64:
         return None
@@ -88,7 +89,7 @@ from pathlib import Path
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Write demo artifacts for research-team capsule gate.")
-    ap.add_argument("--tag", required=True, help="Milestone/tag (used in output filenames).")
+    ap.add_argument("--tag", required=True, help="Milestone/run_id (used as artifacts/runs/<run_id>/).")
     args = ap.parse_args()
 
     tag = args.tag.strip()
@@ -96,11 +97,11 @@ def main() -> int:
         raise SystemExit("ERROR: empty --tag")
 
     root = Path(__file__).resolve().parent.parent
-    out_dir = root / "artifacts"
+    out_dir = root / "artifacts" / "runs" / tag
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    analysis = out_dir / f"{tag}_analysis.json"
-    manifest = out_dir / f"{tag}_manifest.json"
+    analysis = out_dir / "analysis.json"
+    manifest = out_dir / "manifest.json"
 
     a = 1.0
     b = 2.0
@@ -230,6 +231,28 @@ def _replace_block(notes_text: str, start_marker: str, end_marker: str, replacem
     return notes_text[:a] + "\n" + replacement.strip() + "\n" + notes_text[b:]
 
 
+def _replace_or_insert_block(
+    notes_text: str,
+    *,
+    heading: str,
+    start_marker: str,
+    end_marker: str,
+    replacement: str,
+) -> str:
+    has_start = start_marker in notes_text
+    has_end = end_marker in notes_text
+    if has_start != has_end:
+        raise ValueError(f"Partial marker block {start_marker} ... {end_marker}")
+    if has_start:
+        return _replace_block(notes_text, start_marker, end_marker, replacement)
+
+    block = f"\n\n## {heading}\n\n{start_marker}\n{replacement.strip()}\n{end_marker}\n"
+    m = re.search(r"^## References\s*$", notes_text, flags=re.MULTILINE)
+    if m:
+        return notes_text[: m.start()].rstrip() + block + "\n" + notes_text[m.start() :].lstrip()
+    return notes_text.rstrip() + block + "\n"
+
+
 def _capsule_looks_filled(notes_text: str) -> bool:
     if CAPSULE_START not in notes_text or CAPSULE_END not in notes_text:
         return False
@@ -237,7 +260,15 @@ def _capsule_looks_filled(notes_text: str) -> bool:
     b = notes_text.index(CAPSULE_END)
     capsule = notes_text[a:b]
     # Conservative: if it still has obvious template placeholders, treat as "not filled".
-    placeholders = ("<FULL COMMAND LINE>", "<path/to/", "<quantity>", "<value>", "<YYYY-MM-DD>")
+    placeholders = (
+        "<FULL COMMAND LINE>",
+        "<COMMAND THAT REPRODUCES",
+        "<path/to/",
+        "<quantity>",
+        "<value>",
+        "<run_id>",
+        "<YYYY-MM-DD>",
+    )
     lower = capsule.lower()
     return not any(ph.lower() in lower for ph in placeholders)
 
@@ -271,7 +302,44 @@ def _ensure_mapping_row(notes_text: str, row: str) -> str:
                 insert_at += 1
             lines.insert(insert_at, row.rstrip() + "\n")
             return "".join(lines)
-    return notes_text
+
+    section = (
+        "\n\n## 6. Mapping to Computation\n\n"
+        "| Quantity | Operational definition | Code pointer | Artifact pointer | Uncertainty |\n"
+        "|---|---|---|---|---|\n"
+        f"{row.rstrip()}\n"
+    )
+    m = re.search(r"^## Final Conclusion Gate\s*$", notes_text, flags=re.MULTILINE)
+    if not m:
+        m = re.search(r"^## References\s*$", notes_text, flags=re.MULTILINE)
+    if m:
+        return notes_text[: m.start()].rstrip() + section + "\n" + notes_text[m.start() :].lstrip()
+    return notes_text.rstrip() + section + "\n"
+
+
+def _ensure_reference_entry(notes_text: str) -> str:
+    if "[@Bezanson2017]" in notes_text or "id=\"ref-Bezanson2017\"" in notes_text:
+        return notes_text
+
+    entry = (
+        '- <a id="ref-Bezanson2017"></a>**[@Bezanson2017]** J. Bezanson et al., '
+        '"Julia: A Fresh Approach to Numerical Computing", SIAM Rev. 59 (2017) 65. '
+        "[DOI](https://doi.org/10.1137/141000671) | "
+        "[KB note](knowledge_base/literature/bezanson2017_julia.md)"
+    )
+    m = re.search(r"^## References\s*$", notes_text, flags=re.MULTILINE)
+    if not m:
+        return notes_text.rstrip() + "\n\n## References\n\n" + entry + "\n"
+
+    start = m.end()
+    next_heading = re.compile(r"^##\s+", flags=re.MULTILINE).search(notes_text, start)
+    end = next_heading.start() if next_heading else len(notes_text)
+    refs = notes_text[start:end]
+    if refs.strip():
+        replacement = refs.rstrip() + "\n" + entry + "\n"
+    else:
+        replacement = "\n\n" + entry + "\n"
+    return notes_text[:start] + replacement + notes_text[end:]
 
 
 def main() -> int:
@@ -350,7 +418,7 @@ Goal:
 
 Procedure:
 1) Run the reproduction command in Capsule C).
-2) Inspect `artifacts/<tag>_analysis.json` and confirm `results.a/b/c` equal 1/2/3.
+2) Inspect `artifacts/runs/<run_id>/analysis.json` and confirm `results.a/b/c` equal 1/2/3.
 3) Confirm the manifest lists the output paths.
 """,
     )
@@ -376,8 +444,8 @@ Priors / assumptions:
         date_s=date.today().isoformat(),
         notes_path=notes_path,
         artifact_script_rel="scripts/make_demo_artifacts.py",
-        analysis_rel=f"artifacts/{tag}_analysis.json",
-        manifest_rel=f"artifacts/{tag}_manifest.json",
+        analysis_rel=f"artifacts/runs/{tag}/analysis.json",
+        manifest_rel=f"artifacts/runs/{tag}/manifest.json",
     )
 
     py_ver = sys.version.split()[0]
@@ -424,13 +492,26 @@ $$
 
     try:
         updated = _replace_capsule(notes_text, capsule)
-        updated = _replace_block(updated, EXCERPT_START, EXCERPT_END, review_excerpt)
-        updated = _replace_block(updated, AUDIT_START, AUDIT_END, audit_slices)
+        updated = _replace_or_insert_block(
+            updated,
+            heading="Review Excerpt",
+            start_marker=EXCERPT_START,
+            end_marker=EXCERPT_END,
+            replacement=review_excerpt,
+        )
+        updated = _replace_or_insert_block(
+            updated,
+            heading="Audit Slices",
+            start_marker=AUDIT_START,
+            end_marker=AUDIT_END,
+            replacement=audit_slices,
+        )
         mapping_row = (
             f"| a (H1) | Demo scalar 'a' stored in analysis artifact | {plan.artifact_script_rel} | "
             f"{plan.analysis_rel}:results.a | exact (demo) |"
         )
         updated = _ensure_mapping_row(updated, mapping_row)
+        updated = _ensure_reference_entry(updated)
         notes_path.write_text(updated, encoding="utf-8")
     except Exception as e:
         print(f"ERROR: failed to update capsule in notes: {notes_path}: {e}", file=sys.stderr)

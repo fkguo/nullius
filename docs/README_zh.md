@@ -43,7 +43,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | Provider atoms | `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` | bounded、schema-driven MCP operators 比 provider-local CLI mirrors 更易组合 |
 | Project-local truth | `.autoresearch/` 加 durable memory 文件 | reconnect truth 继续位于外部 project root，而不是开发仓本身 |
 
-在 project-local truth 里，`research_notebook.md` 是给人读的问题逻辑主线：按研究问题、推导、claim 与不确定性组织，而不是按日期堆 run log。重要文献 note 必须全文/source-first 阅读，记录可审查的 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号。带日期的执行记录、原始 workflow 摘要和工具调用过程应放在 `research_plan.md` progress log 或 `artifacts/runs/<TAG>/`，再把长期有效的理解折回 notebook。
+在 project-local truth 里，`research_notebook.md` 是给人读的问题逻辑主线：按研究问题、推导、claim 与不确定性组织，而不是按日期堆 run log。重要文献 note 必须全文/source-first 阅读，记录可审查的 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号。带日期的执行记录、原始 workflow 摘要和工具调用过程应放在 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把长期有效的理解折回 notebook。给人看的 `run_id` 应是 safe、sortable、readable 的研究标识，例如 `20260502T023000Z-m3-branch-scan-r1`；provider UUID 或 `run_<uuid>` 只属于机器/provider provenance，不推荐作为 project artifact root。
 
 Skill 源码面与分发面是分离的：
 
@@ -160,7 +160,7 @@ autoresearch init --project-root /absolute/path/to/external-project
 autoresearch status --project-root /absolute/path/to/external-project
 ```
 
-- 对 stateful 文献工作流，先用 `autoresearch init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `autoresearch workflow-plan`。它会直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。`research_brainstorm` 是 planning-only 的轻量 durable harness：`autoresearch workflow-plan --recipe research_brainstorm --run-id <id> --topic "<topic>"` 会记录 brainstorm context、candidate angles、screening、单一 recommendation 与 `next_contract` handoff。`.autoresearch/plan.md` 是给人读的派生 read model，不是机器编排 SSOT。这个 contract 可以建议后续进入 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle` 等更重 recipe，但不会自动启动它们，也不依赖 host-native thinking process。持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runtime tools，除非未来有外部 tool caller 明确实现它们。
+- 对 stateful 文献工作流，先用 `autoresearch init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `autoresearch workflow-plan`。它会直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。有意义的外部研究运行应显式传 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。`research_brainstorm` 是 planning-only 的轻量 durable harness：`autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 会记录 brainstorm context、candidate angles、screening、单一 recommendation 与 `next_contract` handoff。`.autoresearch/plan.md` 是给人读的派生 read model，不是机器编排 SSOT。这个 contract 可以建议后续进入 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle` 等更重 recipe，但不会自动启动它们，也不依赖 host-native thinking process。持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runtime tools，除非未来有外部 tool caller 明确实现它们。
 
 ## 6. 更深的架构 / 治理文档在哪里
 

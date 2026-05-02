@@ -5,7 +5,7 @@ Last updated: <YYYY-MM-DD>
 
 This file is the human-facing research notebook.
 Organize it by the logic of the research problem, not by run date.
-Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<TAG>/`, then fold durable insights back into the sections below.
+Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`, then fold durable insights back into the sections below.
 Keep machine-stable gate structure in [research_contract.md](research_contract.md).
 
 ## Problem Statement
@@ -32,7 +32,7 @@ Keep machine-stable gate structure in [research_contract.md](research_contract.m
 - For important sources, record source form read (`latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`), sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining gaps:
 - Candidate-only sources:
 - Known gaps in source reading:
-- Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md) or `artifacts/runs/<TAG>/`, not in literature notes.
+- Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`, not in literature notes.
 
 ## Conventions and Definitions
 

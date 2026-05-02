@@ -141,7 +141,15 @@ OUT_DIR_ABS="${OUT_DIR}"
 if [[ "${OUT_DIR_ABS}" != /* ]]; then
   OUT_DIR_ABS="$(pwd)/${OUT_DIR_ABS}"
 fi
-safe_tag="$(echo "${TAG}" | sed -E 's/[^A-Za-z0-9._-]+/_/g')"
+if [[ ! "${TAG}" =~ ^[A-Za-z0-9._-]+$ || "${TAG}" == "." || "${TAG}" == *..* ]]; then
+  echo "ERROR: draft tag must be one safe path segment using only [A-Za-z0-9._-], not '.' and no '..': ${TAG}" >&2
+  exit 2
+fi
+if [[ "${TAG}" =~ ^run_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ || "${TAG}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+  echo "ERROR: draft tag looks like a machine-generated UUID. Use a meaningful project-local run_id such as <YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN." >&2
+  exit 2
+fi
+safe_tag="${TAG}"
 run_dir="${OUT_DIR_ABS}/runs/${safe_tag}"
 mkdir -p "${run_dir}"
 

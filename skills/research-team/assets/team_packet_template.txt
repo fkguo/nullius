@@ -1,6 +1,6 @@
 Research Team Packet
 
-Tag: <TAG>
+Tag: <tag>
 Date: <YYYY-MM-DD>
 Repo/Root: <PROJECT_ROOT>
 Primary notebook: <NOTEBOOK_PATH>

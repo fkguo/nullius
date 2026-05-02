@@ -441,17 +441,18 @@ EOF
 autoresearch workflow-plan \
   --recipe literature_landscape \
   --phase prework \
+  --run-id 20260502T023000Z-m0-bootstrap-prework-r1 \
   --query "bootstrap amplitudes" \
   --topic "bootstrap amplitudes"
 ```
-先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的公开 stateful front door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。
+先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的公开 stateful front door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。有意义的外部研究运行应显式传入 safe、sortable、readable 的 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。
 
 轻量研究头脑风暴/收敛入口使用同一 front door：
 
 ```bash
 autoresearch workflow-plan \
   --recipe research_brainstorm \
-  --run-id RB-1 \
+  --run-id 20260502T023000Z-m0-bootstrap-r1 \
   --topic "bootstrap amplitudes"
 ```
 

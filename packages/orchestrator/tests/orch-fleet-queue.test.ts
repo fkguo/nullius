@@ -26,6 +26,20 @@ afterEach(() => {
 });
 
 describe('orch_fleet_enqueue', () => {
+  it('aligns run_id schema with CLI path-safe identifiers', () => {
+    expect(OrchFleetEnqueueSchema.parse({
+      project_root: '/tmp/project',
+      run_id: '20260502T023000Z-m3.branch-scan-r1',
+      requested_by: 'operator',
+    }).run_id).toBe('20260502T023000Z-m3.branch-scan-r1');
+
+    expect(() => OrchFleetEnqueueSchema.parse({
+      project_root: '/tmp/project',
+      run_id: 'bad..id',
+      requested_by: 'operator',
+    })).toThrow();
+  });
+
   it('fails closed for an unknown run_id and reports canonical evidence diagnostics', async () => {
     const projectRoot = makeTmpDir();
     writeState(projectRoot, baseState({ run_id: 'run-known' }));

@@ -5,7 +5,7 @@ Logic isolation gate for full_access independent reproduction scripts.
 Goal: keep "independent reproduction" independent by preventing imports of project-specific core logic.
 
 Heuristic (Python):
-- For scripts under artifacts/<tag>/<member>/independent/*.py
+- For scripts under artifacts/runs/<run_id>/research_team/<member>/independent/*.py
 - Parse import statements via AST
 - If the imported top-level module name corresponds to a local package/module in the project root,
   it is FORBIDDEN unless it is explicitly allowed (default: shared_utils, toolkit).
@@ -49,7 +49,10 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _safe_tag(tag: str) -> str:
-    return re.sub(r"[^A-Za-z0-9._-]+", "_", tag.strip())
+    t = tag.strip()
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", t) or t == "." or ".." in t:
+        raise ValueError(f"tag must be one safe path segment using only [A-Za-z0-9._-], not '.' and no '..': {tag}")
+    return t
 
 
 def _project_root(notes: Path) -> Path:
@@ -141,11 +144,15 @@ def main() -> int:
     allowed = _allowed_local_roots(cfg_data)
 
     tag = args.tag.strip()
-    st = _safe_tag(tag)
+    try:
+        st = _safe_tag(tag)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
 
     violations: list[Violation] = []
     for member in ("member_a", "member_b"):
-        ind_dir = project_root / "artifacts" / st / member / "independent"
+        ind_dir = project_root / "artifacts" / "runs" / st / "research_team" / member / "independent"
         if not ind_dir.is_dir():
             continue
         for script in sorted(ind_dir.rglob("*.py")):
@@ -188,4 +195,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

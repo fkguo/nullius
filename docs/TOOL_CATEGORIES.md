@@ -20,7 +20,7 @@
 
 | 用户意图 | 推荐工具 | 备注 |
 |----------|---------|------|
-| 轻量研究头脑风暴并收敛一个后续 contract | `autoresearch workflow-plan --recipe research_brainstorm --run-id <id> --topic "<topic>"` | planning-only durable harness recipe；写入 `.autoresearch/state.json#/plan` 并派生 `.autoresearch/plan.md` read model；输出 `next_contract` handoff，但不自动启动 heavier recipe；`research_brainstorm.*` step tools 不是内置 runnable tool chain，不依赖 host-native thinking process，也不是 idea-engine / full research-team / 新 root front door |
+| 轻量研究头脑风暴并收敛一个后续 contract | `autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` | planning-only durable harness recipe；写入 `.autoresearch/state.json#/plan` 并派生 `.autoresearch/plan.md` read model；显式 `--run-id` 应是 safe、sortable、readable 的研究标识；若省略，`<recipe>-<phase>` 只作为 planning placeholder；输出 `next_contract` handoff，但不自动启动 heavier recipe；`research_brainstorm.*` step tools 不是内置 runnable tool chain，不依赖 host-native thinking process，也不是 idea-engine / full research-team / 新 root front door |
 | 快速搜索论文 | `inspire_search` | 分页；用 `inspire_search_next` 翻页 |
 | 获取单篇论文元数据/引用/被引 | `inspire_literature` | 原子化访问 |
 | 深度分析论文集 | `inspire_critical_analysis` / `inspire_classify_reviews` | 高层 workflow 先经 stateful front-door consumer；这里保留的是 bounded atomic operators |
@@ -43,7 +43,7 @@
 
 **"我想写一篇关于 X 的综述论文"**
 1. 先 `autoresearch init`
-2. 若研究问题还未收敛，运行 `autoresearch workflow-plan --recipe research_brainstorm --run-id <id> --topic "<topic>"` 生成 `next_contract` handoff；它只规划，不自动升级到重流程
+2. 若研究问题还未收敛，运行 `autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 生成 `next_contract` handoff；它只规划，不自动升级到重流程
 3. 运行 `autoresearch workflow-plan --recipe literature_landscape` 解析文献工作流（直接通过 `@autoresearch/literature-workflows` 解析并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` read model）
 4. `inspire_search` + `inspire_topic_analysis` + `inspire_network_analysis` 做原子调研
 5. `hep_project_create` + `hep_run_create`

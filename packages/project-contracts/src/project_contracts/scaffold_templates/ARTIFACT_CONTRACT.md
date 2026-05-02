@@ -1,7 +1,30 @@
 # Artifact contract
 
 Every meaningful workflow step writes auditable artifacts to disk.
-The default root is `artifacts/runs/<TAG>/`.
+The canonical project-local root is `artifacts/runs/<run_id>/`.
+
+## Run identity
+
+`run_id` is the stable research run identifier. It must be safe to use as one
+path segment, stable across reconnects, sortable, readable, and meaningful
+enough to resume or compare later.
+
+Recommended shape:
+
+```text
+<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN
+```
+
+Example: `20260502T023000Z-m3-branch-scan-r1`.
+
+Rules:
+
+- Use only letters, digits, `.`, `_`, and `-`.
+- Do not include path separators, `..`, whitespace, or shell-sensitive punctuation.
+- Do not use opaque generated names such as bare UUIDs, `run_<uuid>`, `latest`,
+  `test`, or unqualified timestamp-only names for human-facing research runs.
+- Provider or machine IDs may be recorded inside manifests, but they are not the
+  project-local `run_id` unless wrapped by a meaningful research identifier.
 
 ## Minimal outputs
 

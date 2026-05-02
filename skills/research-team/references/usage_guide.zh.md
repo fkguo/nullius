@@ -39,7 +39,7 @@ cd /path/to/project
 
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -47,12 +47,19 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --auto-tag
 ```
 
+`--auto-tag` 会把有意义的 base tag 解析成 `<base>-rN`。如果这一轮对应
+`autoresearch` control-plane run，就把解析后的同一个值作为项目本地
+`run_id`。canonical artifact root 是 `artifacts/runs/<run_id>/`；
+`team/runs/<tag>/` 只是 research-team reviewer packet/log surface，除非项目
+明确把它镜像或摘要到 `artifacts/runs/<run_id>/research_team/`，否则不要把它当成
+artifact SSOT。不要把裸 UUID 或 `run_<uuid>` 当作给人看的研究 tag。
+
 ## 只跑确定性 preflight（不调用外部 LLM；适合 CI/无网环境）
 
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -60,7 +67,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --preflight-only
 ```
 
-若 gate 失败：先修复最小根因（文档/产物/配置），再用新 tag 重跑（例如 `M0-r2`）。
+若 gate 失败：先修复最小根因（文档/产物/配置），再用解析后的新 tag 重跑（例如 `20260502T023000Z-m0-topic-r2`）。
 `--out-dir` 也应留在真实项目侧，不要把真实项目的 `team/` 产物再写回开发仓。
 
 ## review_access_mode（packet_only vs full_access）

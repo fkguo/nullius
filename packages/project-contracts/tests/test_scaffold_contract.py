@@ -154,12 +154,16 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("Do not present `abstract_only` or `unavailable` as read evidence for central claims", template)
         self.assertIn("Literature notes should record scientific content, not tool-use logs", template)
         self.assertIn("search traces, metadata checks, download attempts, and API/tool call details", template)
-        self.assertIn("research_plan.md` progress entries or `artifacts/runs/<TAG>/", template)
+        self.assertIn("[research_plan.md](research_plan.md) progress entries or `artifacts/runs/<run_id>/", template)
         self.assertIn("sections/pages/equations/figures actually read", template)
         self.assertIn("central equations and assumptions", template)
         self.assertIn("what was not read and why", template)
         self.assertIn("project relevance, limitations, and remaining reading gaps", template)
         self.assertIn('Do not write only "PDF-body read for X"', template)
+        self.assertIn("Prefer a safe, sortable, readable shape", template)
+        self.assertIn("<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN", template)
+        self.assertIn("do not use bare UUIDs, `run_<uuid>`", template)
+        self.assertIn("source form read, relevant sections/pages/equations, claims used, limitations, and remaining reading gaps", template)
         self.assertIn("Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links", template)
         self.assertIn("Do not leave bare URLs in literature notes", template)
         self.assertIn("Do not wrap scientific notation in backticks", template)
@@ -297,6 +301,9 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("## Reproducibility Capsule", template)
         self.assertIn("## Claims And Results", template)
         self.assertIn("## Final Conclusion Gate", template)
+        self.assertIn("Store meaningful run outputs under `artifacts/runs/<run_id>/`", template)
+        self.assertIn("If a provider records its own UUID or `run_<uuid>` identifier", template)
+        self.assertIn("project-local artifact root name", template)
 
     def test_canonical_scaffold_templates_are_domain_neutral(self) -> None:
         rendered = "\n".join(
@@ -305,12 +312,15 @@ class TestScaffoldContract(unittest.TestCase):
         )
         for token in TOO_SPECIFIC_SCAFFOLD_TOKENS:
             self.assertNotIn(token, rendered)
+        self.assertNotIn("artifacts/runs/<TAG>", rendered)
+        self.assertIn("artifacts/runs/<run_id>/", rendered)
+        self.assertIn("20260502T023000Z-m3-branch-scan-r1", rendered)
 
     def test_research_notebook_template_is_logic_first_not_date_first(self) -> None:
         template = (scaffold_template_dir() / "research_notebook.md").read_text(encoding="utf-8")
 
         self.assertIn("Organize it by the logic of the research problem, not by run date.", template)
-        self.assertIn("Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<TAG>/`", template)
+        self.assertIn("Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`", template)
         self.assertIn("## Problem Statement", template)
         self.assertIn("## Current Understanding", template)
         self.assertIn("## Question Map", template)

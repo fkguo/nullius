@@ -26,8 +26,11 @@ export type WorkflowPlanCommandInput = {
 
 function derivedRunId(input: WorkflowPlanCommandInput): string {
   const explicit = typeof input.inputs.run_id === 'string' ? input.inputs.run_id.trim() : '';
-  if (explicit) return explicit;
-  return [input.recipeId, input.phase ?? 'plan'].join('-');
+  const runId = explicit || [input.recipeId, input.phase ?? 'plan'].join('-');
+  if (!/^[A-Za-z0-9._-]+$/.test(runId) || runId === '.' || runId.includes('..')) {
+    throw new Error(`workflow-plan run_id must be a simple identifier, got: ${runId}`);
+  }
+  return runId;
 }
 
 function buildWorkflowExecution(step: ResolvedWorkflowStep): Record<string, unknown> {

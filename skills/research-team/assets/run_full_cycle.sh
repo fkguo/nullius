@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TAG="${1:-M0-r1}"
+TAG="${1:-20260502T023000Z-m0-topic}"
 NOTES="${2:-research_contract.md}"
 OUT_DIR="${3:-team}"
 

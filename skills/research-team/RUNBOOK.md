@@ -22,7 +22,7 @@ export SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}
 
 ```bash
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -34,7 +34,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 
 ```bash
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -46,7 +46,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 
 ```bash
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -115,7 +115,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - `<tag>_draft_convergence_log.md`
   - `<tag>_draft_converged_summary.md`
 - Run ledger: `team/trajectory_index.json` (machine-readable run history; also linked from `team/LATEST*.md`).
-- Optional paper bundle export (project-local wrapper): `bash scripts/export_paper_bundle.sh --tag <TAG> --out export`.
+- Optional paper bundle export (project-local wrapper): `bash scripts/export_paper_bundle.sh --tag <run_id> --out export`.
 
 ## Common failures (what failed → how to fix → how to rerun)
 

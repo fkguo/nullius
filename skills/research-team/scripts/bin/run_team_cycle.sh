@@ -598,6 +598,8 @@ Options:
   --out-dir DIR               Optional. Output directory (default: team).
   --auto-tag                  Optional. Auto-pick the next clean round tag (<base>-rN) by scanning --out-dir.
                               Also auto-enabled when TAG is malformed like M3-r1-r1-r1 (prevents tag explosion).
+                              Use a meaningful base such as 20260502T023000Z-m3-branch-scan.
+                              The resolved <base>-rN may be used as the project-local run_id.
   --notes PATH                Optional. Primary notebook path. If provided and --packet is omitted, the script
                               auto-builds a team packet (and enforces all preflight gates).
   --project-policy POLICY     Optional. real_project|maintainer_fixture (default: real_project).
@@ -944,7 +946,16 @@ if [[ "${AUTO_TAG}" -eq 1 ]]; then
   RESOLVED_TAG="$(python3 "${NEXT_TAG_SCRIPT}" --tag "${TAG}" --out-dir "${OUT_DIR}")"
 fi
 
-safe_tag="$(echo "${RESOLVED_TAG}" | sed -E 's/[^A-Za-z0-9._-]+/_/g')"
+if [[ ! "${RESOLVED_TAG}" =~ ^[A-Za-z0-9._-]+$ || "${RESOLVED_TAG}" == "." || "${RESOLVED_TAG}" == *..* ]]; then
+  echo "ERROR: resolved tag must be one safe path segment using only [A-Za-z0-9._-], not '.' and no '..': ${RESOLVED_TAG}" >&2
+  exit 2
+fi
+if [[ "${RESOLVED_TAG}" =~ ^run_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ || "${RESOLVED_TAG}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+  echo "ERROR: resolved tag looks like a machine-generated UUID. Use a meaningful project-local run_id such as <YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN." >&2
+  exit 2
+fi
+
+safe_tag="${RESOLVED_TAG}"
 run_dir="${OUT_DIR}/runs/${safe_tag}"
 mkdir -p "${run_dir}"
 run_dir_abs="$(cd "${run_dir}" && pwd)"
@@ -2405,7 +2416,8 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
 
   # Best-effort ACL isolation: deny reading the other member's outputs during each member run.
   mkdir -p "${run_dir}/member_a" "${run_dir}/member_b"
-  mkdir -p "${PROJECT_ROOT}/artifacts/${safe_tag}/member_a/independent" "${PROJECT_ROOT}/artifacts/${safe_tag}/member_b/independent" || true
+  member_artifacts_root="${PROJECT_ROOT}/artifacts/runs/${safe_tag}/research_team"
+  mkdir -p "${member_artifacts_root}/member_a/independent" "${member_artifacts_root}/member_b/independent" || true
 
   deny_other_outputs() {
     local who="$1"
@@ -2417,7 +2429,7 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     # Revoke audit log and per-member attempt log subdir.
     chmod a-rwx "${run_dir}/${other}_audit.jsonl" >/dev/null 2>&1 || true
     chmod -R a-rwx "${attempt_logs_dir}/${other}" >/dev/null 2>&1 || true
-    chmod -R a-rwx "${PROJECT_ROOT}/artifacts/${safe_tag}/${other}" >/dev/null 2>&1 || true
+    chmod -R a-rwx "${member_artifacts_root}/${other}" >/dev/null 2>&1 || true
     # Revoke other member's workspace dir(s) (names include UUID suffix; use glob).
     for _ws in "${run_dir}/workspaces/${other}_"*; do
       [[ -e "${_ws}" ]] && chmod -R a-rwx "${_ws}" >/dev/null 2>&1 || true
@@ -2427,7 +2439,7 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     chmod u+rw "${run_dir}/${safe_tag}_${who}.md" >/dev/null 2>&1 || true
     chmod u+rw "${run_dir}/${who}_audit.jsonl" >/dev/null 2>&1 || true
     chmod -R u+rwX "${attempt_logs_dir}/${who}" >/dev/null 2>&1 || true
-    chmod -R u+rwX "${PROJECT_ROOT}/artifacts/${safe_tag}/${who}" >/dev/null 2>&1 || true
+    chmod -R u+rwX "${member_artifacts_root}/${who}" >/dev/null 2>&1 || true
     # Restore own workspace dir(s).
     for _ws in "${run_dir}/workspaces/${who}_"*; do
       [[ -e "${_ws}" ]] && chmod -R u+rwX "${_ws}" >/dev/null 2>&1 || true
@@ -2440,7 +2452,7 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     chmod u+rw "${member_a_out}" "${member_b_out}" >/dev/null 2>&1 || true
     chmod u+rw "${run_dir}/member_a_audit.jsonl" "${run_dir}/member_b_audit.jsonl" >/dev/null 2>&1 || true
     chmod -R u+rwX "${attempt_logs_dir}/member_a" "${attempt_logs_dir}/member_b" >/dev/null 2>&1 || true
-    chmod -R u+rwX "${PROJECT_ROOT}/artifacts/${safe_tag}/member_a" "${PROJECT_ROOT}/artifacts/${safe_tag}/member_b" >/dev/null 2>&1 || true
+    chmod -R u+rwX "${member_artifacts_root}/member_a" "${member_artifacts_root}/member_b" >/dev/null 2>&1 || true
     # Restore both members' workspace dirs.
     for _ws in "${run_dir}/workspaces/member_a_"* "${run_dir}/workspaces/member_b_"*; do
       [[ -e "${_ws}" ]] && chmod -R u+rwX "${_ws}" >/dev/null 2>&1 || true
@@ -3065,7 +3077,7 @@ PY
     echo "[next] Create an adjudication/response note (accept/modify/reject with evidence) and attach it to the next team packet:" >&2
     echo "  python3 ${SCRIPT_DIR}/build_adjudication_response.py --tag ${next_tag} \\" >&2
     echo "    --member-a ${member_a_out} --member-b ${member_b_out} \\" >&2
-    echo "    --out ${OUT_DIR}/runs/$(echo "${next_tag}" | sed -E 's/[^A-Za-z0-9._-]+/_/g')/$(echo "${next_tag}" | sed -E 's/[^A-Za-z0-9._-]+/_/g')_adjudication.md" >&2
+    echo "    --out ${OUT_DIR}/runs/${next_tag}/${next_tag}_adjudication.md" >&2
 
     if [[ -f "${TRAJ_SCRIPT}" ]]; then
       python3 "${TRAJ_SCRIPT}" --notes "${NOTEBOOK_PATH}" --out-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --stage "not_converged" --packet "${packet_for_run}" --member-a "${member_a_out}" --member-b "${member_b_out}" --gate "not_converged" >/dev/null 2>&1 || true

@@ -20,7 +20,7 @@ Run preflight (what the agent runs; no external LLM calls):
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -34,13 +34,16 @@ Run full team cycle (what the agent runs; Claude + Gemini):
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
   --auto-tag
 ```
+
+Use the resolved `<base>-rN` as the project-local `run_id` for this reviewed
+cycle when it feeds canonical artifacts under `artifacts/runs/<run_id>/`.
 
 ## 0. Goal (What / Why)
 
@@ -118,7 +121,7 @@ Each milestone must have:
 ### Definition of Done (DoD) rubric (anti-superficial)
 
 Acceptance MUST be evidence-backed and quickly checkable:
-- Prefer **file/field pointers** (e.g. `artifacts/analysis.json:results.foo`) over prose.
+- Prefer **file/field pointers** (e.g. `artifacts/runs/<run_id>/analysis.json:results.foo`) over prose.
 - Prefer **thresholds** (e.g. `<= 1e-6`) over “reasonable”.
 - Prefer **explicit gate names/commands** (e.g. `run_team_cycle.sh --preflight-only`) over “passed checks”.
 - If full recomputation is impractical, define **audit proxy headlines** (fast-to-check quantities) and record them in:
@@ -133,7 +136,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
 
 ## Progress Log
 
-- <YYYY-MM-DD> tag=<TAG> status=<converged|not_converged> task=<Tn> note=<short>
+- <YYYY-MM-DD> tag=<tag> run_id=<run_id> status=<converged|not_converged> task=<Tn> note=<short>
 
 ### M0 — Baseline Reproduction
 
@@ -142,7 +145,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
   - minimal reproducible run + plots + manifest/summary
 - Acceptance:
   - `run_team_cycle.sh --preflight-only` passes (capsule + pointers + refs + KB layers)
-  - At least 1 headline number is machine-extractable (e.g. `artifacts/analysis.json:results.H1`) and matches the reported value within tolerance
+  - At least 1 headline number is machine-extractable (e.g. `artifacts/runs/<run_id>/analysis.json:results.H1`) and matches the reported value within tolerance
 - Toolkit delta:
   - API spec: (fill; link to a concrete API doc/path, e.g. [TOOLKIT_API.md](TOOLKIT_API.md))
   - Code snippet index: (fill; at least 1 concrete code pointer/path, ideally under `src/` or `toolkit/`)
@@ -160,7 +163,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
   - complete derivation section(s) with no skipped steps
   - explicit assumptions + limiting-case checks
 - Acceptance:
-  - Both reviewers’ reports exist (e.g. `team/runs/<TAG>/<TAG>_member_a.md`, `team/runs/<TAG>/<TAG>_member_b.md`) and Derivation replication is `pass`
+  - Both reviewers’ reports exist (e.g. `team/runs/<tag>/<tag>_member_a.md`, `team/runs/<tag>/<tag>_member_b.md`) and Derivation replication is `pass`
   - Each reviewer shows >=3 nontrivial intermediate steps and flags no skipped-step gaps
 - Toolkit delta:
   - API spec: (fill; link to an API doc/path you updated)
@@ -178,7 +181,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
 - Deliverables:
   - scripts that reproduce all headline numbers and plots from raw artifacts
 - Acceptance:
-  - Headline numbers are traceable to artifacts (e.g. `artifacts/analysis.json#/results/...`) and match the capsule values
+  - Headline numbers are traceable to artifacts (e.g. `artifacts/runs/<run_id>/analysis.json#/results/...`) and match the capsule values
   - Audit slices contain at least 1 nontrivial proxy headline + key algorithm steps with code pointers
 - Toolkit delta:
   - API spec: (fill; link to an API doc/path you updated)
@@ -207,9 +210,9 @@ Acceptance MUST be evidence-backed and quickly checkable:
 
 At the end of each milestone:
 1) Update [idea_log.md](idea_log.md) (advance/revise/kill ideas; write the milestone’s innovation delta)
-2) Build a team packet (`prompts/team_packet_<TAG>.txt`)
+2) Build a team packet (`prompts/team_packet_<tag>.txt`)
 3) Run a team cycle (Claude + Gemini; both do both)
 4) Convert findings into a fix list
 5) Apply fixes and re-run checks
-6) **Convergence gate**: if either report says mismatch/fail/needs revision, re-run (new tag, e.g. `M2-r1`) until both pass
+6) **Convergence gate**: if either report says mismatch/fail/needs revision, re-run (new tag, e.g. `20260502T023000Z-m2-topic-r1`) until both pass
 7) Mark milestone complete only after convergence

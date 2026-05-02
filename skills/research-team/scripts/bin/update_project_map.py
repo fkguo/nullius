@@ -131,7 +131,8 @@ def _ensure_project_map_exists(project_root: Path) -> Path:
     lines.append("")
     lines.append("- Human primary file: [research_notebook.md](research_notebook.md)")
     lines.append("- Machine contract: [research_contract.md](research_contract.md)")
-    lines.append("- Artifact root: `artifacts/runs/<TAG>/`")
+    lines.append("- Canonical artifact root: `artifacts/runs/<run_id>/`")
+    lines.append("- Run identity rule: use a safe, sortable, readable `run_id` such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs or `run_<uuid>` as human-facing research run names.")
     lines.append("- Local MCP config template: [.mcp.template.json](.mcp.template.json)")
     lines.append("")
     lines.append("---")
@@ -246,7 +247,8 @@ def _write_artifacts_latest(artifacts_dir: Path, tag: str, artifacts_run: Path |
         rel = os.path.relpath(artifacts_run, artifacts_dir)
         if not rel.startswith("."):
             rel = "./" + rel
-        lines.append(f"- Artifacts directory: [{rel}]({rel})")
+        label = "Canonical artifacts directory" if rel.startswith("./runs/") else "Legacy/provider artifacts directory"
+        lines.append(f"- {label}: [{rel}]({rel})")
     else:
         lines.append("- Artifacts directory: (not found)")
     _write_text(artifacts_dir / "LATEST.md", "\n".join(lines) + "\n")

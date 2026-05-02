@@ -33,13 +33,18 @@ If the project will actually use the HEP provider bundle, add `--with-hep-provid
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
   --auto-tag
 ```
+
+The resolved `<base>-rN` tag can be used as the project-local `run_id` for the
+reviewed cycle. Canonical research artifacts live under
+`artifacts/runs/<run_id>/`; `team/runs/<tag>/` is the reviewer packet/log
+surface.
 
 Note: the scaffolded `research_team_config.json` defaults to `review_access_mode=full_access` (reviewers request file reads/commands/network via a proxy with evidence logs). To force offline/packet-only review, set `review_access_mode=packet_only`.
 Optional: configure non-blocking sidecar reviewers via `sidecar_review` (single) or `sidecar_reviews` (list) in `research_team_config.json`.

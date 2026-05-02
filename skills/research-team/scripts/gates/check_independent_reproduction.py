@@ -4,7 +4,7 @@ Independent reproduction gate for full_access team-cycle runs.
 
 Requirement (per member):
   - evidence.outputs_produced must contain at least one file under:
-      artifacts/<tag>/<member_id>/independent/
+      artifacts/runs/<run_id>/research_team/<member_id>/independent/
     (excluding script files like .py/.jl/.sh)
   - that file must exist on disk
 
@@ -45,7 +45,10 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _safe_tag(tag: str) -> str:
-    return re.sub(r"[^A-Za-z0-9._-]+", "_", tag.strip())
+    t = tag.strip()
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", t) or t == "." or ".." in t:
+        raise ValueError(f"tag must be one safe path segment using only [A-Za-z0-9._-], not '.' and no '..': {tag}")
+    return t
 
 
 def _load(path: Path) -> dict:
@@ -102,14 +105,18 @@ def main() -> int:
 
     project_root = args.project_root.resolve() if args.project_root is not None else _project_root(args.notes)
     tag = args.tag.strip()
-    st = _safe_tag(tag)
+    try:
+        st = _safe_tag(tag)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
 
     ev_a = _load(args.member_a)
     ev_b = _load(args.member_b)
 
     issues: list[Issue] = []
     for member, ev in (("member_a", ev_a), ("member_b", ev_b)):
-        prefix = f"artifacts/{st}/{member}/independent/"
+        prefix = f"artifacts/runs/{st}/research_team/{member}/independent/"
         outputs = _find_independent_outputs(ev, prefix)
         if not outputs:
             issues.append(Issue(member, f"no outputs_produced under {prefix!r} (excluding scripts)"))
@@ -139,4 +146,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

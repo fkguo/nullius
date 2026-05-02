@@ -16,10 +16,11 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 
 - Human notebook: `research_notebook.md`
 - Machine contract: `research_contract.md`
-- Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<TAG>/`.
+- Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/`.
+- `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
 - Approval gates A1–A5 stay active unless the project owner explicitly changes policy in `docs/APPROVAL_GATES.md`.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
-- Keep `research_notebook.md` organized by the problem's logic. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`, then fold durable insights into the relevant notebook sections.
+- Keep `research_notebook.md` organized by the problem's logic. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights into the relevant notebook sections.
 
 ## Scientific writing discipline
 
@@ -35,8 +36,9 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - If the host provides a `crossref` full-text skill or helper, for example a local `crossref` skill, it may be used to obtain a full-text PDF.
 - Record the source form read for each core source: `latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`.
 - If full text cannot be obtained, record the missing source and ask the project owner to provide it before relying on the paper for a central claim. Do not present `abstract_only` or `unavailable` as read evidence for central claims.
-- Literature notes should record scientific content, not tool-use logs. Put search traces, metadata checks, download attempts, and API/tool call details in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`.
+- Literature notes should record scientific content, not tool-use logs. Put search traces, metadata checks, download attempts, and API/tool call details in [research_plan.md](research_plan.md) progress entries or `artifacts/runs/<run_id>/`.
 - Each important-paper literature note must include auditable reading coverage: sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining reading gaps.
+- Include stable reading provenance needed for later scientific use: source form read, relevant sections/pages/equations, claims used, limitations, and remaining reading gaps.
 - Do not write only "PDF-body read for X"; include the concrete section/page/equation/figure coverage above.
 - Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links. Do not leave bare URLs in literature notes.
 

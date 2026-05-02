@@ -1042,4 +1042,16 @@ describe('workflow run consumer', () => {
     ).rejects.toThrow('run_id must be a simple identifier, got: bad:name');
   });
 
+  it('rejects dot run identifiers before path resolution', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io } = makeIo(projectRoot);
+
+    await expect(
+      runCommand(makeRunInput(projectRoot, 'review_cycle', '.'), io),
+    ).rejects.toThrow('run_id must be a simple identifier, got: .');
+  });
+
 });

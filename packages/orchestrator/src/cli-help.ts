@@ -196,13 +196,15 @@ Options:
   --recid <recid>              Repeatable
   --project-id <id>
   --paper-id <id>
-  --run-id <id>
+  --run-id <run_id>            Recommended for meaningful external research runs
   --preferred-provider <id>   Repeatable
   --allowed-provider <id>     Repeatable
   --available-tool <name>     Repeatable
 
 Behavior:
   Requires an initialized external project root (\`autoresearch init\`).
+  Use a safe, readable project-local run_id such as \`20260502T023000Z-m3-branch-scan-r1\`.
+  If omitted, workflow-plan derives \`<recipe>-<phase>\` only as a planning placeholder.
   Persists the resolved plan into \`.autoresearch/state.json#/plan\`.
   Derives \`.autoresearch/plan.md\` from the persisted plan.
   Execution happens later through \`autoresearch run\`, which advances ready persisted steps in a bounded loop.

@@ -17,7 +17,7 @@ Whenever you resume work (new milestone, context switch, or after a manual inter
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -31,6 +31,11 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 ## Required workflow
 
 - Keep `research_contract.md` Capsule current for each milestone/tag.
+- Use a meaningful research-team base tag such as `20260502T023000Z-m0-topic`;
+  with `--auto-tag`, the resolved `<base>-rN` can be used as the project-local
+  `run_id` whose canonical artifacts live under `artifacts/runs/<run_id>/`.
+  Treat `team/runs/<tag>/` as reviewer packet/log provenance, not the artifact
+  SSOT unless mirrored or summarized under `artifacts/runs/<run_id>/research_team/`.
 - Keep `project_charter.md` current (goal hierarchy + anti-goals + declared profile).
 - Capsule boundary rule: do NOT put step-by-step derivations in the Capsule. Put derivations in the stable body sections and keep the Capsule as a reproducibility contract with pointers.
 - Populate `knowledge_base/` (literature, methodology_traces, priors) before any team cycle.
@@ -76,7 +81,7 @@ Preflight only (no external LLM calls):
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -90,7 +95,7 @@ Full team cycle (Claude + Gemini):
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \

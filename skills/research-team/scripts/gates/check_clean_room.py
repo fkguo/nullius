@@ -86,7 +86,7 @@ def _forbidden_patterns(member: str, safe_tag: str) -> list[re.Pattern[str]]:
             [
                 rf"team/runs/{re.escape(safe_tag)}/{re.escape(other)}(?:/|$)",
                 rf"team/runs/{re.escape(safe_tag)}/{re.escape(other)}_evidence\.json",
-                rf"artifacts/{re.escape(safe_tag)}/{re.escape(other)}(?:/|$)",
+                rf"artifacts/runs/{re.escape(safe_tag)}/research_team/{re.escape(other)}(?:/|$)",
                 # Workspace isolation dirs: block access to other member's isolated workspace.
                 rf"team/runs/{re.escape(safe_tag)}/workspaces/{re.escape(other)}_",
                 # Top-level member report file (e.g. <safe_tag>_member_b.md in run dir).
@@ -101,7 +101,7 @@ def _forbidden_patterns(member: str, safe_tag: str) -> list[re.Pattern[str]]:
             [
                 rf"/{re.escape(other)}/",
                 rf"{re.escape(other)}_evidence\.json",
-                rf"artifacts/.+/{re.escape(other)}/",
+                rf"artifacts/runs/.+/research_team/{re.escape(other)}/",
             ]
         )
     return [re.compile(x) for x in base]

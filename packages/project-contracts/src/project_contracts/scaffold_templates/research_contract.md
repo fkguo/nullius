@@ -24,7 +24,7 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 - If `.autoresearch/` exists, run `autoresearch status --json` before continuing after a new session, reconnect, interruption, context reset, or handoff.
 - If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
 - Treat that status output as the authoritative recovery briefing.
-- Then re-read `project_index.md`, `AGENTS.md`, `project_charter.md`, `research_plan.md`, and this file before resuming.
+- Then re-read [project_index.md](project_index.md), [AGENTS.md](AGENTS.md), [project_charter.md](project_charter.md), [research_plan.md](research_plan.md), and this file before resuming.
 - Read [research_notebook.md](research_notebook.md) when it already contains substantive content.
 - Optional host/provider/support surfaces are used only when this project explicitly creates them; this contract and `.autoresearch/` state remain the durable restart truth.
 
@@ -41,12 +41,21 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 - Record source form read as `latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`.
 - For important sources, record sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining gaps.
 - `abstract_only` and `unavailable` mark reading gaps, not completed evidence for central claims.
-- Literature notes record scientific content only. Put tool-use logs, metadata checks, download attempts, and API/MCP call details in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`.
+- Literature notes record scientific content only. Put tool-use logs, metadata checks, download attempts, and API/MCP call details in [research_plan.md](research_plan.md) progress entries or `artifacts/runs/<run_id>/`.
 - Use clickable Markdown links for source references, and write scientific notation as LaTeX math instead of inline-code backticks.
 
 ## Artifact And Provenance Rule
 
-- Store meaningful run outputs under `artifacts/runs/<TAG>/`.
+- Store meaningful run outputs under `artifacts/runs/<run_id>/`.
+- Choose `run_id` as a project-local research identity, not as an opaque machine
+  identity. Prefer `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`, for
+  example `20260502T023000Z-m3-branch-scan-r1`.
+- A valid human-facing `run_id` uses only letters, digits, `.`, `_`, and `-`;
+  it must not contain path separators, `..`, whitespace, bare UUIDs,
+  `run_<uuid>`, or other low-information generated names.
+- If a provider records its own UUID or `run_<uuid>` identifier, keep that value
+  as provider provenance inside the manifest; do not promote it to the
+  project-local artifact root name.
 - Each completed milestone should include enough provenance for a future reader to identify inputs, commands, source versions, outputs, and checks.
 - Prefer machine-readable manifests for structured outputs, with Markdown pointers for human review.
 - When an artifact supports a claim, cite the project-relative path and the relevant field, row, section, or checksum.
@@ -68,8 +77,8 @@ Fill this section for each milestone or tag that is claimed as complete.
 ```
 
 - Expected outputs:
-  - `artifacts/runs/<TAG>/manifest.json`
-  - `artifacts/runs/<TAG>/summary.json`
+  - `artifacts/runs/<run_id>/manifest.json`
+  - `artifacts/runs/<run_id>/summary.json`
 - Provenance pointers:
   - Source files or commits:
   - Input data or references:
@@ -87,7 +96,7 @@ Use stable IDs so claims can be reviewed and revised.
 
 | ID | Claim or result | Evidence pointer | Verification status | Notes |
 |---|---|---|---|---|
-| C1 |  | `artifacts/runs/<TAG>/summary.json#...` | candidate / checked / blocked / rejected |  |
+| C1 |  | `artifacts/runs/<run_id>/summary.json#...` | candidate / checked / blocked / rejected |  |
 
 ## Final Conclusion Gate
 

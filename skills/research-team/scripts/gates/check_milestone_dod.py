@@ -8,7 +8,8 @@ has at least some concrete deliverables and acceptance tests recorded.
 
 Scope / philosophy:
 - Deterministic and fast; no heuristics that require LLM judgement.
-- Works only when the tag looks like a milestone tag (e.g. M2-r1 -> milestone M2).
+- Works when the tag carries a milestone segment (e.g. M2-r1 -> M2, or
+  20260502T023000Z-m2-topic-r1 -> M2).
 - Intended as a *guardrail*; deep quality is enforced by the team cross-check prompts.
 
 Controlled by `features.milestone_dod_gate` in research_team_config.json.
@@ -301,10 +302,23 @@ def _iter_md_link_targets(s: str) -> list[str]:
     return out
 
 
+def _milestone_from_tag(tag: str) -> str | None:
+    tag_s = tag.strip()
+    m = re.match(r"^(M\d+[A-Za-z]?)\b", tag_s)
+    if m:
+        return m.group(1)
+    # Canonical project-local run_id tags carry the milestone as a safe
+    # delimiter-bounded segment, e.g. 20260502T023000Z-m2-branch-scan-r1.
+    m = re.search(r"(?:^|[-_.])(m\d+[A-Za-z]?)(?:[-_.]|$)", tag_s)
+    if not m:
+        return None
+    return m.group(1).upper()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (used to locate plan/config).")
-    ap.add_argument("--tag", type=str, required=True, help="Round tag (e.g. M2-r1).")
+    ap.add_argument("--tag", type=str, required=True, help="Round tag/run_id (e.g. 20260502T023000Z-m2-topic-r1).")
     ap.add_argument("--max-issues", type=int, default=30, help="Max issues to print.")
     args = ap.parse_args()
 
@@ -321,14 +335,10 @@ def main() -> int:
         print("[skip] milestone DoD gate disabled by research_team_config")
         return 0
 
-    # Allow common sub-milestone tags like "M5b-r1" in addition to "M5-r1".
-    # We treat the base milestone as "M<digits><optional-letter>" so that
-    # RESEARCH_PLAN sections like "### M5b — ..." participate in the DoD gate.
-    m = re.match(r"^(M\d+[A-Za-z]?)\b", args.tag.strip())
-    if not m:
-        print("[skip] milestone DoD gate not applicable (tag is not a milestone tag like M2-r1)")
+    milestone = _milestone_from_tag(args.tag)
+    if not milestone:
+        print("[skip] milestone DoD gate not applicable (tag does not carry a milestone segment like m2)")
         return 0
-    milestone = m.group(1)
 
     plan = _find_plan(args.notes)
     if plan is None:

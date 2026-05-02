@@ -17,7 +17,10 @@ const RunIdSchema = z
   .string()
   .min(1)
   .max(128)
-  .regex(/^[a-zA-Z0-9_\-]+$/, 'run_id must be alphanumeric + _ -');
+  .regex(/^[a-zA-Z0-9._-]+$/, 'run_id must use only letters, digits, dot, underscore, or dash')
+  .refine(s => s !== '.' && !s.includes('..'), {
+    message: 'run_id must be one safe path segment and must not contain ..',
+  });
 const HandoffPathSchema = z
   .string()
   .min(1)

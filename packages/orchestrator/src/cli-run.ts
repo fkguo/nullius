@@ -219,7 +219,7 @@ function normalizeRunId(raw: string | null): string {
   if (!runId) {
     throw new Error('run requires --run-id <id> (or an existing state.run_id)');
   }
-  if (!/^[A-Za-z0-9._-]+$/.test(runId) || runId.includes('..')) {
+  if (!/^[A-Za-z0-9._-]+$/.test(runId) || runId === '.' || runId.includes('..')) {
     throw new Error(`run_id must be a simple identifier, got: ${runId}`);
   }
   return runId;

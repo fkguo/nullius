@@ -61,13 +61,21 @@ cd /path/to/project
 
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
   --auto-tag
 ```
+
+Use the resolved `<base>-rN` as the research-team cycle tag. When this cycle is
+part of an `autoresearch` control-plane run, use that same resolved value as the
+project-local `run_id` for the reviewed cycle. The canonical project artifact
+root is `artifacts/runs/<run_id>/`; `team/runs/<tag>/` is a reviewer packet/log
+surface and should not be treated as the artifact SSOT unless the project
+explicitly mirrors or summarizes it under `artifacts/runs/<run_id>/research_team/`.
+Do not use bare UUIDs or `run_<uuid>` as human-facing research tags.
 
 ## Deterministic preflight-only (no external LLM calls)
 
@@ -76,7 +84,7 @@ To run all deterministic gates without calling any external LLMs (this mode also
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0-r1 \
+  --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -84,7 +92,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --preflight-only
 ```
 
-If a gate fails, fix the minimal root cause (docs/artifacts/config), then rerun with a new tag (e.g. `M0-r2`).
+If a gate fails, fix the minimal root cause (docs/artifacts/config), then rerun with a new resolved tag (e.g. `20260502T023000Z-m0-topic-r2`).
 Keep `--out-dir` on the real-project side as well; do not route real-project outputs back into the skill repo checkout.
 
 ## Review access modes (packet_only vs full_access)

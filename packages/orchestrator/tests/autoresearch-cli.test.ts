@@ -843,7 +843,7 @@ describe('autoresearch CLI', () => {
     ], io)).rejects.toThrow('cannot replace workflow plan while run_status=running; finish or reset the current run first');
   });
 
-  it('derives a stable fallback run_id when --run-id is omitted', async () => {
+  it('derives a stable planning-placeholder run_id when --run-id is omitted', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
@@ -875,6 +875,21 @@ describe('autoresearch CLI', () => {
         plan_id: 'literature_landscape-prework:literature_landscape',
       },
     });
+  });
+
+  it('rejects unsafe workflow-plan run_id values before persistence', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io } = makeIo(projectRoot);
+
+    await expect(runCli([
+      'workflow-plan',
+      '--recipe', 'research_brainstorm',
+      '--run-id', '../bad',
+      '--topic', 'bootstrap amplitudes',
+    ], io)).rejects.toThrow('workflow-plan run_id must be a simple identifier, got: ../bad');
   });
 
   it('shows JSON status for the nearest project root', async () => {
@@ -1424,7 +1439,7 @@ describe('autoresearch CLI', () => {
         '',
         'This file is the human-facing research notebook.',
         'Organize it by the logic of the research problem, not by run date.',
-        'Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<TAG>/`, then fold durable insights back into the sections below.',
+        'Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`, then fold durable insights back into the sections below.',
         'Keep machine-stable gate structure in [research_contract.md](research_contract.md).',
         '',
         '## Problem Statement',
@@ -1451,7 +1466,7 @@ describe('autoresearch CLI', () => {
         '- For important sources, record source form read (`latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`), sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining gaps:',
         '- Candidate-only sources:',
         '- Known gaps in source reading:',
-        '- Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md) or `artifacts/runs/<TAG>/`, not in literature notes.',
+        '- Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`, not in literature notes.',
         '',
         '## Conventions and Definitions',
         '',

@@ -138,7 +138,7 @@ import sys
 
 out_path = Path(sys.argv[1])
 tag = sys.argv[2].strip() or "stub-tag"
-artifact = f"artifacts/{tag}/member_a/independent/member_a_stub.txt"
+artifact = f"artifacts/runs/{tag}/research_team/member_a/independent/member_a_stub.txt"
 command = (
     "python3 -c \"from pathlib import Path; "
     f"p = Path({artifact!r}); "
@@ -240,7 +240,7 @@ import sys
 
 out_path = Path(sys.argv[1])
 tag = sys.argv[2].strip() or "stub-tag"
-artifact = f"artifacts/{tag}/member_b/independent/member_b_stub.txt"
+artifact = f"artifacts/runs/{tag}/research_team/member_b/independent/member_b_stub.txt"
 command = (
     "python3 -c \"from pathlib import Path; "
     f"p = Path({artifact!r}); "
@@ -440,54 +440,53 @@ path = Path(sys.argv[1])
 profile = sys.argv[2].strip()
 text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 today = date.today().isoformat()
+project = path.parent.name
+m = re.search(r"^Project:\s*(.+?)\s*$", text, flags=re.MULTILINE)
+if m:
+    project = m.group(1).strip() or project
 
-text = re.sub(r"^Status:\s*DRAFT\b.*$", "Status: APPROVED", text, flags=re.MULTILINE)
-text = re.sub(r"^Created:\s*.*$", f"Created: {today}", text, flags=re.MULTILINE)
-text = re.sub(r"^Last updated:\s*.*$", f"Last updated: {today}", text, flags=re.MULTILINE)
-if profile:
-    text = re.sub(r"^Declared profile:\s*.*$", f"Declared profile: {profile}", text, flags=re.MULTILINE)
+path.write_text(f"""# project_charter.md
 
-text = re.sub(
-    r"^Primary goal:\s*.*$",
-    "Primary goal: deterministic validation harness for research-team workflow",
-    text,
-    flags=re.MULTILINE,
-)
-text = re.sub(
-    r"^Validation goal\(s\):\s*.*$",
-    "Validation goal(s): exercise preflight gates, trajectory logging, and convergence gate semantics under stub runners",
-    text,
-    flags=re.MULTILINE,
-)
+Status: APPROVED
+Project: {project}
+Root: {path.parent}
+Created: {today}
+Last updated: {today}
 
-text = re.sub(
-    r"^\s*-\s*\(fill; e\.g\..*\)\s*$",
-    "- Avoid goal drift: validate workflow contracts, not a specific scientific claim.",
-    text,
-    flags=re.MULTILINE,
-)
+## 0. Purpose
 
-# Replace the three template commitments with concrete demo links.
-text = re.sub(
-    r"^\s*-\s*\(fill; KB:.*$",
-    "- KB: [Bezanson2017](knowledge_base/literature/bezanson2017_julia.md) — demo literature note",
-    text,
-    flags=re.MULTILINE,
-)
-text = re.sub(
-    r"^\s*-\s*\(fill; Method:.*$",
-    "- Method: [demo_trace](knowledge_base/methodology_traces/demo_trace.md) — demo methodology trace",
-    text,
-    flags=re.MULTILINE,
-)
-text = re.sub(
-    r"^\s*-\s*\(fill; Toolkit:.*$",
-    "- Toolkit: convergence gate + trajectory invariants exercised by deterministic harness",
-    text,
-    flags=re.MULTILINE,
-)
+One-sentence project purpose: deterministic validation harness for research-team workflow contracts.
 
-path.write_text(text, encoding="utf-8")
+## 1. Goals
+
+Primary goal: deterministic validation harness for research-team workflow
+Validation goal(s): exercise preflight gates, trajectory logging, and convergence gate semantics under stub runners
+
+Anti-goals / non-goals:
+- Do not validate a domain-specific scientific claim in this deterministic harness.
+- Do not call external LLMs or network services.
+
+## 2. Scope And Constraints
+
+Declared profile: {profile}
+
+Constraints:
+- Required approvals before changing scope: none for this temporary validation project.
+- Data, compute, privacy, or external access limits: local stub runners only.
+- Decisions that must be recorded project-locally: gate status and trajectory stages.
+
+Project-specific commitments:
+- KB: [Bezanson2017](knowledge_base/literature/bezanson2017_julia.md) — demo literature note
+- Method: [demo_trace](knowledge_base/methodology_traces/demo_trace.md) — demo methodology trace
+- Artifacts: canonical outputs stay under `artifacts/runs/<run_id>/`.
+
+## 3. Evidence And Validation
+
+- Stable sources should be cited when they are used.
+- Validation-only work must be labeled as validation and must not be confused with the project's primary goal.
+- Claims need evidence pointers in [research_contract.md](research_contract.md) and supporting artifacts under `artifacts/runs/<run_id>/`.
+- Discovery and method-selection decisions should be recorded in a project-local place chosen for this project.
+""", encoding="utf-8")
 print("patched:", path)
 PY
 }
@@ -512,6 +511,29 @@ cfg["features"] = features
 features["independent_reproduction_gate"] = False
 path.write_text(json.dumps(cfg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
+}
+
+write_validation_brief() {
+  local root="$1"
+  local profile="$2"
+  cat >"${root}/project_brief.md" <<EOF
+# Deterministic validation brief
+
+Project profile: ${profile}
+
+Goal:
+- Validate the research-team scaffold, gates, and cycle control flow with stub runners only.
+
+Constraints:
+- Keep all generated artifacts under the project-local canonical root \`artifacts/runs/<run_id>/\`.
+- Treat \`team/runs/<tag>/\` as reviewer packet/log provenance for this validation.
+- Do not call external services during this deterministic harness.
+
+Acceptance:
+- Preflight reaches the expected stage without invoking member runners.
+- Full cycle reaches convergence with stubbed member reports.
+- Brake checks preserve fail-fast and warn-only behavior.
+EOF
 }
 
 assert_traj_stage() {
@@ -541,8 +563,8 @@ run_profile() {
   local profile="$1"
   local root="${tmp_root}/proj_${profile}"
   local out_dir="team"
-  local tag_preflight="V1-${profile}-preflight-r1"
-  local tag_full="V1-${profile}-full-r1"
+  local tag_preflight="20260502T000000Z-m0-${profile}-preflight-r1"
+  local tag_full="20260502T000000Z-m0-${profile}-full-r1"
   local log_pre="${tmp_root}/${profile}_preflight.log"
   local log_full="${tmp_root}/${profile}_full.log"
 
@@ -550,6 +572,7 @@ run_profile() {
   report_append ""
 
   bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-${profile}" --profile "${profile}" --full >/dev/null 2>&1
+  write_validation_brief "${root}" "${profile}"
   bash "${DEMO}" --root "${root}" --tag "${tag_full}" >/dev/null 2>&1
   approve_project_charter "${root}" "${profile}" >/dev/null 2>&1
   configure_validation_features "${root}"
@@ -595,13 +618,14 @@ run_profile() {
 run_brake_not_converged() {
   local root="${tmp_root}/proj_brake_not_converged"
   local out_dir="team"
-  local tag="V1-brake-not-converged-r1"
+  local tag="20260502T000000Z-m0-brake-not-converged-r1"
   local log="${tmp_root}/brake_not_converged.log"
 
   report_append "## Brake check: not_converged propagation"
   report_append ""
 
   bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakeNotConverged" --profile "mixed" --full >/dev/null 2>&1
+  write_validation_brief "${root}" "mixed"
   bash "${DEMO}" --root "${root}" --tag "${tag}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
   configure_validation_features "${root}"
@@ -640,13 +664,14 @@ run_brake_not_converged() {
 run_brake_sidecar_warn_only() {
   local root="${tmp_root}/proj_brake_sidecar_warn_only"
   local out_dir="team"
-  local tag="V1-brake-sidecar-warn-only-r1"
+  local tag="20260502T000000Z-m0-brake-sidecar-warn-only-r1"
   local log="${tmp_root}/brake_sidecar_warn_only.log"
 
   report_append "## Brake check: sidecar warn-only (failure does not block convergence)"
   report_append ""
 
   bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakeSidecarWarnOnly" --profile "mixed" --full >/dev/null 2>&1
+  write_validation_brief "${root}" "mixed"
   bash "${DEMO}" --root "${root}" --tag "${tag}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
   configure_validation_features "${root}"
@@ -685,7 +710,7 @@ run_brake_sidecar_warn_only() {
 run_brake_preflight_fail_fast() {
   local root="${tmp_root}/proj_brake_preflight_fail"
   local out_dir="team"
-  local tag="V1-brake-preflight-fail-r1"
+  local tag="20260502T000000Z-m0-brake-preflight-fail-r1"
   local log="${tmp_root}/brake_preflight_fail.log"
   local marker="${tmp_root}/brake_preflight_fail_marker.txt"
 
@@ -731,8 +756,8 @@ run_brake_preflight_fail_fast() {
 run_brake_plan_tracking_sentinel() {
   local root="${tmp_root}/proj_brake_plan_sentinel"
   local out_dir="team"
-  local tag_pre="V1-brake-plan-preflight-r1"
-  local tag_full="V1-brake-plan-full-r1"
+  local tag_pre="20260502T000000Z-m0-brake-plan-preflight-r1"
+  local tag_full="20260502T000000Z-m0-brake-plan-full-r1"
   local log_pre="${tmp_root}/brake_plan_preflight.log"
   local log_full="${tmp_root}/brake_plan_full.log"
   local plan_path="${root}/research_plan.md"
@@ -742,6 +767,7 @@ run_brake_plan_tracking_sentinel() {
   report_append ""
 
   bash "${SCAFFOLD}" --root "${root}" --project "ContractValidation-BrakePlanSentinel" --profile "mixed" --full >/dev/null 2>&1
+  write_validation_brief "${root}" "mixed"
   bash "${DEMO}" --root "${root}" --tag "${tag_full}" >/dev/null 2>&1
   approve_project_charter "${root}" "mixed" >/dev/null 2>&1
   configure_validation_features "${root}"
@@ -795,9 +821,9 @@ run_brake_plan_tracking_sentinel() {
 run_draft_cycle_contract() {
   local root="${tmp_root}/proj_draft_cycle"
   local out_dir="team"
-  local tag_pre="V1-draft-preflight-r1"
-  local tag_ok="V1-draft-full-r1"
-  local tag_fail="V1-draft-full-fail-r1"
+  local tag_pre="20260502T000000Z-d0-draft-preflight-r1"
+  local tag_ok="20260502T000000Z-d0-draft-full-r1"
+  local tag_fail="20260502T000000Z-d0-draft-full-fail-r1"
   local log_pre="${tmp_root}/draft_preflight.log"
   local log_ok="${tmp_root}/draft_full_ok.log"
   local log_fail="${tmp_root}/draft_full_fail.log"

@@ -2,6 +2,11 @@
 """
 Suggest the next round tag using a clean scheme: <base>-r1, <base>-r2, ...
 
+For human-facing research runs, use a meaningful base tag such as
+20260502T023000Z-m3-branch-scan. The resolved <base>-rN value can then be used
+as the project-local run_id whose canonical artifact root is
+artifacts/runs/<run_id>/.
+
 Problem this solves:
 - People often keep appending "-r1" repeatedly (e.g. M3-r1-r1-r1...), which is messy.
 

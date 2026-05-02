@@ -52,7 +52,12 @@ def _copy_tree_filtered(
                     continue
                 if name in _IGNORED_NAMES or name.endswith(".egg-info"):
                     continue
-                if safe_tag and rel_dir == f"artifacts/{safe_tag}" and name in {"member_a", "member_b"}:
+                rel_parts = rel_dir.split("/") if rel_dir else []
+                if (
+                    safe_tag
+                    and rel_parts == ["artifacts", "runs", safe_tag, "research_team"]
+                    and name in {"member_a", "member_b"}
+                ):
                     continue
                 kept_dirs.append(name)
             dirnames[:] = kept_dirs

@@ -4,6 +4,8 @@ export function newProjectId(): string {
   return `proj_${randomUUID()}`;
 }
 
+// Provider-internal fallback ID. Do not present this as the recommended
+// project-local, human-facing research run_id.
 export function newRunId(): string {
   return `run_${randomUUID()}`;
 }

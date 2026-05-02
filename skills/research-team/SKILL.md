@@ -35,6 +35,17 @@ Use `research-team` when you want a project workflow with:
 - **Branch semantics (mandatory when applicable)**: capsule must include `### H) Branch Semantics / Multi-root Contract (MANDATORY)`; if multi-root quantities exist (multiple solutions/branches), you must declare branches/assignment/outputs/invariants/diagnostics.
 - **Pointer lint (mandatory)**: code pointers in the notebook must be resolvable under the configured `pointer_lint.strategy`.
 - **No silent retries**: when a gate fails, stop, apply the minimal fix, rerun with a new tag (`M2-r2`, `M2-r3`, ...).
+- **Run artifact identity**: the canonical project artifact root is
+  `artifacts/runs/<run_id>/`. Use a safe, sortable, readable `run_id`, preferably
+  `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`. `team/runs/<tag>/` is the
+  research-team reviewer packet/log surface; it is not the project artifact
+  SSOT unless the project explicitly mirrors or summarizes it under
+  `artifacts/runs/<run_id>/research_team/`.
+- **Tag relation**: with `--auto-tag`, pass a meaningful base tag such as
+  `20260502T023000Z-m3-branch-scan`; the resolved `<base>-rN` is the
+  research-team cycle tag and may be used as the control-plane `run_id` for
+  that reviewed cycle. Do not use bare UUIDs or `run_<uuid>` as human-facing
+  research tags.
 
 ## Quick Start (3 commands)
 
@@ -71,7 +82,7 @@ cd /path/to/project
 
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
-  --tag M0 --auto-tag \
+  --tag 20260502T023000Z-m0-topic --auto-tag \
   --notes research_contract.md \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
@@ -80,6 +91,11 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 
 Tip: add `--preflight-only` to run deterministic gates without calling external LLMs.
 Keep `--out-dir` on a real-project path as well; do not point real-project team outputs back into the development repo.
+The command above writes reviewer-cycle packets and logs under `team/runs/<tag>/`.
+Durable research outputs and claims should point to the canonical project root
+`artifacts/runs/<run_id>/`; when the team cycle is evidence for that run, record
+or summarize it under `artifacts/runs/<run_id>/research_team/` and keep the
+`team/runs/<tag>/` paths as reviewer provenance.
 
 ## Capabilities index (discoverability)
 
