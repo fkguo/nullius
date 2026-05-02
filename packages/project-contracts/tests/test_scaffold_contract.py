@@ -130,10 +130,12 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("Do not append large dated run logs there", template)
         self.assertIn("## Scientific writing discipline", template)
         self.assertIn("use the field's native scientific language", template)
-        self.assertIn("physics projects", template)
-        for scientific_term in ("assumptions", "observables", "approximations", "derivations", "evidence"):
-            self.assertIn(scientific_term, template)
-        self.assertIn("Use engineering vocabulary only when discussing real code, tooling, automation, environments, repository operations", template)
+        for metaphor in ("pinning down", "closing the loop", "bridging", "building a pipeline", "opening a surface", "running a lane"):
+            self.assertIn(metaphor, template)
+        self.assertIn("only when they name a literal domain concept", template)
+        self.assertIn("actual code, tooling, automation, environments, repository operations, control systems", template)
+        for scientific_verb in ("derive", "estimate", "bound", "test", "compare", "constrain", "quantify uncertainty", "relate observables"):
+            self.assertIn(scientific_verb, template)
         self.assertIn("opt-in support layers", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)

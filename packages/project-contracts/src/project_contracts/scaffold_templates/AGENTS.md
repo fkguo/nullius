@@ -24,9 +24,9 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 ## Scientific writing discipline
 
 - In project notes, notebooks, plans, and conclusions, use the field's native scientific language rather than engineering, product, or delivery metaphors.
-- In physics projects, prefer standard scientific terms such as `assumptions`, `regimes`, `scales`, `observables`, `limits`, `approximations`, `uncertainties`, `derivations`, `checks`, and `evidence` when they match the work.
-- Do not recast scientific reasoning as feature delivery, roadmap execution, user stories, shipping, or similar software-project metaphors unless the subject is actually software work.
-- Use engineering vocabulary only when discussing real code, tooling, automation, environments, repository operations, or other software-maintenance tasks.
+- Do not describe scientific reasoning as `pinning down`, `closing the loop`, `bridging`, `building a pipeline`, `opening a surface`, `running a lane`, shipping, delivery, roadmap execution, or similar software-project metaphors.
+- Use those words only when they name a literal domain concept or when the subject is actual code, tooling, automation, environments, repository operations, control systems, or other software-maintenance work.
+- Prefer precise scientific verbs such as derive, estimate, bound, test, compare, constrain, check, identify assumptions, separate regimes, quantify uncertainty, and relate observables.
 
 ## Reconnect discipline
 
