@@ -149,6 +149,8 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("search traces, metadata checks, download attempts, and API/tool call details", template)
         self.assertIn("research_plan.md` progress entries or `artifacts/runs/<TAG>/", template)
         self.assertIn("source form read, relevant sections/pages/equations, claims used, limitations, and remaining reading gaps", template)
+        self.assertIn("Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links", template)
+        self.assertIn("Do not leave bare URLs in literature notes", template)
         self.assertIn("opt-in support layers", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)

@@ -36,6 +36,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - If full text cannot be obtained, record the missing source and ask the project owner to provide it before relying on the paper for a central claim.
 - Literature notes should record scientific content, not tool-use logs. Put search traces, metadata checks, download attempts, and API/tool call details in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`.
 - In a literature note, keep only stable reading provenance needed for later scientific use: access level, source form read, relevant sections/pages/equations, claims used, limitations, and remaining reading gaps.
+- Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links. Do not leave bare URLs in literature notes.
 
 ## Reconnect discipline
 
