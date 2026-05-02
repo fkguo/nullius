@@ -1,0 +1,221 @@
+{
+  "recipe_id": "research_brainstorm",
+  "name": "Research Brainstorm Durable Harness",
+  "description": "Open a lightweight, durable research brainstorming harness that converges one recommended next research contract without starting heavier workflows.",
+  "entry_tool": "literature_workflows.resolve",
+  "steps": [
+    {
+      "id": "open_brainstorm_context",
+      "task_kind": "finding",
+      "tool": "research_brainstorm.open_context",
+      "purpose": "Frame the topic, constraints, known inputs, and explicit out-of-scope surfaces for a lightweight brainstorm",
+      "depends_on": [],
+      "consumer_hints": {
+        "artifact": "brainstorm_context"
+      },
+      "params": {
+        "topic": "<topic>",
+        "run_id": "<run_id>",
+        "execution_contract": {
+          "mode": "planning_only",
+          "built_in_runtime": false,
+          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+        },
+        "artifact_contract": {
+          "artifact": "brainstorm_context",
+          "required_fields": [
+            "topic",
+            "scope",
+            "known_inputs",
+            "constraints",
+            "out_of_scope"
+          ],
+          "out_of_scope": [
+            "host-native thinking process",
+            "idea-engine execution",
+            "research-team execution",
+            "broad retrieval",
+            "memory graph expansion",
+            "generic eval platform",
+            "front-door expansion"
+          ]
+        }
+      }
+    },
+    {
+      "id": "capture_candidate_angles",
+      "task_kind": "finding",
+      "tool": "research_brainstorm.capture_angles",
+      "purpose": "Capture a compact set of candidate research angles using only the approved topic and local brainstorm context",
+      "depends_on": [
+        "open_brainstorm_context"
+      ],
+      "consumer_hints": {
+        "artifact": "candidate_angles"
+      },
+      "params": {
+        "topic": "<topic>",
+        "source_artifact": "brainstorm_context",
+        "execution_contract": {
+          "mode": "planning_only",
+          "built_in_runtime": false,
+          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+        },
+        "artifact_contract": {
+          "artifact": "candidate_angles",
+          "required_fields": [
+            "angle_id",
+            "research_question",
+            "rationale",
+            "minimum_inputs",
+            "expected_artifacts",
+            "risks"
+          ],
+          "maximum_candidates": 6
+        }
+      }
+    },
+    {
+      "id": "screen_and_rank_angles",
+      "task_kind": "review",
+      "tool": "research_brainstorm.screen_angles",
+      "purpose": "Screen candidate angles for feasibility, novelty risk, evidence needs, and fit with bounded follow-up recipes",
+      "depends_on": [
+        "capture_candidate_angles"
+      ],
+      "consumer_hints": {
+        "artifact": "screening_matrix"
+      },
+      "params": {
+        "topic": "<topic>",
+        "source_artifact": "candidate_angles",
+        "execution_contract": {
+          "mode": "planning_only",
+          "built_in_runtime": false,
+          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+        },
+        "artifact_contract": {
+          "artifact": "screening_matrix",
+          "required_fields": [
+            "angle_id",
+            "feasibility",
+            "evidence_need",
+            "novelty_risk",
+            "fit_to_existing_recipe",
+            "rank",
+            "decision"
+          ],
+          "allowed_decisions": [
+            "advance",
+            "defer",
+            "reject"
+          ]
+        }
+      }
+    },
+    {
+      "id": "converge_single_recommendation",
+      "task_kind": "finding",
+      "tool": "research_brainstorm.converge_recommendation",
+      "purpose": "Select one recommended research angle and record why competing angles were rejected or deferred",
+      "depends_on": [
+        "screen_and_rank_angles"
+      ],
+      "consumer_hints": {
+        "artifact": "single_recommendation"
+      },
+      "params": {
+        "topic": "<topic>",
+        "source_artifact": "screening_matrix",
+        "execution_contract": {
+          "mode": "planning_only",
+          "built_in_runtime": false,
+          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+        },
+        "artifact_contract": {
+          "artifact": "single_recommendation",
+          "required_fields": [
+            "recommended_angle_id",
+            "research_question",
+            "why_this_now",
+            "minimum_viable_next_step",
+            "rejected_alternatives"
+          ],
+          "selection_count": 1
+        }
+      }
+    },
+    {
+      "id": "emit_next_contract",
+      "task_kind": "draft_update",
+      "tool": "research_brainstorm.emit_next_contract",
+      "purpose": "Emit a handoff contract for one optional heavier follow-up recipe without starting that follow-up automatically",
+      "depends_on": [
+        "converge_single_recommendation"
+      ],
+      "consumer_hints": {
+        "artifact": "next_contract"
+      },
+      "params": {
+        "topic": "<topic>",
+        "source_artifact": "single_recommendation",
+        "execution_contract": {
+          "mode": "planning_only",
+          "built_in_runtime": false,
+          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+        },
+        "artifact_contract": {
+          "artifact": "next_contract",
+          "required_fields": [
+            "suggested_next_recipe",
+            "recommended_lane",
+            "lane_type",
+            "research_question",
+            "success_criteria",
+            "required_inputs",
+            "expected_artifacts",
+            "rejected_alternatives",
+            "risk_register",
+            "approval_required"
+          ],
+          "suggested_next_recipe": [
+            "literature_landscape",
+            "literature_gap_analysis",
+            "derivation_cycle",
+            "review_cycle"
+          ],
+          "recommended_lane": "operator_approved_followup",
+          "lane_type": "workflow_recipe_handoff",
+          "research_question": "<topic>",
+          "success_criteria": [
+            "One research question is precise enough for the suggested next recipe",
+            "Required inputs are listed before any heavier workflow starts",
+            "Rejected alternatives and major risks are explicit"
+          ],
+          "required_inputs": [
+            "approved research_question",
+            "selected suggested_next_recipe",
+            "operator approval",
+            "any recipe-specific seed identifiers or bounded source lists"
+          ],
+          "expected_artifacts": [
+            "next_contract",
+            "followup_recipe_plan"
+          ],
+          "rejected_alternatives": [],
+          "risk_register": [
+            {
+              "risk": "premature escalation",
+              "mitigation": "approval_required remains true and the contract does not start a follow-up recipe"
+            },
+            {
+              "risk": "insufficient evidence",
+              "mitigation": "select literature_landscape or literature_gap_analysis only after required inputs are present"
+            }
+          ],
+          "approval_required": true
+        }
+      }
+    }
+  ]
+}

@@ -21,6 +21,7 @@ This document explains the current front-door architecture of the monorepo. It i
 - `autoresearch` remains the stateful CLI front door. `orch_*` remains the MCP/operator counterpart of that same control plane.
 - Provider MCP surfaces stay MCP-first. We do not mass-convert provider MCP into CLI because those surfaces are bounded atoms, not stateful workflow shells.
 - `idea-mcp` remains experimental and must not reclaim root workflow authority; the current idea-engine phase is closed rather than a default capability-expansion lane.
+- `research_brainstorm` is a lightweight planning-only durable harness recipe under `autoresearch workflow-plan`: it persists a brainstorm-to-handoff plan and emits a `next_contract` for optional heavier recipes, but it does not provide built-in runtime tools or invoke host-native thinking process, idea-engine, full research-team, broad retrieval, memory graph expansion, or a new front door.
 - Large outputs are written to disk as artifacts; MCP results return compact summaries plus stable URIs.
 - Missing or unauthorized writing citations fail hard at render time; resource and artifact paths stay constrained under allowed roots.
 - For initialized external project roots, `.autoresearch/` state plus project-local durable memory such as `research_plan.md`, `research_contract.md`, and substantive `research_notebook.md` remain the enduring reconnect truth.
@@ -33,6 +34,7 @@ This document explains the current front-door architecture of the monorepo. It i
 | --- | --- | --- |
 | Stateful CLI front door | `autoresearch` | Generic lifecycle state, `workflow-plan`, bounded native TS computation, verification, higher-conclusion gating, and proposal decisions |
 | Control-plane MCP/operator surface | `orch_*` | Canonical public MCP/operator counterpart of the same control plane |
+| Lightweight brainstorm harness | `autoresearch workflow-plan --recipe research_brainstorm` | Checked-in planning-only durable harness that persists context, candidate angles, screening, one recommendation, and a `next_contract` handoff without starting heavier workflows |
 | Experimental runtime bridge | `idea_mcp` | `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search `rank.compute` / `node.promote` and bounded negative failure-library reflection stay inside the `idea-engine` runtime contract |
 | Current most mature domain MCP front door | `@autoresearch/hep-mcp` | Project/Run, evidence, writing/export, provider-local composition, `hep://...` and `pdg://...` resources |
 | Provider-local atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded provider operators that remain MCP-first |

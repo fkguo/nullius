@@ -438,6 +438,143 @@ describe('autoresearch CLI', () => {
     expect(planMd).toContain('execution_tool: openalex_search');
   });
 
+  it('persists research brainstorm durable harness plans through workflow-plan', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli([
+      'workflow-plan',
+      '--recipe', 'research_brainstorm',
+      '--run-id', 'RB-CLI-1',
+      '--topic', 'cold atom response functions',
+    ], io);
+
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout.join('')) as {
+      recipe_id: string;
+      entry_tool: string;
+      resolved_steps: Array<Record<string, unknown>>;
+    };
+    expect(payload).toMatchObject({
+      recipe_id: 'research_brainstorm',
+      entry_tool: 'literature_workflows.resolve',
+    });
+    expect(payload.resolved_steps.map(step => step.id)).toEqual([
+      'open_brainstorm_context',
+      'capture_candidate_angles',
+      'screen_and_rank_angles',
+      'converge_single_recommendation',
+      'emit_next_contract',
+    ]);
+    expect(payload.resolved_steps.map(step => step.consumer_hints)).toMatchObject([
+      { artifact: 'brainstorm_context' },
+      { artifact: 'candidate_angles' },
+      { artifact: 'screening_matrix' },
+      { artifact: 'single_recommendation' },
+      { artifact: 'next_contract' },
+    ]);
+
+    const persistedState = manager.readState();
+    expect(persistedState).toMatchObject({
+      run_id: 'RB-CLI-1',
+      workflow_id: 'research_brainstorm',
+      run_status: 'idle',
+      plan_md_path: '.autoresearch/plan.md',
+      plan: {
+        plan_id: 'RB-CLI-1:research_brainstorm',
+        workflow_id: 'research_brainstorm',
+        current_step_id: 'open_brainstorm_context',
+      },
+    });
+    const persistedSteps = ((persistedState.plan as Record<string, unknown>).steps ?? []) as Record<string, unknown>[];
+    expect(persistedSteps).toHaveLength(5);
+    expect(persistedSteps[0]).toMatchObject({
+      step_id: 'open_brainstorm_context',
+      expected_outputs: ['brainstorm_context'],
+      task: {
+        task_id: 'open_brainstorm_context',
+        task_kind: 'finding',
+        task_intent: 'workflow_step.open_brainstorm_context',
+        expected_artifacts: ['brainstorm_context'],
+      },
+      execution: {
+        action: null,
+        tool: 'research_brainstorm.open_context',
+        provider: null,
+        params: {
+          topic: 'cold atom response functions',
+          run_id: 'RB-CLI-1',
+          execution_contract: {
+            mode: 'planning_only',
+            built_in_runtime: false,
+          },
+        },
+      },
+    });
+    expect(persistedSteps[4]).toMatchObject({
+      step_id: 'emit_next_contract',
+      expected_outputs: ['next_contract'],
+      task: {
+        task_kind: 'draft_update',
+        expected_artifacts: ['next_contract'],
+        depends_on_task_ids: ['converge_single_recommendation'],
+      },
+      execution: {
+        tool: 'research_brainstorm.emit_next_contract',
+        depends_on: ['converge_single_recommendation'],
+        params: {
+          execution_contract: {
+            mode: 'planning_only',
+            built_in_runtime: false,
+          },
+          artifact_contract: {
+            artifact: 'next_contract',
+            suggested_next_recipe: [
+              'literature_landscape',
+              'literature_gap_analysis',
+              'derivation_cycle',
+              'review_cycle',
+            ],
+            recommended_lane: 'operator_approved_followup',
+            lane_type: 'workflow_recipe_handoff',
+            research_question: 'cold atom response functions',
+            approval_required: true,
+          },
+        },
+      },
+    });
+
+    const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
+    expect(planMd).toContain('SSOT: `.autoresearch/state.json#/plan`');
+    expect(planMd).toContain('open_brainstorm_context');
+    expect(planMd).toContain('emit_next_contract');
+    expect(planMd).toContain('execution_tool: research_brainstorm.emit_next_contract');
+    expect(planMd).toContain('task_expected_artifacts:');
+    expect(planMd).toContain('next_contract');
+
+    const statusIo = makeIo(projectRoot);
+    const statusCode = await runCli(['status', '--json'], statusIo.io);
+
+    expect(statusCode).toBe(0);
+    expect(JSON.parse(statusIo.stdout.join(''))).toMatchObject({
+      run_id: 'RB-CLI-1',
+      workflow_id: 'research_brainstorm',
+      plan_view: {
+        plan_current_step_id: 'open_brainstorm_context',
+        step_count: 5,
+      },
+      recovery_context: {
+        plan_focus: {
+          step_id: 'open_brainstorm_context',
+          status: 'pending',
+          source: 'state.plan',
+        },
+      },
+    });
+  });
+
   it('persists literature gap analysis plans through the canonical autoresearch front door', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);

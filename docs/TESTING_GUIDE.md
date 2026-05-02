@@ -446,6 +446,17 @@ autoresearch workflow-plan \
 ```
 先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的公开 stateful front door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。
 
+轻量研究头脑风暴/收敛入口使用同一 front door：
+
+```bash
+autoresearch workflow-plan \
+  --recipe research_brainstorm \
+  --run-id RB-1 \
+  --topic "bootstrap amplitudes"
+```
+
+`research_brainstorm` durable harness 持久化 brainstorm context、candidate angles、screening matrix、single recommendation 与 `next_contract` artifact hints。`.autoresearch/state.json#/plan` 是机器 SSOT，`.autoresearch/plan.md` 只是派生 read model；`next_contract` 可以建议后续 recipe，但不会自动启动重流程，也不依赖 host-native thinking process。它是 planning-only harness：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。它不是 idea-engine、不是 full research-team、不是新的 root front door。
+
 > Maintainer / eval / regression only:
 >
 > 旧的 internal parser `literature-gap` command 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：
@@ -460,6 +471,7 @@ autoresearch workflow-plan \
 
 - `autoresearch workflow-plan` 仍是唯一 installable public high-level literature entrypoint
 - lower-level checked-in runner / resolver / front-door coverage 仍能证明 `literature_gap_analysis` recipe、seed-search 解析、analyze-step wiring 与 live CLI truth
+- `research_brainstorm` durable harness 通过同一个 entrypoint 验证 harness-step 解析、artifact hints、state plan 与 read-model 恢复；它输出后续 handoff contract，但不自动启动重流程
 
 ---
 
