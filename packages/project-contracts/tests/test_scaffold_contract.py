@@ -128,6 +128,12 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("2) [AGENTS.md](AGENTS.md)", template)
         self.assertIn("Keep `research_notebook.md` organized by the problem's logic", template)
         self.assertIn("Do not append large dated run logs there", template)
+        self.assertIn("## Scientific writing discipline", template)
+        self.assertIn("use the field's native scientific language", template)
+        self.assertIn("physics projects", template)
+        for scientific_term in ("assumptions", "observables", "approximations", "derivations", "evidence"):
+            self.assertIn(scientific_term, template)
+        self.assertIn("Use engineering vocabulary only when discussing real code, tooling, automation, environments, repository operations", template)
         self.assertIn("opt-in support layers", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)

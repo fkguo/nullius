@@ -21,6 +21,13 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 - Keep `research_notebook.md` organized by the problem's logic. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`, then fold durable insights into the relevant notebook sections.
 
+## Scientific writing discipline
+
+- In project notes, notebooks, plans, and conclusions, use the field's native scientific language rather than engineering, product, or delivery metaphors.
+- In physics projects, prefer standard scientific terms such as `assumptions`, `regimes`, `scales`, `observables`, `limits`, `approximations`, `uncertainties`, `derivations`, `checks`, and `evidence` when they match the work.
+- Do not recast scientific reasoning as feature delivery, roadmap execution, user stories, shipping, or similar software-project metaphors unless the subject is actually software work.
+- Use engineering vocabulary only when discussing real code, tooling, automation, environments, repository operations, or other software-maintenance tasks.
+
 ## Reconnect discipline
 
 - On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.autoresearch/` exists, run `autoresearch status --json` before taking any new action.
