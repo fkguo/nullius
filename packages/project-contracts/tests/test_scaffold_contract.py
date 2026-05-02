@@ -142,7 +142,8 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("important or directly related papers, read the full text", template)
         self.assertIn("If arXiv LaTeX source is available, prefer reading the source", template)
         self.assertIn("PDF, Zotero, Crossref, library, or browser tools", template)
-        self.assertIn("If the host provides a Crossref full-text skill or helper", template)
+        self.assertIn("If the host provides a `crossref` full-text skill or helper", template)
+        self.assertIn("for example a local `crossref` skill", template)
         self.assertIn("obtain a full-text PDF", template)
         for access_level in ("abstract_only", "full_text_pdf", "latex_source", "unavailable"):
             self.assertIn(access_level, template)
