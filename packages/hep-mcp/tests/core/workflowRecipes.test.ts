@@ -179,6 +179,7 @@ describe('workflow recipe schema and fixtures', () => {
       'literature_gap_analysis.json',
       'literature_landscape.json',
       'literature_to_evidence.json',
+      'research_brainstorm.json',
       'review_cycle.json',
     ]);
 
