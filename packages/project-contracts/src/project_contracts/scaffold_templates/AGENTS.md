@@ -31,7 +31,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 ## Literature reading depth
 
 - Treat abstracts as triage only. Do not use an abstract-only reading as decisive evidence for an important or directly related paper.
-- For important or directly related papers, read the full text. If arXiv LaTeX source is available, prefer reading the source; otherwise use available local and permitted full-text access such as PDF, Zotero, Crossref, library, or browser tools.
+- For important or directly related papers, read the full text. If arXiv LaTeX source is available, prefer reading the source; otherwise use available full-text access such as PDF, Zotero, Crossref, library, or browser tools.
 - Record the access level for each core source in project notes or artifacts: `abstract_only`, `full_text_pdf`, `latex_source`, or `unavailable`.
 - If full text cannot be obtained, record the missing source and ask the project owner to provide it before relying on the paper for a central claim.
 - Literature notes should record scientific content, not tool-use logs. Put search traces, metadata checks, download attempts, and API/tool call details in `research_plan.md` progress entries or `artifacts/runs/<TAG>/`.
