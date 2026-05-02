@@ -145,6 +145,10 @@ class TestScaffoldContract(unittest.TestCase):
         for access_level in ("abstract_only", "full_text_pdf", "latex_source", "unavailable"):
             self.assertIn(access_level, template)
         self.assertIn("ask the project owner to provide it before relying on the paper for a central claim", template)
+        self.assertIn("Literature notes should record scientific content, not tool-use logs", template)
+        self.assertIn("search traces, metadata checks, download attempts, and API/tool call details", template)
+        self.assertIn("research_plan.md` progress entries or `artifacts/runs/<TAG>/", template)
+        self.assertIn("source form read, relevant sections/pages/equations, claims used, limitations, and remaining reading gaps", template)
         self.assertIn("opt-in support layers", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)
