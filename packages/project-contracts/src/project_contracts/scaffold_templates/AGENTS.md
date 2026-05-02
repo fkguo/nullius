@@ -28,6 +28,13 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Use those words only when they name a literal domain concept or when the subject is actual code, tooling, automation, environments, repository operations, control systems, or other software-maintenance work.
 - Prefer precise scientific verbs such as derive, estimate, bound, test, compare, constrain, check, identify assumptions, separate regimes, quantify uncertainty, and relate observables.
 
+## Literature reading depth
+
+- Treat abstracts as triage only. Do not use an abstract-only reading as decisive evidence for an important or directly related paper.
+- For important or directly related papers, read the full text. If arXiv LaTeX source is available, prefer reading the source; otherwise use available local and permitted full-text access such as PDF, Zotero, Crossref, library, or browser tools.
+- Record the access level for each core source in project notes or artifacts: `abstract_only`, `full_text_pdf`, `latex_source`, or `unavailable`.
+- If full text cannot be obtained, record the missing source and ask the project owner to provide it before relying on the paper for a central claim.
+
 ## Reconnect discipline
 
 - On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.autoresearch/` exists, run `autoresearch status --json` before taking any new action.
