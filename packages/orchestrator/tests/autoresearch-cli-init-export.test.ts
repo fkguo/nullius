@@ -145,7 +145,6 @@ describe('autoresearch CLI init/export', () => {
           'project_charter.md',
           'research_plan.md',
           'research_contract.md',
-          'research_notebook.md',
         ],
       },
     });
