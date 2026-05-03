@@ -81,6 +81,9 @@ def main() -> int:
     state_path = runtime_dir / "state.json"
 
     env = dict(os.environ)
+    prev_pythonpath = env.get("PYTHONPATH")
+    src_root = os.fspath(SRC_ROOT.resolve())
+    env["PYTHONPATH"] = src_root if not prev_pythonpath else (src_root + os.pathsep + str(prev_pythonpath))
     env["HEP_AUTORESEARCH_DIR"] = runtime_rel
 
     errors: list[str] = []
@@ -124,7 +127,7 @@ def main() -> int:
 
     # init (isolated runtime dir)
     rc_init, out_init = _run(
-        ["python3", "scripts/orchestrator.py", "init", "--force"],
+        ["python3", "-m", "hep_autoresearch.orchestrator_cli", "init", "--force"],
         cwd=REPO_ROOT,
         env=env,
         timeout_seconds=min(60, int(args.timeout_seconds)),
@@ -137,7 +140,8 @@ def main() -> int:
 
     cmd_run = [
         "python3",
-        "scripts/orchestrator.py",
+        "-m",
+        "hep_autoresearch.orchestrator_cli",
         "run",
         "--run-id",
         tag,
@@ -157,7 +161,7 @@ def main() -> int:
     out_approve = ""
     if isinstance(approval_id, str) and approval_id.strip():
         rc_approve, out_approve = _run(
-            ["python3", "scripts/orchestrator.py", "approve", approval_id],
+            ["python3", "-m", "hep_autoresearch.orchestrator_cli", "approve", approval_id],
             cwd=REPO_ROOT,
             env=env,
             timeout_seconds=60,

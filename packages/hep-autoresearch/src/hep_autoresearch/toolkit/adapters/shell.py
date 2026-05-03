@@ -814,7 +814,10 @@ class ShellAdapter(Adapter):
             "adapter_id": self.adapter_id,
             "artifact_step": str(prep.run_card.get("artifact_step") or "adapter_shell"),
         }
-        command = " ".join([str(x) for x in (prep.run_card.get("orchestrator_command") or [])]) or "python3 scripts/orchestrator.py run"
+        command = (
+            " ".join([str(x) for x in (prep.run_card.get("orchestrator_command") or [])])
+            or "python3 -m hep_autoresearch.orchestrator_cli run"
+        )
 
         exec_payload = None
         errors: list[str] = []

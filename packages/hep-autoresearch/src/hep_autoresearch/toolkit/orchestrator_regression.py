@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from ._git import try_get_git_metadata
 from ._json import read_json, write_json
@@ -158,10 +158,15 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
     src_root = os.fspath((repo_root / "src").resolve())
     cli_snip = "from hep_autoresearch.orchestrator_cli import main; raise SystemExit(main())"
 
-    def _external_cli_env(*, base_env: dict[str, str], runtime_root: Path | None) -> dict[str, str]:
+    def _external_cli_env(*, base_env: Mapping[str, str], runtime_root: Path | None) -> dict[str, str]:
         external_env = dict(base_env)
         prev_pp = external_env.get("PYTHONPATH")
-        external_env["PYTHONPATH"] = src_root if not prev_pp else (src_root + os.pathsep + str(prev_pp))
+        if not prev_pp:
+            external_env["PYTHONPATH"] = src_root
+        else:
+            prev_pp_text = str(prev_pp)
+            first_path, _, _ = prev_pp_text.partition(os.pathsep)
+            external_env["PYTHONPATH"] = prev_pp_text if first_path == src_root else (src_root + os.pathsep + prev_pp_text)
         if runtime_root is None:
             external_env.pop("HEP_AUTORESEARCH_DIR", None)
         else:
@@ -172,7 +177,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         return ["python3", "-c", cli_snip, *argv]
 
     def _orchestrator_cmd(*argv: str, project_root: Path | None = None) -> list[str]:
-        cmd = ["python3", "scripts/orchestrator.py"]
+        cmd = ["python3", "-m", "hep_autoresearch.orchestrator_cli"]
         if project_root is not None:
             cmd.extend(["--project-root", os.fspath(project_root)])
         cmd.extend(argv)
@@ -267,8 +272,7 @@ def run_orchestrator_regression(inps: OrchestratorRegressionInputs, repo_root: P
         reset_generated_dir(repo_root / "artifacts" / "runs" / str(run_id), label=f"run artifacts for {run_id}")
 
     errors: list[str] = []
-    env = dict(os.environ)
-    env["HEP_AUTORESEARCH_DIR"] = runtime_dir_env
+    env = _external_cli_env(base_env=os.environ, runtime_root=runtime_dir)
 
     versions: dict[str, Any] = {"python": os.sys.version.split()[0], "os": platform.platform()}
 
