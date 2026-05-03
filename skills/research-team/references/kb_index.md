@@ -12,8 +12,8 @@ Important scope note: networked research (literature discovery, metadata lookup,
 
 Non-goals:
 - No LLM calls (ever).
-- Not a literature crawler/downloader (belongs in project-leader tooling or the orchestrator).
-- No orchestration/state machines/approvals/evaluation logic (belongs in `hep-autoresearch`).
+- Not a literature crawler/downloader (belongs in project-leader tooling or the generic control plane).
+- No orchestration/state machines/approvals/evaluation logic (belongs in `autoresearch` / `packages/orchestrator`).
 
 ## CLI
 
@@ -101,15 +101,15 @@ python3 "${SKILL_DIR}/scripts/bin/kb_export.py" kb-index \
 cmp -s /tmp/kb_index.json /tmp/kb_index_2.json && echo "byte-identical: yes"
 ```
 
-## Suggested `hep-autoresearch` integration
+## Suggested generic control-plane integration
 
-Treat `knowledge_base/kb_index.json` as an **evidence bundle index** input (alongside team packets and artifact manifests). The orchestrator should:
+Treat `knowledge_base/kb_index.json` as an **evidence bundle index** input (alongside team packets and artifact manifests). The `autoresearch` / `packages/orchestrator` control plane should:
 
 - validate the JSON against `scripts/schemas/kb_index.schema.json`
 - use `entries[].evidence_paths` (and/or `entries[].path`) to locate local evidence files (Markdown/TeX snapshots, etc.)
 - ingest selected evidence content into its retrieval/ranking/audit pipeline
 
-This exporter only builds a deterministic index; it deliberately avoids duplicating orchestrator responsibilities.
+This exporter only builds a deterministic index; it deliberately avoids duplicating generic control-plane responsibilities.
 
 ## Determinism & change detection
 
