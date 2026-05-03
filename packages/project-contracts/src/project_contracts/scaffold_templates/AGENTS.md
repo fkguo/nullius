@@ -42,12 +42,17 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Do not write only "PDF-body read for X"; include the concrete section/page/equation/figure coverage above.
 - Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links. Do not leave bare URLs in literature notes.
 
-## Reconnect discipline
+## Autoresearch superagent handoff / reconnect protocol
 
 - On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.autoresearch/` exists, run `autoresearch status --json` before taking any new action.
 - If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
+- Treat `autoresearch` as the guaranteed root entrypoint for this scaffold.
 - Treat that status output as the authoritative recovery briefing for the current run, recovery context, plan view, and bounded workflow outputs.
 - After reading status, continue through the checked-in files in the order above, and read [research_notebook.md](research_notebook.md) only when it already contains substantive content.
+- When the host exposes orchestration or MCP control-plane commands such as `orch_*`, those host-local surfaces may be used as optional control planes; do not assume a literal `orch_*` command exists in every scaffolded project.
+- Provider/domain MCP tools are capability sources, not root authority; do not treat provider MCPs such as `hep-mcp` as the generic root authority.
+- If any A1-A5 approval is pending, stop there. Silence is never approval.
+- If evidence is incomplete, mark the state `uncertain`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
 
 ## Markdown and links
 

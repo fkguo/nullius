@@ -288,6 +288,24 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertNotIn("[prompts/](prompts/)", plan_template)
         self.assertNotIn("[team/](team/)", plan_template)
 
+    def test_superagent_handoff_protocol_semantics_are_repeated_on_root_scaffold_surfaces(self) -> None:
+        templates = {
+            "AGENTS.md": (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8"),
+            "project_index.md": (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8"),
+            "research_contract.md": (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8"),
+        }
+
+        for name, template in templates.items():
+            self.assertIn("`autoresearch`", template, msg=name)
+            self.assertIn("guaranteed root entrypoint", template, msg=name)
+            self.assertIn("orchestration or MCP control-plane commands such as `orch_*`", template, msg=name)
+            self.assertIn("do not assume a literal `orch_*` command exists", template, msg=name)
+            self.assertIn("Provider/domain MCP tools are capability sources, not root authority", template, msg=name)
+            self.assertIn("do not treat provider MCPs such as `hep-mcp` as the generic root authority", template, msg=name)
+            self.assertIn("If any A1-A5 approval is pending, stop there.", template, msg=name)
+            self.assertIn("Silence is never approval.", template, msg=name)
+            self.assertIn("mark the state `uncertain`, `unavailable`, or as a reading gap", template, msg=name)
+
     def test_research_contract_template_drops_legacy_host_surface_residue(self) -> None:
         template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
