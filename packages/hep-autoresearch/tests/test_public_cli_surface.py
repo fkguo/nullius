@@ -1,4 +1,5 @@
 import json
+import re
 import unittest
 
 
@@ -16,6 +17,10 @@ class TestPublicCliSurface(unittest.TestCase):
 
     def _read_front_door_authority_map(self) -> dict:
         return json.loads(self._read_repo_file("meta/front_door_authority_map_v1.json"))
+
+    def _read_internal_parser_top_level_commands(self) -> set[str]:
+        source = self._read_repo_file("packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py")
+        return set(re.findall(r"^\s+\w+\s*=\s*sub\.add_parser\(\"([^\"]+)\"", source, flags=re.MULTILINE))
 
     def _run_public_cli(self, argv: list[str]) -> tuple[int, str, str]:
         import sys
@@ -113,6 +118,12 @@ class TestPublicCliSurface(unittest.TestCase):
             ],
         )
         self.assertEqual(groups["internal_adapter_workflow_paths"], ["run --workflow-id shell_adapter_smoke"])
+
+    def test_internal_parser_top_level_commands_do_not_restore_retired_mutation_wrappers(self) -> None:
+        self.assertEqual(
+            self._read_internal_parser_top_level_commands(),
+            {"init", "status", "pause", "resume", "approve", "run", "export", "branch"},
+        )
 
 
 if __name__ == "__main__":

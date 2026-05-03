@@ -800,43 +800,6 @@ def cmd_resume(args: argparse.Namespace) -> int:
     return _run_autoresearch_passthrough(repo_root=repo_root, argv=forwarded)
 
 
-# Internal-only maintainer surface: `checkpoint` is retired from the installable
-# shell and still owns local mutation semantics pending TS parity.
-def cmd_checkpoint(args: argparse.Namespace) -> int:
-    repo_root = _repo_root_from_args(args)
-    st = _read_or_init_state(repo_root)
-    if st.get("run_status") not in {"running", "paused", "awaiting_approval"} and not args.force:
-        return _die(f"refusing checkpoint in status={st.get('run_status')} (use --force)")
-
-    # --- C-01: enforce timeout/budget at every checkpoint ---
-    timeout_action = check_approval_timeout(repo_root, st)
-    if timeout_action:
-        print(f"[warn] approval timed out (policy_action={timeout_action})", file=sys.stderr)
-        return 0  # state already mutated; don't continue the checkpoint
-    if check_approval_budget(repo_root, st):
-        print("[warn] approval budget exhausted", file=sys.stderr)
-        return 0
-    # --- end C-01 ---
-
-    if args.step_id or args.step_title:
-        step_id = str(args.step_id or (st.get("current_step") or {}).get("step_id") or "STEP")
-        title = str(args.step_title or (st.get("current_step") or {}).get("title") or "")
-        st["current_step"] = {"step_id": step_id, "title": title, "started_at": _now_z()}
-        _sync_plan_current_step(repo_root, st, step_id=step_id, title=title)
-    st.setdefault("checkpoints", {})["last_checkpoint_at"] = _now_z()
-    save_state(repo_root, st)
-    append_ledger_event(
-        repo_root,
-        event_type="checkpoint",
-        run_id=st.get("run_id"),
-        workflow_id=st.get("workflow_id"),
-        step_id=(st.get("current_step") or {}).get("step_id") if isinstance(st.get("current_step"), dict) else None,
-        details={"note": args.note or ""},
-    )
-    print("[ok] checkpoint updated")
-    return 0
-
-
 def _require_plan(st: dict) -> dict:
     plan = st.get("plan")
     if not isinstance(plan, dict) or not plan:
@@ -1535,62 +1498,6 @@ def _request_approval(
         },
     )
     return approval_id, os.fspath(packet_path.relative_to(repo_root))
-
-
-# Internal-only maintainer surface: `request-approval` is retired from the
-# public front door and still materializes packets locally pending TS parity.
-def cmd_request_approval(args: argparse.Namespace) -> int:
-    repo_root = _repo_root_from_args(args)
-    st = _read_or_init_state(repo_root)
-
-    category = args.category
-    run_id = args.run_id or st.get("run_id")
-    if not run_id:
-        return _die("missing run_id (run: start --run-id ...), or pass --run-id")
-    try:
-        _ensure_context_pack(
-            repo_root=repo_root,
-            st=st,
-            run_id=str(run_id),
-            workflow_id=st.get("workflow_id"),
-            note=args.note,
-        )
-        _ensure_run_card(
-            repo_root=repo_root,
-            st=st,
-            run_id=str(run_id),
-            workflow_id=st.get("workflow_id"),
-            params={
-                "command": "request-approval",
-                "run_id": run_id,
-                "workflow_id": st.get("workflow_id"),
-                "category": category,
-            },
-            notes="run-card recorded before approval request",
-        )
-    except Exception as e:
-        return _die(f"failed to build context pack: {e}")
-    try:
-        approval_id, packet_rel = _request_approval(
-            repo_root=repo_root,
-            st=st,
-            category=category,
-            run_id=run_id,
-            plan_step_ids=None,
-            purpose=args.purpose,
-            plan=args.plan or [],
-            risks=args.risk or [],
-            outputs=args.output or [],
-            rollback=args.rollback,
-            note=args.note,
-            force=bool(args.force),
-        )
-    except Exception as e:
-        return _die(str(e))
-
-    print(f"[ok] requested approval: {approval_id}")
-    print(f"[ok] packet: {packet_rel}")
-    return 0
 
 
 def _require_pending(st: dict, approval_id: str) -> dict | None:
