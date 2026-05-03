@@ -132,7 +132,42 @@ def _extract_field(text: str, field: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def _validate_literature_note(path: Path, forbid_tokens: Optional[list[str]] = None) -> list[str]:
+def _extract_bullet_field(text: str, field: str) -> str:
+    m = re.search(rf"^\s*-\s*{re.escape(field)}\s*:\s*(.+?)\s*$", text, flags=re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
+def _looks_like_placeholder(value: str) -> bool:
+    normalized = value.strip().lower()
+    if not normalized:
+        return True
+    return "(fill" in normalized or normalized.startswith("todo") or normalized.startswith("tbd")
+
+
+_REQUIRED_READING_EVIDENCE_FIELDS = (
+    "Source form actually read",
+    "Sections/pages/equations/figures actually read",
+    "Central equations/assumptions extracted",
+    "What was not read and why",
+    "Project relevance",
+    "Limitations / caveats for using this note",
+)
+
+_ALLOWED_EVIDENCE_READY_VERIFICATION_STATUSES = (
+    "spot-checked",
+    "replicated",
+    "contradicted",
+)
+
+_ALLOWED_EVIDENCE_READINESS = "evidence-ready"
+
+
+def _validate_literature_note(
+    path: Path,
+    forbid_tokens: Optional[list[str]] = None,
+    *,
+    require_reading_evidence: bool = False,
+) -> list[str]:
     """
     Enforce a minimal metadata header in literature notes (no backward-compat guarantees).
     This is intentionally line-based and LaTeX-parser-free.
@@ -178,6 +213,36 @@ def _validate_literature_note(path: Path, forbid_tokens: Optional[list[str]] = N
         citekey = _extract_field(head, "Citekey")
         if not citekey:
             errors.append(f"{path}: recid-based note must include 'Citekey: <texkey>'.")
+
+    if require_reading_evidence:
+        verification_status = _extract_field(head, "Verification status")
+        if not verification_status:
+            errors.append(f"{path}: missing required metadata line: 'Verification status: ...'")
+        else:
+            normalized_status = verification_status.strip().lower()
+            if normalized_status not in _ALLOWED_EVIDENCE_READY_VERIFICATION_STATUSES:
+                allowed = ", ".join(_ALLOWED_EVIDENCE_READY_VERIFICATION_STATUSES)
+                errors.append(
+                    f"{path}: Verification status {verification_status!r} is not evidence-ready when "
+                    "knowledge_layers.require_literature_reading_evidence=true; "
+                    f"allowed values: {allowed}."
+                )
+
+        evidence_readiness = _extract_field(head, "Evidence readiness")
+        if not evidence_readiness:
+            errors.append(f"{path}: missing required metadata line: 'Evidence readiness: ...'")
+        elif evidence_readiness.strip().lower() != _ALLOWED_EVIDENCE_READINESS:
+            errors.append(
+                f"{path}: Evidence readiness must be '{_ALLOWED_EVIDENCE_READINESS}' when "
+                f"knowledge_layers.require_literature_reading_evidence=true (got {evidence_readiness!r})."
+            )
+
+        for field in _REQUIRED_READING_EVIDENCE_FIELDS:
+            value = _extract_bullet_field(head, field)
+            if not value:
+                errors.append(f"{path}: missing required reading-evidence field: '{field}:'")
+            elif _looks_like_placeholder(value):
+                errors.append(f"{path}: reading-evidence field still placeholder: '{field}:'")
 
     # Optional strictness: forbid "stub" placeholders in referenced notes (token-based, case-insensitive).
     toks = [t.strip() for t in (forbid_tokens or []) if isinstance(t, str) and t.strip()]
@@ -239,6 +304,7 @@ def main() -> int:
     require_min_lit = int(kb_cfg.get("require_min_literature", 0))
     require_min_pri = int(kb_cfg.get("require_min_priors", 0))
     allow_none = bool(kb_cfg.get("allow_none", True))
+    require_literature_reading_evidence = bool(kb_cfg.get("require_literature_reading_evidence", False))
     forbid_lit_tokens = kb_cfg.get("forbid_literature_tokens", [])
     if not isinstance(forbid_lit_tokens, list):
         forbid_lit_tokens = []
@@ -329,7 +395,13 @@ def main() -> int:
     # Strict validation: literature notes must carry basic metadata.
     # (No backward-compat: this is part of the research-team contract.)
     for p in ok_lit:
-        errors.extend(_validate_literature_note(p, forbid_tokens=forbid_lit_tokens))
+        errors.extend(
+            _validate_literature_note(
+                p,
+                forbid_tokens=forbid_lit_tokens,
+                require_reading_evidence=require_literature_reading_evidence,
+            )
+        )
 
     # Rendering safety: referenced KB notes must not contain Markdown-hostile $$ formatting.
     # Validate all referenced KB notes (literature + methodology traces + priors).

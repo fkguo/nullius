@@ -47,6 +47,7 @@ When should you upgrade from `metadata-only/skimmed` to “deep read / verificat
 - Any reference used in **core derivations / headline numbers / default algorithm choices / main conclusions / novelty claims (A5)**: at least `spot-checked`. For the closest prior work, aim for `replicated` when possible.
 - Any case where you “implement an algorithm from the paper”: at least `skimmed` plus one reproducible check (otherwise you are trusting a black box).
 - The ingest workflow may contain lots of `metadata-only` notes for coverage/screening; but later workflows (reproduce / derivation_check / revision) must upgrade the few key dependencies you actually rely on.
+- Auto-generated ingest notes are screening stubs only: keep them marked `Evidence readiness: reading-required` with an explicit reading-coverage checklist until someone actually reads and upgrades the note.
 
 ### Markdown math hygiene (rendering safety)
 
