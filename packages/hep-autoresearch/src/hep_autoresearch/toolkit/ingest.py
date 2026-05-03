@@ -186,6 +186,24 @@ def _append_literature_query_log(
     _ensure_append_only_row(log_path, row)
 
 
+def _metadata_only_reading_requirements_lines() -> list[str]:
+    return [
+        "Verification status: metadata-only (auto-generated; full text not yet deep-read)",
+        "Evidence readiness: reading-required",
+        "Reading evidence needed:",
+        "- Source form actually read: (fill: PDF | arXiv source | journal HTML | other)",
+        "- Sections/pages/equations/figures actually read: (fill)",
+        "- Central equations/assumptions extracted: (fill)",
+        "- What was not read and why: (fill)",
+        "- Project relevance: (fill)",
+        "- Limitations / caveats for using this note: (fill)",
+        "",
+        "What was checked:",
+        "- metadata only (title/authors/links)",
+        "",
+    ]
+
+
 def _write_note_if_needed(
     *,
     note_path: Path,
@@ -228,12 +246,9 @@ def _write_note_if_needed(
             "- (fill) What is the main claim? What would falsify it?",
             "- (fill) Identify 1–2 equations/figures to spot-check later.",
             "",
-            "Verification status: metadata-only (auto-generated; full text not yet deep-read)",
-            "What was checked:",
-            "- metadata only (title/authors/links)",
-            "",
         ]
     )
+    md.extend(_metadata_only_reading_requirements_lines())
     note_path.parent.mkdir(parents=True, exist_ok=True)
     note_path.write_text("\n".join(md), encoding="utf-8")
     return True
@@ -357,6 +372,8 @@ def _write_arxiv_note_if_needed(
         "",
         f"RefKey: {refkey}",
         arxiv_line,
+        f"Authors: {authors_short}",
+        f"Publication: {arxiv_line}",
         "Links:",
         links_md,
         "",
@@ -369,11 +386,8 @@ def _write_arxiv_note_if_needed(
         "- (fill) What is the main claim? What would falsify it?",
         "- (fill) Identify 1–2 equations/figures to spot-check later.",
         "",
-        "Verification status: metadata-only (auto-generated; full text not yet deep-read)",
-        "What was checked:",
-        "- metadata only (title/authors/links)",
-        "",
     ]
+    md.extend(_metadata_only_reading_requirements_lines())
     note_path.parent.mkdir(parents=True, exist_ok=True)
     note_path.write_text("\n".join(md), encoding="utf-8")
     return True
@@ -400,6 +414,8 @@ def _write_doi_note_if_needed(
         "",
         f"RefKey: {refkey}",
         f"DOI: {doi}",
+        f"Authors: {authors_short}",
+        f"Publication: DOI: {doi}",
         "Links:",
         links_md,
         "",
@@ -412,11 +428,8 @@ def _write_doi_note_if_needed(
         "- (fill) What is the main claim? What would falsify it?",
         "- (fill) Identify 1–2 equations/figures to spot-check later.",
         "",
-        "Verification status: metadata-only (auto-generated; full text not yet deep-read)",
-        "What was checked:",
-        "- metadata only (title/authors/links)",
-        "",
     ]
+    md.extend(_metadata_only_reading_requirements_lines())
     note_path.parent.mkdir(parents=True, exist_ok=True)
     note_path.write_text("\n".join(md), encoding="utf-8")
     return True
