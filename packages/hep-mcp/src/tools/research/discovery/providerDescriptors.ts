@@ -17,7 +17,7 @@ export const INSPIRE_DISCOVERY_DESCRIPTOR: DiscoveryProviderDescriptor = Discove
     supports_open_access_content: true,
   },
   supported_intents: ['known_item', 'keyword_search', 'citation_expansion', 'fulltext_search'],
-  notes: 'Shared discovery descriptor for NEW-DISC-01/SEM-06 retrieval planning.',
+  notes: 'Shared discovery descriptor for NEW-DISC-01. Canonical identity, dedup, query-plan, and search-log artifacts are closed out in the shared broker substrate.',
 });
 
 export const DISCOVERY_PROVIDER_DESCRIPTORS: DiscoveryProviderDescriptor[] = [
