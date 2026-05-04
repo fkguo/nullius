@@ -373,11 +373,16 @@ def _check_team_dir(project_root: Path, *, assets_dir: Path, project_name: str, 
     mapping: dict[str, Path] = {
         "LATEST.md": assets_dir / "team_latest_template.md",
         "LATEST_TEAM.md": assets_dir / "team_latest_team_template.md",
+    }
+    optional_default_mapping: dict[str, Path] = {
+        # Older scaffolds created this placeholder eagerly. It is now lazy, but
+        # an untouched placeholder should not block pruning a default team dir.
         "LATEST_DRAFT.md": assets_dir / "team_latest_draft_template.md",
     }
     present = _dir_files_rel(team)
     expected = set(mapping.keys())
-    extra = sorted(present - expected)
+    optional_defaults = set(optional_default_mapping.keys())
+    extra = sorted(present - expected - optional_defaults)
     missing = sorted(expected - present)
     if missing:
         return False, f"missing expected files: {missing[:5]!r}"
@@ -391,6 +396,19 @@ def _check_team_dir(project_root: Path, *, assets_dir: Path, project_name: str, 
         return False, "team/runs is not empty"
 
     for rel, asset in mapping.items():
+        ok, why = _matches_template_file(
+            project_root=project_root,
+            rel_path=f"team/{rel}",
+            asset_path=asset,
+            project_name=project_name,
+            profile=profile,
+        )
+        if not ok:
+            return False, f"{rel} not default: {why}"
+
+    for rel, asset in optional_default_mapping.items():
+        if rel not in present:
+            continue
         ok, why = _matches_template_file(
             project_root=project_root,
             rel_path=f"team/{rel}",

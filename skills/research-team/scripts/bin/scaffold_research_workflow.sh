@@ -173,7 +173,6 @@ copy_template "${ASSETS_DIR}/export_paper_bundle.sh" "${ROOT}/scripts/export_pap
 copy_template "${ASSETS_DIR}/references_readme_template.md" "${ROOT}/references/README.md"
 copy_template "${ASSETS_DIR}/team_latest_template.md" "${ROOT}/team/LATEST.md"
 copy_template "${ASSETS_DIR}/team_latest_team_template.md" "${ROOT}/team/LATEST_TEAM.md"
-copy_template "${ASSETS_DIR}/team_latest_draft_template.md" "${ROOT}/team/LATEST_DRAFT.md"
 copy_template "${ASSETS_DIR}/artifacts_latest_template.md" "${ROOT}/artifacts/LATEST.md"
 copy_template "${ASSETS_DIR}/knowledge_base_readme_template.md" "${ROOT}/knowledge_base/README.md"
 copy_template "${ASSETS_DIR}/methodology_trace_template.md" "${ROOT}/knowledge_base/methodology_traces/_template.md"

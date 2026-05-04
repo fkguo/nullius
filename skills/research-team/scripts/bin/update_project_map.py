@@ -163,13 +163,27 @@ def _replace_auto_block(text: str, new_block: str) -> str:
     return text[:a] + "\n" + new_block.rstrip() + "\n" + text[b:]
 
 
-def _write_team_latest_index(team_dir: Path) -> None:
+def _draft_template_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "assets" / "team_latest_draft_template.md"
+
+
+def _extract_pointer_field(text: str, prefix: str) -> str:
+    needle = prefix.lower()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith(needle):
+            return stripped.split(":", 1)[1].strip()
+    return ""
+
+
+def _write_team_latest_index(team_dir: Path, *, include_draft: bool = False) -> None:
     path = team_dir / "LATEST.md"
     lines: list[str] = []
     lines.append("# Latest pointers")
     lines.append("")
     lines.append("- Team cycle: [LATEST_TEAM.md](LATEST_TEAM.md)")
-    lines.append("- Draft cycle (optional; disabled until configured and run): [LATEST_DRAFT.md](LATEST_DRAFT.md)")
+    if include_draft:
+        lines.append("- Draft cycle: [LATEST_DRAFT.md](LATEST_DRAFT.md)")
     lines.append("- Trajectory index: [trajectory_index.json](trajectory_index.json)")
     _write_text(path, "\n".join(lines) + "\n")
 
@@ -208,22 +222,14 @@ def _write_latest_team_cycle(team_dir: Path, tag: str, status: str, run_dir: Pat
 
 def _write_latest_draft_cycle(team_dir: Path, tag: str, status: str, run_dir: Path | None) -> None:
     path = team_dir / "LATEST_DRAFT.md"
-    disabled = not tag and not status and (run_dir is None or not run_dir.is_dir())
     lines: list[str] = []
     lines.append("# Latest Draft Cycle")
     lines.append("")
     lines.append(f"Last updated: {_utc_now()}")
     lines.append("")
-    if disabled:
-        lines.append("- Draft cycle state: optional / not configured")
-        lines.append("- Latest tag: (no draft cycle has run yet)")
-        lines.append("- Status: not configured")
-        lines.append("- Run directory: (no draft cycle has run yet)")
-        lines.append("- Activation note: enable and run a draft cycle before treating this file as a live restart surface.")
-    else:
-        lines.append("- Draft cycle state: active")
-        lines.append(f"- Latest tag: {tag or '(none)'}")
-        lines.append(f"- Status: {status or '(unknown)'}")
+    lines.append("- Draft cycle state: active")
+    lines.append(f"- Latest tag: {tag}")
+    lines.append(f"- Status: {status}")
     if run_dir is not None and run_dir.is_dir():
         rel = os.path.relpath(run_dir, team_dir)
         if not rel.startswith("."):
@@ -248,6 +254,39 @@ def _write_latest_draft_cycle(team_dir: Path, tag: str, status: str, run_dir: Pa
                 lines.append(f"- {label}: [{relp}]({relp})")
     lines.append("- Trajectory index: [trajectory_index.json](trajectory_index.json)")
     _write_text(path, "\n".join(lines) + "\n")
+
+
+def _is_disabled_draft_placeholder(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    text = _read_text(path)
+    try:
+        return text == _read_text(_draft_template_path())
+    except Exception:
+        return "treat this file as a disabled status marker" in text and "- Draft cycle state: optional / not configured" in text
+
+
+def _read_existing_draft_state(team_dir: Path) -> tuple[str, str, bool]:
+    path = team_dir / "LATEST_DRAFT.md"
+    if not path.is_file():
+        return "", "", False
+    if _is_disabled_draft_placeholder(path):
+        return "", "", False
+    text = _read_text(path)
+    tag = _extract_pointer_field(text, "- Latest tag:")
+    status = _extract_pointer_field(text, "- Status:")
+    active = "- Draft cycle state: active" in text
+    if not active and _active_pointer_value(tag) and _active_pointer_value(status):
+        active = True
+    return tag, status, active
+
+
+def _remove_inactive_draft_pointer(team_dir: Path) -> bool:
+    path = team_dir / "LATEST_DRAFT.md"
+    if not _is_disabled_draft_placeholder(path):
+        return False
+    path.unlink()
+    return True
 
 
 def _write_artifacts_latest(artifacts_dir: Path, tag: str, artifacts_run: Path | None) -> None:
@@ -297,6 +336,23 @@ def _parse_project_map_auto_state(text: str) -> dict[str, str]:
     return out
 
 
+def _active_pointer_value(value: str) -> bool:
+    value = (value or "").strip()
+    return bool(value) and value not in {
+        "(none)",
+        "(unknown)",
+        "(no draft cycle has run yet)",
+        "not configured",
+    }
+
+
+def _has_active_draft_state(team_dir: Path, state: dict[str, str]) -> bool:
+    if _active_pointer_value(state.get("draft_tag", "")) and _active_pointer_value(state.get("draft_status", "")):
+        return True
+    _, _, active = _read_existing_draft_state(team_dir)
+    return active
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Update project_index.md + latest pointers deterministically.")
     ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (used to locate project root).")
@@ -317,12 +373,17 @@ def main() -> int:
     team_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    _write_team_latest_index(team_dir)
     _ensure_project_map_exists(project_root)
 
     map_path = project_root / "project_index.md"
     text = _read_text(map_path) if map_path.is_file() else ""
     state = _parse_project_map_auto_state(text)
+    existing_draft_tag, existing_draft_status, existing_draft_active = _read_existing_draft_state(team_dir)
+    if existing_draft_active:
+        if not _active_pointer_value(state.get("draft_tag", "")):
+            state["draft_tag"] = existing_draft_tag
+        if not _active_pointer_value(state.get("draft_status", "")):
+            state["draft_status"] = existing_draft_status
 
     kind = args.latest_kind
     tag, status = _infer_latest_tag_and_status(project_root, team_dir, args.tag, args.status, kind)
@@ -332,8 +393,12 @@ def main() -> int:
         if status:
             state["team_status"] = status
     else:
-        state["draft_tag"] = tag
-        state["draft_status"] = status
+        if tag and status:
+            state["draft_tag"] = tag
+            state["draft_status"] = status
+        elif not existing_draft_active:
+            state["draft_tag"] = ""
+            state["draft_status"] = ""
 
     # Compute run_dir for the kind we are updating (only for pointer links).
     run_dir = args.run_dir
@@ -344,7 +409,10 @@ def main() -> int:
     if kind == "team":
         _write_latest_team_cycle(team_dir, state.get("team_tag", ""), state.get("team_status", ""), run_dir)
     else:
-        _write_latest_draft_cycle(team_dir, state.get("draft_tag", ""), state.get("draft_status", ""), run_dir)
+        if tag and status:
+            _write_latest_draft_cycle(team_dir, state["draft_tag"], state["draft_status"], run_dir)
+        else:
+            _remove_inactive_draft_pointer(team_dir)
 
     # Artifacts pointer: prefer latest TEAM tag if present, otherwise fall back.
     artifacts_tag = state.get("team_tag") or state.get("draft_tag") or tag
@@ -355,11 +423,17 @@ def main() -> int:
     auto_lines.append(f"- Auto-updated at: {_utc_now()}")
     auto_lines.append(f"- Team latest tag: {state.get('team_tag') or '(none)'}")
     auto_lines.append(f"- Team latest status: {state.get('team_status') or '(unknown)'}")
-    auto_lines.append(f"- Draft latest tag: {state.get('draft_tag') or '(no draft cycle has run yet)'}")
-    auto_lines.append(f"- Draft latest status: {state.get('draft_status') or 'not configured'}")
     auto_lines.append("- Latest pointers: [team/LATEST.md](team/LATEST.md)")
     auto_lines.append("- Latest team: [team/LATEST_TEAM.md](team/LATEST_TEAM.md)")
-    auto_lines.append("- Latest draft (optional; disabled until configured and run): [team/LATEST_DRAFT.md](team/LATEST_DRAFT.md)")
+    include_draft = _has_active_draft_state(team_dir, state)
+    if include_draft:
+        if not _active_pointer_value(state.get("draft_tag", "")):
+            state["draft_tag"] = existing_draft_tag
+        if not _active_pointer_value(state.get("draft_status", "")):
+            state["draft_status"] = existing_draft_status
+        auto_lines.append(f"- Draft latest tag: {state['draft_tag']}")
+        auto_lines.append(f"- Draft latest status: {state['draft_status']}")
+        auto_lines.append("- Latest draft: [team/LATEST_DRAFT.md](team/LATEST_DRAFT.md)")
     auto_lines.append("- Latest artifacts: [artifacts/LATEST.md](artifacts/LATEST.md)")
 
     new_text = _replace_auto_block(text, "\n".join(auto_lines))
@@ -371,13 +445,16 @@ def main() -> int:
             break
     new_text = "\n".join(lines) + "\n"
     _write_text(map_path, new_text)
+    _write_team_latest_index(team_dir, include_draft=include_draft)
 
     print(f"[ok] updated: {map_path}")
     print(f"[ok] updated: {team_dir / 'LATEST.md'}")
     if kind == "team":
         print(f"[ok] updated: {team_dir / 'LATEST_TEAM.md'}")
-    else:
+    elif include_draft:
         print(f"[ok] updated: {team_dir / 'LATEST_DRAFT.md'}")
+    else:
+        print(f"[ok] skipped: {team_dir / 'LATEST_DRAFT.md'} (no draft tag/status)")
     print(f"[ok] updated: {artifacts_dir / 'LATEST.md'}")
     return 0
 
