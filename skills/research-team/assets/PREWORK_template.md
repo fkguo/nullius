@@ -7,6 +7,10 @@ Purpose: capture prework tasks and evidence before any team cycle.
 - [ ] Literature notes added under [knowledge_base/literature/](knowledge_base/literature/)
 - [ ] Each literature note includes a `RefKey:` line and external link (if available)
 - [ ] For INSPIRE items: record `INSPIRE recid:` and `Citekey:` in the KB note (near the top)
+- [ ] For important or directly relevant papers, abstracts were used only for triage; the note records what full text/source was actually read
+- [ ] For arXiv items with source available, source-first reading was attempted before treating the note as evidence-ready
+- [ ] Literature notes record `Evidence readiness`, source form, sections/pages/equations/figures read, central equations/assumptions, unread scope, project relevance, and limitations
+- [ ] Tool-use logs and download traces are kept in methodology traces or run artifacts, not in literature notes
 - [ ] Literature coverage matrix updated (dimensions, status, gaps, and plan)
 - [ ] Skepticism check: at least one critical external claim/formula has been independently checked (derivation/limit/reproduction), or explicitly marked unverified with a plan + kill criterion in a methodology trace
 - [ ] Methodology traces added under [knowledge_base/methodology_traces/](knowledge_base/methodology_traces/)

@@ -9,6 +9,7 @@ from pathlib import Path
 TESTS_DIR = Path(__file__).resolve().parent
 RESEARCH_TEAM_DIR = TESTS_DIR.parent
 GATE = RESEARCH_TEAM_DIR / "scripts" / "gates" / "check_knowledge_layers.py"
+CONFIG_TEMPLATE = RESEARCH_TEAM_DIR / "assets" / "research_team_config_template.json"
 
 
 def _write_config(tmp_path: Path, *, require_literature_reading_evidence: bool = False) -> None:
@@ -30,6 +31,14 @@ def _write_config(tmp_path: Path, *, require_literature_reading_evidence: bool =
             indent=2,
         )
         + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_template_default_config(tmp_path: Path) -> None:
+    data = json.loads(CONFIG_TEMPLATE.read_text(encoding="utf-8"))
+    (tmp_path / "research_team_config.json").write_text(
+        json.dumps(data, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -62,6 +71,17 @@ def _write_project_files(tmp_path: Path, literature_note: str) -> Path:
 
 def _run_gate(tmp_path: Path, literature_note: str, *, require_literature_reading_evidence: bool) -> subprocess.CompletedProcess[str]:
     _write_config(tmp_path, require_literature_reading_evidence=require_literature_reading_evidence)
+    notes = _write_project_files(tmp_path, literature_note)
+    return subprocess.run(
+        [sys.executable, str(GATE), "--notes", str(notes)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def _run_gate_with_template_default_config(tmp_path: Path, literature_note: str) -> subprocess.CompletedProcess[str]:
+    _write_template_default_config(tmp_path)
     notes = _write_project_files(tmp_path, literature_note)
     return subprocess.run(
         [sys.executable, str(GATE), "--notes", str(notes)],
@@ -121,6 +141,15 @@ def test_metadata_only_note_fails_when_reading_evidence_required(tmp_path: Path)
     result = _run_gate(tmp_path, _metadata_only_note(), require_literature_reading_evidence=True)
     assert result.returncode == 1
     assert "allowed values: spot-checked, replicated, contradicted" in result.stdout
+
+
+def test_template_default_config_requires_literature_reading_evidence(tmp_path: Path) -> None:
+    cfg = json.loads(CONFIG_TEMPLATE.read_text(encoding="utf-8"))
+    assert cfg["knowledge_layers"]["require_literature_reading_evidence"] is True
+
+    result = _run_gate_with_template_default_config(tmp_path, _metadata_only_note())
+    assert result.returncode == 1
+    assert "knowledge_layers.require_literature_reading_evidence=true" in result.stdout
 
 
 def test_missing_reading_coverage_field_fails_when_reading_evidence_required(tmp_path: Path) -> None:

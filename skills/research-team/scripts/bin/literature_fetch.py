@@ -543,6 +543,15 @@ def inspire_bibtex(*, recid: str | None = None, texkey: str | None = None) -> st
 
 DEFAULT_TRACE_PATH = "knowledge_base/methodology_traces/literature_queries.md"
 
+READING_EVIDENCE_FIELDS = (
+    "Source form actually read",
+    "Sections/pages/equations/figures actually read",
+    "Central equations/assumptions extracted",
+    "What was not read and why",
+    "Project relevance",
+    "Limitations / caveats for using this note",
+)
+
 def _infer_project_root_from_kb_dir(kb_dir: Path) -> Path | None:
     """
     Best-effort inference of project root given a KB directory.
@@ -1120,6 +1129,22 @@ def _kb_note_template(rec: dict[str, Any], kb_note_path: str) -> str:
     lines.append("Links:")
     lines.extend(links or ["- Link: none"])
     lines.append("")
+    lines.append("Verification status: metadata-only (auto-generated; full text not yet deep-read)")
+    lines.append("Evidence readiness: reading-required")
+    lines.append("Reading evidence needed:")
+    for field in READING_EVIDENCE_FIELDS:
+        if field == "Source form actually read":
+            lines.append(
+                "- Source form actually read: (fill: abstract_only | available_full_text | full_text_pdf | latex_source | unavailable | other)"
+            )
+        else:
+            lines.append(f"- {field}: (fill)")
+    if rec.get("arxiv_id"):
+        lines.append(
+            "For arXiv items: if LaTeX source is available, fetch/read the source before treating the note as evidence-ready."
+        )
+    lines.append("Tool-use logs belong in methodology traces or run artifacts, not in this literature note.")
+    lines.append("")
     lines.append("## Summary")
     lines.append("")
     lines.append("<!-- Summarize the key result(s) and relevance to this project. -->")
@@ -1560,9 +1585,12 @@ def main() -> int:
             textwrap.dedent(
                 f"""\
                 Next (manual, LLM-assisted):
+                - Prefer source-first reading: read the extracted LaTeX before relying on an arXiv note as evidence-ready.
                 - Open the LaTeX sources under `{extracted}`.
-                - Copy key equations/definitions into `knowledge_base/literature/<refkey>.md` under '## Key equations / definitions'.
-                - Record normalization choices and suspected typos under '## Notes / Issues'.
+                - Record `Source form actually read: latex_source` plus the sections/pages/equations/figures you actually used.
+                - Copy the central equations/definitions and assumptions into `knowledge_base/literature/<refkey>.md`.
+                - Record what you did not read, project relevance, normalization choices, suspected typos, and remaining limitations before switching the note to `Evidence readiness: evidence-ready`.
+                - Tool-use logs and download attempts belong in methodology traces or run artifacts, not in the literature note.
                 - If those excerpts use paper macros (\\newcommand), you can batch-discover safe 0-arg macro expansions and merge into your JSON config (run from project root): `python3 "${{SKILL_DIR:-${{CODEX_HOME:-$HOME/.codex}}/skills/research-team}}/scripts/bin/discover_latex_zero_arg_macros.py" --root . --update-config`
                 """
             ).rstrip()

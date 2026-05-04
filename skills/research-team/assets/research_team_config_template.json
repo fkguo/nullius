@@ -75,7 +75,8 @@
     "require_min_literature": 1,
     "require_min_priors": 1,
     "_note_require_min": "Minimum counts apply after removing '- none' unless allow_none is false.",
-    "allow_none": false
+    "allow_none": false,
+    "require_literature_reading_evidence": true
   },
   "references": {
     "_note": "References-gate external link allowlist: keep stable by default; extend per project if needed.",
