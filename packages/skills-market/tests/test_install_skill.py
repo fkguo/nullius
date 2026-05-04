@@ -14,7 +14,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from install_skill_runtime.cli import main as install_main
+from install_skill_runtime.market_index import load_json
 from install_skill_runtime.python_runtime import python_bin_relative_path
+from install_skill_runtime.source_payload import collect_payload_files
 from install_skill_runtime.skill_note import NOTE_START, inject_python_runtime_note
 
 
@@ -146,8 +148,15 @@ def test_non_opt_in_skill_remains_copy_only(tmp_path: pathlib.Path) -> None:
     assert install_main(["--platform", "codex", "--market-root", str(market_root), "--source-root", str(source_root), "--target-root", str(target_root), "--package", "copy-only-skill"]) == 0
     install_dir = target_root / "copy-only-skill"
     assert install_dir.is_dir()
+    assert not install_dir.is_symlink()
     assert not (install_dir / ".venv").exists()
-    assert NOTE_START not in (install_dir / "SKILL.md").read_text(encoding="utf-8")
+    installed_skill = install_dir / "SKILL.md"
+    source_skill = source_root / "skills" / "copy-only-skill" / "SKILL.md"
+    original_text = installed_skill.read_text(encoding="utf-8")
+    assert NOTE_START not in original_text
+
+    source_skill.write_text("---\nname: sample\n---\n\n# Changed Source Skill\n", encoding="utf-8")
+    assert installed_skill.read_text(encoding="utf-8") == original_text
 
 
 def test_research_team_workflow_plan_copy_uses_source_workspace_provenance(monkeypatch, tmp_path: pathlib.Path) -> None:
@@ -197,3 +206,22 @@ def test_research_team_workflow_plan_copy_uses_source_workspace_provenance(monke
     assert payload["entry_tool"] == "literature_workflows.resolve"
     assert captured["cwd"] == str(repo_root)
     assert captured["command"][:3] == ["pnpm", "--dir", str(repo_root)]
+    assert (target_root / "research-team" / "assets" / "research_team_config_template.json").is_file()
+    assert (target_root / "research-team" / "assets" / "knowledge_base_readme_template.md").is_file()
+
+
+def test_research_team_package_payload_includes_template_assets() -> None:
+    repo_root = ROOT.parents[1]
+    package = load_json(ROOT / "packages" / "research-team.json")
+    source = package["source"]
+    assert source["subpath"] == "skills/research-team"
+
+    files = collect_payload_files(
+        repo_root / str(source["subpath"]),
+        [str(item) for item in source["include"]],
+        [str(item) for item in source.get("exclude", [])],
+    )
+    relative_files = {path.relative_to(repo_root / str(source["subpath"])).as_posix() for path in files}
+
+    assert "assets/research_team_config_template.json" in relative_files
+    assert "assets/knowledge_base_readme_template.md" in relative_files
