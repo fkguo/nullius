@@ -142,3 +142,37 @@ def test_install_policy_auto_safe_requires_immutable_source_ref() -> None:
         allowed_properties=properties,
     )
     assert "auto-safe source.ref must be an immutable 40-character git SHA" in "\n".join(errs)
+
+
+def test_research_team_package_metadata_describes_copy_vs_symlink_install() -> None:
+    required, types, channels, platforms, properties = _validator_inputs()
+    package_path = ROOT / "packages" / "research-team.json"
+    data = load_json(package_path)
+    errs = validate_package(
+        path=package_path,
+        data=data,
+        required_keys=required,
+        allowed_types=types,
+        allowed_channels=channels,
+        allowed_platforms=platforms,
+        package_versions={"research-team": str(data["version"]), "literature-workflows": "0.1.0"},
+        allowed_properties=properties,
+    )
+    assert errs == []
+    assert data["source"]["subpath"] == "skills/research-team"
+
+    expected_scripts = {
+        "claude_code": "packages/skills-market/scripts/install_symlink_claude_code.sh",
+        "codex": "packages/skills-market/scripts/install_symlink_codex.sh",
+        "opencode": "packages/skills-market/scripts/install_symlink_opencode.sh",
+    }
+    for platform, script_path in expected_scripts.items():
+        install_text = str(data["install"][platform]).lower()
+        assert "copies this skill into the target" in install_text
+        assert "reinstall" in install_text
+        assert "--force" in install_text
+        assert "live repo-tracking development installs" in install_text
+        assert script_path in install_text
+        assert "all market-listed skill-pack" in install_text
+        assert "symlink" in install_text
+        assert "monorepo skills root" in install_text

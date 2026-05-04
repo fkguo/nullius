@@ -50,14 +50,15 @@ Skepticism policy (real research):
 
 ### Markdown math hygiene (rendering safety)
 
+- 如果这个 scaffold 安装在别的 skill 根目录下，先设置 `SKILL_DIR`；否则下面命令会默认回退到 `${CODEX_HOME:-$HOME/.codex}/skills/research-team`。
 - Use `$...$` / `$$...$$` (do not use `\(` `\)` `\[` `\]`).
 - In Markdown tables, avoid literal `|` inside `$...$`; prefer `\lvert...\rvert` (or `\lVert...\rVert`) to avoid breaking table parsing.
 - Avoid `\slashed{...}` in Markdown math when possible; prefer a portable fallback like `\not\!` (warn-only by default).
 - In `$$...$$` blocks, no line may start with `+`, `-`, or `=` (prefix with `\quad`).
 - Do not split one multi-line equation into back-to-back `$$` blocks; keep one `$$...$$` block.
-- Deterministic autofix helper: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_math_hygiene.py --root knowledge_base --in-place`
+- Deterministic autofix helper: `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/fix_markdown_math_hygiene.py" --root knowledge_base --in-place`
 - Avoid accidental doubled backslashes in math (common LLM/TOC escape artifact), e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`:
-  - Fix helper: `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --root knowledge_base --in-place`
+  - Fix helper: `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/fix_markdown_double_backslash_math.py" --root knowledge_base --in-place`
 
 ## methodology_traces/
 

@@ -15,9 +15,9 @@
     "literature-workflows": ">=0.1.0 <0.2.0"
   },
   "install": {
-    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
-    "codex": "Link into ~/.codex/skills for Codex native discovery.",
-    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+    "claude_code": "Packaged install copies this skill into the target Claude Code skills root. Installed copies do not auto-follow repo updates; reinstall or rerun install with --force to refresh. For live repo-tracking development installs, use packages/skills-market/scripts/install_symlink_claude_code.sh against the monorepo skills root; that helper symlinks all market-listed skill-pack entries into the target Claude Code skills root, not only research-team.",
+    "codex": "Packaged install copies this skill into the target Codex skills root. Installed copies do not auto-follow repo updates; reinstall or rerun install with --force to refresh. For live repo-tracking development installs, use packages/skills-market/scripts/install_symlink_codex.sh against the monorepo skills root; that helper symlinks all market-listed skill-pack entries into the target Codex skills root, not only research-team.",
+    "opencode": "Packaged install copies this skill into the target OpenCode skills root. Installed copies do not auto-follow repo updates; reinstall or rerun install with --force to refresh. For live repo-tracking development installs, use packages/skills-market/scripts/install_symlink_opencode.sh against the monorepo skills root; that helper symlinks all market-listed skill-pack entries into the target OpenCode skills root, not only research-team."
   },
   "source": {
     "repo": "autoresearch-lab/skills",
