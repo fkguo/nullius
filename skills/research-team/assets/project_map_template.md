@@ -18,7 +18,7 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 - Latest pointers: [team/LATEST.md](team/LATEST.md)
 - Latest team cycle: [team/LATEST_TEAM.md](team/LATEST_TEAM.md)
-- Latest draft cycle: [team/LATEST_DRAFT.md](team/LATEST_DRAFT.md)
+- Latest draft cycle (optional; disabled until configured and run): [team/LATEST_DRAFT.md](team/LATEST_DRAFT.md)
 - Latest artifacts: [artifacts/LATEST.md](artifacts/LATEST.md)
 - Trajectory index: [team/trajectory_index.json](team/trajectory_index.json)
 
@@ -51,7 +51,7 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 ### Writing chain
 
-- Draft-cycle entry (agent or manual): `bash "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/run_draft_cycle.sh" --tag 20260502T023000Z-d0-draft-r1 --tex main.tex --bib refs.bib --out-dir team`
+- Optional draft-cycle entry (agent or manual; enable and run it before relying on `team/LATEST_DRAFT.md`): `bash "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/run_draft_cycle.sh" --tag 20260502T023000Z-d0-draft-r1 --tex main.tex --bib refs.bib --out-dir team`
 - Export bundle: `bash scripts/export_paper_bundle.sh --tag <run_id> --out export`
 
 ---
