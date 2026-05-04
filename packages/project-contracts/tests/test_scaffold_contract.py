@@ -30,6 +30,14 @@ CANONICAL_SCAFFOLD_FILES = {
     "docs/EVAL_GATE_CONTRACT.md",
 }
 
+LANGUAGE_DISCIPLINE_SNIPPETS = (
+    "## Scientific writing discipline",
+    "use the field's native scientific language",
+    "`certificate`, `instantiation`, or `guardrail`",
+    "genuinely the correct software, security, formal-mathematics, or toolchain term",
+    "the project's physical, mathematical, experimental, statistical, or numerical concepts",
+)
+
 ABSENT_DEFAULT_SURFACES = {
     ".mcp.template.json",
     "specs/plan.schema.json",
@@ -133,6 +141,9 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("Do not append large dated run logs there", template)
         self.assertIn("## Scientific writing discipline", template)
         self.assertIn("use the field's native scientific language", template)
+        self.assertIn("`certificate`, `instantiation`, or `guardrail`", template)
+        self.assertIn("genuinely the correct software, security, formal-mathematics, or toolchain term", template)
+        self.assertIn("the project's physical, mathematical, experimental, statistical, or numerical concepts", template)
         for metaphor in ("pinning down", "closing the loop", "bridging", "building a pipeline", "opening a surface", "running a lane"):
             self.assertIn(metaphor, template)
         self.assertIn("only when they name a literal domain concept", template)
@@ -173,6 +184,20 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)
         self.assertNotIn("research_team_config.json", template)
+
+    def test_canonical_scaffold_agents_output_preserves_language_discipline(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            ensure_project_scaffold(
+                repo_root=root,
+                project_name="Language Discipline",
+                profile="mixed",
+                project_policy="real_project",
+            )
+            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+
+        for snippet in LANGUAGE_DISCIPLINE_SNIPPETS:
+            self.assertIn(snippet, agents)
 
     def test_literature_note_quality_contract_is_repeated_on_project_surfaces(self) -> None:
         template_root = scaffold_template_dir()

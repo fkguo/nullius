@@ -7,6 +7,15 @@ Portable install note: if you need to run a skill entrypoint directly, resolve i
 Execution hygiene (recommended):
 - At the start of each agent run, publish a short execution plan (3–7 steps) and keep it updated as steps complete. If your agent environment supports a plan tool, use it; otherwise keep a plain Markdown plan section.
 
+## Scientific writing discipline
+
+- In project notes, notebooks, plans, and conclusions, use the field's native scientific language rather than engineering, product, or delivery metaphors.
+- Do not describe scientific reasoning as `pinning down`, `closing the loop`, `bridging`, `building a pipeline`, `opening a surface`, `running a lane`, shipping, delivery, roadmap execution, or similar software-project metaphors.
+- Do not call a derivation, comparison, fit, uncertainty estimate, bound, or scientific argument a `certificate`, `instantiation`, or `guardrail` unless that is genuinely the correct software, security, formal-mathematics, or toolchain term.
+- Use those words only when they name a literal domain concept or when the subject is actual code, tooling, automation, environments, repository operations, control systems, or other software-maintenance work.
+- When writing about the science itself, prefer the project's physical, mathematical, experimental, statistical, or numerical concepts.
+- Prefer precise scientific verbs such as derive, estimate, bound, test, compare, constrain, check, identify assumptions, separate regimes, quantify uncertainty, and relate observables.
+
 ## Resume / restart checklist (anti-amnesia)
 
 Whenever you resume work (new milestone, context switch, or after a manual interruption), do this first:

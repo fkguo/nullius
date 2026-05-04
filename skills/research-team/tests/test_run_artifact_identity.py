@@ -8,6 +8,13 @@ from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
+LANGUAGE_DISCIPLINE_SNIPPETS = (
+    "## Scientific writing discipline",
+    "use the field's native scientific language",
+    "`certificate`, `instantiation`, or `guardrail`",
+    "genuinely the correct software, security, formal-mathematics, or toolchain term",
+    "the project's physical, mathematical, experimental, statistical, or numerical concepts",
+)
 
 
 class TestRunArtifactIdentity(unittest.TestCase):
@@ -157,6 +164,8 @@ class TestRunArtifactIdentity(unittest.TestCase):
             self.assertIn("For important or directly relevant papers, do not stop at the abstract.", agents)
             self.assertIn("If arXiv LaTeX source is available, prefer reading the source", agents)
             self.assertIn("Tool-use logs belong in methodology traces or run artifacts, not in literature notes.", agents)
+            for snippet in LANGUAGE_DISCIPLINE_SNIPPETS:
+                self.assertIn(snippet, agents)
             self.assertIn("Evidence readiness: evidence-ready", kb_readme)
             self.assertIn("Source form actually read", kb_readme)
             self.assertIn("Sections/pages/equations/figures actually read", kb_readme)
