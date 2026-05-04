@@ -17,9 +17,8 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 ## Latest pointers
 
 - Latest pointers: [team/LATEST.md](team/LATEST.md)
-- Latest team cycle: [team/LATEST_TEAM.md](team/LATEST_TEAM.md)
-- Latest artifacts: [artifacts/LATEST.md](artifacts/LATEST.md)
 - Trajectory index: [team/trajectory_index.json](team/trajectory_index.json)
+- Optional team/draft/artifact latest pointers materialize only after a live cycle creates them.
 
 ## Optional HEP provider bundle
 

@@ -167,6 +167,10 @@ def _draft_template_path() -> Path:
     return Path(__file__).resolve().parents[2] / "assets" / "team_latest_draft_template.md"
 
 
+def _asset_template_path(name: str) -> Path:
+    return Path(__file__).resolve().parents[2] / "assets" / name
+
+
 def _extract_pointer_field(text: str, prefix: str) -> str:
     needle = prefix.lower()
     for line in text.splitlines():
@@ -176,12 +180,32 @@ def _extract_pointer_field(text: str, prefix: str) -> str:
     return ""
 
 
-def _write_team_latest_index(team_dir: Path, *, include_draft: bool = False) -> None:
+def _detect_team_run_dir(team_dir: Path, tag: str) -> Path | None:
+    if not _active_pointer_value(tag):
+        return None
+    cand = team_dir / "runs" / tag
+    if cand.is_dir():
+        return cand
+    return None
+
+
+def _matches_placeholder_template(path: Path, template_name: str, *, fallback_tokens: tuple[str, ...]) -> bool:
+    if not path.is_file():
+        return False
+    text = _read_text(path)
+    try:
+        return text == _read_text(_asset_template_path(template_name))
+    except Exception:
+        return all(token in text for token in fallback_tokens)
+
+
+def _write_team_latest_index(team_dir: Path, *, include_team: bool = False, include_draft: bool = False) -> None:
     path = team_dir / "LATEST.md"
     lines: list[str] = []
     lines.append("# Latest pointers")
     lines.append("")
-    lines.append("- Team cycle: [LATEST_TEAM.md](LATEST_TEAM.md)")
+    if include_team:
+        lines.append("- Team cycle: [LATEST_TEAM.md](LATEST_TEAM.md)")
     if include_draft:
         lines.append("- Draft cycle: [LATEST_DRAFT.md](LATEST_DRAFT.md)")
     lines.append("- Trajectory index: [trajectory_index.json](trajectory_index.json)")
@@ -266,6 +290,41 @@ def _is_disabled_draft_placeholder(path: Path) -> bool:
         return "treat this file as a disabled status marker" in text and "- Draft cycle state: optional / not configured" in text
 
 
+def _is_default_team_placeholder(path: Path) -> bool:
+    return _matches_placeholder_template(
+        path,
+        "team_latest_team_template.md",
+        fallback_tokens=(
+            "Older scaffolds created this placeholder eagerly",
+            "- Latest tag: (none yet)",
+            "- Status: (none yet)",
+        ),
+    )
+
+
+def _is_default_artifacts_placeholder(path: Path) -> bool:
+    return _matches_placeholder_template(
+        path,
+        "artifacts_latest_template.md",
+        fallback_tokens=(
+            "Older scaffolds created this placeholder eagerly",
+            "- Latest tag: (none yet)",
+            "- Artifacts directory: (none yet)",
+        ),
+    )
+
+
+def _read_existing_team_state(team_dir: Path) -> tuple[str, str, bool]:
+    path = team_dir / "LATEST_TEAM.md"
+    if not path.is_file() or _is_default_team_placeholder(path):
+        return "", "", False
+    text = _read_text(path)
+    tag = _extract_pointer_field(text, "- Latest tag:")
+    status = _extract_pointer_field(text, "- Status:")
+    active = _active_pointer_value(tag) and _active_pointer_value(status) and _detect_team_run_dir(team_dir, tag) is not None
+    return tag, status, active
+
+
 def _read_existing_draft_state(team_dir: Path) -> tuple[str, str, bool]:
     path = team_dir / "LATEST_DRAFT.md"
     if not path.is_file():
@@ -278,6 +337,8 @@ def _read_existing_draft_state(team_dir: Path) -> tuple[str, str, bool]:
     active = "- Draft cycle state: active" in text
     if not active and _active_pointer_value(tag) and _active_pointer_value(status):
         active = True
+    if active and _detect_team_run_dir(team_dir, tag) is None:
+        active = False
     return tag, status, active
 
 
@@ -289,21 +350,36 @@ def _remove_inactive_draft_pointer(team_dir: Path) -> bool:
     return True
 
 
+def _remove_default_team_pointer(team_dir: Path) -> bool:
+    path = team_dir / "LATEST_TEAM.md"
+    if not _is_default_team_placeholder(path):
+        return False
+    path.unlink()
+    return True
+
+
+def _remove_default_artifacts_pointer(artifacts_dir: Path) -> bool:
+    path = artifacts_dir / "LATEST.md"
+    if not _is_default_artifacts_placeholder(path):
+        return False
+    path.unlink()
+    return True
+
+
 def _write_artifacts_latest(artifacts_dir: Path, tag: str, artifacts_run: Path | None) -> None:
+    if artifacts_run is None or not artifacts_run.is_dir():
+        return
     lines: list[str] = []
     lines.append("# Latest Artifacts")
     lines.append("")
     lines.append(f"Last updated: {_utc_now()}")
     lines.append("")
-    lines.append(f"- Latest tag: {tag or '(none)'}")
-    if artifacts_run is not None and artifacts_run.is_dir():
-        rel = os.path.relpath(artifacts_run, artifacts_dir)
-        if not rel.startswith("."):
-            rel = "./" + rel
-        label = "Canonical artifacts directory" if rel.startswith("./runs/") else "Legacy/provider artifacts directory"
-        lines.append(f"- {label}: [{rel}]({rel})")
-    else:
-        lines.append("- Artifacts directory: (not found)")
+    lines.append(f"- Latest tag: {tag}")
+    rel = os.path.relpath(artifacts_run, artifacts_dir)
+    if not rel.startswith("."):
+        rel = "./" + rel
+    label = "Canonical artifacts directory" if rel.startswith("./runs/") else "Legacy/provider artifacts directory"
+    lines.append(f"- {label}: [{rel}]({rel})")
     _write_text(artifacts_dir / "LATEST.md", "\n".join(lines) + "\n")
 
 
@@ -347,10 +423,22 @@ def _active_pointer_value(value: str) -> bool:
 
 
 def _has_active_draft_state(team_dir: Path, state: dict[str, str]) -> bool:
-    if _active_pointer_value(state.get("draft_tag", "")) and _active_pointer_value(state.get("draft_status", "")):
+    if (
+        _active_pointer_value(state.get("draft_tag", ""))
+        and _active_pointer_value(state.get("draft_status", ""))
+        and _detect_team_run_dir(team_dir, state["draft_tag"]) is not None
+    ):
         return True
     _, _, active = _read_existing_draft_state(team_dir)
     return active
+
+
+def _has_live_artifacts_pointer(artifacts_dir: Path) -> bool:
+    path = artifacts_dir / "LATEST.md"
+    if not path.is_file() or _is_default_artifacts_placeholder(path):
+        return False
+    tag = _extract_pointer_field(_read_text(path), "- Latest tag:")
+    return _active_pointer_value(tag) and _detect_latest_artifacts_dir(artifacts_dir.parent, tag) is not None
 
 
 def main() -> int:
@@ -378,6 +466,12 @@ def main() -> int:
     map_path = project_root / "project_index.md"
     text = _read_text(map_path) if map_path.is_file() else ""
     state = _parse_project_map_auto_state(text)
+    existing_team_tag, existing_team_status, existing_team_active = _read_existing_team_state(team_dir)
+    if existing_team_active:
+        if not _active_pointer_value(state.get("team_tag", "")):
+            state["team_tag"] = existing_team_tag
+        if not _active_pointer_value(state.get("team_status", "")):
+            state["team_status"] = existing_team_status
     existing_draft_tag, existing_draft_status, existing_draft_active = _read_existing_draft_state(team_dir)
     if existing_draft_active:
         if not _active_pointer_value(state.get("draft_tag", "")):
@@ -388,10 +482,12 @@ def main() -> int:
     kind = args.latest_kind
     tag, status = _infer_latest_tag_and_status(project_root, team_dir, args.tag, args.status, kind)
     if kind == "team":
-        if tag:
+        if tag and status:
             state["team_tag"] = tag
-        if status:
             state["team_status"] = status
+        elif not existing_team_active:
+            state["team_tag"] = ""
+            state["team_status"] = ""
     else:
         if tag and status:
             state["draft_tag"] = tag
@@ -400,31 +496,60 @@ def main() -> int:
             state["draft_tag"] = ""
             state["draft_status"] = ""
 
-    # Compute run_dir for the kind we are updating (only for pointer links).
-    run_dir = args.run_dir
-    if run_dir is None and tag:
-        cand = team_dir / "runs" / tag
-        run_dir = cand if cand.is_dir() else None
+    team_run_dir = None
+    if kind == "team" and _active_pointer_value(state.get("team_tag", "")) and _active_pointer_value(state.get("team_status", "")):
+        team_run_dir = args.run_dir
+        if team_run_dir is not None and not team_run_dir.is_dir():
+            team_run_dir = None
+        if team_run_dir is None:
+            team_run_dir = _detect_team_run_dir(team_dir, state["team_tag"])
+    team_pointer_active = (
+        _active_pointer_value(state.get("team_tag", ""))
+        and _active_pointer_value(state.get("team_status", ""))
+        and team_run_dir is not None
+    )
+
+    draft_run_dir = None
+    if kind == "draft" and _active_pointer_value(state.get("draft_tag", "")) and _active_pointer_value(state.get("draft_status", "")):
+        draft_run_dir = args.run_dir
+        if draft_run_dir is not None and not draft_run_dir.is_dir():
+            draft_run_dir = None
+        if draft_run_dir is None:
+            draft_run_dir = _detect_team_run_dir(team_dir, state["draft_tag"])
+    draft_pointer_active = (
+        _active_pointer_value(state.get("draft_tag", ""))
+        and _active_pointer_value(state.get("draft_status", ""))
+        and draft_run_dir is not None
+    )
 
     if kind == "team":
-        _write_latest_team_cycle(team_dir, state.get("team_tag", ""), state.get("team_status", ""), run_dir)
+        if team_pointer_active:
+            _write_latest_team_cycle(team_dir, state["team_tag"], state["team_status"], team_run_dir)
+        else:
+            _remove_default_team_pointer(team_dir)
     else:
-        if tag and status:
-            _write_latest_draft_cycle(team_dir, state["draft_tag"], state["draft_status"], run_dir)
+        if draft_pointer_active:
+            _write_latest_draft_cycle(team_dir, state["draft_tag"], state["draft_status"], draft_run_dir)
         else:
             _remove_inactive_draft_pointer(team_dir)
 
-    # Artifacts pointer: prefer latest TEAM tag if present, otherwise fall back.
-    artifacts_tag = state.get("team_tag") or state.get("draft_tag") or tag
+    # Artifacts pointer: prefer a live TEAM tag, otherwise a live DRAFT tag.
+    artifacts_tag = state["team_tag"] if team_pointer_active else state["draft_tag"] if draft_pointer_active else ""
     artifacts_run = _detect_latest_artifacts_dir(project_root, artifacts_tag)
-    _write_artifacts_latest(artifacts_dir, artifacts_tag, artifacts_run)
+    artifacts_updated = False
+    if artifacts_run is not None:
+        _write_artifacts_latest(artifacts_dir, artifacts_tag, artifacts_run)
+        artifacts_updated = True
+    else:
+        _remove_default_artifacts_pointer(artifacts_dir)
 
     auto_lines: list[str] = []
     auto_lines.append(f"- Auto-updated at: {_utc_now()}")
-    auto_lines.append(f"- Team latest tag: {state.get('team_tag') or '(none)'}")
-    auto_lines.append(f"- Team latest status: {state.get('team_status') or '(unknown)'}")
     auto_lines.append("- Latest pointers: [team/LATEST.md](team/LATEST.md)")
-    auto_lines.append("- Latest team: [team/LATEST_TEAM.md](team/LATEST_TEAM.md)")
+    if team_pointer_active:
+        auto_lines.append(f"- Team latest tag: {state['team_tag']}")
+        auto_lines.append(f"- Team latest status: {state['team_status']}")
+        auto_lines.append("- Latest team: [team/LATEST_TEAM.md](team/LATEST_TEAM.md)")
     include_draft = _has_active_draft_state(team_dir, state)
     if include_draft:
         if not _active_pointer_value(state.get("draft_tag", "")):
@@ -434,7 +559,9 @@ def main() -> int:
         auto_lines.append(f"- Draft latest tag: {state['draft_tag']}")
         auto_lines.append(f"- Draft latest status: {state['draft_status']}")
         auto_lines.append("- Latest draft: [team/LATEST_DRAFT.md](team/LATEST_DRAFT.md)")
-    auto_lines.append("- Latest artifacts: [artifacts/LATEST.md](artifacts/LATEST.md)")
+    include_artifacts = artifacts_updated or _has_live_artifacts_pointer(artifacts_dir)
+    if include_artifacts:
+        auto_lines.append("- Latest artifacts: [artifacts/LATEST.md](artifacts/LATEST.md)")
 
     new_text = _replace_auto_block(text, "\n".join(auto_lines))
     # Keep/update a Last updated: line near the top if present.
@@ -445,17 +572,22 @@ def main() -> int:
             break
     new_text = "\n".join(lines) + "\n"
     _write_text(map_path, new_text)
-    _write_team_latest_index(team_dir, include_draft=include_draft)
+    _write_team_latest_index(team_dir, include_team=team_pointer_active, include_draft=include_draft)
 
     print(f"[ok] updated: {map_path}")
     print(f"[ok] updated: {team_dir / 'LATEST.md'}")
-    if kind == "team":
+    if kind == "team" and team_pointer_active:
         print(f"[ok] updated: {team_dir / 'LATEST_TEAM.md'}")
+    elif kind == "team":
+        print(f"[ok] skipped: {team_dir / 'LATEST_TEAM.md'} (no team tag/status)")
     elif include_draft:
         print(f"[ok] updated: {team_dir / 'LATEST_DRAFT.md'}")
     else:
         print(f"[ok] skipped: {team_dir / 'LATEST_DRAFT.md'} (no draft tag/status)")
-    print(f"[ok] updated: {artifacts_dir / 'LATEST.md'}")
+    if include_artifacts:
+        print(f"[ok] updated: {artifacts_dir / 'LATEST.md'}")
+    else:
+        print(f"[ok] skipped: {artifacts_dir / 'LATEST.md'} (no artifact run)")
     return 0
 
 

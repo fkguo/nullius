@@ -1,6 +1,7 @@
-# Latest Artifacts (auto-generated)
+# Latest Artifacts (legacy placeholder)
 
-This file is overwritten automatically by the research-team runner scripts.
+Older scaffolds created this placeholder eagerly. Current scaffolds leave it absent
+until a real artifacts run writes a live latest pointer.
 
 - Latest tag: (none yet)
 - Artifacts directory: (none yet)

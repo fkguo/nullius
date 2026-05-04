@@ -109,12 +109,13 @@ Notes:
 
 In projects scaffolded by `research-team`, use the navigation front door instead of browsing directories:
 - `project_index.md` (project root) is the single “start here” page (template: [project_map_template.md](assets/project_map_template.md)).
-- Latest pointers are in `team/LATEST.md`, `team/LATEST_TEAM.md`, and `team/LATEST_DRAFT.md` (written by [update_project_map.py](scripts/bin/update_project_map.py)).
+- `team/LATEST.md` is the stable pointer index written by [update_project_map.py](scripts/bin/update_project_map.py).
+- `team/LATEST_TEAM.md`, `team/LATEST_DRAFT.md`, and `artifacts/LATEST.md` appear only after the corresponding live cycle/run has been materialized; older/stale placeholders should not be treated as guaranteed navigation surfaces.
 - Per-run outputs are grouped under `team/runs/<tag>/...` (packet, member reports, gate reports, adjudication).
 - Draft-cycle convergence artifacts (when enabled) live under `team/runs/<tag>/...`:
   - `<tag>_draft_convergence_log.md`
   - `<tag>_draft_converged_summary.md`
-- Run ledger: `team/trajectory_index.json` (machine-readable run history; also linked from `team/LATEST*.md`).
+- Run ledger: `team/trajectory_index.json` (machine-readable run history; linked from `team/LATEST.md` and any live cycle pointers).
 - Optional paper bundle export (project-local wrapper): `bash scripts/export_paper_bundle.sh --tag <run_id> --out export`.
 
 ## Common failures (what failed → how to fix → how to rerun)
@@ -168,7 +169,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - If you never scaffolded: rerun `scaffold_research_workflow.sh` (without `--force`) to fill missing navigation files.
   - Or generate/update deterministically:
     - `python3 "${SKILL_DIR}/scripts/bin/update_project_map.py" --notes research_contract.md --team-dir team`
-  - Ensure `project_index.md` links to the canonical docs + `team/LATEST.md` + `artifacts/LATEST.md`.
+  - Ensure `project_index.md` links to the canonical docs + `team/LATEST.md`; `artifacts/LATEST.md` should appear only after a live artifact run materializes it.
 - Rerun:
   - Preflight-only command.
 

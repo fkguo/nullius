@@ -220,7 +220,7 @@
   },
   "sidecar_review": {
     "_note": "Optional third reviewer for numerics-only audit (non-blocking).",
-    "enabled": true,
+    "enabled": false,
     "runner": "claude",
     "model": "",
     "system_prompt": "prompts/_system_member_c_numerics.txt",

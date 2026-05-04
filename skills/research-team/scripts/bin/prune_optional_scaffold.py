@@ -372,9 +372,11 @@ def _check_team_dir(project_root: Path, *, assets_dir: Path, project_name: str, 
 
     mapping: dict[str, Path] = {
         "LATEST.md": assets_dir / "team_latest_template.md",
-        "LATEST_TEAM.md": assets_dir / "team_latest_team_template.md",
     }
     optional_default_mapping: dict[str, Path] = {
+        # Older scaffolds created this placeholder eagerly. It is now lazy, but
+        # an untouched placeholder should not block pruning a default team dir.
+        "LATEST_TEAM.md": assets_dir / "team_latest_team_template.md",
         # Older scaffolds created this placeholder eagerly. It is now lazy, but
         # an untouched placeholder should not block pruning a default team dir.
         "LATEST_DRAFT.md": assets_dir / "team_latest_draft_template.md",

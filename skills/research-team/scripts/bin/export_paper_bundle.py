@@ -8,6 +8,9 @@ import shutil
 import sys
 from pathlib import Path
 
+AUTO_START = "<!-- PROJECT_INDEX_AUTO_START -->"
+AUTO_END = "<!-- PROJECT_INDEX_AUTO_END -->"
+
 
 def _norm_text(s: str) -> str:
     return s.replace("\r\n", "\n").replace("\r", "\n")
@@ -41,13 +44,27 @@ def _copy_tree(src_dir: Path, dst_dir: Path) -> None:
     shutil.copytree(src_dir, dst_dir)
 
 
+def _write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_norm_text(text), encoding="utf-8")
+
+
+def _extract_pointer_field(text: str, prefix: str) -> str:
+    needle = prefix.lower()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith(needle):
+            return stripped.split(":", 1)[1].strip()
+    return ""
+
+
 def _detect_team_run_dir(project_root: Path, team_dir: Path, safe_tag: str) -> Path | None:
     cand = team_dir / "runs" / safe_tag
     if cand.is_dir():
         return cand
     # Fallback: older layouts / user-provided out-dir without runs/.
     if team_dir.is_dir():
-        any_match = any((team_dir / f"{safe_tag}_member_a.md").is_file(), (team_dir / f"{safe_tag}_member_b.md").is_file())
+        any_match = (team_dir / f"{safe_tag}_member_a.md").is_file() or (team_dir / f"{safe_tag}_member_b.md").is_file()
         if any_match:
             return team_dir
     return None
@@ -61,6 +78,88 @@ def _detect_artifacts_run_dir(project_root: Path, safe_tag: str) -> Path | None:
     if cand.is_dir():
         return cand
     return None
+
+
+def _copy_latest_pointer_if_live(
+    src: Path,
+    dst: Path,
+    *,
+    label: str,
+    requested_tag: str,
+    requested_safe_tag: str,
+    target_exists: bool,
+    notes: list[str],
+) -> bool:
+    if not src.is_file():
+        return False
+    pointer_tag = _extract_pointer_field(_norm_text(src.read_text(encoding="utf-8", errors="replace")), "- Latest tag:")
+    if not pointer_tag:
+        notes.append(f"[warn] skipped {label}: could not parse - Latest tag:")
+        return False
+    if pointer_tag not in {requested_tag, requested_safe_tag}:
+        notes.append(
+            f"[warn] skipped {label}: pointer tag {pointer_tag} does not match requested tag {requested_tag}"
+        )
+        return False
+    if not target_exists:
+        notes.append(f"[warn] skipped {label}: missing target for pointer tag {pointer_tag}")
+        return False
+    _copy_file(src, dst)
+    return True
+
+
+def _write_team_latest_index(
+    dst: Path,
+    *,
+    include_team: bool,
+    include_draft: bool,
+    include_trajectory: bool,
+) -> None:
+    lines: list[str] = []
+    lines.append("# Latest pointers")
+    lines.append("")
+    if include_team:
+        lines.append("- Team cycle: [LATEST_TEAM.md](LATEST_TEAM.md)")
+    if include_draft:
+        lines.append("- Draft cycle: [LATEST_DRAFT.md](LATEST_DRAFT.md)")
+    if include_trajectory:
+        lines.append("- Trajectory index: [trajectory_index.json](trajectory_index.json)")
+    _write_text(dst, "\n".join(lines) + "\n")
+
+
+def _sanitize_project_index_optional_auto_lines(
+    text: str,
+    *,
+    keep_team: bool,
+    keep_draft: bool,
+    keep_artifacts: bool,
+) -> str:
+    def should_drop(line: str) -> bool:
+        stripped = line.strip().lower()
+        if stripped.startswith("- team latest tag:") or stripped.startswith("- team latest status:"):
+            return not keep_team
+        if stripped.startswith("- latest team:"):
+            return not keep_team
+        if stripped.startswith("- draft latest tag:") or stripped.startswith("- draft latest status:"):
+            return not keep_draft
+        if stripped.startswith("- latest draft:"):
+            return not keep_draft
+        if stripped.startswith("- latest artifacts:"):
+            return not keep_artifacts
+        return False
+
+    def sanitize_block(block: str) -> str:
+        kept = [line for line in block.splitlines() if not should_drop(line)]
+        return "\n".join(kept).rstrip("\n")
+
+    if AUTO_START in text and AUTO_END in text:
+        start = text.index(AUTO_START) + len(AUTO_START)
+        end = text.index(AUTO_END)
+        sanitized = sanitize_block(text[start:end])
+        return text[:start] + "\n" + sanitized + ("\n" if sanitized else "") + text[end:]
+
+    kept_lines = [line for line in text.splitlines() if not should_drop(line)]
+    return "\n".join(kept_lines) + ("\n" if text.endswith("\n") else "")
 
 
 _RE_INPUT = re.compile(r"\\(?:input|include)\s*\{\s*([^}]+?)\s*\}")
@@ -175,6 +274,11 @@ def main() -> int:
     copied: list[str] = []
     missing: list[str] = []
     notes: list[str] = []
+    copied_team_latest = False
+    copied_team_cycle = False
+    copied_draft_cycle = False
+    copied_artifacts_latest = False
+    copied_trajectory = False
 
     # Core docs.
     docs_dir = bundle_dir / "docs"
@@ -189,12 +293,37 @@ def main() -> int:
     # Team pointers + trajectory + run directory.
     team_out = bundle_dir / "team"
     if team_dir.is_dir():
-        for name in ("LATEST.md", "LATEST_TEAM.md", "LATEST_DRAFT.md", "trajectory_index.json"):
-            src = team_dir / name
-            if src.is_file():
-                _copy_file(src, team_out / name)
-                copied.append(f"team/{name}")
         run_dir = _detect_team_run_dir(project_root, team_dir, safe)
+        latest_index = team_dir / "LATEST.md"
+        team_latest = team_dir / "LATEST_TEAM.md"
+        if _copy_latest_pointer_if_live(
+            team_latest,
+            team_out / "LATEST_TEAM.md",
+            label="team/LATEST_TEAM.md",
+            requested_tag=tag,
+            requested_safe_tag=safe,
+            target_exists=run_dir is not None and run_dir.is_dir(),
+            notes=notes,
+        ):
+            copied.append("team/LATEST_TEAM.md")
+            copied_team_cycle = True
+        draft_latest = team_dir / "LATEST_DRAFT.md"
+        if _copy_latest_pointer_if_live(
+            draft_latest,
+            team_out / "LATEST_DRAFT.md",
+            label="team/LATEST_DRAFT.md",
+            requested_tag=tag,
+            requested_safe_tag=safe,
+            target_exists=run_dir is not None and run_dir.is_dir(),
+            notes=notes,
+        ):
+            copied.append("team/LATEST_DRAFT.md")
+            copied_draft_cycle = True
+        trajectory = team_dir / "trajectory_index.json"
+        if trajectory.is_file():
+            _copy_file(trajectory, team_out / "trajectory_index.json")
+            copied.append("team/trajectory_index.json")
+            copied_trajectory = True
         if run_dir is not None and run_dir.is_dir():
             if run_dir == team_dir:
                 # Old layout: copy only tag-matched files to avoid pulling in unrelated history.
@@ -210,17 +339,50 @@ def main() -> int:
                 dst_run = team_out / "runs" / safe
                 _copy_tree(run_dir, dst_run)
                 copied.append(f"team/runs/{safe}/ (dir)")
+        if latest_index.is_file() or copied_team_cycle or copied_draft_cycle or copied_trajectory:
+            _write_team_latest_index(
+                team_out / "LATEST.md",
+                include_team=copied_team_cycle,
+                include_draft=copied_draft_cycle,
+                include_trajectory=copied_trajectory,
+            )
+            copied.append("team/LATEST.md")
+            copied_team_latest = True
     else:
         notes.append(f"[warn] team dir not found: {team_dir}")
 
     # Artifacts.
+    art_latest = project_root / "artifacts" / "LATEST.md"
     art_run = _detect_artifacts_run_dir(project_root, safe)
+    if _copy_latest_pointer_if_live(
+        art_latest,
+        bundle_dir / "artifacts" / "LATEST.md",
+        label="artifacts/LATEST.md",
+        requested_tag=tag,
+        requested_safe_tag=safe,
+        target_exists=art_run is not None and art_run.is_dir(),
+        notes=notes,
+    ):
+        copied.append("artifacts/LATEST.md")
+        copied_artifacts_latest = True
     if art_run is not None and art_run.is_dir():
         dst_art = bundle_dir / "artifacts" / "runs" / safe
         _copy_tree(art_run, dst_art)
         copied.append(f"artifacts/runs/{safe}/ (dir)")
     else:
         notes.append("[warn] artifacts dir for tag not found (skipped)")
+
+    project_index_out = docs_dir / "project_index.md"
+    if project_index_out.is_file():
+        project_index_out.write_text(
+            _sanitize_project_index_optional_auto_lines(
+                _norm_text(project_index_out.read_text(encoding="utf-8", errors="replace")),
+                keep_team=copied_team_cycle,
+                keep_draft=copied_draft_cycle,
+                keep_artifacts=copied_artifacts_latest,
+            ),
+            encoding="utf-8",
+        )
 
     # TeX sources (optional).
     if args.tex:
@@ -277,7 +439,14 @@ def main() -> int:
     lines.append("## How to use")
     lines.append("")
     lines.append("- Start from `docs/project_index.md` and `docs/research_contract.md`.")
-    lines.append("- Use `team/LATEST_TEAM.md` for the latest team-cycle audit, and `team/LATEST_DRAFT.md` for draft-cycle review.")
+    if copied_team_latest:
+        lines.append("- Use `team/LATEST.md` as the pointer index for bundled team surfaces.")
+    if copied_team_cycle:
+        lines.append("- Use `team/LATEST_TEAM.md` for the latest bundled team-cycle audit.")
+    if copied_draft_cycle:
+        lines.append("- Use `team/LATEST_DRAFT.md` for the latest bundled draft-cycle review.")
+    if copied_artifacts_latest:
+        lines.append("- Use `artifacts/LATEST.md` for the latest bundled artifact pointer.")
     lines.append("")
     manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -288,4 +457,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

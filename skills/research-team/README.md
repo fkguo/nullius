@@ -47,7 +47,7 @@ reviewed cycle. Canonical research artifacts live under
 surface.
 
 Note: the scaffolded `research_team_config.json` defaults to `review_access_mode=full_access` (reviewers request file reads/commands/network via a proxy with evidence logs). To force offline/packet-only review, set `review_access_mode=packet_only`.
-Optional: configure non-blocking sidecar reviewers via `sidecar_review` (single) or `sidecar_reviews` (list) in `research_team_config.json`.
+Optional: configure non-blocking sidecar reviewers via `sidecar_review` (single) or `sidecar_reviews` (list) in `research_team_config.json`; scaffolded configs keep them disabled unless you opt in explicitly.
 
 ## Requirements
 
