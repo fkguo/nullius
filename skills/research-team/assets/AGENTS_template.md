@@ -64,6 +64,14 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 - Definition of Done (DoD) must be evidence-backed: acceptance criteria should reference files/commands/thresholds, not “looks good”.
 - If `research_team_config.json` sets `profile: toolkit_extraction`, each milestone in `research_plan.md` MUST include a filled `Toolkit delta:` block (API spec + code snippet index + KB evidence links).
 
+## Literature note quality and reading depth
+
+- For important or directly relevant papers, do not stop at the abstract. Treat abstracts as triage only, not decisive evidence.
+- If arXiv LaTeX source is available, prefer reading the source before treating the paper as evidence-ready for central claims.
+- Default full-scaffold policy is strict: `research_team_config.json` enables `knowledge_layers.require_literature_reading_evidence=true`, so metadata-only notes are not accepted as evidence-ready by default.
+- Each serious literature note should record: source form actually read, sections/pages/equations/figures actually read, central equations/assumptions extracted, what was not read and why, project relevance, and limitations / remaining reading gaps.
+- Literature notes should capture scientific content only. Tool-use logs belong in methodology traces or run artifacts, not in literature notes.
+
 ## Prework (must complete before team cycle)
 
 - Literature: add at least 1 note under `knowledge_base/literature/`.

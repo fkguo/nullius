@@ -14,6 +14,7 @@ Skepticism policy (real research):
 
 - Notes and excerpts from primary sources
 - One file per topic or paper cluster
+- Do not rely on abstract-only reading for central claims. For important or directly relevant papers, read the full text; for arXiv items with available LaTeX source, prefer source-first reading.
 - Include a `RefKey: <Key>` line near the top of each note (used in [research_contract.md](../research_contract.md) references).
 - Keep the first H1 title meaningful (used for human-readable links in Capsule I).
 - For INSPIRE-based notes, also include:
@@ -30,6 +31,16 @@ Skepticism policy (real research):
   - `Verification status: unverified | spot-checked | replicated | contradicted`
   - `What was checked:` (equation IDs / limits / reproduction target)
   - `Known issues / errata / disagreements:` (with links)
+- Required reading-evidence fields for full-scaffold default projects:
+  - `Evidence readiness: reading-required | evidence-ready`
+  - `Source form actually read: abstract_only | available_full_text | full_text_pdf | latex_source | unavailable | other`
+  - `Sections/pages/equations/figures actually read: ...`
+  - `Central equations/assumptions extracted: ...`
+  - `What was not read and why: ...`
+  - `Project relevance: ...`
+  - `Limitations / caveats for using this note: ...`
+- `Evidence readiness: evidence-ready` is allowed only after the note records actual reading evidence. Metadata-only or download-only notes should remain `reading-required`.
+- Tool-use logs, metadata checks, download attempts, and API call details belong in methodology traces or run artifacts, not in literature notes.
 - Markdown math hygiene (rendering safety):
   - Use `$...$` / `$$...$$` (do not use `\(` `\)` `\[` `\]`).
   - In Markdown tables, avoid literal `|` inside `$...$`; prefer `\lvert...\rvert` (or `\lVert...\rVert`; for conditional bars use `\mid`) to avoid breaking table parsing.
