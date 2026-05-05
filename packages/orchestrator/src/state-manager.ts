@@ -1011,7 +1011,7 @@ export class StateManager {
   }
 
   /** Full checkpoint command.
-   *  Matches Python cmd_checkpoint (orchestrator_cli.py L783-815).
+   *  Validates checkpoint eligibility, enforces approval guards, and syncs step progress.
    *  Includes _sync_plan_current_step integration (Stage 3c). */
   checkpoint(
     state: RunState,

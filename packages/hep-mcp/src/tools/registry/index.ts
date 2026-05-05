@@ -5,8 +5,6 @@ export {
   getTools,
   isToolExposed,
   isAdvancedToolSpec,
-  DISCOVERY_PROVIDER_DESCRIPTORS,
-  INSPIRE_DISCOVERY_DESCRIPTOR,
   type ToolExposureMode,
   type ToolExposure,
   type ToolTier,
@@ -14,4 +12,3 @@ export {
   type ToolHandlerContext,
   type ToolSpec,
 } from './shared.js';
-

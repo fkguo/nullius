@@ -1,7 +1,7 @@
 {
   "package_id": "literature-workflows",
   "package_type": "workflow-pack",
-  "repo": "autoresearch-lab/autoresearch-meta",
+  "repo": "autoresearch-lab/autoresearch-lab",
   "channel": "dev",
   "version": "0.1.0",
   "summary": "Checked-in literature workflow authority pack: package-local recipes + session protocol resolved through `autoresearch workflow-plan`, with mixed provider maturity and some still-bounded HEP-backed steps beneath the workflow layer.",

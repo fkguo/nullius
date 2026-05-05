@@ -1,6 +1,3 @@
-import {
-  type DiscoveryProviderDescriptor,
-} from '@autoresearch/shared';
 import { zodToMcpInputSchema } from '../mcpSchema.js';
 import { HEP_RENDER_LATEX } from '../../tool-names.js';
 import {
@@ -16,9 +13,7 @@ import {
 import { INSPIRE_TOOL_SPECS } from './inspire.js';
 import { ZOTERO_TOOL_SPECS } from './zotero.js';
 import { PDG_TOOL_SPECS } from './pdg.js';
-import { ARXIV_DISCOVERY_DESCRIPTOR } from '@autoresearch/arxiv-mcp/tooling';
-import { OPENALEX_DISCOVERY_DESCRIPTOR, OPENALEX_TOOL_SPECS } from './openalex.js';
-import { INSPIRE_DISCOVERY_DESCRIPTOR } from '../research/discovery/providerDescriptors.js';
+import { OPENALEX_TOOL_SPECS } from './openalex.js';
 import {
   PROJECT_CORE_TOOL_SPECS,
   PROJECT_CITATION_TOOL_SPECS,
@@ -35,13 +30,6 @@ export type {
 };
 
 export { isAdvancedToolSpec, isToolExposed };
-export { INSPIRE_DISCOVERY_DESCRIPTOR };
-
-export const DISCOVERY_PROVIDER_DESCRIPTORS: DiscoveryProviderDescriptor[] = [
-  INSPIRE_DISCOVERY_DESCRIPTOR,
-  OPENALEX_DISCOVERY_DESCRIPTOR,
-  ARXIV_DISCOVERY_DESCRIPTOR,
-];
 
 const projectCoreRenderLatexIndex = PROJECT_CORE_TOOL_SPECS.findIndex(spec => spec.name === HEP_RENDER_LATEX);
 
