@@ -24,6 +24,7 @@ const IMPORTANCE_HINTS = [
   'our result', 'final result', 'main finding',
 ];
 const KEY_SECTIONS = ['abstract', 'summary', 'conclusion', 'conclusions', 'results', 'discussion'];
+const SECTION_COMMANDS = new Set(['section', 'subsection', 'subsubsection', 'chapter']);
 export const DEEP_ANALYZE_INTERNAL_TOOL_NAME = 'inspire_deep_analyze_internal' as const;
 
 export interface KeyEquation extends Equation {
@@ -77,19 +78,30 @@ function countReferences(texContent: string): Map<string, number> {
   return refCounts;
 }
 
-function findSectionAtPosition(nodes: LatexNode[], targetIndex: number): string | undefined {
+function normalizeSectionCommandName(name: string): string {
+  return name.replace(/\*+$/, '').toLowerCase();
+}
+
+function getNodeStartOffset(node: LatexNode): number | undefined {
+  const offset = (node as { location?: { start?: { offset?: number } } }).location?.start?.offset;
+  return typeof offset === 'number' ? offset : undefined;
+}
+
+function findSectionAtPosition(nodes: LatexNode[], targetOffset?: number): string | undefined {
+  if (typeof targetOffset !== 'number') return undefined;
   let currentSection: string | undefined;
-  let nodeIndex = 0;
-  const traverse = (nodeList: LatexNode[]) => {
+  const traverse = (nodeList: LatexNode[]): boolean => {
     for (const node of nodeList) {
-      if (nodeIndex > targetIndex) return;
-      if (latexParser.isCommand(node) && ['section', 'subsection', 'subsubsection', 'chapter'].includes(node.name)) {
+      const nodeOffset = getNodeStartOffset(node);
+      if (typeof nodeOffset === 'number' && nodeOffset > targetOffset) return true;
+      if (latexParser.isCommand(node) && SECTION_COMMANDS.has(normalizeSectionCommandName(node.name))) {
         const arg = node.args[0];
         if (arg && latexParser.isGroup(arg)) currentSection = extractText(arg.content);
       }
-      nodeIndex += 1;
-      if (latexParser.isEnvironment(node)) traverse(node.content);
+      if (latexParser.isEnvironment(node) && traverse(node.content)) return true;
+      if (latexParser.isGroup(node) && traverse(node.content)) return true;
     }
+    return false;
   };
   traverse(nodes);
   return currentSection;
@@ -191,13 +203,14 @@ export async function identifyKeyEquations(
     createMessage,
   } = options;
   const promptVersion = 'sem11_key_equation_importance_v1';
+  const maxSampleCandidates = Math.max(max_equations, 6);
   let equations = extractEquations(ast, { content: texContent });
   if (!include_inline) equations = equations.filter(eq => eq.type !== 'inline');
 
   const refCounts = countReferences(texContent);
-  const candidates = equations
+  const rankedCandidates = equations
     .map((equation, index) => {
-      const section = findSectionAtPosition(ast.content, index);
+      const section = findSectionAtPosition(ast.content, equation.location?.offset);
       const contextText = extractContext(texContent, equation.latex, context_window);
       const contextKeywords = findKeywords(contextText);
       const seed = {
@@ -216,8 +229,10 @@ export async function identifyKeyEquations(
         signal_summary: derived.signals,
       };
     })
-    .sort((a, b) => b.candidate_priority - a.candidate_priority)
-    .slice(0, Math.max(max_equations, 6));
+    .sort((a, b) => b.candidate_priority - a.candidate_priority);
+
+  const candidates = rankedCandidates.slice(0, maxSampleCandidates);
+  const candidateGenerationTruncated = rankedCandidates.length > maxSampleCandidates;
 
   if (candidates.length === 0) return [];
 
@@ -232,7 +247,19 @@ export async function identifyKeyEquations(
       section: candidate.section ?? null,
       signal_summary: candidate.signal_summary,
     })),
+    candidate_generation_truncated: candidateGenerationTruncated,
   }));
+
+  if (candidateGenerationTruncated) {
+    return unavailableCandidates(
+      candidates,
+      'unavailable',
+      'unavailable',
+      'candidate_generation_truncated',
+      promptVersion,
+      inputHash,
+    );
+  }
 
   if (!createMessage) {
     return unavailableCandidates(candidates, 'unavailable', 'unavailable', 'sampling_unavailable', promptVersion, inputHash);

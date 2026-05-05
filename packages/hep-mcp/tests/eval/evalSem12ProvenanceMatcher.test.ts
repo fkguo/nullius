@@ -113,4 +113,91 @@ describe('eval: sem12 provenance matcher', () => {
       expect(actual).toEqual(testCase.expected);
     }
   });
+
+  it('fails closed when heuristic candidate truncation makes the candidate set incomplete', async () => {
+    const actual = await runSem12Case({
+      paper: {
+        recid: 'c-trunc',
+        title: 'Conference note on narrow resonances',
+        abstract: 'Proceedings summary of a narrow-resonance analysis.',
+        authors: ['Doe, Alice'],
+        year: 2022,
+        publication_type: ['conference paper'],
+        document_type: ['conference paper'],
+      },
+      candidates: [
+        {
+          recid: 'j1',
+          title: 'Narrow resonances in hadronic spectra',
+          abstract: 'Possible article candidate 1.',
+          authors: ['Doe, Alice'],
+          year: 2023,
+          publication_type: ['article'],
+          document_type: ['article'],
+        },
+        {
+          recid: 'j2',
+          title: 'Narrow resonances with improved fits',
+          abstract: 'Possible article candidate 2.',
+          authors: ['Doe, Alice'],
+          year: 2023,
+          publication_type: ['article'],
+          document_type: ['article'],
+        },
+        {
+          recid: 'j3',
+          title: 'Narrow resonances and finite width effects',
+          abstract: 'Possible article candidate 3.',
+          authors: ['Doe, Alice'],
+          year: 2023,
+          publication_type: ['article'],
+          document_type: ['article'],
+        },
+        {
+          recid: 'j4',
+          title: 'Narrow resonances from bootstrap constraints',
+          abstract: 'Possible article candidate 4.',
+          authors: ['Doe, Alice'],
+          year: 2023,
+          publication_type: ['article'],
+          document_type: ['article'],
+        },
+        {
+          recid: 'j5',
+          title: 'Narrow resonances and dispersive control',
+          abstract: 'Possible article candidate 5.',
+          authors: ['Doe, Alice'],
+          year: 2023,
+          publication_type: ['article'],
+          document_type: ['article'],
+        },
+        {
+          recid: 'j6',
+          title: 'Definitive narrow-resonance article',
+          abstract: 'The real match that would sit outside the bounded set.',
+          authors: ['Doe, Alice'],
+          year: 2024,
+          publication_type: ['article'],
+          document_type: ['article'],
+        },
+      ],
+      sampling_response: {
+        status: 'matched',
+        selected_candidate_key: 'j6',
+        relationship: 'same_content',
+        confidence: 0.96,
+        reason_code: 'semantic_content_match',
+        reason: 'The sixth candidate is the real journal version.',
+      },
+    });
+
+    expect(actual).toEqual({
+      status: 'uncertain',
+      success: false,
+      matched_recid: null,
+      relationship: 'unknown',
+      reason_code: 'candidate_set_incomplete',
+      provenance_status: 'unavailable',
+    });
+  });
 });

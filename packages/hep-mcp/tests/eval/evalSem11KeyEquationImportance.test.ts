@@ -50,4 +50,81 @@ describe('eval: sem11 key equation importance', () => {
       expect(actual).toEqual(testCase.expected);
     }
   });
+
+  it('fails closed when heuristic candidate generation truncates equations before sampling', async () => {
+    const latex = [
+      '\\documentclass{article}\\begin{document}',
+      '\\section{Setup}',
+      'Eq.~\\eqref{eq:d1}, Eq.~\\eqref{eq:d2}, Eq.~\\eqref{eq:d3}, Eq.~\\eqref{eq:d4}, Eq.~\\eqref{eq:d5}, and Eq.~\\eqref{eq:d6} are setup identities.',
+      'They are important for notation but not the final claim.',
+      '\\begin{equation}\\label{eq:d1} a_1 = b_1 \\end{equation}',
+      '\\begin{equation}\\label{eq:d2} a_2 = b_2 \\end{equation}',
+      '\\begin{equation}\\label{eq:d3} a_3 = b_3 \\end{equation}',
+      '\\begin{equation}\\label{eq:d4} a_4 = b_4 \\end{equation}',
+      '\\begin{equation}\\label{eq:d5} a_5 = b_5 \\end{equation}',
+      '\\begin{equation}\\label{eq:d6} a_6 = b_6 \\end{equation}',
+      '\\section{Results}',
+      'The actual nonperturbative statement is recorded below.',
+      '\\begin{equation}\\label{eq:truth} \\Delta = \\exp(-S_0) \\end{equation}',
+      "This relation is the paper's final result.",
+      '\\end{document}',
+    ].join('');
+    const ast = parseLatex(latex);
+
+    const result = await identifyKeyEquations(ast, latex, {
+      max_equations: 6,
+      createMessage: async () => ({
+        model: 'mock-sem11',
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            overall_status: 'selected',
+            evaluations: [
+              {
+                candidate_key: 'eq:truth',
+                selection_status: 'selected',
+                importance_band: 'high',
+                confidence: 0.97,
+                reason_code: 'central_claim_equation',
+                reason: 'This is the final scientific claim.',
+              },
+            ],
+          }),
+        }],
+      } as any),
+    });
+
+    expect(result.map(eq => eq.label)).not.toContain('eq:truth');
+    expect(result).toHaveLength(6);
+    expect(result.every(eq => eq.selection_status !== 'selected')).toBe(true);
+    expect(result[0]).toMatchObject({
+      selection_status: 'unavailable',
+      provenance: {
+        status: 'unavailable',
+        reason_code: 'candidate_generation_truncated',
+      },
+    });
+  });
+
+  it('assigns sections from equation source offsets rather than equation ordinals', async () => {
+    const latex = [
+      '\\documentclass{article}\\begin{document}',
+      '\\section{Setup}',
+      'Preliminary notation and narrative text.',
+      '\\begin{equation}\\label{eq:setup} a=b \\end{equation}',
+      '\\section{Results}',
+      'A separate narrative introduces the main equation.',
+      '\\begin{equation}\\label{eq:result} c=d \\end{equation}',
+      '\\end{document}',
+    ].join('');
+    const ast = parseLatex(latex);
+
+    const result = await identifyKeyEquations(ast, latex, {
+      max_equations: 6,
+    });
+
+    expect(result.find(eq => eq.label === 'eq:setup')?.section).toBe('Setup');
+    expect(result.find(eq => eq.label === 'eq:result')?.section).toBe('Results');
+  });
 });

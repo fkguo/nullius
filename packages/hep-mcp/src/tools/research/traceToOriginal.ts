@@ -102,7 +102,7 @@ function describeMetadataPrior(paper: PaperSummary): string {
   return `${classified.paper_type}:${classified.paper_type_provenance.reason_code}`;
 }
 
-function rankCandidates(input: PaperSummary, candidates: PaperSummary[], maxCandidates: number): Candidate[] {
+function rankCandidates(input: PaperSummary, candidates: PaperSummary[]): Candidate[] {
   return candidates
     .filter(candidate => candidate.recid && candidate.recid !== input.recid)
     .map(candidate => {
@@ -118,8 +118,7 @@ function rankCandidates(input: PaperSummary, candidates: PaperSummary[], maxCand
       const priorScore = overlap * 0.45 + titleOverlap * 0.35 + Math.max(0, 0.2 - Math.min(yearDelta, 10) / 50);
       return { candidate_key: candidate.recid || candidate.title, paper: candidate, prior_score: priorScore, prior_signals: priorSignals };
     })
-    .sort((a, b) => b.prior_score - a.prior_score)
-    .slice(0, maxCandidates);
+    .sort((a, b) => b.prior_score - a.prior_score);
 }
 
 function buildResult(params: {
@@ -179,28 +178,25 @@ export async function traceToOriginal(
 
   const searchQuery = buildSearchQuery(paper);
   const searchResult = await api.search(searchQuery, { sort: 'mostcited', size: 50 });
-  if (!ctx.createMessage && searchResult.papers.some(candidate => candidate.recid && candidate.recid !== paper.recid)) {
-    return buildResult({
-      status: 'sampling_unavailable',
-      paper,
-      reason: 'Bounded trace matching requires MCP sampling support.',
-      provenance: {
-        backend: 'diagnostic',
-        status: 'unavailable',
-        reason_code: 'sampling_unavailable',
-      },
-      candidate_count: Math.min(searchResult.papers.length, max_candidates),
-      candidate_diagnostics: [],
-    });
-  }
-  const candidates = rankCandidates(paper, searchResult.papers, max_candidates);
-  const candidateDiagnostics = candidates.map(candidate => ({
+  const rankedCandidates = rankCandidates(paper, searchResult.papers);
+  const candidateDiagnostics = rankedCandidates.slice(0, max_candidates).map(candidate => ({
     candidate_key: candidate.candidate_key,
     recid: candidate.paper.recid,
     prior_signals: candidate.prior_signals,
   }));
+  const inputHash = sha256Hex(JSON.stringify({
+    recid,
+    search_query: searchQuery,
+    input_review_hint: firstReviewClassification?.review_type ?? 'unknown',
+    candidates: rankedCandidates.map(candidate => ({
+      candidate_key: candidate.candidate_key,
+      recid: candidate.paper.recid,
+      title: candidate.paper.title,
+      prior_signals: candidate.prior_signals,
+    })),
+  }));
 
-  if (candidates.length === 0) {
+  if (rankedCandidates.length === 0) {
     return buildResult({
       status: 'no_match',
       paper,
@@ -215,17 +211,24 @@ export async function traceToOriginal(
     });
   }
 
-  const inputHash = sha256Hex(JSON.stringify({
-    recid,
-    search_query: searchQuery,
-    input_review_hint: firstReviewClassification?.review_type ?? 'unknown',
-    candidates: candidates.map(candidate => ({
-      candidate_key: candidate.candidate_key,
-      recid: candidate.paper.recid,
-      title: candidate.paper.title,
-      prior_signals: candidate.prior_signals,
-    })),
-  }));
+  if (rankedCandidates.length > max_candidates) {
+    return buildResult({
+      status: 'uncertain',
+      paper,
+      reason: 'Bounded trace matching cannot proceed because the candidate set exceeds the verified maximum.',
+      provenance: {
+        backend: 'diagnostic',
+        status: 'unavailable',
+        reason_code: 'candidate_set_incomplete',
+        prompt_version: promptVersion,
+        input_hash: inputHash,
+      },
+      candidate_count: rankedCandidates.length,
+      candidate_diagnostics: candidateDiagnostics,
+    });
+  }
+
+  const candidates = rankedCandidates;
 
   const createMessage = ctx.createMessage;
   if (!createMessage) {
@@ -240,7 +243,7 @@ export async function traceToOriginal(
         prompt_version: promptVersion,
         input_hash: inputHash,
       },
-      candidate_count: candidates.length,
+      candidate_count: rankedCandidates.length,
       candidate_diagnostics: candidateDiagnostics,
     });
   }
