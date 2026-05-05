@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -141,7 +142,26 @@ def _looks_like_placeholder(value: str) -> bool:
     normalized = value.strip().lower()
     if not normalized:
         return True
-    return "(fill" in normalized or normalized.startswith("todo") or normalized.startswith("tbd")
+    collapsed = re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+    weak_values = {
+        "pdf",
+        "some pages",
+        "main result",
+        "useful",
+        "none",
+        "n a",
+        "na",
+        "not applicable",
+        "read paper",
+        "full paper",
+        "equation",
+    }
+    return (
+        "(fill" in normalized
+        or normalized.startswith("todo")
+        or normalized.startswith("tbd")
+        or collapsed in weak_values
+    )
 
 
 _REQUIRED_READING_EVIDENCE_FIELDS = (
@@ -160,6 +180,71 @@ _ALLOWED_EVIDENCE_READY_VERIFICATION_STATUSES = (
 )
 
 _ALLOWED_EVIDENCE_READINESS = "evidence-ready"
+_ALLOWED_SOURCE_FORMS = (
+    "latex_source",
+    "full_text_pdf",
+    "available_full_text",
+    "abstract_only",
+    "unavailable",
+    "other",
+)
+
+_CJK_CHAR_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+_READ_LOCATOR_PATTERNS = (
+    r"\bpp?\.\s*\d",
+    r"\bpages?\s+\d",
+    r"\bsec(?:tion)?s?\.?\s*[0-9ivx]",
+    r"\bappendix\s*[0-9a-zivx]",
+    r"\beq(?:uation)?s?\.?\s*[\(\[]?[0-9a-zivx]",
+    r"\bfig(?:ure)?s?\.?\s*[0-9a-zivx]",
+    r"\btab(?:le)?s?\.?\s*[0-9a-zivx]",
+    r"\b(?:[a-z0-9._-]+/)*[a-z0-9._-]+\.tex\b",
+    r"第\s*\d+\s*节",
+    r"第\s*\d+\s*页",
+    r"公式\s*[\(\[（]?\s*[0-9a-zivx]+\s*[\)\]）]?",
+    r"图\s*[0-9a-zivx]+",
+    r"表\s*[0-9a-zivx]+",
+    r"附录\s*[0-9a-zivx]+",
+)
+
+
+def _substantial_content_units(value: str) -> int:
+    units = len(re.findall(r"[a-z0-9]+", value.lower()))
+    units += len(_CJK_CHAR_RE.findall(value))
+
+    non_ascii_run = 0
+    for ch in value:
+        if _CJK_CHAR_RE.fullmatch(ch):
+            if non_ascii_run >= 4:
+                units += non_ascii_run
+            non_ascii_run = 0
+            continue
+        if ord(ch) > 127 and (ch.isalnum() or unicodedata.category(ch).startswith("L")):
+            non_ascii_run += 1
+            continue
+        if non_ascii_run >= 4:
+            units += non_ascii_run
+        non_ascii_run = 0
+
+    if non_ascii_run >= 4:
+        units += non_ascii_run
+
+    return units
+
+
+def _is_substantive_reading_statement(value: str) -> bool:
+    if _looks_like_placeholder(value):
+        return False
+
+    units = _substantial_content_units(value)
+    if _CJK_CHAR_RE.search(value):
+        return units >= 5
+
+    return units >= 5 and len(value.strip()) >= 24
+
+
+def _has_read_locator(value: str) -> bool:
+    return any(re.search(pattern, value, flags=re.IGNORECASE) for pattern in _READ_LOCATOR_PATTERNS)
 
 
 def _validate_literature_note(
@@ -243,6 +328,36 @@ def _validate_literature_note(
                 errors.append(f"{path}: missing required reading-evidence field: '{field}:'")
             elif _looks_like_placeholder(value):
                 errors.append(f"{path}: reading-evidence field still placeholder: '{field}:'")
+                continue
+
+            normalized_value = value.strip().lower()
+
+            if field == "Source form actually read":
+                if normalized_value not in _ALLOWED_SOURCE_FORMS:
+                    allowed = ", ".join(_ALLOWED_SOURCE_FORMS)
+                    errors.append(
+                        f"{path}: Source form actually read must use controlled enum values when "
+                        "knowledge_layers.require_literature_reading_evidence=true; "
+                        f"allowed values: {allowed} (got {value!r})."
+                    )
+            elif field == "Sections/pages/equations/figures actually read":
+                if not _has_read_locator(value):
+                    errors.append(
+                        f"{path}: Sections/pages/equations/figures actually read must include locatable "
+                        "evidence such as pages, sections, appendices, equations, figures, tables, "
+                        "or source-file references."
+                    )
+            elif field == "Central equations/assumptions extracted":
+                if not _is_substantive_reading_statement(value):
+                    errors.append(
+                        f"{path}: Central equations/assumptions extracted must summarize concrete "
+                        "equations or assumptions, not a minimal label."
+                    )
+            elif field in ("Project relevance", "Limitations / caveats for using this note"):
+                if not _is_substantive_reading_statement(value):
+                    errors.append(
+                        f"{path}: {field} must contain a concrete, reviewable statement."
+                    )
 
     # Optional strictness: forbid "stub" placeholders in referenced notes (token-based, case-insensitive).
     toks = [t.strip() for t in (forbid_tokens or []) if isinstance(t, str) and t.strip()]
