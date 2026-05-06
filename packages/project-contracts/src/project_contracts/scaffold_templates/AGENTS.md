@@ -54,7 +54,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - When the host exposes orchestration or MCP control-plane commands such as `orch_*`, those host-local surfaces may be used as optional control planes; do not assume a literal `orch_*` command exists in every scaffolded project.
 - Provider/domain MCP tools are capability sources, not root authority; do not treat provider MCPs such as `hep-mcp` as the generic root authority.
 - If any A1-A5 approval is pending, stop there. Silence is never approval.
-- If evidence is incomplete, mark the state `uncertain`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
+- If evidence is incomplete, mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
 
 ## Markdown and links
 

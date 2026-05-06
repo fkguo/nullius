@@ -28,7 +28,7 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 - When the host exposes orchestration or MCP control-plane commands such as `orch_*`, those host-local surfaces may be used as optional control planes; do not assume a literal `orch_*` command exists in every scaffolded project.
 - Provider/domain MCP tools are capability sources, not root authority; do not treat provider MCPs such as `hep-mcp` as the generic root authority.
 - If any A1-A5 approval is pending, stop there. Silence is never approval.
-- If evidence is incomplete, mark the state `uncertain`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
+- If evidence is incomplete, mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
 - Then re-read [project_index.md](project_index.md), [AGENTS.md](AGENTS.md), [project_charter.md](project_charter.md), [research_plan.md](research_plan.md), and this file before resuming.
 - Read [research_notebook.md](research_notebook.md) when it already contains substantive content.
 - Optional host/provider/support surfaces are used only when this project explicitly creates them; this contract and `.autoresearch/` state remain the durable restart truth.

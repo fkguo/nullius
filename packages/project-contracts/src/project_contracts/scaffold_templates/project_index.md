@@ -22,7 +22,7 @@ If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch 
 - When the host exposes orchestration or MCP control-plane commands such as `orch_*`, those host-local surfaces may be used as optional control planes; do not assume a literal `orch_*` command exists in every scaffolded project.
 - Provider/domain MCP tools are capability sources, not root authority; do not treat provider MCPs such as `hep-mcp` as the generic root authority.
 - If any A1-A5 approval is pending, stop there. Silence is never approval.
-- If evidence is incomplete, mark the state `uncertain`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
+- If evidence is incomplete, mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
 - Then continue in order through [project_index.md](project_index.md), [AGENTS.md](AGENTS.md), [project_charter.md](project_charter.md), [research_plan.md](research_plan.md), [research_contract.md](research_contract.md), and [research_notebook.md](research_notebook.md) when it already contains substantive content.
 
 ## Core working surfaces

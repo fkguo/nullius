@@ -329,7 +329,7 @@ class TestScaffoldContract(unittest.TestCase):
             self.assertIn("do not treat provider MCPs such as `hep-mcp` as the generic root authority", template, msg=name)
             self.assertIn("If any A1-A5 approval is pending, stop there.", template, msg=name)
             self.assertIn("Silence is never approval.", template, msg=name)
-            self.assertIn("mark the state `uncertain`, `unavailable`, or as a reading gap", template, msg=name)
+            self.assertIn("mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap", template, msg=name)
 
     def test_research_contract_template_drops_legacy_host_surface_residue(self) -> None:
         template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
