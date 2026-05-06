@@ -144,6 +144,70 @@ const PLAN_SCHEMA: Record<string, unknown> = {
       type: 'string',
       enum: ['project_required', 'run_required'],
     },
+    search_depth_contract: {
+      type: 'object',
+      required: [
+        'mode',
+        'pagination_required',
+        'cursor_or_page_tracking_required',
+        'continuation_required',
+        'returned_count_required',
+        'stop_reason_required',
+        'coverage_incomplete_status',
+        'candidate_pool_artifact',
+        'selection_rationale_required',
+        'query_expansion_expected',
+        'citation_expansion_expected',
+      ],
+      properties: {
+        mode: { type: 'string', enum: ['deep'] },
+        pagination_required: { type: 'boolean', enum: [true] },
+        cursor_or_page_tracking_required: { type: 'boolean', enum: [true] },
+        continuation_required: { type: 'boolean', enum: [true] },
+        returned_count_required: { type: 'boolean', enum: [true] },
+        stop_reason_required: { type: 'boolean', enum: [true] },
+        coverage_incomplete_status: { type: 'string', enum: ['coverage_incomplete'] },
+        candidate_pool_artifact: { type: 'string', minLength: 1 },
+        selection_rationale_required: { type: 'boolean', enum: [true] },
+        query_expansion_expected: { type: 'boolean', enum: [true] },
+        citation_expansion_expected: { type: 'boolean', enum: [true] },
+      },
+      additionalProperties: false,
+    },
+    reading_handoff_contract: {
+      type: 'object',
+      required: [
+        'mode',
+        'source_preference',
+        'note_upgrade_required',
+        'expected_artifact',
+        'locators_required',
+        'key_equations_required',
+        'limitations_required',
+      ],
+      properties: {
+        mode: { type: 'string', enum: ['source_first'] },
+        source_preference: {
+          type: 'array',
+          minItems: 4,
+          items: {
+            type: 'string',
+            enum: [
+              'arxiv_latex_source',
+              'full_text_pdf',
+              'available_full_text',
+              'metadata_only_not_evidence_ready',
+            ],
+          },
+        },
+        note_upgrade_required: { type: 'boolean', enum: [true] },
+        expected_artifact: { type: 'string', minLength: 1 },
+        locators_required: { type: 'boolean', enum: [true] },
+        key_equations_required: { type: 'boolean', enum: [true] },
+        limitations_required: { type: 'boolean', enum: [true] },
+      },
+      additionalProperties: false,
+    },
     workflow_step_execution: {
       type: 'object',
       required: ['tool', 'depends_on', 'params', 'required_capabilities'],
@@ -164,6 +228,8 @@ const PLAN_SCHEMA: Record<string, unknown> = {
                 artifact: { type: 'string', minLength: 1 },
                 project_required: { type: 'boolean' },
                 run_required: { type: 'boolean' },
+                search_depth_contract: { $ref: '#/$defs/search_depth_contract' },
+                reading_handoff_contract: { $ref: '#/$defs/reading_handoff_contract' },
               },
               additionalProperties: false,
             },
@@ -214,7 +280,7 @@ function schemaTypeOk(payload: unknown, t: string): boolean {
 
 /** Minimal recursive JSON Schema subset validator.
  *  Matches Python _schema_validate (orchestrator_state.py L181-267).
- *  Supports: type, required, properties, items, enum, minimum, minLength, oneOf, $ref, additionalProperties. */
+ *  Supports: type, required, properties, items, enum, minimum, minLength, minItems, oneOf, $ref, additionalProperties. */
 function schemaValidate(
   payload: unknown,
   schema: Record<string, unknown>,
@@ -309,6 +375,11 @@ function schemaValidate(
       for (let i = 0; i < Math.min(payload.length, 200); i++) {
         errors.push(...schemaValidate(payload[i], items, `${pathStr}[${i}]`, rootSchema));
       }
+    }
+  }
+  if (typeof schemaType === 'string' && schemaType === 'array' && 'minItems' in schema) {
+    if (Array.isArray(payload) && typeof schema.minItems === 'number' && payload.length < schema.minItems) {
+      errors.push(`${pathStr}: array shorter than minItems ${schema.minItems}`);
     }
   }
 

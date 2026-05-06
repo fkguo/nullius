@@ -22,7 +22,34 @@
         "phases": [
           "discover"
         ],
-        "artifact": "seed_search"
+        "artifact": "seed_search",
+        "search_depth_contract": {
+          "mode": "deep",
+          "pagination_required": true,
+          "cursor_or_page_tracking_required": true,
+          "continuation_required": true,
+          "returned_count_required": true,
+          "stop_reason_required": true,
+          "coverage_incomplete_status": "coverage_incomplete",
+          "candidate_pool_artifact": "seed_search_candidates",
+          "selection_rationale_required": true,
+          "query_expansion_expected": true,
+          "citation_expansion_expected": true
+        },
+        "reading_handoff_contract": {
+          "mode": "source_first",
+          "source_preference": [
+            "arxiv_latex_source",
+            "full_text_pdf",
+            "available_full_text",
+            "metadata_only_not_evidence_ready"
+          ],
+          "note_upgrade_required": true,
+          "expected_artifact": "source_first_reading_notes",
+          "locators_required": true,
+          "key_equations_required": true,
+          "limitations_required": true
+        }
       },
       "params": {
         "query": "<query>",

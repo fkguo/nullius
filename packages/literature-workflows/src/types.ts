@@ -44,6 +44,35 @@ export const WorkflowDegradeModeSchema = z.enum([
   'partial_result',
 ]);
 
+export const SearchDepthContractSchema = z.object({
+  mode: z.literal('deep'),
+  pagination_required: z.literal(true),
+  cursor_or_page_tracking_required: z.literal(true),
+  continuation_required: z.literal(true),
+  returned_count_required: z.literal(true),
+  stop_reason_required: z.literal(true),
+  coverage_incomplete_status: z.literal('coverage_incomplete'),
+  candidate_pool_artifact: z.string().min(1),
+  selection_rationale_required: z.literal(true),
+  query_expansion_expected: z.literal(true),
+  citation_expansion_expected: z.literal(true),
+}).strict();
+
+export const ReadingHandoffContractSchema = z.object({
+  mode: z.literal('source_first'),
+  source_preference: z.array(z.enum([
+    'arxiv_latex_source',
+    'full_text_pdf',
+    'available_full_text',
+    'metadata_only_not_evidence_ready',
+  ])).min(4),
+  note_upgrade_required: z.literal(true),
+  expected_artifact: z.string().min(1),
+  locators_required: z.literal(true),
+  key_equations_required: z.literal(true),
+  limitations_required: z.literal(true),
+}).strict();
+
 export const WorkflowRecipeStepSchema = z.object({
   id: z.string().min(1),
   task_kind: WorkflowTaskKindSchema,
@@ -60,6 +89,8 @@ export const WorkflowRecipeStepSchema = z.object({
     artifact: z.string().min(1).optional(),
     project_required: z.boolean().optional(),
     run_required: z.boolean().optional(),
+    search_depth_contract: SearchDepthContractSchema.optional(),
+    reading_handoff_contract: ReadingHandoffContractSchema.optional(),
   }).optional(),
 }).superRefine((value, ctx) => {
   if (!value.tool && !value.action) {

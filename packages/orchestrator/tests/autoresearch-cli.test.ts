@@ -397,6 +397,34 @@ describe('autoresearch CLI', () => {
       id: 'seed_search',
       provider: 'openalex',
       tool: 'openalex_search',
+      consumer_hints: {
+        search_depth_contract: {
+          mode: 'deep',
+          pagination_required: true,
+          cursor_or_page_tracking_required: true,
+          continuation_required: true,
+          returned_count_required: true,
+          stop_reason_required: true,
+          coverage_incomplete_status: 'coverage_incomplete',
+          candidate_pool_artifact: 'seed_search_candidates',
+          selection_rationale_required: true,
+          query_expansion_expected: true,
+          citation_expansion_expected: true,
+        },
+        reading_handoff_contract: {
+          mode: 'source_first',
+          source_preference: [
+            'arxiv_latex_source',
+            'full_text_pdf',
+            'available_full_text',
+            'metadata_only_not_evidence_ready',
+          ],
+          note_upgrade_required: true,
+          locators_required: true,
+          key_equations_required: true,
+          limitations_required: true,
+        },
+      },
     });
     const persistedState = manager.readState();
     expect(persistedState).toMatchObject({
@@ -430,12 +458,122 @@ describe('autoresearch CLI', () => {
         depends_on: [],
         required_capabilities: ['supports_keyword_search'],
         degrade_mode: 'fail_closed',
+        consumer_hints: {
+          search_depth_contract: {
+            cursor_or_page_tracking_required: true,
+            continuation_required: true,
+            coverage_incomplete_status: 'coverage_incomplete',
+            returned_count_required: true,
+            stop_reason_required: true,
+            candidate_pool_artifact: 'seed_search_candidates',
+            selection_rationale_required: true,
+          },
+          reading_handoff_contract: {
+            mode: 'source_first',
+            source_preference: [
+              'arxiv_latex_source',
+              'full_text_pdf',
+              'available_full_text',
+              'metadata_only_not_evidence_ready',
+            ],
+            note_upgrade_required: true,
+            locators_required: true,
+            key_equations_required: true,
+            limitations_required: true,
+          },
+        },
       },
     });
     const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
     expect(planMd).toContain('SSOT: `.autoresearch/state.json#/plan`');
     expect(planMd).toContain('seed_search');
     expect(planMd).toContain('execution_tool: openalex_search');
+
+    const badSearchContractPlan = JSON.parse(JSON.stringify(persistedState.plan)) as Record<string, unknown>;
+    const badSearchStep = ((badSearchContractPlan.steps as Record<string, unknown>[])[0]);
+    const badSearchExecution = badSearchStep.execution as Record<string, unknown>;
+    const badSearchHints = badSearchExecution.consumer_hints as Record<string, unknown>;
+    const badSearchContract = badSearchHints.search_depth_contract as Record<string, unknown>;
+    badSearchContract.continuation_required = false;
+    expect(() => manager.validatePlan(badSearchContractPlan)).toThrow(/schema validation failed/);
+
+    const badReadingContractPlan = JSON.parse(JSON.stringify(persistedState.plan)) as Record<string, unknown>;
+    const badReadingStep = ((badReadingContractPlan.steps as Record<string, unknown>[])[0]);
+    const badReadingExecution = badReadingStep.execution as Record<string, unknown>;
+    const badReadingHints = badReadingExecution.consumer_hints as Record<string, unknown>;
+    const badReadingContract = badReadingHints.reading_handoff_contract as Record<string, unknown>;
+    badReadingContract.key_equations_required = false;
+    expect(() => manager.validatePlan(badReadingContractPlan)).toThrow(/schema validation failed/);
+
+    const truncatedSourcePreferencePlan = JSON.parse(JSON.stringify(persistedState.plan)) as Record<string, unknown>;
+    const truncatedSourcePreferenceStep = ((truncatedSourcePreferencePlan.steps as Record<string, unknown>[])[0]);
+    const truncatedSourcePreferenceExecution = truncatedSourcePreferenceStep.execution as Record<string, unknown>;
+    const truncatedSourcePreferenceHints = truncatedSourcePreferenceExecution.consumer_hints as Record<string, unknown>;
+    const truncatedSourcePreferenceContract = truncatedSourcePreferenceHints.reading_handoff_contract as Record<string, unknown>;
+    truncatedSourcePreferenceContract.source_preference = ['arxiv_latex_source'];
+    expect(() => manager.validatePlan(truncatedSourcePreferencePlan)).toThrow(/schema validation failed/);
+  });
+
+  it('rejects persisted workflow-plan states that weaken deep literature contracts', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+
+    await runCli([
+      'workflow-plan',
+      '--recipe', 'literature_landscape',
+      '--phase', 'prework',
+      '--run-id', 'M-LIT-CONTRACT-1',
+      '--query', 'bootstrap amplitudes',
+      '--topic', 'bootstrap amplitudes',
+      '--seed-recid', '1234',
+      '--preferred-provider', 'openalex',
+      '--available-tool', 'openalex_search',
+      '--available-tool', 'inspire_topic_analysis',
+      '--available-tool', 'inspire_network_analysis',
+      '--available-tool', 'inspire_trace_original_source',
+    ], makeIo(projectRoot).io);
+
+    const cloneState = (): RunState => JSON.parse(JSON.stringify(manager.readState())) as RunState;
+    const firstExecution = (state: RunState): Record<string, unknown> =>
+      ((((state.plan as Record<string, unknown>).steps as Record<string, unknown>[])[0]?.execution ?? {}) as Record<string, unknown>);
+
+    const invalidSearchState = cloneState();
+    const invalidSearchExecution = firstExecution(invalidSearchState);
+    const invalidSearchHints = (invalidSearchExecution.consumer_hints ?? {}) as Record<string, unknown>;
+    invalidSearchExecution.consumer_hints = {
+      ...invalidSearchHints,
+      search_depth_contract: {
+        ...(invalidSearchHints.search_depth_contract as Record<string, unknown>),
+        pagination_required: false,
+      },
+    };
+    expect(() => manager.saveState(invalidSearchState)).toThrow(/schema validation failed/);
+
+    const invalidReadingState = cloneState();
+    const invalidReadingExecution = firstExecution(invalidReadingState);
+    const invalidReadingHints = (invalidReadingExecution.consumer_hints ?? {}) as Record<string, unknown>;
+    invalidReadingExecution.consumer_hints = {
+      ...invalidReadingHints,
+      reading_handoff_contract: {
+        ...(invalidReadingHints.reading_handoff_contract as Record<string, unknown>),
+        note_upgrade_required: false,
+      },
+    };
+    expect(() => manager.saveState(invalidReadingState)).toThrow(/schema validation failed/);
+
+    const truncatedPreferenceState = cloneState();
+    const truncatedPreferenceExecution = firstExecution(truncatedPreferenceState);
+    const truncatedPreferenceHints = (truncatedPreferenceExecution.consumer_hints ?? {}) as Record<string, unknown>;
+    truncatedPreferenceExecution.consumer_hints = {
+      ...truncatedPreferenceHints,
+      reading_handoff_contract: {
+        ...(truncatedPreferenceHints.reading_handoff_contract as Record<string, unknown>),
+        source_preference: ['arxiv_latex_source'],
+      },
+    };
+    expect(() => manager.saveState(truncatedPreferenceState)).toThrow(/schema validation failed/);
   });
 
   it('persists research brainstorm durable harness plans through workflow-plan', async () => {

@@ -32,6 +32,62 @@ describe('literature workflow resolver', () => {
     });
   });
 
+  it('marks deep literature discovery as a continuation contract, not a fixed small result window', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'literature_gap_analysis',
+      phase: 'discover',
+      inputs: { query: 'nonlinear sigma model' },
+      available_tools: ['inspire_search'],
+    });
+
+    const seedSearch = plan.resolved_steps[0];
+    expect(seedSearch?.params).toMatchObject({
+      query: 'nonlinear sigma model',
+      size: 25,
+    });
+    expect(seedSearch?.consumer_hints?.search_depth_contract).toMatchObject({
+      mode: 'deep',
+      pagination_required: true,
+      cursor_or_page_tracking_required: true,
+      continuation_required: true,
+      returned_count_required: true,
+      stop_reason_required: true,
+      coverage_incomplete_status: 'coverage_incomplete',
+      candidate_pool_artifact: 'seed_search_candidates',
+      selection_rationale_required: true,
+      query_expansion_expected: true,
+      citation_expansion_expected: true,
+    });
+  });
+
+  it('carries source-first reading handoff in resolved literature evidence plans', () => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: 'literature_to_evidence',
+      inputs: {
+        query: 'bootstrap amplitudes',
+        run_id: 'RUN-1',
+        project_id: 'project-1',
+        paper_id: 'paper-1',
+      },
+      available_tools: ['inspire_search', 'hep_project_build_evidence'],
+    });
+
+    expect(plan.resolved_steps[0]?.consumer_hints?.reading_handoff_contract).toMatchObject({
+      mode: 'source_first',
+      source_preference: [
+        'arxiv_latex_source',
+        'full_text_pdf',
+        'available_full_text',
+        'metadata_only_not_evidence_ready',
+      ],
+      note_upgrade_required: true,
+      expected_artifact: 'source_first_reading_notes',
+      locators_required: true,
+      key_equations_required: true,
+      limitations_required: true,
+    });
+  });
+
   it('supports provider-neutral discovery preference when the capability exists', () => {
     const plan = resolveWorkflowRecipe({
       recipe_id: 'literature_landscape',
