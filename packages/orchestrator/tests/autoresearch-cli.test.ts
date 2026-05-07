@@ -484,6 +484,33 @@ describe('autoresearch CLI', () => {
         },
       },
     });
+    const statusIo = makeIo(projectRoot);
+    const statusCode = await runCli(['status', '--json'], statusIo.io);
+    expect(statusCode).toBe(0);
+    const statusPayload = JSON.parse(statusIo.stdout.join('')) as Record<string, unknown>;
+    expect(statusPayload).toMatchObject({
+      resume_context: {
+        workflow_handoff_contracts: {
+          seed_search: {
+            step_id: 'seed_search',
+            artifact_key: 'seed_search',
+            search_depth_contract: {
+              mode: 'deep',
+              candidate_pool_artifact: 'seed_search_candidates',
+              continuation_required: true,
+            },
+            reading_handoff_contract: {
+              mode: 'source_first',
+              expected_artifact: 'source_first_reading_notes',
+              note_upgrade_required: true,
+              locators_required: true,
+              key_equations_required: true,
+              limitations_required: true,
+            },
+          },
+        },
+      },
+    });
     const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
     expect(planMd).toContain('SSOT: `.autoresearch/state.json#/plan`');
     expect(planMd).toContain('seed_search');
@@ -1351,6 +1378,21 @@ describe('autoresearch CLI', () => {
             consumer_hints: { artifact: 'connection_scan' },
           },
         },
+        {
+          step_id: 'emit_next_contract',
+          description: 'Emit next research contract',
+          status: 'completed',
+          expected_approvals: [],
+          expected_outputs: ['next_contract'],
+          recovery_notes: '',
+          execution: {
+            tool: 'research_brainstorm.emit_next_contract',
+            depends_on: [],
+            params: {},
+            required_capabilities: [],
+            consumer_hints: { artifact: 'next_contract' },
+          },
+        },
       ],
       notes: '',
     } as Record<string, unknown>;
@@ -1381,6 +1423,17 @@ describe('autoresearch CLI', () => {
         next_step_id: null,
       },
     });
+    manager.appendLedger('workflow_step_completed', {
+      run_id: 'M-LEGACY-1',
+      workflow_id: 'literature_gap_analysis',
+      step_id: 'emit_next_contract',
+      details: {
+        artifact_key: 'next_contract',
+        artifact_uri: 'orch://runs/M-LEGACY-1/artifact/workflow_steps/emit_next_contract.json',
+        runtime_status: 'completed',
+        next_step_id: null,
+      },
+    });
 
     fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'M-LEGACY-1', 'workflow_steps'), { recursive: true });
     fs.writeFileSync(
@@ -1392,12 +1445,30 @@ describe('autoresearch CLI', () => {
       }, null, 2),
       'utf-8',
     );
+    fs.writeFileSync(
+      path.join(projectRoot, 'artifacts', 'runs', 'M-LEGACY-1', 'workflow_steps', 'emit_next_contract.json'),
+      JSON.stringify({
+        status: 'completed',
+        summary: 'Recommended next lane emitted for source-first reading.',
+        payload: {
+          recommended_lane: 'source_first_reading_notes',
+          approval_required: true,
+        },
+      }, null, 2),
+      'utf-8',
+    );
 
     const { io, stdout } = makeIo(projectRoot);
     const code = await runCli(['status', '--json'], io);
 
     expect(code).toBe(0);
-    expect(JSON.parse(stdout.join(''))).toMatchObject({
+    const statusPayload = JSON.parse(stdout.join('')) as Record<string, unknown>;
+    expect(Object.keys(statusPayload.current_run_workflow_outputs as Record<string, unknown>)).toEqual([
+      'topic_analysis',
+      'connection_scan',
+      'next_contract',
+    ]);
+    expect(statusPayload).toMatchObject({
       current_run_workflow_outputs_source: 'legacy_workflow_projection',
       current_run_workflow_outputs: {
         topic_analysis: {
@@ -1409,6 +1480,11 @@ describe('autoresearch CLI', () => {
           reason_code: 'no_input_recids',
           recoverable: true,
         },
+        next_contract: {
+          status: 'completed',
+          artifact_uri: 'orch://runs/M-LEGACY-1/artifact/workflow_steps/emit_next_contract.json',
+          summary: 'Recommended next lane emitted for source-first reading.',
+        },
       },
       legacy_workflow_projection: {
         run_id: 'M-LEGACY-1',
@@ -1417,10 +1493,13 @@ describe('autoresearch CLI', () => {
             reason_code: 'no_input_recids',
             recoverable: true,
           },
+          next_contract: {
+            artifact_uri: 'orch://runs/M-LEGACY-1/artifact/workflow_steps/emit_next_contract.json',
+          },
         },
       },
       resume_context: {
-        workflow_output_keys: expect.arrayContaining(['topic_analysis', 'connection_scan']),
+        workflow_output_keys: expect.arrayContaining(['topic_analysis', 'connection_scan', 'next_contract']),
       },
     });
 
@@ -1437,6 +1516,9 @@ describe('autoresearch CLI', () => {
         connection_scan: {
           reason_code: 'no_input_recids',
           recoverable: true,
+        },
+        next_contract: {
+          artifact_uri: 'orch://runs/M-LEGACY-1/artifact/workflow_steps/emit_next_contract.json',
         },
       },
       legacy_workflow_projection: {

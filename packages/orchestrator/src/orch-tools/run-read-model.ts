@@ -52,7 +52,6 @@ const ACTIVE_DIGEST_RUN_STATUSES = new Set([
 
 type DigestProposalKind = 'repair' | 'skill' | 'optimize' | 'innovate';
 const CURATED_WORKFLOW_OUTPUT_KEYS = ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'] as const;
-type CuratedWorkflowOutputKey = typeof CURATED_WORKFLOW_OUTPUT_KEYS[number];
 type WorkflowOutputSource = 'state' | 'legacy_workflow_projection';
 const RECOVERY_RECOMMENDED_FILES = [
   'project_index.md',
@@ -559,7 +558,7 @@ function readWorkflowArtifactRecord(filePath: string): {
   }
 }
 
-function workflowArtifactPathCandidates(projectRoot: string, runId: string, key: CuratedWorkflowOutputKey, state: RunState): string[] {
+function workflowArtifactPathCandidates(projectRoot: string, runId: string, key: string, state: RunState): string[] {
   const candidates = new Set<string>();
   const stateArtifact = state.artifacts?.[key];
   if (typeof stateArtifact === 'string' && stateArtifact.trim()) {
@@ -640,7 +639,7 @@ function readLegacyWorkflowOutputsView(projectRoot: string, state: RunState): {
     const artifactKey = typeof details.artifact_key === 'string'
       ? details.artifact_key
       : (stepId ? artifactKeyByStepId.get(stepId) ?? stepId : null);
-    if (!artifactKey || !CURATED_WORKFLOW_OUTPUT_KEYS.includes(artifactKey as CuratedWorkflowOutputKey)) continue;
+    if (!artifactKey) continue;
 
     const runtimeStatus = typeof details.runtime_status === 'string'
       ? details.runtime_status
@@ -655,7 +654,10 @@ function readLegacyWorkflowOutputsView(projectRoot: string, state: RunState): {
     let reasonCode = typeof details.reason_code === 'string' ? details.reason_code : null;
     let recoverable = details.recoverable === true;
 
-    const artifactCandidates = workflowArtifactPathCandidates(projectRoot, runId, artifactKey as CuratedWorkflowOutputKey, state);
+    const artifactCandidates = [
+      ...(artifactPath ? [path.join(projectRoot, 'artifacts', 'runs', runId, artifactPath)] : []),
+      ...workflowArtifactPathCandidates(projectRoot, runId, artifactKey, state),
+    ];
     const existingArtifactPath = artifactCandidates.find(candidate => fs.existsSync(candidate)) ?? null;
     if (!artifactUri && existingArtifactPath) {
       artifactPath = relativeArtifactPathForRun(projectRoot, runId, existingArtifactPath);
@@ -678,7 +680,14 @@ function readLegacyWorkflowOutputsView(projectRoot: string, state: RunState): {
     });
   }
 
-  const outputs = Object.fromEntries([...legacyOutputs.entries()].filter(([key]) => CURATED_WORKFLOW_OUTPUT_KEYS.includes(key as CuratedWorkflowOutputKey)));
+  const legacyEntries = [...legacyOutputs.entries()];
+  const orderedKeys = [
+    ...CURATED_WORKFLOW_OUTPUT_KEYS.filter(key => legacyOutputs.has(key)),
+    ...legacyEntries
+      .map(([key]) => key)
+      .filter(key => !(CURATED_WORKFLOW_OUTPUT_KEYS as readonly string[]).includes(key)),
+  ];
+  const outputs = Object.fromEntries(orderedKeys.map(key => [key, legacyOutputs.get(key)]));
   if (Object.keys(outputs).length === 0) {
     return {
       current_run_workflow_outputs: null,
@@ -735,8 +744,47 @@ function readResumeContextView(projectRoot: string, state: RunState, workflowOut
     plan_md_path: state.plan_md_path,
     workflow_output_keys: workflowOutputKeys,
     curated_workflow_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
+    workflow_handoff_contracts: readWorkflowHandoffContracts(state),
     recommended_files: recommendedFiles,
   };
+}
+
+function readWorkflowHandoffContracts(state: RunState): Record<string, unknown> {
+  const steps = Array.isArray(state.plan?.steps) ? state.plan.steps : [];
+  const contracts: Record<string, unknown> = {};
+  for (const rawStep of steps) {
+    if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) continue;
+    const step = rawStep as Record<string, unknown>;
+    const stepId = typeof step.step_id === 'string' && step.step_id.trim()
+      ? step.step_id.trim()
+      : null;
+    const execution = step.execution && typeof step.execution === 'object' && !Array.isArray(step.execution)
+      ? step.execution as Record<string, unknown>
+      : null;
+    const consumerHints = execution?.consumer_hints && typeof execution.consumer_hints === 'object' && !Array.isArray(execution.consumer_hints)
+      ? execution.consumer_hints as Record<string, unknown>
+      : null;
+    if (!stepId || !consumerHints) continue;
+
+    const searchDepthContract = consumerHints.search_depth_contract && typeof consumerHints.search_depth_contract === 'object' && !Array.isArray(consumerHints.search_depth_contract)
+      ? consumerHints.search_depth_contract as Record<string, unknown>
+      : null;
+    const readingHandoffContract = consumerHints.reading_handoff_contract && typeof consumerHints.reading_handoff_contract === 'object' && !Array.isArray(consumerHints.reading_handoff_contract)
+      ? consumerHints.reading_handoff_contract as Record<string, unknown>
+      : null;
+    if (!searchDepthContract && !readingHandoffContract) continue;
+
+    const artifactKey = typeof consumerHints.artifact === 'string' && consumerHints.artifact.trim()
+      ? consumerHints.artifact.trim()
+      : stepId;
+    contracts[artifactKey] = {
+      step_id: stepId,
+      artifact_key: artifactKey,
+      ...(searchDepthContract ? { search_depth_contract: searchDepthContract } : {}),
+      ...(readingHandoffContract ? { reading_handoff_contract: readingHandoffContract } : {}),
+    };
+  }
+  return contracts;
 }
 
 export function readProjectSurfaceDriftView(projectRoot: string): {
