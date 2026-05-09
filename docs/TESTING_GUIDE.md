@@ -20,7 +20,8 @@
 - legacy Python CLI 不再属于公开 front-door；如仍需覆盖，只作为 maintainer/eval/regression-only 内部路径测试
 - `autoresearch init` 使用 canonical generic scaffold；`.mcp.template.json`、根级 `specs/plan.schema.json`、`prompts/`、`team/`、`research_team_config.json` 等 optional support surfaces 只应由明确项目需要或 host-specific tooling 后续创建
 - reconnect 时应优先读取 `.autoresearch/` state 与 project-local durable memory，例如 `research_plan.md`、`research_contract.md`、以及已有实质内容的 `research_notebook.md`
-- `research_notebook.md` 是问题逻辑主线，不是日期 run log；重要文献 note 必须记录全文/source-first 阅读、section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；测试 scaffold/read-model 时要保证空模板不会被误判为 substantive，同时真实逻辑内容会进入 reconnect recommended files
+- `research_plan.md#Current Status` 是给人的当前状态入口；测试 scaffold/read-model 时要保证它被作为恢复指引暴露，同时不新增单独状态文档
+- `research_notebook.md` 是问题逻辑主线，不是日期 run log，也不承载状态追踪；重要文献 note 必须记录全文/source-first 阅读、section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；测试 scaffold/read-model 时要保证空模板不会被误判为 substantive，同时真实逻辑内容会进入 reconnect recommended files
 
 ### 0.1 构建与计数检查
 

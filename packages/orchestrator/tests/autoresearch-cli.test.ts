@@ -1128,6 +1128,7 @@ describe('autoresearch CLI', () => {
         status_command: 'autoresearch status --json',
         current_run_id: 'M-PLAN-1',
         run_status: 'idle',
+        human_status_entry: 'research_plan.md#Current Status',
         recommended_files: expect.arrayContaining(['AGENTS.md', 'project_charter.md', 'research_plan.md', 'research_contract.md']),
       },
       plan_view: {
@@ -1142,6 +1143,7 @@ describe('autoresearch CLI', () => {
           canonical: 'autoresearch status --json',
           project_local_fallback: null,
         },
+        human_status_entry: 'research_plan.md#Current Status',
         current_run: {
           run_id: 'M-PLAN-1',
           run_status: 'idle',

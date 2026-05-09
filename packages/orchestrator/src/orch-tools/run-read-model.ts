@@ -73,6 +73,7 @@ const OPTIONAL_HOST_SURFACE_PATTERNS = [
   { path: 'team/', marker: 'team/' },
   { path: 'research_team_config.json', marker: 'research_team_config.json' },
 ] as const;
+const HUMAN_STATUS_ENTRY = 'research_plan.md#Current Status';
 const RESEARCH_CONTRACT_RESIDUE_MARKERS = [
   '# research_contract.md (Template)',
   'run_team_cycle.sh --preflight-only',
@@ -425,6 +426,7 @@ function readRecoveryContextView(projectRoot: string, state: RunState): Record<s
     current_run: currentRun,
     plan_focus: planFocus,
     latest_ledger_event: ledger.latest_event,
+    human_status_entry: HUMAN_STATUS_ENTRY,
     recommended_files: recommendedFiles,
     derivation_warnings: warnings,
   };
@@ -745,6 +747,7 @@ function readResumeContextView(projectRoot: string, state: RunState, workflowOut
     workflow_output_keys: workflowOutputKeys,
     curated_workflow_output_keys: [...CURATED_WORKFLOW_OUTPUT_KEYS],
     workflow_handoff_contracts: readWorkflowHandoffContracts(state),
+    human_status_entry: HUMAN_STATUS_ENTRY,
     recommended_files: recommendedFiles,
   };
 }

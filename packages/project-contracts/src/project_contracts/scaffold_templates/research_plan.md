@@ -4,7 +4,22 @@ Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
 
 This file is the actionable task board for the project.
-Keep the current milestone, next steps, and restart notes updated enough that a new run can resume without hidden context.
+Keep the current status, milestone, next steps, and restart notes updated enough that a researcher can see where the project stands without reading the full log.
+
+## Current Status
+
+Keep this section short enough to read in one screen. It is the human status entry for the project; expand details in the sections below.
+
+| Field | Current value |
+|---|---|
+| Final target | |
+| Current phase | |
+| Done | |
+| Open | |
+| Blocked by | |
+| Next step | |
+| Closure / stop condition | |
+| Evidence pointers | |
 
 ## Current milestone
 

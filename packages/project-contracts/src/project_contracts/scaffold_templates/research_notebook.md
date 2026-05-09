@@ -12,7 +12,6 @@ Keep machine-stable gate structure in [research_contract.md](research_contract.m
 
 - Core question:
 - Why it matters:
-- Current milestone:
 
 ## Current Understanding
 

@@ -304,6 +304,20 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("organized by the research problem's logic", index_template)
         self.assertIn("# research_plan.md\n", plan_template)
         self.assertNotIn("# research_plan.md (Template)", plan_template)
+        self.assertIn("## Current Status", plan_template)
+        self.assertLess(plan_template.index("## Current Status"), plan_template.index("## Current milestone"))
+        self.assertLess(plan_template.index("## Current Status"), plan_template.index("## Task Board"))
+        for field in [
+            "Final target",
+            "Current phase",
+            "Done",
+            "Open",
+            "Blocked by",
+            "Next step",
+            "Closure / stop condition",
+            "Evidence pointers",
+        ]:
+            self.assertIn(field, plan_template)
         self.assertIn("not by appending a dated run log", plan_template)
         self.assertIn("If `.autoresearch/` exists, run `autoresearch status --json` first", plan_template)
         self.assertIn("opt-in support layers", index_template)
@@ -377,5 +391,6 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("sections/pages/equations/figures actually read", template)
         self.assertIn("Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md)", template)
         self.assertIn("LaTeX math for scientific notation rather than inline-code backticks", template)
+        self.assertNotIn("- Current milestone:", template)
         self.assertNotIn("## Derivation Notes", template)
         self.assertNotIn("## Results", template)
