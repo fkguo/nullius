@@ -10,6 +10,8 @@
 
 ## Generic First-Touch（先走 generic front door）
 
+在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.autoresearch/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `autoresearch`、把里程碑推进交给 `research-team`、把 HEP 文献/证据工作交给 `hep-mcp`。
+
 如果你还没初始化外部 project root，先走这一条：
 
 1) `autoresearch init --project-root /absolute/path/to/external-project`
@@ -30,6 +32,8 @@ autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000
 它会持久化 `.autoresearch/state.json#/plan` 并派生 `.autoresearch/plan.md` read model，输出的 `next_contract` 可建议后续 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle`，但不会自动升级到这些 recipe。这个 harness 是 planning-only：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。host-native thinking process 不属于这个 recipe 的 contract；它也不是 idea-engine、不是 full research-team、不是新的 root front door。
 
 研究记录约定：`research_plan.md#Current Status` 是给人看的状态入口，应在长 task board / log 之前写清最终目标、当前阶段、完成状态、阻塞、下一步、停止条件和证据指针；`research_notebook.md` 按问题逻辑、推导、claim 和不确定性组织，不承载状态追踪。重要文献 note 必须全文/source-first 阅读，记录 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；带日期的 run log、原始检索摘要、下载尝试和控制面观察写入 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把稳定理解折回 notebook。`run_id` 应是 safe、sortable、readable 的研究标识，如 `20260502T023000Z-m3-branch-scan-r1`；若 `workflow-plan` 未显式传 `--run-id`，派生的 `<recipe>-<phase>` 只作为 planning placeholder。
+
+`research-team` 的 `team/runs/` 是执行与 reviewer packet/log surface，不是最终项目真相。稳定结论必须折回 `research_contract.md`、`research_plan.md#Current Status` 和对应 `artifacts/runs/<run_id>/` 后，才算完成交接。
 
 ## Draft Path（最简路径）
 

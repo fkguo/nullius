@@ -57,11 +57,12 @@ Selective skill install (default: install only what you ask for):
 # Install one skill to Codex path (~/.codex/skills/<skill-id>)
 python3 scripts/install_skill.py \
   --platform codex \
-  --package research-team
+  --package research-harness
 
 # Install multiple skills (with skill-pack dependency auto-install)
 python3 scripts/install_skill.py \
   --platform codex \
+  --package research-harness \
   --package research-team \
   --package research-writer
 ```
@@ -71,6 +72,7 @@ python3 scripts/install_skill.py \
 - Skill-pack dependencies are auto-installed by default (disable with `--no-deps`)
 - Non-skill dependencies (`tool-pack/workflow-pack/engine-pack/contract-pack`) are surfaced as preflight warnings, or hard-failed with `--strict-deps`
 - Source payload uses package-level publish allowlist (`source.include`) and denylist (`source.exclude`) so review artifacts/dev traces are not installed
+- `research-harness` is the thin external-project entry skill for Codex / Claude Code / OpenCode. It has no hard package dependency on `research-team` or `hep-mcp`; it routes to them when those capabilities are available.
 - Skill-packs can opt into installer-managed Python isolation with `runtime.python.mode = "isolated-venv"`
 - Opted-in Python skills get a skill-local `.venv`; installs fail closed if venv creation or package install fails
 - `--auto-safe` is a narrower copy-install authority for `skill-pack` closures only:

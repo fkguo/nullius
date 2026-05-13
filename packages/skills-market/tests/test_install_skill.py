@@ -14,7 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from install_skill_runtime.cli import main as install_main
-from install_skill_runtime.market_index import load_json
+from install_skill_runtime.market_index import default_market_root, load_json
 from install_skill_runtime.python_runtime import python_bin_relative_path
 from install_skill_runtime.source_payload import collect_payload_files
 from install_skill_runtime.skill_note import NOTE_START, inject_python_runtime_note
@@ -89,6 +89,11 @@ def _make_market(tmp_path: pathlib.Path, package_id: str, runtime_packages: list
         encoding="utf-8",
     )
     return market_root, source_root
+
+
+def test_default_market_root_points_to_skills_market_root() -> None:
+    script_file = ROOT / "scripts" / "install_skill_runtime" / "cli.py"
+    assert default_market_root(script_file) == ROOT
 
 
 def test_install_skill_dry_run_reports_isolated_runtime(capsys, tmp_path: pathlib.Path) -> None:

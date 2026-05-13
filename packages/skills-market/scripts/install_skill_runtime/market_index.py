@@ -9,7 +9,7 @@ RE_PACKAGE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 def default_market_root(script_file: pathlib.Path) -> pathlib.Path:
-    return script_file.resolve().parents[1]
+    return script_file.resolve().parents[2]
 
 
 def load_json(path: pathlib.Path) -> dict[str, Any]:
