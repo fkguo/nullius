@@ -213,7 +213,7 @@ describe('autoresearch CLI', () => {
     ] as const;
     const forbiddenSnippets = [
       'Provider-local `doctor`/`bridge` remain on the transitional Pipeline A surface',
-      '`hepar literature-gap` remains',
+      'provider-local literature-gap shell remains',
       'internal parser support commands remain the recommended entrypoint',
     ] as const;
 

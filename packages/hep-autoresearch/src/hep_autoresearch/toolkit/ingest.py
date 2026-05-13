@@ -601,7 +601,7 @@ def ingest_one(inps: IngestInputs, repo_root: Path) -> dict[str, Any]:
             outputs["snapshots"]["inspire"] = os.fspath(snap_dir.relative_to(repo_root))
         else:
             # IMPORTANT: do not overwrite an existing snapshot with placeholder values when
-            # metadata fetch fails (e.g. HEPAR_HTTP_MODE=fail_all). Keep the last good snapshot.
+            # metadata fetch fails (e.g. HEP_RESEARCH_HTTP_MODE=fail_all). Keep the last good snapshot.
             if extracted_path.exists():
                 outputs["snapshots"]["inspire"] = os.fspath(snap_dir.relative_to(repo_root))
 

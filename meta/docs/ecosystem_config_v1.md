@@ -60,9 +60,9 @@ Note: host-side sampling and orchestration now own writing/model decisions. This
 |-----|------|---------|-------------|---------|
 | `HEP_AUTORESEARCH_DIR` | path | derived | Internal runtime state directory override | hep-autoresearch |
 | `HEP_MCP_PACKAGE_DIR` | path | auto-detected | Internal override for locating the HEP MCP package checkout | hep-autoresearch |
-| `HEPAR_HTTP_MODE` | `live` \| `record` \| `replay` \| `fail_all` | `live` | Internal HTTP fixture/testing mode | hep-autoresearch |
-| `HEPAR_HTTP_FIXTURES_DIR` | path | (none) | Fixture cache directory required by `record` / `replay` modes | hep-autoresearch |
-| `HEPAR_RECORD_ABS_PATHS` | boolean | `false` | Internal artifact-path recording toggle | hep-autoresearch |
+| `HEP_RESEARCH_HTTP_MODE` | `live` \| `record` \| `replay` \| `fail_all` | `live` | Internal HTTP fixture/testing mode | hep-autoresearch |
+| `HEP_RESEARCH_HTTP_FIXTURES_DIR` | path | (none) | Fixture cache directory required by `record` / `replay` modes | hep-autoresearch |
+| `HEP_RESEARCH_RECORD_ABS_PATHS` | boolean | `false` | Internal artifact-path recording toggle | hep-autoresearch |
 | `CODEX_HOME` | path | (none) | Skill discovery root for internal Python wrappers that invoke Codex-managed tools | hep-autoresearch |
 
 ### MCP Subprocess Environment Allowlist

@@ -12,7 +12,7 @@
 
 - `autoresearch` 是 generic front door 与长期 control plane；HEP 是当前最成熟的 domain pack，不是根产品身份。
 - 不考虑向后兼容负担。项目尚未正式发布，默认允许直接 breaking change；不要为了旧 shell、旧 schema、旧数据或旧 prompt 保留 fallback、shim、compatibility backend。
-- `packages/hep-autoresearch` / `hepar` 是持续收缩中的 legacy Python provider surface，不得重新获得 generic authority。
+- `packages/hep-autoresearch` 是持续收缩中的 legacy Python provider surface，不得重新获得 generic authority。
 - 真实研究项目必须使用开发仓外部的绝对 `project root`；开发仓本身不是 real-project authority。
 - 真实研究运行产物不得回流开发仓；repo 内 gitignored 工作区只能作为显式 maintainer fixture，不得伪装成 public 默认路径。
 - Core 必须保持 domain-neutral。HEP 特定 prompts、heuristics、workflow 偏好、taxonomy、tool mapping 必须下沉到 domain/provider 层。
@@ -48,7 +48,6 @@
   - 受影响包的 targeted `pytest` / `vitest`
   - `pnpm -r build`
 - 若改动触及 public CLI/help/docs truth，默认还要检查：
-  - `packages/hep-autoresearch/tests/test_public_cli_surface.py`
   - `packages/orchestrator/tests/autoresearch-cli.test.ts`
   - `packages/hep-mcp/tests/docs/docToolDrift.test.ts`
 
@@ -78,7 +77,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoresearch-lab** (11930 symbols, 27552 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoresearch-lab** (11898 symbols, 27503 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

@@ -91,9 +91,9 @@ export const FRONT_DOOR_SNIPPETS = [
       'If you want the current strongest domain-pack smoke path next, connect your MCP client to `packages/hep-mcp/dist/index.js` and run:',
     ],
     forbiddenSnippets: [
-      '`hepar literature-gap` is still live only as a legacy shell',
-      '`hepar literature-gap` still exists in the legacy Pipeline A CLI surface',
-      '`hepar literature-gap` remains only as a legacy wrapper',
+      '`literature-gap` is still live only as a legacy shell',
+      '`literature-gap` still exists in the legacy Pipeline A CLI surface',
+      '`literature-gap` remains only as a legacy wrapper',
     ],
   },
   {
@@ -132,9 +132,9 @@ export const FRONT_DOOR_SNIPPETS = [
       '如果你接着想走当前最强的 domain-pack 烟测路径，再把 MCP client 接到 `packages/hep-mcp/dist/index.js` 并执行：',
     ],
     forbiddenSnippets: [
-      '`hepar literature-gap` 仍然存在，但只作为 legacy shell',
-      '`hepar literature-gap` 仍在旧的 Pipeline A CLI 面上存活',
-      '`hepar literature-gap` 仅剩 legacy wrapper',
+      '`literature-gap` 仍然存在，但只作为 legacy shell',
+      '`literature-gap` 仍在旧的 Pipeline A CLI 面上存活',
+      '`literature-gap` 仅剩 legacy wrapper',
     ],
   },
   {
@@ -171,8 +171,8 @@ export const FRONT_DOOR_SNIPPETS = [
       '- `workflow-plan` 现在是公开的 stateful literature front door，且已把稳定的 typed `plan.execution` metadata 写入 `.autoresearch/state.json#/plan`。',
     ],
     forbiddenSnippets: [
-      '`hepar literature-gap` remains legacy-only',
-      '`hepar literature-gap` is still live on the legacy Pipeline A CLI surface',
+      '`literature-gap` remains legacy-only',
+      '`literature-gap` is still live on the legacy Pipeline A CLI surface',
     ],
   },
   {
@@ -196,7 +196,7 @@ export const FRONT_DOOR_SNIPPETS = [
       'Users who need generic lifecycle state should invoke `autoresearch` directly rather than expecting the root MCP server to own that surface today.',
     ],
     forbiddenSnippets: [
-      '`hepar literature-gap` still exists on the legacy Pipeline A CLI surface as a wrapper',
+      '`literature-gap` still exists on the legacy Pipeline A CLI surface as a wrapper',
     ],
   },
   {
@@ -207,9 +207,9 @@ export const FRONT_DOOR_SNIPPETS = [
       '高层 literature workflow 现由公开的 stateful `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。',
     ],
     forbiddenSnippets: [
-      '`hepar literature-gap` 仅剩 legacy shell',
-      '`hepar literature-gap` 不再作为推荐主入口',
-      '`hepar literature-gap` 仍是 legacy shell',
+      '`literature-gap` 仅剩 legacy shell',
+      '`literature-gap` 不再作为推荐主入口',
+      '`literature-gap` 仍是 legacy shell',
     ],
   },
   {
@@ -235,17 +235,17 @@ export const FRONT_DOOR_SNIPPETS = [
     ],
     forbiddenSnippets: [
       'python -m hep_autoresearch.orchestrator_cli \\',
-      '`hepar literature-gap` 仅剩 legacy shell',
+      '`literature-gap` 仅剩 legacy shell',
     ],
   },
   {
     relPath: 'meta/protocols/session_protocol_v1.md',
     snippets: [
       '> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the package-local workflow recipes in `@autoresearch/literature-workflows`, with `autoresearch workflow-plan` as the installable public stateful front door. Other checked-in consumers remain internal-only validation seams of the same authority, not competing entrypoints.',
-      '> The old `hepar literature-gap` shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `autoresearch workflow-plan`.',
+      '> The old provider-local literature-gap shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `autoresearch workflow-plan`.',
     ],
     forbiddenSnippets: [
-      '`research-team` and `hepar literature-gap`.',
+      '`research-team` and provider-local literature-gap.',
     ],
   },
   {
@@ -254,7 +254,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
       '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
       '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
-      '2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. The retired public `hepar` shell must not reclaim `orch_*` or `autoresearch` authority.',
+      '2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. Provider-local Python residue must not reclaim `orch_*` or `autoresearch` authority.',
     ],
   },
   {

@@ -177,7 +177,7 @@
 
 **Decision**:
 - User-facing project-root entry names should describe role directly; obviously wrong legacy scaffold names should be directly renamed during the current refactor.
-- `hepar init` and `research-team scaffold` are thin host entrypoints and must not own independent scaffold authority.
+- Legacy provider-local init and `research-team scaffold` are thin host entrypoints and must not own independent scaffold authority.
 - The canonical minimal project-root surface is `project_charter.md`, `project_index.md`, `research_plan.md`, `research_notebook.md`, `research_contract.md`, and `.mcp.template.json`.
 - Shared scaffold authority is complete only when every user-readable output is backed by a checked-in template inventory with bidirectional anti-drift checks.
 - Host/provider extras remain optional, and provider bundles stay opt-in; generic scaffold examples must remain provider-neutral by default.
@@ -190,7 +190,7 @@
 - Shared scaffold / contract authority now lives in the neutral Python package `packages/project-contracts/`; `research-team` public scaffold/contract-refresh entrypoints and `hep-autoresearch init` are consumers, not independent authorities.
 - Public `real_project` flows must fail closed when the project root or real-project intermediate outputs resolve anywhere under the autoresearch-lab development repo checkout.
 - Repo-internal workspaces are allowed only as explicit `maintainer_fixture` directories (currently `.tmp` under the dev repo); longer-lived maintainer-only materials should live in local non-public archives such as `~/.autoresearch-lab-dev/` and must never become real-project authority or a hidden fallback mode.
-- This slice is authority extraction plus isolation only; it does not repoint the generic control plane yet and does not preserve future `hepar` / `hep-autoresearch` aliases by default.
+- This slice is authority extraction plus isolation only; it does not repoint the generic control plane yet and does not preserve future provider-local aliases by default.
 
 **Why**: The shared scaffold contract cannot remain credible while public research flows can still create or route real work back into the development monorepo. The explicit real-project vs maintainer-fixture split closes that hole without expanding into a full Pipeline A repoint.
 
@@ -225,7 +225,7 @@
 ### [2026-04-07] Legacy public-shell invariant (superseded on 2026-04-08): temporary bounded-pointer framing before full public-shell retirement
 
 **Decision**:
-- The installable Pipeline A aliases (`hep-autoresearch`, `hepar`, `hep-autopilot`) must not retain a suite of public workflow/support commands after generic authority has moved to `autoresearch`.
+- The installable Pipeline A aliases must not retain a suite of public workflow/support commands after generic authority has moved to `autoresearch`.
 - This entry recorded the intermediate contraction stance before the later 2026-04-08 decision deleted the installable public shell entirely; it is kept only as historical sequencing, not as current authority.
 - Legacy utilities such as `approvals`, `report`, `logs`, `context`, `smoke-test`, `method-design`, `propose`, `skill-propose`, `run-card`, `branch`, and `migrate` must either be internal full-parser only or be deleted; they are not public front-door truth.
 - Exact public-shell inventory must stay fail-closed across source, front-door authority fixtures, docs, and tests.
@@ -241,14 +241,14 @@
 
 **Why**: Leaving discovery contracts or runtime default assets under `idea-core` or repo-local default run roots preserves hidden fallback authority even after TS hosting became the only public idea surface, and it violates the dev-repo boundary for real runtime state.
 
-### [2026-03-21] Pipeline A lifecycle invariant: `hep-autoresearch` and `hepar` move together
+### [2026-03-21] Pipeline A lifecycle invariant: installable aliases move together
 
 **Decision**:
-- `hep-autoresearch` and its installable alias `hepar` are the same Pipeline A Python control-plane surface; they must not be governed as if one were retired while the other remained the default long-term authority.
+- The package-local Python surface and its installable alias are the same Pipeline A control-plane surface; they must not be governed as if one were retired while the other remained the default long-term authority.
 - This historical invariant matters because later retirement applies to both names together; it should no longer be read as permission to keep either name alive as a public transitional entrypoint.
 - When a batch changes lifecycle status for a package / CLI / pipeline surface (`current`, `transitional`, `retired`, `repointed`), the checked-in governance/docs set must distinguish then-current status from later retirement decisions so historical notes do not silently contradict live front-door truth.
 
-**Why**: The repository then had both a Python Pipeline A and a target TS control plane. Without an explicit invariant tying `hep-autoresearch` and `hepar` together, docs drifted into contradictory states where one source said “retired” and another still presented the same surface as the default authority. The later 2026-04-08 retirement decision resolves that ambiguity in favor of full public-shell retirement.
+**Why**: The repository then had both a Python Pipeline A and a target TS control plane. Without an explicit invariant tying the package-local surface and installable alias together, docs drifted into contradictory states where one source said “retired” and another still presented the same surface as the default authority. The later 2026-04-08 retirement decision resolves that ambiguity in favor of full public-shell retirement.
 
 ### [2026-03-21] Orchestrator package boundary invariant: workspace source is singular, host adapters consume the package surface
 
@@ -518,7 +518,7 @@
 
 **Decision**:
 - Generic root lifecycle authority now lives only on the TS control plane: `autoresearch` / `packages/orchestrator` own `init`, `status`, `pause`, `resume`, `approve`, and `export`.
-- `hep-autoresearch` / `hepar` must not regain direct public root lifecycle or approval-mutation authority. Any retained internal Python lifecycle surface is allowed only as a thin passthrough to canonical `autoresearch`, while the web surface is limited to read-only diagnostics.
+- `hep-autoresearch` must not regain direct public root lifecycle or approval-mutation authority. Any retained internal Python lifecycle surface is allowed only as a thin passthrough to canonical `autoresearch`, while the web surface is limited to read-only diagnostics.
 - `research_workflow_v1` and `workflow-templates` are no longer live workflow authority. Recipe-based workflow authority now means `workflow_recipe_v1` plus the package-local `packages/literature-workflows/recipes/**` resolver layer; shared/generated exports must not imply a second graph-schema workflow substrate.
 - Remaining `M-22` work is therefore bounded to residual provider-local non-computation `run` workflows and adjacent support surfaces, not generic lifecycle or workflow authority.
 
@@ -540,19 +540,19 @@
 **Decision**:
 - Command and tool inventories should be single-sourced per live authority surface rather than forced into one cross-language pseudo-registry.
 - Top-level `autoresearch` public commands should live in the TS orchestrator source and directly drive parser/help behavior.
-- The installable legacy `hepar` public shell is retired rather than preserved as a second public inventory. Any remaining Python parser residue must stay explicitly internal-only and separately classified from live public surfaces.
+- The installable legacy public shell is retired rather than preserved as a second public inventory. Any remaining Python parser residue must stay explicitly internal-only and separately classified from live public surfaces.
 - Exact `orch_*` MCP tool listings belong only in the live spec surface that reads from the registry. Broader docs such as architecture overviews should summarize by tool family and link to that exact spec instead of carrying their own exact subsets.
 - A future typed front-door authority map may generate docs/tests from a richer shared classification, but until that lands the invariant remains per-surface exact sources, not faux unification.
 
 **Why**: A single cross-TS/Python "master command table" would create false shared authority and stale-doc drift. Mature runtimes instead keep one exact source per live boundary and let overview docs remain summary-level projections.
 
-### [2026-04-08] Public `hepar` shell retirement boundary: installable aliases are removed from public authority
+### [2026-04-08] Public shell retirement boundary: installable aliases are removed from public authority
 
 **Decision**:
-- The installable public `hepar` / `hep-autoresearch` / `hep-autopilot` shell is retired outright; package metadata must no longer publish CLI aliases or npm bin wrappers for it.
+- The installable public Python shell is retired outright; package metadata must no longer publish CLI aliases or npm bin wrappers for it.
 - `packages/hep-autoresearch/src/hep_autoresearch/cli.py` and `python -m hep_autoresearch` now fail closed with a retirement message that points users back to the root `autoresearch` CLI.
 - Former public support/operator verbs and workflow paths are internal full-parser coverage only for maintainer/eval/regression usage and must not be documented or tested as installable public entrypoints.
-- The front-door authority map should no longer carry a `hepar_public_shell` surface id. It should classify only canonical public `autoresearch`, internal Python parser residue, and exact MCP tool spec surfaces.
+- The front-door authority map should no longer carry any public-shell surface id for the legacy Python package. It should classify only canonical public `autoresearch`, internal Python parser residue, and exact MCP tool spec surfaces.
 
 **Why**: Even a "compatibility pointer" keeps the retired Python shell alive as a second branded front door and forces docs/tests/packaging to keep explaining it. Since the repo is still pre-release and does not carry backward-compatibility obligations, deleting the installable shell surface entirely is lower-risk and lower-maintenance than preserving a ceremonial wrapper.
 
@@ -634,14 +634,14 @@
 
 **Why**: The repository is still pre-release and explicitly carries no backward-compatibility burden. Keeping tiny aliases like `approval_required`, `A0`, or `complete` alive only creates more hidden support surface, more ambiguous docs/tests, and more future cleanup cost. Canonical operator/control-plane inputs should stay exact so drift is obvious and deletions are real.
 
-### [2026-04-09] Internal runtime identity invariant: retired `hepar` branding must not survive as hidden runtime asset or A2A identity
+### [2026-04-09] Internal runtime identity invariant: retired public-shell branding must not survive as hidden runtime asset or A2A identity
 
 **Decision**:
-- `idea-engine` HEP search runtime records operator-template evidence URIs under `urn:idea-engine:operator-template:<version>`, not `urn:hepar:...`.
+- `idea-engine` HEP search runtime records operator-template evidence URIs under `urn:idea-engine:operator-template:<version>`, not retired public-shell URNs.
 - Checked-in RPC golden fixtures for `idea-engine` must be regenerated against the live runtime after that rename so the fixture stays an anti-drift asset rather than a stale history packet.
-- `hep-autoresearch` internal A2A / bound-agent error envelopes and MCP stdio client initialization use package-local `hep-autoresearch` identity strings, not `hepar` branding.
+- `hep-autoresearch` internal A2A / bound-agent error envelopes and MCP stdio client initialization use package-local `hep-autoresearch` identity strings, not retired public-shell branding.
 
-**Why**: Leaving `hepar` embedded in hidden runtime assets or internal transport envelopes would keep a second obsolete naming authority alive even after the public shell and docs were retired. Generic-first cleanup only really closes when active runtime artifacts, fixture goldens, and internal transport identities all stop reintroducing the old brand.
+**Why**: Leaving retired public-shell branding embedded in hidden runtime assets or internal transport envelopes would keep a second obsolete naming authority alive even after the public shell and docs were retired. Generic-first cleanup only really closes when active runtime artifacts, fixture goldens, and internal transport identities all stop reintroducing the old brand.
 
 ### [2026-04-09] Workspace freshness invariant: incremental TypeScript builds may leave emitted mtimes unchanged when output content is identical
 

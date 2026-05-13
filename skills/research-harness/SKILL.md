@@ -5,7 +5,7 @@ description: Use when working inside an external research project that has or ma
 
 # Research Harness
 
-Use this skill as the thin project-harness entrypoint for Codex, Claude Code, or OpenCode inside a real external research project.
+Use this skill as the thin project-harness entrypoint for Codex, Claude Code, OpenCode, or other agents inside a real external research project.
 
 It does not replace the research executors. It restores the project state, routes work to the right surface, and makes sure durable conclusions land back in the project contract and run artifacts.
 
@@ -14,7 +14,6 @@ It does not replace the research executors. It restores the project state, route
 - `autoresearch`: generic TS CLI and project lifecycle control plane.
 - `research-team`: milestone execution and multi-agent research progress.
 - `hep-mcp`: HEP literature, evidence, INSPIRE/arXiv, bibliography, and export tooling.
-- `hepar` / `hep-autoresearch`: retired public shell. Never use it as the control plane or fallback.
 
 ## Recovery First
 
@@ -50,7 +49,7 @@ autoresearch init
 - If the task needs HEP literature, evidence, INSPIRE/arXiv, source reading, bibliography, or export support, use `hep-mcp`.
 - If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `autoresearch`.
 
-Do not invent compatibility commands or call retired `hepar` / `hep-autoresearch` public entrypoints. If a user asks for them, say they are retired and route to `autoresearch` plus the relevant skill/tool layer.
+Do not invent compatibility commands or fallback entrypoints. Keep lifecycle work on `autoresearch` and route executor or provider work to the relevant skill/tool layer.
 
 ## Fold Results Back
 

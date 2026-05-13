@@ -19,7 +19,7 @@ For current user-facing guidance, start from:
 For package consumers, the only stable guidance here is:
 
 - use `autoresearch` as the front door
-- do not treat `hep-autoresearch` / `hepar` as the product identity
-- do not expect an installable `hepar` / `hep-autoresearch` public shell
+- do not treat `hep-autoresearch` as the product identity
+- do not expect an installable public shell from this package
 - treat `hep-autoresearch-internal` / `python -m hep_autoresearch.orchestrator_cli` as maintainer-only internal residue rather than a normal client entrypoint
 - expect the remaining retired provider-local Python internals to continue shrinking rather than expanding

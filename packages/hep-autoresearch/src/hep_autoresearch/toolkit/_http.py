@@ -14,12 +14,12 @@ def _http_mode() -> str:
     # - record: network + write fixtures
     # - replay: fixtures only (no network)
     # - fail_all: always fail network
-    v = (os.environ.get("HEPAR_HTTP_MODE") or "live").strip().lower()
+    v = (os.environ.get("HEP_RESEARCH_HTTP_MODE") or "live").strip().lower()
     return v or "live"
 
 
 def _fixtures_dir() -> Path | None:
-    v = (os.environ.get("HEPAR_HTTP_FIXTURES_DIR") or "").strip()
+    v = (os.environ.get("HEP_RESEARCH_HTTP_FIXTURES_DIR") or "").strip()
     if not v:
         return None
     p = Path(v)
@@ -33,7 +33,7 @@ def _fixture_key(url: str) -> str:
 def _fixture_path(url: str, *, kind: str) -> Path:
     fixtures = _fixtures_dir()
     if fixtures is None:
-        raise RuntimeError("HEPAR_HTTP_FIXTURES_DIR is required for HEPAR_HTTP_MODE=record|replay")
+        raise RuntimeError("HEP_RESEARCH_HTTP_FIXTURES_DIR is required for HEP_RESEARCH_HTTP_MODE=record|replay")
     fixtures.mkdir(parents=True, exist_ok=True)
     sha = _fixture_key(url)
     ext = {"json": "json", "text": "txt", "bin": "bin"}.get(kind, "bin")
@@ -43,7 +43,7 @@ def _fixture_path(url: str, *, kind: str) -> Path:
 def _fixture_url_path(url: str) -> Path:
     fixtures = _fixtures_dir()
     if fixtures is None:
-        raise RuntimeError("HEPAR_HTTP_FIXTURES_DIR is required for HEPAR_HTTP_MODE=record|replay")
+        raise RuntimeError("HEP_RESEARCH_HTTP_FIXTURES_DIR is required for HEP_RESEARCH_HTTP_MODE=record|replay")
     fixtures.mkdir(parents=True, exist_ok=True)
     sha = _fixture_key(url)
     return fixtures / f"{sha}.url.txt"
@@ -87,10 +87,10 @@ def _maybe_record(url: str, *, kind: str, payload: bytes) -> None:
 def _guard_network(url: str) -> None:
     mode = _http_mode()
     if mode in {"fail", "fail_all"}:
-        raise RuntimeError(f"HTTP disabled by HEPAR_HTTP_MODE={mode} (url={url})")
+        raise RuntimeError(f"HTTP disabled by HEP_RESEARCH_HTTP_MODE={mode} (url={url})")
     if mode == "replay":
         # replay mode should never reach the network path
-        raise RuntimeError(f"unexpected network access in HEPAR_HTTP_MODE=replay (url={url})")
+        raise RuntimeError(f"unexpected network access in HEP_RESEARCH_HTTP_MODE=replay (url={url})")
 
 
 def http_get_json(url: str, timeout_seconds: float = 60.0) -> dict[str, Any]:

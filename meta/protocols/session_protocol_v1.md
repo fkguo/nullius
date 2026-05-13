@@ -5,7 +5,7 @@
 
 > Within that checked-in workflow authority, current recipes remain mixed by provider maturity beneath the workflow layer; the pack should not be read as implying provider-parity across every bounded step.
 
-> The old `hepar literature-gap` shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `autoresearch workflow-plan`.
+> The old provider-local literature-gap shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `autoresearch workflow-plan`.
 
 > High-level literature workflow sequencing for Stage 1-2 lives in the checked-in package-local workflow recipes under `packages/literature-workflows/recipes/`. The pack remains mixed by current provider maturity beneath that workflow layer. Provider-specific MCP tools remain the bounded atomic building blocks underneath those recipes; they are not the public front door.
 
