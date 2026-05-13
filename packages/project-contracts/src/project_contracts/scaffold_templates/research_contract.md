@@ -64,6 +64,8 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 - Each completed milestone should include enough provenance for a future reader to identify inputs, commands, source versions, outputs, and checks.
 - Prefer machine-readable manifests for structured outputs, with Markdown pointers for human review.
 - When an artifact supports a claim, cite the project-relative path and the relevant field, row, section, or checksum.
+- For every figure, table, or headline claim, keep the lineage explicit: script or notebook, configuration version, input data, generated output file, and the manuscript or note sentence it supports.
+- If any lineage item is missing, record it as missing evidence instead of silently treating the figure, table, or claim as established.
 
 <!-- REPRO_CAPSULE_START -->
 ## Reproducibility Capsule
@@ -84,6 +86,15 @@ Fill this section for each milestone or tag that is claimed as complete.
 - Expected outputs:
   - `artifacts/runs/<run_id>/manifest.json`
   - `artifacts/runs/<run_id>/summary.json`
+- Figure/table/claim lineage checks:
+  - Claim or sentence:
+  - Figure/table:
+  - Generating command:
+  - Configuration:
+  - Input data:
+  - Output file:
+  - Missing evidence:
+  - Human judgment needed:
 - Provenance pointers:
   - Source files or commits:
   - Input data or references:
@@ -99,19 +110,35 @@ Fill this section for each milestone or tag that is claimed as complete.
 
 Use stable IDs so claims can be reviewed and revised.
 
-| ID | Claim or result | Evidence pointer | Verification status | Notes |
-|---|---|---|---|---|
-| C1 |  | `artifacts/runs/<run_id>/summary.json#...` | candidate / checked / blocked / rejected |  |
+| ID | Claim or result | Supporting figure/table | Generating command | Output/evidence pointer | Missing evidence | Human judgment needed | Verification status |
+|---|---|---|---|---|---|---|---|
+| C1 |  |  |  | `artifacts/runs/<run_id>/summary.json#...` |  |  | candidate / checked / blocked / rejected |
+
+## Minimal Falsification Check
+
+Before expanding experiments, scans, or derivations, identify the smallest check that could show the current idea is wrong.
+
+- Hypothesis or claim under test:
+- Smallest comparison or reproduction:
+- Fixed variables:
+- Variables changed:
+- Minimum samples, seeds, events, or cases:
+- Support threshold:
+- Failure threshold:
+- Manual judgment point:
+- Next action if failed:
 
 ## Final Conclusion Gate
 
 Before declaring the milestone or project complete:
 
 - All headline claims have evidence pointers.
+- All figures and tables used by headline claims have script, configuration, data, command, and output lineage.
 - The relevant artifacts have provenance.
 - Verification checks are recorded with pass/fail status.
 - Known limitations and unresolved assumptions are listed.
 - No final conclusion is stronger than the evidence supports.
+- The closeout brief can answer: what ran, what changed, and where the evidence is.
 
 ## References
 

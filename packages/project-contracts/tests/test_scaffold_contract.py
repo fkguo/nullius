@@ -362,6 +362,32 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("If a provider records its own UUID or `run_<uuid>` identifier", template)
         self.assertIn("project-local artifact root name", template)
 
+    def test_research_contract_template_tracks_claim_and_figure_lineage(self) -> None:
+        template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
+
+        for snippet in [
+            "For every figure, table, or headline claim, keep the lineage explicit",
+            "script or notebook, configuration version, input data, generated output file",
+            "the manuscript or note sentence it supports",
+            "Figure/table/claim lineage checks",
+            "Claim or sentence:",
+            "Generating command:",
+            "Configuration:",
+            "Input data:",
+            "Output file:",
+            "Missing evidence:",
+            "Human judgment needed:",
+            "Supporting figure/table",
+            "Output/evidence pointer",
+            "## Minimal Falsification Check",
+            "the smallest check that could show the current idea is wrong",
+            "Fixed variables:",
+            "Failure threshold:",
+            "All figures and tables used by headline claims have script, configuration, data, command, and output lineage.",
+            "what ran, what changed, and where the evidence is",
+        ]:
+            self.assertIn(snippet, template)
+
     def test_canonical_scaffold_templates_are_domain_neutral(self) -> None:
         rendered = "\n".join(
             (scaffold_template_dir() / SCAFFOLD_TEMPLATE_MAP[rel]).read_text(encoding="utf-8")
