@@ -187,7 +187,7 @@
 ### [2026-03-23] External-root invariant: real projects stay outside the dev repo, maintainer fixtures stay explicit
 
 **Decision**:
-- Shared scaffold / contract authority now lives in the neutral Python package `packages/project-contracts/`; `research-team` public scaffold/contract-refresh entrypoints and `hep-autoresearch init` are consumers, not independent authorities.
+- Shared scaffold / contract authority now lives in the neutral Python package `packages/project-contracts/`; `research-team` public scaffold/contract-refresh entrypoints and `retired provider-local Python package init` are consumers, not independent authorities.
 - Public `real_project` flows must fail closed when the project root or real-project intermediate outputs resolve anywhere under the autoresearch-lab development repo checkout.
 - Repo-internal workspaces are allowed only as explicit `maintainer_fixture` directories (currently `.tmp` under the dev repo); longer-lived maintainer-only materials should live in local non-public archives such as `~/.autoresearch-lab-dev/` and must never become real-project authority or a hidden fallback mode.
 - This slice is authority extraction plus isolation only; it does not repoint the generic control plane yet and does not preserve future provider-local aliases by default.
@@ -358,7 +358,7 @@
 
 **Decision**:
 - Checked-in executable literature workflow authority lives in the leaf workspace package `packages/literature-workflows/`, which is the only recipe reader / validator / resolver for literature workflow recipes.
-- `packages/hep-autoresearch` internal parser residue and `skills/research-team` (`literature_fetch.py workflow-plan`) are consumers of that launcher authority; they must not re-own recipe semantics.
+- `retired provider-local Python package` internal parser residue and `skills/research-team` (`literature_fetch.py workflow-plan`) are consumers of that launcher authority; they must not re-own recipe semantics.
 - Provider-specific MCP tools remain bounded atomic operators underneath the workflow layer. Generic workflow authority must not move back into `packages/hep-mcp/` or `packages/shared/`.
 - Workflow-like public literature MCP tools are pruned directly from both `standard` and `full`; they do not get a transitional `full` holding area. The retained public literature surface is bounded atomic analysis/operator tools only.
 
@@ -518,7 +518,7 @@
 
 **Decision**:
 - Generic root lifecycle authority now lives only on the TS control plane: `autoresearch` / `packages/orchestrator` own `init`, `status`, `pause`, `resume`, `approve`, and `export`.
-- `hep-autoresearch` must not regain direct public root lifecycle or approval-mutation authority. Any retained internal Python lifecycle surface is allowed only as a thin passthrough to canonical `autoresearch`, while the web surface is limited to read-only diagnostics.
+- `retired provider-local Python package` must not regain direct public root lifecycle or approval-mutation authority. Any retained internal Python lifecycle surface is allowed only as a thin passthrough to canonical `autoresearch`, while the web surface is limited to read-only diagnostics.
 - `research_workflow_v1` and `workflow-templates` are no longer live workflow authority. Recipe-based workflow authority now means `workflow_recipe_v1` plus the package-local `packages/literature-workflows/recipes/**` resolver layer; shared/generated exports must not imply a second graph-schema workflow substrate.
 - Remaining `M-22` work is therefore bounded to residual provider-local non-computation `run` workflows and adjacent support surfaces, not generic lifecycle or workflow authority.
 
@@ -550,7 +550,7 @@
 
 **Decision**:
 - The installable public Python shell is retired outright; package metadata must no longer publish CLI aliases or npm bin wrappers for it.
-- `packages/hep-autoresearch/src/hep_autoresearch/cli.py` and `python -m hep_autoresearch` now fail closed with a retirement message that points users back to the root `autoresearch` CLI.
+- `retired provider-local Python package CLI` and `retired provider-local Python module` now fail closed with a retirement message that points users back to the root `autoresearch` CLI.
 - Former public support/operator verbs and workflow paths are internal full-parser coverage only for maintainer/eval/regression usage and must not be documented or tested as installable public entrypoints.
 - The front-door authority map should no longer carry any public-shell surface id for the legacy Python package. It should classify only canonical public `autoresearch`, internal Python parser residue, and exact MCP tool spec surfaces.
 
@@ -593,35 +593,35 @@
 
 **Why**: Current orchestrator code still reconstructs delegated runtime identity across `execution-identity.ts`, `team-execution-scoping.ts`, `team-unified-runtime-support.ts`, and `delegated-agent-runtime.ts`, while permission semantics remain split across `team-execution-permissions.ts`, `tool-execution-policy.ts`, and host runtime inputs. Source audits of Codex and Claude Code converged on the same stable pattern: canonical state/lineage separate from transport, and typed permission surfaces separate from operator/UI rule stores.
 
-### [2026-04-09] `hep-autoresearch/templates` retirement invariant: checked-in scaffold authority lives in `project-contracts`, not legacy provider-local prompt/template packs
+### [2026-04-09] `retired provider-local Python package/templates` retirement invariant: checked-in scaffold authority lives in `project-contracts`, not legacy provider-local prompt/template packs
 
 **Decision**:
-- `packages/hep-autoresearch/templates/` is retired from the checked-in public repo surface. The old human/agent prompt templates there are no longer live authority and should not be kept as dormant compatibility material.
+- `retired provider-local template directory` is retired from the checked-in public repo surface. The old human/agent prompt templates there are no longer live authority and should not be kept as dormant compatibility material.
 - Scaffold markdown/template authority already lives in `packages/project-contracts/src/project_contracts/scaffold_templates/` and remains the only checked-in scaffold source consumed through the bridge loaders.
 - Default approval-policy bootstrap for the Python orchestrator should stay embedded in code and the repo-local `.autoresearch/approval_policy.json` state path, rather than depending on a second checked-in template file under the legacy provider package.
 - `knowledge_base/`, `references/`, and `specs/` must be audited separately from `templates/`: unlike the retired template pack, they still participate in package-local runtime/eval/schema authority and must not be deleted by association.
 
-**Why**: Leaving the old template directory in place created a false impression that `hep-autoresearch` still owned a human-facing prompt/template surface, even though scaffold authority had already moved to the generic contracts package and the remaining JSON/prompt files had no live consumers. Removing the dead template pack reduces public drift without accidentally deleting still-live lower-level provider-local contracts.
+**Why**: Leaving the old template directory in place created a false impression that `retired provider-local Python package` still owned a human-facing prompt/template surface, even though scaffold authority had already moved to the generic contracts package and the remaining JSON/prompt files had no live consumers. Removing the dead template pack reduces public drift without accidentally deleting still-live lower-level provider-local contracts.
 
 ### [2026-04-09] Plan schema checked-in source invariant: generic scaffold authority is rooted in `project-contracts`
 
 **Decision**:
 - The checked-in source for `plan.schema.json` is `packages/project-contracts/src/project_contracts/specs/plan.schema.json`.
-- `packages/orchestrator/src/state-manager.ts` may keep an embedded copy for dependency isolation, but its provenance must point to `project-contracts`, not to `hep-autoresearch`.
-- The duplicate `packages/hep-autoresearch/specs/plan.schema.json` is no longer the canonical generic scaffold source; any future retirement or consolidation work must treat it as provider-local residue or mirrored copy, not as front-door authority.
+- `packages/orchestrator/src/state-manager.ts` may keep an embedded copy for dependency isolation, but its provenance must point to `project-contracts`, not to `retired provider-local Python package`.
+- The duplicate `retired provider-local mirrored plan schema` is no longer the canonical generic scaffold source; any future retirement or consolidation work must treat it as provider-local residue or mirrored copy, not as front-door authority.
 
-**Why**: `project-contracts` already owns new-project scaffold materialization and ships the plan schema in its install tree. Leaving generic comments or provenance notes pointed at `hep-autoresearch` would keep a false shared-authority story alive even after scaffold ownership moved to the generic contracts package.
+**Why**: `project-contracts` already owns new-project scaffold materialization and ships the plan schema in its install tree. Leaving generic comments or provenance notes pointed at `retired provider-local Python package` would keep a false shared-authority story alive even after scaffold ownership moved to the generic contracts package.
 
-### [2026-04-09] `hep-autoresearch` residual data/schemas bucket invariant: keep live provider-local fixtures, retire only dead public-looking residue
+### [2026-04-09] `retired provider-local Python package` residual data/schemas bucket invariant: keep live provider-local fixtures, retire only dead public-looking residue
 
 **Decision**:
-- `packages/hep-autoresearch/templates/` is retired, but `packages/hep-autoresearch/specs/`, `packages/hep-autoresearch/knowledge_base/`, and `packages/hep-autoresearch/references/arxiv/` are not to be deleted by association.
-- `packages/hep-autoresearch/specs/` currently remains provider-local runtime/eval/schema authority for Python computation/method-design/evals, except that generic `plan.schema.json` source authority has already moved to `project-contracts`.
-- `packages/hep-autoresearch/knowledge_base/_index/` and `knowledge_base/_index/kb_profiles/*.json` remain live package-local KB seed fixtures consumed by `kb_profile` / context-pack / orchestrator regression coverage.
-- `packages/hep-autoresearch/references/arxiv/*/metadata.json` remain package-local ingest/eval anchors, not generic public front-door truth.
+- `retired provider-local template directory` is retired, but `retired provider-local specs directory`, `retired provider-local knowledge base directory`, and `retired provider-local arXiv reference directory` are not to be deleted by association.
+- `retired provider-local specs directory` currently remains provider-local runtime/eval/schema authority for Python computation/method-design/evals, except that generic `plan.schema.json` source authority has already moved to `project-contracts`.
+- `retired provider-local knowledge base directory_index/` and `knowledge_base/_index/kb_profiles/*.json` remain live package-local KB seed fixtures consumed by `kb_profile` / context-pack / orchestrator regression coverage.
+- `retired provider-local arXiv reference directory*/metadata.json` remain package-local ingest/eval anchors, not generic public front-door truth.
 - Generated hep-mcp inventory outputs must stay untracked under `.tmp/` rather than reappearing under tracked `references/` paths.
 
-**Why**: The remaining `hep-autoresearch` residue is split: some files were truly dead public-looking template baggage, while others still anchor package-local schema validation, KB profile generation, regression fixtures, or ingest evals. Treating all residue as equally deletable would risk breaking still-live provider-local coverage; treating all of it as public authority would recreate the wrong generic-first story.
+**Why**: The remaining `retired provider-local Python package` residue is split: some files were truly dead public-looking template baggage, while others still anchor package-local schema validation, KB profile generation, regression fixtures, or ingest evals. Treating all residue as equally deletable would risk breaking still-live provider-local coverage; treating all of it as public authority would recreate the wrong generic-first story.
 
 ### [2026-04-09] Orchestrator alias retirement invariant: operator-facing filters and policy keys stay fail-closed and canonical
 
@@ -639,7 +639,7 @@
 **Decision**:
 - `idea-engine` HEP search runtime records operator-template evidence URIs under `urn:idea-engine:operator-template:<version>`, not retired public-shell URNs.
 - Checked-in RPC golden fixtures for `idea-engine` must be regenerated against the live runtime after that rename so the fixture stays an anti-drift asset rather than a stale history packet.
-- `hep-autoresearch` internal A2A / bound-agent error envelopes and MCP stdio client initialization use package-local `hep-autoresearch` identity strings, not retired public-shell branding.
+- `retired provider-local Python package` internal A2A / bound-agent error envelopes and MCP stdio client initialization use package-local `retired provider-local Python package` identity strings, not retired public-shell branding.
 
 **Why**: Leaving retired public-shell branding embedded in hidden runtime assets or internal transport envelopes would keep a second obsolete naming authority alive even after the public shell and docs were retired. Generic-first cleanup only really closes when active runtime artifacts, fixture goldens, and internal transport identities all stop reintroducing the old brand.
 

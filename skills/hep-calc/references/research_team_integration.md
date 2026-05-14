@@ -43,7 +43,7 @@ artifacts/runs/<TAG>/hep-calc/
 
 Notes:
 - `FULL_OUT_DIR.txt` points to the full audit directory (with logs and full symbolic/numeric/tex JSON outputs).
-- research-writer / hep-autoresearch can use `manifest.json` / `summary.json` / `analysis.json` as the provenance/evidence entrypoint (machine-readable; identical to the out_dir-root SSOT triplet).
+- research-writer and downstream adapters can use `manifest.json` / `summary.json` / `analysis.json` as the provenance/evidence entrypoint (machine-readable; identical to the out_dir-root SSOT triplet).
 
 How the sync project root is chosen:
 - You may explicitly set `research_team_root: /path/to/project` at the job top level (highest priority).

@@ -10,6 +10,7 @@ import {
   FORBIDDEN_PACKAGE_TOKENS,
   FRONT_DOOR_SNIPPETS,
   REQUIRED_PACKAGE_DESCRIPTION_SNIPPETS,
+  RETIRED_EXACT_PACKAGE_NAMES,
 } from './lib/front-door-boundary-authority.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -73,6 +74,10 @@ function checkFutureShellPackages(errors) {
   for (const packageName of packageDirs) {
     if (FORBIDDEN_EXACT_PACKAGE_NAMES.has(packageName)) {
       errors.push(`packages/${packageName}: future leaf-shell package must not exist before P5A closure`);
+      continue;
+    }
+    if (RETIRED_EXACT_PACKAGE_NAMES.has(packageName)) {
+      errors.push(`packages/${packageName}: retired package identity must not be recreated`);
       continue;
     }
 

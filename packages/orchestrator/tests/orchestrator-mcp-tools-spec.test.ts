@@ -70,7 +70,7 @@ describe('orchestrator MCP tools spec drift guard', () => {
         '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
         '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
         '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
-        '2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. Provider-local Python residue must not reclaim `orch_*` or `autoresearch` authority.',
+        '2. The provider-local Python parser package has been retired. Do not recreate provider-local Python control-plane authority.',
         'packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts',
       ],
       'meta/docs/orchestrator-mcp-tools-spec.md',

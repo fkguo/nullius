@@ -8,7 +8,6 @@ import { FRONT_DOOR_SNIPPETS } from '../../../../scripts/lib/front-door-boundary
 import {
   FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE,
   FRONT_DOOR_AUTHORITY_SURFACE_IDS,
-  INTERNAL_ONLY_FRONT_DOOR_GROUPS,
   getFrontDoorAuthoritySurface,
 } from '../../../../scripts/lib/front-door-authority-map.mjs';
 
@@ -249,7 +248,7 @@ describe('Docs tool drift guard', () => {
         '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
         '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
         '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
-        '2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. Provider-local Python residue must not reclaim `orch_*` or `autoresearch` authority.',
+        '2. The provider-local Python parser package has been retired. Do not recreate provider-local Python control-plane authority.',
       ],
       label: 'meta/docs/orchestrator-mcp-tools-spec.md',
     });
@@ -334,7 +333,6 @@ describe('Docs tool drift guard', () => {
   it('front-door authority map classifies the live public surfaces', () => {
     expect(FRONT_DOOR_AUTHORITY_SURFACE_IDS).toEqual([
       'autoresearch_cli',
-      'hep_autoresearch_internal_parser',
       'orchestrator_mcp_tools_spec',
       'idea_mcp',
     ]);
@@ -343,11 +341,6 @@ describe('Docs tool drift guard', () => {
       classification: 'canonical_public',
       surface_kind: 'cli_command_inventory',
       exact_inventory_source: 'packages/orchestrator/src/cli-command-inventory.ts',
-    });
-    expect(getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser')).toMatchObject({
-      classification: 'internal_only',
-      surface_kind: 'internal_full_parser',
-      exact_inventory_source: 'packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main',
     });
     expect(getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec')).toMatchObject({
       classification: 'canonical_public',
@@ -370,12 +363,6 @@ describe('Docs tool drift guard', () => {
       owner: getFrontDoorAuthoritySurface('autoresearch_cli').owner,
       relPath: getFrontDoorAuthoritySurface('autoresearch_cli').exact_inventory_source,
     });
-    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.hep_autoresearch_internal_parser).toMatchObject({
-      surface: 'hep_autoresearch_internal_parser',
-      classification: getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser').classification,
-      owner: getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser').owner,
-      relPath: getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser').exact_inventory_source,
-    });
     expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.orchestrator_mcp_tools_spec).toMatchObject({
       surface: 'orchestrator_mcp_tools_spec',
       classification: getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec').classification,
@@ -389,12 +376,8 @@ describe('Docs tool drift guard', () => {
       relPath: getFrontDoorAuthoritySurface('idea_mcp').exact_inventory_source,
     });
 
-    const normalizedInternalGroups = INTERNAL_ONLY_FRONT_DOOR_GROUPS.map(entry => ({
-      group: entry.group,
-      commands: entry.commands.map(command => command.command),
-    }));
-    expect(normalizedInternalGroups).toEqual(
-      getFrontDoorAuthoritySurface('hep_autoresearch_internal_parser').command_groups,
+    expect(() => getFrontDoorAuthoritySurface(['hep', 'autoresearch', 'internal', 'parser'].join('_'))).toThrow(
+      /unknown front-door authority surface/,
     );
   });
 

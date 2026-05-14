@@ -71,7 +71,7 @@ out_dir/
 ```
 
 说明：
-- `out_dir/manifest.json` / `summary.json` / `analysis.json` 是生态圈 SSOT（hep-autoresearch / research-writer 等默认读取）。
+- `out_dir/manifest.json` / `summary.json` / `analysis.json` 是生态圈 SSOT（research-writer / downstream adapters 等默认读取）。
 - `out_dir/report/audit_report.md` 是面向人的审计摘要。
 
 ## 旧 out_dir 的确定性导出（export artifacts）

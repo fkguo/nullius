@@ -16,8 +16,7 @@ const LIVE_IDEA_ENGINE_DISCOVERY_CAPABILITIES = [
 async function loadLiveCard(fileName: 'hep-mcp.json' | 'idea-engine.json') {
   const raw = await readFile(
     new URL(
-      // These compatibility checks intentionally rely on the full monorepo fixture path.
-      `../../hep-autoresearch/src/hep_autoresearch/toolkit/agent_cards/${fileName}`,
+      `./fixtures/agent_cards/${fileName}`,
       import.meta.url,
     ),
     'utf8',

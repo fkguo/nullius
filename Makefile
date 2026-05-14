@@ -1,4 +1,4 @@
-.PHONY: install build test lint clean codegen codegen-check smoke code-health-check contract-test release test-coverage-gate
+.PHONY: install build test lint clean codegen codegen-check smoke code-health-check contract-test release
 
 install:
 	pnpm install
@@ -9,7 +9,7 @@ build:
 test:
 	pnpm -r test
 	@echo "--- Python tests ---"
-	cd packages/hep-autoresearch && python -m pytest tests/ -q 2>/dev/null || echo "(no pytest tests yet)"
+	python3 -m pytest packages/project-contracts/tests -q
 
 lint:
 	pnpm -r lint
@@ -52,7 +52,3 @@ release:
 	pnpm -r build
 	@if [ -f meta/scripts/codegen.sh ]; then bash meta/scripts/codegen.sh; fi
 	bash meta/scripts/check_version_sync.sh
-
-test-coverage-gate:
-	@echo "--- NEW-R07: hep-autoresearch test coverage gate ---"
-	python3 meta/scripts/check_test_coverage_gate.py

@@ -40,8 +40,6 @@ Thumbs.db
 .npm/
 tmp/
 .tmp-zotero-official/
-packages/hep-autoresearch/.autopilot/
-packages/hep-autoresearch/uv.lock
 packages/idea-core/uv.lock
 
 # Local research notes (personal; keep untracked)
@@ -51,9 +49,6 @@ meta/docs/_local/
 runs/
 evidence/
 paper/
-!packages/hep-autoresearch/evals/fixtures/revision_project/paper/
-packages/hep-autoresearch/evals/fixtures/revision_project/paper/*
-!packages/hep-autoresearch/evals/fixtures/revision_project/paper/main.tex
 
 # Lock files are committed
 # !pnpm-lock.yaml

@@ -58,59 +58,6 @@
         }
       ]
     },
-    "hep_autoresearch_internal_parser": {
-      "classification": "internal_only",
-      "surface_kind": "internal_full_parser",
-      "owner": "packages/hep-autoresearch",
-      "notes": [
-        "Maintainer/source-run compatibility residue only; not a normal front door for fresh external projects.",
-        "Public lifecycle and workflow front doors remain rooted at `autoresearch`."
-      ],
-      "exact_inventory_source": "packages/hep-autoresearch/src/hep_autoresearch/orchestrator_cli.py#main",
-      "command_groups": [
-        {
-          "group": "legacy_lifecycle_adapters",
-          "commands": [
-            "init",
-            "status",
-            "pause",
-            "resume",
-            "approve",
-            "export"
-          ]
-        },
-        {
-          "group": "internal_support_commands",
-          "commands": [
-            "branch"
-          ]
-        },
-        {
-          "group": "retired_public_support_commands",
-          "commands": [
-            "method-design",
-            "run-card"
-          ]
-        },
-        {
-          "group": "internal_workflow_paths",
-          "commands": [
-            "run --workflow-id computation",
-            "run --workflow-id ingest",
-            "run --workflow-id paper_reviser",
-            "run --workflow-id reproduce",
-            "run --workflow-id revision",
-            "run --workflow-id literature_survey_polish"
-          ]
-        },
-        {
-          "group": "internal_adapter_workflow_paths",
-          "commands": [
-            "run --workflow-id shell_adapter_smoke"
-          ]
-        }
-      ]
-    },
     "orchestrator_mcp_tools_spec": {
       "classification": "canonical_public",
       "surface_kind": "exact_doc_inventory",

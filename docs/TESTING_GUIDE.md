@@ -463,9 +463,7 @@ autoresearch workflow-plan \
 
 > Maintainer / eval / regression only:
 >
-> 旧的 internal parser `literature-gap` command 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：
->
-> `PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m pytest -q packages/hep-autoresearch/tests/test_literature_gap_runner.py`
+> 旧的 provider-local Python parser 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：
 >
 > `pnpm --filter @autoresearch/literature-workflows test -- tests/resolve.test.ts`
 >

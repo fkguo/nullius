@@ -47,7 +47,7 @@ name: minimal-skeleton
 ### `run_card`（path | null）
 
 可选的“输入契约 / run-card”文件指针（YAML/JSON/MD 均可）。用途：
-- 给 hep-autoresearch / 回归评测 / provenance 提供一个**稳定的**输入说明入口（不必塞进 job.yml）
+- 给回归评测 / provenance 提供一个**稳定的**输入说明入口（不必塞进 job.yml）
 - 在 `manifest.json` 中会记录该指针；若文件可读，runner 会把它复制到 `out_dir/inputs/run_card.<ext>`
 
 示例：

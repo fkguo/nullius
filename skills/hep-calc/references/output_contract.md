@@ -71,7 +71,7 @@ out_dir/
 ```
 
 Notes:
-- `out_dir/manifest.json` / `summary.json` / `analysis.json` are the ecosystem SSOT (default ingestion for hep-autoresearch / research-writer / downstream adapters).
+- `out_dir/manifest.json` / `summary.json` / `analysis.json` are the ecosystem SSOT (default ingestion for research-writer / downstream adapters).
 - `out_dir/report/audit_report.md` is the human-facing audit summary.
 
 ## Deterministic export for an existing out_dir (export artifacts)

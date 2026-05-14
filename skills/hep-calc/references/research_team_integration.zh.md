@@ -43,7 +43,7 @@ artifacts/runs/<TAG>/hep-calc/
 
 说明：
 - `FULL_OUT_DIR.txt` 指向完整审计目录（包含 logs、symbolic/numeric/tex 的全量 JSON）
-- research-writer / hep-autoresearch 可使用 `manifest.json/summary.json/analysis.json` 作为 provenance/证据入口（机器可读；与 out_dir 根目录 SSOT 三件套一致）
+- research-writer 与 downstream adapters 可使用 `manifest.json/summary.json/analysis.json` 作为 provenance/证据入口（机器可读；与 out_dir 根目录 SSOT 三件套一致）
 
 同步根目录（project root）规则：
 - 你可以在 job 顶层显式指定：`research_team_root: /path/to/project`（优先级最高）

@@ -274,6 +274,5 @@ See: `references/research_team_integration.md`.
 - out_dir contract: `references/output_contract.md`
 - Troubleshooting: `references/troubleshooting.md`
 - research-team integration: `references/research_team_integration.md`
-- hep-autoresearch adapter/eval: `references/hep_autoresearch_integration.md`
 - LaTeX→model_build details: `references/model_build_latex.md`
 - Chinese translations: append `.zh.md` (e.g. `references/output_contract.zh.md`)

@@ -240,5 +240,5 @@ orch://runs/<run_id>                → lifecycle / control-plane view
 ## 6. Compatibility and Migration Notes
 
 1. The old “TS orchestrator is read-only Stage 1” framing is no longer live truth. `@autoresearch/orchestrator` already owns the current `orch_*` surface.
-2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. Provider-local Python residue must not reclaim `orch_*` or `autoresearch` authority.
+2. The provider-local Python parser package has been retired. Do not recreate provider-local Python control-plane authority.
 3. Public documentation or review packets that need the current orchestrator MCP truth should point at this file plus the live tool registry/tests (`packages/orchestrator/src/orch-tools/index.ts`, `packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts`) rather than older Stage 1/2 sketches.

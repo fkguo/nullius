@@ -12,7 +12,7 @@
 
 - `autoresearch` 是 generic front door 与长期 control plane；HEP 是当前最成熟的 domain pack，不是根产品身份。
 - 不考虑向后兼容负担。项目尚未正式发布，默认允许直接 breaking change；不要为了旧 shell、旧 schema、旧数据或旧 prompt 保留 fallback、shim、compatibility backend。
-- `packages/hep-autoresearch` 是持续收缩中的 legacy Python provider surface，不得重新获得 generic authority。
+- 已退役的 provider-local Python parser/package 不得重新获得 generic authority。
 - 真实研究项目必须使用开发仓外部的绝对 `project root`；开发仓本身不是 real-project authority。
 - 真实研究运行产物不得回流开发仓；repo 内 gitignored 工作区只能作为显式 maintainer fixture，不得伪装成 public 默认路径。
 - Core 必须保持 domain-neutral。HEP 特定 prompts、heuristics、workflow 偏好、taxonomy、tool mapping 必须下沉到 domain/provider 层。

@@ -10,4 +10,4 @@ This package is intentionally narrow:
 
 Implementation language is incidental here: scaffold authority lives on the checked-in contracts/templates this package ships, not on a separate Python-branded front door.
 
-`hep-autoresearch` remains a provider-local internal consumer of this package in the current repo.
+Retired provider packages should not regain project-scaffold authority.

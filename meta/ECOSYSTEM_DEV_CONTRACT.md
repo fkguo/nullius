@@ -2,7 +2,7 @@
 
 > **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01)
 > **日期**: 2026-04-08
-> **适用范围**: hep-mcp, hep-autoresearch, idea-engine, skills/, skills-market, meta/
+> **适用范围**: hep-mcp, idea-engine, orchestrator, project-contracts, skills/, skills-market, meta/
 > **强制级别**: 所有新增/修改代码必须遵守；存量代码按当前 checked-in 架构/治理文档分阶段对齐
 > **违规默认行为**: **fail-closed**（除非规则明确标注 fail-open）
 
@@ -75,7 +75,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
 **CI 验证**:
 ```bash
 # 契约测试: 模拟 MCP 错误响应 → 验证 result.error_code 被保留
-python3 -m pytest packages/hep-autoresearch/tests/test_mcp_error_code.py -q
+pnpm --filter @autoresearch/orchestrator test -- tests/orchestrator-mcp-tools-spec.test.ts
 ```
 
 **违规行为**: **fail-closed** — 错误码丢失导致调用方无法区分可重试/不可重试错误
@@ -193,13 +193,12 @@ git diff --exit-code packages/hep-mcp/tool_catalog.standard.json packages/hep-mc
 
 ### SYNC-03: 工具名常量化
 
-**规则**: hep-autoresearch 中所有 MCP 工具调用必须使用生成的常量（`mcp_tools.py`），禁止裸字符串。
+**规则**: MCP 工具调用必须使用对应包内的注册表/常量来源，禁止在 workflow 层复制裸字符串清单。
 
 **CI 验证**:
 ```bash
 # lint: 检查 call_tool_json() 调用是否使用常量
-grep -rn 'call_tool_json.*"[a-z_]*"' packages/hep-autoresearch/src/ \
-  | grep -v 'mcp_tools\.' && exit 1 || exit 0
+pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
 ```
 
 **违规行为**: **fail-closed** — 裸字符串工具名阻断 CI
@@ -282,13 +281,13 @@ pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 
 ### CFG-03: 环境变量传播白名单
 
-**规则**: hep-autoresearch 的 `McpStdioClient` env 白名单必须包含所有 `CFG-01` 注册表中的键。新增配置键时必须同步更新白名单。
+**规则**: MCP subprocess launchers must keep strict env allowlists aligned with `CFG-01`. 新增配置键时必须同步更新白名单。
 
 **CI 验证**:
 ```bash
 # 当前没有独立的 repo-local env-whitelist validator。
 # 先由边界/配置 tests 覆盖该约束。
-python3 -m pytest packages/hep-autoresearch/tests/test_mcp_stdio_client_boundary.py -q
+pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
 ```
 
 **违规行为**: **fail-closed** — 配置键未传播阻断 CI
@@ -362,7 +361,7 @@ make codegen-check
 **CI 验证**:
 ```bash
 # 单元测试: 设置过期 timeout_at → 验证 watchdog 触发
-python3 -m pytest packages/hep-autoresearch/tests/test_approval_watchdog.py -q
+pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 ```
 
 **违规行为**: **fail-closed** — 超时未执行策略视为治理绕过
@@ -374,7 +373,7 @@ python3 -m pytest packages/hep-autoresearch/tests/test_approval_watchdog.py -q
 **CI 验证**:
 ```bash
 # 当前审批预算 coverage 保持在 package-local approval packet tests 内。
-python3 -m pytest packages/hep-autoresearch/tests/test_approval_packet.py -q
+pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 ```
 
 **违规行为**: **fail-closed** — 预算绕过视为治理失效
@@ -386,7 +385,7 @@ python3 -m pytest packages/hep-autoresearch/tests/test_approval_packet.py -q
 **CI 验证**:
 ```bash
 # 集成测试: 触发审批 → 验证审批产物存在且结构通过 package-local checks
-python3 -m pytest packages/hep-autoresearch/tests/test_approval_packet.py -q
+pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 ```
 
 **违规行为**: **fail-closed** — 不完整的审批产物阻断审批流程
@@ -420,8 +419,8 @@ autoresearch run --workflow-id computation --dry-run 2>&1 | grep '^{' | jq -e '.
 **CI 验证**:
 ```bash
 # 跨组件 trace_id 透传至少要由 package-local logging/boundary tests 覆盖。
-python3 -m pytest packages/hep-autoresearch/tests/test_logging_config.py -q
-python3 -m pytest packages/hep-autoresearch/tests/test_mcp_stdio_client_boundary.py -q
+pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
+pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
 ```
 
 **违规行为**: **fail-open** (警告) — 缺少 trace_id 不阻断但降低可观测性
@@ -563,7 +562,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/core/writingEvidence.test.ts
 
 **CI 验证**:
 ```bash
-python3 -m pytest packages/hep-autoresearch/tests/test_shell_isolation.py -q
+pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未隔离的执行适配器阻断 CI
@@ -619,7 +618,7 @@ pnpm --filter @autoresearch/orchestrator test -- tests/mcp-client-sampling.test.
 
 **CI 验证**:
 ```bash
-python3 -m pytest packages/hep-autoresearch/tests/test_retry.py -q
+pnpm --filter @autoresearch/orchestrator test -- tests/retry.test.ts
 ```
 
 **违规行为**: **fail-closed** — 无界重试或缺少退避的重试逻辑阻断 CI

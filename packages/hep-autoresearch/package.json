@@ -1,7 +1,0 @@
-{
-  "name": "hep-autoresearch",
-  "version": "0.0.1",
-  "description": "npm wrapper for hep-autoresearch (calls the local Python CLI)",
-  "license": "UNLICENSED",
-  "files": []
-}

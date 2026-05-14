@@ -54,20 +54,9 @@ Note: host-side sampling and orchestration now own writing/model decisions. This
 |-----|------|---------|-------------|---------|
 | `AUTORESEARCH_CONTROL_DIR` | path | derived | Control-plane state directory for `.autoresearch` ledger/state/plan files | orchestrator, hep-mcp |
 
-### Internal Python Residue (`hep-autoresearch`, maintainer/eval only)
-
-| Key | Type | Default | Description | Read by |
-|-----|------|---------|-------------|---------|
-| `HEP_AUTORESEARCH_DIR` | path | derived | Internal runtime state directory override | hep-autoresearch |
-| `HEP_MCP_PACKAGE_DIR` | path | auto-detected | Internal override for locating the HEP MCP package checkout | hep-autoresearch |
-| `HEP_RESEARCH_HTTP_MODE` | `live` \| `record` \| `replay` \| `fail_all` | `live` | Internal HTTP fixture/testing mode | hep-autoresearch |
-| `HEP_RESEARCH_HTTP_FIXTURES_DIR` | path | (none) | Fixture cache directory required by `record` / `replay` modes | hep-autoresearch |
-| `HEP_RESEARCH_RECORD_ABS_PATHS` | boolean | `false` | Internal artifact-path recording toggle | hep-autoresearch |
-| `CODEX_HOME` | path | (none) | Skill discovery root for internal Python wrappers that invoke Codex-managed tools | hep-autoresearch |
-
 ### MCP Subprocess Environment Allowlist
 
-The internal Python MCP client (`mcp_config.py`) uses a strict allowlist for environment variables forwarded to MCP subprocesses. Only these variables are propagated:
+MCP subprocess launchers must use strict environment allowlists. Only these variables are propagated by current local stdio launch paths:
 
 ```
 PATH, NODE_PATH, NODE_OPTIONS, NVM_DIR, NVM_BIN,

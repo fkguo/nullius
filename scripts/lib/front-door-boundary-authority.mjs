@@ -2,35 +2,6 @@
 // exact substring matches so front-door wording drift fails closed.
 export const FRONT_DOOR_SNIPPETS = [
   {
-    relPath: 'packages/hep-autoresearch/README.md',
-    snippets: [
-      'HEP-oriented provider package and provider-local internal parser/toolkit residue inside the Autoresearch Lab monorepo.',
-      '- generic lifecycle and bounded computation: `autoresearch`',
-      '- high-level literature planning: `autoresearch workflow-plan`',
-      '- current mature HEP MCP surface: `@autoresearch/hep-mcp`',
-      'maintainer-only legacy docs, workflow notes, and examples are kept local rather than published as part of the public GitHub surface.',
-    ],
-    forbiddenSnippets: [
-      'docs/INDEX.md',
-      'docs/BEGINNER_TUTORIAL.md',
-      'Exact installable public command inventory:',
-    ],
-  },
-  {
-    relPath: 'packages/hep-autoresearch/README.zh.md',
-    snippets: [
-      '这是 Autoresearch Lab monorepo 中偏 HEP 的 provider 包，以及 provider-local 的 internal parser/toolkit 残余实现面。',
-      '- generic lifecycle 与 bounded computation：`autoresearch`',
-      '- 高层 literature planning：`autoresearch workflow-plan`',
-      '- 当前成熟的 HEP MCP 面：`@autoresearch/hep-mcp`',
-      'maintainer-only 的 legacy 文档、workflow 说明和 examples 现在只保留在本地，不再作为 GitHub 公开内容发布。',
-    ],
-    forbiddenSnippets: [
-      'docs/INDEX.md',
-      '安装态 public shell 的精确命令清单是：',
-    ],
-  },
-  {
     relPath: 'docs/QUICKSTART.md',
     snippets: [
       '本页面向当前最成熟的 domain pack 上手路径，而不是重新定义 root 产品身份。generic lifecycle + workflow-plan front door 仍是 `autoresearch`；这里的 `hep_*` 路径只是在此基础上进入当前最强的 HEP evidence/project/run workflow family。',
@@ -226,15 +197,13 @@ export const FRONT_DOOR_SNIPPETS = [
       '这部分不是 MCP 工具，而是当前真实存在的高层 workflow consumers：',
       '这个推荐的公开 stateful front door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。',
       'Maintainer / eval / regression only:',
-      '旧的 internal parser `literature-gap` command 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：',
-      '`PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m pytest -q packages/hep-autoresearch/tests/test_literature_gap_runner.py`',
+      '旧的 provider-local Python parser 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：',
       '`pnpm --filter @autoresearch/literature-workflows test -- tests/resolve.test.ts`',
       '`pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts`',
       '- `autoresearch workflow-plan` 仍是唯一 installable public high-level literature entrypoint',
       '- lower-level checked-in runner / resolver / front-door coverage 仍能证明 `literature_gap_analysis` recipe、seed-search 解析、analyze-step wiring 与 live CLI truth',
     ],
     forbiddenSnippets: [
-      'python -m hep_autoresearch.orchestrator_cli \\',
       '`literature-gap` 仅剩 legacy shell',
     ],
   },
@@ -254,7 +223,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
       '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
       '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
-      '2. `packages/hep-autoresearch` is now a provider-local internal parser/toolkit residue. Provider-local Python residue must not reclaim `orch_*` or `autoresearch` authority.',
+      '2. The provider-local Python parser package has been retired. Do not recreate provider-local Python control-plane authority.',
     ],
   },
   {
@@ -281,4 +250,5 @@ export const REQUIRED_PACKAGE_DESCRIPTION_SNIPPETS = [
 ];
 
 export const FORBIDDEN_EXACT_PACKAGE_NAMES = new Set(['agent', 'autoresearch-agent']);
+export const RETIRED_EXACT_PACKAGE_NAMES = new Set([[ 'hep', 'autoresearch' ].join('-')]);
 export const FORBIDDEN_PACKAGE_TOKENS = new Set(['shell', 'gateway', 'frontend']);

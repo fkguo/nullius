@@ -41,7 +41,7 @@ jobs:
 
       - run: make contract-test
 
-  python-test:
+  python-contracts-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -55,27 +55,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build TS dependencies for source-run orchestrator paths
-        run: |
-          pnpm --filter @autoresearch/rep-sdk build
-          pnpm --filter @autoresearch/literature-workflows... build
-
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
-      - name: Python tests (hep-autoresearch)
+      - name: Python tests (project contracts)
         run: |
-          cd packages/hep-autoresearch
-          if [ -f pyproject.toml ] || [ -f setup.py ]; then
-            pip install -e ../project-contracts
-            pip install -e ".[dev]" 2>/dev/null || pip install -e .
-            pip install pytest
-            if [ -d tests ] && find tests -name 'test_*.py' | head -1 | grep -q .; then
-              python -m pytest tests/ -q
-            else
-              echo "No test files found, skipping"
-            fi
-          else
-            echo "No Python package found, skipping"
-          fi
+          python -m pip install pytest
+          python -m pytest packages/project-contracts/tests -q

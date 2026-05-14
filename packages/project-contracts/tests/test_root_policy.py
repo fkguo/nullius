@@ -28,7 +28,7 @@ class TestRootPolicy(unittest.TestCase):
     def test_maintainer_fixture_rejects_other_repo_internal_root(self) -> None:
         repo_root = dev_repo_root()
         with self.assertRaisesRegex(ValueError, "allowed maintainer_fixture"):
-            assert_project_root_allowed(repo_root / "packages" / "hep-autoresearch", project_policy="maintainer_fixture")
+            assert_project_root_allowed(repo_root / "packages" / "retired-provider", project_policy="maintainer_fixture")
 
     def test_real_project_allows_external_root(self) -> None:
         with tempfile.TemporaryDirectory() as td:

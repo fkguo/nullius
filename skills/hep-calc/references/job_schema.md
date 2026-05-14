@@ -47,7 +47,7 @@ If you only want symbolic/numeric computation and **do not** need a LaTeX value 
 ### `run_card` (path | null)
 
 Optional run-card (input contract) pointer (YAML/JSON/MD). Use cases:
-- Provide a **stable** input contract entrypoint for hep-autoresearch / regression eval / provenance (without stuffing it into job.yml)
+- Provide a **stable** input contract entrypoint for regression eval / provenance (without stuffing it into job.yml)
 - The pointer is recorded in `manifest.json`; if readable, the runner best-effort copies it to `out_dir/inputs/run_card.<ext>`
 
 Example:
