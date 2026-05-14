@@ -24,15 +24,10 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 | Stateful literature planning | `autoresearch workflow-plan` | Checked-in workflow authority resolved via `@autoresearch/literature-workflows`, persisted to `.autoresearch/state.json#/plan`, and rendered to `.autoresearch/plan.md` |
 | Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `autoresearch`, `research-team`, and `hep-mcp`, and fold results back into durable project artifacts |
 | Experimental idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | TS-hosted campaign runtime bridge for `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search rank/promote and bounded negative failure-library reflection remain `idea-engine` runtime-contract truth, not a root front door |
-| Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research, evidence, writing, export, and provider-local composition `(70 std / 77)` |
+| Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research, evidence, writing, export, and provider-local composition |
 | Bounded provider MCP operators | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Atomic literature, data, reference, and evidence operators that stay MCP-first |
 
-Tool counts: **70 tools in `standard` mode** (default, compact surface) and **77 tools in `full` mode** (adds advanced tools).
-
-| Mode | Tools | Use when |
-| --- | --- | --- |
-| `standard` | 70 | Compact client surface |
-| `full` | 77 | Adds advanced and lifecycle-adjacent slices |
+The live HEP tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE`; keep exact counts in the generated category/status docs rather than this README.
 
 ## 3. Layer Model
 

@@ -16,6 +16,17 @@ Scope rule:
 - You may improve English, structure, and logical flow, but only by rephrasing existing claims or by adding caveats that reduce overclaim.
 - Any added quantitative detail must be evidence-backed as above.
 
+Manuscript guardrails (MUST FOLLOW):
+- Do not introduce specialized symbols in the abstract or introduction before they are defined. Define notation where the physical or mathematical decomposition naturally appears.
+- Delete process residue: assistant reasoning, internal notes, referee-response explanations, self-defense, and workflow narration.
+- Minimize new notation; if introduced, use it consistently.
+- Use domain-standard terminology. Avoid vague or engineering terms such as inaccurate "proxy", "coefficient", or "plotted quantity".
+- Put logic, definitions, and comparable quantities in the main text; move long formulas, full matrices, and derivational details to appendices.
+- Captions must distinguish data, reconstructed quantities, model predictions, model components, and benchmarks without implying unsupported mechanism separation.
+- Round table values to physically justified precision.
+- Before syncing into another paper directory, compare local vs target content to avoid overwriting collaborator edits.
+- After compiling, check undefined references/citations, overfull boxes, pagination anomalies, and orphaned headings or formulas.
+
 Output convention (if requested by the project):
 - When editing LaTeX, wrap new/replacement text in `\\revadd{...}` and deletions in `\\revdel{...}`.
 

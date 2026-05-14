@@ -104,3 +104,16 @@ bash scripts/bin/research_writer_consume_paper_manifest.sh \
 - `artifacts/runs/<run_id>/run_card.json`
 - `artifacts/runs/<run_id>/manifest.json`（可存 `paper/export_manifest.json`）
 - `artifacts/runs/<run_id>/analysis.json`（可存编译摘要/告警；或 consume 的 `paper/build_trace.jsonl` 提取结果）
+
+## 研究写作与论文 guardrails
+
+写作、修改或同步论文时：
+- 摘要和引言不要使用尚未定义的专门符号；符号应在物理或数学分解自然需要处引入。
+- 删除写作过程痕迹、assistant 思考过程、审稿回复式解释、自我辩护句和流程说明；正文只保留学术论述。
+- 减少新 notation。已有清晰表达时不要额外命名；一旦引入，必须持续一致使用。
+- 使用领域标准术语，避免工程化或模糊词，例如不准确的 “proxy”、“coefficient”、“plotted quantity”；根据真实含义使用 approximation、diagnostic quantity、observable、model component、benchmark、reconstructed quantity 等表述。
+- 主文保留逻辑、定义和可比较量；冗长显式公式、完整矩阵、细节推导放附录。
+- 图注和表注要说明对象是数据、重构量、模型预测、模型分量还是 benchmark；不要暗示数据能分离其实只能由模型分解的机制。
+- 表格数值保留与物理精度相称的小数位。
+- 修改同步论文目录前，先比较本地与目标目录，避免覆盖合作者修改。
+- 编译后检查 undefined refs/citations、overfull、分页异常，以及标题或公式造成的孤页。

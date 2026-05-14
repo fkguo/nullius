@@ -24,15 +24,10 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | Stateful 文献规划入口 | `autoresearch workflow-plan` | 通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` |
 | Agent research project harness skill | `research-harness` | 面向 Codex / Claude Code / OpenCode 的薄客户端 skill，用于恢复外部项目状态、把工作路由到 `autoresearch` / `research-team` / `hep-mcp`，并把结果折回长期 artifacts |
 | 实验性 idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted campaign runtime bridge，覆盖 `idea_campaign_*`、`idea_search_step`、`idea_eval_run`；post-search rank/promote 与 bounded negative failure-library reflection 属于 `idea-engine` runtime-contract truth，不是 root front door |
-| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究、证据、写作、导出与 provider-local 组合的 HEP 领域 MCP server `(70 std / 77)` |
+| 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究、证据、写作、导出与 provider-local 组合的 HEP 领域 MCP server |
 | Bounded provider MCP operators | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 保持 MCP-first 的原子化文献、数据、参考与证据 operators |
 
-工具数量：**`standard` 模式 70 个**（默认、紧凑 surface）与 **`full` 模式 77 个**（增加 advanced tools）。
-
-| 模式 | 工具数 | 适用场景 |
-| --- | --- | --- |
-| `standard` | 70 | 紧凑的客户端 surface |
-| `full` | 77 | 额外暴露 advanced 与 lifecycle-adjacent slices |
+HEP 工具清单由代码拥有，并由 `HEP_TOOL_MODE` 做模式过滤；精确工具数量只保留在生成的分类/状态文档里，不写入本 README。
 
 ## 3. Layer Model
 

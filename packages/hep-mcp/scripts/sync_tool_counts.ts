@@ -72,39 +72,6 @@ function replaceOrThrow(source: string, pattern: RegExp, replacement: string, la
   return source.replace(pattern, replacement);
 }
 
-function replaceTableRow(source: string, mode: 'standard' | 'full', count: number, label: string): string {
-  const rowPattern = new RegExp(`^(\\|\\s*\`${mode}\`\\s*\\|\\s*)\\d+(\\s*\\|.*)$`, 'm');
-  return replaceOrThrow(source, rowPattern, `$1${count}$2`, label);
-}
-
-function syncReadmeEn(source: string, counts: ToolCounts): string {
-  let out = source;
-  out = replaceOrThrow(out, /\(\s*\d+\s+std\s*\/\s*\d+\s*\)/, `(${counts.standard} std / ${counts.full})`, 'README diagram');
-  out = replaceOrThrow(
-    out,
-    /Tool counts:\s*\*\*\d+\s+tools in `standard` mode\*\*[\s\S]*?\*\*\d+\s+tools in `full` mode\*\*[^\n]*/m,
-    `Tool counts: **${counts.standard} tools in \`standard\` mode** (default, compact surface) and **${counts.full} tools in \`full\` mode** (adds advanced tools).`,
-    'README summary'
-  );
-  out = replaceTableRow(out, 'standard', counts.standard, 'README standard row');
-  out = replaceTableRow(out, 'full', counts.full, 'README full row');
-  return out;
-}
-
-function syncReadmeZh(source: string, counts: ToolCounts): string {
-  let out = source;
-  out = replaceOrThrow(out, /\(\s*\d+\s+std\s*\/\s*\d+\s*\)/, `(${counts.standard} std / ${counts.full})`, 'README_zh diagram');
-  out = replaceOrThrow(
-    out,
-    /工具数量：\s*\*\*`standard`\s*模式\s*\d+\s*个\*\*[\s\S]*?\*\*`full`\s*模式\s*\d+\s*个\*\*[^\n]*/m,
-    `工具数量：**\`standard\` 模式 ${counts.standard} 个**（默认、紧凑 surface）与 **\`full\` 模式 ${counts.full} 个**（增加 advanced tools）。`,
-    'README_zh summary'
-  );
-  out = replaceTableRow(out, 'standard', counts.standard, 'README_zh standard row');
-  out = replaceTableRow(out, 'full', counts.full, 'README_zh full row');
-  return out;
-}
-
 function syncToolCategories(source: string, counts: ToolCounts): string {
   return replaceOrThrow(
     source,
@@ -150,8 +117,6 @@ function main(): void {
   const zoteroOff = getToolCounts('0');
 
   const targets: SyncTarget[] = [
-    { relPath: 'README.md', transform: source => syncReadmeEn(source, zoteroOn) },
-    { relPath: 'docs/README_zh.md', transform: source => syncReadmeZh(source, zoteroOn) },
     { relPath: 'docs/TOOL_CATEGORIES.md', transform: source => syncToolCategories(source, zoteroOn) },
     { relPath: 'docs/PROJECT_STATUS.md', transform: source => syncProjectStatus(source, zoteroOn, zoteroOff) },
   ];

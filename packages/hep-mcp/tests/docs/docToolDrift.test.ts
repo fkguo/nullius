@@ -381,47 +381,23 @@ describe('Docs tool drift guard', () => {
     );
   });
 
-  it('README tool counts match the built-in tool registry', async () => {
-    const { getTools } = await import('../../src/tools/index.js');
-    const standardCount = getTools('standard').length;
-    const fullCount = getTools('full').length;
-
+  it('README files avoid stale static HEP tool counts', () => {
     const en = readText(root, 'README.md');
     const zh = readText(root, 'docs/README_zh.md');
-
-    {
-      const m = mustMatch(
-        en,
-        /Tool counts:\s*\*\*(\d+)\s+tools in `standard` mode\*\*[\s\S]*?\*\*(\d+)\s+tools in `full` mode\*\*/m,
-        'README.md'
-      );
-      expect(Number(m[1])).toBe(standardCount);
-      expect(Number(m[2])).toBe(fullCount);
-    }
-
-    {
-      const m = mustMatch(
-        zh,
-        /工具数量：\s*\*\*`standard`\s*模式\s*(\d+)\s*个\*\*[\s\S]*?\*\*`full`\s*模式\s*(\d+)\s*个\*\*/m,
-        'docs/README_zh.md'
-      );
-      expect(Number(m[1])).toBe(standardCount);
-      expect(Number(m[2])).toBe(fullCount);
-    }
 
     for (const [label, md] of [
       ['README.md', en],
       ['docs/README_zh.md', zh],
     ] as const) {
-      const mStd = mustMatch(md, /^\|\s*`standard`\s*\|\s*(\d+)\s*\|/m, label);
-      const mFull = mustMatch(md, /^\|\s*`full`\s*\|\s*(\d+)\s*\|/m, label);
-      expect(Number(mStd[1])).toBe(standardCount);
-      expect(Number(mFull[1])).toBe(fullCount);
-
-      const mDiagram = mustMatch(md, /\(\s*(\d+)\s+std\s*\/\s*(\d+)\s*\)/m, label);
-      expect(Number(mDiagram[1])).toBe(standardCount);
-      expect(Number(mDiagram[2])).toBe(fullCount);
+      expect(md, `${label}: should not publish count snippets in the README`).not.toMatch(/\b\d+\s+std\s*\/\s*\d+\b/);
+      expect(md, `${label}: should not publish a standard/full count table`).not.toMatch(/^\|\s*`standard`\s*\|\s*\d+\s*\|/m);
+      expect(md, `${label}: should not publish a standard/full count table`).not.toMatch(/^\|\s*`full`\s*\|\s*\d+\s*\|/m);
     }
+
+    expect(en).not.toContain('Tool counts:');
+    expect(zh).not.toContain('工具数量：');
+    expect(en).toContain('exact counts in the generated category/status docs');
+    expect(zh).toContain('精确工具数量只保留在生成的分类/状态文档里');
   });
 
   it('docs tool count headers match the built-in tool registry', async () => {

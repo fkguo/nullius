@@ -362,6 +362,19 @@ Minimum expectations for provenance:
 - BibTeX RevTeX 4.2 hygiene: see `scripts/bin/fix_bibtex_revtex4_2.py`.
 - BibTeX fetch trace (when `--fetch-bibtex` is used): see `paper/bibtex_trace.jsonl`.
 
+## Research and manuscript guardrails
+
+When drafting, revising, or synchronizing a manuscript:
+- Do not use specialized symbols in the abstract or introduction before they have been defined. Introduce notation only where the physical or mathematical decomposition naturally requires it.
+- Remove writing-process residue: assistant reasoning, internal deliberation, referee-response explanations, self-justifying prose, and workflow notes. The manuscript body should contain only scholarly argumentation.
+- Minimize new notation. If a clear expression already exists, do not name it. Once notation is introduced, use it consistently.
+- Use domain-standard physics terminology. Avoid engineering or vague terms such as inaccurate uses of "proxy", "coefficient", or "plotted quantity"; prefer precise terms like approximation, diagnostic quantity, observable, model component, benchmark, or reconstructed quantity when those are actually meant.
+- Keep the main text focused on logic, definitions, and comparable quantities. Move long explicit formulas, full matrices, and derivational details to appendices.
+- In figure and table captions, state whether each object is data, a reconstructed quantity, a model prediction, a model component, or a benchmark. Do not imply that the data separate mechanisms that only the model decomposes.
+- Round table values to a number of decimal places justified by the physical precision.
+- Before synchronizing edits into another paper directory, compare the local and synchronized directories so collaborator changes are not overwritten.
+- After compilation, inspect undefined references/citations, overfull boxes, pagination anomalies, and orphaned headings or formulas.
+
 ## Style profile (FK voice)
 
 Use the FK style guide when drafting or rewriting text:
