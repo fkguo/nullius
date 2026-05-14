@@ -13,6 +13,7 @@ It does not replace the research executors. It restores the project state, route
 
 - `autoresearch`: generic TS CLI and project lifecycle control plane.
 - `research-team`: milestone execution and multi-agent research progress.
+- `markdown-hygiene`: standalone Markdown math, TOC, and formatting cleanup before research handoff.
 - `hep-mcp`: HEP literature, evidence, INSPIRE/arXiv, bibliography, and export tooling.
 
 ## Recovery First
@@ -59,6 +60,7 @@ node /home/user/Coding/Agents/autoresearch-lab/packages/orchestrator/dist/cli.js
   autoresearch workflow-plan --recipe research_brainstorm
   ```
 - If the user needs milestone execution, invoke `research-team` and keep the milestone boundary explicit.
+- If the task is Markdown formatting, Markdown math escaping, generated TOC LaTeX cleanup, link/citation clickability, or pre-handoff note hygiene, invoke `markdown-hygiene` first, then rerun the relevant project gate.
 - If the task needs HEP literature, evidence, INSPIRE/arXiv, source reading, bibliography, or export support, use `hep-mcp`.
 - If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `autoresearch`.
 

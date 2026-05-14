@@ -1,6 +1,6 @@
 {
   "manifest_version": "1.0.0",
-  "updated_at": "2026-05-13T00:00:00Z",
+  "updated_at": "2026-05-14T00:00:00Z",
   "org": "autoresearch-lab",
   "channels": ["stable", "beta", "dev"],
   "components": {
@@ -55,6 +55,13 @@
       "depends_on": {
         "hep-mcp": ">=0.3.0 <0.4.0"
       }
+    },
+    "markdown-hygiene": {
+      "repo": "autoresearch-lab/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "~/.codex/skills/markdown-hygiene/SKILL.md"
     },
     "research-harness": {
       "repo": "autoresearch-lab/skills-market",

@@ -358,6 +358,7 @@ Minimum expectations for provenance:
 ## Deterministic hygiene tools
 
 - Double-backslash math check/fix (Markdown math only): see `scripts/bin/check_md_double_backslash.sh` and `scripts/bin/fix_md_double_backslash_math.py`.
+- Broader Markdown math/TOC cleanup before paper scaffolding: use the standalone `markdown-hygiene` skill.
 - Evidence-gate checker (revision additions via `\revadd{...}`, or full-text via `--scan-all`): see `scripts/bin/check_latex_evidence_gate.py`.
 - BibTeX RevTeX 4.2 hygiene: see `scripts/bin/fix_bibtex_revtex4_2.py`.
 - BibTeX fetch trace (when `--fetch-bibtex` is used): see `paper/bibtex_trace.jsonl`.

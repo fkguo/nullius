@@ -10,7 +10,7 @@
 
 ## Generic First-Touch（先走 generic front door）
 
-在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.autoresearch/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `autoresearch`、把里程碑推进交给 `research-team`、把 HEP 文献/证据工作交给 `hep-mcp`。
+在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.autoresearch/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `autoresearch`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
 
 如果你还没初始化外部 project root，先走这一条：
 

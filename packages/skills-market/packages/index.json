@@ -1,6 +1,6 @@
 {
   "index_version": "1.0.0",
-  "updated_at": "2026-05-13T00:00:00Z",
+  "updated_at": "2026-05-14T00:00:00Z",
   "packages": [
     "auto-relay.json",
     "claude-cli-runner.json",
@@ -10,6 +10,7 @@
     "hep-mcp.json",
     "julia-perf.json",
     "literature-workflows.json",
+    "markdown-hygiene.json",
     "opencode-cli-runner.json",
     "paper-reviser.json",
     "pdg-lookup.json",

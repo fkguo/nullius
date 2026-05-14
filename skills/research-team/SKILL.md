@@ -111,7 +111,7 @@ or summarize it under `artifacts/runs/<run_id>/research_team/` and keep the
 - **KB index export (deterministic/L1)**: `scripts/bin/kb_export.py` + `scripts/bin/validate_kb_index.py` + `scripts/schemas/kb_index.schema.json`.
 - **Demo generation**: `scripts/bin/generate_demo_milestone.sh`.
 - **Project kickstart prompt**: `scripts/bin/generate_project_start_prompt.py`.
-- **Deterministic hygiene tools** (as needed): `scripts/bin/fix_markdown_*`, `scripts/bin/fix_bibtex_revtex4_2.py`, `scripts/bin/upgrade_reference_anchors.py`.
+- **Deterministic hygiene tools** (as needed): `scripts/bin/fix_markdown_*`, `scripts/bin/fix_bibtex_revtex4_2.py`, `scripts/bin/upgrade_reference_anchors.py`; use the standalone `markdown-hygiene` skill for manual Markdown math/TOC cleanup outside a team-cycle preflight.
 - **Claim DAG & evidence** (optional): `scripts/bin/render_claim_graph.py` + gates under `scripts/gates/`.
 - **Exploration stage debt helper**: `scripts/bin/exploration_debt_dashboard.py`.
 - **Scaffold pruning (move/archive optional files)**: `scripts/bin/prune_optional_scaffold.py`.

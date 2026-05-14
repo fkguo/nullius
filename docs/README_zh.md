@@ -11,7 +11,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 - `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。
 - `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。当前 idea-engine phase 已关闭，不应把它当作默认 capability expansion lane。
 - `@autoresearch/hep-mcp` 继续是当前最成熟的 domain pack 与最强的端到端示例，但 HEP 不定义 root 产品身份。
-- `research-harness` 是面向 Codex / Claude Code / OpenCode 的薄 external research project 入口 skill：它恢复 `autoresearch` 项目状态，把里程碑执行路由给 `research-team`，把 HEP 证据工作路由给 `hep-mcp`，并把长期结论折回项目文件与 artifacts。它不是新的 CLI，也不是第二套 control plane。
+- `research-harness` 是面向 Codex / Claude Code / OpenCode 的薄 external research project 入口 skill：它恢复 `autoresearch` 项目状态，把里程碑执行路由给 `research-team`，把 Markdown 笔记清理路由给 `markdown-hygiene`，把 HEP 证据工作路由给 `hep-mcp`，并把长期结论折回项目文件与 artifacts。它不是新的 CLI，也不是第二套 control plane。
 - `research_brainstorm` 是 `autoresearch workflow-plan` 下的 checked-in durable harness recipe，不是新的顶层 CLI 命令，不是 idea-engine，不是 full research-team workflow，也不是 root front-door expansion。
 - strict fail-closed research quality 继续成立。project-local durable memory 加 `.autoresearch/` state 仍是 reconnect truth；可选 support surfaces 继续只是 opt-in layers。
 
@@ -22,7 +22,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 | Stateful CLI front door | `autoresearch` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful `workflow-plan` 持久化 |
 | Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |
 | Stateful 文献规划入口 | `autoresearch workflow-plan` | 通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` |
-| Agent research project harness skill | `research-harness` | 面向 Codex / Claude Code / OpenCode 的薄客户端 skill，用于恢复外部项目状态、把工作路由到 `autoresearch` / `research-team` / `hep-mcp`，并把结果折回长期 artifacts |
+| Agent research project harness skill | `research-harness` | 面向 Codex / Claude Code / OpenCode 的薄客户端 skill，用于恢复外部项目状态、把工作路由到 `autoresearch` / `research-team` / `markdown-hygiene` / `hep-mcp`，并把结果折回长期 artifacts |
 | 实验性 idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted campaign runtime bridge，覆盖 `idea_campaign_*`、`idea_search_step`、`idea_eval_run`；post-search rank/promote 与 bounded negative failure-library reflection 属于 `idea-engine` runtime-contract truth，不是 root front door |
 | 当前最成熟的领域 MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | 面向研究、证据、写作、导出与 provider-local 组合的 HEP 领域 MCP server |
 | Bounded provider MCP operators | `@autoresearch/openalex-mcp`、`@autoresearch/arxiv-mcp`、`@autoresearch/hepdata-mcp`、`@autoresearch/pdg-mcp`、`@autoresearch/zotero-mcp` | 保持 MCP-first 的原子化文献、数据、参考与证据 operators |
@@ -47,7 +47,7 @@ Skill 源码面与分发面是分离的：
 
 - `skills/` 存放 checked-in 的 skill 源码与手册。
 - `packages/skills-market` 是 installer / distribution control plane；它不意味着这些 skill 已经预装到某个 client runtime 中。
-- `research-harness` 是已进入 market 的 external research project 薄入口 skill。它故意不对 `research-team` 或 `hep-mcp` 声明硬 package 依赖；这些能力仍由 host client 独立提供或安装。
+- `research-harness` 是已进入 market 的 external research project 薄入口 skill。它故意不对 `research-team`、`markdown-hygiene` 或 `hep-mcp` 声明硬 package 依赖；这些能力仍由 host client 独立提供或安装。
 
 ## 4. Runs、Artifacts、Resources、State 在哪里
 

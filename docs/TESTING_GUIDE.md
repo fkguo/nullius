@@ -15,7 +15,7 @@
 ### 0.0 先确认 front-door 角色
 
 - `autoresearch` = generic lifecycle + workflow-plan front door
-- `research-harness` = Codex / Claude Code / OpenCode 的薄 external project skill；它只负责恢复项目真相、路由到 `autoresearch` / `research-team` / `hep-mcp`、并要求结果折回 durable artifacts，不是新的 CLI 或第二套 control plane
+- `research-harness` = Codex / Claude Code / OpenCode 的薄 external project skill；它只负责恢复项目真相、路由到 `autoresearch` / `research-team` / `markdown-hygiene` / `hep-mcp`、并要求结果折回 durable artifacts，不是新的 CLI 或第二套 control plane
 - `orch_*` = 同一 control plane 的 MCP/operator counterpart，不是第二个产品前门
 - `@autoresearch/hep-mcp` = 当前最成熟的 domain MCP front door
 - legacy Python CLI 不再属于公开 front-door；如仍需覆盖，只作为 maintainer/eval/regression-only 内部路径测试

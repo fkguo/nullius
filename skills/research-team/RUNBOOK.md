@@ -281,6 +281,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 
 - Gate: [check_markdown_math_hygiene.py](scripts/gates/check_markdown_math_hygiene.py)
 - Symptom: `markdown math hygiene gate failed`
+- Standalone/manual cleanup: use the `markdown-hygiene` skill when the task is only Markdown math/TOC hygiene and a full team cycle is unnecessary.
 - Default scan targets (configurable in `research_team_config.json`):
   - `research_contract.md`
   - `research_preflight.md`
@@ -324,6 +325,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - Notes:
     - The fixer only rewrites inside Markdown math regions (`$...$`, `$$...$$`) and never touches fenced code blocks.
     - It does NOT rewrite real LaTeX line breaks (`\\`) or spacing commands (`\\[2pt]`).
+- For generated TOC math escapes such as `$\\gamma\\_{\\rm lin}$`, use `markdown-hygiene` (`fix-toc`) before rerunning preflight.
 - Rerun:
   - Preflight-only command.
 

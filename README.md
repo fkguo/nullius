@@ -11,7 +11,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 - `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring.
 - `idea-mcp` remains an experimental runtime bridge. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract. The current idea-engine phase is closed; do not treat it as a default capability-expansion lane.
 - `@autoresearch/hep-mcp` remains the current most mature domain pack and strongest end-to-end example, but HEP does not define the root product identity.
-- `research-harness` is the thin Codex / Claude Code / OpenCode skill entrypoint for external research projects: it restores `autoresearch` project state, routes milestone execution to `research-team`, routes HEP evidence work to `hep-mcp`, and folds durable results back into project files and artifacts. It is not a new CLI or a second control plane.
+- `research-harness` is the thin Codex / Claude Code / OpenCode skill entrypoint for external research projects: it restores `autoresearch` project state, routes milestone execution to `research-team`, routes Markdown note cleanup to `markdown-hygiene`, routes HEP evidence work to `hep-mcp`, and folds durable results back into project files and artifacts. It is not a new CLI or a second control plane.
 - `research_brainstorm` is a checked-in durable harness recipe under `autoresearch workflow-plan`, not a new top-level CLI command, not the idea-engine, not a full research-team workflow, and not a root front-door expansion.
 - Strict fail-closed research quality remains in force. Project-local durable memory plus `.autoresearch/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
 
@@ -22,7 +22,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 | Stateful CLI front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful `workflow-plan` persistence |
 | Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |
 | Stateful literature planning | `autoresearch workflow-plan` | Checked-in workflow authority resolved via `@autoresearch/literature-workflows`, persisted to `.autoresearch/state.json#/plan`, and rendered to `.autoresearch/plan.md` |
-| Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `autoresearch`, `research-team`, and `hep-mcp`, and fold results back into durable project artifacts |
+| Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `autoresearch`, `research-team`, `markdown-hygiene`, and `hep-mcp`, and fold results back into durable project artifacts |
 | Experimental idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | TS-hosted campaign runtime bridge for `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search rank/promote and bounded negative failure-library reflection remain `idea-engine` runtime-contract truth, not a root front door |
 | Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research, evidence, writing, export, and provider-local composition |
 | Bounded provider MCP operators | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Atomic literature, data, reference, and evidence operators that stay MCP-first |
@@ -47,7 +47,7 @@ Skill source and distribution are separate surfaces:
 
 - `skills/` holds checked-in skill source and manuals.
 - `packages/skills-market` is the installer/distribution control plane; it does not mean those skills are preinstalled in a client runtime.
-- `research-harness` is the market-listed thin entry skill for external research projects. It intentionally has no hard package dependency on `research-team` or `hep-mcp`; those remain separate capabilities that the host client may already provide or install independently.
+- `research-harness` is the market-listed thin entry skill for external research projects. It intentionally has no hard package dependency on `research-team`, `markdown-hygiene`, or `hep-mcp`; those remain separate capabilities that the host client may already provide or install independently.
 
 ## 4. Where Do Artifacts, Resources, and State Live
 
