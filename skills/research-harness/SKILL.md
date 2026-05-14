@@ -27,7 +27,13 @@ Work from the external project root, not from the `autoresearch-lab` development
    ```bash
    autoresearch status --json
    ```
-3. Read and align the durable project surfaces:
+3. If both entrypoints are unavailable, repair only the runtime launcher from the
+   known development checkout, then retry the project-local CLI:
+   ```bash
+   node /home/user/Coding/Agents/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
+   ./.autoresearch/bin/autoresearch status --json
+   ```
+4. Read and align the durable project surfaces:
    - `research_plan.md`, especially `# Current Status`
    - `research_contract.md`
    - `research_notebook.md` when it contains substantive project notes
@@ -37,6 +43,13 @@ If no project state exists and the user is in a real external research root, ini
 
 ```bash
 autoresearch init
+```
+
+If `autoresearch` is unavailable on `PATH`, use the development checkout
+entrypoint once to create the project-local fallback instead:
+
+```bash
+node /home/user/Coding/Agents/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
 ```
 
 ## Route The Work
