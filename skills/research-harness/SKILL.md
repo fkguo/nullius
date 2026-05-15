@@ -61,10 +61,33 @@ node /home/user/Coding/Agents/autoresearch-lab/packages/orchestrator/dist/cli.js
   ```
 - If the user needs milestone execution, invoke `research-team` and keep the milestone boundary explicit.
 - If the task is Markdown formatting, Markdown math escaping, generated TOC LaTeX cleanup, link/citation clickability, or pre-handoff note hygiene, invoke `markdown-hygiene` first, then rerun the relevant project gate.
-- If the task needs HEP literature, evidence, INSPIRE/arXiv, source reading, bibliography, or export support, use `hep-mcp`.
+- If the task is physics or adjacent scientific literature research, evidence, INSPIRE/arXiv/OpenAlex provider lookup, source reading, bibliography, or export support, use `hep-mcp`. Web search may supplement broad discovery, but it does not replace the provider citation graph gate below.
 - If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `autoresearch`.
 
 Do not invent compatibility commands or fallback entrypoints. Keep lifecycle work on `autoresearch` and route executor or provider work to the relevant skill/tool layer.
+
+## Literature Research Gate
+
+For physics or adjacent scientific literature research routed through `hep-mcp`, citation graph checks are mandatory workflow steps, not optional keyword triggers.
+
+Web search may be used first or in parallel to discover candidate papers, non-indexed materials, experimental pages, proceedings, code, or broader context. Before making literature-map claims, normalize core candidate papers to stable identifiers such as INSPIRE recid, arXiv id, DOI, or OpenAlex id and use `hep-mcp` provider tools for citation graph authority.
+
+Minimum expectations:
+
+- For each seed or core paper, check both directions when relevant: papers it references and papers citing it.
+- For claims about paper relationships, source priority, review status, influence, or literature gaps, inspect the citation/reference graph with `hep-mcp` provider tools; do not rely only on search snippets or web pages.
+- For writing-facing work, build or validate bibliography/citation artifacts through `hep-mcp` rather than hand-maintaining citekey authority from web search.
+
+Useful `hep-mcp` routes include:
+
+- Resolve identifiers first through the available provider route: INSPIRE recid, arXiv id, DOI, or OpenAlex id.
+- INSPIRE citation/reference graph when covered: `inspire_literature(mode=get_references, recid=...)` and `inspire_literature(mode=get_citations, recid=..., sort=...)`.
+- Cross-paper graph inside the provider layer: `inspire_find_connections` or `inspire_network_analysis`.
+- arXiv/source checks: use arXiv/provider routes for preprints, versions, and source text when the task depends on the actual paper source.
+- OpenAlex/cross-domain checks: use OpenAlex/provider routes when the paper is outside clean INSPIRE coverage or when broader cross-field citations may matter.
+- Writing allowlist / citekey mapping: `hep_run_build_citation_mapping`.
+
+If `hep-mcp` or a needed provider is unavailable, state that limitation explicitly and do not present the citation graph as complete.
 
 ## Fold Results Back
 
