@@ -3,6 +3,7 @@ set -euo pipefail
 
 REQUIRE_CLAUDE=0
 REQUIRE_GEMINI=0
+REQUIRE_CODEX=0
 
 usage() {
   cat <<'EOF'
@@ -16,7 +17,7 @@ Exit codes:
   2  usage / invalid args
 
 Usage:
-  check_environment.sh [--require-claude] [--require-gemini]
+  check_environment.sh [--require-codex] [--require-claude] [--require-gemini]
 
 Required:
   - bash
@@ -27,6 +28,7 @@ Recommended (warn-only):
   - rg
 
 Optional (warn-only unless required):
+  - codex
   - claude
   - gemini
 EOF
@@ -34,6 +36,7 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --require-codex) REQUIRE_CODEX=1; shift ;;
     --require-claude) REQUIRE_CLAUDE=1; shift ;;
     --require-gemini) REQUIRE_GEMINI=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -66,6 +69,7 @@ check_cmd python3 1
 check_cmd git 0
 check_cmd rg 0
 
+check_cmd codex "${REQUIRE_CODEX}"
 check_cmd claude "${REQUIRE_CLAUDE}"
 check_cmd gemini "${REQUIRE_GEMINI}"
 
@@ -76,4 +80,3 @@ fi
 
 echo "[result] OK"
 exit 0
-

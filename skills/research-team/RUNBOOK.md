@@ -42,7 +42,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --auto-tag
 ```
 
-- Full cycle (force Member B to use Claude runner; Gemini optional):
+- Full cycle (provider override: force Member B to use Claude runner; Gemini remains optional):
 
 ```bash
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
@@ -401,16 +401,17 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - Rerun:
   - Preflight-only command.
 
-### Member runner failure (Claude/Gemini CLI)
+### Member runner failure (Codex/Claude/Gemini CLI)
 
 - Symptom: `[error] member runner failed (member-a=..., member-b=...)`
 - Fix:
   - Check environment:
-    - Default (A=Claude, B=Gemini): `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini`
-    - Claude-only (B via Claude): `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude`
+    - Host-native default: use the current agent's official subagent mechanism when available.
+    - Explicit Codex CLI runner: `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex`
+    - Explicit Claude/Gemini split: `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini`
   - Ensure `prompts/_system_member_a.txt` and `prompts/_system_member_b.txt` exist.
-  - If you have project-local runners, confirm `scripts/run_claude.sh` and `scripts/run_gemini.sh` are executable.
-  - If Gemini CLI returns a blank response (common after CLI upgrades / auth drift), `run_team_cycle.sh` may fall back to Claude automatically when using the default Gemini runner (no `--member-b-runner` override). You can also force Claude for Member B:
+  - If you have project-local runners, confirm `scripts/run_codex.sh`, `scripts/run_claude.sh`, and `scripts/run_gemini.sh` are executable as needed.
+  - If Gemini CLI returns a blank response (common after CLI upgrades / auth drift), `run_team_cycle.sh` fails closed. Choose a provider explicitly before rerunning:
     - CLI: `run_team_cycle.sh --member-b-runner-kind claude`
     - Config: set `member_b.runner_kind=claude` (optional `member_b.claude_system_prompt`) in `research_team_config.json`.
   - If you want Gemini and it returns a blank response:

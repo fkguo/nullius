@@ -585,6 +585,8 @@ run_profile() {
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
+      --member-a-runner-kind codex \
+      --member-b-runner-kind codex \
       --member-a-runner "${tmp_root}/stub_member_a.sh" \
       --member-b-runner "${tmp_root}/stub_member_b.sh" \
       --no-sidecar \
@@ -601,6 +603,8 @@ run_profile() {
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
+      --member-a-runner-kind codex \
+      --member-b-runner-kind codex \
       --member-a-runner "${tmp_root}/stub_member_a.sh" \
       --member-b-runner "${tmp_root}/stub_member_b.sh" \
       --no-sidecar
@@ -639,6 +643,8 @@ run_brake_not_converged() {
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
+      --member-a-runner-kind codex \
+      --member-b-runner-kind codex \
       --member-a-runner "${tmp_root}/stub_member_a.sh" \
       --member-b-runner "${tmp_root}/stub_member_b.sh" \
       --no-sidecar
@@ -684,6 +690,8 @@ run_brake_sidecar_warn_only() {
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
+      --member-a-runner-kind codex \
+      --member-b-runner-kind codex \
       --member-a-runner "${tmp_root}/stub_member_a.sh" \
       --member-b-runner "${tmp_root}/stub_member_b.sh" \
       --sidecar
@@ -729,6 +737,8 @@ run_brake_preflight_fail_fast() {
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
+      --member-a-runner-kind codex \
+      --member-b-runner-kind codex \
       --member-a-runner "${tmp_root}/stub_member_a.sh" \
       --member-b-runner "${tmp_root}/stub_member_b.sh" \
       --no-sidecar
@@ -780,6 +790,8 @@ run_brake_plan_tracking_sentinel() {
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
+      --member-a-runner-kind codex \
+      --member-b-runner-kind codex \
       --member-a-runner "${tmp_root}/stub_member_a.sh" \
       --member-b-runner "${tmp_root}/stub_member_b.sh" \
       --no-sidecar \
@@ -800,6 +812,8 @@ run_brake_plan_tracking_sentinel() {
       --out-dir "${out_dir}" \
       --member-a-system prompts/_system_member_a.txt \
       --member-b-system prompts/_system_member_b.txt \
+      --member-a-runner-kind codex \
+      --member-b-runner-kind codex \
       --member-a-runner "${tmp_root}/stub_member_a.sh" \
       --member-b-runner "${tmp_root}/stub_member_b.sh" \
       --no-sidecar

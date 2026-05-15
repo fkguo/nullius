@@ -11,7 +11,7 @@ This skill turns an ad-hoc theory+computation project into a reproducible “tea
 - A milestone plan with explicit deliverables and acceptance tests
 - A complete derivation notebook (no hand-waving) linked to code/results
 - Reproducibility artifacts (manifests, summaries, analysis outputs)
-- A two-member cross-check loop (Member A + Member B; default: Claude + Gemini, but runner-agnostic) where both independently replicate derivations and computations
+- A two-member cross-check loop (Member A + Member B; default: host-native subagents with config-derived reasoning effort, but runner-agnostic) where both independently replicate derivations and computations
 - Optional sidecar reviewers (a small reviewer swarm) for specialized audits (e.g. numerics-only) without blocking the main convergence gate
 
 Agent-first: this workflow is designed to be executed by a tool-using agent (Codex/Claude/Gemini). Humans provide goals, review outputs, and approve decisions.
@@ -26,6 +26,8 @@ Recommended:
 - `rg` (ripgrep) for faster scanning (optional; gates fall back to slower methods)
 
 Optional (only for live multi-review runs; deterministic preflight does not require them):
+- Host-native subagents in the current agent app/CLI, when available
+- `codex` CLI (only when explicitly selected as a runner)
 - `claude` CLI
 - `gemini` CLI
 
@@ -37,8 +39,8 @@ Commands below use `SKILL_DIR` so they stay portable across install locations.
 
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
-bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude
-# or (A=Claude, B=Gemini):
+bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex
+# or (explicit A=Claude, B=Gemini):
 # bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini
 ```
 
@@ -54,7 +56,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
 
 Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into the autoresearch-lab development repo checkout.
 
-3) Run a team cycle:
+3) Run deterministic preflight:
 
 ```bash
 cd /path/to/project
@@ -66,8 +68,14 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
-  --auto-tag
+  --auto-tag \
+  --preflight-only
 ```
+
+For a full review cycle, the default member assignment is host-native subagents
+owned by the current agent app/CLI. If you use this shell script to execute
+reviewers directly, provide explicit CLI runner kinds and runner paths; the
+script does not switch providers automatically.
 
 Use the resolved `<base>-rN` as the research-team cycle tag. When this cycle is
 part of an `autoresearch` control-plane run, use that same resolved value as the

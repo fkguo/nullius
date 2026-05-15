@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Gemini CLI runner: one-shot with file-based prompt input and model fallback.
+# Gemini CLI runner: one-shot with file-based prompt input.
 # Vendored copy for project-local use.
 
 PROMPT_FILE=""
@@ -20,7 +20,7 @@ Usage:
   run_gemini.sh --prompt-file PROMPT.txt --out OUT.txt
 
 Options:
-  --model MODEL           Optional (runner-specific alias). If invalid, script falls back to default model.
+  --model MODEL           Optional (runner-specific alias). Invalid models fail closed.
   --output-format FORMAT  Default: text (choices depend on gemini CLI; typically text/json/stream-json)
   --prompt-file FILE      Required
   --out PATH              Required
@@ -148,14 +148,6 @@ set +e
 run_once "${MODEL}" "${INTERNAL_FORMAT}"
 code=$?
 set -e
-
-if [[ $code -ne 0 && -n "${MODEL}" ]]; then
-  # Fallback: omit -m in case the local CLI uses different model aliases.
-  set +e
-  run_once "" "${INTERNAL_FORMAT}"
-  code=$?
-  set -e
-fi
 
 if [[ $code -ne 0 ]]; then
   cat "${tmp_stderr}" >&2

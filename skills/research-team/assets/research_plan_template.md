@@ -29,7 +29,10 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --preflight-only
 ```
 
-Run full team cycle (what the agent runs; Claude + Gemini):
+Run full team cycle:
+
+- Default: the current host agent assigns Member A and Member B through its native subagent mechanism.
+- Shell execution: provide explicit CLI runner kinds and runner paths; the script does not switch providers automatically.
 
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
@@ -39,6 +42,10 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
+  --member-a-runner-kind <codex|claude> \
+  --member-a-runner <path-to-member-a-runner> \
+  --member-b-runner-kind <codex|claude|gemini> \
+  --member-b-runner <path-to-member-b-runner> \
   --auto-tag
 ```
 
@@ -211,7 +218,7 @@ Acceptance MUST be evidence-backed and quickly checkable:
 At the end of each milestone:
 1) Update [idea_log.md](idea_log.md) (advance/revise/kill ideas; write the milestone’s innovation delta)
 2) Build a team packet (`prompts/team_packet_<tag>.txt`)
-3) Run a team cycle (Claude + Gemini; both do both)
+3) Run a team cycle (default host-native subagent members; both do both; shell execution requires explicit runner kinds/paths)
 4) Convert findings into a fix list
 5) Apply fixes and re-run checks
 6) **Convergence gate**: if either report says mismatch/fail/needs revision, re-run (new tag, e.g. `20260502T023000Z-m2-topic-r1`) until both pass

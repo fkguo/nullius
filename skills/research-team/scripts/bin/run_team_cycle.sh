@@ -13,6 +13,8 @@ MEMBER_B_SYSTEM=""
 
 MEMBER_A_MODEL=""
 MEMBER_B_MODEL=""
+MEMBER_A_REASONING_EFFORT=""
+MEMBER_B_REASONING_EFFORT=""
 
 MEMBER_A_RUNNER_PATH=""
 MEMBER_B_RUNNER_PATH=""
@@ -31,16 +33,13 @@ MEMBER_B_WORKSPACE_DIR=""
 
 MEMBER_A_TOOLS=""
 MEMBER_B_OUTPUT_FORMAT="text"
+MEMBER_A_RUNNER_KIND=""
 MEMBER_B_RUNNER_KIND=""
+MEMBER_A_RUNNER_KIND_FROM_CLI=0
 MEMBER_B_SYSTEM_CLAUDE=""
 MEMBER_B_SYSTEM_CLAUDE_FROM_CONFIG=0
 MEMBER_B_RUNNER_KIND_FROM_CLI=0
 MEMBER_B_SYSTEM_CLAUDE_FROM_CLI=0
-MEMBER_B_FALLBACK_MODE=""
-MEMBER_B_FALLBACK_ORDER=""
-MEMBER_B_FALLBACK_CLAUDE_MODEL=""
-MEMBER_B_FALLBACK_CODEX_MODEL=""
-MEMBER_B_FALLBACK_REASON=""
 MEMBER_B_MODEL_EFFECTIVE=""
 
 AUTO_TAG=0
@@ -130,55 +129,15 @@ member_report_healthy() {
   return 0
 }
 
-codex_cli_available() {
-  if ! command -v codex >/dev/null 2>&1; then
-    return 1
+fail_host_native_shell_runner() {
+  local member="${1:-member}"
+  local allowed="codex|claude"
+  if [[ "${member}" == "member-b" ]]; then
+    allowed="codex|claude|gemini"
   fi
-  return 0
-}
-
-choose_member_b_fallback_kind() {
-  local reason="${1:-gemini_unavailable}"
-  local mode="${MEMBER_B_FALLBACK_MODE:-auto}"
-  local order="${MEMBER_B_FALLBACK_ORDER:-codex,claude}"
-
-  if [[ "${mode}" == "off" ]]; then
-    echo "[error] gemini unavailable (${reason}); fallback disabled (--member-b-fallback-mode=off)." >&2
-    exit 2
-  fi
-  if [[ "${mode}" == "ask" ]]; then
-    echo "[action_required] gemini unavailable (${reason}). Re-run with one of:" >&2
-    echo "  --member-b-runner-kind claude" >&2
-    echo "  --member-b-runner-kind codex" >&2
-    echo "  --member-b-fallback-mode auto --member-b-fallback-order ${order}" >&2
-    exit 4
-  fi
-
-  # auto
-  IFS=',' read -r -a cands <<<"${order}"
-  for cand in "${cands[@]}"; do
-    c="$(echo "${cand}" | tr -d '[:space:]')"
-    [[ -z "${c}" ]] && continue
-    if [[ "${c}" == "codex" ]]; then
-      # Codex runner is packet_only-only for now (full_access uses run_member_review.py which is claude/gemini only).
-      if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
-        continue
-      fi
-      if codex_cli_available; then
-        echo "codex"
-        return 0
-      fi
-      continue
-    fi
-    if [[ "${c}" == "claude" ]]; then
-      echo "claude"
-      return 0
-    fi
-  done
-
-  # Last resort.
-  echo "claude"
-  return 0
+  echo "ERROR: ${member} runner-kind=host_native requires the current host agent's native subagent mechanism." >&2
+  echo "This shell script cannot spawn host-native subagents. Run the member reviews from the host agent, or explicitly select a CLI runner with --${member}-runner-kind ${allowed} and --${member}-runner PATH when needed." >&2
+  exit 4
 }
 
 should_warn_gate_in_exploration() {
@@ -303,9 +262,6 @@ cycle_state_update() {
   CYCLE_MEMBER_C_OUT="${member_c_out:-}" \
   CYCLE_MEMBER_B_REQUESTED_KIND="${MEMBER_B_RUNNER_KIND:-}" \
   CYCLE_MEMBER_B_RESOLVED_KIND="${MEMBER_B_RUNNER_KIND_RESOLVED:-}" \
-  CYCLE_MEMBER_B_FALLBACK_MODE="${MEMBER_B_FALLBACK_MODE:-}" \
-  CYCLE_MEMBER_B_FALLBACK_ORDER="${MEMBER_B_FALLBACK_ORDER:-}" \
-  CYCLE_MEMBER_B_FALLBACK_REASON="${MEMBER_B_FALLBACK_REASON:-}" \
   CYCLE_MEMBER_B_MODEL_REQUESTED="${MEMBER_B_MODEL:-}" \
   CYCLE_MEMBER_B_MODEL_EFFECTIVE="${MEMBER_B_MODEL_EFFECTIVE:-}" \
   CYCLE_WORKFLOW_MODE="${WORKFLOW_MODE:-}" \
@@ -370,9 +326,6 @@ if isinstance(runners, dict):
 
         set_mb_if("requested_kind", "CYCLE_MEMBER_B_REQUESTED_KIND")
         set_mb_if("resolved_kind", "CYCLE_MEMBER_B_RESOLVED_KIND")
-        set_mb_if("fallback_mode", "CYCLE_MEMBER_B_FALLBACK_MODE")
-        set_mb_if("fallback_order", "CYCLE_MEMBER_B_FALLBACK_ORDER")
-        set_mb_if("fallback_reason", "CYCLE_MEMBER_B_FALLBACK_REASON")
         set_mb_if("model_requested", "CYCLE_MEMBER_B_MODEL_REQUESTED")
         set_mb_if("model_effective", "CYCLE_MEMBER_B_MODEL_EFFECTIVE")
 
@@ -572,10 +525,9 @@ usage() {
 run_team_cycle.sh
 
 Run a research-team cycle with two independent team members (Member A + Member B):
-  - Member A (Claude runner): uses a system prompt file + the team packet as the user prompt
-  - Member B (default: Gemini runner): prepends a system prompt file to the team packet (Gemini runner is prompt-only)
-    - Use --member-b-runner-kind claude|codex to run Member B via the Claude/Codex runner instead.
-    - Default Gemini runner fallback is the skill's `assets/run_gemini.sh` (preferred over the external gemini-cli-runner).
+  - Default assignment strategy is host_native/subagent: the current host agent should use its official subagent mechanism.
+  - This shell script cannot call host-native subagents directly. If it must run member reviews itself, select a CLI provider explicitly with --member-a-runner-kind / --member-b-runner-kind.
+  - Gemini remains available for Member B when a user requests provider diversity.
 
 Fail-fast preflight gates (BEFORE calling any LLMs):
 - Reproducibility Capsule gate (required)
@@ -606,14 +558,11 @@ Options:
                               `maintainer_fixture` is internal maintainer-only and should not be used as the public default.
   --member-a-system PATH      Required. Member A system prompt file.
   --member-b-system PATH      Required. Member B system prompt file.
-  --member-b-runner-kind KIND Optional. gemini|claude|codex|auto (default: config member_b.runner_kind or gemini).
+  --member-a-runner-kind KIND Optional. host_native|subagent|codex|claude|auto (default: config member_a.runner_kind or host_native).
+  --member-b-runner-kind KIND Optional. host_native|subagent|codex|gemini|claude|auto (default: config member_b.runner_kind or host_native).
   --member-b-system-claude PATH Optional. Alternate system prompt file to use when Member B runner kind is claude/codex.
-  --member-b-fallback-mode MODE Optional. off|ask|auto (default: auto). Controls what happens when gemini is unavailable/fails.
-  --member-b-fallback-order LIST Optional. Comma-separated fallbacks when MODE=auto (default: codex,claude).
-  --member-b-fallback-claude-model MODEL Optional. Default: sonnet.
-  --member-b-fallback-codex-model MODEL Optional. Default: Codex CLI config default.
-  --member-a-runner PATH      Optional (override Claude runner path)
-  --member-b-runner PATH      Optional (override Gemini runner path)
+  --member-a-runner PATH      Optional (override resolved Member A runner path)
+  --member-b-runner PATH      Optional (override resolved Member B runner path)
   --member-a-api-base-url URL Optional. API base URL for member A runner (e.g. for self-hosted LLMs).
   --member-a-api-key-env VAR  Optional. Env var NAME holding member A's API key (never pass the key value directly).
   --member-b-api-base-url URL Optional. API base URL for member B runner.
@@ -622,6 +571,8 @@ Options:
   --member-b-tool-access MODE Optional. restricted|full (default: restricted).
   --member-a-model MODEL      Optional (default: runner's default)
   --member-b-model MODEL      Optional
+  --member-a-reasoning-effort EFFORT Optional. Codex only: low|medium|high|xhigh.
+  --member-b-reasoning-effort EFFORT Optional. Codex only: low|medium|high|xhigh.
   --member-a-tools TOOLS      Optional (e.g. "default"; runner default disables tools)
   --member-b-output-format FMT Optional (default: text)
   --pointer-import-cmd CMD    Optional. Python command used for code-pointer import checks in the notebook.
@@ -646,14 +597,13 @@ while [[ $# -gt 0 ]]; do
     --project-policy) PROJECT_POLICY="${2:-}"; shift 2 ;;
     --member-a-system) MEMBER_A_SYSTEM="${2:-}"; shift 2 ;;
     --member-b-system) MEMBER_B_SYSTEM="${2:-}"; shift 2 ;;
+    --member-a-runner-kind) MEMBER_A_RUNNER_KIND="${2:-}"; MEMBER_A_RUNNER_KIND_FROM_CLI=1; shift 2 ;;
     --member-b-runner-kind) MEMBER_B_RUNNER_KIND="${2:-}"; MEMBER_B_RUNNER_KIND_FROM_CLI=1; shift 2 ;;
     --member-b-system-claude) MEMBER_B_SYSTEM_CLAUDE="${2:-}"; MEMBER_B_SYSTEM_CLAUDE_FROM_CLI=1; shift 2 ;;
-    --member-b-fallback-mode) MEMBER_B_FALLBACK_MODE="${2:-}"; shift 2 ;;
-    --member-b-fallback-order) MEMBER_B_FALLBACK_ORDER="${2:-}"; shift 2 ;;
-    --member-b-fallback-claude-model) MEMBER_B_FALLBACK_CLAUDE_MODEL="${2:-}"; shift 2 ;;
-    --member-b-fallback-codex-model) MEMBER_B_FALLBACK_CODEX_MODEL="${2:-}"; shift 2 ;;
     --member-a-model) MEMBER_A_MODEL="${2:-}"; shift 2 ;;
     --member-b-model) MEMBER_B_MODEL="${2:-}"; shift 2 ;;
+    --member-a-reasoning-effort) MEMBER_A_REASONING_EFFORT="${2:-}"; shift 2 ;;
+    --member-b-reasoning-effort) MEMBER_B_REASONING_EFFORT="${2:-}"; shift 2 ;;
     --member-a-runner) MEMBER_A_RUNNER_PATH="${2:-}"; shift 2 ;;
     --member-b-runner) MEMBER_B_RUNNER_PATH="${2:-}"; shift 2 ;;
     --member-a-api-base-url) MEMBER_A_API_BASE_URL="${2:-}"; shift 2 ;;
@@ -722,32 +672,38 @@ if [[ -z "${TAG}" || -z "${MEMBER_A_SYSTEM}" || -z "${MEMBER_B_SYSTEM}" ]]; then
 fi
 if [[ -n "${MEMBER_B_RUNNER_KIND}" ]]; then
   case "${MEMBER_B_RUNNER_KIND}" in
-    gemini|claude|codex|auto) ;;
+    subagent) MEMBER_B_RUNNER_KIND="host_native" ;;
+    host_native|gemini|claude|codex|auto) ;;
     *)
       echo "ERROR: invalid --member-b-runner-kind: ${MEMBER_B_RUNNER_KIND}" >&2
-      echo "  allowed: gemini|claude|codex|auto" >&2
+      echo "  allowed: host_native|subagent|gemini|claude|codex|auto" >&2
       exit 2
       ;;
   esac
 fi
-
-if [[ -z "${MEMBER_B_FALLBACK_MODE}" ]]; then
-  MEMBER_B_FALLBACK_MODE="auto"
+if [[ -n "${MEMBER_A_RUNNER_KIND}" ]]; then
+  case "${MEMBER_A_RUNNER_KIND}" in
+    subagent) MEMBER_A_RUNNER_KIND="host_native" ;;
+    host_native|claude|codex|auto) ;;
+    *)
+      echo "ERROR: invalid --member-a-runner-kind: ${MEMBER_A_RUNNER_KIND}" >&2
+      echo "  allowed: host_native|subagent|codex|claude|auto" >&2
+      exit 2
+      ;;
+  esac
 fi
-case "${MEMBER_B_FALLBACK_MODE}" in
-  off|ask|auto) ;;
-  *)
-    echo "ERROR: invalid --member-b-fallback-mode: ${MEMBER_B_FALLBACK_MODE}" >&2
-    echo "  allowed: off|ask|auto" >&2
-    exit 2
-    ;;
-esac
-if [[ -z "${MEMBER_B_FALLBACK_ORDER}" ]]; then
-  MEMBER_B_FALLBACK_ORDER="codex,claude"
-fi
-if [[ -z "${MEMBER_B_FALLBACK_CLAUDE_MODEL}" ]]; then
-  MEMBER_B_FALLBACK_CLAUDE_MODEL="sonnet"
-fi
+for _eff in "${MEMBER_A_REASONING_EFFORT}" "${MEMBER_B_REASONING_EFFORT}"; do
+  if [[ -n "${_eff}" ]]; then
+    case "${_eff}" in
+      low|medium|high|xhigh) ;;
+      *)
+        echo "ERROR: invalid reasoning effort: ${_eff}" >&2
+        echo "  allowed: low|medium|high|xhigh" >&2
+        exit 2
+        ;;
+    esac
+  fi
+done
 
 # RT-01: Workflow mode resolution.
 # Priority: --workflow-mode CLI > config workflow_mode > "leader" (default).
@@ -1003,32 +959,45 @@ if [[ "${WORKFLOW_MODE}" == "asymmetric" ]] && has_phase 2; then
   fi
 fi
 
-# Member B runner settings (config-based defaults; CLI overrides).
+# Member runner settings (config-based defaults; CLI overrides).
 MEMBER_B_SETTINGS_SCRIPT="${SCRIPT_DIR}/team_cycle_get_member_b_runner.py"
-CONFIG_MEMBER_B_KIND="gemini"
+CONFIG_MEMBER_A_KIND="host_native"
+CONFIG_MEMBER_B_KIND="host_native"
 CONFIG_MEMBER_B_CLAUDE_SYSTEM=""
+CONFIG_MEMBER_A_REASONING_EFFORT="high"
+CONFIG_MEMBER_B_REASONING_EFFORT="high"
 if [[ -f "${MEMBER_B_SETTINGS_SCRIPT}" ]]; then
-  IFS=$'\t' read -r CONFIG_MEMBER_B_KIND CONFIG_MEMBER_B_CLAUDE_SYSTEM <<<"$(python3 "${MEMBER_B_SETTINGS_SCRIPT}" --notes "${NOTEBOOK_PATH}" 2>/dev/null || printf 'gemini\t')"
+  IFS=$'\t' read -r CONFIG_MEMBER_A_KIND CONFIG_MEMBER_B_KIND CONFIG_MEMBER_B_CLAUDE_SYSTEM CONFIG_MEMBER_A_REASONING_EFFORT CONFIG_MEMBER_B_REASONING_EFFORT <<<"$(python3 "${MEMBER_B_SETTINGS_SCRIPT}" --notes "${NOTEBOOK_PATH}" 2>/dev/null || printf 'host_native\thost_native\t\thigh\thigh')"
+fi
+if [[ ${MEMBER_A_RUNNER_KIND_FROM_CLI} -ne 1 ]]; then
+  MEMBER_A_RUNNER_KIND="${CONFIG_MEMBER_A_KIND:-host_native}"
 fi
 if [[ ${MEMBER_B_RUNNER_KIND_FROM_CLI} -ne 1 ]]; then
-  MEMBER_B_RUNNER_KIND="${CONFIG_MEMBER_B_KIND:-gemini}"
+  MEMBER_B_RUNNER_KIND="${CONFIG_MEMBER_B_KIND:-host_native}"
+fi
+if [[ -z "${MEMBER_A_REASONING_EFFORT}" ]]; then
+  MEMBER_A_REASONING_EFFORT="${CONFIG_MEMBER_A_REASONING_EFFORT:-high}"
+fi
+if [[ -z "${MEMBER_B_REASONING_EFFORT}" ]]; then
+  MEMBER_B_REASONING_EFFORT="${CONFIG_MEMBER_B_REASONING_EFFORT:-high}"
 fi
 if [[ ${MEMBER_B_SYSTEM_CLAUDE_FROM_CLI} -ne 1 && -z "${MEMBER_B_SYSTEM_CLAUDE}" && -n "${CONFIG_MEMBER_B_CLAUDE_SYSTEM}" ]]; then
   MEMBER_B_SYSTEM_CLAUDE="${CONFIG_MEMBER_B_CLAUDE_SYSTEM}"
   MEMBER_B_SYSTEM_CLAUDE_FROM_CONFIG=1
 fi
+if [[ -z "${MEMBER_A_RUNNER_KIND}" ]]; then
+  MEMBER_A_RUNNER_KIND="host_native"
+fi
 if [[ -z "${MEMBER_B_RUNNER_KIND}" ]]; then
-  MEMBER_B_RUNNER_KIND="gemini"
+  MEMBER_B_RUNNER_KIND="host_native"
+fi
+MEMBER_A_RUNNER_KIND_RESOLVED="${MEMBER_A_RUNNER_KIND}"
+if [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "auto" ]]; then
+  MEMBER_A_RUNNER_KIND_RESOLVED="host_native"
 fi
 MEMBER_B_RUNNER_KIND_RESOLVED="${MEMBER_B_RUNNER_KIND}"
 if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "auto" ]]; then
-  # Resolved later after probing gemini availability (see member runner selection).
-  MEMBER_B_RUNNER_KIND_RESOLVED="gemini"
-fi
-
-if [[ "${REVIEW_ACCESS_MODE}" == "full_access" && "${MEMBER_B_RUNNER_KIND}" == "codex" ]]; then
-  echo "ERROR: --member-b-runner-kind=codex is not supported in full_access mode. Use gemini|claude (or runner-kind=auto)." >&2
-  exit 2
+  MEMBER_B_RUNNER_KIND_RESOLVED="host_native"
 fi
 
 if [[ "${PROJECT_STAGE}" != "exploration" && -f "${DEBT_GATE_SCRIPT}" ]]; then
@@ -1664,10 +1633,20 @@ LOCAL_CLAUDE_RUNNER="${PROJECT_ROOT}/scripts/run_claude.sh"
 LOCAL_GEMINI_RUNNER="${PROJECT_ROOT}/scripts/run_gemini.sh"
 LOCAL_CODEX_RUNNER="${PROJECT_ROOT}/scripts/run_codex.sh"
 
-if [[ -z "${MEMBER_A_RUNNER_PATH}" && -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
-  MEMBER_A_RUNNER="${LOCAL_CLAUDE_RUNNER}"
+if [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "codex" ]]; then
+  if [[ -z "${MEMBER_A_RUNNER_PATH}" && -f "${LOCAL_CODEX_RUNNER}" ]]; then
+    MEMBER_A_RUNNER="${LOCAL_CODEX_RUNNER}"
+  else
+    MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-${SKILL_ROOT}/assets/run_codex.sh}"
+  fi
+elif [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "claude" ]]; then
+  if [[ -z "${MEMBER_A_RUNNER_PATH}" && -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
+    MEMBER_A_RUNNER="${LOCAL_CLAUDE_RUNNER}"
+  else
+    MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh}"
+  fi
 else
-  MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh}"
+  MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-}"
 fi
 
 if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" ]]; then
@@ -1683,7 +1662,7 @@ elif [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" ]]; then
     INTERNAL_CODEX_RUNNER="${SKILL_ROOT}/assets/run_codex.sh"
     MEMBER_B_RUNNER="${MEMBER_B_RUNNER_PATH:-${INTERNAL_CODEX_RUNNER}}"
   fi
-else
+elif [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "gemini" ]]; then
   if [[ -z "${MEMBER_B_RUNNER_PATH}" && -f "${LOCAL_GEMINI_RUNNER}" ]]; then
     MEMBER_B_RUNNER="${LOCAL_GEMINI_RUNNER}"
   else
@@ -1694,13 +1673,22 @@ else
       MEMBER_B_RUNNER="${MEMBER_B_RUNNER_PATH:-${SKILLS_DIR}/gemini-cli-runner/scripts/run_gemini.sh}"
     fi
   fi
+else
+  MEMBER_B_RUNNER="${MEMBER_B_RUNNER_PATH:-}"
 fi
 
-if [[ ! -f "${MEMBER_A_RUNNER}" ]]; then
+if [[ "${PREFLIGHT_ONLY}" -ne 1 && "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "host_native" ]]; then
+  fail_host_native_shell_runner "member-a"
+fi
+if [[ "${PREFLIGHT_ONLY}" -ne 1 && "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "host_native" ]]; then
+  fail_host_native_shell_runner "member-b"
+fi
+
+if [[ "${PREFLIGHT_ONLY}" -ne 1 && ! -f "${MEMBER_A_RUNNER}" ]]; then
   echo "ERROR: Member A runner not found: ${MEMBER_A_RUNNER}" >&2
   exit 2
 fi
-if [[ ! -f "${MEMBER_B_RUNNER}" ]]; then
+if [[ "${PREFLIGHT_ONLY}" -ne 1 && ! -f "${MEMBER_B_RUNNER}" ]]; then
   echo "ERROR: Member B runner not found: ${MEMBER_B_RUNNER}" >&2
   exit 2
 fi
@@ -1937,45 +1925,38 @@ if [[ "${PREFLIGHT_ONLY}" -eq 1 ]]; then
   exit 0
 fi
 
-# Resolve Member B runner kind only when we are about to run external runners.
+# Validate runner kind only when we are about to run external runners.
 # (preflight-only must remain independent of local LLM CLI availability.)
-MEMBER_B_FALLBACK_REASON=""
 MEMBER_B_MODEL_EFFECTIVE="${MEMBER_B_MODEL:-}"
+
+if [[ "${MEMBER_A_RUNNER_KIND}" == "host_native" || "${MEMBER_A_RUNNER_KIND}" == "auto" ]]; then
+  MEMBER_A_RUNNER_KIND_RESOLVED="host_native"
+  fail_host_native_shell_runner "member-a"
+elif [[ "${MEMBER_A_RUNNER_KIND}" == "codex" ]]; then
+  MEMBER_A_RUNNER_KIND_RESOLVED="codex"
+else
+  MEMBER_A_RUNNER_KIND_RESOLVED="claude"
+fi
 
 if [[ "${MEMBER_B_RUNNER_KIND}" == "claude" ]]; then
   MEMBER_B_RUNNER_KIND_RESOLVED="claude"
 elif [[ "${MEMBER_B_RUNNER_KIND}" == "codex" ]]; then
   MEMBER_B_RUNNER_KIND_RESOLVED="codex"
-elif [[ "${MEMBER_B_RUNNER_KIND}" == "auto" ]]; then
-  MEMBER_B_RUNNER_KIND_RESOLVED="gemini"
-  if [[ -z "${MEMBER_B_RUNNER_PATH}" ]]; then
-    if ! gemini_cli_healthy; then
-      MEMBER_B_FALLBACK_REASON="gemini_unhealthy"
-      MEMBER_B_RUNNER_KIND_RESOLVED="$(choose_member_b_fallback_kind "${MEMBER_B_FALLBACK_REASON}")"
-      echo "[warn] gemini appears unavailable (empty/invalid JSON response); auto-falling back to ${MEMBER_B_RUNNER_KIND_RESOLVED} for member-b." >&2
-    fi
-  fi
+elif [[ "${MEMBER_B_RUNNER_KIND}" == "host_native" || "${MEMBER_B_RUNNER_KIND}" == "auto" ]]; then
+  MEMBER_B_RUNNER_KIND_RESOLVED="host_native"
+  fail_host_native_shell_runner "member-b"
 else
-  # gemini (default)
+  # gemini (explicit)
   MEMBER_B_RUNNER_KIND_RESOLVED="gemini"
   if [[ -z "${MEMBER_B_RUNNER_PATH}" ]]; then
     if ! gemini_cli_healthy; then
-      MEMBER_B_FALLBACK_REASON="gemini_unhealthy"
-      MEMBER_B_RUNNER_KIND_RESOLVED="$(choose_member_b_fallback_kind "${MEMBER_B_FALLBACK_REASON}")"
-      echo "[warn] gemini appears unavailable (empty/invalid JSON response); falling back to ${MEMBER_B_RUNNER_KIND_RESOLVED} for member-b." >&2
+      echo "ERROR: gemini appears unavailable or returned an empty/invalid JSON response. research-team will not switch providers automatically; rerun with an explicit --member-b-runner-kind if you want another provider." >&2
+      exit 2
     fi
   fi
 fi
 
-if [[ -n "${MEMBER_B_FALLBACK_REASON}" ]]; then
-  if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" ]]; then
-    MEMBER_B_MODEL_EFFECTIVE="${MEMBER_B_FALLBACK_CLAUDE_MODEL}"
-  elif [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" ]]; then
-    MEMBER_B_MODEL_EFFECTIVE="${MEMBER_B_FALLBACK_CODEX_MODEL}"
-  fi
-fi
-
-# If we fell back to claude and no explicit --member-b-runner was provided, switch runner path accordingly.
+# If Member B uses claude and no explicit --member-b-runner was provided, switch runner path accordingly.
 if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" && -z "${MEMBER_B_RUNNER_PATH}" ]]; then
   if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
     MEMBER_B_RUNNER="${LOCAL_CLAUDE_RUNNER}"
@@ -1983,12 +1964,12 @@ if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" && -z "${MEMBER_B_RUNNER_PA
     MEMBER_B_RUNNER="${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh"
   fi
   if [[ ! -f "${MEMBER_B_RUNNER}" ]]; then
-    echo "ERROR: Member B claude runner not found after fallback: ${MEMBER_B_RUNNER}" >&2
+    echo "ERROR: Member B claude runner not found: ${MEMBER_B_RUNNER}" >&2
     exit 2
   fi
 fi
 
-# If we fell back to codex and no explicit --member-b-runner was provided, switch runner path accordingly.
+# If Member B uses codex and no explicit --member-b-runner was provided, switch runner path accordingly.
 if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" && -z "${MEMBER_B_RUNNER_PATH}" ]]; then
   if [[ -f "${LOCAL_CODEX_RUNNER}" ]]; then
     MEMBER_B_RUNNER="${LOCAL_CODEX_RUNNER}"
@@ -1997,7 +1978,7 @@ if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" && -z "${MEMBER_B_RUNNER_PAT
     MEMBER_B_RUNNER="${INTERNAL_CODEX_RUNNER}"
   fi
   if [[ ! -f "${MEMBER_B_RUNNER}" ]]; then
-    echo "ERROR: Member B codex runner not found after fallback: ${MEMBER_B_RUNNER}" >&2
+    echo "ERROR: Member B codex runner not found: ${MEMBER_B_RUNNER}" >&2
     exit 2
   fi
 fi
@@ -2015,6 +1996,7 @@ fi
 cycle_state_update "member_runners_start" "running" "running" ""
 
 echo "[info] review_access_mode=${REVIEW_ACCESS_MODE} isolation_strategy=${ISOLATION_STRATEGY}" >&2
+echo "[info] member-a runner-kind=${MEMBER_A_RUNNER_KIND_RESOLVED} runner=${MEMBER_A_RUNNER}" >&2
 echo "[info] member-b runner-kind=${MEMBER_B_RUNNER_KIND_RESOLVED} runner=${MEMBER_B_RUNNER}" >&2
 
 member_a_evidence="${run_dir}/member_a_evidence.json"
@@ -2032,7 +2014,10 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" ]]; then
   if [[ -n "${MEMBER_A_MODEL}" ]]; then
     member_a_args=( --model "${MEMBER_A_MODEL}" "${member_a_args[@]}" )
   fi
-  if [[ -n "${MEMBER_A_TOOLS}" ]]; then
+  if [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "codex" && -n "${MEMBER_A_REASONING_EFFORT}" ]]; then
+    member_a_args=( --reasoning-effort "${MEMBER_A_REASONING_EFFORT}" "${member_a_args[@]}" )
+  fi
+  if [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "claude" && -n "${MEMBER_A_TOOLS}" ]]; then
     member_a_args=( --tools "${MEMBER_A_TOOLS}" "${member_a_args[@]}" )
   fi
   if [[ -n "${MEMBER_A_API_BASE_URL}" ]]; then
@@ -2051,6 +2036,9 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" ]]; then
 	    )
 	    if [[ -n "${MEMBER_B_MODEL_EFFECTIVE}" ]]; then
 	      member_b_args=( --model "${MEMBER_B_MODEL_EFFECTIVE}" "${member_b_args[@]}" )
+	    fi
+	    if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" && -n "${MEMBER_B_REASONING_EFFORT}" ]]; then
+	      member_b_args=( --reasoning-effort "${MEMBER_B_REASONING_EFFORT}" "${member_b_args[@]}" )
 	    fi
 	    # --api-base-url / --api-key-env are supported by the project-local claude runner
 	    # (LOCAL_CLAUDE_RUNNER) or a custom runner path (MEMBER_B_RUNNER_PATH), but NOT
@@ -2223,7 +2211,27 @@ if [[ -n "${sidecar_lines}" ]]; then
         --out "${sc_out}"
       )
     else
-      member_c_runner="${MEMBER_A_RUNNER}"
+      if [[ "${sc_runner}" == "codex" ]]; then
+        if [[ -f "${LOCAL_CODEX_RUNNER}" ]]; then
+          member_c_runner="${LOCAL_CODEX_RUNNER}"
+        else
+          member_c_runner="${SKILL_ROOT}/assets/run_codex.sh"
+        fi
+      elif [[ "${sc_runner}" == "host_native" || "${sc_runner}" == "subagent" ]]; then
+        if [[ -n "${MEMBER_A_RUNNER_PATH}" ]]; then
+          member_c_runner="${MEMBER_A_RUNNER}"
+        elif [[ -f "${LOCAL_CODEX_RUNNER}" ]]; then
+          member_c_runner="${LOCAL_CODEX_RUNNER}"
+        else
+          member_c_runner="${SKILL_ROOT}/assets/run_codex.sh"
+        fi
+      elif [[ -n "${MEMBER_A_RUNNER_PATH}" ]]; then
+        member_c_runner="${MEMBER_A_RUNNER}"
+      elif [[ -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
+        member_c_runner="${LOCAL_CLAUDE_RUNNER}"
+      else
+        member_c_runner="${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh"
+      fi
       member_c_base_args=(
         --system-prompt-file "${sc_system}"
         --prompt-file "${packet_for_run}"
@@ -2267,7 +2275,7 @@ if [[ -n "${sidecar_lines}" ]]; then
           fi
           echo "[warn] sidecar attempt failed (${sc_suffix:-member_c}, model=${m}, exit=${code_c})." >&2
         done
-        echo "[warn] sidecar falling back to runner default model (${sc_suffix:-member_c}; omit --model)." >&2
+        echo "[warn] sidecar using runner default model (${sc_suffix:-member_c}; omit --model)." >&2
       fi
       RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}" \
       RESEARCH_TEAM_ATTEMPT_LOG_PREFIX="${sidecar_attempt_prefix}" \
@@ -2307,7 +2315,10 @@ if has_phase 0; then
       --out "${method_a_phase0}"
     )
     [[ -n "${MEMBER_A_MODEL:-}" ]] && _p0_a_args+=( --model "${MEMBER_A_MODEL}" )
-    if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] || [[ -n "${MEMBER_A_RUNNER_PATH}" ]]; then
+    if [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "codex" && -n "${MEMBER_A_REASONING_EFFORT:-}" ]]; then
+      _p0_a_args+=( --reasoning-effort "${MEMBER_A_REASONING_EFFORT}" )
+    fi
+    if [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "claude" && ( -f "${LOCAL_CLAUDE_RUNNER}" || -n "${MEMBER_A_RUNNER_PATH}" ) ]]; then
       [[ -n "${MEMBER_A_API_BASE_URL:-}" ]] && _p0_a_args+=( --api-base-url "${MEMBER_A_API_BASE_URL}" )
       [[ -n "${MEMBER_A_API_KEY_ENV:-}" ]]  && _p0_a_args+=( --api-key-env  "${MEMBER_A_API_KEY_ENV}" )
     fi
@@ -2350,7 +2361,10 @@ if has_phase 0; then
         --out "${method_b_phase0}"
       )
       [[ -n "${MEMBER_B_MODEL_EFFECTIVE:-}" ]] && _p0_b_args+=( --model "${MEMBER_B_MODEL_EFFECTIVE}" )
-      if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] || [[ -n "${MEMBER_B_RUNNER_PATH}" ]]; then
+      if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" && -n "${MEMBER_B_REASONING_EFFORT:-}" ]]; then
+        _p0_b_args+=( --reasoning-effort "${MEMBER_B_REASONING_EFFORT}" )
+      fi
+      if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" && ( -f "${LOCAL_CLAUDE_RUNNER}" || -n "${MEMBER_B_RUNNER_PATH}" ) ]]; then
         [[ -n "${MEMBER_B_API_BASE_URL:-}" ]] && _p0_b_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
         [[ -n "${MEMBER_B_API_KEY_ENV:-}" ]]  && _p0_b_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
       fi
@@ -2491,8 +2505,8 @@ except Exception:
       --member-id "member_a" --mode "full_access" --tag "${RESOLVED_TAG}" \
       --project-root "${PROJECT_ROOT}" --workspace-root "${MEMBER_A_WORKSPACE_DIR}" \
       --packet "${packet_for_run}" --system "${MEMBER_A_SYSTEM}" \
-      --runner "${MEMBER_A_RUNNER}" --runner-kind "claude" \
-      --model "${MEMBER_A_MODEL}" --tools "${MEMBER_A_TOOLS}" \
+      --runner "${MEMBER_A_RUNNER}" --runner-kind "${MEMBER_A_RUNNER_KIND_RESOLVED}" \
+      --model "${MEMBER_A_MODEL}" --reasoning-effort "${MEMBER_A_REASONING_EFFORT}" --tools "${MEMBER_A_TOOLS}" \
       --run-dir "${run_dir}" --out-report "${member_a_out}" --out-evidence "${member_a_evidence}" \
       "${_api_args_a[@]}"
     code_a=$?
@@ -2538,7 +2552,7 @@ except Exception:
       --project-root "${PROJECT_ROOT}" --workspace-root "${MEMBER_B_WORKSPACE_DIR}" \
       --packet "${packet_for_run}" --system "${MEMBER_B_SYSTEM_EFFECTIVE}" \
       --runner "${MEMBER_B_RUNNER}" --runner-kind "${MEMBER_B_RUNNER_KIND_RESOLVED}" \
-      --model "${MEMBER_B_MODEL_EFFECTIVE}" --tools "" --output-format "${MEMBER_B_OUTPUT_FORMAT}" \
+      --model "${MEMBER_B_MODEL_EFFECTIVE}" --reasoning-effort "${MEMBER_B_REASONING_EFFORT}" --tools "" --output-format "${MEMBER_B_OUTPUT_FORMAT}" \
       --run-dir "${run_dir}" --out-report "${member_b_out}" --out-evidence "${member_b_evidence}" \
       "${_api_args_b[@]}"
     code_b=$?
@@ -2595,7 +2609,7 @@ else
 	fi
 fi
 
-# If Member B ran via Gemini and failed (or produced an unhealthy report), optionally retry with a fallback runner.
+# If Member B ran via Gemini and failed (or produced an unhealthy report), fail closed.
 # Packet-only only: full_access must go through run_member_review.py evidence flow.
 if [[ "${REVIEW_ACCESS_MODE}" != "full_access" && "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "gemini" ]]; then
   runtime_reason=""
@@ -2607,90 +2621,12 @@ if [[ "${REVIEW_ACCESS_MODE}" != "full_access" && "${MEMBER_B_RUNNER_KIND_RESOLV
   fi
 
   if [[ -n "${runtime_reason}" ]]; then
-    if [[ "${MEMBER_B_FALLBACK_MODE}" == "ask" ]]; then
-      echo "" >&2
-      echo "[action_required] member-b gemini failed (${runtime_reason}). Re-run with one of:" >&2
-      echo "  --member-b-runner-kind claude" >&2
-      echo "  --member-b-runner-kind codex" >&2
-      echo "  --member-b-fallback-mode auto --member-b-fallback-order ${MEMBER_B_FALLBACK_ORDER}" >&2
-      cycle_state_update "member_b" "blocked" "error" "member-b=${runtime_reason}"
-      finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "1" || true
-      exit 4
-    fi
-
-    if [[ "${MEMBER_B_FALLBACK_MODE}" == "auto" ]]; then
-      MEMBER_B_FALLBACK_REASON="${runtime_reason}"
-      fb_kind="$(choose_member_b_fallback_kind "${runtime_reason}")"
-      echo "[warn] member-b gemini failed (${runtime_reason}); retrying with ${fb_kind}." >&2
-
-      MEMBER_B_RUNNER_KIND_RESOLVED="${fb_kind}"
-      if [[ "${fb_kind}" == "claude" ]]; then
-        MEMBER_B_MODEL_EFFECTIVE="${MEMBER_B_FALLBACK_CLAUDE_MODEL}"
-        if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
-          MEMBER_B_RUNNER="${LOCAL_CLAUDE_RUNNER}"
-        else
-          MEMBER_B_RUNNER="${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh"
-        fi
-      elif [[ "${fb_kind}" == "codex" ]]; then
-        MEMBER_B_MODEL_EFFECTIVE="${MEMBER_B_FALLBACK_CODEX_MODEL}"
-        if [[ -f "${LOCAL_CODEX_RUNNER}" ]]; then
-          MEMBER_B_RUNNER="${LOCAL_CODEX_RUNNER}"
-        else
-          MEMBER_B_RUNNER="${SKILL_ROOT}/assets/run_codex.sh"
-        fi
-      else
-        echo "[error] unknown fallback runner kind: ${fb_kind}" >&2
-        cycle_state_update "member_b" "failed" "error" "member-b=${runtime_reason}"
-        finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "1" || true
-        exit 2
-      fi
-
-      # Recompute effective system prompt for the fallback runner.
-      MEMBER_B_SYSTEM_EFFECTIVE="${MEMBER_B_SYSTEM}"
-      if [[ -n "${MEMBER_B_SYSTEM_CLAUDE}" && -f "${MEMBER_B_SYSTEM_CLAUDE}" ]]; then
-        MEMBER_B_SYSTEM_EFFECTIVE="${MEMBER_B_SYSTEM_CLAUDE}"
-      fi
-
-      member_b_retry_args=(
-        --system-prompt-file "${MEMBER_B_SYSTEM_EFFECTIVE}"
-        --prompt-file "${packet_for_run}"
-        --out "${member_b_out}"
-      )
-      if [[ -n "${MEMBER_B_MODEL_EFFECTIVE}" ]]; then
-        member_b_retry_args=( --model "${MEMBER_B_MODEL_EFFECTIVE}" "${member_b_retry_args[@]}" )
-      fi
-      # Propagate RT-03 API routing settings for claude fallback.
-      # Only when using the project-local runner (LOCAL_CLAUDE_RUNNER), which
-      # supports --api-base-url/--api-key-env. The skills-level runner exits on
-      # unknown args and does not accept these flags.
-      if [[ "${fb_kind}" == "claude" && -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
-        [[ -n "${MEMBER_B_API_BASE_URL}" ]] && member_b_retry_args+=( --api-base-url "${MEMBER_B_API_BASE_URL}" )
-        [[ -n "${MEMBER_B_API_KEY_ENV}" ]]  && member_b_retry_args+=( --api-key-env  "${MEMBER_B_API_KEY_ENV}" )
-      fi
-
-      set +e
-      RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}" \
-      RESEARCH_TEAM_ATTEMPT_LOG_PREFIX="${member_b_attempt_prefix}" \
-      bash "${MEMBER_B_RUNNER}" "${member_b_retry_args[@]}"
-      code_b=$?
-      set -e
-      if [[ ${code_b} -ne 0 ]]; then
-        echo "" >&2
-        echo "[error] member-b fallback failed (runner-kind=${fb_kind}, exit=${code_b})." >&2
-        cycle_state_update "member_b" "failed" "error" "member-b-fallback=${fb_kind}:${code_b}"
-        finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "1" || true
-        exit 2
-      fi
-      if ! member_report_healthy "${member_b_out}"; then
-        echo "" >&2
-        echo "[error] member-b fallback produced an unhealthy report (runner-kind=${fb_kind})." >&2
-        cycle_state_update "member_b" "failed" "error" "member-b-fallback=${fb_kind}:unhealthy_report"
-        finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "1" || true
-        exit 2
-      fi
-      cycle_state_update "member_b" "done" "running" "member-b-fallback=${fb_kind}"
-      code_b=0
-    fi
+    echo "" >&2
+    echo "[error] member-b gemini failed (${runtime_reason}). research-team will not switch providers automatically." >&2
+    echo "Rerun with an explicit --member-b-runner-kind codex|claude if you want a different provider." >&2
+    cycle_state_update "member_b" "failed" "error" "member-b=${runtime_reason}"
+    finalize_all_sidecars "${RESOLVED_TAG:-unknown}" "1" || true
+    exit 2
   fi
 fi
 

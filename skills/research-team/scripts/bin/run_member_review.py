@@ -54,8 +54,9 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--packet", type=Path, required=True, help="Team packet path.")
     p.add_argument("--system", type=Path, required=True, help="System prompt file.")
     p.add_argument("--runner", type=Path, required=True, help="Runner script path (bash).")
-    p.add_argument("--runner-kind", choices=["claude", "gemini"], required=True)
+    p.add_argument("--runner-kind", choices=["claude", "gemini", "codex"], required=True)
     p.add_argument("--model", default="", help="Optional model override.")
+    p.add_argument("--reasoning-effort", default="", help="Optional Codex reasoning effort (low|medium|high|xhigh).")
     p.add_argument("--tools", default="", help='Claude tools string (e.g. "" or "default"). Only used for claude runner.')
     p.add_argument("--output-format", default="text", help="Gemini output format (default: text).")
     p.add_argument("--run-dir", type=Path, required=True, help="Run directory for logs.")
@@ -300,6 +301,7 @@ def _run_runner(
     runner_sleep_secs: int | None = None,
     api_base_url: str = "",
     api_key_env: str = "",
+    reasoning_effort: str = "",
 ) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     cmd: list[str] = ["bash", str(runner)]
@@ -314,49 +316,29 @@ def _run_runner(
             cmd += ["--max-retries", str(int(runner_max_retries))]
         if runner_sleep_secs is not None:
             cmd += ["--sleep-secs", str(int(runner_sleep_secs))]
-    if runner_kind == "claude":
+    if runner_kind in ("claude", "codex"):
         if model.strip():
             cmd += ["--model", model.strip()]
-        cmd += ["--tools", tools if tools != "" else '""']
+        if runner_kind == "claude":
+            cmd += ["--tools", tools if tools != "" else '""']
+        if runner_kind == "codex" and reasoning_effort.strip():
+            cmd += ["--reasoning-effort", reasoning_effort.strip()]
         cmd += ["--system-prompt-file", str(system), "--prompt-file", str(prompt), "--out", str(out)]
     else:
         if model.strip():
             cmd += ["--model", model.strip()]
         cmd += ["--output-format", output_format.strip() or "text"]
         cmd += ["--prompt-file", str(prompt), "--out", str(out)]
-    # Append API configurability args if provided (runner must support them).
-    if api_base_url:
+    # Append API configurability args only to runners that advertise that interface.
+    if runner_kind != "codex" and api_base_url:
         cmd += ["--api-base-url", api_base_url]
-    if api_key_env:
+    if runner_kind != "codex" and api_key_env:
         cmd += ["--api-key-env", api_key_env]
     proc = subprocess.run(cmd, check=False)
     return proc.returncode
 
 
-def _candidate_models_for_runner(runner_kind: str, model: str) -> list[str]:
-    m = (model or "").strip()
-    if not m:
-        return [""]
-    # Gemini runner already implements a model fallback internally; avoid double-running here.
-    if runner_kind == "gemini":
-        return [m]
-    out: list[str] = [m]
-    for base in ("opus", "sonnet", "haiku"):
-        if base in m and m != base:
-            out.append(base)
-    if "-" in m:
-        prefix = m.split("-", 1)[0].strip()
-        if prefix in ("opus", "sonnet", "haiku"):
-            out.append(prefix)
-    out.append("")  # runner default model
-    dedup: list[str] = []
-    for x in out:
-        if x not in dedup:
-            dedup.append(x)
-    return dedup
-
-
-def _run_runner_with_model_fallback(
+def _run_runner_once(
     runner_kind: str,
     runner: Path,
     system: Path,
@@ -370,39 +352,30 @@ def _run_runner_with_model_fallback(
     fast_retry_sleep: int = 1,
     api_base_url: str = "",
     api_key_env: str = "",
+    reasoning_effort: str = "",
 ) -> tuple[int, str]:
-    """
-    Run the runner with deterministic fallback for common model-alias issues.
-
-    Primary motivation: Claude model aliases can differ between local CLI versions.
-    For explicit Claude model attempts, prefer a fail-fast retry policy so invalid aliases
-    do not burn long exponential backoff sleeps.
-    """
-    candidates = _candidate_models_for_runner(runner_kind, model)
-    last_code = 2
-    for cand in candidates:
-        use_fast = runner_kind == "claude" and bool(cand.strip())
-        last_code = _run_runner(
-            runner_kind=runner_kind,
-            runner=runner,
-            system=system,
-            prompt=prompt,
-            out=out,
-            model=cand,
-            tools=tools,
-            output_format=output_format,
-            runner_max_retries=(fast_retry_max if use_fast else None),
-            runner_sleep_secs=(fast_retry_sleep if use_fast else None),
-            api_base_url=api_base_url,
-            api_key_env=api_key_env,
-        )
-        if last_code == 0:
-            return 0, cand.strip()
-    return last_code, (candidates[-1].strip() if candidates else "")
+    m = (model or "").strip()
+    use_fast = runner_kind == "claude" and bool(m)
+    code = _run_runner(
+        runner_kind=runner_kind,
+        runner=runner,
+        system=system,
+        prompt=prompt,
+        out=out,
+        model=m,
+        tools=tools,
+        output_format=output_format,
+        runner_max_retries=(fast_retry_max if use_fast else None),
+        runner_sleep_secs=(fast_retry_sleep if use_fast else None),
+        api_base_url=api_base_url,
+        api_key_env=api_key_env,
+        reasoning_effort=reasoning_effort,
+    )
+    return code, m
 
 
 def _build_prompt_for_runner(runner_kind: str, system: Path, user_prompt: str, out_path: Path) -> None:
-    if runner_kind == "claude":
+    if runner_kind in ("claude", "codex"):
         _write_text(out_path, user_prompt)
         return
     # Gemini runner is prompt-only; prepend system prompt deterministically.
@@ -507,7 +480,7 @@ def main() -> int:
     if mode == "packet_only":
         prompt_path = member_run_dir / f"{safe_tag}_prompt.txt"
         _build_prompt_for_runner(args.runner_kind, system, _read_text(packet), prompt_path)
-        code, model_used = _run_runner_with_model_fallback(
+        code, model_used = _run_runner_once(
             runner_kind=args.runner_kind,
             runner=runner,
             system=system,
@@ -518,6 +491,7 @@ def main() -> int:
             output_format=args.output_format,
             api_base_url=args.api_base_url,
             api_key_env=args.api_key_env,
+            reasoning_effort=args.reasoning_effort,
         )
         if code != 0:
             print(f"ERROR: runner failed (exit {code})", file=sys.stderr)
@@ -591,7 +565,7 @@ def main() -> int:
     if _api_key_env_name and _api_key_env_name in os.environ and _api_key_env_name not in _saved_secrets:
         _saved_secrets[_api_key_env_name] = os.environ[_api_key_env_name]
 
-    code, model_used = _run_runner_with_model_fallback(
+    code, model_used = _run_runner_once(
         runner_kind=args.runner_kind,
         runner=runner,
         system=system,
@@ -602,6 +576,7 @@ def main() -> int:
         output_format=args.output_format,
         api_base_url=args.api_base_url,
         api_key_env=args.api_key_env,
+        reasoning_effort=args.reasoning_effort,
     )
     if code != 0:
         print(f"ERROR: runner failed in requests stage (exit {code})", file=sys.stderr)
@@ -886,7 +861,7 @@ def main() -> int:
     _build_prompt_for_runner(args.runner_kind, system, final_user_prompt, final_prompt_path)
     # Temporarily restore secret env vars so the final runner call can authenticate.
     os.environ.update(_saved_secrets)
-    code, _ = _run_runner_with_model_fallback(
+    code, _ = _run_runner_once(
         runner_kind=args.runner_kind,
         runner=runner,
         system=system,
@@ -897,6 +872,7 @@ def main() -> int:
         output_format=args.output_format,
         api_base_url=args.api_base_url,
         api_key_env=args.api_key_env,
+        reasoning_effort=args.reasoning_effort,
     )
     # Pop secrets again — final AI call is done.
     for _k in list(_saved_secrets):

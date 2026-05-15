@@ -34,19 +34,20 @@
         "reviewer_a",
         "reviewer_b",
         "both_ready",
-        "round",
-        "fallback_mode"
+        "round"
       ],
       "properties": {
         "reviewer_a": {
           "type": "object",
           "required": [
+            "provider",
             "model",
             "verdict",
             "timestamp"
           ],
           "properties": {
-            "model": { "const": "opus" },
+            "provider": { "type": "string", "minLength": 1 },
+            "model": { "type": "string", "minLength": 1 },
             "verdict": { "enum": ["READY", "NOT_READY"] },
             "timestamp": { "type": "string", "format": "date-time" }
           },
@@ -55,24 +56,23 @@
         "reviewer_b": {
           "type": "object",
           "required": [
+            "provider",
             "requested_model",
             "resolved_model",
-            "fallback_reason",
             "verdict",
             "timestamp"
           ],
           "properties": {
-            "requested_model": { "const": "gemini-3-pro-preview" },
-            "resolved_model": { "const": "gemini-3-pro-preview" },
-            "fallback_reason": { "type": "null" },
+            "provider": { "type": "string", "minLength": 1 },
+            "requested_model": { "type": "string", "minLength": 1 },
+            "resolved_model": { "type": "string", "minLength": 1 },
             "verdict": { "enum": ["READY", "NOT_READY"] },
             "timestamp": { "type": "string", "format": "date-time" }
           },
           "additionalProperties": false
         },
         "both_ready": { "const": true },
-        "round": { "type": "integer", "minimum": 1 },
-        "fallback_mode": { "const": "ask" }
+        "round": { "type": "integer", "minimum": 1 }
       },
       "additionalProperties": false
     },

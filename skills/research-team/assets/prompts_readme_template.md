@@ -8,8 +8,8 @@ Note:
 
 Team cycle (theory+computation cross-check):
 - `_team_packet.txt`: optional packet template (if you build packets manually)
-- `_system_member_a.txt`: Member A system prompt (Claude runner)
-- `_system_member_b.txt`: Member B system prompt (Gemini runner)
+- `_system_member_a.txt`: Member A system prompt (default host-native subagent; provider CLI override supported)
+- `_system_member_b.txt`: Member B system prompt (default host-native subagent; provider CLI override supported)
 - `_system_member_c_numerics.txt`: optional numerics sidecar (non-blocking)
 
 Draft cycle (LaTeX-source-first):

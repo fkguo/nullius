@@ -5,6 +5,7 @@ set -euo pipefail
 #
 # Interface matches claude-cli-runner-style usage:
 #   --model MODEL (optional)
+#   --reasoning-effort low|medium|high|xhigh (optional)
 #   --system-prompt-file FILE (required)
 #   --prompt-file FILE (required)
 #   --out PATH (required)
@@ -17,6 +18,7 @@ SYSTEM_PROMPT_FILE=""
 PROMPT_FILE=""
 OUT=""
 MODEL=""
+REASONING_EFFORT=""
 
 usage() {
   cat <<'EOF'
@@ -27,6 +29,7 @@ Usage:
 
 Options:
   --model MODEL              Optional (Codex model name/alias; defaults to Codex CLI config default).
+  --reasoning-effort EFFORT  Optional Codex reasoning effort: low|medium|high|xhigh.
   --system-prompt-file FILE  Required
   --prompt-file FILE         Required
   --out PATH                 Required
@@ -36,6 +39,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --model) MODEL="$2"; shift 2;;
+    --reasoning-effort) REASONING_EFFORT="$2"; shift 2;;
     --system-prompt-file) SYSTEM_PROMPT_FILE="$2"; shift 2;;
     --prompt-file) PROMPT_FILE="$2"; shift 2;;
     --out) OUT="$2"; shift 2;;
@@ -61,6 +65,15 @@ if ! command -v codex >/dev/null 2>&1; then
   echo "codex CLI not found in PATH" >&2
   exit 2
 fi
+if [[ -n "${REASONING_EFFORT}" ]]; then
+  case "${REASONING_EFFORT}" in
+    low|medium|high|xhigh) ;;
+    *)
+      echo "Invalid --reasoning-effort: ${REASONING_EFFORT} (allowed: low|medium|high|xhigh)" >&2
+      exit 2
+      ;;
+  esac
+fi
 
 tmp_stdin="$(mktemp)"
 tmp_stdout="$(mktemp)"
@@ -80,6 +93,9 @@ mkdir -p "$(dirname "${OUT}")"
 cmd=( codex exec --sandbox read-only --skip-git-repo-check --output-last-message "${OUT}" )
 if [[ -n "${MODEL}" ]]; then
   cmd+=( --model "${MODEL}" )
+fi
+if [[ -n "${REASONING_EFFORT}" ]]; then
+  cmd+=( -c "model_reasoning_effort=\"${REASONING_EFFORT}\"" )
 fi
 cmd+=( -c 'approval_policy="never"' - )
 
@@ -104,4 +120,3 @@ if [[ ! -s "${OUT}" ]]; then
   fi
   exit 2
 fi
-

@@ -15,8 +15,8 @@
 
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
-bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude
-# 或（A=Claude, B=Gemini）：
+bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex
+# 或（显式指定 A=Claude, B=Gemini）：
 # bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini
 ```
 
@@ -32,7 +32,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
 
 真实研究请使用仓外 project root。现在 public `research-team` scaffold / contract-refresh / team-cycle 会对 project root 和真实运行中间产物做 fail-closed：如果它们回指到 autoresearch-lab 开发仓 checkout，命令会直接报错。
 
-3) 跑一轮 team cycle：
+3) 跑确定性 preflight：
 
 ```bash
 cd /path/to/project
@@ -44,8 +44,13 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
-  --auto-tag
+  --auto-tag \
+  --preflight-only
 ```
+
+完整 reviewer cycle 默认应由当前宿主 agent/CLI 分配官方原生 subagents。
+如果要用这个 shell 脚本直接执行 reviewer，必须显式提供 CLI runner kind 和 runner path；
+脚本不会自动切换 provider。
 
 `--auto-tag` 会把有意义的 base tag 解析成 `<base>-rN`。如果这一轮对应
 `autoresearch` control-plane run，就把解析后的同一个值作为项目本地

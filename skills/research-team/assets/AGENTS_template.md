@@ -1,7 +1,7 @@
 # AGENTS.md (Template)
 
 This file anchors the research-team workflow for this project. Keep it updated.
-Default usage is agent-first: a tool-using LLM agent runs the scripts and writes project files; humans provide goals and review outputs. Commands are kept explicit for auditability and can be run manually as a fallback.
+Default usage is agent-first: a tool-using LLM agent runs the scripts and writes project files; humans provide goals and review outputs. Commands are kept explicit for auditability and can also be run manually.
 Portable install note: if you need to run a skill entrypoint directly, resolve it via `SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"`.
 
 Execution hygiene (recommended):
@@ -107,7 +107,10 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --preflight-only
 ```
 
-Full team cycle (Claude + Gemini):
+Full team cycle:
+
+- Default: use the current host agent's native subagents for Member A and Member B.
+- Shell execution: provide explicit CLI runner kinds and runner paths; no provider fallback is attempted.
 
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
@@ -117,6 +120,10 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --out-dir team \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
+  --member-a-runner-kind <codex|claude> \
+  --member-a-runner <path-to-member-a-runner> \
+  --member-b-runner-kind <codex|claude|gemini> \
+  --member-b-runner <path-to-member-b-runner> \
   --auto-tag
 ```
 
@@ -131,7 +138,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 - Autopilot expects `research_plan.md` to include a Task Board with `- [ ] Tn:` tasks.
 - If `scripts/execute_task.sh` exists, autopilot will call it with `<task_id> <task_text>` before each team cycle.
 - After each team cycle, update `research_plan.md` (Task Board + Progress Log). This is automatic when plan_tracking is enabled.
-- Runner scripts can be vendored to `scripts/run_claude.sh` and `scripts/run_gemini.sh` for self-contained sharing.
+- Runner scripts can be vendored to `scripts/run_codex.sh`, `scripts/run_claude.sh`, and `scripts/run_gemini.sh` for self-contained sharing.
 - Task Board tasks should include `(auto)` or `(manual)`; autopilot pauses on manual tasks by default (`automation.pause_on_manual=true`).
 - Packet completeness gate (if enabled) fails when Definition-hardened quantities or Evidence bundle contain `(fill...)` / `(missing...)` placeholders.
 - Notebook integrity gate (if enabled) fails when research_contract.md has duplicate marker blocks (REVIEW_EXCERPT/AUDIT_SLICES/Capsule) or violates math formatting rules.

@@ -105,7 +105,10 @@ def _deterministic_plan(
     lines.append("  --preflight-only")
     lines.append("```")
     lines.append("")
-    lines.append("Run full team cycle (Claude + Gemini):")
+    lines.append("Run full team cycle:")
+    lines.append("")
+    lines.append("- Default: the current host agent assigns Member A and Member B through its native subagent mechanism.")
+    lines.append("- Shell execution: provide explicit CLI runner kinds and runner paths; the script does not switch providers automatically.")
     lines.append("")
     lines.append("```bash")
     lines.append('SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"')
@@ -115,6 +118,10 @@ def _deterministic_plan(
     lines.append("  --out-dir team \\")
     lines.append("  --member-a-system prompts/_system_member_a.txt \\")
     lines.append("  --member-b-system prompts/_system_member_b.txt \\")
+    lines.append("  --member-a-runner-kind <codex|claude> \\")
+    lines.append("  --member-a-runner <path-to-member-a-runner> \\")
+    lines.append("  --member-b-runner-kind <codex|claude|gemini> \\")
+    lines.append("  --member-b-runner <path-to-member-b-runner> \\")
     lines.append("  --auto-tag")
     lines.append("```")
     lines.append("")
@@ -211,8 +218,10 @@ def main() -> int:
     ap.add_argument("--plan", type=Path, default=None, help="Path to research_plan.md.")
     ap.add_argument("--force", action="store_true", help="Overwrite even if plan is not a template.")
     ap.add_argument("--deterministic", action="store_true", help="Do not call external LLM runners; generate a minimal starter plan deterministically.")
-    ap.add_argument("--member-a-model", default="opus", help="Claude model for plan draft.")
-    ap.add_argument("--member-b-model", default="gemini-3-pro-preview", help="Gemini model for plan refinement.")
+    ap.add_argument("--member-a-model", default="", help="Optional model for plan draft (defaults to runner config).")
+    ap.add_argument("--member-b-model", default="", help="Optional model for plan refinement (defaults to runner config).")
+    ap.add_argument("--member-a-reasoning-effort", default="high", choices=["low", "medium", "high", "xhigh"], help="Codex reasoning effort for plan draft.")
+    ap.add_argument("--member-b-reasoning-effort", default="high", choices=["low", "medium", "high", "xhigh"], help="Codex reasoning effort for plan refinement.")
     ap.add_argument("--member-a-system", default=None, help="System prompt for Member A (optional).")
     ap.add_argument("--member-b-system", default=None, help="System prompt for Member B (optional).")
     args = ap.parse_args()
@@ -316,100 +325,41 @@ def main() -> int:
         if not sys_path.is_file():
             member_a_system = ""
 
-    local_claude = root / "scripts/run_claude.sh"
-    local_gemini = root / "scripts/run_gemini.sh"
+    local_codex = root / "scripts/run_codex.sh"
     skills_root = Path(__file__).resolve().parents[2]
-    claude_runner = local_claude if local_claude.is_file() else skills_root / "claude-cli-runner/scripts/run_claude.sh"
-    gemini_runner = local_gemini if local_gemini.is_file() else skills_root / "gemini-cli-runner/scripts/run_gemini.sh"
-    if not claude_runner.is_file() or not gemini_runner.is_file():
-        print("[warn] missing claude/gemini runner scripts; falling back to deterministic auto-fill.")
-        final_text = _deterministic_plan(
-            root=root,
-            mode=mode,
-            profile=profile,
-            instr_path=instr_path,
-            instr_text=instr_text,
-            prework_path=prework_path,
-            prework_text=prework_text,
-        )
-        if plan_exists:
-            backup = plan_path.with_suffix(plan_path.suffix + ".bak")
-            plan_path.replace(backup)
-        plan_path.write_text(final_text, encoding="utf-8")
-        log = {
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "method": "deterministic_fallback_no_runners",
-            "instruction_path": str(instr_path) if instr_path else None,
-            "prework_path": str(prework_path) if prework_text else None,
-            "plan_path": str(plan_path),
-        }
-        temp_dir = root / "team"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        (temp_dir / "auto_fill_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
-        print("[ok] auto-filled research_plan.md (deterministic fallback)")
-        return 0
+    codex_runner = local_codex if local_codex.is_file() else skills_root / "research-team/assets/run_codex.sh"
+    if not codex_runner.is_file():
+        print("ERROR: missing codex runner script. Use --deterministic for deterministic auto-fill, or provide the project-local runner explicitly before running LLM auto-fill.")
+        return 2
 
-    draft_out = temp_dir / "_autofill_plan_opus.md"
+    draft_out = temp_dir / "_autofill_plan_draft.md"
+    sys_path = temp_dir / "_autofill_system.txt"
     if member_a_system:
-        cmd = [
-            "bash",
-            str(claude_runner),
-            "--model",
-            args.member_a_model,
-            "--system-prompt-file",
-            str(member_a_system),
-            "--prompt-file",
-            str(prompt_path),
-            "--out",
-            str(draft_out),
-        ]
+        sys_path = Path(member_a_system)
     else:
         # Fallback: use prompt as system+user combined.
-        sys_path = temp_dir / "_autofill_system.txt"
         sys_path.write_text("You are a research planning assistant.", encoding="utf-8")
-        cmd = [
-            "bash",
-            str(claude_runner),
-            "--model",
-            args.member_a_model,
-            "--system-prompt-file",
-            str(sys_path),
-            "--prompt-file",
-            str(prompt_path),
-            "--out",
-            str(draft_out),
-        ]
+    cmd = [
+        "bash",
+        str(codex_runner),
+        "--reasoning-effort",
+        args.member_a_reasoning_effort,
+        "--system-prompt-file",
+        str(sys_path),
+        "--prompt-file",
+        str(prompt_path),
+        "--out",
+        str(draft_out),
+    ]
+    if args.member_a_model:
+        cmd[2:2] = ["--model", args.member_a_model]
     code, out = _run(cmd)
     if code != 0:
-        print("[warn] Claude plan draft failed; falling back to deterministic auto-fill.")
+        print("ERROR: Codex plan draft failed. research-team will not switch to another generation path automatically; rerun with --deterministic if you want deterministic auto-fill.")
         print(out)
-        final_text = _deterministic_plan(
-            root=root,
-            mode=mode,
-            profile=profile,
-            instr_path=instr_path,
-            instr_text=instr_text,
-            prework_path=prework_path,
-            prework_text=prework_text,
-        )
-        if plan_exists:
-            backup = plan_path.with_suffix(plan_path.suffix + ".bak")
-            plan_path.replace(backup)
-        plan_path.write_text(final_text, encoding="utf-8")
-        log = {
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "method": "deterministic_fallback_claude_failed",
-            "instruction_path": str(instr_path) if instr_path else None,
-            "prework_path": str(prework_path) if prework_text else None,
-            "plan_path": str(plan_path),
-            "member_a_model": args.member_a_model,
-            "member_b_model": args.member_b_model,
-        }
-        (temp_dir / "auto_fill_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
-        print("[ok] auto-filled research_plan.md (deterministic fallback)")
-        return 0
+        return 2
 
-    # Gemini refinement.
+    # Independent CLI-runner refinement for shell-only auto-fill.
     refine_prompt = (
         "Refine the following research_plan.md. Output full Markdown only.\n"
         "Ensure Task Board uses '- [ ] Tn: ...' and tasks are concrete and ordered.\n"
@@ -419,23 +369,29 @@ def main() -> int:
     refine_path = temp_dir / "_autofill_refine_prompt.txt"
     refine_path.write_text(refine_prompt, encoding="utf-8")
 
-    gem_out = temp_dir / "_autofill_plan_gemini.md"
+    refine_system = temp_dir / "_autofill_refine_system.txt"
+    refine_system.write_text("You are an independent research-plan reviewer. Tighten the plan without adding unsupported facts.", encoding="utf-8")
+    refine_out = temp_dir / "_autofill_plan_refined.md"
     cmd = [
         "bash",
-        str(gemini_runner),
-        "--model",
-        args.member_b_model,
+        str(codex_runner),
+        "--reasoning-effort",
+        args.member_b_reasoning_effort,
+        "--system-prompt-file",
+        str(refine_system),
         "--prompt-file",
         str(refine_path),
         "--out",
-        str(gem_out),
+        str(refine_out),
     ]
+    if args.member_b_model:
+        cmd[2:2] = ["--model", args.member_b_model]
     code, out = _run(cmd)
     if code != 0:
-        print("[warn] Gemini refinement failed; using Opus draft.")
+        print("[warn] Codex refinement failed; using draft.")
         final_text = draft_out.read_text(encoding="utf-8", errors="replace")
     else:
-        final_text = gem_out.read_text(encoding="utf-8", errors="replace").strip()
+        final_text = refine_out.read_text(encoding="utf-8", errors="replace").strip()
         if not final_text:
             final_text = draft_out.read_text(encoding="utf-8", errors="replace")
 

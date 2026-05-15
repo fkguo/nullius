@@ -31,8 +31,8 @@ Reproducibility scope (important):
 - **Trajectory index**: `team/trajectory_index.json` written/updated by `scripts/bin/update_trajectory_index.py`.
 - **Profiles** (project-level config `research_team_config.json`): `mixed`, `methodology_dev`, `toolkit_extraction` (at minimum).
 - **Members**:
-  - Member A: Claude (primary rigorous reviewer)
-  - Member B: Gemini (independent replication/review)
+  - Member A: host-native subagent by default (primary rigorous reviewer; CLI provider can be overridden).
+  - Member B: host-native subagent by default (independent replication/review; CLI provider can be overridden).
   - Member C: optional numerics audit sidecar (non-blocking by policy)
 
 ## 2) Baseline and traceability requirements

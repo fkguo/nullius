@@ -13,6 +13,9 @@ MEMBER_C_SYSTEM=""
 MEMBER_A_MODEL=""
 MEMBER_B_MODEL=""
 MEMBER_C_MODEL=""
+MEMBER_A_REASONING_EFFORT="high"
+MEMBER_B_REASONING_EFFORT="high"
+MEMBER_C_REASONING_EFFORT="high"
 MEMBER_A_TOOLS=""
 MEMBER_C_TOOLS=""
 MEMBER_B_OUTPUT_FORMAT="text"
@@ -36,8 +39,9 @@ run_draft_cycle.sh
 Run a LaTeX-source-first draft cycle:
   1) deterministic preflight (bib/cite/label/fig/KB linkage)
   2) build a focused review packet (candidate expansion + optional semantic adjudication over substantive slices)
-  3) optionally run Member A (Claude) + Member B (Gemini) reviewers (+ optional leader audit)
-     - Default Gemini runner fallback is the skill's `assets/run_gemini.sh` (preferred over the external gemini-cli-runner).
+  3) optionally run Member A + Member B reviewers (+ optional leader audit)
+     - Host agents should prefer their official native subagent mechanism.
+     - This shell script cannot spawn host-native subagents; provide explicit runner paths when using it for reviewer execution.
 
 Usage:
   run_draft_cycle.sh --tag TAG --tex main.tex --bib refs.bib [--out-dir team] [--preflight-only]
@@ -58,12 +62,15 @@ Options:
   --member-a-system PATH      Member A system prompt file (optional unless running A/B).
   --member-b-system PATH      Member B system prompt file (optional unless running A/B).
   --member-c-system PATH      Member C system prompt file (Team Leader audit; optional unless requiring convergence).
-  --member-a-runner PATH      Optional (override Claude runner path)
-  --member-b-runner PATH      Optional (override Gemini runner path)
-  --member-c-runner PATH      Optional (override runner path for Member C)
+  --member-a-runner PATH      Required when running Member A through this shell script.
+  --member-b-runner PATH      Required when running Member B through this shell script.
+  --member-c-runner PATH      Required when running Member C through this shell script.
   --member-a-model MODEL      Optional (runner default if omitted)
   --member-b-model MODEL      Optional
   --member-c-model MODEL      Optional
+  --member-a-reasoning-effort E Optional Codex effort: low|medium|high|xhigh (default: high)
+  --member-b-reasoning-effort E Optional Codex effort: low|medium|high|xhigh (default: high)
+  --member-c-reasoning-effort E Optional Codex effort: low|medium|high|xhigh (default: high)
   --member-a-tools TOOLS      Optional (e.g. "default"; runner default disables tools)
   --member-b-output-format F  Optional (default: text)
   --member-c-tools TOOLS      Optional (e.g. "default"; runner default disables tools)
@@ -92,6 +99,9 @@ while [[ $# -gt 0 ]]; do
     --member-a-model) MEMBER_A_MODEL="${2:-}"; shift 2 ;;
     --member-b-model) MEMBER_B_MODEL="${2:-}"; shift 2 ;;
     --member-c-model) MEMBER_C_MODEL="${2:-}"; shift 2 ;;
+    --member-a-reasoning-effort) MEMBER_A_REASONING_EFFORT="${2:-high}"; shift 2 ;;
+    --member-b-reasoning-effort) MEMBER_B_REASONING_EFFORT="${2:-high}"; shift 2 ;;
+    --member-c-reasoning-effort) MEMBER_C_REASONING_EFFORT="${2:-high}"; shift 2 ;;
     --member-a-tools) MEMBER_A_TOOLS="${2:-}"; shift 2 ;;
     --member-c-tools) MEMBER_C_TOOLS="${2:-}"; shift 2 ;;
     --member-b-output-format) MEMBER_B_OUTPUT_FORMAT="${2:-}"; shift 2 ;;
@@ -130,7 +140,6 @@ if [[ ! -f "${BIB}" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 GATE="${SCRIPT_DIR}/../gates/check_tex_draft_preflight.py"
 CONV_GATE="${SCRIPT_DIR}/../gates/check_draft_convergence.py"
 PACKET_BUILDER="${SCRIPT_DIR}/build_draft_packet.py"
@@ -219,7 +228,6 @@ SKILLS_DIR="${HOME}/.codex/skills"
 PROJECT_ROOT="$(pwd)"
 LOCAL_CLAUDE_RUNNER="${PROJECT_ROOT}/scripts/run_claude.sh"
 LOCAL_GEMINI_RUNNER="${PROJECT_ROOT}/scripts/run_gemini.sh"
-
 LIB_DIR="${SCRIPT_DIR}/../lib"
 cfg_require="0"
 cfg_leader_prompt=""
@@ -275,29 +283,24 @@ fi
 MEMBER_A_RUNNER=""
 MEMBER_B_RUNNER=""
 MEMBER_C_RUNNER=""
-if [[ -z "${MEMBER_A_RUNNER_PATH}" && -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
-  MEMBER_A_RUNNER="${LOCAL_CLAUDE_RUNNER}"
-else
-  MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh}"
-fi
-if [[ -z "${MEMBER_B_RUNNER_PATH}" && -f "${LOCAL_GEMINI_RUNNER}" ]]; then
-  MEMBER_B_RUNNER="${LOCAL_GEMINI_RUNNER}"
-else
-  INTERNAL_GEMINI_RUNNER="${SKILL_ROOT}/assets/run_gemini.sh"
-  if [[ -f "${INTERNAL_GEMINI_RUNNER}" ]]; then
-    MEMBER_B_RUNNER="${MEMBER_B_RUNNER_PATH:-${INTERNAL_GEMINI_RUNNER}}"
-  else
-    MEMBER_B_RUNNER="${MEMBER_B_RUNNER_PATH:-${SKILLS_DIR}/gemini-cli-runner/scripts/run_gemini.sh}"
-  fi
-fi
+MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-}"
+MEMBER_B_RUNNER="${MEMBER_B_RUNNER_PATH:-}"
 if [[ -n "${MEMBER_C_SYSTEM}" ]]; then
-  if [[ -z "${MEMBER_C_RUNNER_PATH}" && -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
-    MEMBER_C_RUNNER="${LOCAL_CLAUDE_RUNNER}"
-  else
-    MEMBER_C_RUNNER="${MEMBER_C_RUNNER_PATH:-${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh}"
-  fi
+  MEMBER_C_RUNNER="${MEMBER_C_RUNNER_PATH:-}"
 fi
 
+if [[ -z "${MEMBER_A_RUNNER}" ]]; then
+  echo "ERROR: --member-a-runner is required when run_draft_cycle.sh executes Member A. Use host-native subagents outside this shell script, or pass an explicit CLI runner path." >&2
+  exit 2
+fi
+if [[ -z "${MEMBER_B_RUNNER}" ]]; then
+  echo "ERROR: --member-b-runner is required when run_draft_cycle.sh executes Member B. Use host-native subagents outside this shell script, or pass an explicit CLI runner path." >&2
+  exit 2
+fi
+if [[ -n "${MEMBER_C_SYSTEM}" && -z "${MEMBER_C_RUNNER}" ]]; then
+  echo "ERROR: --member-c-runner is required when run_draft_cycle.sh executes Member C. Use host-native subagents outside this shell script, or pass an explicit CLI runner path." >&2
+  exit 2
+fi
 if [[ ! -f "${MEMBER_A_RUNNER}" ]]; then
   echo "ERROR: Member A runner not found: ${MEMBER_A_RUNNER}" >&2
   exit 2
@@ -316,23 +319,41 @@ member_b_out="${run_dir}/${safe_tag}_draft_member_b.md"
 member_c_out="${run_dir}/${safe_tag}_draft_member_c_leader.md"
 
 echo "[member-a] ${member_a_out}"
+is_codex_runner() {
+  local runner_base_l
+  runner_base_l="$(basename "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  [[ "${runner_base_l}" == *codex* ]]
+}
+
+is_gemini_runner() {
+  local runner_base_l
+  runner_base_l="$(basename "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  [[ "${runner_base_l}" == *gemini* ]]
+}
+
 run_member_a() {
-  if [[ -n "${MEMBER_A_MODEL}" && -n "${MEMBER_A_TOOLS}" ]]; then
-    bash "${MEMBER_A_RUNNER}" --model "${MEMBER_A_MODEL}" --tools "${MEMBER_A_TOOLS}" \
-      --system-prompt-file "${MEMBER_A_SYSTEM}" --prompt-file "${packet_path}" --out "${member_a_out}"
-    return
+  local -a cmd
+  local -a extra
+  local -a tools_args
+  extra=()
+  tools_args=()
+  if is_codex_runner "${MEMBER_A_RUNNER}"; then
+    extra+=( --reasoning-effort "${MEMBER_A_REASONING_EFFORT}" )
+  elif [[ -n "${MEMBER_A_TOOLS}" ]]; then
+    tools_args+=( --tools "${MEMBER_A_TOOLS}" )
   fi
+  cmd=( bash "${MEMBER_A_RUNNER}" )
   if [[ -n "${MEMBER_A_MODEL}" ]]; then
-    bash "${MEMBER_A_RUNNER}" --model "${MEMBER_A_MODEL}" \
-      --system-prompt-file "${MEMBER_A_SYSTEM}" --prompt-file "${packet_path}" --out "${member_a_out}"
-    return
+    cmd+=( --model "${MEMBER_A_MODEL}" )
   fi
-  if [[ -n "${MEMBER_A_TOOLS}" ]]; then
-    bash "${MEMBER_A_RUNNER}" --tools "${MEMBER_A_TOOLS}" \
-      --system-prompt-file "${MEMBER_A_SYSTEM}" --prompt-file "${packet_path}" --out "${member_a_out}"
-    return
+  if [[ ${#tools_args[@]} -gt 0 ]]; then
+    cmd+=( "${tools_args[@]}" )
   fi
-  bash "${MEMBER_A_RUNNER}" --system-prompt-file "${MEMBER_A_SYSTEM}" --prompt-file "${packet_path}" --out "${member_a_out}"
+  if [[ ${#extra[@]} -gt 0 ]]; then
+    cmd+=( "${extra[@]}" )
+  fi
+  cmd+=( --system-prompt-file "${MEMBER_A_SYSTEM}" --prompt-file "${packet_path}" --out "${member_a_out}" )
+  "${cmd[@]}"
 }
 
 tmp_gemini_prompt="$(mktemp)"
@@ -355,12 +376,30 @@ trap cleanup EXIT
 
 echo "[member-b] ${member_b_out}"
 run_member_b() {
-  if [[ -n "${MEMBER_B_MODEL}" ]]; then
-    bash "${MEMBER_B_RUNNER}" --model "${MEMBER_B_MODEL}" --output-format "${MEMBER_B_OUTPUT_FORMAT}" \
-      --prompt-file "${tmp_gemini_prompt}" --out "${member_b_out}"
+  if is_gemini_runner "${MEMBER_B_RUNNER}"; then
+    if [[ -n "${MEMBER_B_MODEL}" ]]; then
+      bash "${MEMBER_B_RUNNER}" --model "${MEMBER_B_MODEL}" --output-format "${MEMBER_B_OUTPUT_FORMAT}" \
+        --prompt-file "${tmp_gemini_prompt}" --out "${member_b_out}"
+      return
+    fi
+    bash "${MEMBER_B_RUNNER}" --output-format "${MEMBER_B_OUTPUT_FORMAT}" --prompt-file "${tmp_gemini_prompt}" --out "${member_b_out}"
     return
   fi
-  bash "${MEMBER_B_RUNNER}" --output-format "${MEMBER_B_OUTPUT_FORMAT}" --prompt-file "${tmp_gemini_prompt}" --out "${member_b_out}"
+  local -a cmd
+  local -a extra
+  extra=()
+  if is_codex_runner "${MEMBER_B_RUNNER}"; then
+    extra+=( --reasoning-effort "${MEMBER_B_REASONING_EFFORT}" )
+  fi
+  cmd=( bash "${MEMBER_B_RUNNER}" )
+  if [[ -n "${MEMBER_B_MODEL}" ]]; then
+    cmd+=( --model "${MEMBER_B_MODEL}" )
+  fi
+  if [[ ${#extra[@]} -gt 0 ]]; then
+    cmd+=( "${extra[@]}" )
+  fi
+  cmd+=( --system-prompt-file "${MEMBER_B_SYSTEM}" --prompt-file "${packet_path}" --out "${member_b_out}" )
+  "${cmd[@]}"
 }
 
 run_member_c() {
@@ -368,9 +407,7 @@ run_member_c() {
     return 0
   fi
 
-  local runner_base_l
-  runner_base_l="$(basename "${MEMBER_C_RUNNER}" | tr '[:upper:]' '[:lower:]')"
-  if [[ "${runner_base_l}" == *gemini* ]]; then
+  if is_gemini_runner "${MEMBER_C_RUNNER}"; then
     tmp_gemini_prompt_c="$(mktemp)"
     {
       echo "SYSTEM (follow strictly):"
@@ -379,7 +416,6 @@ run_member_c() {
       echo "USER PACKET:"
       cat "${packet_path}"
     } >"${tmp_gemini_prompt_c}"
-
     if [[ -n "${MEMBER_C_MODEL}" ]]; then
       bash "${MEMBER_C_RUNNER}" --model "${MEMBER_C_MODEL}" --output-format "${MEMBER_C_OUTPUT_FORMAT}" \
         --prompt-file "${tmp_gemini_prompt_c}" --out "${member_c_out}"
@@ -389,23 +425,28 @@ run_member_c() {
     return
   fi
 
-  # Default: assume Claude runner interface.
-  if [[ -n "${MEMBER_C_MODEL}" && -n "${MEMBER_C_TOOLS}" ]]; then
-    bash "${MEMBER_C_RUNNER}" --model "${MEMBER_C_MODEL}" --tools "${MEMBER_C_TOOLS}" \
-      --system-prompt-file "${MEMBER_C_SYSTEM}" --prompt-file "${packet_path}" --out "${member_c_out}"
-    return
+  local -a cmd
+  local -a extra
+  local -a tools_args
+  extra=()
+  tools_args=()
+  if is_codex_runner "${MEMBER_C_RUNNER}"; then
+    extra+=( --reasoning-effort "${MEMBER_C_REASONING_EFFORT}" )
+  elif [[ -n "${MEMBER_C_TOOLS}" ]]; then
+    tools_args+=( --tools "${MEMBER_C_TOOLS}" )
   fi
+  cmd=( bash "${MEMBER_C_RUNNER}" )
   if [[ -n "${MEMBER_C_MODEL}" ]]; then
-    bash "${MEMBER_C_RUNNER}" --model "${MEMBER_C_MODEL}" \
-      --system-prompt-file "${MEMBER_C_SYSTEM}" --prompt-file "${packet_path}" --out "${member_c_out}"
-    return
+    cmd+=( --model "${MEMBER_C_MODEL}" )
   fi
-  if [[ -n "${MEMBER_C_TOOLS}" ]]; then
-    bash "${MEMBER_C_RUNNER}" --tools "${MEMBER_C_TOOLS}" \
-      --system-prompt-file "${MEMBER_C_SYSTEM}" --prompt-file "${packet_path}" --out "${member_c_out}"
-    return
+  if [[ ${#tools_args[@]} -gt 0 ]]; then
+    cmd+=( "${tools_args[@]}" )
   fi
-  bash "${MEMBER_C_RUNNER}" --system-prompt-file "${MEMBER_C_SYSTEM}" --prompt-file "${packet_path}" --out "${member_c_out}"
+  if [[ ${#extra[@]} -gt 0 ]]; then
+    cmd+=( "${extra[@]}" )
+  fi
+  cmd+=( --system-prompt-file "${MEMBER_C_SYSTEM}" --prompt-file "${packet_path}" --out "${member_c_out}" )
+  "${cmd[@]}"
 }
 
 run_member_a &

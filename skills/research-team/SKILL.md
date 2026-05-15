@@ -2,7 +2,7 @@
 name: research-team
 description: >
   Milestone-based research-team workflow for theory+computation projects with reproducible artifacts,
-  independent parallel workstreams (default: Claude + Gemini; configurable), and a strict convergence gate.
+  independent parallel workstreams (default: host-native subagents; configurable), and a strict convergence gate.
 ---
 
 # Research Team (Lean Entry)
@@ -55,8 +55,8 @@ Use `research-team` when you want a project workflow with:
 
 ```bash
 SKILL_DIR="${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}"
-bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude
-# or (if you want A=Claude, B=Gemini):
+bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex
+# or (if you explicitly want A=Claude, B=Gemini):
 # bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini
 ```
 
@@ -90,6 +90,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 ```
 
 Tip: add `--preflight-only` to run deterministic gates without calling external LLMs.
+By default, Member A and Member B should be assigned through the current host agent's official subagent mechanism with config-derived reasoning depth. `run_team_cycle.sh` keeps CLI compatibility runners for shell-only environments; use `--member-a-runner-kind` / `--member-b-runner-kind` or `research_team_config.json` only when you explicitly want a provider-specific CLI runner.
 Keep `--out-dir` on a real-project path as well; do not point real-project team outputs back into the development repo.
 The command above writes reviewer-cycle packets and logs under `team/runs/<tag>/`.
 Durable research outputs and claims should point to the canonical project root

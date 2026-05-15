@@ -168,6 +168,7 @@ copy_template "${ASSETS_DIR}/run_full_cycle.sh" "${ROOT}/scripts/run_full_cycle.
 copy_template "${ASSETS_DIR}/run_autopilot.sh" "${ROOT}/scripts/run_autopilot.sh"
 copy_template "${ASSETS_DIR}/run_claude.sh" "${ROOT}/scripts/run_claude.sh"
 copy_template "${ASSETS_DIR}/run_gemini.sh" "${ROOT}/scripts/run_gemini.sh"
+copy_template "${ASSETS_DIR}/run_codex.sh" "${ROOT}/scripts/run_codex.sh"
 copy_template "${ASSETS_DIR}/execute_task.sh" "${ROOT}/scripts/execute_task.sh"
 copy_template "${ASSETS_DIR}/export_paper_bundle.sh" "${ROOT}/scripts/export_paper_bundle.sh"
 copy_template "${ASSETS_DIR}/references_readme_template.md" "${ROOT}/references/README.md"

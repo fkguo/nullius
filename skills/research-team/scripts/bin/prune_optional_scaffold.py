@@ -463,6 +463,7 @@ def _infer_scaffold_variant(project_root: Path) -> str:
         "scripts/run_autopilot.sh",
         "scripts/run_claude.sh",
         "scripts/run_gemini.sh",
+        "scripts/run_codex.sh",
         "scripts/execute_task.sh",
         "scripts/export_paper_bundle.sh",
     ]
@@ -565,6 +566,7 @@ def main() -> int:
             ("scripts/run_autopilot.sh", assets_dir / "run_autopilot.sh"),
             ("scripts/run_claude.sh", assets_dir / "run_claude.sh"),
             ("scripts/run_gemini.sh", assets_dir / "run_gemini.sh"),
+            ("scripts/run_codex.sh", assets_dir / "run_codex.sh"),
             ("scripts/execute_task.sh", assets_dir / "execute_task.sh"),
             ("scripts/export_paper_bundle.sh", assets_dir / "export_paper_bundle.sh"),
         ],
