@@ -320,6 +320,7 @@ def _check_knowledge_base_dir(project_root: Path, *, assets_dir: Path, project_n
         "README.md": assets_dir / "knowledge_base_readme_template.md",
         "methodology_traces/_template.md": assets_dir / "methodology_trace_template.md",
         "methodology_traces/literature_queries.md": assets_dir / "literature_queries_template.md",
+        "methodology_traces/literature_saturation.json": assets_dir / "literature_saturation_template.json",
     }
     present = _dir_files_rel(kb)
     expected = set(mapping.keys())

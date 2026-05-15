@@ -59,6 +59,7 @@ Validated procedures and reproducibility traces:
 - known limitations
 - algorithm-search notes and stability decisions for numerics
 - append-only query log (created by scaffold): [literature_queries.md](methodology_traces/literature_queries.md)
+- literature saturation artifact (created by scaffold): [literature_saturation.json](methodology_traces/literature_saturation.json)
 
 ## priors/
 

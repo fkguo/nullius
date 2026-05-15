@@ -51,11 +51,14 @@ Notes:
 ## Search log (mandatory when expanding KB)
 
 Append-only query log (create if missing): [literature_queries.md](literature_queries.md)
+Saturation artifact (mandatory for literature/reference/knowledge-evidence work): [literature_saturation.json](literature_saturation.json)
 
 Record at least:
 - query string
 - filters/selection criteria
+- provider returned counts / total-count availability / pagination or continuation status
 - what you accepted/rejected and why
+- reference and citation checks for selected core papers
 - links to the local KB notes you created/updated
 
 | Timestamp | Source | Query | Shortlist (links) | Decision / Notes |

@@ -46,6 +46,8 @@ export const WorkflowDegradeModeSchema = z.enum([
 
 export const SearchDepthContractSchema = z.object({
   mode: z.literal('deep'),
+  default_page_size: z.literal(50),
+  default_page_size_semantics: z.literal('page_size_not_completion_threshold'),
   pagination_required: z.literal(true),
   cursor_or_page_tracking_required: z.literal(true),
   continuation_required: z.literal(true),
@@ -56,6 +58,28 @@ export const SearchDepthContractSchema = z.object({
   selection_rationale_required: z.literal(true),
   query_expansion_expected: z.literal(true),
   citation_expansion_expected: z.literal(true),
+}).strict();
+
+export const LiteratureSaturationContractSchema = z.object({
+  artifact: z.string().min(1),
+  final_status_values: z.tuple([
+    z.literal('saturated'),
+    z.literal('coverage_incomplete'),
+  ]),
+  saturated_required_for_completion: z.literal(true),
+  coverage_incomplete_allowed_only_as_debt: z.literal(true),
+  provider_coverage_required: z.literal(true),
+  providers_expected: z.array(z.enum([
+    'inspire',
+    'arxiv',
+    'openalex',
+    'web',
+  ])).min(4),
+  candidate_pool_required: z.literal(true),
+  core_paper_references_required: z.literal(true),
+  core_paper_citations_required: z.literal(true),
+  metadata_only_not_evidence_ready: z.literal(true),
+  page_size_not_completion_threshold: z.literal(true),
 }).strict();
 
 export const ReadingHandoffContractSchema = z.object({
@@ -90,6 +114,7 @@ export const WorkflowRecipeStepSchema = z.object({
     project_required: z.boolean().optional(),
     run_required: z.boolean().optional(),
     search_depth_contract: SearchDepthContractSchema.optional(),
+    literature_saturation_contract: LiteratureSaturationContractSchema.optional(),
     reading_handoff_contract: ReadingHandoffContractSchema.optional(),
   }).optional(),
 }).superRefine((value, ctx) => {

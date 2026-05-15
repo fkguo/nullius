@@ -775,7 +775,10 @@ function readWorkflowHandoffContracts(state: RunState): Record<string, unknown> 
     const readingHandoffContract = consumerHints.reading_handoff_contract && typeof consumerHints.reading_handoff_contract === 'object' && !Array.isArray(consumerHints.reading_handoff_contract)
       ? consumerHints.reading_handoff_contract as Record<string, unknown>
       : null;
-    if (!searchDepthContract && !readingHandoffContract) continue;
+    const literatureSaturationContract = consumerHints.literature_saturation_contract && typeof consumerHints.literature_saturation_contract === 'object' && !Array.isArray(consumerHints.literature_saturation_contract)
+      ? consumerHints.literature_saturation_contract as Record<string, unknown>
+      : null;
+    if (!searchDepthContract && !readingHandoffContract && !literatureSaturationContract) continue;
 
     const artifactKey = typeof consumerHints.artifact === 'string' && consumerHints.artifact.trim()
       ? consumerHints.artifact.trim()
@@ -784,6 +787,7 @@ function readWorkflowHandoffContracts(state: RunState): Record<string, unknown> 
       step_id: stepId,
       artifact_key: artifactKey,
       ...(searchDepthContract ? { search_depth_contract: searchDepthContract } : {}),
+      ...(literatureSaturationContract ? { literature_saturation_contract: literatureSaturationContract } : {}),
       ...(readingHandoffContract ? { reading_handoff_contract: readingHandoffContract } : {}),
     };
   }

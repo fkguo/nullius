@@ -50,7 +50,7 @@
     "milestone_dod_gate": true,
     "packet_completeness_gate": true,
     "notebook_integrity_gate": true,
-    "literature_trace_gate": false,
+    "literature_trace_gate": true,
     "markdown_math_hygiene_gate": true,
     "markdown_math_portability_gate": true,
     "double_backslash_math_gate": true,
@@ -81,6 +81,8 @@
   "references": {
     "_note": "References-gate external link allowlist: keep stable by default; extend per project if needed.",
     "_note2": "Default allowed hosts include INSPIRE/arXiv/DOI/GitHub plus common software/docs (SciPy/NumPy/Julia/PyPI/Zenodo).",
+    "trace_log_path": "knowledge_base/methodology_traces/literature_queries.md",
+    "saturation_path": "knowledge_base/methodology_traces/literature_saturation.json",
     "allowed_external_hosts_extra": []
   },
   "logic_isolation": {

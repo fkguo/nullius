@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
@@ -58,6 +58,76 @@ class Phase(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
 
 
+class SearchDepthContract(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    mode: Literal['deep']
+    default_page_size: Literal[50]
+    default_page_size_semantics: Literal['page_size_not_completion_threshold']
+    pagination_required: Literal[True]
+    cursor_or_page_tracking_required: Literal[True]
+    continuation_required: Literal[True]
+    returned_count_required: Literal[True]
+    stop_reason_required: Literal[True]
+    coverage_incomplete_status: Literal['coverage_incomplete']
+    candidate_pool_artifact: Annotated[str, Field(min_length=1)]
+    selection_rationale_required: Literal[True]
+    query_expansion_expected: Literal[True]
+    citation_expansion_expected: Literal[True]
+
+
+class FinalStatusValue(StrEnum):
+    saturated = 'saturated'
+    coverage_incomplete = 'coverage_incomplete'
+
+
+class ProvidersExpectedEnum(StrEnum):
+    inspire = 'inspire'
+    arxiv = 'arxiv'
+    openalex = 'openalex'
+    web = 'web'
+
+
+class LiteratureSaturationContract(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    artifact: Annotated[str, Field(min_length=1)]
+    final_status_values: Annotated[
+        list[FinalStatusValue], Field(max_length=2, min_length=2)
+    ]
+    saturated_required_for_completion: Literal[True]
+    coverage_incomplete_allowed_only_as_debt: Literal[True]
+    provider_coverage_required: Literal[True]
+    providers_expected: Annotated[list[ProvidersExpectedEnum], Field(min_length=4)]
+    candidate_pool_required: Literal[True]
+    core_paper_references_required: Literal[True]
+    core_paper_citations_required: Literal[True]
+    metadata_only_not_evidence_ready: Literal[True]
+    page_size_not_completion_threshold: Literal[True]
+
+
+class SourcePreferenceEnum(StrEnum):
+    arxiv_latex_source = 'arxiv_latex_source'
+    full_text_pdf = 'full_text_pdf'
+    available_full_text = 'available_full_text'
+    metadata_only_not_evidence_ready = 'metadata_only_not_evidence_ready'
+
+
+class ReadingHandoffContract(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    mode: Literal['source_first']
+    source_preference: Annotated[list[SourcePreferenceEnum], Field(min_length=4)]
+    note_upgrade_required: Literal[True]
+    expected_artifact: Annotated[str, Field(min_length=1)]
+    locators_required: Literal[True]
+    key_equations_required: Literal[True]
+    limitations_required: Literal[True]
+
+
 class ConsumerHints(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -66,6 +136,9 @@ class ConsumerHints(BaseModel):
     artifact: Annotated[str | None, Field(min_length=1)] = None
     project_required: bool | None = None
     run_required: bool | None = None
+    search_depth_contract: SearchDepthContract | None = None
+    literature_saturation_contract: LiteratureSaturationContract | None = None
+    reading_handoff_contract: ReadingHandoffContract | None = None
 
 
 class Steps(BaseModel):
@@ -84,6 +157,38 @@ class Steps(BaseModel):
     params: dict[str, Any] | None = {}
 
 
+class LiteratureSaturationContract1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    artifact: Annotated[str, Field(min_length=1)]
+    final_status_values: Annotated[
+        list[FinalStatusValue], Field(max_length=2, min_length=2)
+    ]
+    saturated_required_for_completion: Literal[True]
+    coverage_incomplete_allowed_only_as_debt: Literal[True]
+    provider_coverage_required: Literal[True]
+    providers_expected: Annotated[list[ProvidersExpectedEnum], Field(min_length=4)]
+    candidate_pool_required: Literal[True]
+    core_paper_references_required: Literal[True]
+    core_paper_citations_required: Literal[True]
+    metadata_only_not_evidence_ready: Literal[True]
+    page_size_not_completion_threshold: Literal[True]
+
+
+class ReadingHandoffContract1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    mode: Literal['source_first']
+    source_preference: Annotated[list[SourcePreferenceEnum], Field(min_length=4)]
+    note_upgrade_required: Literal[True]
+    expected_artifact: Annotated[str, Field(min_length=1)]
+    locators_required: Literal[True]
+    key_equations_required: Literal[True]
+    limitations_required: Literal[True]
+
+
 class ConsumerHints1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -92,6 +197,9 @@ class ConsumerHints1(BaseModel):
     artifact: Annotated[str | None, Field(min_length=1)] = None
     project_required: bool | None = None
     run_required: bool | None = None
+    search_depth_contract: SearchDepthContract | None = None
+    literature_saturation_contract: LiteratureSaturationContract1 | None = None
+    reading_handoff_contract: ReadingHandoffContract1 | None = None
 
 
 class Steps1(BaseModel):

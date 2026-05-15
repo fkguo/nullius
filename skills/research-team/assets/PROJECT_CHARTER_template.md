@@ -36,7 +36,7 @@ Project-specific commitments (fill at least 2 bullets; must include at least 1 K
 ## 3. Discovery Policy (MANDATORY)
 
 - Allowed sources for discovery (project leader only): prefer stable anchors (INSPIRE/arXiv/DOI/GitHub) + official docs/archives/registries (SciPy/Julia/NumPy/PyPI/Zenodo/etc.). General scholarly search may be used for discovery, but MUST be logged and the final citations must be stabilized to stable anchors; if a needed domain is blocked by the References gate, extend allowlist via `research_team_config.json: references.allowed_external_hosts_extra`.
-- Log all queries + selection decisions in [knowledge_base/methodology_traces/literature_queries.md](knowledge_base/methodology_traces/literature_queries.md) (append-only).
+- Log all queries + selection decisions in [knowledge_base/methodology_traces/literature_queries.md](knowledge_base/methodology_traces/literature_queries.md) (append-only), and maintain [knowledge_base/methodology_traces/literature_saturation.json](knowledge_base/methodology_traces/literature_saturation.json) for provider coverage, candidate-pool, and citation/reference graph checks. A single page of search results is not a completion criterion.
 
 ## 4. Task Alignment (RECOMMENDED)
 

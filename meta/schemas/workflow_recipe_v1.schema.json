@@ -145,6 +145,186 @@
               },
               "run_required": {
                 "type": "boolean"
+              },
+              "search_depth_contract": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "mode",
+                  "default_page_size",
+                  "default_page_size_semantics",
+                  "pagination_required",
+                  "cursor_or_page_tracking_required",
+                  "continuation_required",
+                  "returned_count_required",
+                  "stop_reason_required",
+                  "coverage_incomplete_status",
+                  "candidate_pool_artifact",
+                  "selection_rationale_required",
+                  "query_expansion_expected",
+                  "citation_expansion_expected"
+                ],
+                "properties": {
+                  "mode": {
+                    "const": "deep"
+                  },
+                  "default_page_size": {
+                    "const": 50
+                  },
+                  "default_page_size_semantics": {
+                    "const": "page_size_not_completion_threshold"
+                  },
+                  "pagination_required": {
+                    "const": true
+                  },
+                  "cursor_or_page_tracking_required": {
+                    "const": true
+                  },
+                  "continuation_required": {
+                    "const": true
+                  },
+                  "returned_count_required": {
+                    "const": true
+                  },
+                  "stop_reason_required": {
+                    "const": true
+                  },
+                  "coverage_incomplete_status": {
+                    "const": "coverage_incomplete"
+                  },
+                  "candidate_pool_artifact": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "selection_rationale_required": {
+                    "const": true
+                  },
+                  "query_expansion_expected": {
+                    "const": true
+                  },
+                  "citation_expansion_expected": {
+                    "const": true
+                  }
+                }
+              },
+              "literature_saturation_contract": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "artifact",
+                  "final_status_values",
+                  "saturated_required_for_completion",
+                  "coverage_incomplete_allowed_only_as_debt",
+                  "provider_coverage_required",
+                  "providers_expected",
+                  "candidate_pool_required",
+                  "core_paper_references_required",
+                  "core_paper_citations_required",
+                  "metadata_only_not_evidence_ready",
+                  "page_size_not_completion_threshold"
+                ],
+                "properties": {
+                  "artifact": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "final_status_values": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "saturated",
+                        "coverage_incomplete"
+                      ]
+                    }
+                  },
+                  "saturated_required_for_completion": {
+                    "const": true
+                  },
+                  "coverage_incomplete_allowed_only_as_debt": {
+                    "const": true
+                  },
+                  "provider_coverage_required": {
+                    "const": true
+                  },
+                  "providers_expected": {
+                    "type": "array",
+                    "minItems": 4,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "inspire",
+                        "arxiv",
+                        "openalex",
+                        "web"
+                      ]
+                    }
+                  },
+                  "candidate_pool_required": {
+                    "const": true
+                  },
+                  "core_paper_references_required": {
+                    "const": true
+                  },
+                  "core_paper_citations_required": {
+                    "const": true
+                  },
+                  "metadata_only_not_evidence_ready": {
+                    "const": true
+                  },
+                  "page_size_not_completion_threshold": {
+                    "const": true
+                  }
+                }
+              },
+              "reading_handoff_contract": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "mode",
+                  "source_preference",
+                  "note_upgrade_required",
+                  "expected_artifact",
+                  "locators_required",
+                  "key_equations_required",
+                  "limitations_required"
+                ],
+                "properties": {
+                  "mode": {
+                    "const": "source_first"
+                  },
+                  "source_preference": {
+                    "type": "array",
+                    "minItems": 4,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "arxiv_latex_source",
+                        "full_text_pdf",
+                        "available_full_text",
+                        "metadata_only_not_evidence_ready"
+                      ]
+                    }
+                  },
+                  "note_upgrade_required": {
+                    "const": true
+                  },
+                  "expected_artifact": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "locators_required": {
+                    "const": true
+                  },
+                  "key_equations_required": {
+                    "const": true
+                  },
+                  "limitations_required": {
+                    "const": true
+                  }
+                }
               }
             }
           },

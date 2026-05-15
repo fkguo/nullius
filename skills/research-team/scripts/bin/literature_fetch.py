@@ -542,6 +542,7 @@ def inspire_bibtex(*, recid: str | None = None, texkey: str | None = None) -> st
 
 
 DEFAULT_TRACE_PATH = "knowledge_base/methodology_traces/literature_queries.md"
+DEFAULT_SATURATION_PATH = "knowledge_base/methodology_traces/literature_saturation.json"
 
 READING_EVIDENCE_FIELDS = (
     "Source form actually read",
@@ -674,6 +675,171 @@ def _append_trace_row(
     # Append-only: never rewrite history.
     with trace_path.open("a", encoding="utf-8") as f:
         f.write(row)
+
+
+def _default_saturation_doc(*, topic: str = "", run_id: str = "") -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "topic": str(topic or "").strip(),
+        "run_id": str(run_id or "").strip(),
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "providers": {},
+        "candidate_pool": {
+            "artifact": "",
+            "total_candidates": 0,
+            "selected_core_ids": [],
+            "selection_rationale": "",
+        },
+        "citation_graph": {"seeds": []},
+        "source_first_reading": {
+            "notes": [],
+            "metadata_only_not_evidence_ready": [],
+        },
+        "final_status": "coverage_incomplete",
+        "stop_reason": "initialized; saturation not yet established",
+    }
+
+
+def _read_saturation(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return _default_saturation_doc()
+    data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    if not isinstance(data, dict):
+        raise ValueError(f"saturation artifact must be a JSON object: {path}")
+    return data
+
+
+def _write_saturation(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=True, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _parse_int_arg(value: str, *, name: str, allow_empty: bool = False) -> int | None:
+    s = str(value or "").strip()
+    if not s and allow_empty:
+        return None
+    try:
+        out = int(s)
+    except Exception as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if out < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return out
+
+
+def _split_csv_arg(value: str) -> list[str]:
+    return [item.strip() for item in str(value or "").split(",") if item.strip()]
+
+
+def _saturation_init(*, path: Path, topic: str, run_id: str, force: bool) -> None:
+    if path.exists() and not force:
+        raise FileExistsError(f"refusing to overwrite existing saturation artifact: {path}")
+    _write_saturation(path, _default_saturation_doc(topic=topic, run_id=run_id))
+
+
+def _saturation_add_provider(
+    *,
+    path: Path,
+    provider: str,
+    status: str,
+    query: str,
+    returned_count: int | None,
+    total_count: int | None,
+    total_count_unknown: bool,
+    stop_reason: str,
+    reason: str,
+) -> None:
+    data = _read_saturation(path)
+    providers = data.setdefault("providers", {})
+    if not isinstance(providers, dict):
+        providers = {}
+        data["providers"] = providers
+    rec: dict[str, Any] = {
+        "status": status,
+    }
+    if status == "queried":
+        rec["queries"] = _split_csv_arg(query) or ([query.strip()] if query.strip() else [])
+        rec["returned_count"] = int(returned_count or 0)
+        if total_count is not None:
+            rec["total_count"] = total_count
+        else:
+            rec["total_count_unknown"] = bool(total_count_unknown)
+        rec["stop_reason"] = stop_reason.strip()
+    else:
+        rec["reason"] = reason.strip()
+    providers[provider] = rec
+    data["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_saturation(path, data)
+
+
+def _saturation_set_candidate_pool(
+    *,
+    path: Path,
+    artifact: str,
+    total_candidates: int,
+    selected_core_ids: list[str],
+    selection_rationale: str,
+) -> None:
+    data = _read_saturation(path)
+    data["candidate_pool"] = {
+        "artifact": artifact.strip(),
+        "total_candidates": total_candidates,
+        "selected_core_ids": selected_core_ids,
+        "selection_rationale": selection_rationale.strip(),
+    }
+    data["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_saturation(path, data)
+
+
+def _saturation_add_core(
+    *,
+    path: Path,
+    paper_id: str,
+    provider: str,
+    references_checked: bool,
+    citations_checked: bool,
+    coverage_status: str,
+    gaps: list[str],
+    references_artifact: str,
+    citations_artifact: str,
+) -> None:
+    data = _read_saturation(path)
+    graph = data.setdefault("citation_graph", {})
+    if not isinstance(graph, dict):
+        graph = {}
+        data["citation_graph"] = graph
+    seeds = graph.setdefault("seeds", [])
+    if not isinstance(seeds, list):
+        seeds = []
+        graph["seeds"] = seeds
+    record = {
+        "id": paper_id.strip(),
+        "provider": provider.strip(),
+        "references_checked": bool(references_checked),
+        "citations_checked": bool(citations_checked),
+        "coverage_status": coverage_status.strip(),
+        "artifacts": {
+            "references": references_artifact.strip(),
+            "citations": citations_artifact.strip(),
+        },
+        "gaps": gaps,
+    }
+    for i, existing in enumerate(seeds):
+        if isinstance(existing, dict) and str(existing.get("id") or "").strip() == paper_id.strip():
+            seeds[i] = record
+            break
+    else:
+        seeds.append(record)
+    data["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_saturation(path, data)
+
+
+def _saturation_finalize(*, path: Path, final_status: str, stop_reason: str) -> None:
+    data = _read_saturation(path)
+    data["final_status"] = final_status.strip()
+    data["stop_reason"] = stop_reason.strip()
+    data["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_saturation(path, data)
 
 
 def _slugify_refkey(s: str) -> str:
@@ -1334,6 +1500,46 @@ def main() -> int:
     p.add_argument("--kb-notes", default="")
     p.add_argument("--trace-path", default=DEFAULT_TRACE_PATH)
 
+    p = sub.add_parser("saturation-init", help="Create a literature saturation artifact template (no network).")
+    p.add_argument("--topic", default="")
+    p.add_argument("--run-id", default="")
+    p.add_argument("--path", default=DEFAULT_SATURATION_PATH)
+    p.add_argument("--force", action="store_true")
+
+    p = sub.add_parser("saturation-add-provider", help="Record provider discovery coverage in literature_saturation.json.")
+    p.add_argument("--provider", required=True, choices=["inspire", "arxiv", "openalex", "web", "crossref", "datacite", "zotero", "doi"])
+    p.add_argument("--status", required=True, choices=["queried", "not_applicable", "unavailable"])
+    p.add_argument("--query", default="", help="Comma-separated query variants or one query string.")
+    p.add_argument("--returned-count", default="", help="Non-negative integer required when status=queried.")
+    p.add_argument("--total-count", default="", help="Non-negative integer, or use --total-count-unknown.")
+    p.add_argument("--total-count-unknown", action="store_true")
+    p.add_argument("--stop-reason", default="")
+    p.add_argument("--reason", default="", help="Reason required when status is not_applicable/unavailable.")
+    p.add_argument("--path", default=DEFAULT_SATURATION_PATH)
+
+    p = sub.add_parser("saturation-set-candidate-pool", help="Record candidate-pool artifact and selected core papers.")
+    p.add_argument("--artifact", required=True)
+    p.add_argument("--total-candidates", required=True)
+    p.add_argument("--selected-core-ids", required=True, help="Comma-separated stable ids for core papers.")
+    p.add_argument("--selection-rationale", required=True)
+    p.add_argument("--path", default=DEFAULT_SATURATION_PATH)
+
+    p = sub.add_parser("saturation-add-core", help="Record reference/citation graph checks for one core paper.")
+    p.add_argument("--paper-id", required=True)
+    p.add_argument("--provider", default="inspire")
+    p.add_argument("--references-checked", action="store_true")
+    p.add_argument("--citations-checked", action="store_true")
+    p.add_argument("--coverage-status", default="saturated", choices=["saturated", "coverage_incomplete", "not_covered", "unavailable"])
+    p.add_argument("--gap", action="append", default=[])
+    p.add_argument("--references-artifact", default="")
+    p.add_argument("--citations-artifact", default="")
+    p.add_argument("--path", default=DEFAULT_SATURATION_PATH)
+
+    p = sub.add_parser("saturation-finalize", help="Set final saturation status and stop reason.")
+    p.add_argument("--final-status", required=True, choices=["saturated", "coverage_incomplete"])
+    p.add_argument("--stop-reason", required=True)
+    p.add_argument("--path", default=DEFAULT_SATURATION_PATH)
+
     p = sub.add_parser("workflow-plan", help="Resolve checked-in literature workflow authority through a lower-level consumer into an executable plan.")
     p.add_argument("--recipe", required=True, choices=["literature_gap_analysis", "literature_landscape", "literature_to_evidence"])
     p.add_argument("--phase", required=True)
@@ -1348,6 +1554,69 @@ def main() -> int:
     p.add_argument("--preferred-provider", action="append", default=[])
 
     args = ap.parse_args()
+
+    if args.cmd == "saturation-init":
+        _saturation_init(
+            path=Path(str(getattr(args, "path", DEFAULT_SATURATION_PATH))),
+            topic=str(getattr(args, "topic", "")),
+            run_id=str(getattr(args, "run_id", "")),
+            force=bool(getattr(args, "force", False)),
+        )
+        print(f"[ok] wrote saturation artifact: {getattr(args, 'path', DEFAULT_SATURATION_PATH)}")
+        return 0
+
+    if args.cmd == "saturation-add-provider":
+        status = str(getattr(args, "status", "")).strip()
+        returned_count = _parse_int_arg(str(getattr(args, "returned_count", "")), name="--returned-count", allow_empty=True)
+        total_count = _parse_int_arg(str(getattr(args, "total_count", "")), name="--total-count", allow_empty=True)
+        _saturation_add_provider(
+            path=Path(str(getattr(args, "path", DEFAULT_SATURATION_PATH))),
+            provider=str(getattr(args, "provider", "")),
+            status=status,
+            query=str(getattr(args, "query", "")),
+            returned_count=returned_count,
+            total_count=total_count,
+            total_count_unknown=bool(getattr(args, "total_count_unknown", False)),
+            stop_reason=str(getattr(args, "stop_reason", "")),
+            reason=str(getattr(args, "reason", "")),
+        )
+        print(f"[ok] recorded provider coverage: {getattr(args, 'provider', '')}")
+        return 0
+
+    if args.cmd == "saturation-set-candidate-pool":
+        _saturation_set_candidate_pool(
+            path=Path(str(getattr(args, "path", DEFAULT_SATURATION_PATH))),
+            artifact=str(getattr(args, "artifact", "")),
+            total_candidates=int(_parse_int_arg(str(getattr(args, "total_candidates", "")), name="--total-candidates") or 0),
+            selected_core_ids=_split_csv_arg(str(getattr(args, "selected_core_ids", ""))),
+            selection_rationale=str(getattr(args, "selection_rationale", "")),
+        )
+        print("[ok] recorded candidate pool")
+        return 0
+
+    if args.cmd == "saturation-add-core":
+        _saturation_add_core(
+            path=Path(str(getattr(args, "path", DEFAULT_SATURATION_PATH))),
+            paper_id=str(getattr(args, "paper_id", "")),
+            provider=str(getattr(args, "provider", "")),
+            references_checked=bool(getattr(args, "references_checked", False)),
+            citations_checked=bool(getattr(args, "citations_checked", False)),
+            coverage_status=str(getattr(args, "coverage_status", "")),
+            gaps=[str(item).strip() for item in list(getattr(args, "gap", []) or []) if str(item).strip()],
+            references_artifact=str(getattr(args, "references_artifact", "")),
+            citations_artifact=str(getattr(args, "citations_artifact", "")),
+        )
+        print(f"[ok] recorded core-paper graph check: {getattr(args, 'paper_id', '')}")
+        return 0
+
+    if args.cmd == "saturation-finalize":
+        _saturation_finalize(
+            path=Path(str(getattr(args, "path", DEFAULT_SATURATION_PATH))),
+            final_status=str(getattr(args, "final_status", "")),
+            stop_reason=str(getattr(args, "stop_reason", "")),
+        )
+        print(f"[ok] finalized saturation artifact: {getattr(args, 'path', DEFAULT_SATURATION_PATH)}")
+        return 0
 
     if args.cmd == "workflow-plan":
         if _resolve_workflow_plan is None:

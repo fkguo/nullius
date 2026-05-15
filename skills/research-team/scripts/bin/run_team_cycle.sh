@@ -1282,7 +1282,7 @@ if [[ -f "${KB_GATE_SCRIPT}" ]]; then
   fi
 fi
 
-# Preflight: literature discovery trace gate (query -> selection log).
+# Preflight: literature discovery trace gate (query log + saturation artifact).
 if [[ -f "${LIT_TRACE_GATE_SCRIPT}" ]]; then
   set +e
   python3 "${LIT_TRACE_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
@@ -1295,10 +1295,10 @@ if [[ -f "${LIT_TRACE_GATE_SCRIPT}" ]]; then
       exit ${lt_code}
     fi
     if [[ "${PROJECT_STAGE}" == "exploration" ]] && should_warn_gate_in_exploration "literature_trace_gate"; then
-      echo "[warn] (exploration) literature trace check failed; continuing. Log queries/selection before switching to development." >&2
-      record_exploration_debt "literature_trace_gate" "${lt_code}" "literature query trace missing/empty"
+      echo "[warn] (exploration) literature trace check failed; continuing. Log queries/selection and fill literature_saturation.json before switching to development." >&2
+      record_exploration_debt "literature_trace_gate" "${lt_code}" "literature query trace or saturation artifact missing/incomplete"
     else
-      echo "[gate] Fail-fast: literature trace check failed. Add at least one row to knowledge_base/methodology_traces/literature_queries.md before running the team cycle." >&2
+      echo "[gate] Fail-fast: literature trace check failed. Fill knowledge_base/methodology_traces/literature_queries.md and literature_saturation.json before running the team cycle." >&2
       exit ${lt_code}
     fi
   fi

@@ -43,7 +43,7 @@ DEFAULT_CONFIG: dict = {
         "branch_semantics_gate": True,
         "pointer_lint_gate": True,
         "references_gate": False,
-        "literature_trace_gate": False,
+        "literature_trace_gate": True,
         "notebook_integrity_gate": False,
         # Global Markdown math hygiene gate (scan key docs + knowledge_base for rendering hazards).
         "markdown_math_hygiene_gate": True,
@@ -96,6 +96,8 @@ DEFAULT_CONFIG: dict = {
         "allow_none": True,
     },
     "references": {
+        "trace_log_path": "knowledge_base/methodology_traces/literature_queries.md",
+        "saturation_path": "knowledge_base/methodology_traces/literature_saturation.json",
         "allowed_external_hosts_extra": [],
     },
     "logic_isolation": {
@@ -251,7 +253,7 @@ MODE_DEFAULTS: dict[str, dict] = {
     },
     # Julia-first projects: file-based pointers (e.g. `src/foo.jl:myfunc`).
     "julia_project": {
-        "features": {"pointer_lint_gate": True, "references_gate": True},
+        "features": {"pointer_lint_gate": True, "references_gate": True, "literature_trace_gate": True},
         "pointer_lint": {"strategy": "file_symbol_grep"},
     },
     # Pure-theory milestones/projects: keep capsule, but default-disable compute-heavy gates.
@@ -262,11 +264,19 @@ MODE_DEFAULTS: dict[str, dict] = {
             "branch_semantics_gate": False,
             "pointer_lint_gate": False,
             "references_gate": True,
+            "literature_trace_gate": True,
             "knowledge_layers_gate": False,
         }
     },
     # Pure-numerics projects: keep capsule; keep scan semantics; branch semantics depends on domain.
-    "numerics_only": {"features": {"capsule_gate": True, "scan_dependency_gate": True, "references_gate": True}},
+    "numerics_only": {
+        "features": {
+            "capsule_gate": True,
+            "scan_dependency_gate": True,
+            "references_gate": True,
+            "literature_trace_gate": True,
+        }
+    },
     # Exploratory projects: prefer warn-only by disabling most hard gates; keep capsule for basic provenance.
     "exploratory": {
         "features": {
@@ -275,6 +285,7 @@ MODE_DEFAULTS: dict[str, dict] = {
             "branch_semantics_gate": False,
             "pointer_lint_gate": False,
             "references_gate": False,
+            "literature_trace_gate": False,
             "knowledge_layers_gate": False,
         }
     },
@@ -285,6 +296,7 @@ MODE_DEFAULTS: dict[str, dict] = {
             "branch_semantics_gate": False,
             "pointer_lint_gate": False,
             "references_gate": True,
+            "literature_trace_gate": True,
             "knowledge_layers_gate": True,
         }
     },
@@ -295,6 +307,7 @@ MODE_DEFAULTS: dict[str, dict] = {
             "branch_semantics_gate": True,
             "pointer_lint_gate": True,
             "references_gate": True,
+            "literature_trace_gate": True,
             "knowledge_layers_gate": True,
             "problem_framing_snapshot_gate": True,
         }
@@ -307,12 +320,20 @@ MODE_DEFAULTS: dict[str, dict] = {
             "branch_semantics_gate": True,
             "pointer_lint_gate": True,
             "references_gate": True,
+            "literature_trace_gate": True,
             "knowledge_layers_gate": True,
         },
         "branch_semantics": {"require_when_declared": True},
     },
     # Default mode for this repo's original target audience.
-    "theory_numerics": {"features": {"knowledge_layers_gate": True, "references_gate": True, "problem_framing_snapshot_gate": True}},
+    "theory_numerics": {
+        "features": {
+            "knowledge_layers_gate": True,
+            "references_gate": True,
+            "literature_trace_gate": True,
+            "problem_framing_snapshot_gate": True,
+        }
+    },
 }
 
 

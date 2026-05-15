@@ -106,6 +106,7 @@ or summarize it under `artifacts/runs/<run_id>/research_team/` and keep the
 - **Literature fetch (INSPIRE/arXiv/Crossref/DataCite/DOI/GitHub)**: `scripts/bin/literature_fetch.py` (project-leader source-adapter helper for prework/KB building; reviewers must not use network).
   - Generic literature workflow sequencing authority lives in `literature-workflows` recipes / session protocol plus the checked-in public front door, not in this script.
   - Use `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/literature_fetch.py" workflow-plan ...` when you need the lower-level literature workflow plan consumer during skill-side prework.
+  - Literature/reference/knowledge-evidence work must maintain both `knowledge_base/methodology_traces/literature_queries.md` and `knowledge_base/methodology_traces/literature_saturation.json`; a single result page or fixed paper count is not a completion criterion.
   - Subcommands (arXiv): `arxiv-search`, `arxiv-get --write-note`, `arxiv-source` (syntax: `python3 "${SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/research-team}/scripts/bin/literature_fetch.py" <subcommand> ...`; downloads LaTeX source to `references/arxiv_src/<arxiv_id>/` by default).
 - **Export a portable bundle**: `scripts/bin/export_paper_bundle.sh` (wrapper) / `scripts/bin/export_paper_bundle.py`.
 - **KB index export (deterministic/L1)**: `scripts/bin/kb_export.py` + `scripts/bin/validate_kb_index.py` + `scripts/schemas/kb_index.schema.json`.

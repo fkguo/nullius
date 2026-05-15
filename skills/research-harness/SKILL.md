@@ -74,6 +74,7 @@ Web search may be used first or in parallel to discover candidate papers, non-in
 
 Minimum expectations:
 
+- Treat `50` as a default page/initial-batch size, not a completion threshold. Literature work is complete only after a saturation artifact records provider coverage, candidate-pool rationale, and citation/reference graph checks.
 - For each seed or core paper, check both directions when relevant: papers it references and papers citing it.
 - For claims about paper relationships, source priority, review status, influence, or literature gaps, inspect the citation/reference graph with `hep-mcp` provider tools; do not rely only on search snippets or web pages.
 - For writing-facing work, build or validate bibliography/citation artifacts through `hep-mcp` rather than hand-maintaining citekey authority from web search.

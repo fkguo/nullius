@@ -86,7 +86,10 @@ export interface SkillTrigger {
   /**
    * What kind of repeatable pattern triggered this proposal.
    */
-  pattern_kind?: "fix_pattern" | "methodology_pattern" | "package_usage_pattern";
+  pattern_kind?:
+    | "fix_pattern"
+    | "methodology_pattern"
+    | "package_usage_pattern";
   /**
    * File extensions this skill applies to
    */

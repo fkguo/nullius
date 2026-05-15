@@ -28,7 +28,7 @@ describe('literature workflow resolver', () => {
       action: 'discover.seed_search',
       provider: 'inspire',
       tool: 'inspire_search',
-      params: { query: 'nonlinear sigma model', size: 25 },
+      params: { query: 'nonlinear sigma model', size: 50 },
     });
   });
 
@@ -43,10 +43,12 @@ describe('literature workflow resolver', () => {
     const seedSearch = plan.resolved_steps[0];
     expect(seedSearch?.params).toMatchObject({
       query: 'nonlinear sigma model',
-      size: 25,
+      size: 50,
     });
     expect(seedSearch?.consumer_hints?.search_depth_contract).toMatchObject({
       mode: 'deep',
+      default_page_size: 50,
+      default_page_size_semantics: 'page_size_not_completion_threshold',
       pagination_required: true,
       cursor_or_page_tracking_required: true,
       continuation_required: true,
@@ -57,6 +59,18 @@ describe('literature workflow resolver', () => {
       selection_rationale_required: true,
       query_expansion_expected: true,
       citation_expansion_expected: true,
+    });
+    expect(seedSearch?.consumer_hints?.literature_saturation_contract).toMatchObject({
+      artifact: 'knowledge_base/methodology_traces/literature_saturation.json',
+      saturated_required_for_completion: true,
+      coverage_incomplete_allowed_only_as_debt: true,
+      provider_coverage_required: true,
+      providers_expected: ['inspire', 'arxiv', 'openalex', 'web'],
+      candidate_pool_required: true,
+      core_paper_references_required: true,
+      core_paper_citations_required: true,
+      metadata_only_not_evidence_ready: true,
+      page_size_not_completion_threshold: true,
     });
   });
 
@@ -143,7 +157,7 @@ describe('literature workflow resolver', () => {
         action: 'analyze.citation_network',
         provider: 'inspire',
         tool: 'inspire_network_analysis',
-        params: { mode: 'citation', seed: '1001', limit: 25 },
+        params: { mode: 'citation', seed: '1001', limit: 50 },
       },
       {
         id: 'connection_scan',

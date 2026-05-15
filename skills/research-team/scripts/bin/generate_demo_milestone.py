@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -280,6 +281,94 @@ def _write_if_missing(path: Path, content: str) -> None:
     path.write_text(content.strip() + "\n", encoding="utf-8")
 
 
+def _ensure_demo_literature_trace(root: Path, *, tag: str) -> None:
+    trace = root / "knowledge_base" / "methodology_traces" / "literature_queries.md"
+    trace.parent.mkdir(parents=True, exist_ok=True)
+    if not trace.is_file():
+        trace.write_text(
+            "\n".join(
+                [
+                    "# literature_queries.md",
+                    "",
+                    "| Timestamp (UTC) | Source | Query | Filters / criteria | Shortlist (links) | Decision / notes | Local KB notes |",
+                    "|---|---|---|---|---|---|---|",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    text = trace.read_text(encoding="utf-8", errors="replace")
+    if "demo literature seed" in text:
+        return
+    row = (
+        "| 2026-01-01T00:00:00Z | DOI/manual seed | demo literature seed | page_size=50; demo fixture | "
+        "Bezanson2017 | demo seed for reproducibility workflow only | "
+        "[Bezanson2017](../literature/bezanson2017_julia.md) |\n"
+    )
+    with trace.open("a", encoding="utf-8") as f:
+        f.write(row)
+
+
+def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
+    saturation = root / "knowledge_base" / "methodology_traces" / "literature_saturation.json"
+    saturation.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "schema_version": 1,
+        "topic": "research-team demo fixture",
+        "run_id": tag,
+        "generated_at": "2026-01-01T00:00:00Z",
+        "providers": {
+            "inspire": {
+                "status": "not_applicable",
+                "reason": "demo cites a non-HEP software-methodology paper outside INSPIRE coverage",
+            },
+            "arxiv": {
+                "status": "not_applicable",
+                "reason": "demo seed is a DOI-anchored journal article, not an arXiv-source task",
+            },
+            "openalex": {
+                "status": "not_applicable",
+                "reason": "demo fixture uses a single stable DOI seed and does not claim literature-map completeness",
+            },
+            "web": {
+                "status": "not_applicable",
+                "reason": "no web-only citation evidence is used in the demo fixture",
+            },
+        },
+        "candidate_pool": {
+            "artifact": "knowledge_base/literature/bezanson2017_julia.md",
+            "total_candidates": 1,
+            "selected_core_ids": ["Bezanson2017"],
+            "selection_rationale": "deterministic demo seed for software reproducibility context",
+        },
+        "citation_graph": {
+            "seeds": [
+                {
+                    "id": "Bezanson2017",
+                    "provider": "doi/manual",
+                    "references_checked": False,
+                    "citations_checked": False,
+                    "coverage_status": "not_covered",
+                    "artifacts": {
+                        "references": "",
+                        "citations": "",
+                    },
+                    "gaps": [
+                        "demo fixture does not make citation-graph or literature-gap claims",
+                    ],
+                }
+            ]
+        },
+        "source_first_reading": {
+            "notes": ["knowledge_base/literature/bezanson2017_julia.md"],
+            "metadata_only_not_evidence_ready": [],
+        },
+        "final_status": "saturated",
+        "stop_reason": "demo fixture has one declared seed and makes no broader literature-map claim",
+    }
+    saturation.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def _ensure_mapping_row(notes_text: str, row: str) -> str:
     """
     Ensure research_contract.md Section 6 mapping table has at least one filled row so the
@@ -400,15 +489,27 @@ def main() -> int:
         """# Bezanson et al. 2017 — Julia: A Fresh Approach to Numerical Computing
 
 RefKey: Bezanson2017
+Verification status: spot-checked
+Evidence readiness: evidence-ready
 Authors: J. Bezanson et al.
 Publication: SIAM Rev. 59 (2017) 65
 Links:
 - DOI: https://doi.org/10.1137/141000671
 
+Reading evidence:
+- Source form actually read: available_full_text
+- Sections/pages/equations/figures actually read: Sections: abstract and pp. 65-66 metadata-level software-methodology summary for demo fixture only
+- Central equations/assumptions extracted: Julia is used here as a cited example of reproducible high-performance numerical research tooling; no physics equation is imported from this note
+- What was not read and why: citation graph and full article details are not used because this is a deterministic demo seed, not a literature-map claim
+- Project relevance: documents why the demo workflow may prefer Julia-style reproducible numerical tooling
+- Limitations / caveats for using this note: do not use this note as evidence for physics content or literature coverage
+
 Why we cite it (demo):
 - Reproducibility and performance considerations for numerical research workflows.
 """,
     )
+    _ensure_demo_literature_trace(root, tag=tag)
+    _write_demo_literature_saturation(root, tag=tag)
     _write_if_missing(
         root / kb_meth_rel,
         """# Demo methodology trace — how to verify the demo artifacts

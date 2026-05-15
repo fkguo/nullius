@@ -539,6 +539,14 @@ describe('autoresearch CLI', () => {
     const truncatedSourcePreferenceContract = truncatedSourcePreferenceHints.reading_handoff_contract as Record<string, unknown>;
     truncatedSourcePreferenceContract.source_preference = ['arxiv_latex_source'];
     expect(() => manager.validatePlan(truncatedSourcePreferencePlan)).toThrow(/schema validation failed/);
+
+    const badSaturationContractPlan = JSON.parse(JSON.stringify(persistedState.plan)) as Record<string, unknown>;
+    const badSaturationStep = ((badSaturationContractPlan.steps as Record<string, unknown>[])[0]);
+    const badSaturationExecution = badSaturationStep.execution as Record<string, unknown>;
+    const badSaturationHints = badSaturationExecution.consumer_hints as Record<string, unknown>;
+    const badSaturationContract = badSaturationHints.literature_saturation_contract as Record<string, unknown>;
+    badSaturationContract.saturated_required_for_completion = false;
+    expect(() => manager.validatePlan(badSaturationContractPlan)).toThrow(/schema validation failed/);
   });
 
   it('rejects persisted workflow-plan states that weaken deep literature contracts', async () => {
@@ -601,6 +609,18 @@ describe('autoresearch CLI', () => {
       },
     };
     expect(() => manager.saveState(truncatedPreferenceState)).toThrow(/schema validation failed/);
+
+    const invalidSaturationState = cloneState();
+    const invalidSaturationExecution = firstExecution(invalidSaturationState);
+    const invalidSaturationHints = (invalidSaturationExecution.consumer_hints ?? {}) as Record<string, unknown>;
+    invalidSaturationExecution.consumer_hints = {
+      ...invalidSaturationHints,
+      literature_saturation_contract: {
+        ...(invalidSaturationHints.literature_saturation_contract as Record<string, unknown>),
+        page_size_not_completion_threshold: false,
+      },
+    };
+    expect(() => manager.saveState(invalidSaturationState)).toThrow(/schema validation failed/);
   });
 
   it('persists research brainstorm durable harness plans through workflow-plan', async () => {

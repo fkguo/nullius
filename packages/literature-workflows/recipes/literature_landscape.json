@@ -25,6 +25,8 @@
         "artifact": "seed_search",
         "search_depth_contract": {
           "mode": "deep",
+          "default_page_size": 50,
+          "default_page_size_semantics": "page_size_not_completion_threshold",
           "pagination_required": true,
           "cursor_or_page_tracking_required": true,
           "continuation_required": true,
@@ -35,6 +37,27 @@
           "selection_rationale_required": true,
           "query_expansion_expected": true,
           "citation_expansion_expected": true
+        },
+        "literature_saturation_contract": {
+          "artifact": "knowledge_base/methodology_traces/literature_saturation.json",
+          "final_status_values": [
+            "saturated",
+            "coverage_incomplete"
+          ],
+          "saturated_required_for_completion": true,
+          "coverage_incomplete_allowed_only_as_debt": true,
+          "provider_coverage_required": true,
+          "providers_expected": [
+            "inspire",
+            "arxiv",
+            "openalex",
+            "web"
+          ],
+          "candidate_pool_required": true,
+          "core_paper_references_required": true,
+          "core_paper_citations_required": true,
+          "metadata_only_not_evidence_ready": true,
+          "page_size_not_completion_threshold": true
         },
         "reading_handoff_contract": {
           "mode": "source_first",
@@ -53,7 +76,7 @@
       },
       "params": {
         "query": "<query>",
-        "size": 25
+        "size": 50
       }
     },
     {
@@ -102,12 +125,33 @@
         "phases": [
           "prework"
         ],
-        "artifact": "network_analysis"
+        "artifact": "network_analysis",
+        "literature_saturation_contract": {
+          "artifact": "knowledge_base/methodology_traces/literature_saturation.json",
+          "final_status_values": [
+            "saturated",
+            "coverage_incomplete"
+          ],
+          "saturated_required_for_completion": true,
+          "coverage_incomplete_allowed_only_as_debt": true,
+          "provider_coverage_required": true,
+          "providers_expected": [
+            "inspire",
+            "arxiv",
+            "openalex",
+            "web"
+          ],
+          "candidate_pool_required": true,
+          "core_paper_references_required": true,
+          "core_paper_citations_required": true,
+          "metadata_only_not_evidence_ready": true,
+          "page_size_not_completion_threshold": true
+        }
       },
       "params": {
         "mode": "citation",
         "seed": "<seed_recid>",
-        "limit": 25
+        "limit": 50
       }
     },
     {

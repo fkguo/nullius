@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "topic": "",
+  "run_id": "",
+  "generated_at": "",
+  "providers": {
+    "inspire": {
+      "status": "queried",
+      "queries": [],
+      "returned_count": 0,
+      "total_count_unknown": true,
+      "stop_reason": ""
+    },
+    "arxiv": {
+      "status": "queried",
+      "queries": [],
+      "returned_count": 0,
+      "total_count_unknown": true,
+      "stop_reason": ""
+    },
+    "openalex": {
+      "status": "queried",
+      "queries": [],
+      "returned_count": 0,
+      "total_count_unknown": true,
+      "stop_reason": ""
+    },
+    "web": {
+      "status": "queried",
+      "queries": [],
+      "returned_count": 0,
+      "total_count_unknown": true,
+      "stop_reason": ""
+    }
+  },
+  "candidate_pool": {
+    "artifact": "",
+    "total_candidates": 0,
+    "selected_core_ids": [],
+    "selection_rationale": ""
+  },
+  "citation_graph": {
+    "seeds": []
+  },
+  "source_first_reading": {
+    "notes": [],
+    "metadata_only_not_evidence_ready": []
+  },
+  "final_status": "coverage_incomplete",
+  "stop_reason": "template; replace with the saturation or coverage-incomplete rationale"
+}

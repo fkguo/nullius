@@ -34,13 +34,39 @@ class Status(StrEnum):
     retired = 'retired'
 
 
+class PatternKind(StrEnum):
+    fix_pattern = 'fix_pattern'
+    methodology_pattern = 'methodology_pattern'
+    package_usage_pattern = 'package_usage_pattern'
+
+
 class SkillTrigger(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
     description: Annotated[str, Field(description='Human-readable trigger description')]
+    pattern_kind: Annotated[
+        PatternKind | None,
+        Field(description='What kind of repeatable pattern triggered this proposal.'),
+    ] = None
     file_types: Annotated[
         list[str] | None, Field(description='File extensions this skill applies to')
+    ] = None
+    tool_names: Annotated[
+        list[str] | None,
+        Field(description='Tools that repeatedly appear in the triggering pattern.'),
+    ] = None
+    package_names: Annotated[
+        list[str] | None,
+        Field(
+            description='Scientific or runtime packages that repeatedly appear in the triggering pattern.'
+        ),
+    ] = None
+    workflow_signature: Annotated[
+        str | None,
+        Field(
+            description='Normalized workflow or package signature for recurring process patterns.'
+        ),
     ] = None
     signal_pattern: Annotated[
         str | None, Field(description='Signal pattern that activates this skill')
@@ -55,6 +81,9 @@ class Type(StrEnum):
     add_annotation = 'add_annotation'
     remove_pattern = 'remove_pattern'
     restructure = 'restructure'
+    workflow_recipe = 'workflow_recipe'
+    tool_sequence = 'tool_sequence'
+    package_playbook = 'package_playbook'
 
 
 class SkillAction(BaseModel):
