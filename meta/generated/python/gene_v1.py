@@ -105,11 +105,11 @@ class GeneV1(BaseModel):
     epigenetic_marks: Annotated[
         list[EpigeneticMark] | None,
         Field(
-            default_factory=list,
             description="Environment-specific expression modifiers",
             max_length=10,
+            validate_default=True,
         ),
-    ]
+    ] = []
     confidence: Annotated[
         float | None,
         Field(

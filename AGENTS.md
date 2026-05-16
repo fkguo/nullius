@@ -48,7 +48,7 @@
   - `node scripts/check-shell-boundary-anti-drift.mjs`
   - 受影响包的 targeted `pytest` / `vitest`
   - `pnpm -r build`
-  - 若改动触及 `meta/schemas/`，必须运行 `pnpm codegen:check` 验证 `packages/shared/src/generated/` 与 `meta/generated/` 没有 drift；该检查需要本地已安装 `datamodel-codegen` 与 `ruff`（Python），加上 `pnpm install` 完成的 TS 依赖；CI 必须额外保证 `ruff` 已安装否则 `codegen.sh` 会 fail-closed
+  - 若改动触及 `meta/schemas/`，必须运行 `pnpm codegen:check` 验证 `packages/shared/src/generated/` 与 `meta/generated/` 没有 drift；该检查需要本地已通过 `python3 -m pip install -r meta/scripts/codegen-requirements.txt` 安装 pinned `datamodel-code-generator` 与 `ruff`，加上 `pnpm install` 完成的 TS 依赖；CI 由 `.github/workflows/ci.yml` 装同一个 requirements 文件确保版本一致，否则不同 datamodel-codegen 版本会对同一 schema 产生 drift 的 Python
   - 若改动触及 `AGENTS.md` 或 `CLAUDE.md` 的 governance 段，必须运行 `pnpm check:governance-sync`（或 `node scripts/check-governance-sync.mjs`）确认两文件 governance 区段仍 byte-for-byte 一致
 - 若改动触及 public CLI/help/docs truth，默认还要检查：
   - `packages/orchestrator/tests/autoresearch-cli.test.ts`

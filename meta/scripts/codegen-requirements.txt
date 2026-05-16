@@ -1,0 +1,13 @@
+# Pinned Python tool versions used by meta/scripts/codegen.sh.
+#
+# These versions are reproduced by CI in .github/workflows/ci.yml and should be
+# installed locally before running `pnpm codegen` or `pnpm codegen:check` to
+# avoid generator drift between machines. The pin set is updated together with
+# the committed generated files under meta/generated/python and
+# packages/shared/src/generated.
+#
+# Install:
+#   python3 -m pip install -r meta/scripts/codegen-requirements.txt
+
+datamodel-code-generator==0.57.0
+ruff==0.15.13
