@@ -96,7 +96,11 @@ else
 fi
 
 echo "=== Step 6: Validate generated code ==="
-npx tsc --noEmit --project packages/shared/tsconfig.json
+# tsc is a per-package devDep, not hoisted to the workspace root. `npx tsc` on a
+# fresh CI runner falls back to the npm registry and downloads an unrelated
+# placeholder `tsc@2.0.4` instead of TypeScript. Use pnpm's workspace resolution
+# to call the @autoresearch/shared package's bundled tsc directly.
+pnpm --filter @autoresearch/shared exec tsc --noEmit
 python3 -c "
 import py_compile, glob, sys
 errors = []
