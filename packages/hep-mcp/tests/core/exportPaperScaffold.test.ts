@@ -77,6 +77,9 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
 
     const paperManifest = JSON.parse(String((readHepUri(manifestUri!) as any).text)) as any;
     expect(paperManifest.schemaVersion).toBe(1);
+    expect(paperManifest.version).toBe(1);
+    expect(paperManifest.parent_version).toBeNull();
+    expect(paperManifest.review_ref).toBeNull();
     expect(paperManifest.source?.hepRunId).toBe(run.run_id);
     expect(paperManifest.latex?.mainTex).toBe('main.tex');
     expect(paperManifest.bibliography?.generated).toBe('references_generated.bib');

@@ -740,7 +740,7 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
     }
 
     // Manifest shape is documented by meta/schemas/paper_manifest_v2.schema.json
-    // (covers both schemaVersion 1 and 2 — v1 omits version/parent_version/review_ref).
+    // (covers both schemaVersion 1 and 2 — v1 pins version=1, parent_version=null, review_ref=null).
     const paperManifest = {
       schemaVersion: version === undefined ? 1 : 2,
       generatedAt: nowIso(),
