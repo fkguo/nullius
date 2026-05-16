@@ -13,9 +13,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-  ListResourcesRequestSchema,
-  ListResourceTemplatesRequestSchema,
-  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { getTools, handleToolCall } from './tools/index.js';
@@ -24,13 +21,7 @@ import { logConfigSummary } from './config.js';
 import { ensureDir, getDataDir, getDownloadsDir } from './data/dataDir.js';
 import { cleanupRegisteredDownloadDirs } from './data/downloadSession.js';
 import { isMarkedDirectory } from './data/markers.js';
-import { listHepResourceTemplates, listHepResources, readHepResource } from './core/resources.js';
-import {
-  cleanupOldPdgArtifacts,
-  listPdgResourceTemplates,
-  listPdgResources,
-  readPdgResource,
-} from '@autoresearch/pdg-mcp/tooling';
+import { cleanupOldPdgArtifacts } from '@autoresearch/pdg-mcp/tooling';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -168,7 +159,6 @@ const server = new Server(
   {
     capabilities: {
       tools: {},
-      resources: {},
     },
   }
 );
@@ -176,22 +166,6 @@ const server = new Server(
 // List available tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return { tools: getTools(TOOL_MODE) };
-});
-
-// List available resources
-server.setRequestHandler(ListResourcesRequestSchema, async () => {
-  return { resources: [...listHepResources(), ...listPdgResources()] };
-});
-
-server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
-  return { resourceTemplates: [...listHepResourceTemplates(), ...listPdgResourceTemplates()] };
-});
-
-// Read a resource by URI
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  const uri = request.params.uri;
-  const content = uri.startsWith('pdg://') ? readPdgResource(uri) : readHepResource(uri);
-  return { contents: [content] };
 });
 
 // Handle tool calls

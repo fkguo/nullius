@@ -5,7 +5,7 @@ import * as path from 'path';
 import { unzipSync } from 'fflate';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 import { getRunArtifactPath, getRunDir } from '../../src/core/paths.js';
 
 describe('vNext M4: hep_import_paper_bundle (paper_bundle.zip)', () => {
@@ -58,17 +58,17 @@ describe('vNext M4: hep_import_paper_bundle (paper_bundle.zip)', () => {
     expect(zipUri).toBeTruthy();
     expect(pdfUri).toBeTruthy();
 
-    const bundleManifest = JSON.parse(String((readHepResource(manifestUri!) as any).text)) as any;
+    const bundleManifest = JSON.parse(String((readHepUri(manifestUri!) as any).text)) as any;
     expect(bundleManifest.schemaVersion).toBe('1.0');
     expect(bundleManifest.source?.hepRunId).toBe(run.run_id);
     expect(Array.isArray(bundleManifest.pdfs)).toBe(true);
     expect(bundleManifest.pdfs).toContain('main.pdf');
 
-    const pdfMeta = JSON.parse(String((readHepResource(pdfUri!) as any).text)) as { file_path: string; mimeType?: string };
+    const pdfMeta = JSON.parse(String((readHepUri(pdfUri!) as any).text)) as { file_path: string; mimeType?: string };
     expect(String(pdfMeta.mimeType)).toBe('application/pdf');
     expect(fs.readFileSync(pdfMeta.file_path).subarray(0, 4).toString('utf-8')).toBe('%PDF');
 
-    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as { file_path: string; size: number; mimeType?: string };
+    const zipMeta = JSON.parse(String((readHepUri(zipUri!) as any).text)) as { file_path: string; size: number; mimeType?: string };
     expect(String(zipMeta.mimeType)).toBe('application/zip');
     expect(zipMeta.size).toBeGreaterThan(0);
     const zipBytes = fs.readFileSync(zipMeta.file_path);
@@ -155,7 +155,7 @@ describe('vNext M4: hep_import_paper_bundle (paper_bundle.zip)', () => {
     const zipUri = payload.artifacts.find(a => a.name === 'paper_bundle.zip')?.uri;
     expect(zipUri).toBeTruthy();
 
-    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as { file_path: string };
+    const zipMeta = JSON.parse(String((readHepUri(zipUri!) as any).text)) as { file_path: string };
     const zipBytes = fs.readFileSync(zipMeta.file_path);
     const files = unzipSync(new Uint8Array(zipBytes));
     expect(Object.keys(files)).toContain('paper/main.tex');
@@ -190,7 +190,7 @@ describe('vNext M4: hep_import_paper_bundle (paper_bundle.zip)', () => {
     const payload = JSON.parse(importRes.content[0].text) as { artifacts: Array<{ name: string; uri: string }> };
     const zipUri = payload.artifacts.find(a => a.name === 'paper_bundle.zip')?.uri;
     expect(zipUri).toBeTruthy();
-    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as { file_path: string };
+    const zipMeta = JSON.parse(String((readHepUri(zipUri!) as any).text)) as { file_path: string };
     const zipBytes = fs.readFileSync(zipMeta.file_path);
     const files = unzipSync(new Uint8Array(zipBytes));
     expect(Object.keys(files)).toContain('paper/figures/plot.pdf');

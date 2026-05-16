@@ -8,7 +8,7 @@ import { assertEvalSnapshot, readEvalFixture } from './evalSnapshots.js';
 import { readEvalSetFixture } from './evalSnapshots.js';
 
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/core/resources.js');
+const { readHepUri } = await import('../../src/core/uriReader.js');
 
 type CoverageInput = { draft_fixture: string };
 type CoverageExpected = { snapshot?: string };
@@ -26,8 +26,8 @@ type CoverageReport = {
   human_summary?: string;
 };
 
-function readResourceText(uri: string): string {
-  const resource = readHepResource(uri);
+function readUriText(uri: string): string {
+  const resource = readHepUri(uri);
   if (!('text' in resource)) {
     throw new Error(`Expected text resource: ${uri}`);
   }
@@ -95,7 +95,7 @@ describe('eval: coverage_report completeness (local-only)', () => {
           if (!coverageUri) {
             throw new Error('Missing coverage_report.json artifact');
           }
-          const coverageText = readResourceText(coverageUri);
+          const coverageText = readUriText(coverageUri);
           const coverage = JSON.parse(coverageText) as CoverageReport;
           return coverage;
         },

@@ -5,7 +5,7 @@ import * as path from 'path';
 import { unzipSync } from 'fflate';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 import { getRunArtifactPath } from '../../src/core/paths.js';
 
 function readFixtureJson<T>(fileName: string): T {
@@ -146,15 +146,15 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     expect(digest2).toBeTruthy();
     expect(payload.summary.notebooklm_files).toBeGreaterThanOrEqual(3);
 
-    const reportTex = String((readHepResource(getUri('report.tex')!) as any).text);
+    const reportTex = String((readHepUri(getUri('report.tex')!) as any).text);
     expect(reportTex).toContain('\\cite{Doe:2020ab}');
     expect(reportTex).toContain('\\bibliography{master}');
 
-    const masterBib = String((readHepResource(getUri('master.bib')!) as any).text);
+    const masterBib = String((readHepUri(getUri('master.bib')!) as any).text);
     expect(masterBib).toContain('@misc{Doe:2020ab');
     expect(masterBib).not.toContain('Placeholder reference');
 
-    const coverage = JSON.parse(String((readHepResource(getUri('coverage_report.json')!) as any).text)) as any;
+    const coverage = JSON.parse(String((readHepUri(getUri('coverage_report.json')!) as any).text)) as any;
     // rendered_latex_verification.json is no longer produced (writing pipeline removed),
     // so citations coverage is N/A.
     expect(coverage.citations?.verification_artifact).toBeUndefined();
@@ -167,14 +167,14 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     expect(coverage.sources?.success_rate).toBe('50.0%');
     expect(String(coverage.human_summary)).toContain('Evidence 1/2 sources (50.0%');
 
-    const runManifestText = String((readHepResource(getUri('run_manifest.json')!) as any).text);
-    const notebookRunManifestText = String((readHepResource(getUri('notebooklm_pack_run_manifest.json')!) as any).text);
+    const runManifestText = String((readHepUri(getUri('run_manifest.json')!) as any).text);
+    const notebookRunManifestText = String((readHepUri(getUri('notebooklm_pack_run_manifest.json')!) as any).text);
     expect(runManifestText).toBe(notebookRunManifestText);
     const runManifest = JSON.parse(runManifestText) as { steps?: Array<{ step?: string; status?: string }> };
     expect(runManifest.steps?.some(s => s.step === 'export_project' && s.status === 'done')).toBe(true);
 
     // Zip is a binary artifact: hep:// returns metadata JSON by default (no base64 payload).
-    const zipMeta = JSON.parse(String((readHepResource(getUri('research_pack.zip')!) as any).text)) as {
+    const zipMeta = JSON.parse(String((readHepUri(getUri('research_pack.zip')!) as any).text)) as {
       file_path: string;
       size: number;
       sha256: string;
@@ -256,7 +256,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     const zipUri = payload.artifacts.find(a => a.name === 'research_pack.zip')?.uri;
     expect(zipUri).toBeTruthy();
 
-    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as { file_path: string };
+    const zipMeta = JSON.parse(String((readHepUri(zipUri!) as any).text)) as { file_path: string };
     const zipBytes = fs.readFileSync(zipMeta.file_path);
     const files = unzipSync(new Uint8Array(zipBytes));
     expect(Object.keys(files)).toContain('paper/main.tex');
@@ -313,7 +313,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     const coverageUri = payload.artifacts.find(a => a.name === 'coverage_report.json')?.uri;
     expect(coverageUri).toBeTruthy();
 
-    const coverage = JSON.parse(String((readHepResource(coverageUri!) as any).text)) as any;
+    const coverage = JSON.parse(String((readHepUri(coverageUri!) as any).text)) as any;
     expect(coverage.sources).toBeUndefined();
     expect(String(coverage.human_summary)).toContain('Evidence complete/unknown');
   });
@@ -368,7 +368,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     const zipUri = payload.artifacts.find(a => a.name === 'research_pack.zip')?.uri;
     expect(zipUri).toBeTruthy();
 
-    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as {
+    const zipMeta = JSON.parse(String((readHepUri(zipUri!) as any).text)) as {
       file_path: string;
       size: number;
       sha256: string;

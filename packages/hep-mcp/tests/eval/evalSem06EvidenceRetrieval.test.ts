@@ -20,7 +20,7 @@ import {
 import { BASELINES_DIR, readEvalSetFixture } from './evalSnapshots.js';
 
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/core/resources.js');
+const { readHepUri } = await import('../../src/core/uriReader.js');
 
 type Sem06Input = { query: string };
 type Sem06Expected = { relevant_phrases: string[] };
@@ -35,8 +35,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function readResourceText(uri: string): string {
-  const resource = readHepResource(uri);
+function readUriText(uri: string): string {
+  const resource = readHepUri(uri);
   if (!('text' in resource)) {
     throw new Error(`Expected text resource: ${uri}`);
   }
@@ -274,7 +274,7 @@ describe('eval: SEM-06 evidence retrieval upgrade (local-only)', () => {
           if (!artifactUri) {
             return { rank: null, usedFallback: true, hasGoldMarkerAt10: false };
           }
-          const artifactText = readResourceText(artifactUri);
+          const artifactText = readUriText(artifactUri);
           const artifact = JSON.parse(artifactText) as unknown;
           const hits = extractHits(artifact);
           const exp = (evalCase.expected as Sem06Expected)?.relevant_phrases ?? [];
@@ -388,7 +388,7 @@ describe('eval: SEM-06 evidence retrieval upgrade (local-only)', () => {
           const payload = JSON.parse(res.content[0].text) as { artifacts?: Array<{ uri?: string }> };
           const artifactUri = payload.artifacts?.[0]?.uri;
           if (!artifactUri) return { rank: null, usedFallback: true, hasGoldMarkerAt10: false };
-          const artifactText = readResourceText(artifactUri);
+          const artifactText = readUriText(artifactUri);
           const artifact = JSON.parse(artifactText) as unknown;
           const hits = extractHits(artifact);
           const exp = (evalCase.expected as Sem06Expected)?.relevant_phrases ?? [];

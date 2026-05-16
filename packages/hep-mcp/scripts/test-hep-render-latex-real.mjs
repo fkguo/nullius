@@ -50,6 +50,22 @@ function usage() {
   ].join('\n');
 }
 
+function parseHepRunArtifactUri(uri) {
+  let parsed;
+  try {
+    parsed = new URL(uri);
+  } catch {
+    return undefined;
+  }
+
+  const parts = parsed.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+  if (parsed.protocol !== 'hep:' || parsed.hostname !== 'runs' || parts.length !== 3 || parts[1] !== 'artifact') {
+    return undefined;
+  }
+
+  return { runId: parts[0], artifactName: parts[2] };
+}
+
 const { runId, dataDir, help } = parseArgs(process.argv.slice(2));
 
 if (help) {
@@ -140,8 +156,25 @@ if (typeof latexUri !== 'string' || latexUri.trim().length === 0) {
   process.exit(3);
 }
 
-const latexRes = await client.readResource({ uri: latexUri });
-const latexText = String(latexRes?.contents?.[0]?.text ?? '');
+const parsedLatexUri = parseHepRunArtifactUri(latexUri);
+if (!parsedLatexUri) {
+  console.error(`Unexpected rendered LaTeX artifact URI: ${latexUri}`);
+  await client.close();
+  process.exit(4);
+}
+
+const latexRes = await client.callTool({
+  name: 'hep_run_read_artifact_chunk',
+  arguments: {
+    run_id: parsedLatexUri.runId,
+    artifact_name: parsedLatexUri.artifactName,
+    offset: 0,
+    length: 4096,
+  },
+});
+const latexPayloadText = latexRes.content?.[0]?.text ?? '{}';
+const latexPayload = JSON.parse(latexPayloadText);
+const latexText = Buffer.from(String(latexPayload.chunk_base64 ?? ''), 'base64').toString('utf8');
 
 console.log('\n--- rendered_latex_real.tex (first 300 chars) ---\n');
 console.log(latexText.slice(0, 300));

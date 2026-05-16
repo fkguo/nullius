@@ -5,7 +5,7 @@ import * as path from 'path';
 import { unzipSync } from 'fflate';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 import { getRunArtifactPath } from '../../src/core/paths.js';
 
 describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', () => {
@@ -75,7 +75,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
     expect(manifestUri).toBeTruthy();
     expect(zipUri).toBeTruthy();
 
-    const paperManifest = JSON.parse(String((readHepResource(manifestUri!) as any).text)) as any;
+    const paperManifest = JSON.parse(String((readHepUri(manifestUri!) as any).text)) as any;
     expect(paperManifest.schemaVersion).toBe(1);
     expect(paperManifest.source?.hepRunId).toBe(run.run_id);
     expect(paperManifest.latex?.mainTex).toBe('main.tex');
@@ -83,7 +83,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
     expect(paperManifest.bibliography?.manual).toBe('references_manual.bib');
     expect(paperManifest.checksums?.algorithm).toBe('sha256');
 
-    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as {
+    const zipMeta = JSON.parse(String((readHepUri(zipUri!) as any).text)) as {
       file_path: string;
       size: number;
       sha256: string;
@@ -196,7 +196,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
 
     const manifestUri = v2Payload.artifacts.find(a => a.name === 'paper_manifest.json')?.uri;
     expect(manifestUri).toBeTruthy();
-    const paperManifest = JSON.parse(String((readHepResource(manifestUri!) as any).text)) as any;
+    const paperManifest = JSON.parse(String((readHepUri(manifestUri!) as any).text)) as any;
     expect(paperManifest.schemaVersion).toBe(2);
     expect(paperManifest.version).toBe(2);
     expect(paperManifest.parent_version).toBe(1);
@@ -204,7 +204,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
 
     const zipUri = v2Payload.artifacts.find(a => a.name === 'paper_scaffold.zip')?.uri;
     expect(zipUri).toBeTruthy();
-    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as { file_path: string };
+    const zipMeta = JSON.parse(String((readHepUri(zipUri!) as any).text)) as { file_path: string };
     const zipBytes = fs.readFileSync(zipMeta.file_path);
     const files = unzipSync(new Uint8Array(zipBytes));
     expect(Object.keys(files)).toContain('paper/changes_v1_to_v2.diff');
@@ -295,7 +295,7 @@ describe('vNext M3: hep_export_paper_scaffold (paper/ + paper_scaffold.zip)', ()
     const zipUri = payload.artifacts.find(a => a.name === 'paper_scaffold.zip')?.uri;
     expect(zipUri).toBeTruthy();
 
-    const zipMeta = JSON.parse(String((readHepResource(zipUri!) as any).text)) as { file_path: string };
+    const zipMeta = JSON.parse(String((readHepUri(zipUri!) as any).text)) as { file_path: string };
     const zipBytes = fs.readFileSync(zipMeta.file_path);
     const files = unzipSync(new Uint8Array(zipBytes));
 

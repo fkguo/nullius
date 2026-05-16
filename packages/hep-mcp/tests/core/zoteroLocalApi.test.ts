@@ -12,7 +12,7 @@ vi.mock('../../src/api/client.js', () => ({
 const api = await import('../../src/api/client.js');
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 
 function readFixtureJson<T>(fileName: string): T {
   const fixtureDir = new URL('../fixtures/core/m8/', import.meta.url);
@@ -108,7 +108,7 @@ describe('vNext: Zotero integration', () => {
     const mapUri = payload.artifacts.find(a => a.name === 'zotero_map_v1.json')?.uri;
     expect(mapUri).toBeTruthy();
 
-    const map = JSON.parse((readHepResource(mapUri!) as any).text) as any;
+    const map = JSON.parse((readHepUri(mapUri!) as any).text) as any;
     expect(map.items).toHaveLength(1);
     expect(map.source.concurrency).toBe(2);
     expect(map.items[0].zotero_item_key).toBe('ITEM1234');

@@ -66,7 +66,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'Create a local project (Project/Run foundation) and return `hep://projects/{project_id}` (read details via MCP resources; local-only)',
+      'Create a local project (Project/Run foundation) and return `hep://projects/{project_id}` (local manifest pointer; local-only)',
     zodSchema: HepProjectCreateToolSchema,
     handler: async params => {
       const project = createProject(params);
@@ -86,7 +86,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'Get a project summary + `hep://projects/{project_id}` URI (read the full manifest via MCP resources; local-only)',
+      'Get a project summary + `hep://projects/{project_id}` URI (local manifest pointer; local-only)',
     zodSchema: HepProjectGetToolSchema,
     handler: async params => {
       const project = getProject(params.project_id);
@@ -107,7 +107,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'List local projects (small summaries + `hep://projects/{project_id}` URIs; read details via MCP resources; local-only)',
+      'List local projects (small summaries + `hep://projects/{project_id}` local manifest pointers; local-only)',
     zodSchema: HepProjectListToolSchema,
     handler: async () => {
       const projects = listProjects().map(p => ({
@@ -233,7 +233,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     description:
       'Read a small byte-range chunk from a HEP run artifact (debug helper; returns base64 chunk; local-only). ' +
       'Note: This tool only works for HEP run artifacts (hep://runs/...). ' +
-      'For PDG artifacts (pdg://artifacts/...), use MCP Resources (ReadResource request) instead.',
+      'PDG artifacts live under PDG_DATA_DIR/artifacts; use pdg_info to locate that directory.',
     zodSchema: HepRunReadArtifactChunkToolSchema,
     handler: async params => {
       const { readRunArtifactChunk } = await import('../../core/artifactChunk.js');

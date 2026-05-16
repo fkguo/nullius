@@ -13,7 +13,7 @@ vi.mock('../../src/api/client.js', () => ({
 
 const api = await import('../../src/api/client.js');
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/core/resources.js');
+const { readHepUri } = await import('../../src/core/uriReader.js');
 
 function artifactNameFromUri(uri: string): string {
   const m = uri.match(/\/artifact\/([^/]+)$/);
@@ -89,18 +89,18 @@ describe('Open Roadmap R5: INSPIRE API export + mapping (Evidence-first)', () =>
     expect(payload.summary.exported).toBe(3);
     expect(payload.summary.pages_fetched).toBe(2);
 
-    const exportContent = readHepResource(payload.export_uri) as any;
+    const exportContent = readHepUri(payload.export_uri) as any;
     const lines = (exportContent.text as string).trim().split('\n').map((l: string) => JSON.parse(l));
     expect(lines).toEqual(papers);
 
-    const metaContent = readHepResource(payload.meta_uri) as any;
+    const metaContent = readHepUri(payload.meta_uri) as any;
     const meta = JSON.parse(metaContent.text) as { exported: number; total: number; artifacts: { export_uri: string } };
     expect(meta.exported).toBe(3);
     expect(meta.total).toBe(3);
     expect(meta.artifacts.export_uri).toBe(payload.export_uri);
 
     const manifestUri = `hep://runs/${encodeURIComponent(runPayload.run_id)}/manifest`;
-    const manifest = JSON.parse((readHepResource(manifestUri) as any).text) as {
+    const manifest = JSON.parse((readHepUri(manifestUri) as any).text) as {
       steps: Array<{ step: string; artifacts?: Array<{ name: string }> }>;
     };
 
@@ -135,12 +135,12 @@ describe('Open Roadmap R5: INSPIRE API export + mapping (Evidence-first)', () =>
 
     expect(payload.summary).toMatchObject({ total: 4, matched: 3, not_found: 1, errors: 0 });
 
-    const mappingContent = readHepResource(payload.mapping_uri) as any;
+    const mappingContent = readHepUri(payload.mapping_uri) as any;
     const lines = (mappingContent.text as string).trim().split('\n').map((l: string) => JSON.parse(l));
     expect(lines.map((l: any) => l.status)).toEqual(['matched', 'matched', 'matched', 'not_found']);
     expect(lines.map((l: any) => l.recid)).toEqual(['123', '456', '789', undefined]);
 
-    const metaContent = readHepResource(payload.meta_uri) as any;
+    const metaContent = readHepUri(payload.meta_uri) as any;
     const meta = JSON.parse(metaContent.text) as { matched: number; not_found: number; errors: number; total: number };
     expect(meta).toMatchObject({ total: 4, matched: 3, not_found: 1, errors: 0 });
   });
@@ -189,7 +189,7 @@ describe('Open Roadmap R5: INSPIRE API export + mapping (Evidence-first)', () =>
     expect(payload.meta_uri).toMatch(/^hep:\/\/runs\//);
     expect(payload.summary).toMatchObject({ total: 3, exported: 3, pages_fetched: 2 });
 
-    const exportContent = readHepResource(payload.export_uri) as any;
+    const exportContent = readHepUri(payload.export_uri) as any;
     const lines = (exportContent.text as string).trim().split('\n').map((l: string) => JSON.parse(l));
     expect(lines).toEqual(papers);
   });

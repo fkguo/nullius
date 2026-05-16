@@ -6,18 +6,10 @@ import { getProject, listProjects } from './projects.js';
 import { listRuns } from './runs.js';
 import { getProjectArtifactPath, getProjectPaperEvidenceCatalogPath, getRunArtifactPath, getRunManifestPath } from './paths.js';
 import { getPaper, listPapers } from './papers.js';
-import { makeHepRunManifestUri, makeHepRunsUri } from './runArtifactUri.js';
+import { makeHepRunManifestUri } from './runArtifactUri.js';
 
 
-export interface HepResource {
-  uri: string;
-  name: string;
-  title?: string;
-  description?: string;
-  mimeType?: string;
-}
-
-export type HepResourceContents =
+export type HepUriContents =
   | { uri: string; mimeType?: string; text: string }
   | { uri: string; mimeType?: string; blob: string };
 
@@ -31,10 +23,6 @@ function paperUri(projectId: string, paperId: string): string {
 
 function runManifestUri(runId: string): string {
   return makeHepRunManifestUri(runId);
-}
-
-function runsUri(): string {
-  return makeHepRunsUri();
 }
 
 function guessMimeType(fileName: string): string | undefined {
@@ -82,11 +70,11 @@ function parseHepUri(uri: string):
   try {
     url = new URL(uri);
   } catch {
-    throw invalidParams(`Invalid resource URI: ${uri}`);
+    throw invalidParams(`Invalid HEP URI: ${uri}`);
   }
 
   if (url.protocol !== 'hep:') {
-    throw invalidParams(`Unsupported resource protocol: ${url.protocol}`);
+    throw invalidParams(`Unsupported HEP URI protocol: ${url.protocol}`);
   }
 
   const host = url.host;
@@ -120,79 +108,10 @@ function parseHepUri(uri: string):
     }
   }
 
-  throw notFound(`Unknown resource URI: ${uri}`, { uri });
+  throw notFound(`Unknown HEP URI: ${uri}`, { uri });
 }
 
-export function listHepResources(): HepResource[] {
-  return [
-    {
-      uri: 'hep://projects',
-      name: 'hep_projects',
-      title: 'HEP Projects',
-      description: 'List projects on disk (local-only)',
-      mimeType: 'application/json',
-    },
-    {
-      uri: runsUri(),
-      name: 'hep_runs',
-      title: 'HEP Runs',
-      description: 'List runs on disk (local-only)',
-      mimeType: 'application/json',
-    },
-  ];
-}
-
-export function listHepResourceTemplates(): Array<{
-  name: string;
-  uriTemplate: string;
-  description?: string;
-  mimeType?: string;
-}> {
-  return [
-    {
-      name: 'hep_project',
-      uriTemplate: 'hep://projects/{project_id}',
-      description: 'Read a project manifest by id. Discover ids via hep://projects.',
-      mimeType: 'application/json',
-    },
-    {
-      name: 'hep_project_papers',
-      uriTemplate: 'hep://projects/{project_id}/papers',
-      description: 'List papers in a project.',
-      mimeType: 'application/json',
-    },
-    {
-      name: 'hep_project_artifact',
-      uriTemplate: 'hep://projects/{project_id}/artifact/{artifact_name}',
-      description: 'Read a project artifact by name.',
-    },
-    {
-      name: 'hep_paper',
-      uriTemplate: 'hep://projects/{project_id}/papers/{paper_id}',
-      description: 'Read a paper manifest by id.',
-      mimeType: 'application/json',
-    },
-    {
-      name: 'hep_paper_evidence_catalog',
-      uriTemplate: 'hep://projects/{project_id}/papers/{paper_id}/evidence/catalog',
-      description: 'Read a paper evidence catalog (NDJSON).',
-      mimeType: 'application/x-ndjson',
-    },
-    {
-      name: 'hep_run_manifest',
-      uriTemplate: 'hep://runs/{run_id}/manifest',
-      description: 'Read a run manifest by id. Discover ids via hep://runs.',
-      mimeType: 'application/json',
-    },
-    {
-      name: 'hep_run_artifact',
-      uriTemplate: 'hep://runs/{run_id}/artifact/{artifact_name}',
-      description: 'Read a run artifact by name. Discover artifact names via the run manifest.',
-    },
-  ];
-}
-
-export function readHepResource(uri: string): HepResourceContents {
+export function readHepUri(uri: string): HepUriContents {
   const parsed = parseHepUri(uri);
 
   if (parsed.kind === 'projects_index') {

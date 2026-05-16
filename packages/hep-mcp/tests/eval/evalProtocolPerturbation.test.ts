@@ -15,7 +15,7 @@ import {
 import { assertEvalSnapshot, readEvalSetFixture } from './evalSnapshots.js';
 
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/core/resources.js');
+const { readHepUri } = await import('../../src/core/uriReader.js');
 
 type ProtocolInput = {
   scenario: string;
@@ -44,8 +44,8 @@ type ToolCallSpec = {
   args: Record<string, unknown>;
 };
 
-function readResourceText(uri: string): string {
-  const resource = readHepResource(uri);
+function readUriText(uri: string): string {
+  const resource = readHepUri(uri);
   if (!('text' in resource)) {
     throw new Error(`Expected text resource: ${uri}`);
   }
@@ -77,7 +77,7 @@ function normalizeSuccessSignature(payload: unknown): string[] {
     : undefined;
   if (!artifactUri) return [];
 
-  const artifact = JSON.parse(readResourceText(artifactUri)) as {
+  const artifact = JSON.parse(readUriText(artifactUri)) as {
     fallback?: { reason?: string };
     result?: { hits?: Array<Record<string, unknown>> };
   };

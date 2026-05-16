@@ -14,7 +14,7 @@ vi.mock('../../src/api/rateLimiter.js', () => ({
 const rateLimiter = await import('../../src/api/rateLimiter.js');
 const { clearAllCaches } = await import('../../src/cache/memoryCache.js');
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/core/resources.js');
+const { readHepUri } = await import('../../src/core/uriReader.js');
 
 type DatasetInput = { query: string; sort: string; size: number; max_results: number };
 type DatasetExpected = { total: number; exported: number; pages_fetched: number; has_more: boolean };
@@ -51,8 +51,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function readResourceText(uri: string): string {
-  const resource = readHepResource(uri);
+function readUriText(uri: string): string {
+  const resource = readHepUri(uri);
   if (!('text' in resource)) {
     throw new Error(`Expected text resource: ${uri}`);
   }
@@ -157,9 +157,9 @@ describe('eval: dataset export stability (mocked INSPIRE)', () => {
           output_format: 'jsonl',
         });
         const payload = JSON.parse(exportRes.content[0].text) as DatasetExportPayload;
-        const metaText = readResourceText(payload.meta_uri);
+        const metaText = readUriText(payload.meta_uri);
         const meta = JSON.parse(metaText) as DatasetMeta;
-        const exportText = readResourceText(payload.export_uri);
+        const exportText = readUriText(payload.export_uri);
         const controlNumbers = exportText
           .split('\n')
           .map(line => line.trim())

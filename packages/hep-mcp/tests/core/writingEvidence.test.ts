@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 
 function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex');
@@ -16,8 +16,8 @@ function runArtifactUri(runId: string, artifactName: string): string {
   return `rep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(artifactName)}`;
 }
 
-function readJsonResource<T>(uri: string): T {
-  return JSON.parse(String((readHepResource(uri) as any).text)) as T;
+function readJsonUri<T>(uri: string): T {
+  return JSON.parse(String((readHepUri(uri) as any).text)) as T;
 }
 
 function makeVerificationArtifactRef(runId: string, artifactName: string, content: string) {
@@ -127,7 +127,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(metaUri).toBeTruthy();
     expect(statusUri).toBeTruthy();
 
-    const status = readJsonResource<{
+    const status = readJsonUri<{
       version: number;
       sources: Array<{ source_kind: string; status: string; paper_id?: string; error_code?: string }>;
       summary: { succeeded: number; failed: number; skipped: number };
@@ -140,10 +140,10 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(status.summary.failed).toBe(0);
     expect(status.summary.skipped).toBe(0);
 
-    const meta = readJsonResource<{ pdf: unknown | null }>(metaUri!);
+    const meta = readJsonUri<{ pdf: unknown | null }>(metaUri!);
     expect(meta.pdf).toBeNull();
 
-    const embeddingsText = String((readHepResource(latexEmbeddingsUri!) as any).text);
+    const embeddingsText = String((readHepUri(latexEmbeddingsUri!) as any).text);
     const embLines = embeddingsText.split('\n').filter(Boolean);
     const emb0 = JSON.parse(embLines[0]!) as { evidence_id: string; vector: { dim: number; indices: number[]; values: number[] } };
     expect(typeof emb0.evidence_id).toBe('string');
@@ -151,7 +151,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(Array.isArray(emb0.vector.indices)).toBe(true);
     expect(Array.isArray(emb0.vector.values)).toBe(true);
 
-    const enrichText = String((readHepResource(latexEnrichmentUri!) as any).text);
+    const enrichText = String((readHepUri(latexEnrichmentUri!) as any).text);
     const enrichLines = enrichText.split('\n').filter(Boolean);
     const enrich0 = JSON.parse(enrichLines[0]!) as { evidence_id: string; importance_score: number };
     expect(typeof enrich0.evidence_id).toBe('string');
@@ -176,7 +176,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
 
     const queryUri = semanticPayload.artifacts[0]?.uri;
     expect(queryUri).toBeTruthy();
-    const queryArtifact = readJsonResource<{
+    const queryArtifact = readJsonUri<{
       result: { total_hits: number; hits: Array<{ text_preview: string; paper_id: string }> };
     }>(queryUri!);
     expect(queryArtifact.result.total_hits).toBeGreaterThan(0);
@@ -205,7 +205,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
 
     const unifiedQueryUri = unifiedSemanticPayload.artifacts[0]?.uri;
     expect(unifiedQueryUri).toBeTruthy();
-    const unifiedArtifact = readJsonResource<{
+    const unifiedArtifact = readJsonUri<{
       query: { include_explanation: boolean };
       result: {
         total_hits: number;
@@ -269,7 +269,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     const diagUri = diagRef?.uri;
     expect(diagUri).toBeTruthy();
 
-    const diag = JSON.parse(String((readHepResource(diagUri!) as any).text)) as {
+    const diag = JSON.parse(String((readHepUri(diagUri!) as any).text)) as {
       run_id: string;
       step: string;
       budgets: Array<{ key: string; source?: { kind?: string } }>;
@@ -285,17 +285,17 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
 
     const metaUri = payload.artifacts.find(a => a.name === 'writing_evidence_meta_v1.json')?.uri;
     expect(metaUri).toBeTruthy();
-    const meta = JSON.parse(String((readHepResource(metaUri!) as any).text)) as { warnings?: string[] };
+    const meta = JSON.parse(String((readHepUri(metaUri!) as any).text)) as { warnings?: string[] };
     expect(meta.warnings?.some(w => w.includes('max_evidence_items'))).toBe(true);
 
-    const projectDiag = JSON.parse(String((readHepResource(diag.artifacts.project_diagnostics_uri) as any).text)) as {
+    const projectDiag = JSON.parse(String((readHepUri(diag.artifacts.project_diagnostics_uri) as any).text)) as {
       run_id: string;
       step: string;
     };
     expect(projectDiag.run_id).toBe(run.run_id);
     expect(projectDiag.step).toBe('writing_evidence_enrichment');
 
-    const manifest = JSON.parse(String((readHepResource(`hep://runs/${encodeURIComponent(run.run_id)}/manifest`) as any).text)) as {
+    const manifest = JSON.parse(String((readHepUri(`hep://runs/${encodeURIComponent(run.run_id)}/manifest`) as any).text)) as {
       steps?: Array<{ step: string; artifacts?: Array<{ name: string }> }>;
     };
     const writingStep = manifest.steps?.find(s => s.step === 'writing_evidence_enrichment');
@@ -323,7 +323,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     const statusUri = payload.artifacts.find(a => a.name === 'writing_evidence_source_status.json')?.uri;
     expect(statusUri).toBeTruthy();
 
-    const status = JSON.parse(String((readHepResource(statusUri!) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri!) as any).text)) as {
       sources: Array<{ source_kind: string; status: string }>;
       summary: { succeeded: number; failed: number; skipped: number };
     };
@@ -486,7 +486,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(statusUri).toBeTruthy();
     expect(metaUri).toBeTruthy();
 
-    const status = JSON.parse(String((readHepResource(statusUri!) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri!) as any).text)) as {
       sources: Array<{ source_kind: string; identifier: string; status: string }>;
       summary: { succeeded: number; failed: number };
     };
@@ -506,7 +506,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(status.summary.succeeded).toBe(2);
     expect(status.summary.failed).toBe(0);
 
-    const meta = JSON.parse(String((readHepResource(metaUri!) as any).text)) as {
+    const meta = JSON.parse(String((readHepUri(metaUri!) as any).text)) as {
       bridges: Array<{ artifact_name: string; bridge_kind: string; task_kind: string; target_node_id: string; produced_artifact_count: number }>;
       verification: {
         subject_refs: Array<{ uri: string }>;
@@ -630,7 +630,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(buildRes.isError).toBe(true);
 
     const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri) as any).text)) as {
       sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
       summary: { succeeded: number; failed: number };
     };
@@ -699,7 +699,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(buildRes.isError).toBe(true);
 
     const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri) as any).text)) as {
       sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
       summary: { succeeded: number; failed: number };
     };
@@ -764,7 +764,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(buildRes.isError).toBe(true);
 
     const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri) as any).text)) as {
       sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
       summary: { succeeded: number; failed: number };
     };
@@ -851,7 +851,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(buildRes.isError).toBe(true);
 
     const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri) as any).text)) as {
       sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
       summary: { succeeded: number; failed: number };
     };
@@ -938,7 +938,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(buildRes.isError).toBe(true);
 
     const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri) as any).text)) as {
       sources: Array<{ source_kind: string; identifier: string; status: string; error_code?: string }>;
       summary: { succeeded: number; failed: number };
     };
@@ -968,7 +968,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(buildRes.isError).toBe(true);
 
     const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri) as any).text)) as {
       sources: Array<{ source_kind: string; status: string }>;
       summary: { succeeded: number; failed: number };
     };
@@ -976,7 +976,7 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(status.summary.succeeded).toBe(1);
     expect(status.summary.failed).toBe(1);
 
-    const manifest = JSON.parse(String((readHepResource(`hep://runs/${encodeURIComponent(run.run_id)}/manifest`) as any).text)) as {
+    const manifest = JSON.parse(String((readHepUri(`hep://runs/${encodeURIComponent(run.run_id)}/manifest`) as any).text)) as {
       steps?: Array<{ step: string; artifacts?: Array<{ name: string }> }>;
     };
     const writingStep = manifest.steps?.find(s => s.step === 'writing_evidence_enrichment');
@@ -999,14 +999,14 @@ describe('Open Roadmap writing evidence: hep_run_build_writing_evidence + semant
     expect(buildRes.isError).toBe(true);
 
     const statusUri = `hep://runs/${encodeURIComponent(run.run_id)}/artifact/${encodeURIComponent('writing_evidence_source_status.json')}`;
-    const status = JSON.parse(String((readHepResource(statusUri) as any).text)) as {
+    const status = JSON.parse(String((readHepUri(statusUri) as any).text)) as {
       summary: { succeeded: number; failed: number; skipped: number };
     };
     expect(status.summary.succeeded).toBe(0);
     expect(status.summary.failed).toBe(1);
     expect(status.summary.skipped).toBe(0);
 
-    const manifest = JSON.parse(String((readHepResource(`hep://runs/${encodeURIComponent(run.run_id)}/manifest`) as any).text)) as {
+    const manifest = JSON.parse(String((readHepUri(`hep://runs/${encodeURIComponent(run.run_id)}/manifest`) as any).text)) as {
       steps?: Array<{ step: string; artifacts?: Array<{ name: string }> }>;
     };
     const writingStep = manifest.steps?.find(s => s.step === 'writing_evidence_enrichment');

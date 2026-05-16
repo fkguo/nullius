@@ -49,17 +49,17 @@ export function readRunArtifactChunk(params: {
   const artifactPath = getRunArtifactPath(params.run_id, params.artifact_name);
   if (!fs.existsSync(artifactPath)) {
     // UX guardrail: users sometimes try to read PDG artifacts (pdg://artifacts/...) using this HEP run helper.
-    // PDG artifacts should be fetched via MCP Resources (ReadResource) instead.
+    // PDG artifacts live under PDG_DATA_DIR/artifacts, outside HEP run storage.
     const looksLikePdgArtifact = params.run_id.includes('pdg_') || params.artifact_name.includes('pdg_');
     if (looksLikePdgArtifact) {
       const guessedArtifactName = params.artifact_name.includes('pdg_') ? params.artifact_name : params.run_id;
       throw invalidParams(
-        'This looks like a PDG artifact. PDG artifacts (pdg://artifacts/...) should be read via MCP Resources (ReadResource request), not via hep_run_read_artifact_chunk. ' +
-          "Use fetch_mcp_resource / ReadResource with uri: pdg://artifacts/{artifact_name}.",
+        'This looks like a PDG artifact. hep_run_read_artifact_chunk only reads HEP run artifacts. ' +
+          'Inspect PDG outputs under PDG_DATA_DIR/artifacts, or call pdg_info to locate artifacts_dir.',
         {
           run_id: params.run_id,
           artifact_name: params.artifact_name,
-          suggested_uri: `pdg://artifacts/${guessedArtifactName}`,
+          suggested_artifact_name: guessedArtifactName,
         }
       );
     }

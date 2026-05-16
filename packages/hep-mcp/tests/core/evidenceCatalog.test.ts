@@ -5,7 +5,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 
 describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
   let dataDir: string;
@@ -54,7 +54,7 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
     expect(buildPayload.catalog_uri).toContain('/evidence/catalog');
     expect(buildPayload.summary.by_type).toBeTruthy();
 
-    const catalog = readHepResource(buildPayload.catalog_uri) as any;
+    const catalog = readHepUri(buildPayload.catalog_uri) as any;
     const lines = String(catalog.text)
       .trim()
       .split('\n')
@@ -117,7 +117,7 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
     const semanticPayload = JSON.parse(semanticRes.content[0].text) as { artifacts?: Array<{ uri?: string }> };
     const semanticArtifactUri = semanticPayload.artifacts?.[0]?.uri;
     expect(semanticArtifactUri).toBeTruthy();
-    const semanticArtifact = JSON.parse(String((readHepResource(semanticArtifactUri!) as any).text)) as {
+    const semanticArtifact = JSON.parse(String((readHepUri(semanticArtifactUri!) as any).text)) as {
       semantic?: { implemented?: boolean };
       fallback?: { used?: boolean; reason?: string; data?: { next_actions?: Array<{ tool: string }> } };
       result?: { hits?: Array<{ text_preview?: string }> };
@@ -213,7 +213,7 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
     const unifiedPayload = JSON.parse(unifiedRes.content[0].text) as { artifacts?: Array<{ uri?: string }> };
     const unifiedArtifactUri = unifiedPayload.artifacts?.[0]?.uri;
     expect(unifiedArtifactUri).toBeTruthy();
-    const unifiedArtifact = JSON.parse(String((readHepResource(unifiedArtifactUri!) as any).text)) as {
+    const unifiedArtifact = JSON.parse(String((readHepUri(unifiedArtifactUri!) as any).text)) as {
       semantic?: { implemented?: boolean };
       fallback?: { used?: boolean; reason?: string; data?: { next_actions?: Array<{ tool: string }> } };
     };
@@ -227,7 +227,7 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
     const legacyPayload = JSON.parse(legacyRes.content[0].text) as { artifacts?: Array<{ uri?: string }> };
     const legacyArtifactUri = legacyPayload.artifacts?.[0]?.uri;
     expect(legacyArtifactUri).toBeTruthy();
-    const legacyArtifact = JSON.parse(String((readHepResource(legacyArtifactUri!) as any).text)) as {
+    const legacyArtifact = JSON.parse(String((readHepUri(legacyArtifactUri!) as any).text)) as {
       semantic?: { implemented?: boolean };
       fallback?: { used?: boolean; reason?: string };
     };
@@ -323,7 +323,7 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
 
     expect(p1.hits.map(h => h.evidence_id)).toEqual(p2.hits.map(h => h.evidence_id));
 
-    const diag = JSON.parse(String((readHepResource(p1.diagnostics_uri!) as any).text)) as {
+    const diag = JSON.parse(String((readHepUri(p1.diagnostics_uri!) as any).text)) as {
       project_id: string;
       operation: string;
       budgets: Array<{ key: string; source?: { kind?: string } }>;
@@ -358,7 +358,7 @@ describe('vNext M6: Evidence Catalog v1 (LaTeX)', () => {
     };
     expect(buildPayload.diagnostics_uri).toBeTruthy();
 
-    const diag = JSON.parse(String((readHepResource(buildPayload.diagnostics_uri) as any).text)) as {
+    const diag = JSON.parse(String((readHepUri(buildPayload.diagnostics_uri) as any).text)) as {
       project_id: string;
       operation: string;
       budgets: Array<{ key: string; source?: { kind?: string } }>;

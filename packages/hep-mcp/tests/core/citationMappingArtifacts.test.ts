@@ -15,7 +15,7 @@ const extract = await import('../../src/tools/research/extractBibliography.js');
 const mapper = await import('../../src/tools/research/latex/citekeyMapper.js');
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 
 describe('vNext M5: citation mapping artifacts', () => {
   let dataDir: string;
@@ -98,7 +98,7 @@ describe('vNext M5: citation mapping artifacts', () => {
     ]);
 
     const allowedUri = payload.artifacts.find(a => a.name === 'allowed_citations_v1.json')!.uri;
-    const allowed = JSON.parse((readHepResource(allowedUri) as any).text) as {
+    const allowed = JSON.parse((readHepUri(allowedUri) as any).text) as {
       include_mapped_references: boolean;
       allowed_citations: string[];
     };
@@ -106,7 +106,7 @@ describe('vNext M5: citation mapping artifacts', () => {
     expect(allowed.allowed_citations).toContain('inspire:999');
     expect(allowed.allowed_citations).toContain('inspire:111');
 
-    const manifest = JSON.parse((readHepResource(payload.manifest_uri) as any).text) as {
+    const manifest = JSON.parse((readHepUri(payload.manifest_uri) as any).text) as {
       status: string;
       steps: Array<{ step: string; status: string; artifacts?: Array<{ name: string }> }>;
     };
