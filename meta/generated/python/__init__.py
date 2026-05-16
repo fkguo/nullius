@@ -4,7 +4,6 @@ from .agent_card_v1 import *  # noqa: F401,F403
 from .agent_message_v1 import *  # noqa: F401,F403
 from .analysis_types_v1 import *  # noqa: F401,F403
 from .approval_packet_v1 import *  # noqa: F401,F403
-from .approval_packet_v2 import *  # noqa: F401,F403
 from .artifact_ref_v1 import *  # noqa: F401,F403
 from .capsule_v1 import *  # noqa: F401,F403
 from .computation_evidence_catalog_item_v1 import *  # noqa: F401,F403

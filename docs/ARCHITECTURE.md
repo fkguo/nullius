@@ -39,7 +39,7 @@ This document explains the current front-door architecture of the monorepo. It i
 | --- | --- | --- |
 | Stateful CLI front door | `autoresearch` | Generic lifecycle state, `workflow-plan`, bounded native TS computation, verification, higher-conclusion gating, and proposal decisions |
 | Control-plane MCP/operator surface | `orch_*` | Canonical public MCP/operator counterpart of the same control plane |
-| Lightweight brainstorm harness | `autoresearch workflow-plan --recipe research_brainstorm` | Checked-in planning-only durable harness that persists context, candidate angles, screening, one recommendation, and a `next_contract` handoff without starting heavier workflows |
+| Stateful literature planning | `autoresearch workflow-plan` | Checked-in workflow authority resolved via `@autoresearch/literature-workflows`; persists `.autoresearch/state.json#/plan` and derives `.autoresearch/plan.md`. `research_brainstorm` is the lightweight planning-only recipe variant that emits a `next_contract` handoff without starting heavier workflows |
 | Agent project harness skill | `research-harness` | Market-listed thin skill for Codex / Claude Code / OpenCode to recover project truth, route execution to `autoresearch` / `research-team` / `markdown-hygiene` / `hep-mcp`, and close out verification or handoff |
 | Experimental runtime bridge | `idea_mcp` | `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search `rank.compute` / `node.promote` and bounded negative failure-library reflection stay inside the `idea-engine` runtime contract |
 | Current most mature domain MCP front door | `@autoresearch/hep-mcp` | Project/Run, evidence, writing/export, and provider-local composition |
@@ -89,6 +89,7 @@ The generic lifecycle package writes to real external project roots:
 ```text
 <project_root>/
   .autoresearch/
+    HARNESS
     state.json
     ledger.jsonl
     plan.md

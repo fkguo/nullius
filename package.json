@@ -8,7 +8,9 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "codegen": "bash meta/scripts/codegen.sh",
+    "codegen:check": "bash meta/scripts/codegen.sh && git diff --exit-code -- packages/shared/src/generated meta/generated"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",

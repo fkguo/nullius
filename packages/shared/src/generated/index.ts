@@ -10,7 +10,6 @@ export type {
   PaperSummaryRef,
 } from "./analysis-types-v1.js";
 export * from "./approval-packet-v1.js";
-export * from "./approval-packet-v2.js";
 export type { ArtifactRefV1 } from "./artifact-ref-v1.js";
 export * from "./capsule-v1.js";
 export * from "./computation-evidence-catalog-item-v1.js";

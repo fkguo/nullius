@@ -47,6 +47,7 @@
   - `node scripts/check-shell-boundary-anti-drift.mjs`
   - 受影响包的 targeted `pytest` / `vitest`
   - `pnpm -r build`
+  - 若改动触及 `meta/schemas/`，必须运行 `pnpm codegen:check` 验证 `packages/shared/src/generated/` 与 `meta/generated/` 没有 drift；该检查需要本地已安装 `datamodel-codegen`（Python）与 `pnpm install` 完成的 TS 依赖
 - 若改动触及 public CLI/help/docs truth，默认还要检查：
   - `packages/orchestrator/tests/autoresearch-cli.test.ts`
   - `packages/hep-mcp/tests/docs/docToolDrift.test.ts`
