@@ -28,7 +28,7 @@ Or wire into an MCP client:
 
 ## Composition
 
-`@autoresearch/hep-mcp` aggregates arxiv-mcp's tools under `hep_*` namespaces by default. Set `HEP_ENABLE_ARXIV=0` in the HEP server env to hide them.
+`@autoresearch/hep-mcp` aggregates arxiv-mcp's tools via `packages/hep-mcp/src/tools/registry/projectExtensions.ts` so they appear in the HEP MCP tool list when the HEP server runs. There is no per-provider opt-out env var for arxiv aggregation — it is always present in the HEP composition.
 
 ## Build & test
 
